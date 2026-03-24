@@ -1,0 +1,1488 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>무작위총력전 아수라장 내전</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Black+Han+Sans&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#060d18; --surface:#0d1829; --surface2:#112040; --border:#1a3558;
+  --gold:#c8a84b; --gold-light:#e8d080; --blue:#4fc3f7; --blue-dark:#0277bd;
+  --red:#ef5350; --red-dark:#b71c1c; --green:#00e676; --green-dark:#00a152;
+  --text:#dce8f5; --text-dim:#6e90b8;
+  --tier-iron:#8c8c8c; --tier-bronze:#cd7f32; --tier-silver:#a8a9ad;
+  --tier-gold:#c89b3c; --tier-platinum:#00b4b4; --tier-emerald:#00c77a;
+  --tier-diamond:#5588ff; --tier-master:#9b59b6;
+  --tier-grandmaster:#e84057; --tier-challenger:#00e4ff;
+  --ice1:rgba(130,200,255,0.06);
+  --ice2:rgba(80,160,240,0.04);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif;min-height:100vh;overflow-x:hidden;}
+
+/* ── 칼바람 나락 배경 ── */
+body::before{
+  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    /* 별빛 느낌 점들 */
+    radial-gradient(1px 1px at 15% 12%, rgba(200,230,255,0.6) 0%, transparent 100%),
+    radial-gradient(1px 1px at 42% 8%, rgba(180,220,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 68% 15%, rgba(200,230,255,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 85% 5%, rgba(160,210,255,0.5) 0%, transparent 100%),
+    radial-gradient(1px 1px at 30% 22%, rgba(200,230,255,0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 75% 28%, rgba(180,220,255,0.4) 0%, transparent 100%),
+    radial-gradient(1px 1px at 55% 35%, rgba(200,230,255,0.3) 0%, transparent 100%),
+    /* 얼음 안개 레이어 */
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(60,130,220,0.18) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 40% at 10% 30%, rgba(40,100,200,0.10) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 35% at 90% 25%, rgba(80,160,240,0.10) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 30% at 50% 100%, rgba(30,80,160,0.15) 0%, transparent 60%),
+    /* 깊은 어둠 */
+    linear-gradient(180deg, #040b15 0%, #060d1c 30%, #080f20 60%, #050c18 100%);
+}
+/* 얼음 결정 느낌 오버레이 */
+body::after{
+  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse 120% 60% at 50% 50%, transparent 40%, rgba(10,40,100,0.25) 100%);
+  mix-blend-mode:multiply;
+}
+
+.wrapper{position:relative;z-index:1;max-width:900px;margin:0 auto;padding:24px 16px 60px;}
+.nav-tabs{display:flex;gap:4px;background:rgba(13,24,41,0.85);backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:8px;padding:6px;margin-bottom:20px;}
+.nav-tab{flex:1;padding:10px 6px;border:none;border-radius:6px;background:transparent;color:var(--text-dim);cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:13px;letter-spacing:1px;transition:all 0.2s;text-align:center;}
+.nav-tab.active{background:rgba(26,48,88,0.9);color:var(--gold);border:1px solid rgba(200,168,75,0.3);}
+.tab-content{display:none;} .tab-content.active{display:block;}
+
+/* ── 헤더 ── */
+header{text-align:center;padding:48px 0 32px;position:relative;}
+.version-badge{
+  position:fixed;top:8px;right:10px;z-index:999;
+  font-size:9px;color:rgba(100,140,200,0.5);
+  letter-spacing:1px;font-family:'Noto Sans KR',sans-serif;
+  background:rgba(6,13,24,0.7);border:1px solid rgba(30,60,110,0.3);
+  border-radius:3px;padding:2px 6px;
+  backdrop-filter:blur(4px);
+}
+.logo-badge{
+  display:inline-flex;align-items:center;gap:10px;
+  background:linear-gradient(135deg,rgba(13,24,41,0.9),rgba(17,32,64,0.9));
+  border:1px solid rgba(200,168,75,0.5);border-radius:4px;
+  padding:5px 16px;margin-bottom:14px;
+  font-size:10px;letter-spacing:4px;color:var(--gold);text-transform:uppercase;
+  backdrop-filter:blur(4px);
+}
+.logo-badge::before,.logo-badge::after{content:'❄';font-size:10px;color:rgba(130,200,255,0.7);}
+h1{
+  font-family:'Black Han Sans',sans-serif;
+  font-size:clamp(20px,4.8vw,40px);
+  font-weight:400;
+  letter-spacing:3px;
+  background:linear-gradient(135deg,#a0c8f0 0%,#e8d080 40%,#4fc3f7 70%,#a0d4ff 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  margin-bottom:6px;
+  text-shadow:none;
+  filter:drop-shadow(0 0 20px rgba(80,160,240,0.3));
+  word-break:keep-all;
+}
+header p{color:var(--text-dim);font-size:12px;letter-spacing:1px;}
+.card{background:rgba(13,24,41,0.82);backdrop-filter:blur(10px);border:1px solid rgba(40,80,150,0.4);border-radius:8px;padding:22px;margin-bottom:14px;position:relative;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.4),inset 0 1px 0 rgba(130,200,255,0.06);}
+.card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(80,160,240,0.6),rgba(200,168,75,0.5),rgba(80,160,240,0.6),transparent);}
+.card-title{font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:12px;letter-spacing:2px;color:var(--gold);text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:8px;}
+.card-title::before{content:'';width:3px;height:14px;background:var(--gold);border-radius:2px;flex-shrink:0;}
+.card-title .badge{font-family:'Noto Sans KR',sans-serif;background:var(--blue-dark);color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;letter-spacing:0;}
+.add-row{display:flex;gap:10px;flex-wrap:wrap;}
+.input-group{flex:1;min-width:130px;}
+.input-group label{display:block;font-size:11px;color:var(--text-dim);letter-spacing:1px;margin-bottom:5px;text-transform:uppercase;}
+input[type="text"],select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:9px 12px;font-family:'Noto Sans KR',sans-serif;font-size:14px;transition:border-color 0.2s,box-shadow 0.2s;outline:none;}
+input[type="text"]:focus,select:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(11,196,227,0.1);}
+select option{background:var(--surface2);}
+.btn{padding:9px 20px;border:none;border-radius:4px;font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:13px;letter-spacing:1px;cursor:pointer;transition:all 0.2s;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;}
+.btn-primary{background:linear-gradient(135deg,var(--blue-dark),var(--blue));color:#fff;box-shadow:0 4px 15px rgba(11,196,227,0.25);}
+.btn-primary:hover{transform:translateY(-1px);}
+.btn-gold{background:linear-gradient(135deg,#a07828,var(--gold));color:#0a0e1a;box-shadow:0 4px 15px rgba(200,155,60,0.3);}
+.btn-gold:hover{transform:translateY(-1px);}
+.btn-green{background:linear-gradient(135deg,var(--green-dark),var(--green));color:#0a0e1a;}
+.btn-green:hover{transform:translateY(-1px);}
+.btn-ghost{background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);}
+.btn-ghost:hover{border-color:var(--text-dim);color:var(--text);}
+.btn-danger{background:rgba(232,64,87,0.12);border:1px solid var(--red);color:var(--red);padding:3px 9px;font-size:11px;}
+.btn-danger:hover{background:rgba(232,64,87,0.25);}
+.btn-sm{padding:6px 13px;font-size:12px;}
+.btn:disabled{opacity:0.4;cursor:not-allowed;transform:none!important;}
+#player-list{list-style:none;display:flex;flex-direction:column;gap:7px;}
+#player-list li{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:9px 13px;animation:slideIn 0.2s ease;}
+@keyframes slideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.player-num{font-size:11px;color:var(--text-dim);min-width:18px;font-family:monospace;}
+.player-name{flex:1;font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.player-stats{font-size:11px;color:var(--text-dim);text-align:right;line-height:1.5;}
+.tier-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;}
+.t-iron{background:rgba(140,140,140,0.15);color:var(--tier-iron);border:1px solid var(--tier-iron);}
+.t-bronze{background:rgba(205,127,50,0.15);color:var(--tier-bronze);border:1px solid var(--tier-bronze);}
+.t-silver{background:rgba(168,169,173,0.15);color:var(--tier-silver);border:1px solid var(--tier-silver);}
+.t-gold{background:rgba(200,155,60,0.15);color:var(--tier-gold);border:1px solid var(--tier-gold);}
+.t-platinum{background:rgba(0,180,180,0.15);color:var(--tier-platinum);border:1px solid var(--tier-platinum);}
+.t-emerald{background:rgba(0,199,122,0.15);color:var(--tier-emerald);border:1px solid var(--tier-emerald);}
+.t-diamond{background:rgba(85,136,255,0.15);color:var(--tier-diamond);border:1px solid var(--tier-diamond);}
+.t-master{background:rgba(155,89,182,0.15);color:var(--tier-master);border:1px solid var(--tier-master);}
+.t-grandmaster{background:rgba(232,64,87,0.15);color:var(--tier-grandmaster);border:1px solid var(--tier-grandmaster);}
+.t-challenger{background:rgba(0,228,255,0.15);color:var(--tier-challenger);border:1px solid var(--tier-challenger);}
+.t-unranked{background:rgba(122,139,176,0.1);color:var(--text-dim);border:1px solid var(--border);}
+/* 멤버 체크박스 그리드 */
+.member-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:14px;}
+@media(min-width:480px){.member-grid{grid-template-columns:repeat(3,1fr);}}
+@media(min-width:720px){.member-grid{grid-template-columns:repeat(4,1fr);}}
+.member-chip{display:flex;align-items:center;gap:5px;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:all 0.15s;user-select:none;min-width:0;overflow:hidden;}
+.member-chip:hover{border-color:var(--text-dim);}
+.member-chip.checked{border-color:var(--blue);background:rgba(11,196,227,0.08);}
+.member-chip input[type=checkbox]{appearance:none;width:14px;height:14px;min-width:14px;border:1.5px solid var(--border);border-radius:3px;background:var(--surface);flex-shrink:0;cursor:pointer;transition:all 0.15s;position:relative;}
+.member-chip.checked input[type=checkbox]{background:var(--blue);border-color:var(--blue);}
+.member-chip.checked input[type=checkbox]::after{content:'✓';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:9px;color:#fff;font-weight:700;}
+.member-chip-name{font-weight:700;font-size:11px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.member-chip-tier{font-size:8px;flex-shrink:0;padding:1px 4px;}
+.member-select-actions{display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap;}
+.member-select-actions span{font-size:11px;color:var(--text-dim);}
+.new-player-toggle{font-size:12px;color:var(--blue);cursor:pointer;background:none;border:none;padding:0;letter-spacing:0;font-family:'Noto Sans KR',sans-serif;text-decoration:underline;margin-left:auto;}
+.new-player-form{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:14px;margin-bottom:14px;display:none;}
+.new-player-form.open{display:block;}
+.mode-tabs{display:flex;gap:8px;margin-bottom:16px;}
+.mode-tab{flex:1;padding:11px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text-dim);cursor:pointer;text-align:center;font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:13px;letter-spacing:1px;transition:all 0.2s;}
+.mode-tab.active{border-color:var(--gold);color:var(--gold);background:rgba(200,155,60,0.08);}
+.mode-tab span{display:block;font-size:10px;font-family:'Noto Sans KR',sans-serif;font-weight:300;margin-top:2px;color:var(--text-dim);}
+.size-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center;}
+.size-btn{padding:7px 18px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text-dim);cursor:pointer;font-family:'Black Han Sans',sans-serif;font-size:15px;transition:all 0.15s;}
+.size-btn.active{border-color:var(--blue);color:var(--blue);background:rgba(11,196,227,0.08);}
+.size-label{font-size:11px;color:var(--text-dim);}
+.action-row{display:flex;gap:8px;flex-wrap:wrap;}
+.divider{height:1px;background:var(--border);margin:16px 0;}
+.warning{color:#f0a020;font-size:12px;padding:8px 12px;background:rgba(240,160,32,0.08);border:1px solid rgba(240,160,32,0.2);border-radius:4px;margin-bottom:12px;}
+.empty-state{text-align:center;padding:28px;color:var(--text-dim);font-size:13px;}
+.empty-state .icon{font-size:32px;margin-bottom:8px;}
+#result-section{display:none;}
+.result-header{text-align:center;margin-bottom:20px;}
+.result-header h2{font-family:'Black Han Sans',sans-serif;font-size:20px;color:var(--gold-light);letter-spacing:2px;}
+.result-header p{font-size:11px;color:var(--text-dim);margin-top:3px;}
+.teams-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+@media(max-width:540px){.teams-grid{grid-template-columns:1fr;}}
+.team-card{border-radius:8px;overflow:hidden;border:1px solid;animation:popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275) both;}
+.team-card:nth-child(2){animation-delay:0.1s;}
+@keyframes popIn{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
+.team-blue{border-color:var(--blue-dark);}
+.team-red{border-color:var(--red-dark);}
+.team-header{padding:12px 16px;font-family:'Black Han Sans',sans-serif;font-size:16px;letter-spacing:2px;display:flex;justify-content:space-between;align-items:center;}
+.team-blue .team-header{background:linear-gradient(135deg,#051525,#0a3050);color:var(--blue);}
+.team-red .team-header{background:linear-gradient(135deg,#1a0508,#3a0a15);color:var(--red);}
+.team-avg{font-size:11px;font-family:'Noto Sans KR',sans-serif;font-weight:300;color:var(--text-dim);}
+.team-players{background:var(--surface2);}
+.team-player{display:flex;align-items:center;gap:8px;padding:9px 16px;border-bottom:1px solid var(--border);}
+.team-player:last-child{border-bottom:none;}
+.team-player-name{flex:1;font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.balance-bar-wrap{margin-top:16px;background:var(--surface2);border-radius:6px;padding:14px 16px;border:1px solid var(--border);}
+.balance-label{display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-bottom:7px;}
+.balance-bar{height:7px;border-radius:4px;background:var(--border);overflow:hidden;}
+.balance-fill{height:100%;border-radius:4px;transition:width 0.8s cubic-bezier(0.25,1,0.5,1);}
+.record-panel{margin-top:16px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;}
+.record-panel-title{font-family:'Black Han Sans',sans-serif;font-size:13px;color:var(--gold);letter-spacing:2px;margin-bottom:14px;}
+.winner-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+.winner-btn{padding:14px;border-radius:6px;border:2px solid transparent;cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:14px;letter-spacing:1px;transition:all 0.2s;background:var(--surface);color:var(--text-dim);}
+.winner-btn.blue{border-color:var(--blue-dark);color:var(--blue);}
+.winner-btn.red{border-color:var(--red-dark);color:var(--red);}
+.winner-btn.selected-blue{background:linear-gradient(135deg,#051525,#0a3050);border-color:var(--blue);box-shadow:0 0 20px rgba(11,196,227,0.3);}
+.winner-btn.selected-red{background:linear-gradient(135deg,#1a0508,#3a0a15);border-color:var(--red);box-shadow:0 0 20px rgba(232,64,87,0.3);}
+.winner-btn span{display:block;font-size:10px;font-family:'Noto Sans KR',sans-serif;font-weight:300;color:var(--text-dim);margin-top:2px;}
+.lb-row{display:grid;grid-template-columns:36px 1fr auto;grid-template-rows:auto auto;align-items:center;column-gap:8px;row-gap:2px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;margin-bottom:7px;cursor:pointer;transition:background 0.15s;}
+.lb-row:hover{background:rgba(11,196,227,0.05);}
+.lb-rank{font-family:'Black Han Sans',sans-serif;text-align:center;grid-row:1/3;align-self:center;}
+.lb-name{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;grid-column:2;grid-row:1;}
+.lb-right{grid-column:3;grid-row:1/3;display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;}
+.lb-stats{text-align:right;font-size:11px;line-height:1.5;color:var(--text-dim);}
+.lb-winrate{font-size:15px;font-weight:700;font-family:'Black Han Sans',sans-serif;}
+.lb-sub{grid-column:2;grid-row:2;display:flex;flex-wrap:wrap;gap:3px;align-items:center;min-width:0;}
+.wr-high{color:var(--green);} .wr-mid{color:var(--gold);} .wr-low{color:var(--red);}
+.match-item{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:8px;}
+.match-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap;}
+.match-date{font-size:11px;color:var(--text-dim);}
+.match-winner-badge{font-size:11px;font-family:'Black Han Sans',sans-serif;letter-spacing:1px;padding:2px 8px;border-radius:3px;}
+.mw-blue{background:rgba(11,196,227,0.15);color:var(--blue);border:1px solid var(--blue-dark);}
+.mw-red{background:rgba(232,64,87,0.15);color:var(--red);border:1px solid var(--red-dark);}
+.match-teams{display:grid;grid-template-columns:1fr 20px 1fr;gap:6px;align-items:center;}
+.match-team{font-size:11px;color:var(--text-dim);}
+.match-team.winner{color:var(--text);}
+.match-vs{text-align:center;font-family:'Black Han Sans',sans-serif;font-size:11px;color:var(--text-dim);}
+.match-del{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:0 2px;flex-shrink:0;}
+.match-del:hover{color:var(--red);}
+/* 동기화 상태 바 */
+.sync-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;margin-bottom:14px;font-size:12px;color:var(--text-dim);}
+.sync-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;transition:background 0.3s;}
+.sync-dot.ok{background:var(--green);box-shadow:0 0 6px var(--green);}
+.sync-dot.syncing{background:var(--gold);animation:pulse 0.8s infinite;}
+.sync-dot.err{background:var(--red);}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.2}}
+/* 실시간 뱃지 */
+.live-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;color:var(--green);background:rgba(0,199,122,0.1);border:1px solid rgba(0,199,122,0.3);border-radius:10px;padding:1px 7px;margin-left:6px;}
+.live-dot{width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 1s infinite;}
+/* ── 이벤트 매치 ── */
+.event-badge{display:inline-flex;align-items:center;gap:5px;font-size:10px;background:linear-gradient(135deg,rgba(200,155,60,0.2),rgba(232,64,87,0.15));border:1px solid var(--gold);border-radius:10px;padding:2px 10px;color:var(--gold-light);letter-spacing:1px;font-family:'Black Han Sans',sans-serif;}
+.event-size-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:14px;}
+/* 이벤트 인원 버튼 — size-btn과 동일한 스타일 기반 */
+.event-size-btn{padding:7px 18px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text-dim);cursor:pointer;font-family:'Black Han Sans',sans-serif;font-size:15px;transition:all 0.15s;min-width:44px;text-align:center;}
+.event-size-btn:hover{border-color:var(--text-dim);}
+.event-size-btn.active-blue{border-color:var(--blue);color:var(--blue);background:rgba(11,196,227,0.08);}
+.event-size-btn.active-red{border-color:var(--red);color:var(--red);background:rgba(232,64,87,0.08);}
+.event-vs{font-family:'Black Han Sans',sans-serif;font-size:14px;color:var(--text-dim);padding:0 4px;}
+.event-size-input{display:none;}
+.handicap-box{margin-top:14px;background:linear-gradient(135deg,rgba(200,155,60,0.08),rgba(232,64,87,0.06));border:1px solid var(--gold);border-radius:8px;padding:14px 16px;text-align:center;animation:popIn 0.5s cubic-bezier(0.175,0.885,0.32,1.275);}
+.handicap-title{font-family:'Black Han Sans',sans-serif;font-size:12px;color:var(--gold);letter-spacing:2px;margin-bottom:10px;}
+/* ── 챔피언 분류 프로필 ── */
+.lb-row{cursor:pointer;transition:background 0.15s;}
+.lb-row:hover{background:rgba(11,196,227,0.05);}
+.profile-panel{display:none;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:14px;margin-bottom:8px;animation:slideIn 0.2s ease;}
+.profile-panel.open{display:block;}
+.profile-panel-title{font-size:11px;color:var(--gold);letter-spacing:1px;font-family:'Black Han Sans',sans-serif;margin-bottom:10px;}
+.champ-section{margin-bottom:12px;}
+.champ-section-label{font-size:10px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
+.champ-class-grid{display:flex;flex-wrap:wrap;gap:6px;}
+.champ-class-btn{padding:5px 10px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text-dim);cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;transition:all 0.15s;display:flex;align-items:center;gap:4px;}
+.champ-class-btn.selected-1{border-color:var(--gold);background:rgba(200,155,60,0.15);color:var(--gold-light);}
+.champ-class-btn.selected-2{border-color:var(--blue);background:rgba(11,196,227,0.1);color:var(--blue);}
+.champ-class-btn:hover{border-color:var(--text-dim);}
+.profile-save-row{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;}
+/* 한마디 */
+.motto-section{margin-bottom:12px;}
+.motto-input-wrap{position:relative;display:flex;align-items:center;}
+.motto-input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:8px 48px 8px 12px;font-family:'Noto Sans KR',sans-serif;font-size:13px;outline:none;transition:border-color 0.2s;}
+.motto-input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(11,196,227,0.1);}
+.motto-counter{position:absolute;right:10px;font-size:10px;color:var(--text-dim);}
+.motto-display{font-size:11px;color:var(--text-dim);font-style:italic;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* 팀결과 포지션 아이콘 */
+.pos-icons{display:flex;gap:3px;flex-wrap:wrap;margin-top:3px;}
+.pos-icon{font-size:11px;padding:1px 5px;border-radius:3px;line-height:1.4;}
+.pos-icon.tier1{background:rgba(200,155,60,0.2);border:1px solid rgba(200,155,60,0.4);color:var(--gold-light);}
+.pos-icon.tier2{background:rgba(11,196,227,0.1);border:1px solid rgba(11,196,227,0.25);color:var(--blue);}
+.handicap-name{font-family:'Black Han Sans',sans-serif;font-size:22px;background:linear-gradient(135deg,var(--gold-light),var(--red));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:4px;}
+.handicap-desc{font-size:11px;color:var(--text-dim);line-height:1.6;}
+.event-no-save{font-size:11px;color:var(--gold);background:rgba(200,155,60,0.08);border:1px solid rgba(200,155,60,0.2);border-radius:4px;padding:6px 10px;text-align:center;margin-bottom:10px;}
+footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;letter-spacing:1px;}
+/* ── 챔피언 분류 프로필 ── */
+.lb-row{cursor:pointer;transition:background 0.15s;}
+.lb-row:hover{background:rgba(11,196,227,0.05);}
+.profile-panel{display:none;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:14px;margin-bottom:8px;animation:slideIn 0.2s ease;}
+.profile-panel.open{display:block;}
+.profile-panel-title{font-size:11px;color:var(--gold);letter-spacing:1px;font-family:'Black Han Sans',sans-serif;margin-bottom:10px;}
+.champ-section{margin-bottom:12px;}
+.champ-section-label{font-size:10px;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;}
+.champ-class-grid{display:flex;flex-wrap:wrap;gap:6px;}
+.champ-class-btn{padding:5px 10px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text-dim);cursor:pointer;font-size:12px;font-family:'Noto Sans KR',sans-serif;transition:all 0.15s;display:flex;align-items:center;gap:4px;}
+.champ-class-btn.selected-1{border-color:var(--gold);background:rgba(200,155,60,0.15);color:var(--gold-light);}
+.champ-class-btn.selected-2{border-color:var(--blue);background:rgba(11,196,227,0.1);color:var(--blue);}
+.champ-class-btn:hover{border-color:var(--text-dim);}
+.profile-save-row{display:flex;gap:8px;justify-content:flex-end;margin-top:10px;}
+.pos-icons{display:flex;gap:3px;flex-wrap:wrap;margin-top:3px;}
+.pos-icon{font-size:11px;padding:1px 5px;border-radius:3px;line-height:1.4;}
+.pos-icon.tier1{background:rgba(200,155,60,0.2);border:1px solid rgba(200,155,60,0.4);color:var(--gold-light);}
+.pos-icon.tier2{background:rgba(11,196,227,0.1);border:1px solid rgba(11,196,227,0.25);color:var(--blue);}
+/* ── 웬수 링 ── */
+.enemy-rings{display:flex;gap:3px;flex-shrink:0;}
+.enemy-ring{width:12px;height:12px;border-radius:2px;border:2.5px solid;flex-shrink:0;position:relative;cursor:help;}
+/* 웬수 범례 */
+.enemy-legend{margin-top:8px;background:rgba(30,10,10,0.6);border:1px solid rgba(232,64,87,0.3);border-radius:6px;padding:12px 14px;}
+.enemy-legend-title{font-size:11px;color:var(--red);letter-spacing:1px;font-family:'Black Han Sans',sans-serif;margin-bottom:8px;}
+/* ── 저장 완료 패널 ── */
+.save-done-panel{display:none;margin-top:12px;background:linear-gradient(135deg,rgba(0,40,20,0.7),rgba(0,60,30,0.5));border:1px solid rgba(0,199,122,0.4);border-radius:8px;padding:16px;text-align:center;animation:popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275);}
+.save-done-panel.show{display:block;}
+.save-done-title{font-family:'Black Han Sans',sans-serif;font-size:16px;color:var(--green);letter-spacing:2px;margin-bottom:4px;}
+.save-done-sub{font-size:11px;color:var(--text-dim);margin-bottom:14px;}
+.save-done-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+/* ── 케미 링 ── */
+.team-player{position:relative;}
+.chemi-rings{display:flex;gap:3px;flex-shrink:0;}
+.chemi-ring{width:12px;height:12px;border-radius:50%;border:2.5px solid;flex-shrink:0;position:relative;}
+.chemi-ring[title]{cursor:help;}
+/* 케미 범례 */
+.chemi-legend{margin-top:14px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px 14px;}
+.chemi-legend-title{font-size:11px;color:var(--gold);letter-spacing:1px;font-family:'Black Han Sans',sans-serif;margin-bottom:8px;}
+.chemi-legend-rows{display:flex;flex-direction:column;gap:5px;}
+.chemi-legend-row{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-dim);}
+.chemi-legend-swatch{width:12px;height:12px;border-radius:50%;border:2.5px solid;flex-shrink:0;}
+.chemi-wr-high{color:var(--green);}
+.chemi-wr-mid{color:var(--gold);}
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+<div class="version-badge">v1.5.6</div>
+<header>
+  <div class="logo-badge">ARAM Custom</div>
+  <h1>무작위 총력전 아수라장 내전</h1>
+</header>
+
+<!-- 동기화 상태 -->
+<div class="sync-bar">
+  <div class="sync-dot syncing" id="sync-dot"></div>
+  <span id="sync-msg">Firebase 연결 중...</span>
+  <span class="live-badge" id="live-badge" style="display:none"><span class="live-dot"></span>실시간 연결</span>
+  <button class="btn btn-ghost btn-sm" style="margin-left:auto;padding:4px 10px;font-size:11px" onclick="manualSync()">🔄 새로고침</button>
+</div>
+
+<!-- 탭 -->
+<div class="nav-tabs">
+  <button class="nav-tab active" onclick="showTab('tab-team',this)">⚔️ 팀짜기</button>
+  <button class="nav-tab" onclick="showTab('tab-record',this)">📋 경기 기록</button>
+  <button class="nav-tab" onclick="showTab('tab-rank',this)">🏆 랭킹</button>
+</div>
+
+<!-- ===== TAB: 팀짜기 ===== -->
+<div id="tab-team" class="tab-content active">
+  <div class="card">
+    <div class="card-title">참가자 선택</div>
+
+    <!-- 등록된 멤버 체크박스 -->
+    <div id="member-grid-wrap">
+      <div class="empty-state" id="member-empty" style="padding:18px;">
+        <div class="icon" style="font-size:24px;">👥</div>
+        아직 등록된 팀원이 없어요<br>
+        <small style="font-size:11px;margin-top:4px;display:block">아래 버튼으로 첫 팀원을 추가해주세요</small>
+      </div>
+      <div class="member-select-actions" id="member-actions" style="display:none;">
+        <span id="checked-count-label" style="font-weight:700;color:var(--blue);">0명 선택됨</span>
+        <button class="btn btn-ghost btn-sm" onclick="selectAll()">전체 선택</button>
+        <button class="btn btn-ghost btn-sm" onclick="selectNone()">전체 해제</button>
+        <button class="new-player-toggle" onclick="toggleNewForm()">+ 새 팀원 추가</button>
+      </div>
+      <div class="member-grid" id="member-grid"></div>
+    </div>
+
+    <!-- 새 팀원 추가 폼 -->
+    <div class="new-player-form" id="new-player-form">
+      <div style="font-size:11px;color:var(--gold);letter-spacing:1px;margin-bottom:10px;font-family:'Black Han Sans',sans-serif;">새 팀원 등록</div>
+      <div class="add-row">
+        <div class="input-group" style="min-width:150px">
+          <label>닉네임</label>
+          <input type="text" id="inp-name" placeholder="소환사 닉네임" maxlength="20">
+        </div>
+        <div class="input-group" style="max-width:150px">
+          <label>초기 티어</label>
+          <select id="inp-tier">
+            <option value="auto">🤖 자동 (승률기반)</option>
+            <option value="unranked">언랭크</option>
+            <option value="iron">아이언</option>
+            <option value="bronze">브론즈</option>
+            <option value="silver">실버</option>
+            <option value="gold">골드</option>
+            <option value="platinum">플래티넘</option>
+            <option value="emerald">에메랄드</option>
+            <option value="diamond">다이아</option>
+            <option value="master">마스터</option>
+            <option value="grandmaster">그랜드마스터</option>
+            <option value="challenger">챌린저</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:6px;">
+          <button class="btn btn-primary" onclick="registerNewPlayer()">➕ 등록</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleNewForm()" style="height:38px;">취소</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 새 팀원 추가 버튼 (멤버 없을 때) -->
+    <div id="first-add-btn" style="text-align:center;display:none;">
+      <button class="btn btn-primary" onclick="toggleNewForm()" style="margin-top:4px;">➕ 첫 팀원 추가하기</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- 현재 세션 선택 목록 -->
+    <ul id="player-list"></ul>
+    <div id="empty-players" class="empty-state" style="padding:16px;">
+      <div class="icon" style="font-size:24px;">☝️</div>위에서 팀원을 체크해주세요
+    </div>
+
+    <div class="action-row" style="margin-top:12px;justify-content:flex-end;">
+      <button class="btn btn-primary btn-sm" onclick="applyChecked()" id="apply-btn">✅ 선택 완료</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">팀 구성 설정</div>
+
+    <!-- 일반 / 이벤트 탭 -->
+    <div class="mode-tabs" style="margin-bottom:18px;">
+      <div class="mode-tab active" id="match-tab-normal" onclick="setMatchType('normal')">⚔️ 일반 매치<span>티어 반영됨</span></div>
+      <div class="mode-tab" id="match-tab-event" onclick="setMatchType('event')">🎉 이벤트 매치<span>티어 미반영 · 인원 자유</span></div>
+    </div>
+
+    <!-- 일반 매치 설정 -->
+    <div id="normal-config">
+      <div class="size-row">
+        <button class="size-btn active" data-size="3" onclick="setSize(3)">3:3</button>
+        <button class="size-btn" data-size="4" onclick="setSize(4)">4:4</button>
+        <button class="size-btn" data-size="5" onclick="setSize(5)">5:5</button>
+      </div>
+      <div class="mode-tabs">
+        <div class="mode-tab active" data-mode="balance" onclick="setMode('balance')">⚖️ 실력 밸런스<span>티어로 균형 맞추기</span></div>
+        <div class="mode-tab" data-mode="random" onclick="setMode('random')">🎲 완전 랜덤<span>운에 맡기자</span></div>
+      </div>
+    </div>
+
+    <!-- 이벤트 매치 설정 -->
+    <div id="event-config" style="display:none;">
+      <!-- hidden inputs (JS 호환용) -->
+      <input type="number" class="event-size-input" id="event-size-a" value="2" min="1" max="9">
+      <input type="number" class="event-size-input" id="event-size-b" value="3" min="1" max="9">
+
+      <div class="size-row" style="margin-bottom:10px;">
+        <span class="size-label" style="color:var(--blue);font-weight:700;">🔵 블루팀</span>
+        <button class="event-size-btn" data-team="a" data-val="2" onclick="setEventSize('a',2)">2</button>
+        <button class="event-size-btn active-blue" data-team="a" data-val="3" onclick="setEventSize('a',3)">3</button>
+        <button class="event-size-btn" data-team="a" data-val="4" onclick="setEventSize('a',4)">4</button>
+        <button class="event-size-btn" data-team="a" data-val="5" onclick="setEventSize('a',5)">5</button>
+      </div>
+      <div class="size-row" style="margin-bottom:14px;">
+        <span class="size-label" style="color:var(--red);font-weight:700;">🔴 레드팀</span>
+        <button class="event-size-btn" data-team="b" data-val="2" onclick="setEventSize('b',2)">2</button>
+        <button class="event-size-btn" data-team="b" data-val="3" onclick="setEventSize('b',3)">3</button>
+        <button class="event-size-btn active-red" data-team="b" data-val="4" onclick="setEventSize('b',4)">4</button>
+        <button class="event-size-btn" data-team="b" data-val="5" onclick="setEventSize('b',5)">5</button>
+      </div>
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;padding:8px 12px;background:rgba(200,155,60,0.06);border:1px solid rgba(200,155,60,0.15);border-radius:4px;">
+        🎉 이벤트 매치는 경기 결과가 <strong style="color:var(--gold)">티어에 반영되지 않아요</strong><br>
+        인원이 많은 팀에서 핸디캡 담당자가 랜덤으로 선정됩니다
+      </div>
+    </div>
+
+    <div id="warn-box"></div>
+    <div class="action-row">
+      <button class="btn btn-gold" id="make-teams-btn" onclick="makeTeams()" style="flex:1;justify-content:center;font-size:15px;padding:13px;">⚔️ 팀 짜기</button>
+      <button class="btn btn-ghost btn-sm" onclick="resetSession()">🔄 초기화</button>
+    </div>
+  </div>
+
+  <div id="result-section" class="card">
+    <div class="card-title">팀 결과</div>
+    <div class="result-header">
+      <h2 id="result-title">— VS —</h2>
+      <p id="result-mode-label"></p>
+    </div>
+    <div class="teams-grid" id="teams-grid"></div>
+    <div id="balance-bar-section"></div>
+    <div id="chemi-legend-section"></div>
+    <!-- 이벤트 핸디캡 박스 -->
+    <div id="handicap-section"></div>
+
+    <div class="record-panel">
+      <div class="record-panel-title">🏁 경기 결과 기록</div>
+      <div id="event-no-save-notice" class="event-no-save" style="display:none;">🎉 이벤트 매치 — 결과가 티어에 반영되지 않아요</div>
+      <div class="winner-btns">
+        <button class="winner-btn blue" id="wb-blue" onclick="selectWinner('blue')">🔵 블루팀 승리<span>블루팀이 이겼다!</span></button>
+        <button class="winner-btn red" id="wb-red" onclick="selectWinner('red')">🔴 레드팀 승리<span>레드팀이 이겼다!</span></button>
+      </div>
+      <div id="winner-selected-msg" style="font-size:12px;color:var(--text-dim);margin-bottom:10px;min-height:18px;"></div>
+      <button class="btn btn-green" id="save-btn" onclick="saveMatch()" style="width:100%;justify-content:center;" disabled>💾 결과 저장하기</button>
+      <!-- 저장 완료 패널 -->
+      <div class="save-done-panel" id="save-done-panel">
+        <div class="save-done-title">✅ 경기 결과 저장 완료!</div>
+        <div class="save-done-sub">결과가 기록됐어요. 어디로 이동할까요?</div>
+        <div class="save-done-btns">
+          <button class="btn btn-primary btn-sm" onclick="goToTab('tab-record',this)">📋 경기 기록 보러가기</button>
+          <button class="btn btn-gold btn-sm" onclick="goToTab('tab-rank',this)">🏆 랭킹 보러가기</button>
+        </div>
+      </div>
+    </div>
+    <div class="divider"></div>
+    <div style="text-align:center">
+      <button class="btn btn-primary btn-sm" onclick="makeTeams()">🔀 다시 뽑기</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: 경기 기록 ===== -->
+<div id="tab-record" class="tab-content">
+  <div class="card">
+    <div class="card-title">전체 경기 기록 <span class="badge" id="match-count-badge">0경기</span></div>
+    <div id="match-history-list">
+      <div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== TAB: 랭킹 ===== -->
+<div id="tab-rank" class="tab-content">
+  <div class="card">
+    <div class="card-title">내전 랭킹 🏆</div>
+    <div id="rank-list">
+      <div class="empty-state"><div class="icon">🏆</div>경기 기록이 쌓이면 랭킹이 생성됩니다</div>
+    </div>
+  </div>
+  <div class="card" style="font-size:12px;color:var(--text-dim);line-height:2;">
+    <div class="card-title">티어 산정 기준</div>
+    최소 <strong style="color:var(--text)">3판</strong> 이상 참여해야 티어가 부여됩니다. 판수와 승률을 함께 반영합니다.<br>
+    <span style="color:var(--tier-challenger)">챌린저</span> 70%↑(10판↑) &nbsp;
+    <span style="color:var(--tier-grandmaster)">그마</span> 65%↑ &nbsp;
+    <span style="color:var(--tier-master)">마스터</span> 60%↑ &nbsp;
+    <span style="color:var(--tier-diamond)">다이아</span> 55%↑ &nbsp;
+    <span style="color:var(--tier-emerald)">에메</span> 50%↑ &nbsp;
+    <span style="color:var(--tier-platinum)">플래</span> 45%↑ &nbsp;
+    <span style="color:var(--tier-gold)">골드</span> 40%↑ &nbsp;
+    <span style="color:var(--tier-silver)">실버</span> 35%↑ &nbsp;
+    <span style="color:var(--tier-bronze)">브론즈</span> 30%↑ &nbsp;
+    <span style="color:var(--tier-iron)">아이언</span> 그 외
+  </div>
+</div>
+
+<footer>ARAM CUSTOM TEAM BUILDER · 칼바람 아수라장</footer>
+</div>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+import { getDatabase, ref, set, onValue, remove, push } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+
+// ── FIREBASE CONFIG ───────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyAzRirJzvaqu6jelqUUjV_Tik1MgsALEE4",
+  authDomain: "aramchaos-ca022.firebaseapp.com",
+  databaseURL: "https://aramchaos-ca022-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "aramchaos-ca022",
+  storageBucket: "aramchaos-ca022.firebasestorage.app",
+  messagingSenderId: "813846064077",
+  appId: "1:813846064077:web:ab610c89e496800bc87284",
+  measurementId: "G-N8B15ET6VF"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// ── TIER DEFINITIONS ──────────────────────────────────────────
+const TIERS = {
+  unranked:    {label:'언랭', score:0,  cls:'t-unranked'},
+  iron:        {label:'아이언',score:1,  cls:'t-iron'},
+  bronze:      {label:'브론즈',score:2,  cls:'t-bronze'},
+  silver:      {label:'실버', score:3,  cls:'t-silver'},
+  gold:        {label:'골드', score:4,  cls:'t-gold'},
+  platinum:    {label:'플래', score:5,  cls:'t-platinum'},
+  emerald:     {label:'에메', score:6,  cls:'t-emerald'},
+  diamond:     {label:'다이아',score:7,  cls:'t-diamond'},
+  master:      {label:'마스터',score:8,  cls:'t-master'},
+  grandmaster: {label:'그마', score:9,  cls:'t-grandmaster'},
+  challenger:  {label:'챌린저',score:10, cls:'t-challenger'},
+};
+
+// ── STATE ─────────────────────────────────────────────────────
+let registeredPlayers = {};  // Firebase key → {name, manualTier}
+let matches = {};             // Firebase key → match object
+let sessionPlayers = [];
+let teamSize = 3;
+let mode = 'balance';
+let matchType = 'normal'; // 'normal' | 'event'
+let isEventMatch = false;
+let currentTeamA = [], currentTeamB = [];
+let selectedWinner = null;
+
+// ── FIREBASE REALTIME LISTENERS ───────────────────────────────
+setSyncStatus('syncing', 'Firebase 연결 중...');
+
+// 기본 팀원 목록 — Firebase에 없으면 자동 등록
+const DEFAULT_MEMBERS = [
+  '애긔반달곰', 'ap렉사이서폿', '울퉁쓰', '빛나는언즈',
+  '나랑듀오해듀오', '맹독 벌꿀오소리', '브랜딩프로', '신규회원임', '조조와빈찬합'
+];
+
+async function seedDefaultMembers() {
+  const existing = Object.values(registeredPlayers).map(p => p.name);
+  for (const name of DEFAULT_MEMBERS) {
+    if (!existing.includes(name)) {
+      await push(ref(db, 'players'), { name, manualTier: null });
+    }
+  }
+}
+
+// 두 데이터 모두 로드됐는지 추적
+let playersLoaded = false;
+let matchesLoaded = false;
+
+function renderAllWhenReady() {
+  // players와 matches 둘 다 로드된 후에만 렌더링
+  if (!playersLoaded || !matchesLoaded) return;
+  renderMemberGrid();
+  renderSessionPlayers();
+  renderMatchHistory();
+  renderRanking();
+}
+
+// 플레이어 목록 실시간 구독
+onValue(ref(db, 'players'), (snapshot) => {
+  registeredPlayers = snapshot.val() || {};
+  playersLoaded = true;
+  // 기본 팀원이 하나도 없으면 시드 실행
+  const names = Object.values(registeredPlayers).map(p => p.name);
+  const hasSeed = DEFAULT_MEMBERS.some(n => names.includes(n));
+  if (!hasSeed) seedDefaultMembers();
+  renderAllWhenReady();
+}, (err) => {
+  setSyncStatus('err', '연결 실패: ' + err.message);
+});
+
+// 경기 기록 실시간 구독
+onValue(ref(db, 'matches'), (snapshot) => {
+  matches = snapshot.val() || {};
+  matchesLoaded = true;
+  setSyncStatus('ok', '실시간 연결됨');
+  document.getElementById('live-badge').style.display = 'inline-flex';
+  renderAllWhenReady();
+}, (err) => {
+  setSyncStatus('err', '연결 실패: ' + err.message);
+  document.getElementById('live-badge').style.display = 'none';
+});
+
+// ── SYNC STATUS ───────────────────────────────────────────────
+function setSyncStatus(state, msg) {
+  document.getElementById('sync-dot').className = 'sync-dot ' + state;
+  document.getElementById('sync-msg').textContent = msg;
+}
+
+window.manualSync = function() {
+  setSyncStatus('syncing', '새로고침 중...');
+  // onValue가 자동으로 최신 데이터를 가져오므로 페이지 리로드
+  location.reload();
+};
+
+// ── TIER CALC ─────────────────────────────────────────────────
+// 공백을 정규화해서 비교 (앞뒤 trim + 연속공백 단일화)
+function normName(n) { return String(n).trim().replace(/\s+/g,' '); }
+
+function calcStats(name) {
+  const key = normName(name);
+  let wins = 0, total = 0;
+  Object.values(matches).forEach(m => {
+    const inA = m.teamA && m.teamA.some(n => normName(n) === key);
+    const inB = m.teamB && m.teamB.some(n => normName(n) === key);
+    if (inA || inB) {
+      total++;
+      if ((m.winner==='blue'&&inA)||(m.winner==='red'&&inB)) wins++;
+    }
+  });
+  return {wins, losses:total-wins, total, wr: total>0 ? wins/total : null};
+}
+
+function calcTierFromStats(name) {
+  const s = calcStats(name);
+  if (s.total < 3) return 'unranked';
+  const w = s.wr;
+  if (s.total >= 10 && w >= 0.70) return 'challenger';
+  if (w >= 0.65) return 'grandmaster';
+  if (w >= 0.60) return 'master';
+  if (w >= 0.55) return 'diamond';
+  if (w >= 0.50) return 'emerald';
+  if (w >= 0.45) return 'platinum';
+  if (w >= 0.40) return 'gold';
+  if (w >= 0.35) return 'silver';
+  if (w >= 0.30) return 'bronze';
+  return 'iron';
+}
+
+function getEffectiveTier(name, manualTier) {
+  // 이름 정규화 후 registeredPlayers에서 최신 manualTier 재탐색
+  const key = normName(name);
+  const found = Object.values(registeredPlayers).find(p => normName(p.name) === key);
+  const mt = found?.manualTier ?? manualTier;
+  // null, undefined, 'auto', 'unranked' 는 모두 승률 기반으로 계산
+  if (mt && mt !== 'auto' && mt !== 'unranked') return mt;
+  return calcTierFromStats(name);
+}
+
+// ── TAB ───────────────────────────────────────────────────────
+window.showTab = function(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+};
+
+// ── MEMBER CHECKBOX UI ────────────────────────────────────────
+function renderMemberGrid() {
+  const grid = document.getElementById('member-grid');
+  const empty = document.getElementById('member-empty');
+  const actions = document.getElementById('member-actions');
+  const firstBtn = document.getElementById('first-add-btn');
+  const playerArr = Object.values(registeredPlayers).sort((a,b)=>{
+    const tierA = TIERS[getEffectiveTier(a.name, a.manualTier)]?.score ?? 0;
+    const tierB = TIERS[getEffectiveTier(b.name, b.manualTier)]?.score ?? 0;
+    return tierB - tierA; // 티어 높은 순
+  });
+
+  if (playerArr.length === 0) {
+    empty.style.display = 'block';
+    actions.style.display = 'none';
+    grid.style.display = 'none';
+    firstBtn.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  actions.style.display = 'flex';
+  grid.style.display = 'grid';
+  firstBtn.style.display = 'none';
+
+  grid.innerHTML = playerArr.map(p => {
+    const tier = getEffectiveTier(p.name, p.manualTier);
+    const t = TIERS[tier] || TIERS.unranked;
+    const s = calcStats(p.name);
+    const isChecked = sessionPlayers.some(sp => sp.name === p.name);
+    return `<label class="member-chip${isChecked?' checked':''}" onclick="toggleChip(this,'${escHtml(p.name)}')">
+      <input type="checkbox" ${isChecked?'checked':''} onclick="event.preventDefault()">
+      <span class="member-chip-name">${escHtml(p.name)}</span>
+      <span class="tier-badge member-chip-tier ${t.cls}">${t.label}</span>
+    </label>`;
+  }).join('');
+  updateCheckedLabel();
+}
+
+window.toggleChip = function(el, name) {
+  const isChecked = el.classList.toggle('checked');
+  el.querySelector('input').checked = isChecked;
+  updateCheckedLabel();
+};
+
+function updateCheckedLabel() {
+  const checked = document.querySelectorAll('.member-chip.checked').length;
+  document.getElementById('checked-count-label').textContent = `${checked}명 선택됨`;
+}
+
+window.selectAll = function() {
+  document.querySelectorAll('.member-chip').forEach(c => {
+    c.classList.add('checked');
+    c.querySelector('input').checked = true;
+  });
+  updateCheckedLabel();
+};
+
+window.selectNone = function() {
+  document.querySelectorAll('.member-chip').forEach(c => {
+    c.classList.remove('checked');
+    c.querySelector('input').checked = false;
+  });
+  updateCheckedLabel();
+};
+
+window.applyChecked = function() {
+  const checked = [...document.querySelectorAll('.member-chip.checked')];
+  if (checked.length === 0) { alert('팀원을 한 명 이상 선택해주세요!'); return; }
+  sessionPlayers = checked.map(el => {
+    const name = el.querySelector('.member-chip-name').textContent;
+    const p = Object.values(registeredPlayers).find(r => normName(r.name) === normName(name)) || {name, manualTier: null};
+    const tier = getEffectiveTier(name, p.manualTier);
+    return { id: Date.now() + Math.random(), name, tier, manualTier: p.manualTier };
+  });
+  renderSessionPlayers();
+};
+
+window.toggleNewForm = function() {
+  const form = document.getElementById('new-player-form');
+  const isOpen = form.classList.toggle('open');
+  if (isOpen) document.getElementById('inp-name').focus();
+};
+
+// 새 팀원 Firebase 등록
+window.registerNewPlayer = async function() {
+  const nameEl = document.getElementById('inp-name');
+  const tierEl = document.getElementById('inp-tier');
+  const name = nameEl.value.trim();
+  if (!name) { nameEl.focus(); return; }
+  if (Object.values(registeredPlayers).some(p=>p.name===name)) {
+    alert('이미 등록된 닉네임이에요!'); nameEl.focus(); return;
+  }
+  const manualTier = tierEl.value === 'auto' ? null : tierEl.value;
+  await push(ref(db, 'players'), {name, manualTier: manualTier || null});
+  nameEl.value = '';
+  document.getElementById('new-player-form').classList.remove('open');
+  // onValue가 자동으로 renderMemberGrid 호출함
+};
+
+// ── SESSION PLAYERS (선택 결과 표시) ──────────────────────────
+window.removeSessionPlayer = function(id) {
+  sessionPlayers = sessionPlayers.filter(p=>p.id!==id);
+  renderSessionPlayers();
+  // 체크박스도 해제
+  renderMemberGrid();
+};
+
+function renderSessionPlayers() {
+  const ul = document.getElementById('player-list');
+  const empty = document.getElementById('empty-players');
+  ul.innerHTML = '';
+  empty.style.display = sessionPlayers.length===0 ? 'block':'none';
+  sessionPlayers.forEach((p,i)=>{
+    const tier = getEffectiveTier(p.name, p.manualTier);
+    const t = TIERS[tier]||TIERS.unranked;
+    const s = calcStats(p.name);
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <span class="player-num">${i+1}</span>
+      <span class="player-name">${escHtml(p.name)}</span>
+      <span class="tier-badge ${t.cls}">${t.label}</span>
+      ${s.total>0?`<span class="player-stats">${s.wins}승${s.losses}패 ${Math.round(s.wr*100)}%</span>`:''}
+      <button class="btn btn-danger" onclick="removeSessionPlayer(${p.id})">✕</button>`;
+    ul.appendChild(li);
+  });
+
+}
+
+function updateDatalist() {
+  // datalist 제거 (더 이상 사용 안 함)
+}
+
+// ── CHEMI (단짝 케미) ────────────────────────────────────────
+// 케미 팔레트 — 최대 8쌍 구분 가능
+const CHEMI_COLORS = [
+  {bg:'#ff6b6b',border:'#ff4444'},  // 빨강
+  {bg:'#ffd93d',border:'#ffba00'},  // 노랑
+  {bg:'#6bcb77',border:'#3aaa4f'},  // 초록
+  {bg:'#c77dff',border:'#9b3dff'},  // 보라
+  {bg:'#ff9a3c',border:'#e07000'},  // 주황
+  {bg:'#00d4ff',border:'#0099cc'},  // 하늘
+  {bg:'#ff77b0',border:'#e0408a'},  // 핑크
+  {bg:'#a0e4ff',border:'#40a0e0'},  // 연파랑
+];
+
+// 두 사람이 같은 팀으로 함께한 경기의 승률 계산 (최소 minGames판)
+function calcPairStats(nameA, nameB, minGames=3) {
+  const kA=normName(nameA), kB=normName(nameB);
+  let together=0, wins=0;
+  Object.values(matches).forEach(m => {
+    const inSameA = (m.teamA||[]).some(n=>normName(n)===kA) && (m.teamA||[]).some(n=>normName(n)===kB);
+    const inSameB = (m.teamB||[]).some(n=>normName(n)===kA) && (m.teamB||[]).some(n=>normName(n)===kB);
+    if (inSameA || inSameB) {
+      together++;
+      if ((inSameA && m.winner==='blue') || (inSameB && m.winner==='red')) wins++;
+    }
+  });
+  if (together < minGames) return null;
+  return {together, wins, wr: wins/together};
+}
+
+// 선택된 팀원 목록에서 케미 쌍 목록 반환
+// [{nameA, nameB, wr, together, colorIdx}]
+function buildChemiMap(playerNames) {
+  const pairs = [];
+  let colorIdx = 0;
+  for (let i=0; i<playerNames.length; i++) {
+    for (let j=i+1; j<playerNames.length; j++) {
+      const stat = calcPairStats(playerNames[i], playerNames[j]);
+      if (stat) {
+        pairs.push({nameA:playerNames[i], nameB:playerNames[j], ...stat, colorIdx: colorIdx % CHEMI_COLORS.length});
+        colorIdx++;
+      }
+    }
+  }
+  // 승률 높은 순 정렬
+  return pairs.sort((a,b)=>b.wr-a.wr);
+}
+
+// name 기준으로 해당하는 케미 쌍들 반환
+function getChemiFor(name, chemiPairs) {
+  return chemiPairs.filter(p => p.nameA===name || p.nameB===name);
+}
+
+// ── ENEMY (웬수 시너지) ──────────────────────────────────────
+// 웬수 팔레트 — 따뜻한 붉은 계열
+const ENEMY_COLORS = [
+  {bg:'#ff4444',border:'#cc0000'},  // 진빨
+  {bg:'#ff8c00',border:'#cc6600'},  // 주황
+  {bg:'#ff44aa',border:'#cc0077'},  // 분홍
+  {bg:'#ffaa00',border:'#cc8800'},  // 황금
+  {bg:'#cc44ff',border:'#9900cc'},  // 보라
+  {bg:'#ff6644',border:'#cc3300'},  // 코랄
+  {bg:'#ff4466',border:'#cc0033'},  // 장미
+  {bg:'#ff9944',border:'#cc6611'},  // 살구
+];
+
+// 승률이 낮은 쌍 (3판 이상, 승률 40% 이하)
+function buildEnemyMap(playerNames, minGames=3, maxWr=0.40) {
+  const pairs = [];
+  let colorIdx = 0;
+  for (let i=0; i<playerNames.length; i++) {
+    for (let j=i+1; j<playerNames.length; j++) {
+      const stat = calcPairStats(playerNames[i], playerNames[j]);
+      if (stat && stat.wr <= maxWr) {
+        pairs.push({nameA:playerNames[i], nameB:playerNames[j], ...stat, colorIdx: colorIdx % ENEMY_COLORS.length});
+        colorIdx++;
+      }
+    }
+  }
+  // 승률 낮은 순 정렬
+  return pairs.sort((a,b)=>a.wr-b.wr);
+}
+
+function getEnemyFor(name, enemyPairs) {
+  return enemyPairs.filter(p => p.nameA===name || p.nameB===name);
+}
+
+// ── MATCH TYPE ───────────────────────────────────────────────
+window.setMatchType = function(type) {
+  matchType = type;
+  isEventMatch = (type === 'event');
+  document.getElementById('match-tab-normal').classList.toggle('active', type==='normal');
+  document.getElementById('match-tab-event').classList.toggle('active', type==='event');
+  // 일반 매치 선택 시 현재 mode 탭 active 유지
+  if (type === 'normal') {
+    document.querySelectorAll('.mode-tab[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));
+  }
+  document.getElementById('normal-config').style.display = type==='normal' ? 'block' : 'none';
+  document.getElementById('event-config').style.display = type==='event' ? 'block' : 'none';
+  const btn = document.getElementById('make-teams-btn');
+  if (type==='event') {
+    btn.textContent = '🎉 이벤트 팀 짜기';
+    btn.className = 'btn btn-red';
+    btn.style.cssText = 'flex:1;justify-content:center;font-size:15px;padding:13px;background:linear-gradient(135deg,#a0001e,#e84057);color:#fff;box-shadow:0 4px 15px rgba(232,64,87,0.3);';
+    updateEventSizeInfo();
+  } else {
+    btn.textContent = '⚔️ 팀 짜기';
+    btn.style.cssText = 'flex:1;justify-content:center;font-size:15px;padding:13px;';
+    btn.className = 'btn btn-gold';
+  }
+};
+
+function updateEventSizeInfo() {
+  const a = parseInt(document.getElementById('event-size-a')?.value)||3;
+  const b = parseInt(document.getElementById('event-size-b')?.value)||4;
+  const el = document.getElementById('event-size-info');
+  if (el) el.textContent = `→ 총 ${a+b}명 필요`;
+}
+
+window.setEventSize = function(team, val) {
+  const inputId = team === 'a' ? 'event-size-a' : 'event-size-b';
+  const activeCls = team === 'a' ? 'active-blue' : 'active-red';
+  document.getElementById(inputId).value = val;
+  document.querySelectorAll(`[data-team="${team}"]`).forEach(btn => {
+    btn.classList.toggle(activeCls, parseInt(btn.dataset.val) === val);
+  });
+  updateEventSizeInfo();
+};
+
+// ── SIZE / MODE ───────────────────────────────────────────────
+window.setSize = function(n) {
+  teamSize = n;
+  document.querySelectorAll('.size-btn').forEach(b=>b.classList.toggle('active',+b.dataset.size===n));
+};
+window.setMode = function(m) {
+  mode = m;
+  // data-mode 속성 있는 탭만 토글 (match-tab-normal/event 는 건드리지 않음)
+  document.querySelectorAll('.mode-tab[data-mode]').forEach(b=>b.classList.toggle('active',b.dataset.mode===m));
+};
+
+// ── MAKE TEAMS ────────────────────────────────────────────────
+function shuffle(arr) {
+  const a=[...arr];
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+
+window.makeTeams = function() {
+  const warn = document.getElementById('warn-box');
+  warn.innerHTML = '';
+
+  if (isEventMatch) {
+    // ── 이벤트 매치 ──────────────────────────────────────────
+    const sizeA = parseInt(document.getElementById('event-size-a').value)||2;
+    const sizeB = parseInt(document.getElementById('event-size-b').value)||3;
+    const needed = sizeA + sizeB;
+    if (sessionPlayers.length < needed) {
+      warn.innerHTML = `<div class="warning">⚠️ 이벤트 매치엔 최소 ${needed}명 필요! (현재 ${sessionPlayers.length}명)</div>`;
+      return;
+    }
+    let pool = sessionPlayers.map(p=>({...p, tier: getEffectiveTier(p.name, p.manualTier)}));
+    if (pool.length > needed) {
+      warn.innerHTML = `<div class="warning">👥 ${pool.length}명 중 ${needed}명 선발!</div>`;
+      pool = shuffle(pool).slice(0, needed);
+    }
+    const s = shuffle(pool);
+    currentTeamA = s.slice(0, sizeA);
+    currentTeamB = s.slice(sizeA, sizeA+sizeB);
+    selectedWinner = null;
+    renderResult();
+    return;
+  }
+
+  // ── 일반 매치 ──────────────────────────────────────────────
+  const needed = teamSize*2;
+  if (sessionPlayers.length < needed) {
+    warn.innerHTML = `<div class="warning">⚠️ ${teamSize}:${teamSize} 대전엔 최소 ${needed}명 필요! (현재 ${sessionPlayers.length}명)</div>`;
+    return;
+  }
+  let pool = sessionPlayers.map(p=>({...p, tier: getEffectiveTier(p.name, p.manualTier)}));
+  if (pool.length > needed) {
+    warn.innerHTML = `<div class="warning">👥 ${pool.length}명 중 ${needed}명 선발!</div>`;
+    pool = shuffle(pool).slice(0, needed);
+  }
+  if (mode==='random') {
+    const s=shuffle(pool); currentTeamA=s.slice(0,teamSize); currentTeamB=s.slice(teamSize);
+  } else {
+    const sorted=[...pool].sort((a,b)=>(TIERS[b.tier]?.score||0)-(TIERS[a.tier]?.score||0));
+    currentTeamA=[]; currentTeamB=[];
+    sorted.forEach((p,i)=>(i%2===0?currentTeamA:currentTeamB).push(p));
+    const sc=arr=>arr.reduce((s,p)=>s+(TIERS[p.tier]?.score||0),0);
+    for(let i=0;i<300;i++){
+      const ia=Math.floor(Math.random()*currentTeamA.length);
+      const ib=Math.floor(Math.random()*currentTeamB.length);
+      const before=Math.abs(sc(currentTeamA)-sc(currentTeamB));
+      [currentTeamA[ia],currentTeamB[ib]]=[currentTeamB[ib],currentTeamA[ia]];
+      if(Math.abs(sc(currentTeamA)-sc(currentTeamB))>before)
+        [currentTeamA[ia],currentTeamB[ib]]=[currentTeamB[ib],currentTeamA[ia]];
+    }
+  }
+  selectedWinner = null;
+  renderResult();
+};
+
+function renderResult() {
+  const section=document.getElementById('result-section');
+  section.style.display='block';
+  section.scrollIntoView({behavior:'smooth',block:'start'});
+
+  const sizeA = currentTeamA.length, sizeB = currentTeamB.length;
+  document.getElementById('result-title').textContent=`블루팀 ${sizeA} : ${sizeB} 레드팀`;
+
+  if (isEventMatch) {
+    document.getElementById('result-mode-label').innerHTML='🎉 이벤트 매치 &nbsp;<span style="font-size:10px;background:rgba(200,155,60,0.15);border:1px solid var(--gold);border-radius:3px;padding:1px 6px;color:var(--gold)">티어 미반영</span>';
+    // 핸디캡 선정 — 인원 많은 팀에서 랜덤 1명
+    const bigTeam = sizeA > sizeB ? currentTeamA : sizeB > sizeA ? currentTeamB : null;
+    const smallTeamName = sizeA > sizeB ? '레드팀' : sizeB > sizeA ? '블루팀' : null;
+    const handicapEl = document.getElementById('handicap-section');
+    if (bigTeam) {
+      const picked = bigTeam[Math.floor(Math.random()*bigTeam.length)];
+      handicapEl.innerHTML = `<div class="handicap-box">
+        <div class="handicap-title">🎲 핸디캡 담당자 선정</div>
+        <div class="handicap-name">${escHtml(picked.name)}</div>
+        <div class="handicap-desc">인원이 많은 팀에서 선정됐어요!<br><strong style="color:var(--gold-light)">${escHtml(picked.name)}</strong>님이 <strong style="color:var(--text)">${smallTeamName}</strong>의 챔피언을 대신 골라주세요 🎮</div>
+      </div>`;
+    } else {
+      handicapEl.innerHTML='';
+    }
+    document.getElementById('event-no-save-notice').style.display='block';
+    document.getElementById('save-btn').disabled=true;
+    document.getElementById('save-btn').style.opacity='0.3';
+    document.getElementById('save-btn').title='이벤트 매치는 저장되지 않아요';
+  } else {
+    document.getElementById('result-mode-label').textContent=mode==='random'?'🎲 완전 랜덤 배분':'⚖️ 실력 밸런스 배분';
+    document.getElementById('handicap-section').innerHTML='';
+    document.getElementById('event-no-save-notice').style.display='none';
+    document.getElementById('save-btn').style.opacity='';
+    document.getElementById('save-btn').title='';
+  }
+  const sc=arr=>arr.reduce((s,p)=>s+(TIERS[p.tier]?.score||0),0);
+  const avg=arr=>(sc(arr)/arr.length).toFixed(1);
+  const sA=sc(currentTeamA),sB=sc(currentTeamB),tot=sA+sB||1;
+
+  // 케미 계산 — 블루/레드 각각
+  const chemiPairsA = buildChemiMap(currentTeamA.map(p=>p.name));
+  const chemiPairsB = buildChemiMap(currentTeamB.map(p=>p.name));
+  chemiPairsB.forEach(p=>p.colorIdx=(p.colorIdx+chemiPairsA.length)%CHEMI_COLORS.length);
+
+  // 웬수 계산 — 블루/레드 각각
+  const enemyPairsA = buildEnemyMap(currentTeamA.map(p=>p.name));
+  const enemyPairsB = buildEnemyMap(currentTeamB.map(p=>p.name));
+  enemyPairsB.forEach(p=>p.colorIdx=(p.colorIdx+enemyPairsA.length)%ENEMY_COLORS.length);
+
+  document.getElementById('teams-grid').innerHTML=
+    teamCard('블루팀','team-blue',currentTeamA,avg(currentTeamA),chemiPairsA,enemyPairsA)+
+    teamCard('레드팀','team-red',currentTeamB,avg(currentTeamB),chemiPairsB,enemyPairsB);
+
+  const pct=Math.round((sA/tot)*100), diff=Math.abs(sA-sB);
+  document.getElementById('balance-bar-section').innerHTML=mode==='balance'?`
+    <div class="balance-bar-wrap">
+      <div class="balance-label">
+        <span style="color:var(--blue)">블루 avg ${avg(currentTeamA)}</span>
+        <span>점수차 ${diff} ${diff<=2?'✅':diff<=4?'🟡':'🔴'}</span>
+        <span style="color:var(--red)">레드 avg ${avg(currentTeamB)}</span>
+      </div>
+      <div class="balance-bar"><div class="balance-fill" style="width:${pct}%;background:linear-gradient(90deg,var(--blue-dark),var(--blue))"></div></div>
+    </div>`:'';
+
+  // 케미 + 웬수 범례
+  const legendEl = document.getElementById('chemi-legend-section');
+  let legendHtml = '';
+
+  const combined = [...chemiPairsA, ...chemiPairsB];
+  if (combined.length > 0) {
+    const rows = combined.map(p=>{
+      const c=CHEMI_COLORS[p.colorIdx];
+      const wr=Math.round(p.wr*100);
+      const wrCls=wr>=60?'chemi-wr-high':'chemi-wr-mid';
+      return `<div class="chemi-legend-row">
+        <span class="chemi-legend-swatch" style="background:${c.bg};border-color:${c.border}"></span>
+        <span><strong style="color:var(--text)">${escHtml(p.nameA)}</strong> + <strong style="color:var(--text)">${escHtml(p.nameB)}</strong></span>
+        <span class="${wrCls}" style="margin-left:auto;font-weight:700">${wr}%</span>
+        <span style="color:var(--text-dim)">(${p.together}판)</span>
+      </div>`;
+    }).join('');
+    legendHtml += `<div class="chemi-legend"><div class="chemi-legend-title">💞 단짝 케미</div><div class="chemi-legend-rows">${rows}</div></div>`;
+  }
+
+  const combinedEnemy = [...enemyPairsA, ...enemyPairsB];
+  if (combinedEnemy.length > 0) {
+    const erows = combinedEnemy.map(p=>{
+      const c=ENEMY_COLORS[p.colorIdx];
+      const wr=Math.round(p.wr*100);
+      return `<div class="chemi-legend-row">
+        <span class="chemi-legend-swatch" style="background:${c.bg};border-color:${c.border};border-radius:2px;"></span>
+        <span><strong style="color:var(--text)">${escHtml(p.nameA)}</strong> + <strong style="color:var(--text)">${escHtml(p.nameB)}</strong></span>
+        <span class="wr-low" style="margin-left:auto;font-weight:700">${wr}%</span>
+        <span style="color:var(--text-dim)">(${p.together}판)</span>
+      </div>`;
+    }).join('');
+    legendHtml += `<div class="enemy-legend"><div class="enemy-legend-title">💢 웬수 시너지</div><div class="chemi-legend-rows">${erows}</div></div>`;
+  }
+
+  legendEl.innerHTML = legendHtml;
+
+  document.getElementById('wb-blue').className='winner-btn blue';
+  document.getElementById('wb-red').className='winner-btn red';
+  document.getElementById('winner-selected-msg').textContent='';
+  document.getElementById('save-btn').disabled=true;
+}
+
+function teamCard(title,cls,members,avg,chemiPairs=[],enemyPairs=[]) {
+  const rows=members.map(p=>{
+    const t=TIERS[p.tier]||TIERS.unranked;
+    // 단짝 링 (원형)
+    const myChemi=getChemiFor(p.name,chemiPairs);
+    const rings=myChemi.map(pair=>{
+      const c=CHEMI_COLORS[pair.colorIdx];
+      const partner=pair.nameA===p.name?pair.nameB:pair.nameA;
+      const wr=Math.round(pair.wr*100);
+      return`<span class="chemi-ring" style="background:${c.bg};border-color:${c.border}" title="💞 ${escHtml(partner)}와 함께 승률 ${wr}% (${pair.together}판)"></span>`;
+    }).join('');
+    // 웬수 링 (사각형)
+    const myEnemy=getEnemyFor(p.name,enemyPairs);
+    const eringsHtml=myEnemy.map(pair=>{
+      const c=ENEMY_COLORS[pair.colorIdx];
+      const partner=pair.nameA===p.name?pair.nameB:pair.nameA;
+      const wr=Math.round(pair.wr*100);
+      return`<span class="enemy-ring" style="background:${c.bg};border-color:${c.border}" title="💢 ${escHtml(partner)}와 함께 승률 ${wr}% (${pair.together}판)"></span>`;
+    }).join('');
+    // 포지션 아이콘
+    const fbEntry = Object.entries(registeredPlayers).find(([,rp])=>rp.name===p.name);
+    const playerData = fbEntry ? fbEntry[1] : null;
+    const t1 = playerData?.champTier1||[], t2 = playerData?.champTier2||[];
+    const posHtml = [
+      ...t1.map(id=>{ const c=CHAMP_CLASSES.find(x=>x.id===id); return c?`<span class="pos-icon tier1">${c.label}</span>`:''; }),
+      ...t2.map(id=>{ const c=CHAMP_CLASSES.find(x=>x.id===id); return c?`<span class="pos-icon tier2">${c.label}</span>`:''; }),
+    ].join('');
+    return`<div class="team-player">
+      <div style="flex:1;min-width:0;">
+        <div class="team-player-name">${escHtml(p.name)}</div>
+        ${posHtml?`<div class="pos-icons">${posHtml}</div>`:''}
+      </div>
+      <span class="tier-badge ${t.cls}">${t.label}</span>
+      <span class="chemi-rings">
+        ${rings}
+        ${eringsHtml}
+      </span>
+    </div>`;
+  }).join('');
+  return`<div class="team-card ${cls}"><div class="team-header"><span>${title}</span><span class="team-avg">평균 ${avg}</span></div><div class="team-players">${rows}</div></div>`;
+}
+
+// ── WINNER / SAVE ─────────────────────────────────────────────
+window.selectWinner = function(side) {
+  selectedWinner=side;
+  document.getElementById('wb-blue').className='winner-btn blue'+(side==='blue'?' selected-blue':'');
+  document.getElementById('wb-red').className='winner-btn red'+(side==='red'?' selected-red':'');
+  document.getElementById('winner-selected-msg').textContent=side==='blue'?'🔵 블루팀 승리 선택됨':'🔴 레드팀 승리 선택됨';
+  document.getElementById('save-btn').disabled=false;
+};
+
+window.saveMatch = async function() {
+  if (isEventMatch) return; // 이벤트 매치는 저장 안 함
+  if (!selectedWinner) return;
+  const btn=document.getElementById('save-btn');
+  btn.disabled=true; btn.textContent='저장 중...';
+  try {
+    await push(ref(db, 'matches'), {
+      date: new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}),
+      timestamp: Date.now(),
+      teamA: currentTeamA.map(p=>p.name),
+      teamB: currentTeamB.map(p=>p.name),
+      winner: selectedWinner,
+      mode, size: teamSize,
+    });
+    btn.textContent='✅ 저장 완료!';
+    btn.style.background='linear-gradient(135deg,var(--green-dark),var(--green))';
+    btn.disabled=true;
+    // 저장 완료 패널 표시
+    document.getElementById('save-done-panel').classList.add('show');
+    // 승리 버튼/메시지 초기화
+    selectedWinner=null;
+    document.getElementById('wb-blue').className='winner-btn blue';
+    document.getElementById('wb-red').className='winner-btn red';
+    document.getElementById('winner-selected-msg').textContent='';
+  } catch(e) {
+    btn.textContent='❌ 저장 실패'; btn.disabled=false;
+    setTimeout(()=>{btn.textContent='💾 결과 저장하기';},2000);
+  }
+};
+
+// ── MATCH HISTORY ─────────────────────────────────────────────
+function renderMatchHistory() {
+  const el=document.getElementById('match-history-list');
+  const matchArr = Object.entries(matches)
+    .map(([key,m])=>({key,...m}))
+    .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
+  document.getElementById('match-count-badge').textContent=matchArr.length+'경기';
+  if(matchArr.length===0){el.innerHTML='<div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>';return;}
+  el.innerHTML=matchArr.map(m=>{
+    const wc=m.winner==='blue'?'mw-blue':'mw-red';
+    const wl=m.winner==='blue'?'블루팀 승':'레드팀 승';
+    const tA=(m.teamA||[]).join(', '), tB=(m.teamB||[]).join(', ');
+    return`<div class="match-item">
+      <div class="match-top">
+        <span class="match-date">📅 ${m.date||''}</span>
+        <span class="match-winner-badge ${wc}">${wl}</span>
+        <button class="match-del" onclick="deleteMatch('${m.key}')" title="삭제">🗑</button>
+      </div>
+      <div class="match-teams">
+        <div class="match-team${m.winner==='blue'?' winner':''}">🔵 ${escHtml(tA)}</div>
+        <div class="match-vs">VS</div>
+        <div class="match-team${m.winner==='red'?' winner':''}" style="text-align:right">🔴 ${escHtml(tB)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.deleteMatch = async function(key) {
+  if(!confirm('이 경기 기록을 삭제할까요?')) return;
+  await remove(ref(db, 'matches/'+key));
+};
+
+window.deletePlayer = async function(key, name) {
+  if(!confirm(`'${name}' 을(를) 플레이어 목록에서 삭제할까요?\n※ 경기 기록은 유지됩니다.`)) return;
+  await remove(ref(db, 'players/'+key));
+};
+
+// ── CHAMPION CLASS DEFINITIONS ───────────────────────────────
+const CHAMP_CLASSES = [
+  {id:'assassin', label:'암살', icon:''},
+  {id:'warrior',  label:'전사', icon:''},
+  {id:'marksman', label:'원딜', icon:''},
+  {id:'mage',     label:'법사', icon:''},
+  {id:'tank',     label:'탱커', icon:''},
+  {id:'support',  label:'서폿', icon:''},
+];
+
+// 프로필 편집 패널 토글
+window.toggleProfile = function(fbKey, name) {
+  const panelId = 'profile-' + fbKey;
+  document.querySelectorAll('.profile-panel.open').forEach(p => {
+    if (p.id !== panelId) p.classList.remove('open');
+  });
+  const panel = document.getElementById(panelId);
+  if (panel) panel.classList.toggle('open');
+};
+
+// 챔피언 분류 버튼 — 첫번째 클릭=1군, 두번째 클릭=2군, 세번째=해제
+// 최대 2개(1군 1개 + 2군 1개)까지만 선택 가능
+window.toggleClass = function(fbKey, classId) {
+  const panel = document.getElementById('profile-' + fbKey);
+  if (!panel) return;
+  const btn = panel.querySelector(`[data-class="${classId}"]`);
+  if (!btn) return;
+
+  const cur = btn.dataset.tier || '0';
+
+  // 이미 선택된 경우 → 해제
+  if (cur !== '0') {
+    btn.dataset.tier = '0';
+    btn.className = 'champ-class-btn';
+    updateClassBtnStates(panel);
+    return;
+  }
+
+  // 새로 선택 시도 — 1군 자리가 비었으면 1군, 아니면 2군
+  const tier1Taken = [...panel.querySelectorAll('[data-class]')].some(b => b.dataset.tier === '1');
+  const tier2Taken = [...panel.querySelectorAll('[data-class]')].some(b => b.dataset.tier === '2');
+
+  if (!tier1Taken) {
+    btn.dataset.tier = '1';
+    btn.className = 'champ-class-btn selected-1';
+  } else if (!tier2Taken) {
+    btn.dataset.tier = '2';
+    btn.className = 'champ-class-btn selected-2';
+  }
+  // 둘 다 찼으면 무시
+  updateClassBtnStates(panel);
+};
+
+function updateClassBtnStates(panel) {
+  const tier1Taken = [...panel.querySelectorAll('[data-class]')].some(b => b.dataset.tier === '1');
+  const tier2Taken = [...panel.querySelectorAll('[data-class]')].some(b => b.dataset.tier === '2');
+  const full = tier1Taken && tier2Taken;
+  panel.querySelectorAll('[data-class]').forEach(b => {
+    if (b.dataset.tier !== '0') return; // 선택된 건 그대로
+    b.style.opacity = full ? '0.35' : '1';
+    b.style.cursor = full ? 'not-allowed' : 'pointer';
+  });
+  // 안내 문구 업데이트
+  const hint = panel.querySelector('.champ-hint');
+  if (hint) {
+    if (!tier1Taken) hint.textContent = '첫 번째 선택 → 1군';
+    else if (!tier2Taken) hint.textContent = '두 번째 선택 → 2군';
+    else hint.textContent = '선택 완료! 취소하려면 다시 클릭';
+  }
+}
+
+// 프로필 저장
+window.saveProfile = async function(fbKey) {
+  const panel = document.getElementById('profile-' + fbKey);
+  if (!panel) return;
+  const tier1 = [], tier2 = [];
+  panel.querySelectorAll('[data-class]').forEach(btn => {
+    if (btn.dataset.tier === '1') tier1.push(btn.dataset.class);
+    if (btn.dataset.tier === '2') tier2.push(btn.dataset.class);
+  });
+  const player = registeredPlayers[fbKey];
+  if (!player) return;
+  const btn = panel.querySelector('.save-profile-btn');
+  btn.textContent = '저장 중...'; btn.disabled = true;
+  try {
+    const mottoEl = panel.querySelector('.motto-input');
+    const motto = mottoEl ? mottoEl.value.trim().slice(0,20) : (player.motto||'');
+    await set(ref(db, 'players/' + fbKey), {...player, champTier1: tier1, champTier2: tier2, motto});
+    btn.textContent = '✅ 저장됨';
+    setTimeout(() => { btn.textContent = '💾 저장'; btn.disabled = false; }, 1500);
+  } catch(e) {
+    btn.textContent = '❌ 실패'; btn.disabled = false;
+  }
+};
+
+function buildProfilePanel(fbKey, player) {
+  const tier1 = player.champTier1 || [];
+  const tier2 = player.champTier2 || [];
+  const tier1Taken = tier1.length > 0;
+  const tier2Taken = tier2.length > 0;
+  const full = tier1Taken && tier2Taken;
+  const btns = CHAMP_CLASSES.map(c => {
+    const t = tier1.includes(c.id) ? '1' : tier2.includes(c.id) ? '2' : '0';
+    const cls = t==='1'?' selected-1':t==='2'?' selected-2':'';
+    const disabled = t==='0' && full;
+    return `<button class="champ-class-btn${cls}" data-class="${c.id}" data-tier="${t}"
+      style="${disabled?'opacity:0.35;cursor:not-allowed':''}"
+      onclick="toggleClass('${fbKey}','${c.id}')">${c.label}</button>`;
+  }).join('');
+  let hintText = !tier1Taken ? '첫 번째 선택 → 1군' : !tier2Taken ? '두 번째 선택 → 2군' : '선택 완료! 취소하려면 다시 클릭';
+  const motto = player.motto || '';
+  return `<div class="profile-panel" id="profile-${fbKey}">
+    <div class="profile-panel-title">🎮 ${escHtml(player.name)} 프로필 설정</div>
+    <div class="motto-section">
+      <div class="champ-section-label">💬 한마디 (최대 20자)</div>
+      <div class="motto-input-wrap">
+        <input class="motto-input" type="text" maxlength="20" value="${escHtml(motto)}"
+          placeholder="나를 표현하는 한마디..."
+          oninput="this.nextElementSibling.textContent=this.value.length+'/20'">
+        <span class="motto-counter">${motto.length}/20</span>
+      </div>
+    </div>
+    <div class="champ-section">
+      <div class="champ-section-label" style="margin-bottom:8px;">
+        <span style="color:var(--gold)">●</span> 1군 &nbsp;
+        <span style="color:var(--blue)">●</span> 2군 &nbsp;
+        <span class="champ-hint" style="color:var(--text-dim);margin-left:6px;">${hintText}</span>
+      </div>
+      <div class="champ-class-grid">${btns}</div>
+    </div>
+    <div class="profile-save-row">
+      <button class="btn btn-ghost btn-sm" onclick="toggleProfile('${fbKey}','')">닫기</button>
+      <button class="btn btn-primary btn-sm save-profile-btn" onclick="saveProfile('${fbKey}')">💾 저장</button>
+    </div>
+  </div>`;
+}
+
+// ── RANKING ───────────────────────────────────────────────────
+function renderRanking() {
+  const el=document.getElementById('rank-list');
+  const names=new Set();
+  Object.values(registeredPlayers).forEach(p=>names.add(p.name));
+  Object.values(matches).forEach(m=>{
+    (m.teamA||[]).forEach(n=>names.add(n));
+    (m.teamB||[]).forEach(n=>names.add(n));
+  });
+  if(names.size===0){el.innerHTML='<div class="empty-state"><div class="icon">🏆</div>경기 기록이 쌓이면 랭킹이 생성됩니다</div>';return;}
+  const rows=[...names].map(name=>{
+    const s=calcStats(name);
+    return{name,...s,tier:calcTierFromStats(name)};
+  }).sort((a,b)=>{
+    if(a.total===0&&b.total===0)return 0;
+    if(a.total===0)return 1; if(b.total===0)return -1;
+    return(b.wr-a.wr)||(b.total-a.total);
+  });
+  el.innerHTML=rows.map((r,i)=>{
+    const t=TIERS[r.tier];
+    const wr=r.total>0?Math.round(r.wr*100):null;
+    const wc=wr===null?'':wr>=55?'wr-high':wr>=45?'wr-mid':'wr-low';
+    const rankEmoji=i<3?['🥇','🥈','🥉'][i]:null;
+    const rankHtml=rankEmoji
+      ?`<span style="font-size:22px">${rankEmoji}</span>`
+      :`<span style="font-size:13px;color:var(--text-dim)">${i+1}</span>`;
+    const fbKey = Object.entries(registeredPlayers).find(([,p])=>p.name===r.name)?.[0] || null;
+    const player = fbKey ? registeredPlayers[fbKey] : null;
+    const tier1 = player?.champTier1 || [];
+    const tier2 = player?.champTier2 || [];
+    const posIcons = [
+      ...tier1.map(id=>{ const c=CHAMP_CLASSES.find(x=>x.id===id); return c?`<span class="pos-icon tier1">${c.label}</span>`:''; }),
+      ...tier2.map(id=>{ const c=CHAMP_CLASSES.find(x=>x.id===id); return c?`<span class="pos-icon tier2">${c.label}</span>`:''; }),
+    ].join('');
+    return`
+    <div class="lb-row" onclick="toggleProfile('${fbKey}','${escHtml(r.name)}')">
+      <div class="lb-rank">${rankHtml}</div>
+      <div class="lb-name">${escHtml(r.name)} <span style="font-size:10px;color:var(--text-dim);">✏️</span></div>
+      <div class="lb-right">
+        <span class="tier-badge ${t.cls}">${t.label}</span>
+        <div class="lb-stats">
+          ${r.total>0
+            ?`<div class="lb-winrate ${wc}">${wr}%</div><div>${r.wins}승 ${r.losses}패 (${r.total}판)</div>`
+            :'<div style="color:var(--text-dim);font-size:10px;">기록 없음</div>'}
+        </div>
+        ${fbKey?`<button class="match-del" onclick="event.stopPropagation();deletePlayer('${fbKey}','${escHtml(r.name)}')" title="삭제">🗑</button>`:''}
+      </div>
+      <div class="lb-sub">
+        ${player?.motto?`<span class="motto-display" style="font-size:10px;color:var(--text-dim);font-style:italic;">"${escHtml(player.motto)}"</span>`:''}
+        ${posIcons?`<div class="pos-icons" style="margin-top:0;">${posIcons}</div>`:''}
+      </div>
+    </div>
+    ${fbKey ? buildProfilePanel(fbKey, player||{name:r.name}) : ''}`;
+  }).join('');
+}
+
+// ── MISC ──────────────────────────────────────────────────────
+window.goToTab = function(tabId, btnEl) {
+  // 탭 전환
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  // 해당 탭 nav 버튼 활성화
+  const navBtns = document.querySelectorAll('.nav-tab');
+  const tabIdx = tabId === 'tab-team' ? 0 : tabId === 'tab-record' ? 1 : 2;
+  navBtns[tabIdx]?.classList.add('active');
+  // 저장 완료 패널 숨기기 + 저장 버튼 초기화
+  document.getElementById('save-done-panel').classList.remove('show');
+  document.getElementById('save-btn').textContent='💾 결과 저장하기';
+  document.getElementById('save-btn').style.background='';
+  // 맨 위로 스크롤
+  window.scrollTo({top:0, behavior:'smooth'});
+};
+window.resetSession = function() {
+  if(sessionPlayers.length>0&&!confirm('현재 참가자 목록을 비울까요?')) return;
+  sessionPlayers=[];
+  renderSessionPlayers();
+  document.getElementById('result-section').style.display='none';
+  document.getElementById('warn-box').innerHTML='';
+};
+
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+document.getElementById('inp-name').addEventListener('keydown',e=>{if(e.key==='Enter')window.registerNewPlayer();});
+// 이벤트 인원은 버튼으로 제어 (setEventSize)
+window.setSize(3);
+</script>
+</body>
+</html>
