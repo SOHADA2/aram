@@ -340,21 +340,21 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .save-done-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
 .team-player{position:relative;}
 /* ── 연승/연패 뱃지 ── */
-.streak-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;letter-spacing:0.5px;white-space:nowrap;flex-shrink:0;}
-.streak-win{background:linear-gradient(135deg,rgba(0,199,122,0.2),rgba(0,160,100,0.1));border:1px solid rgba(0,199,122,0.5);color:var(--green);}
-.streak-loss{background:rgba(232,64,87,0.12);border:1px solid rgba(232,64,87,0.4);color:var(--red);}
-/* ── 승급/강등 뱃지 ── */
-.promo-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;letter-spacing:0.5px;white-space:nowrap;flex-shrink:0;}
-.promo-up{background:linear-gradient(135deg,rgba(255,180,0,0.18),rgba(255,120,0,0.12));border:1px solid rgba(255,160,0,0.5);color:#ffb300;}
-.promo-down{background:rgba(232,64,87,0.12);border:1px solid rgba(232,64,87,0.4);color:var(--red);}
-.promo-new{background:rgba(80,160,240,0.12);border:1px solid rgba(80,160,240,0.4);color:var(--blue);}
-.team-promo-summary{display:flex;flex-wrap:wrap;gap:5px;padding:8px 12px;border-top:1px solid var(--border);background:rgba(0,0,0,0.15);}
+/* ── 연승/연패 인라인 텍스트 ── */
+.streak-inline{font-size:9px;font-weight:700;letter-spacing:0.3px;white-space:nowrap;flex-shrink:0;opacity:0.85;}
+.streak-inline.win{color:var(--green);}
+.streak-inline.loss{color:var(--red);}
+/* ── 승급/강등 서브텍스트 (티어 아래) ── */
+.promo-sub{font-size:9px;font-weight:700;letter-spacing:0.3px;white-space:nowrap;text-align:right;margin-top:1px;}
+.promo-sub.up{color:#ffb300;}
+.promo-sub.down{color:var(--red);}
+.promo-sub.new{color:var(--blue);}
 </style>
 </head>
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v1.6.4</div>
+<div class="version-badge">v1.6.5</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1222,18 +1222,11 @@ function renderResult() {
   document.getElementById('save-btn').disabled=true;
 }
 
-function promoBadgeHtml(promo) {
+function promoSubHtml(promo) {
   if (!promo) return '';
-  const tierLabel = k => TIERS[k]?.label || k;
-  if (promo.status === 'new') {
-    return `<span class="promo-badge promo-new">🎯 티어획득 ${promo.remaining}판 전</span>`;
-  }
-  if (promo.status === 'up') {
-    return `<span class="promo-badge promo-up">🔥 승급찬스 → ${tierLabel(promo.nextTier)}</span>`;
-  }
-  if (promo.status === 'down') {
-    return `<span class="promo-badge promo-down">⚠️ 강등위기 → ${tierLabel(promo.nextTier)}</span>`;
-  }
+  if (promo.status === 'new') return `<div class="promo-sub new">🎯 ${promo.remaining}판 후 티어</div>`;
+  if (promo.status === 'up')   return `<div class="promo-sub up">🔥 승급찬스</div>`;
+  if (promo.status === 'down') return `<div class="promo-sub down">⚠️ 강등위기</div>`;
   return '';
 }
 
@@ -1250,15 +1243,14 @@ function teamCard(title,cls,members,avg) {
       ...t2.map(id=>{ const c=CHAMP_CLASSES.find(x=>x.id===id); return c?`<span class="pos-icon tier2">${c.label}</span>`:''; }),
     ].join('');
     const promo = calcPromoStatus(p.name);
-    const badge = promoBadgeHtml(promo);
-    if (badge) promoList.push({name: p.name, badge});
+    const promoSub = promoSubHtml(promo);
 
-    // 연승/연패 뱃지
+    // 연승/연패 — 작은 인라인 텍스트
     const streak = calcStreak(p.name);
     const streakHtml = streak
       ? streak.type === 'win'
-        ? `<span class="streak-badge streak-win">🔥 ${streak.count}연승</span>`
-        : `<span class="streak-badge streak-loss">💀 ${streak.count}연패</span>`
+        ? `<span class="streak-inline win">${streak.count}연승↑</span>`
+        : `<span class="streak-inline loss">${streak.count}연패↓</span>`
       : '';
 
     return`<div class="team-player">
@@ -1266,11 +1258,13 @@ function teamCard(title,cls,members,avg) {
         <div class="team-player-name" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
           <span>${escHtml(p.name)}</span>
           ${streakHtml}
-          ${badge}
         </div>
         ${posHtml?`<div class="pos-icons">${posHtml}</div>`:''}
       </div>
-      <span class="tier-badge ${t.cls}">${t.label}</span>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0;">
+        <span class="tier-badge ${t.cls}">${t.label}</span>
+        ${promoSub}
+      </div>
     </div>`;
   }).join('');
   return`<div class="team-card ${cls}">
