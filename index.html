@@ -282,6 +282,30 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .pos-icon{font-size:11px;padding:1px 5px;border-radius:3px;line-height:1.4;}
 .pos-icon.tier1{background:rgba(200,155,60,0.2);border:1px solid rgba(200,155,60,0.4);color:var(--gold-light);}
 .pos-icon.tier2{background:rgba(11,196,227,0.1);border:1px solid rgba(11,196,227,0.25);color:var(--blue);}
+/* ── 프로필 모달 ── */
+.profile-modal-overlay{position:fixed;inset:0;z-index:900;background:rgba(4,11,21,0.85);backdrop-filter:blur(6px);display:flex;align-items:flex-end;justify-content:center;padding:0;animation:fadeIn 0.2s ease;}
+@media(min-width:540px){.profile-modal-overlay{align-items:center;padding:20px;}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.profile-modal{background:var(--surface);border:1px solid var(--border);border-radius:16px 16px 0 0;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;animation:slideUp 0.25s cubic-bezier(0.25,1,0.5,1);}
+@media(min-width:540px){.profile-modal{border-radius:12px;max-height:80vh;}}
+@keyframes slideUp{from{transform:translateY(60px);opacity:0}to{transform:translateY(0);opacity:1}}
+.profile-modal-handle{width:36px;height:4px;background:var(--border);border-radius:2px;margin:10px auto 0;}
+.profile-modal-header{display:flex;align-items:center;gap:10px;padding:16px 18px 12px;border-bottom:1px solid var(--border);}
+.profile-modal-avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--blue-dark),var(--blue));display:flex;align-items:center;justify-content:center;font-family:'Black Han Sans',sans-serif;font-size:16px;color:#fff;flex-shrink:0;}
+.profile-modal-info{flex:1;min-width:0;}
+.profile-modal-name{font-family:'Black Han Sans',sans-serif;font-size:16px;letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.profile-modal-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px;}
+.profile-modal-close{background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer;padding:4px;line-height:1;flex-shrink:0;}
+.profile-modal-close:hover{color:var(--text);}
+.profile-modal-body{padding:16px 18px 24px;}
+.profile-stat-row{display:flex;gap:8px;margin-bottom:16px;}
+.profile-stat-box{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;}
+.profile-stat-val{font-family:'Black Han Sans',sans-serif;font-size:20px;margin-bottom:2px;}
+.profile-stat-label{font-size:10px;color:var(--text-dim);letter-spacing:1px;}
+.profile-modal-motto{font-size:12px;color:var(--text-dim);font-style:italic;text-align:center;margin-bottom:16px;padding:8px 12px;background:var(--surface2);border-radius:6px;}
+/* ── 설정 아이콘 ── */
+.lb-setting-btn{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:15px;padding:4px 6px;border-radius:4px;flex-shrink:0;line-height:1;transition:all 0.15s;}
+.lb-setting-btn:hover{background:rgba(200,168,75,0.15);color:var(--gold);}
 /* ── 단짝/웬수 프로필 카드 ── */
 .buddy-section{margin-top:14px;border-top:1px solid var(--border);padding-top:12px;}
 .buddy-toggle-row{display:flex;gap:8px;}
@@ -318,7 +342,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v1.5.9</div>
+<div class="version-badge">v1.6.0</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1216,8 +1240,83 @@ const CHAMP_CLASSES = [
 ];
 
 // 프로필 편집 패널 토글
-window.toggleProfile = function(fbKey, name) {
-  const panelId = 'profile-' + fbKey;
+// 상세 프로필 모달 열기 (단짝/웬수 확인)
+window.openProfileModal = function(fbKey) {
+  const player = fbKey ? registeredPlayers[fbKey] : null;
+  if (!player) return;
+  // 기존 모달 제거
+  const old = document.getElementById('profile-modal-root');
+  if (old) old.remove();
+
+  const s = calcStats(player.name);
+  const wr = s.total > 0 ? Math.round(s.wr*100) : null;
+  const tier = getEffectiveTier(player.name, player.manualTier);
+  const t = TIERS[tier] || TIERS.unranked;
+  const wc = wr===null?'':wr>=55?'wr-high':wr>=45?'wr-mid':'wr-low';
+  const initial = escHtml(player.name.trim().charAt(0));
+  const buddyHtml = buildBuddySection(player.name);
+  const tier1 = player.champTier1||[], tier2 = player.champTier2||[];
+  const posIcons = [
+    ...tier1.map(id=>{ const c=CHAMP_CLASSES.find(x=>x.id===id); return c?`<span class="pos-icon tier1">${c.label}</span>`:''; }),
+    ...tier2.map(id=>{ const c=CHAMP_CLASSES.find(x=>x.id===id); return c?`<span class="pos-icon tier2">${c.label}</span>`:''; }),
+  ].join('');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'profile-modal-overlay';
+  overlay.id = 'profile-modal-root';
+  overlay.innerHTML = `
+    <div class="profile-modal" onclick="event.stopPropagation()">
+      <div class="profile-modal-handle"></div>
+      <div class="profile-modal-header">
+        <div class="profile-modal-avatar">${initial}</div>
+        <div class="profile-modal-info">
+          <div class="profile-modal-name">${escHtml(player.name)}</div>
+          <div class="profile-modal-meta">
+            <span class="tier-badge ${t.cls}">${t.label}</span>
+            ${posIcons}
+          </div>
+        </div>
+        <button class="profile-modal-close" onclick="closeProfileModal()">✕</button>
+      </div>
+      <div class="profile-modal-body">
+        ${player.motto ? `<div class="profile-modal-motto">"${escHtml(player.motto)}"</div>` : ''}
+        <div class="profile-stat-row">
+          <div class="profile-stat-box">
+            <div class="profile-stat-val" style="color:var(--blue)">${s.total}</div>
+            <div class="profile-stat-label">총 경기</div>
+          </div>
+          <div class="profile-stat-box">
+            <div class="profile-stat-val" style="color:var(--green)">${s.wins}</div>
+            <div class="profile-stat-label">승</div>
+          </div>
+          <div class="profile-stat-box">
+            <div class="profile-stat-val" style="color:var(--red)">${s.losses}</div>
+            <div class="profile-stat-label">패</div>
+          </div>
+          <div class="profile-stat-box">
+            <div class="profile-stat-val ${wc}">${wr !== null ? wr+'%' : '-'}</div>
+            <div class="profile-stat-label">승률</div>
+          </div>
+        </div>
+        ${buddyHtml}
+      </div>
+    </div>`;
+  overlay.addEventListener('click', closeProfileModal);
+  document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden';
+};
+
+window.closeProfileModal = function() {
+  const el = document.getElementById('profile-modal-root');
+  if (el) el.remove();
+  document.body.style.overflow = '';
+};
+
+// 편집 패널 토글 (설정 아이콘용)
+window.toggleProfile = function(fbKey) {
+  // 모달이 열려있으면 닫기
+  closeProfileModal();
+  const panelId = 'edit-panel-' + fbKey;
   document.querySelectorAll('.profile-panel.open').forEach(p => {
     if (p.id !== panelId) p.classList.remove('open');
   });
@@ -1228,7 +1327,7 @@ window.toggleProfile = function(fbKey, name) {
 // 챔피언 분류 버튼 — 첫번째 클릭=1군, 두번째 클릭=2군, 세번째=해제
 // 최대 2개(1군 1개 + 2군 1개)까지만 선택 가능
 window.toggleClass = function(fbKey, classId) {
-  const panel = document.getElementById('profile-' + fbKey);
+  const panel = document.getElementById('edit-panel-' + fbKey);
   if (!panel) return;
   const btn = panel.querySelector(`[data-class="${classId}"]`);
   if (!btn) return;
@@ -1278,7 +1377,7 @@ function updateClassBtnStates(panel) {
 
 // 프로필 저장
 window.saveProfile = async function(fbKey) {
-  const panel = document.getElementById('profile-' + fbKey);
+  const panel = document.getElementById('edit-panel-' + fbKey);
   if (!panel) return;
   const tier1 = [], tier2 = [];
   panel.querySelectorAll('[data-class]').forEach(btn => {
@@ -1390,8 +1489,7 @@ function buildProfilePanel(fbKey, player) {
   }).join('');
   let hintText = !tier1Taken ? '첫 번째 선택 → 1군' : !tier2Taken ? '두 번째 선택 → 2군' : '선택 완료! 취소하려면 다시 클릭';
   const motto = player.motto || '';
-  const buddyHtml = buildBuddySection(player.name);
-  return `<div class="profile-panel" id="profile-${fbKey}">
+  return `<div class="profile-panel" id="edit-panel-${fbKey}">
     <div class="profile-panel-title">🎮 ${escHtml(player.name)} 프로필 설정</div>
     <div class="motto-section">
       <div class="champ-section-label">💬 한마디 (최대 20자)</div>
@@ -1410,11 +1508,10 @@ function buildProfilePanel(fbKey, player) {
       </div>
       <div class="champ-class-grid">${btns}</div>
     </div>
-    ${buddyHtml}
     <div class="profile-save-row" style="margin-top:14px;">
       <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deletePlayer('${fbKey}','${escHtml(player.name)}')" title="삭제">🗑 삭제</button>
       <div style="margin-left:auto;display:flex;gap:8px;">
-        <button class="btn btn-ghost btn-sm" onclick="toggleProfile('${fbKey}','')">닫기</button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleProfile('${fbKey}')">닫기</button>
         <button class="btn btn-primary btn-sm save-profile-btn" onclick="saveProfile('${fbKey}')">💾 저장</button>
       </div>
     </div>
@@ -1456,7 +1553,7 @@ function renderRanking() {
       ...tier2.map(id=>{ const c=CHAMP_CLASSES.find(x=>x.id===id); return c?`<span class="pos-icon tier2">${c.label}</span>`:''; }),
     ].join('');
     return`
-    <div class="lb-row" onclick="toggleProfile('${fbKey}','${escHtml(r.name)}')">
+    <div class="lb-row" onclick="openProfileModal('${fbKey}')">
       <div class="lb-rank">${rankHtml}</div>
       <div class="lb-name">
         <span>${escHtml(r.name)}</span>
@@ -1469,6 +1566,7 @@ function renderRanking() {
             ?`<div class="lb-winrate ${wc}">${wr}%</div><div>${r.wins}승 ${r.losses}패 (${r.total}판)</div>`
             :'<div style="color:var(--text-dim);font-size:10px;">기록 없음</div>'}
         </div>
+        ${fbKey?`<button class="lb-setting-btn" onclick="event.stopPropagation();toggleProfile('${fbKey}')" title="프로필 편집">⚙️</button>`:''}
       </div>
       <div class="lb-sub">
         ${player?.motto?`<span class="motto-display" style="font-size:10px;color:var(--text-dim);font-style:italic;">"${escHtml(player.motto)}"</span>`:''}
@@ -1506,6 +1604,7 @@ window.resetSession = function() {
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
 document.getElementById('inp-name').addEventListener('keydown',e=>{if(e.key==='Enter')window.registerNewPlayer();});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeProfileModal(); });
 // 이벤트 인원은 버튼으로 제어 (setEventSize)
 window.setSize(3);
 </script>
