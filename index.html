@@ -337,12 +337,18 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .save-done-sub{font-size:11px;color:var(--text-dim);margin-bottom:14px;}
 .save-done-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
 .team-player{position:relative;}
+/* ── 승급/강등 뱃지 ── */
+.promo-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;letter-spacing:0.5px;white-space:nowrap;flex-shrink:0;}
+.promo-up{background:linear-gradient(135deg,rgba(255,180,0,0.18),rgba(255,120,0,0.12));border:1px solid rgba(255,160,0,0.5);color:#ffb300;}
+.promo-down{background:rgba(232,64,87,0.12);border:1px solid rgba(232,64,87,0.4);color:var(--red);}
+.promo-new{background:rgba(80,160,240,0.12);border:1px solid rgba(80,160,240,0.4);color:var(--blue);}
+.team-promo-summary{display:flex;flex-wrap:wrap;gap:5px;padding:8px 12px;border-top:1px solid var(--border);background:rgba(0,0,0,0.15);}
 </style>
 </head>
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v1.6.0</div>
+<div class="version-badge">v1.6.1</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -709,6 +715,55 @@ function calcTierFromStats(name) {
   if (w >= 0.35) return 'silver';
   if (w >= 0.30) return 'bronze';
   return 'iron';
+}
+
+// 이번 경기 결과(win/loss)에 따른 승급찬스/강등위기 판단
+// returns: { status: 'up'|'down'|'new'|null, currentTier, nextTier }
+function calcPromoStatus(name) {
+  const s = calcStats(name);
+  const p = Object.values(registeredPlayers).find(r => normName(r.name) === normName(name));
+  const mt = p?.manualTier;
+  // manualTier가 고정 설정된 경우 자동 계산 안 함
+  if (mt && mt !== 'auto' && mt !== 'unranked') return null;
+
+  // 3판 미만 → 티어 획득 임박
+  if (s.total < 3) {
+    const remaining = 3 - s.total;
+    return { status: 'new', remaining };
+  }
+
+  const currentTier = calcTierFromStats(name);
+  const tierOrder = ['iron','bronze','silver','gold','platinum','emerald','diamond','master','grandmaster','challenger'];
+
+  // 이기면 승률 어떻게 되나?
+  const wrIfWin  = (s.wins + 1) / (s.total + 1);
+  const wrIfLoss = s.wins       / (s.total + 1);
+
+  // 임시로 승률 바꿔서 티어 계산
+  function tierFromWr(w, total) {
+    if (total < 3) return 'unranked';
+    if (total >= 10 && w >= 0.70) return 'challenger';
+    if (w >= 0.65) return 'grandmaster';
+    if (w >= 0.60) return 'master';
+    if (w >= 0.55) return 'diamond';
+    if (w >= 0.50) return 'emerald';
+    if (w >= 0.45) return 'platinum';
+    if (w >= 0.40) return 'gold';
+    if (w >= 0.35) return 'silver';
+    if (w >= 0.30) return 'bronze';
+    return 'iron';
+  }
+
+  const tierIfWin  = tierFromWr(wrIfWin,  s.total + 1);
+  const tierIfLoss = tierFromWr(wrIfLoss, s.total + 1);
+
+  const curIdx  = tierOrder.indexOf(currentTier);
+  const winIdx  = tierOrder.indexOf(tierIfWin);
+  const lossIdx = tierOrder.indexOf(tierIfLoss);
+
+  if (winIdx > curIdx)  return { status: 'up',   currentTier, nextTier: tierIfWin };
+  if (lossIdx < curIdx) return { status: 'down', currentTier, nextTier: tierIfLoss };
+  return null;
 }
 
 function getEffectiveTier(name, manualTier) {
@@ -1132,7 +1187,24 @@ function renderResult() {
   document.getElementById('save-btn').disabled=true;
 }
 
+function promoBadgeHtml(promo) {
+  if (!promo) return '';
+  const tierLabel = k => TIERS[k]?.label || k;
+  if (promo.status === 'new') {
+    return `<span class="promo-badge promo-new">🎯 티어획득 ${promo.remaining}판 전</span>`;
+  }
+  if (promo.status === 'up') {
+    return `<span class="promo-badge promo-up">🔥 승급찬스 → ${tierLabel(promo.nextTier)}</span>`;
+  }
+  if (promo.status === 'down') {
+    return `<span class="promo-badge promo-down">⚠️ 강등위기 → ${tierLabel(promo.nextTier)}</span>`;
+  }
+  return '';
+}
+
 function teamCard(title,cls,members,avg) {
+  // 승급/강등 요약 (뱃지 있는 사람만)
+  const promoList = [];
   const rows=members.map(p=>{
     const t=TIERS[p.tier]||TIERS.unranked;
     const fbEntry = Object.entries(registeredPlayers).find(([,rp])=>rp.name===p.name);
@@ -1142,15 +1214,24 @@ function teamCard(title,cls,members,avg) {
       ...t1.map(id=>{ const c=CHAMP_CLASSES.find(x=>x.id===id); return c?`<span class="pos-icon tier1">${c.label}</span>`:''; }),
       ...t2.map(id=>{ const c=CHAMP_CLASSES.find(x=>x.id===id); return c?`<span class="pos-icon tier2">${c.label}</span>`:''; }),
     ].join('');
+    const promo = calcPromoStatus(p.name);
+    const badge = promoBadgeHtml(promo);
+    if (badge) promoList.push({name: p.name, badge});
     return`<div class="team-player">
       <div style="flex:1;min-width:0;">
-        <div class="team-player-name">${escHtml(p.name)}</div>
+        <div class="team-player-name" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+          <span>${escHtml(p.name)}</span>
+          ${badge}
+        </div>
         ${posHtml?`<div class="pos-icons">${posHtml}</div>`:''}
       </div>
       <span class="tier-badge ${t.cls}">${t.label}</span>
     </div>`;
   }).join('');
-  return`<div class="team-card ${cls}"><div class="team-header"><span>${title}</span><span class="team-avg">평균 ${avg}</span></div><div class="team-players">${rows}</div></div>`;
+  return`<div class="team-card ${cls}">
+    <div class="team-header"><span>${title}</span><span class="team-avg">평균 ${avg}</span></div>
+    <div class="team-players">${rows}</div>
+  </div>`;
 }
 
 // ── WINNER / SAVE ─────────────────────────────────────────────
