@@ -339,6 +339,10 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .save-done-sub{font-size:11px;color:var(--text-dim);margin-bottom:14px;}
 .save-done-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
 .team-player{position:relative;}
+/* ── 연승/연패 뱃지 ── */
+.streak-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px;letter-spacing:0.5px;white-space:nowrap;flex-shrink:0;}
+.streak-win{background:linear-gradient(135deg,rgba(0,199,122,0.2),rgba(0,160,100,0.1));border:1px solid rgba(0,199,122,0.5);color:var(--green);}
+.streak-loss{background:rgba(232,64,87,0.12);border:1px solid rgba(232,64,87,0.4);color:var(--red);}
 /* ── 승급/강등 뱃지 ── */
 .promo-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;letter-spacing:0.5px;white-space:nowrap;flex-shrink:0;}
 .promo-up{background:linear-gradient(135deg,rgba(255,180,0,0.18),rgba(255,120,0,0.12));border:1px solid rgba(255,160,0,0.5);color:#ffb300;}
@@ -350,7 +354,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v1.6.3</div>
+<div class="version-badge">v1.6.4</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -366,12 +370,12 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 
 <!-- 탭 -->
 <div class="nav-tabs">
-  <button class="nav-tab active" onclick="showTab('tab-team',this)">⚔️ 팀짜기</button>
+  <button class="nav-tab active" onclick="showTab('tab-team',this)">⚔️ 팀 구성</button>
   <button class="nav-tab" onclick="showTab('tab-record',this)">📋 경기 기록</button>
   <button class="nav-tab" onclick="showTab('tab-rank',this)">🏆 랭킹</button>
 </div>
 
-<!-- ===== TAB: 팀짜기 ===== -->
+<!-- ===== TAB: 팀 구성 ===== -->
 <div id="tab-team" class="tab-content active">
   <div class="card">
     <div class="card-title">참가자 선택 <span class="badge" id="checked-count-label" style="display:none;">0명 선택</span></div>
@@ -491,7 +495,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 
     <div id="warn-box"></div>
     <div class="action-row">
-      <button class="btn btn-gold" id="make-teams-btn" onclick="makeTeams()" style="flex:1;justify-content:center;font-size:15px;padding:13px;">⚔️ 팀 짜기</button>
+      <button class="btn btn-gold" id="make-teams-btn" onclick="makeTeams()" style="flex:1;justify-content:center;font-size:15px;padding:13px;">⚔️ 팀 구성</button>
       <button class="btn btn-ghost btn-sm" onclick="resetSession()">🔄 초기화</button>
     </div>
   </div>
@@ -529,7 +533,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
     </div>
     <div class="divider"></div>
     <div style="text-align:center">
-      <button class="btn btn-primary btn-sm" onclick="makeTeams()">🔀 다시 뽑기</button>
+      <button class="btn btn-primary btn-sm" onclick="makeTeams()">🔀 다시 구성</button>
     </div>
   </div>
 </div>
@@ -717,6 +721,35 @@ function calcTierFromStats(name) {
   if (w >= 0.35) return 'silver';
   if (w >= 0.30) return 'bronze';
   return 'iron';
+}
+
+// 연승/연패 계산 — 최근 경기를 시간순으로 보고 연속 승/패 횟수 반환
+// returns: { type: 'win'|'loss', count } or null (1연승/패는 표시 안 함, 2이상만)
+function calcStreak(name) {
+  const key = normName(name);
+  // 시간순 정렬된 경기 목록
+  const sorted = Object.values(matches)
+    .filter(m => (m.teamA||[]).some(n=>normName(n)===key) || (m.teamB||[]).some(n=>normName(n)===key))
+    .sort((a,b) => (b.timestamp||0) - (a.timestamp||0)); // 최신순
+
+  if (sorted.length === 0) return null;
+
+  // 첫 경기 결과
+  const firstMatch = sorted[0];
+  const inA = (firstMatch.teamA||[]).some(n=>normName(n)===key);
+  const firstWin = (firstMatch.winner==='blue'&&inA) || (firstMatch.winner==='red'&&!inA);
+  const streakType = firstWin ? 'win' : 'loss';
+
+  let count = 0;
+  for (const m of sorted) {
+    const myInA = (m.teamA||[]).some(n=>normName(n)===key);
+    const isWin = (m.winner==='blue'&&myInA) || (m.winner==='red'&&!myInA);
+    if ((streakType==='win') === isWin) count++;
+    else break;
+  }
+
+  if (count < 2) return null; // 1연속은 표시 안 함
+  return { type: streakType, count };
 }
 
 // 이번 경기 결과(win/loss)에 따른 승급찬스/강등위기 판단
@@ -1024,12 +1057,12 @@ window.setMatchType = function(type) {
   document.getElementById('event-config').style.display = type==='event' ? 'block' : 'none';
   const btn = document.getElementById('make-teams-btn');
   if (type==='event') {
-    btn.textContent = '🎉 이벤트 팀 짜기';
+    btn.textContent = '🎉 이벤트 팀 구성';
     btn.className = 'btn btn-red';
     btn.style.cssText = 'flex:1;justify-content:center;font-size:15px;padding:13px;background:linear-gradient(135deg,#a0001e,#e84057);color:#fff;box-shadow:0 4px 15px rgba(232,64,87,0.3);';
     updateEventSizeInfo();
   } else {
-    btn.textContent = '⚔️ 팀 짜기';
+    btn.textContent = '⚔️ 팀 구성';
     btn.style.cssText = 'flex:1;justify-content:center;font-size:15px;padding:13px;';
     btn.className = 'btn btn-gold';
   }
@@ -1219,10 +1252,20 @@ function teamCard(title,cls,members,avg) {
     const promo = calcPromoStatus(p.name);
     const badge = promoBadgeHtml(promo);
     if (badge) promoList.push({name: p.name, badge});
+
+    // 연승/연패 뱃지
+    const streak = calcStreak(p.name);
+    const streakHtml = streak
+      ? streak.type === 'win'
+        ? `<span class="streak-badge streak-win">🔥 ${streak.count}연승</span>`
+        : `<span class="streak-badge streak-loss">💀 ${streak.count}연패</span>`
+      : '';
+
     return`<div class="team-player">
       <div style="flex:1;min-width:0;">
         <div class="team-player-name" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
           <span>${escHtml(p.name)}</span>
+          ${streakHtml}
           ${badge}
         </div>
         ${posHtml?`<div class="pos-icons">${posHtml}</div>`:''}
