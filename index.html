@@ -401,7 +401,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v1.9.0</div>
+<div class="version-badge">v1.9.1</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -770,13 +770,21 @@ function calcGoldFromMatches(name) {
   return gold;
 }
 
+// goldSpent = 현재 보유 아이템 가격 합산 (경기 기록 기반 계산과 일치시키기 위함)
+function calcGoldSpentFromItems(items) {
+  return (items || []).reduce((sum, item) => {
+    const def = SHOP_ITEMS.find(s => s.id === item.id);
+    return sum + (def?.price || 0);
+  }, 0);
+}
+
 // 등록된 모든 플레이어를 gold/에 자동 시딩 + 구버전 데이터 마이그레이션
 async function seedGoldForAllPlayers() {
   const allNames = Object.values(registeredPlayers).map(p=>p.name);
   for (const name of allNames) {
     const entry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(name));
     if (!entry) {
-      // 신규: goldSpent=0으로 등록 (보유 골드는 calcGoldFromMatches로 동적 계산)
+      // 신규: goldSpent=0으로 등록
       await push(ref(db,'gold'), {
         name,
         goldSpent: 0,
@@ -784,16 +792,16 @@ async function seedGoldForAllPlayers() {
         retroApplied: true,
       });
     } else {
-      // 구버전 마이그레이션: gold 필드 있고 goldSpent 없으면 변환
       const [k, d] = entry;
-      if (d.gold !== undefined && d.goldSpent === undefined) {
-        const earned = calcGoldFromMatches(name);
-        const goldSpent = Math.max(0, earned - (d.gold ?? 0));
+      // 마이그레이션 필요: gold 필드 있거나(구버전), goldMigV2 플래그 없으면 재계산
+      if (!d.goldMigV2) {
+        const goldSpent = calcGoldSpentFromItems(d.items);
         await set(ref(db,'gold/'+k), {
           name: d.name,
           goldSpent,
           items: d.items || [],
           retroApplied: true,
+          goldMigV2: true,
         });
       }
     }
