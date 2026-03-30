@@ -194,18 +194,11 @@ select option{background:var(--surface2);}
 .lb-row{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:all 0.15s;}
 .lb-row:hover{background:rgba(11,196,227,0.05);border-color:rgba(80,160,240,0.3);}
 .lb-rank{font-family:'Black Han Sans',sans-serif;text-align:center;min-width:28px;flex-shrink:0;}
-.lb-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;overflow:hidden;}
-.lb-name{font-weight:700;font-size:13px;display:flex;align-items:center;flex-wrap:nowrap;gap:5px;line-height:1.4;overflow:hidden;}
-.lb-name-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1;}
-.lb-pos-icons{display:inline-flex;gap:3px;flex-shrink:0;}
-.lb-motto{font-size:10px;color:var(--text-dim);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4;}
-.lb-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;}
-.lb-right-top{display:flex;align-items:center;gap:6px;}
-.lb-setting-wrap{flex-shrink:0;}
-.lb-tier-wr{display:flex;align-items:center;gap:5px;}
-.lb-score{font-size:18px;font-weight:700;font-family:'Black Han Sans',sans-serif;color:var(--gold-light);}
-.lb-winrate{font-size:11px;font-weight:700;font-family:'Black Han Sans',sans-serif;}
-.lb-stats{font-size:10px;color:var(--text-dim);text-align:right;line-height:1.5;}
+.lb-main{flex:1;min-width:0;}
+.lb-name-text{font-weight:700;font-size:14px;line-height:1.4;word-break:keep-all;overflow-wrap:break-word;}
+.lb-pos-icons{display:flex;gap:3px;flex-wrap:wrap;margin-top:3px;}
+.lb-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;min-width:64px;}
+.lb-score{font-size:17px;font-weight:700;font-family:'Black Han Sans',sans-serif;color:var(--gold-light);}
 .wr-high{color:var(--green);} .wr-mid{color:var(--gold);} .wr-low{color:var(--red);}
 .match-item{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:8px;}
 .match-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap;}
@@ -346,15 +339,14 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .profile-modal-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:3px;}
 .profile-modal-close{background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer;padding:4px;line-height:1;flex-shrink:0;}
 .profile-modal-close:hover{color:var(--text);}
+.profile-modal-edit-btn{background:none;border:1px solid var(--border);color:var(--text-dim);font-size:12px;cursor:pointer;padding:4px 8px;border-radius:5px;line-height:1;flex-shrink:0;transition:all 0.15s;}
+.profile-modal-edit-btn:hover{border-color:var(--gold);color:var(--gold);}
 .profile-modal-body{padding:16px 18px 24px;}
 .profile-stat-row{display:flex;gap:8px;margin-bottom:16px;}
 .profile-stat-box{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;}
 .profile-stat-val{font-family:'Black Han Sans',sans-serif;font-size:20px;margin-bottom:2px;}
 .profile-stat-label{font-size:10px;color:var(--text-dim);letter-spacing:1px;}
 .profile-modal-motto{font-size:12px;color:var(--text-dim);font-style:italic;text-align:center;margin-bottom:16px;padding:8px 12px;background:var(--surface2);border-radius:6px;}
-/* ── 설정 아이콘 ── */
-.lb-setting-btn{background:none;border:none;color:rgba(110,144,184,0.5);cursor:pointer;font-size:13px;padding:3px 5px;border-radius:4px;line-height:1;transition:all 0.15s;}
-.lb-setting-btn:hover{background:rgba(200,168,75,0.15);color:var(--gold);}
 /* ── 단짝/웬수 프로필 카드 ── */
 .buddy-section{margin-top:14px;border-top:1px solid var(--border);padding-top:12px;}
 .buddy-toggle-row{display:flex;gap:8px;}
@@ -401,7 +393,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v1.9.1</div>
+<div class="version-badge">v1.9.2</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1619,6 +1611,7 @@ window.openProfileModal = function(fbKey) {
             ${posIcons}
           </div>
         </div>
+        ${fbKey ? `<button class="profile-modal-edit-btn" onclick="event.stopPropagation();openEditInModal('${fbKey}')" title="프로필 편집">⚙️ 편집</button>` : ''}
         <button class="profile-modal-close" onclick="closeProfileModal()">✕</button>
       </div>
       <div class="profile-modal-body">
@@ -1659,16 +1652,25 @@ window.closeProfileModal = function() {
   document.body.style.overflow = '';
 };
 
-// 편집 패널 토글 (설정 아이콘용)
+// 프로필 모달 내에서 편집 패널 열기
+window.openEditInModal = function(fbKey) {
+  const player = registeredPlayers[fbKey];
+  if (!player) return;
+  const body = document.querySelector('#profile-modal-root .profile-modal-body');
+  if (!body) return;
+  body.innerHTML = buildProfilePanel(fbKey, player);
+  const panel = body.querySelector('.profile-panel');
+  if (panel) panel.classList.add('open');
+};
+
+// 편집 패널 닫기 — 모달 안이면 프로필 뷰로 복귀
 window.toggleProfile = function(fbKey) {
-  // 모달이 열려있으면 닫기
-  closeProfileModal();
-  const panelId = 'edit-panel-' + fbKey;
-  document.querySelectorAll('.profile-panel.open').forEach(p => {
-    if (p.id !== panelId) p.classList.remove('open');
-  });
-  const panel = document.getElementById(panelId);
-  if (panel) panel.classList.toggle('open');
+  const panel = document.getElementById('edit-panel-' + fbKey);
+  if (panel && panel.closest('#profile-modal-root')) {
+    openProfileModal(fbKey); // 프로필 뷰로 복귀
+  } else {
+    closeProfileModal();
+  }
 };
 
 // 챔피언 분류 버튼 — 첫번째 클릭=1군, 두번째 클릭=2군, 세번째=해제
@@ -1734,13 +1736,17 @@ window.saveProfile = async function(fbKey) {
   const player = registeredPlayers[fbKey];
   if (!player) return;
   const btn = panel.querySelector('.save-profile-btn');
+  const inModal = !!panel.closest('#profile-modal-root');
   btn.textContent = '저장 중...'; btn.disabled = true;
   try {
     const mottoEl = panel.querySelector('.motto-input');
     const motto = mottoEl ? mottoEl.value.trim().slice(0,20) : (player.motto||'');
     await set(ref(db, 'players/' + fbKey), {...player, champTier1: tier1, champTier2: tier2, motto});
     btn.textContent = '✅ 저장됨';
-    setTimeout(() => { btn.textContent = '💾 저장'; btn.disabled = false; }, 1500);
+    setTimeout(() => {
+      if (inModal) closeProfileModal();
+      else { btn.textContent = '💾 저장'; btn.disabled = false; }
+    }, 800);
   } catch(e) {
     btn.textContent = '❌ 실패'; btn.disabled = false;
   }
@@ -1886,8 +1892,6 @@ function renderRanking() {
   });
   el.innerHTML=rows.map((r,i)=>{
     const t=TIERS[r.tier];
-    const wr=r.total>0?Math.round(r.wr*100):null;
-    const wc=wr===null?'':wr>=55?'wr-high':wr>=45?'wr-mid':'wr-low';
     const rankEmoji=i<3?['🥇','🥈','🥉'][i]:null;
     const rankHtml=rankEmoji
       ?`<span style="font-size:22px">${rankEmoji}</span>`
@@ -1904,31 +1908,16 @@ function renderRanking() {
     <div class="lb-row" onclick="openProfileModal('${fbKey}')">
       <div class="lb-rank">${rankHtml}</div>
       <div class="lb-main">
-        <div class="lb-name">
-          <span class="lb-name-text">${escHtml(r.name)}</span>
-          ${posIcons?`<span class="lb-pos-icons">${posIcons}</span>`:''}
-        </div>
-        ${player?.motto?`<div class="lb-motto">"${escHtml(player.motto)}"</div>`:''}
+        <div class="lb-name-text">${escHtml(r.name)}</div>
+        ${posIcons?`<div class="lb-pos-icons">${posIcons}</div>`:''}
       </div>
       <div class="lb-right">
-        <div class="lb-right-top">
-          <div class="lb-tier-wr">
-            <span class="tier-badge ${t.cls}" style="font-size:10px;padding:2px 7px;">${t.label}</span>
-            ${r.total>0?`<span class="lb-winrate ${wc}">${wr}%</span>`:''}
-          </div>
-          ${fbKey?`<div class="lb-setting-wrap"><button class="lb-setting-btn" onclick="event.stopPropagation();toggleProfile('${fbKey}')" title="프로필 편집">⚙️</button></div>`:''}
-        </div>
-        ${r.total>0
+        <span class="tier-badge ${t.cls}" style="font-size:10px;padding:2px 7px;">${t.label}</span>
+        ${r.total>=3
           ?`<div class="lb-score">${r.score}<span style="font-size:10px;color:var(--text-dim);font-family:'Noto Sans KR',sans-serif;font-weight:400;margin-left:2px;">pt</span></div>`
-          :''}
-        <div class="lb-stats">
-          ${r.total>0
-            ?`${r.wins}승 ${r.losses}패 · ${r.total}판`
-            :'<span style="font-size:10px;">기록 없음</span>'}
-        </div>
+          :`<div style="font-size:11px;color:var(--text-dim);">-</div>`}
       </div>
-    </div>
-    ${fbKey ? buildProfilePanel(fbKey, player||{name:r.name}) : ''}`;
+    </div>`;
   }).join('');
 }
 
