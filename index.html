@@ -199,11 +199,12 @@ select option{background:var(--surface2);}
 .lb-name-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1;}
 .lb-pos-icons{display:inline-flex;gap:3px;flex-shrink:0;}
 .lb-motto{font-size:10px;color:var(--text-dim);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4;}
-.lb-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;}
+.lb-right{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;}
 .lb-right-top{display:flex;align-items:center;gap:6px;}
 .lb-setting-wrap{flex-shrink:0;}
-.lb-tier-wr{display:flex;align-items:center;gap:6px;}
-.lb-winrate{font-size:17px;font-weight:700;font-family:'Black Han Sans',sans-serif;}
+.lb-tier-wr{display:flex;align-items:center;gap:5px;}
+.lb-score{font-size:18px;font-weight:700;font-family:'Black Han Sans',sans-serif;color:var(--gold-light);}
+.lb-winrate{font-size:11px;font-weight:700;font-family:'Black Han Sans',sans-serif;}
 .lb-stats{font-size:10px;color:var(--text-dim);text-align:right;line-height:1.5;}
 .wr-high{color:var(--green);} .wr-mid{color:var(--gold);} .wr-low{color:var(--red);}
 .match-item{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:8px;}
@@ -400,7 +401,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v1.8.3</div>
+<div class="version-badge">v1.8.6</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1852,14 +1853,17 @@ function renderRanking() {
       <div class="lb-right">
         <div class="lb-right-top">
           <div class="lb-tier-wr">
-            <span class="tier-badge ${t.cls}" style="font-size:11px;padding:3px 9px;">${t.label}</span>
+            <span class="tier-badge ${t.cls}" style="font-size:10px;padding:2px 7px;">${t.label}</span>
             ${r.total>0?`<span class="lb-winrate ${wc}">${wr}%</span>`:''}
           </div>
           ${fbKey?`<div class="lb-setting-wrap"><button class="lb-setting-btn" onclick="event.stopPropagation();toggleProfile('${fbKey}')" title="프로필 편집">⚙️</button></div>`:''}
         </div>
+        ${r.total>0
+          ?`<div class="lb-score">${r.score}<span style="font-size:10px;color:var(--text-dim);font-family:'Noto Sans KR',sans-serif;font-weight:400;margin-left:2px;">pt</span></div>`
+          :''}
         <div class="lb-stats">
           ${r.total>0
-            ?`${r.wins}승 ${r.losses}패 (${r.total}판) · <span style="color:var(--gold-light);font-weight:700;">${r.score}pt</span>`
+            ?`${r.wins}승 ${r.losses}패 · ${r.total}판`
             :'<span style="font-size:10px;">기록 없음</span>'}
         </div>
       </div>
@@ -1908,18 +1912,42 @@ window.openMyModal = function() {
 window.closeMyModal = function() {
   document.getElementById('my-modal').style.display='none';
 };
-window.selectMyName = function(name) {
+// 기존 경기 기록으로 골드 소급 계산 (최초 1회만)
+function calcRetroGold(name) {
+  const key = normName(name);
+  let gold = 0;
+  Object.values(matches).forEach(m => {
+    const inA = (m.teamA||[]).some(n=>normName(n)===key);
+    const inB = (m.teamB||[]).some(n=>normName(n)===key);
+    if (!inA && !inB) return;
+    const won = (m.winner==='blue'&&inA)||(m.winner==='red'&&inB);
+    gold += won ? GOLD_WIN : GOLD_LOSE;
+  });
+  return gold;
+}
+
+window.selectMyName = async function(name) {
   myName = name;
   localStorage.setItem('myName', name);
-  // goldData에 없으면 생성
-  const exists = Object.values(goldData).find(g=>g.name===name);
-  if (!exists) {
-    push(ref(db,'gold'), {name, gold:0, items:[]});
+  const existEntry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(name));
+  if (!existEntry) {
+    // Firebase에 없음 → 최초 등록 + 소급 골드 지급
+    const retroGold = calcRetroGold(name);
+    await push(ref(db,'gold'), {
+      name,
+      gold: retroGold,
+      items: [],
+      retroApplied: true,  // 소급 완료 플래그 — 다시는 소급 안 함
+    });
+    showGoldToast(`✅ ${name} 등록! 기존 전적 기반 🪙${retroGold} 지급!`);
+  } else {
+    const [, existData] = existEntry;
+    // 이미 있음 → retroApplied 여부와 무관하게 골드 건드리지 않음
+    showGoldToast(`✅ ${name} 으로 설정됐어요! 🪙${existData.gold||0}`);
   }
   closeMyModal();
   updateMyInfoBar();
   renderShop();
-  showGoldToast('✅ ' + name + ' 으로 설정됐어요!');
 };
 
 // 상점 렌더링
@@ -1984,14 +2012,21 @@ function renderShop() {
 window.buyItem = async function(itemId) {
   if (itemsLocked) { showGoldToast('🔒 팀 구성 후에는 구매할 수 없어요!'); return; }
   const key = getMyGoldKey();
-  if (!key) return;
+  if (!key) { showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
+  // 항상 최신 goldData 기준으로 차감 (동시 클릭 방지)
   const data = goldData[key];
+  if (!data) return;
   const item = SHOP_ITEMS.find(s=>s.id===itemId);
-  if (!item || data.gold < item.price) return;
-  const newGold  = data.gold - item.price;
-  const newItems = [...(data.items||[]), {id:itemId, boughtAt:Date.now()}];
+  if (!item) return;
+  const currentGold = data.gold ?? 0;
+  if (currentGold < item.price) {
+    showGoldToast(`🪙 골드가 부족해요! (보유: ${currentGold} / 필요: ${item.price})`);
+    return;
+  }
+  const newGold  = currentGold - item.price;
+  const newItems = [...(data.items||[]), {id:itemId, boughtAt:Date.now(), active:false}];
   await set(ref(db,'gold/'+key), {...data, gold:newGold, items:newItems});
-  showGoldToast(`${item.icon} ${item.name} 구매 완료!`);
+  showGoldToast(`${item.icon} ${item.name} 구매! 🪙${newGold} 남음`);
 };
 
 // 아이템 활성화/해제 토글 (경기 전 미리 ON/OFF)
@@ -2015,49 +2050,61 @@ window.toggleItemActive = async function(idx) {
     : `${def?.icon} ${def?.name} 비활성화됨`);
 };
 
-// 경기 저장 시 골드 지급 + 아이템 효과 적용
+// 경기 저장 시 골드 지급 + 아이템 소모
 async function giveMatchGold(winners, losers) {
-  const applyLog = []; // 토스트용 로그
+  const applyLog = [];
 
   const processPlayer = async (name, isWinner) => {
-    const entry = Object.entries(goldData).find(([,g])=>g.name===name);
-    if (!entry) return;
-    const [k, d] = entry;
-    let gold = d.gold || 0;
-    let items = [...(d.items||[])];
-    const usedItems = [];
+    const entry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(name));
 
-    // 아이템 효과 적용
-    // 승점 2배권: 승리 시 활성화된 경우 → 승점 계산에 플래그 (Firebase matches에 기록)
-    // 패배 방어권: 패배 시 활성화된 경우 → 승점 계산에 플래그
-    // 아이템 소모 처리
-    items = items.filter((item, idx) => {
-      if (!item.active) return true; // 비활성화 아이템은 유지
+    let k, d;
+    if (!entry) {
+      // goldData 미등록자 → 과거 기록 소급 + 이번 경기 골드 함께 지급
+      const retroGold = calcRetroGold(name); // 기존 경기 기반 소급
+      const thisGold  = isWinner ? GOLD_WIN : GOLD_LOSE; // 이번 경기 추가
+      await push(ref(db,'gold'), {
+        name,
+        gold: retroGold + thisGold,
+        items: [],
+        retroApplied: true,
+      });
+      return;
+    }
+
+    [k, d] = entry;
+    let gold = d.gold ?? 0;
+    let items = [...(d.items||[])];
+
+    // 활성화된 아이템 처리
+    items = items.filter(item => {
+      if (!item.active) return true;
       if (isWinner && item.id === 'score2x') {
-        usedItems.push(item.id);
-        applyLog.push(`⚡ ${name} 승점 2배 적용!`);
-        return false; // 소모
+        applyLog.push(`⚡ ${name} 승점 2배!`);
+        return false;
       }
       if (!isWinner && item.id === 'insurance') {
-        usedItems.push(item.id);
-        applyLog.push(`🛡️ ${name} 패배 방어권 발동!`);
-        return false; // 소모
+        applyLog.push(`🛡️ ${name} 패배 방어!`);
+        return false;
       }
-      return true; // 그 외 활성화 아이템은 경기 끝나면 비활성화만
-    }).map(item => ({...item, active: false})); // 미사용 활성 아이템 비활성화
+      return true;
+    }).map(item => ({...item, active: false}));
 
     // 골드 지급
     gold += isWinner ? GOLD_WIN : GOLD_LOSE;
 
-    await set(ref(db,'gold/'+k), {...d, gold, items, lastUsedItems: usedItems});
+    await set(ref(db,'gold/'+k), {
+      ...d,
+      gold,
+      items,
+      lastMatch: { isWinner, at: Date.now() }
+    });
   };
 
   for (const name of winners) await processPlayer(name, true);
   for (const name of losers)  await processPlayer(name, false);
 
-  // 사용된 아이템 로그 토스트
   if (applyLog.length > 0) {
-    setTimeout(() => showGoldToast(applyLog.join(' · ')), 600);
+    setTimeout(() => showGoldToast(applyLog.join(' · ')), 500);
   }
 }
 
