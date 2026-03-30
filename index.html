@@ -401,7 +401,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v1.8.6</div>
+<div class="version-badge">v1.8.8</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -713,6 +713,7 @@ let currentTeamA = [], currentTeamB = [];
 let selectedWinner = null;
 let myName = localStorage.getItem('myName') || null; // 본인 닉네임
 let itemsLocked = false; // 팀 구성 후 아이템 잠금 여부
+let goldLoaded = false; // goldData 로드 완료 여부
 
 // ── 아이템 정의 ──────────────────────────────────────────────
 const SHOP_ITEMS = [
@@ -746,12 +747,38 @@ let playersLoaded = false;
 let matchesLoaded = false;
 
 function renderAllWhenReady() {
-  // players와 matches 둘 다 로드된 후에만 렌더링
   if (!playersLoaded || !matchesLoaded) return;
+  if (goldLoaded) seedGoldForAllPlayers(); // gold 로드됐을 때만 시딩
   renderMemberGrid();
   renderSessionPlayers();
   renderMatchHistory();
   renderRanking();
+}
+
+// 등록된 모든 플레이어를 gold/에 자동 시딩 (미등록자만)
+// matches 기반으로 정확한 소급 계산 — 현재 matches 상태 그대로 사용
+async function seedGoldForAllPlayers() {
+  const allNames = Object.values(registeredPlayers).map(p=>p.name);
+  for (const name of allNames) {
+    const exists = Object.values(goldData).find(g=>normName(g.name)===normName(name));
+    if (exists) continue; // 이미 있으면 건너뜀
+    // 현재 matches(삭제된 경기 제외된 상태)로 정확하게 계산
+    const key = normName(name);
+    let gold = 0;
+    Object.values(matches).forEach(m => {
+      const inA = (m.teamA||[]).some(n=>normName(n)===key);
+      const inB = (m.teamB||[]).some(n=>normName(n)===key);
+      if (!inA && !inB) return;
+      const won = (m.winner==='blue'&&inA)||(m.winner==='red'&&inB);
+      gold += won ? GOLD_WIN : GOLD_LOSE;
+    });
+    await push(ref(db,'gold'), {
+      name,
+      gold,
+      items: [],
+      retroApplied: true,
+    });
+  }
 }
 
 // 플레이어 목록 실시간 구독
@@ -770,8 +797,11 @@ onValue(ref(db, 'players'), (snapshot) => {
 // 골드 데이터 실시간 구독
 onValue(ref(db, 'gold'), (snapshot) => {
   goldData = snapshot.val() || {};
+  goldLoaded = true;
   updateMyInfoBar();
   renderShop();
+  // gold 로드 후에도 시딩 체크 (players/matches가 먼저 로드된 경우 대비)
+  if (playersLoaded && matchesLoaded) seedGoldForAllPlayers();
 });
 
 // 경기 기록 실시간 구독
@@ -1439,23 +1469,24 @@ window.saveMatch = async function() {
     const itemEffects = {};
     const allPlayers = [...currentTeamA, ...currentTeamB];
     for (const p of allPlayers) {
-      const entry = Object.entries(goldData).find(([,g])=>g.name===p.name);
+      const entry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(p.name));
       if (!entry) continue;
       const activeItems = (entry[1].items||[]).filter(it=>it.active).map(it=>it.id);
       if (activeItems.length > 0) itemEffects[normName(p.name)] = activeItems;
     }
 
+    const matchTimestamp = Date.now();
     await push(ref(db, 'matches'), {
       date: new Date().toLocaleDateString('ko-KR',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}),
-      timestamp: Date.now(),
+      timestamp: matchTimestamp,
       teamA: currentTeamA.map(p=>p.name),
       teamB: currentTeamB.map(p=>p.name),
       winner: selectedWinner,
       mode, size: teamSize,
       itemEffects: Object.keys(itemEffects).length>0 ? itemEffects : null,
     });
-    // 골드 지급 + 아이템 소모
-    await giveMatchGold(winners, losers);
+    // 골드 지급 + 아이템 소모 (matchTimestamp 전달 → 이중계산 방지)
+    await giveMatchGold(winners, losers, matchTimestamp);
     btn.textContent='✅ 저장 완료!';
     btn.style.background='linear-gradient(135deg,var(--green-dark),var(--green))';
     btn.disabled=true;
@@ -2051,40 +2082,56 @@ window.toggleItemActive = async function(idx) {
 };
 
 // 경기 저장 시 골드 지급 + 아이템 소모
-async function giveMatchGold(winners, losers) {
+// matchTimestamp: 방금 저장한 경기의 timestamp — 소급 계산 시 이 경기 제외용
+async function giveMatchGold(winners, losers, matchTimestamp) {
   const applyLog = [];
+
+  // 소급 골드 계산 — matchTimestamp 이전 경기만 포함 (이번 경기 제외)
+  function calcRetroGoldBefore(name, beforeTs) {
+    const key = normName(name);
+    let gold = 0;
+    Object.values(matches).forEach(m => {
+      if ((m.timestamp||0) >= beforeTs) return; // 이번 경기 제외
+      const inA = (m.teamA||[]).some(n=>normName(n)===key);
+      const inB = (m.teamB||[]).some(n=>normName(n)===key);
+      if (!inA && !inB) return;
+      const won = (m.winner==='blue'&&inA)||(m.winner==='red'&&inB);
+      gold += won ? GOLD_WIN : GOLD_LOSE;
+    });
+    return gold;
+  }
 
   const processPlayer = async (name, isWinner) => {
     const entry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(name));
 
-    let k, d;
     if (!entry) {
-      // goldData 미등록자 → 과거 기록 소급 + 이번 경기 골드 함께 지급
-      const retroGold = calcRetroGold(name); // 기존 경기 기반 소급
-      const thisGold  = isWinner ? GOLD_WIN : GOLD_LOSE; // 이번 경기 추가
+      // goldData 미등록자 → 이번 경기 제외한 소급 + 이번 경기 골드
+      const retroGold = calcRetroGoldBefore(name, matchTimestamp);
+      const thisGold  = isWinner ? GOLD_WIN : GOLD_LOSE;
       await push(ref(db,'gold'), {
         name,
         gold: retroGold + thisGold,
         items: [],
         retroApplied: true,
       });
+      applyLog.push(`🪙 ${name} 첫 등록 +${retroGold + thisGold}골드`);
       return;
     }
 
-    [k, d] = entry;
+    const [k, d] = entry;
     let gold = d.gold ?? 0;
     let items = [...(d.items||[])];
 
-    // 활성화된 아이템 처리
+    // 활성화된 아이템 처리 및 소모
     items = items.filter(item => {
       if (!item.active) return true;
       if (isWinner && item.id === 'score2x') {
         applyLog.push(`⚡ ${name} 승점 2배!`);
-        return false;
+        return false; // 소모
       }
       if (!isWinner && item.id === 'insurance') {
         applyLog.push(`🛡️ ${name} 패배 방어!`);
-        return false;
+        return false; // 소모
       }
       return true;
     }).map(item => ({...item, active: false}));
@@ -2093,9 +2140,7 @@ async function giveMatchGold(winners, losers) {
     gold += isWinner ? GOLD_WIN : GOLD_LOSE;
 
     await set(ref(db,'gold/'+k), {
-      ...d,
-      gold,
-      items,
+      ...d, gold, items,
       lastMatch: { isWinner, at: Date.now() }
     });
   };
