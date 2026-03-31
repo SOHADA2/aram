@@ -269,6 +269,8 @@ select option{background:var(--surface2);}
 .motto-input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(11,196,227,0.1);}
 .motto-counter{position:absolute;right:10px;font-size:10px;color:var(--text-dim);}
 .motto-display{font-size:11px;color:var(--text-dim);font-style:italic;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.lb-motto{font-size:11px;color:var(--text-dim);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:140px;margin-top:2px;}
+@media(max-width:400px){.lb-motto{max-width:100px;}}
 /* 팀결과 포지션 아이콘 */
 .pos-icons{display:flex;gap:3px;flex-wrap:wrap;margin-top:3px;}
 .pos-icon{font-size:11px;padding:1px 5px;border-radius:3px;line-height:1.4;}
@@ -409,7 +411,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v1.9.5</div>
+<div class="version-badge">v1.9.6</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -529,11 +531,6 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 
     <!-- 일반 매치 설정 -->
     <div id="normal-config">
-      <div class="size-row">
-        <button class="size-btn active" data-size="3" onclick="setSize(3)">3:3</button>
-        <button class="size-btn" data-size="4" onclick="setSize(4)">4:4</button>
-        <button class="size-btn" data-size="5" onclick="setSize(5)">5:5</button>
-      </div>
       <div class="mode-tabs">
         <div class="mode-tab active" data-mode="balance" onclick="setMode('balance')">⚖️ 실력 밸런스<span>티어로 균형 맞추기</span></div>
         <div class="mode-tab" data-mode="random" onclick="setMode('random')">🎲 완전 랜덤<span>운에 맡기자</span></div>
@@ -1374,10 +1371,6 @@ window.setEventSize = function(team, val) {
 };
 
 // ── SIZE / MODE ───────────────────────────────────────────────
-window.setSize = function(n) {
-  teamSize = n;
-  document.querySelectorAll('.size-btn').forEach(b=>b.classList.toggle('active',+b.dataset.size===n));
-};
 window.setMode = function(m) {
   mode = m;
   // data-mode 속성 있는 탭만 토글 (match-tab-normal/event 는 건드리지 않음)
@@ -1419,11 +1412,17 @@ window.makeTeams = function() {
   }
 
   // ── 일반 매치 ──────────────────────────────────────────────
-  const needed = teamSize*2;
-  if (sessionPlayers.length < needed) {
-    warn.innerHTML = `<div class="warning">⚠️ ${teamSize}:${teamSize} 대전엔 최소 ${needed}명 필요! (현재 ${sessionPlayers.length}명)</div>`;
+  // 인원수에 따라 teamSize 자동 결정
+  if (sessionPlayers.length < 4) {
+    warn.innerHTML = `<div class="warning">⚠️ 일반 매치엔 최소 4명이 필요해요! (현재 ${sessionPlayers.length}명)</div>`;
     return;
   }
+  if (sessionPlayers.length % 2 !== 0) {
+    warn.innerHTML = `<div class="warning">⚠️ 짝수 인원이 필요해요! (현재 ${sessionPlayers.length}명) 홀수 인원은 이벤트 매치를 이용해주세요.</div>`;
+    return;
+  }
+  teamSize = sessionPlayers.length / 2;
+  const needed = teamSize * 2;
   let pool = sessionPlayers.map(p=>({...p, tier: getEffectiveTier(p.name, p.manualTier)}));
   if (pool.length > needed) {
     warn.innerHTML = `<div class="warning">👥 ${pool.length}명 중 ${needed}명 선발!</div>`;
@@ -2170,6 +2169,7 @@ function renderRanking() {
     const player = fbKey ? registeredPlayers[fbKey] : null;
     const tier1 = player?.champTier1 || [];
     const tier2 = player?.champTier2 || [];
+    const motto = player?.motto || '';
     const posIcons = [
       ...tier1.map(id=>{ const c=CHAMP_CLASSES.find(x=>x.id===id); return c?`<span class="pos-icon tier1">${c.label}</span>`:''; }),
       ...tier2.map(id=>{ const c=CHAMP_CLASSES.find(x=>x.id===id); return c?`<span class="pos-icon tier2">${c.label}</span>`:''; }),
@@ -2179,6 +2179,7 @@ function renderRanking() {
       <div class="lb-rank">${rankHtml}</div>
       <div class="lb-main">
         <div class="lb-name-text">${escHtml(r.name)}</div>
+        ${motto?`<div class="lb-motto">"${escHtml(motto)}"</div>`:''}
         ${posIcons?`<div class="lb-pos-icons">${posIcons}</div>`:''}
       </div>
       <div class="lb-right">
