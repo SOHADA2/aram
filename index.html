@@ -415,7 +415,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v1.9.3</div>
+<div class="version-badge">v1.9.4</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -763,6 +763,7 @@ async function seedDefaultMembers() {
 // 두 데이터 모두 로드됐는지 추적
 let playersLoaded = false;
 let matchesLoaded = false;
+let pendingSessionData = null; // players/matches 로드 전에 도착한 session 데이터 임시 보관
 
 function renderAllWhenReady() {
   if (!playersLoaded || !matchesLoaded) return;
@@ -771,6 +772,8 @@ function renderAllWhenReady() {
   renderSessionPlayers();
   renderMatchHistory();
   renderRanking();
+  // 페이지 로드 전에 도착한 session 데이터가 있으면 적용
+  if (pendingSessionData) { applySessionData(pendingSessionData); pendingSessionData = null; }
 }
 
 // 전체 경기 기록 기반 획득 골드 계산 (항상 현재 matches 상태 기준)
@@ -861,6 +864,37 @@ onValue(ref(db, 'matches'), (snapshot) => {
 }, (err) => {
   setSyncStatus('err', '연결 실패: ' + err.message);
   document.getElementById('live-badge').style.display = 'none';
+});
+
+// ── SESSION SYNC (팀짜기 실시간 공유) ─────────────────────────
+function applySessionData(data) {
+  if (!data || !data.active) return;
+  const reconstruct = (names) => (names || []).map(name => {
+    const p = Object.values(registeredPlayers).find(r => normName(r.name) === normName(name)) || {name, manualTier: null};
+    return { id: Math.random(), name, tier: getEffectiveTier(name, p.manualTier), manualTier: p.manualTier };
+  });
+  currentTeamA  = reconstruct(data.teamA);
+  currentTeamB  = reconstruct(data.teamB);
+  teamSize      = data.teamSize  || teamSize;
+  mode          = data.mode      || mode;
+  isEventMatch  = !!data.isEventMatch;
+  itemsLocked   = true;
+  renderShop();
+  if (currentTeamA.length || currentTeamB.length) renderResult();
+}
+
+onValue(ref(db, 'session'), (snapshot) => {
+  const data = snapshot.val();
+  if (!data || !data.active) {
+    // 세션 종료: 아이템 잠금 해제 (경기 저장·리셋 후)
+    if (itemsLocked) { itemsLocked = false; renderShop(); }
+    return;
+  }
+  if (!playersLoaded || !matchesLoaded) {
+    pendingSessionData = data; // 아직 로드 중이면 대기
+    return;
+  }
+  applySessionData(data);
 });
 
 // ── SYNC STATUS ───────────────────────────────────────────────
@@ -1342,6 +1376,7 @@ window.makeTeams = function() {
     currentTeamA = s.slice(0, sizeA);
     currentTeamB = s.slice(sizeA, sizeA+sizeB);
     selectedWinner = null;
+    // 이벤트 매치는 저장 안 하므로 session도 Firebase에 올리지 않음
     renderResult();
     return;
   }
@@ -1378,6 +1413,13 @@ window.makeTeams = function() {
   itemsLocked = true;
   renderShop();
   renderResult();
+  // Firebase에 팀 결과 기록 → 다른 기기에 실시간 동기화
+  set(ref(db, 'session'), {
+    active: true,
+    teamA: currentTeamA.map(p => p.name),
+    teamB: currentTeamB.map(p => p.name),
+    teamSize, mode, isEventMatch: false
+  }).catch(console.error);
 };
 
 function renderResult() {
@@ -1661,6 +1703,7 @@ window.saveMatch = async function() {
     btn.style.background='linear-gradient(135deg,var(--green-dark),var(--green))';
     btn.disabled=true;
     itemsLocked = false;
+    set(ref(db, 'session'), { active: false }).catch(console.error); // 경기 저장 → session 종료 동기화
     renderShop();
     document.getElementById('save-done-panel').classList.add('show');
     // MVP 섹션 초기화
@@ -2329,6 +2372,7 @@ window.resetSession = function() {
   if(sessionPlayers.length>0&&!confirm('현재 참가자 목록을 비울까요?')) return;
   sessionPlayers=[];
   itemsLocked = false;
+  set(ref(db, 'session'), { active: false }).catch(console.error); // 리셋 → session 종료 동기화
   renderSessionPlayers();
   renderShop();
   document.getElementById('result-section').style.display='none';
