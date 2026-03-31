@@ -314,6 +314,16 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 /* ── 내 정보 바 ── */
 .my-info-bar{display:flex;align-items:center;gap:8px;padding:7px 12px;background:linear-gradient(135deg,rgba(200,155,60,0.1),rgba(13,24,41,0.9));border:1px solid rgba(200,155,60,0.3);border-radius:8px;margin-bottom:14px;cursor:pointer;transition:all 0.15s;}
 .my-info-bar:hover{border-color:var(--gold);}
+/* ── 라이브 모드 바 ── */
+.live-mode-bar{display:none;align-items:center;gap:8px;padding:7px 12px;background:linear-gradient(135deg,rgba(220,50,50,0.12),rgba(13,24,41,0.9));border:1px solid rgba(220,80,80,0.35);border-radius:8px;margin-bottom:14px;}
+.live-badge{display:flex;align-items:center;gap:6px;font-family:'Black Han Sans',sans-serif;font-size:13px;color:#ff6b6b;letter-spacing:1px;flex:1;}
+.live-dot{width:8px;height:8px;border-radius:50%;background:#ff4444;box-shadow:0 0 6px #ff4444;animation:livePulse 1.2s infinite;}
+@keyframes livePulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.live-exit-btn{background:none;border:1px solid rgba(220,80,80,0.35);color:rgba(220,100,100,0.8);font-size:11px;cursor:pointer;padding:3px 9px;border-radius:5px;font-family:'Noto Sans KR',sans-serif;font-weight:700;transition:all 0.15s;}
+.live-exit-btn:hover{border-color:#ff6b6b;color:#ff6b6b;}
+body.live-mode .record-panel{display:none!important;}
+body.live-mode .nav-tab-shop{display:none!important;}
+body.live-mode #tab-shop{display:none!important;}
 .my-info-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--blue-dark),var(--blue));display:flex;align-items:center;justify-content:center;font-family:'Black Han Sans',sans-serif;font-size:17px;color:#fff;flex-shrink:0;}
 .my-info-name{font-weight:700;font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .my-info-gold{display:flex;align-items:center;gap:3px;font-family:'Black Han Sans',sans-serif;font-size:13px;color:var(--gold);flex-shrink:0;}
@@ -433,7 +443,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.0.4</div>
+<div class="version-badge">v2.0.5</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -453,8 +463,17 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
     <div class="my-modal-title">👋 나는 누구?</div>
     <div class="my-modal-sub">본인 닉네임을 선택해주세요<br><small style="color:rgba(110,144,184,0.6)">브라우저에 저장되어 다음엔 자동으로 적용돼요</small></div>
     <div class="my-modal-grid" id="my-modal-grid"></div>
-    <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;" onclick="closeMyModal()">나중에 선택</button>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost btn-sm" style="flex:1;justify-content:center;" onclick="closeMyModal()">나중에 선택</button>
+      <button class="btn btn-sm" style="flex:1;justify-content:center;background:rgba(220,50,50,0.12);border:1px solid rgba(220,80,80,0.4);color:#ff6b6b;" onclick="enterLiveMode()">🎬 라이브용</button>
+    </div>
   </div>
+</div>
+
+<!-- 라이브 모드 바 -->
+<div class="live-mode-bar" id="live-mode-bar">
+  <div class="live-badge"><div class="live-dot"></div>🎬 라이브 모드</div>
+  <button class="live-exit-btn" onclick="exitLiveMode()">종료</button>
 </div>
 
 <!-- 내 정보 바 -->
@@ -469,7 +488,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
   <button class="nav-tab active" onclick="showTab('tab-team',this)">⚔️<br>팀구성</button>
   <button class="nav-tab" onclick="showTab('tab-record',this)">📋<br>기록</button>
   <button class="nav-tab" onclick="showTab('tab-rank',this)">🏆<br>랭킹</button>
-  <button class="nav-tab" onclick="showTab('tab-shop',this)">🛒<br>상점</button>
+  <button class="nav-tab nav-tab-shop" onclick="showTab('tab-shop',this)">🛒<br>상점</button>
 </div>
 
 <!-- ===== TAB: 팀 구성 ===== -->
@@ -742,6 +761,7 @@ let isEventMatch = false;
 let currentTeamA = [], currentTeamB = [];
 let selectedWinner = null;
 let myName = localStorage.getItem('myName') || null; // 본인 닉네임
+let liveMode = !!localStorage.getItem('liveMode');   // 라이브 모드
 let itemsLocked = false; // 팀 구성 후 아이템 잠금 여부
 let goldLoaded = false; // goldData 로드 완료 여부
 
@@ -2314,6 +2334,31 @@ window.openMyModal = function() {
 window.closeMyModal = function() {
   document.getElementById('my-modal').style.display='none';
 };
+function setLiveMode(enabled) {
+  liveMode = enabled;
+  if (enabled) localStorage.setItem('liveMode', '1');
+  else localStorage.removeItem('liveMode');
+  document.body.classList.toggle('live-mode', enabled);
+  document.getElementById('live-mode-bar').style.display = enabled ? 'flex' : 'none';
+  if (enabled) {
+    document.getElementById('my-info-bar').style.display = 'none';
+    // 상점 탭 활성화 상태면 팀구성으로 이동
+    if (document.getElementById('tab-shop').classList.contains('active')) {
+      const teamBtn = document.querySelector('.nav-tab');
+      showTab('tab-team', teamBtn);
+      teamBtn.classList.add('active');
+    }
+  } else {
+    updateMyInfoBar();
+  }
+}
+window.enterLiveMode = function() {
+  closeMyModal();
+  setLiveMode(true);
+};
+window.exitLiveMode = function() {
+  setLiveMode(false);
+};
 window.selectMyName = async function(name) {
   myName = name;
   localStorage.setItem('myName', name);
@@ -2538,7 +2583,9 @@ document.getElementById('inp-name').addEventListener('keydown',e=>{if(e.key==='E
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeProfileModal(); closeMyModal(); } });
 
 // 본인 닉네임 자동 복원 및 초기 표시
-if (myName) {
+if (liveMode) {
+  setLiveMode(true);
+} else if (myName) {
   updateMyInfoBar();
 } else {
   // 로드 완료 후 모달 자동 표시
