@@ -427,7 +427,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.0.2</div>
+<div class="version-badge">v2.0.3</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -895,25 +895,17 @@ function applySessionData(data) {
 }
 
 function applyMvpData(data) {
-  if (!data || !data.side) return;
-  selectedWinner = data.side;
+  if (!data || !data.active) return;
   mvpVotes = {
-    winners: data.winnersVotes || {},
-    losers:  data.losersVotes  || {}
+    teamA: data.teamAVotes || {},
+    teamB: data.teamBVotes || {}
   };
   mvpConfirmed = data.confirmed || null;
-  // 승리 버튼 UI 갱신
-  const wb = document.getElementById('wb-blue');
-  const wr = document.getElementById('wb-red');
-  if (wb) wb.className = 'winner-btn blue' + (selectedWinner==='blue'?' selected-blue':'');
-  if (wr) wr.className = 'winner-btn red'  + (selectedWinner==='red'?' selected-red':'');
-  const wm = document.getElementById('winner-selected-msg');
-  if (wm) wm.textContent = selectedWinner==='blue'?'🔵 1팀 승리 선택됨':'🔴 2팀 승리 선택됨';
   // MVP 섹션 렌더링
   if (currentTeamA.length && currentTeamB.length) {
     const sec = document.getElementById('mvp-section');
     if (sec && sec._renderMvp) sec._renderMvp();
-    else renderMvpSection(data.side);
+    else renderMvpSection();
   }
 }
 
@@ -934,8 +926,8 @@ onValue(ref(db, 'session'), (snapshot) => {
 // MVP 투표 실시간 구독
 onValue(ref(db, 'session/mvp'), (snapshot) => {
   const data = snapshot.val();
-  if (!data || !data.side) {
-    mvpVotes = { winners: {}, losers: {} };
+  if (!data || !data.active) {
+    mvpVotes = { teamA: {}, teamB: {} };
     mvpConfirmed = null;
     pendingMvpData = null;
     return;
@@ -1461,6 +1453,8 @@ window.makeTeams = function() {
     }
   }
   selectedWinner = null;
+  mvpVotes = { teamA: {}, teamB: {} };
+  mvpConfirmed = null;
   // 팀 구성 완료 → 아이템 잠금
   itemsLocked = true;
   renderShop();
@@ -1472,6 +1466,8 @@ window.makeTeams = function() {
     teamB: currentTeamB.map(p => p.name),
     teamSize, mode, isEventMatch: false
   }).catch(console.error);
+  // MVP 투표 초기화 → 팀 구성 즉시 투표 시작
+  set(ref(db, 'session/mvp'), { active: true }).catch(console.error);
 };
 
 function renderResult() {
@@ -1534,6 +1530,7 @@ function renderResult() {
   document.getElementById('wb-red').className='winner-btn red';
   document.getElementById('winner-selected-msg').textContent='';
   document.getElementById('save-btn').disabled=true;
+  if (!isEventMatch) renderMvpSection();
 }
 
 function promoSubHtml(promo) {
@@ -1590,74 +1587,69 @@ function teamCard(title,cls,members,avg) {
 }
 
 // ── WINNER / SAVE ─────────────────────────────────────────────
-let mvpVotes = { winners: {}, losers: {} }; // winners: 이긴팀→진팀MVP투표, losers: 진팀→이긴팀MVP투표
-let mvpConfirmed = null; // null | { winner: string, loser: string }
+let mvpVotes = { teamA: {}, teamB: {} }; // teamA: 1팀이 2팀에서 고름, teamB: 2팀이 1팀에서 고름
+let mvpConfirmed = null; // null | { teamAMvp: string, teamBMvp: string }
 let pendingMvpData = null; // 팀 데이터 로드 전 도착한 MVP 데이터 임시 보관
+
+// 승리팀 선택 + MVP 완료 시에만 저장 버튼 활성화
+function checkSaveReady() {
+  if (isEventMatch) return;
+  document.getElementById('save-btn').disabled = !(selectedWinner !== null && mvpConfirmed !== null);
+}
 
 window.selectWinner = function(side) {
   selectedWinner = side;
-  mvpVotes = { winners: {}, losers: {} };
-  mvpConfirmed = null;
   document.getElementById('wb-blue').className = 'winner-btn blue' + (side==='blue'?' selected-blue':'');
   document.getElementById('wb-red').className  = 'winner-btn red'  + (side==='red'?' selected-red':'');
-  document.getElementById('winner-selected-msg').textContent = side==='blue'?'🔵 1팀 승리 선택됨':'🔴 2팀 승리 선택됨';
-  document.getElementById('save-btn').disabled = true;
-  if (!isEventMatch) {
-    // Firebase에 MVP 투표 세션 시작 기록 → 모든 기기에 동기화
-    set(ref(db, 'session/mvp'), { side }).catch(console.error);
-    renderMvpSection(side);
-  }
+  document.getElementById('winner-selected-msg').textContent = side==='blue'?'🔵 1팀 승리 선택됨':'🟡 2팀 승리 선택됨';
+  checkSaveReady();
 };
 
-function renderMvpSection(side) {
+function renderMvpSection() {
   const sec = document.getElementById('mvp-section');
   if (!sec) return;
-  const winners = side==='blue' ? currentTeamA : currentTeamB;
-  const losers  = side==='blue' ? currentTeamB : currentTeamA;
-  if (!winners.length || !losers.length) { sec.style.display='none'; return; }
+  if (!currentTeamA.length || !currentTeamB.length) { sec.style.display='none'; return; }
   sec.style.display = 'block';
 
   const fbKey = (name) => normName(name).replace(/\s+/g, '_');
 
   function render() {
     if (mvpConfirmed !== null) {
-      // 확정 or 건너뜀 상태
-      const hasAny = mvpConfirmed.winner || mvpConfirmed.loser;
+      const hasAny = mvpConfirmed.teamAMvp || mvpConfirmed.teamBMvp;
       const banners = hasAny
-        ? `${mvpConfirmed.winner ? `<div class="mvp-winner-banner">🏆 이긴팀 MVP: ${escHtml(mvpConfirmed.winner)}</div>` : ''}
-           ${mvpConfirmed.loser  ? `<div class="mvp-loser-banner">🥈 진팀 MVP: ${escHtml(mvpConfirmed.loser)}</div>` : ''}`
+        ? `${mvpConfirmed.teamAMvp ? `<div class="mvp-winner-banner" style="border-color:var(--blue);color:var(--blue);">🔵 1팀 MVP: ${escHtml(mvpConfirmed.teamAMvp)}</div>` : ''}
+           ${mvpConfirmed.teamBMvp ? `<div class="mvp-winner-banner" style="border-color:#ffd740;color:#ffd740;">🟡 2팀 MVP: ${escHtml(mvpConfirmed.teamBMvp)}</div>` : ''}`
         : `<div style="font-size:12px;color:var(--text-dim);margin-bottom:10px;">MVP 투표를 건너뛰었어요.</div>`;
       sec.innerHTML = `
         <div class="mvp-title">🏆 MVP 결과</div>
         ${banners}
         <button class="mvp-skip-btn" onclick="resetMvp()">↩ 다시 투표</button>`;
-      document.getElementById('save-btn').disabled = false;
+      checkSaveReady();
       return;
     }
 
-    // 내 팀 확인
+    // 내 팀 확인 (teamA = 1팀, teamB = 2팀)
     const myNorm = myName ? normName(myName) : null;
-    const amIWinner = myNorm && winners.some(p => normName(p.name) === myNorm);
-    const amILoser  = myNorm && losers.some(p => normName(p.name) === myNorm);
+    const amITeamA = myNorm && currentTeamA.some(p => normName(p.name) === myNorm);
+    const amITeamB = myNorm && currentTeamB.some(p => normName(p.name) === myNorm);
 
     // 투표 진행 현황
-    const winnersVotedCount = Object.keys(mvpVotes.winners || {}).length;
-    const losersVotedCount  = Object.keys(mvpVotes.losers  || {}).length;
-    const allVoted = winnersVotedCount === winners.length && losersVotedCount === losers.length;
+    const teamAVotedCount = Object.keys(mvpVotes.teamA || {}).length;
+    const teamBVotedCount = Object.keys(mvpVotes.teamB || {}).length;
+    const allVoted = teamAVotedCount === currentTeamA.length && teamBVotedCount === currentTeamB.length;
 
-    // 내 투표 블록 구성
     let myVoteHtml = '';
     if (!myNorm) {
       myVoteHtml = `<div style="font-size:12px;color:var(--text-dim);padding:8px 0 12px;">본인 닉네임을 설정하면 투표할 수 있어요.</div>`;
-    } else if (!amIWinner && !amILoser) {
+    } else if (!amITeamA && !amITeamB) {
       myVoteHtml = `<div style="font-size:12px;color:var(--text-dim);padding:8px 0 12px;">이번 경기에 참가하지 않아 투표할 수 없어요.</div>`;
     } else {
-      if (amIWinner) {
-        // 이긴팀 → 진팀 MVP 투표
-        const myPick = (mvpVotes.winners || {})[fbKey(myName)];
-        const btns = losers.map(p => {
+      if (amITeamA) {
+        // 1팀 → 2팀 MVP 투표
+        const myPick = (mvpVotes.teamA || {})[fbKey(myName)];
+        const btns = currentTeamB.map(p => {
           const picked = myPick === p.name;
-          return `<button class="mvp-cand-btn${picked?' selected':''}" onclick="castMvpVote('winner','${escHtml(myName)}','${escHtml(p.name)}')">${escHtml(p.name)}</button>`;
+          return `<button class="mvp-cand-btn${picked?' selected':''}" onclick="castMvpVote('teamA','${escHtml(myName)}','${escHtml(p.name)}')">${escHtml(p.name)}</button>`;
         }).join('');
         myVoteHtml += `<div class="mvp-my-vote-block">
           <div class="mvp-my-vote-label">🏅 상대팀 MVP 선택 (비밀투표)</div>
@@ -1665,12 +1657,12 @@ function renderMvpSection(side) {
           ${myPick ? `<div class="mvp-voted-indicator">✅ ${escHtml(myPick)} 선택 완료</div>` : ''}
         </div>`;
       }
-      if (amILoser) {
-        // 진팀 → 이긴팀 MVP 투표
-        const myPick = (mvpVotes.losers || {})[fbKey(myName)];
-        const btns = winners.map(p => {
+      if (amITeamB) {
+        // 2팀 → 1팀 MVP 투표
+        const myPick = (mvpVotes.teamB || {})[fbKey(myName)];
+        const btns = currentTeamA.map(p => {
           const picked = myPick === p.name;
-          return `<button class="mvp-cand-btn${picked?' selected':''}" onclick="castMvpVote('loser','${escHtml(myName)}','${escHtml(p.name)}')">${escHtml(p.name)}</button>`;
+          return `<button class="mvp-cand-btn${picked?' selected':''}" onclick="castMvpVote('teamB','${escHtml(myName)}','${escHtml(p.name)}')">${escHtml(p.name)}</button>`;
         }).join('');
         myVoteHtml += `<div class="mvp-my-vote-block">
           <div class="mvp-my-vote-label">🏅 상대팀 MVP 선택 (비밀투표)</div>
@@ -1685,13 +1677,12 @@ function renderMvpSection(side) {
       <div class="mvp-sub">서로 상대팀 MVP를 선택해요 · 각 팀 MVP는 🪙+${GOLD_MVP} 추가 지급</div>
       ${myVoteHtml}
       <div class="mvp-progress">
-        <span>이긴팀 투표: ${winnersVotedCount}/${winners.length}명</span>
-        <span>진팀 투표: ${losersVotedCount}/${losers.length}명</span>
+        <span>🔵 1팀 투표: ${teamAVotedCount}/${currentTeamA.length}명</span>
+        <span>🟡 2팀 투표: ${teamBVotedCount}/${currentTeamB.length}명</span>
       </div>
       <button class="mvp-skip-btn" onclick="skipMvp()">건너뛰기</button>`;
 
-    // 모두 투표 완료 시 자동 확정
-    if (allVoted) autoConfirmMvp(winners, losers);
+    if (allVoted) autoConfirmMvp();
   }
 
   render();
@@ -1700,47 +1691,47 @@ function renderMvpSection(side) {
 
 window.castMvpVote = function(team, voter, candidate) {
   const safeKey = normName(voter).replace(/\s+/g, '_');
-  const path = team === 'winner'
-    ? `session/mvp/winnersVotes/${safeKey}`
-    : `session/mvp/losersVotes/${safeKey}`;
+  const path = team === 'teamA'
+    ? `session/mvp/teamAVotes/${safeKey}`
+    : `session/mvp/teamBVotes/${safeKey}`;
   set(ref(db, path), candidate).catch(console.error);
   // 로컬 즉시 반영 (Firebase 콜백 전에 UI 선택 상태 표시)
-  if (team === 'winner') (mvpVotes.winners = mvpVotes.winners || {})[safeKey] = candidate;
-  else (mvpVotes.losers = mvpVotes.losers || {})[safeKey] = candidate;
+  if (team === 'teamA') (mvpVotes.teamA = mvpVotes.teamA || {})[safeKey] = candidate;
+  else (mvpVotes.teamB = mvpVotes.teamB || {})[safeKey] = candidate;
   const sec = document.getElementById('mvp-section');
   if (sec && sec._renderMvp) sec._renderMvp();
 };
 
-function autoConfirmMvp(winners, losers) {
+function autoConfirmMvp() {
   // 이미 확정됐으면 중복 실행 방지
   if (mvpConfirmed !== null) return;
-  // 진팀 투표 → 이긴팀 MVP
-  const wCounts = {};
-  winners.forEach(p => wCounts[p.name] = 0);
-  Object.values(mvpVotes.losers || {}).forEach(v => { if (wCounts[v]!==undefined) wCounts[v]++; });
-  const wMax = Math.max(...Object.values(wCounts));
-  const wTop = winners.filter(p => wCounts[p.name]===wMax && wMax>0).map(p=>p.name);
-  const mvpWinner = wTop.length ? wTop[Math.floor(Math.random()*wTop.length)] : '';
-  // 이긴팀 투표 → 진팀 MVP
-  const lCounts = {};
-  losers.forEach(p => lCounts[p.name] = 0);
-  Object.values(mvpVotes.winners || {}).forEach(v => { if (lCounts[v]!==undefined) lCounts[v]++; });
-  const lMax = Math.max(...Object.values(lCounts));
-  const lTop = losers.filter(p => lCounts[p.name]===lMax && lMax>0).map(p=>p.name);
-  const mvpLoser = lTop.length ? lTop[Math.floor(Math.random()*lTop.length)] : '';
+  // 1팀(teamA) MVP: 2팀(teamB)이 투표 → currentTeamA에서 선정
+  const aCounts = {};
+  currentTeamA.forEach(p => aCounts[p.name] = 0);
+  Object.values(mvpVotes.teamB || {}).forEach(v => { if (aCounts[v]!==undefined) aCounts[v]++; });
+  const aMax = Math.max(...Object.values(aCounts));
+  const aTop = currentTeamA.filter(p => aCounts[p.name]===aMax && aMax>0).map(p=>p.name);
+  const teamAMvp = aTop.length ? aTop[Math.floor(Math.random()*aTop.length)] : '';
+  // 2팀(teamB) MVP: 1팀(teamA)이 투표 → currentTeamB에서 선정
+  const bCounts = {};
+  currentTeamB.forEach(p => bCounts[p.name] = 0);
+  Object.values(mvpVotes.teamA || {}).forEach(v => { if (bCounts[v]!==undefined) bCounts[v]++; });
+  const bMax = Math.max(...Object.values(bCounts));
+  const bTop = currentTeamB.filter(p => bCounts[p.name]===bMax && bMax>0).map(p=>p.name);
+  const teamBMvp = bTop.length ? bTop[Math.floor(Math.random()*bTop.length)] : '';
   // Firebase에 확정 기록 → 모든 기기에 동기화
-  set(ref(db, 'session/mvp/confirmed'), { winner: mvpWinner, loser: mvpLoser }).catch(console.error);
+  set(ref(db, 'session/mvp/confirmed'), { teamAMvp, teamBMvp }).catch(console.error);
 }
 
 window.skipMvp = function() {
-  set(ref(db, 'session/mvp/confirmed'), { winner: '', loser: '' }).catch(console.error);
+  set(ref(db, 'session/mvp/confirmed'), { teamAMvp: '', teamBMvp: '' }).catch(console.error);
 };
 
 window.resetMvp = function() {
-  mvpVotes = { winners: {}, losers: {} };
+  mvpVotes = { teamA: {}, teamB: {} };
   mvpConfirmed = null;
   document.getElementById('save-btn').disabled = true;
-  set(ref(db, 'session/mvp'), { side: selectedWinner }).catch(console.error);
+  set(ref(db, 'session/mvp'), { active: true }).catch(console.error);
 };
 
 window.saveMatch = async function() {
@@ -1751,8 +1742,9 @@ window.saveMatch = async function() {
   try {
     const winners = selectedWinner==='blue' ? currentTeamA.map(p=>p.name) : currentTeamB.map(p=>p.name);
     const losers  = selectedWinner==='blue' ? currentTeamB.map(p=>p.name) : currentTeamA.map(p=>p.name);
-    const mvpWinnerName = mvpConfirmed?.winner || null;
-    const mvpLoserName  = mvpConfirmed?.loser  || null;
+    // teamA=1팀(블루), teamB=2팀(레드) → 승리팀에 따라 winner/loser MVP 매핑
+    const mvpWinnerName = selectedWinner==='blue' ? (mvpConfirmed?.teamAMvp || null) : (mvpConfirmed?.teamBMvp || null);
+    const mvpLoserName  = selectedWinner==='blue' ? (mvpConfirmed?.teamBMvp || null) : (mvpConfirmed?.teamAMvp || null);
 
     // 아이템 효과 미리 수집
     const itemEffects = {};
@@ -1800,7 +1792,7 @@ window.saveMatch = async function() {
     // MVP 섹션 초기화
     const sec = document.getElementById('mvp-section');
     if (sec) sec.style.display='none';
-    mvpVotes = { winners: {}, losers: {} }; mvpConfirmed = null;
+    mvpVotes = { teamA: {}, teamB: {} }; mvpConfirmed = null;
     selectedWinner=null;
     document.getElementById('wb-blue').className='winner-btn blue';
     document.getElementById('wb-red').className='winner-btn red';
