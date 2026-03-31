@@ -216,16 +216,26 @@ select option{background:var(--surface2);}
 .lb-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;min-width:64px;}
 .lb-score{font-size:17px;font-weight:700;font-family:'Black Han Sans',sans-serif;color:var(--gold-light);}
 .wr-high{color:var(--green);} .wr-mid{color:var(--gold);} .wr-low{color:var(--red);}
-.match-item{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:8px;}
-.match-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;flex-wrap:wrap;}
-.match-date{font-size:11px;color:var(--text-dim);}
+.match-item{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:10px;}
+.match-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.match-date{font-size:10px;color:var(--text-dim);flex:1;}
 .match-winner-badge{font-size:11px;font-family:'Black Han Sans',sans-serif;letter-spacing:1px;padding:2px 8px;border-radius:3px;}
+.match-body{display:grid;grid-template-columns:1fr 28px 1fr;gap:6px;align-items:stretch;}
+.match-team-box{border-radius:6px;padding:9px 10px;border:1.5px solid var(--border);background:var(--surface);display:flex;flex-direction:column;gap:4px;}
+.match-team-box.team-blue{border-color:var(--blue-dark);}
+.match-team-box.team-red{border-color:var(--red-dark);}
+.match-team-box.team-win-blue{background:rgba(11,196,227,0.06);border-color:var(--blue);}
+.match-team-box.team-win-red{background:rgba(232,64,87,0.06);border-color:var(--red);}
+.match-team-title{font-size:11px;font-family:'Black Han Sans',sans-serif;letter-spacing:0.5px;margin-bottom:4px;}
+.match-team-title.blue{color:var(--blue);}
+.match-team-title.red{color:var(--red);}
+.match-member{font-size:12px;color:var(--text-dim);padding:1px 0;line-height:1.4;word-break:keep-all;}
+.match-team-box.team-win-blue .match-member,.match-team-box.team-win-red .match-member{color:var(--text);}
+.match-member.mvp-win{color:var(--gold);font-weight:700;}
+.match-member.mvp-los{color:var(--red);font-weight:600;}
+.match-vs-sep{display:flex;align-items:center;justify-content:center;font-family:'Black Han Sans',sans-serif;font-size:10px;color:var(--text-dim);}
 .mw-blue{background:rgba(11,196,227,0.15);color:var(--blue);border:1px solid var(--blue-dark);}
 .mw-red{background:rgba(232,64,87,0.15);color:var(--red);border:1px solid var(--red-dark);}
-.match-teams{display:grid;grid-template-columns:1fr 20px 1fr;gap:6px;align-items:center;}
-.match-team{font-size:11px;color:var(--text-dim);}
-.match-team.winner{color:var(--text);}
-.match-vs{text-align:center;font-family:'Black Han Sans',sans-serif;font-size:11px;color:var(--text-dim);}
 .match-del{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:14px;padding:0 2px;flex-shrink:0;}
 .match-del:hover{color:var(--red);}
 /* 동기화 상태 바 */
@@ -411,7 +421,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v1.9.6</div>
+<div class="version-badge">v1.9.7</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1802,22 +1812,46 @@ function renderMatchHistory() {
   document.getElementById('match-count-badge').textContent=matchArr.length+'경기';
   if(matchArr.length===0){el.innerHTML='<div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>';return;}
   el.innerHTML=matchArr.map(m=>{
-    const wc=m.winner==='blue'?'mw-blue':'mw-red';
-    const wl=m.winner==='blue'?'1팀 승':'2팀 승';
-    const tA=(m.teamA||[]).join(', '), tB=(m.teamB||[]).join(', ');
+    const isBlueWin = m.winner==='blue';
+    const wc = isBlueWin ? 'mw-blue' : 'mw-red';
+    const wl = isBlueWin ? '1팀 승' : '2팀 승';
+
+    // MVP 이름 정규화
+    const mvpWin = m.mvpWinner || m.mvp || ''; // 이긴팀 MVP
+    const mvpLos = m.mvpLoser  || '';           // 진팀 MVP
+    // 이긴팀이 blue면: teamA=이긴팀, teamB=진팀
+    const winTeam  = isBlueWin ? (m.teamA||[]) : (m.teamB||[]);
+    const loseTeam = isBlueWin ? (m.teamB||[]) : (m.teamA||[]);
+
+    const memberHtml = (names, isMvpWin, isMvpLos) => names.map(n => {
+      const nNorm = normName(n);
+      const isWinMvp = mvpWin && normName(mvpWin)===nNorm;
+      const isLosMvp = mvpLos && normName(mvpLos)===nNorm;
+      const cls = isWinMvp ? ' mvp-win' : isLosMvp ? ' mvp-los' : '';
+      const icon = isWinMvp ? '🏆 ' : isLosMvp ? '🥈 ' : '';
+      return `<div class="match-member${cls}">${icon}${escHtml(n)}</div>`;
+    }).join('');
+
+    const teamAWin = isBlueWin;
+    const boxA = `<div class="match-team-box team-blue${teamAWin?' team-win-blue':''}">
+      <div class="match-team-title blue">🔵 1팀</div>
+      ${memberHtml(m.teamA||[], teamAWin, !teamAWin)}
+    </div>`;
+    const boxB = `<div class="match-team-box team-red${!teamAWin?' team-win-red':''}">
+      <div class="match-team-title red">2팀 🔴</div>
+      ${memberHtml(m.teamB||[], !teamAWin, teamAWin)}
+    </div>`;
+
     return`<div class="match-item">
-      <div class="match-top">
-        <span class="match-date">📅 ${m.date||''}</span>
+      <div class="match-header">
         <span class="match-winner-badge ${wc}">${wl}</span>
-        ${m.mvp?`<span style="font-size:11px;background:rgba(200,168,75,0.15);color:var(--gold);border:1px solid rgba(200,168,75,0.3);padding:2px 7px;border-radius:3px;font-weight:700;">🏆 ${escHtml(m.mvp)}</span>`:''}
-        ${m.mvpWinner?`<span style="font-size:11px;background:rgba(200,168,75,0.15);color:var(--gold);border:1px solid rgba(200,168,75,0.3);padding:2px 7px;border-radius:3px;font-weight:700;">🏆 ${escHtml(m.mvpWinner)}</span>`:''}
-        ${m.mvpLoser?`<span style="font-size:11px;background:rgba(232,64,87,0.12);color:var(--red);border:1px solid rgba(232,64,87,0.3);padding:2px 7px;border-radius:3px;font-weight:700;">🥈 ${escHtml(m.mvpLoser)}</span>`:''}
+        <span class="match-date">📅 ${m.date||''}</span>
         <button class="match-del" onclick="deleteMatch('${m.key}')" title="삭제">🗑</button>
       </div>
-      <div class="match-teams">
-        <div class="match-team${m.winner==='blue'?' winner':''}">🔵 ${escHtml(tA)}</div>
-        <div class="match-vs">VS</div>
-        <div class="match-team${m.winner==='red'?' winner':''}" style="text-align:right">🔴 ${escHtml(tB)}</div>
+      <div class="match-body">
+        ${boxA}
+        <div class="match-vs-sep">VS</div>
+        ${boxB}
       </div>
     </div>`;
   }).join('');
