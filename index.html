@@ -343,6 +343,8 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .bgm-eq.paused span{animation-play-state:paused;}
 .bgm-btn{background:none;border:1px solid rgba(200,50,50,0.25);color:rgba(200,80,80,0.75);font-size:12px;cursor:pointer;padding:1px 7px;border-radius:4px;line-height:1.6;transition:all 0.15s;flex-shrink:0;}
 .bgm-btn:hover{border-color:rgba(220,80,80,0.6);color:rgba(220,80,80,0.95);}
+.bgm-vol{width:52px;height:3px;accent-color:rgba(220,80,80,0.8);cursor:pointer;opacity:0.6;flex-shrink:0;vertical-align:middle;}
+.bgm-vol:hover{opacity:1;}
 body.live-mode .nav-tab-shop{display:none!important;}
 body.live-mode #tab-shop{display:none!important;}
 /* ── 팀원 모드 (일반 팀원이 닉네임 선택 시) ── */
@@ -476,7 +478,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.1.7</div>
+<div class="version-badge">v2.1.8</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -498,7 +500,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
     <div class="my-modal-grid" id="my-modal-grid"></div>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-ghost btn-sm" style="flex:1;justify-content:center;" onclick="closeMyModal()">나중에 선택</button>
-      <button class="btn btn-sm" style="flex:1;justify-content:center;background:rgba(220,50,50,0.08);border:1px solid rgba(220,80,80,0.35);color:rgba(220,100,100,0.9);" onclick="enterLiveMode()">라이브용</button>
+      <button class="btn btn-sm" style="flex:1;justify-content:center;background:rgba(220,50,50,0.08);border:1px solid rgba(220,80,80,0.35);color:rgba(220,100,100,0.9);" onclick="confirmLiveMode()">라이브용</button>
     </div>
   </div>
 </div>
@@ -515,6 +517,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
     <span class="bgm-title">Do My Thing</span>
   </div>
   <button class="bgm-btn" id="bgm-btn" style="display:none;" onclick="toggleBgm()">⏸</button>
+  <input type="range" class="bgm-vol" id="bgm-vol" min="0" max="100" step="5" value="70" oninput="setBgmVol(this.value)" style="display:none;">
   <button class="live-exit-btn" onclick="exitLiveMode()">종료</button>
 </div>
 
@@ -1460,7 +1463,6 @@ function shuffle(arr) {
 }
 
 window.makeTeams = function() {
-  if (liveMode) playBgm();
   const warn = document.getElementById('warn-box');
   warn.innerHTML = '';
 
@@ -2441,16 +2443,19 @@ function getBgm() { return document.getElementById('live-bgm'); }
 function setBgmUI(playing) {
   const btn  = document.getElementById('bgm-btn');
   const info = document.getElementById('bgm-info');
+  const vol  = document.getElementById('bgm-vol');
   const eq   = document.getElementById('bgm-eq');
   if (!btn) return;
   btn.textContent = playing ? '⏸' : '▶';
   info.style.display = playing ? 'flex' : 'none';
   btn.style.display  = 'flex';
+  if (vol) vol.style.display = 'block';
   if (eq) eq.classList.toggle('paused', !playing);
 }
 function playBgm() {
   const bgm = getBgm();
   if (!bgm) return;
+  bgm.volume = (document.getElementById('bgm-vol')?.value ?? 70) / 100;
   bgm.currentTime = 0;
   bgm.play().then(() => setBgmUI(true)).catch(() => {});
 }
@@ -2461,8 +2466,10 @@ function stopBgm() {
   bgm.currentTime = 0;
   const btn  = document.getElementById('bgm-btn');
   const info = document.getElementById('bgm-info');
+  const vol  = document.getElementById('bgm-vol');
   if (btn)  { btn.style.display = 'none'; btn.textContent = '▶'; }
   if (info)   info.style.display = 'none';
+  if (vol)    vol.style.display  = 'none';
   const eq = document.getElementById('bgm-eq');
   if (eq) eq.classList.remove('paused');
 }
@@ -2472,11 +2479,20 @@ window.toggleBgm = function() {
   if (bgm.paused) { bgm.play().then(() => setBgmUI(true)).catch(() => {}); }
   else            { bgm.pause(); setBgmUI(false); }
 };
+window.setBgmVol = function(val) {
+  const bgm = getBgm();
+  if (bgm) bgm.volume = val / 100;
+};
 
+window.confirmLiveMode = function() {
+  if (!confirm('라이브용 계정으로 진입하시겠어요?')) return;
+  enterLiveMode();
+};
 window.enterLiveMode = function() {
   closeMyModal();
-  myName = null; // 라이브 모드: 별개 익명 관전자로 처리 (localStorage 유지)
+  myName = null;
   setLiveMode(true);
+  playBgm();
   if (currentTeamA.length || currentTeamB.length) renderResult();
 };
 window.exitLiveMode = function() {
@@ -2486,6 +2502,13 @@ window.exitLiveMode = function() {
   if (currentTeamA.length || currentTeamB.length) renderResult();
 };
 window.selectMyName = async function(name) {
+  // 라이브 모드에서 일반 계정으로 전환 시 확인
+  if (liveMode) {
+    if (!confirm(`라이브 모드를 종료하고 "${name}"으로 변경하시겠어요?`)) return;
+    exitLiveMode();
+  } else if (myName && normName(myName) !== normName(name)) {
+    if (!confirm(`"${myName}"에서 "${name}"으로 계정을 변경하시겠어요?`)) return;
+  }
   myName = name;
   localStorage.setItem('myName', name);
   const existEntry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(name));
