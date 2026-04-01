@@ -479,7 +479,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.2.0</div>
+<div class="version-badge">v2.2.1</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -2694,18 +2694,20 @@ async function giveMatchGold(winners, losers, matchTimestamp) {
     const [k, d] = entry;
     let items = [...(d.items||[])];
 
-    // 활성화된 아이템 처리 및 소모
+    // 활성화된 아이템 처리 및 소모 (active 상태면 결과에 관계없이 소모)
     items = items.filter(item => {
       if (!item.active) return true;
-      if (isWinner && item.id === 'score2x') {
-        applyLog.push(`⚡ ${name} 승점 2배!`);
+      if (item.id === 'score2x') {
+        if (isWinner) applyLog.push(`⚡ ${name} 승점 2배!`);
+        else          applyLog.push(`⚡ ${name} 2배권 소모 (패배)`);
         return false; // 소모
       }
-      if (!isWinner && item.id === 'insurance') {
-        applyLog.push(`🛡️ ${name} 패배 방어!`);
+      if (item.id === 'insurance') {
+        if (!isWinner) applyLog.push(`🛡️ ${name} 패배 방어!`);
+        else           applyLog.push(`🛡️ ${name} 방어권 소모 (승리)`);
         return false; // 소모
       }
-      return true;
+      return false; // 그 외 active 아이템도 소모
     }).map(item => ({...item, active: false}));
 
     await set(ref(db,'gold/'+k), {
