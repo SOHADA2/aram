@@ -321,6 +321,13 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .live-exit-btn:hover{border-color:rgba(220,80,80,0.7);color:rgba(220,80,80,0.9);}
 body.live-mode .nav-tab-shop{display:none!important;}
 body.live-mode #tab-shop{display:none!important;}
+/* ── 팀원 모드 (일반 팀원이 닉네임 선택 시) ── */
+body.member-mode #card-member-select,
+body.member-mode #card-team-config,
+body.member-mode .record-panel,
+body.member-mode #reshuffle-row,
+body.member-mode #result-section>.divider{display:none!important;}
+#member-waiting{display:none;}
 .my-info-avatar{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--blue-dark),var(--blue));display:flex;align-items:center;justify-content:center;font-family:'Black Han Sans',sans-serif;font-size:17px;color:#fff;flex-shrink:0;}
 .my-info-name{font-weight:700;font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .my-info-gold{display:flex;align-items:center;gap:3px;font-family:'Black Han Sans',sans-serif;font-size:13px;color:var(--gold);flex-shrink:0;}
@@ -440,7 +447,7 @@ body.live-mode #tab-shop{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.0.7</div>
+<div class="version-badge">v2.0.8</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -490,7 +497,15 @@ body.live-mode #tab-shop{display:none!important;}
 
 <!-- ===== TAB: 팀 구성 ===== -->
 <div id="tab-team" class="tab-content active">
-  <div class="card">
+
+  <!-- 팀원 모드 대기 메시지 (일반 팀원 & 팀 미구성 시) -->
+  <div id="member-waiting" class="card" style="text-align:center;padding:32px 16px;">
+    <div style="font-size:28px;margin-bottom:10px;">⏳</div>
+    <div style="font-weight:700;font-size:14px;margin-bottom:6px;color:var(--gold);">팀 구성 대기 중</div>
+    <div style="font-size:12px;color:var(--text-dim);">팀 구성이 완료되면 여기에 표시됩니다</div>
+  </div>
+
+  <div id="card-member-select" class="card">
     <div class="card-title">참가자 선택 <span class="badge" id="checked-count-label" style="display:none;">0명 선택</span></div>
 
     <!-- 등록된 멤버 체크박스 -->
@@ -558,7 +573,7 @@ body.live-mode #tab-shop{display:none!important;}
     </div>
   </div>
 
-  <div class="card">
+  <div id="card-team-config" class="card">
     <div class="card-title">팀 구성 설정</div>
 
     <!-- 일반 / 이벤트 탭 -->
@@ -643,7 +658,7 @@ body.live-mode #tab-shop{display:none!important;}
       </div>
     </div>
     <div class="divider"></div>
-    <div style="text-align:center">
+    <div id="reshuffle-row" style="text-align:center">
       <button class="btn btn-primary btn-sm" onclick="makeTeams()">🔀 다시 구성</button>
     </div>
   </div>
@@ -1545,6 +1560,7 @@ function renderResult() {
   document.getElementById('winner-selected-msg').textContent='';
   document.getElementById('save-btn').disabled=true;
   if (!isEventMatch) renderMvpSection();
+  updateMemberModeDisplay();
 }
 
 function promoSubHtml(promo) {
@@ -2323,11 +2339,20 @@ window.openMyModal = function() {
 window.closeMyModal = function() {
   document.getElementById('my-modal').style.display='none';
 };
+function updateMemberModeDisplay() {
+  const waiting = document.getElementById('member-waiting');
+  if (!waiting) return;
+  const isMember = !liveMode && !!myName;
+  const resultVisible = document.getElementById('result-section').style.display === 'block';
+  waiting.style.display = (isMember && !resultVisible) ? 'block' : 'none';
+}
+
 function setLiveMode(enabled) {
   liveMode = enabled;
   if (enabled) localStorage.setItem('liveMode', '1');
   else localStorage.removeItem('liveMode');
   document.body.classList.toggle('live-mode', enabled);
+  document.body.classList.toggle('member-mode', !enabled && !!myName);
   document.getElementById('live-mode-bar').style.display = enabled ? 'flex' : 'none';
   if (enabled) {
     document.getElementById('my-info-bar').style.display = 'none';
@@ -2340,6 +2365,7 @@ function setLiveMode(enabled) {
   } else {
     updateMyInfoBar();
   }
+  updateMemberModeDisplay();
 }
 window.enterLiveMode = function() {
   closeMyModal();
@@ -2373,8 +2399,10 @@ window.selectMyName = async function(name) {
     showGoldToast(`✅ ${name} 으로 설정됐어요! 🪙${currentGold}`);
   }
   closeMyModal();
+  if (!liveMode) document.body.classList.add('member-mode');
   updateMyInfoBar();
   renderShop();
+  updateMemberModeDisplay();
 };
 
 // 상점 렌더링
@@ -2568,6 +2596,7 @@ window.resetSession = function() {
   renderShop();
   document.getElementById('result-section').style.display='none';
   document.getElementById('warn-box').innerHTML='';
+  updateMemberModeDisplay();
 };
 
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
@@ -2580,7 +2609,9 @@ if (liveMode) {
   myName = null; // 라이브 모드 유지 중엔 익명
   setLiveMode(true);
 } else if (myName) {
+  document.body.classList.add('member-mode');
   updateMyInfoBar();
+  updateMemberModeDisplay();
 } else {
   // 로드 완료 후 모달 자동 표시
   setTimeout(() => {
