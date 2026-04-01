@@ -239,6 +239,9 @@ select option{background:var(--surface2);}
 .match-team-box.team-win-blue .match-member,.match-team-box.team-win-yellow .match-member{color:var(--text);}
 .match-member.mvp-win{color:var(--gold);font-weight:700;}
 .match-member.mvp-los{color:#ffd740;font-weight:600;}
+.item-effect-tag{font-size:9px;padding:1px 4px;border-radius:3px;margin-left:3px;vertical-align:middle;white-space:nowrap;flex-shrink:0;}
+.item-effect-score2x{background:rgba(130,200,255,0.15);border:1px solid rgba(130,200,255,0.4);color:#82c8ff;}
+.item-effect-insurance{background:rgba(0,199,122,0.12);border:1px solid rgba(0,199,122,0.35);color:var(--green);}
 .match-vs-sep{display:flex;align-items:center;justify-content:center;font-family:'Black Han Sans',sans-serif;font-size:10px;color:var(--text-dim);}
 .mw-blue{background:rgba(79,195,247,0.15);color:#4fc3f7;border:1px solid #0277bd;}
 .mw-red{background:rgba(255,215,64,0.15);color:#ffd740;border:1px solid #7a6000;}
@@ -447,7 +450,7 @@ body.member-mode #result-section>.divider{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.0.8</div>
+<div class="version-badge">v2.0.9</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1853,29 +1856,36 @@ function renderMatchHistory() {
     const winTeam  = isBlueWin ? (m.teamA||[]) : (m.teamB||[]);
     const loseTeam = isBlueWin ? (m.teamB||[]) : (m.teamA||[]);
 
-    const memberHtml = (names, isMvpWin, isMvpLos) => names.map(n => {
+    const memberHtml = (names, isWinTeam) => names.map(n => {
       const nNorm = normName(n);
       const isWinMvp = mvpWin && normName(mvpWin)===nNorm;
       const isLosMvp = mvpLos && normName(mvpLos)===nNorm;
       const cls = isWinMvp ? ' mvp-win' : isLosMvp ? ' mvp-los' : '';
-      const icon = isWinMvp ? '🏆 ' : isLosMvp ? '🥈 ' : '';
-      return `<div class="match-member${cls}">${icon}${escHtml(n)}</div>`;
+      const mvpIcon = isWinMvp ? '🏆' : isLosMvp ? '🥈' : '';
+      const effects = (m.itemEffects && m.itemEffects[nNorm]) || [];
+      let itemTag = '';
+      if (isWinTeam && effects.includes('score2x'))   itemTag = '<span class="item-effect-tag item-effect-score2x">⚡2배</span>';
+      if (!isWinTeam && effects.includes('insurance')) itemTag = '<span class="item-effect-tag item-effect-insurance">🛡️방어</span>';
+      return `<div class="match-member${cls}" style="display:flex;align-items:center;gap:3px;">
+        <span style="width:16px;flex-shrink:0;text-align:center;font-size:11px;">${mvpIcon}</span>
+        <span style="flex:1;min-width:0;">${escHtml(n)}${itemTag}</span>
+      </div>`;
     }).join('');
 
     const teamAWin = isBlueWin;
     const boxA = `<div class="match-team-box team-blue${teamAWin?' team-win-blue':''}">
       <div class="match-team-title blue">🔵 1팀${teamAWin?'<span class="win-chip">WIN</span>':''}</div>
-      ${memberHtml(m.teamA||[], teamAWin, !teamAWin)}
+      ${memberHtml(m.teamA||[], teamAWin)}
     </div>`;
     const boxB = `<div class="match-team-box team-yellow${!teamAWin?' team-win-yellow':''}">
       <div class="match-team-title yellow">🟡 2팀${!teamAWin?'<span class="win-chip">WIN</span>':''}</div>
-      ${memberHtml(m.teamB||[], !teamAWin, teamAWin)}
+      ${memberHtml(m.teamB||[], !teamAWin)}
     </div>`;
 
     return`<div class="match-item">
       <div class="match-header">
         <span class="match-winner-badge ${wc}">${wl}</span>
-        <span class="match-date">📅 ${m.date||''}</span>
+        <span class="match-date">${m.date||''}</span>
         <button class="match-del" onclick="deleteMatch('${m.key}')" title="삭제">🗑</button>
       </div>
       <div class="match-body">
