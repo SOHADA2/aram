@@ -462,7 +462,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.1.3</div>
+<div class="version-badge">v2.1.4</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -641,7 +641,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 
   <div id="result-section" class="card">
     <div class="card-title">팀 결과</div>
-    <div class="result-header">
+    <div id="result-header" class="result-header">
       <h2 id="result-title">— VS —</h2>
       <p id="result-mode-label"></p>
     </div>
@@ -1519,11 +1519,12 @@ function renderResult() {
   section.style.display='block';
   section.scrollIntoView({behavior:'smooth',block:'start'});
 
+  // 상단 헤더("1팀 N:N 2팀") 숨김
+  document.getElementById('result-header').style.display='none';
+
   const sizeA = currentTeamA.length, sizeB = currentTeamB.length;
-  document.getElementById('result-title').textContent=`1팀 ${sizeA} : ${sizeB} 2팀`;
 
   if (isEventMatch) {
-    document.getElementById('result-mode-label').innerHTML='🎉 이벤트 매치 &nbsp;<span style="font-size:10px;background:rgba(200,155,60,0.15);border:1px solid var(--gold);border-radius:3px;padding:1px 6px;color:var(--gold)">티어 미반영</span>';
     // 핸디캡 선정 — 인원 많은 팀에서 랜덤 1명
     const bigTeam = sizeA > sizeB ? currentTeamA : sizeB > sizeA ? currentTeamB : null;
     const smallTeamName = sizeA > sizeB ? '2팀' : sizeB > sizeA ? '1팀' : null;
@@ -1543,7 +1544,6 @@ function renderResult() {
     document.getElementById('save-btn').style.opacity='0.3';
     document.getElementById('save-btn').title='이벤트 매치는 저장되지 않아요';
   } else {
-    document.getElementById('result-mode-label').textContent=mode==='random'?'🎲 완전 랜덤 배분':'⚖️ 실력 밸런스 배분';
     document.getElementById('handicap-section').innerHTML='';
     document.getElementById('event-no-save-notice').style.display='none';
     document.getElementById('save-btn').style.opacity='';
@@ -1558,15 +1558,26 @@ function renderResult() {
     teamCard('2팀','team-yellow',currentTeamB,avg(currentTeamB));
 
   const pct=Math.round((sA/tot)*100), diff=Math.abs(sA-sB);
-  document.getElementById('balance-bar-section').innerHTML=mode==='balance'?`
-    <div class="balance-bar-wrap">
-      <div class="balance-label">
-        <span style="color:var(--blue)">블루 avg ${avg(currentTeamA)}</span>
-        <span>점수차 ${diff} ${diff<=2?'✅':diff<=4?'🟡':'🔴'}</span>
-        <span style="color:var(--red)">레드 avg ${avg(currentTeamB)}</span>
-      </div>
-      <div class="balance-bar"><div class="balance-fill" style="width:${pct}%;background:linear-gradient(90deg,var(--blue-dark),var(--blue))"></div></div>
-    </div>`:'';
+  if (isEventMatch) {
+    document.getElementById('balance-bar-section').innerHTML=`
+      <div style="text-align:center;margin-top:10px;">
+        <span class="event-badge">🎉 이벤트 매치 · 티어 미반영</span>
+      </div>`;
+  } else if (mode==='balance') {
+    document.getElementById('balance-bar-section').innerHTML=`
+      <div class="balance-bar-wrap">
+        <div style="font-size:11px;color:var(--text-dim);margin-bottom:10px;text-align:center;letter-spacing:1px;">⚖️ 실력 밸런스 배분</div>
+        <div class="balance-label">
+          <span style="color:var(--blue)">블루 avg ${avg(currentTeamA)}</span>
+          <span>점수차 ${diff} ${diff<=2?'✅':diff<=4?'🟡':'🔴'}</span>
+          <span style="color:var(--red)">레드 avg ${avg(currentTeamB)}</span>
+        </div>
+        <div class="balance-bar"><div class="balance-fill" style="width:${pct}%;background:linear-gradient(90deg,var(--blue-dark),var(--blue))"></div></div>
+      </div>`;
+  } else {
+    document.getElementById('balance-bar-section').innerHTML=`
+      <div style="text-align:center;margin-top:10px;font-size:11px;color:var(--text-dim);letter-spacing:1px;">🎲 완전 랜덤 배분</div>`;
+  }
 
   document.getElementById('chemi-legend-section').innerHTML = '';
 
@@ -1587,41 +1598,20 @@ function promoSubHtml(promo) {
 }
 
 function teamCard(title,cls,members,avg) {
-  // 승급/강등 요약 (뱃지 있는 사람만)
-  const promoList = [];
   const rows=members.map(p=>{
     const t=TIERS[p.tier]||TIERS.unranked;
-    const fbEntry = Object.entries(registeredPlayers).find(([,rp])=>rp.name===p.name);
-    const playerData = fbEntry ? fbEntry[1] : null;
-    const t1 = playerData?.champTier1||[], t2 = playerData?.champTier2||[];
-    const posHtml = [
-      ...t1.map(id=>{ const c=CHAMP_CLASSES.find(x=>x.id===id); return c?`<span class="pos-icon tier1">${c.label}</span>`:''; }),
-      ...t2.map(id=>{ const c=CHAMP_CLASSES.find(x=>x.id===id); return c?`<span class="pos-icon tier2">${c.label}</span>`:''; }),
-    ].join('');
-    const promo = calcPromoStatus(p.name);
-    const promoSub = promoSubHtml(promo);
-
-    // 연승/연패 — 작은 인라인 텍스트
     const streak = calcStreak(p.name);
     const streakHtml = streak
-      ? streak.type === 'win'
+      ? streak.type==='win'
         ? `<span class="streak-inline win">${streak.count}연승↑</span>`
         : `<span class="streak-inline loss">${streak.count}연패↓</span>`
       : '';
-
-    const isMe = myName && normName(p.name) === normName(myName);
+    const isMe = myName && normName(p.name)===normName(myName);
     return`<div class="team-player${isMe?' is-me':''}">
-      <div style="flex:1;min-width:0;">
-        <div class="team-player-name" style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
-          <span>${escHtml(p.name)}</span>
-          ${isMe?'<span class="me-badge">나</span>':''}
-          ${streakHtml}
-        </div>
-        ${posHtml?`<div class="pos-icons">${posHtml}</div>`:''}
-      </div>
-      <div style="display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0;">
+      <div class="team-player-name">${escHtml(p.name)}${isMe?'&nbsp;<span class="me-badge">나</span>':''}</div>
+      <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+        ${streakHtml}
         <span class="tier-badge ${t.cls}">${t.label}</span>
-        ${promoSub}
       </div>
     </div>`;
   }).join('');
