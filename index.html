@@ -478,7 +478,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.1.8</div>
+<div class="version-badge">v2.1.9</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -517,7 +517,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
     <span class="bgm-title">Do My Thing</span>
   </div>
   <button class="bgm-btn" id="bgm-btn" style="display:none;" onclick="toggleBgm()">⏸</button>
-  <input type="range" class="bgm-vol" id="bgm-vol" min="0" max="100" step="5" value="70" oninput="setBgmVol(this.value)" style="display:none;">
+  <input type="range" class="bgm-vol" id="bgm-vol" min="0" max="100" step="5" value="40" oninput="setBgmVol(this.value)" style="display:none;">
   <button class="live-exit-btn" onclick="exitLiveMode()">종료</button>
 </div>
 
@@ -1218,7 +1218,7 @@ function renderMemberGrid() {
     const t = TIERS[tier] || TIERS.unranked;
     const s = calcStats(p.name);
     const isChecked = sessionPlayers.some(sp => sp.name === p.name);
-    return `<div class="member-chip${isChecked?' checked':''}" onclick="toggleChip(this,'${escHtml(p.name)}')">
+    return `<div class="member-chip${isChecked?' checked':''}">
       <div class="chip-check-box"></div>
       <span class="member-chip-name">${escHtml(p.name)}</span>
       <span class="tier-badge member-chip-tier ${t.cls}">${t.label}</span>
@@ -1227,10 +1227,48 @@ function renderMemberGrid() {
   updateCheckedLabel();
 }
 
-window.toggleChip = function(el, name) {
-  el.classList.toggle('checked');
-  updateCheckedLabel();
-};
+// ── 드래그 선택 (클릭 + 드래그 모두 처리) ─────────────────────
+(function initDragSelect() {
+  const grid = document.getElementById('member-grid');
+  if (!grid) return;
+  let drag = null; // { targetChecked: bool, processed: Set<Element> }
+
+  function applyChip(chip) {
+    if (!chip || !drag || drag.processed.has(chip)) return;
+    drag.processed.add(chip);
+    chip.classList.toggle('checked', drag.targetChecked);
+    updateCheckedLabel();
+  }
+
+  // 마우스
+  grid.addEventListener('mousedown', e => {
+    const chip = e.target.closest('.member-chip');
+    if (!chip) return;
+    e.preventDefault();
+    drag = { targetChecked: !chip.classList.contains('checked'), processed: new Set() };
+    applyChip(chip);
+  });
+  document.addEventListener('mousemove', e => {
+    if (!drag) return;
+    applyChip(document.elementFromPoint(e.clientX, e.clientY)?.closest('.member-chip'));
+  });
+  document.addEventListener('mouseup', () => { drag = null; });
+
+  // 터치
+  grid.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    const chip = document.elementFromPoint(t.clientX, t.clientY)?.closest('.member-chip');
+    if (!chip) return;
+    drag = { targetChecked: !chip.classList.contains('checked'), processed: new Set() };
+    applyChip(chip);
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!drag) return;
+    const t = e.touches[0];
+    applyChip(document.elementFromPoint(t.clientX, t.clientY)?.closest('.member-chip'));
+  }, { passive: true });
+  document.addEventListener('touchend', () => { drag = null; }, { passive: true });
+})();
 
 function updateCheckedLabel() {
   const checked = document.querySelectorAll('.member-chip.checked').length;
@@ -2455,7 +2493,7 @@ function setBgmUI(playing) {
 function playBgm() {
   const bgm = getBgm();
   if (!bgm) return;
-  bgm.volume = (document.getElementById('bgm-vol')?.value ?? 70) / 100;
+  bgm.volume = (document.getElementById('bgm-vol')?.value ?? 40) / 100;
   bgm.currentTime = 0;
   bgm.play().then(() => setBgmUI(true)).catch(() => {});
 }
