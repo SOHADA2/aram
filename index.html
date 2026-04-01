@@ -189,8 +189,8 @@ select option{background:var(--surface2);}
 .winner-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
 /* ── MVP 투표 ── */
 .mvp-section{margin:10px 0 14px;padding:14px;background:rgba(200,168,75,0.06);border:1px solid rgba(200,168,75,0.2);border-radius:8px;}
-.mvp-title{font-family:'Black Han Sans',sans-serif;font-size:13px;color:var(--gold);letter-spacing:1px;margin-bottom:4px;}
-.mvp-sub{font-size:11px;color:var(--text-dim);margin-bottom:12px;}
+.mvp-title{font-family:'Black Han Sans',sans-serif;font-size:18px;color:var(--gold);letter-spacing:2px;margin-bottom:14px;}
+.mvp-sub{font-size:11px;color:var(--text-dim);margin-top:12px;margin-bottom:0;line-height:1.8;border-top:1px solid rgba(200,168,75,0.15);padding-top:10px;}
 .mvp-candidates{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
 .mvp-cand-btn{flex:1;min-width:80px;padding:10px 8px;border-radius:6px;border:2px solid var(--border);background:var(--surface);color:var(--text);font-size:13px;font-weight:700;cursor:pointer;transition:all 0.15s;text-align:center;word-break:keep-all;}
 .mvp-cand-btn.selected{border-color:var(--gold);background:rgba(200,168,75,0.15);color:var(--gold);}
@@ -462,7 +462,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.1.2</div>
+<div class="version-badge">v2.1.3</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1706,10 +1706,9 @@ function renderMvpSection() {
         const myPick = (mvpVotes.teamA || {})[fbKey(myName)];
         const btns = currentTeamB.map(p => {
           const picked = myPick === p.name;
-          return `<button class="mvp-cand-btn${picked?' selected':''}" onclick="castMvpVote('teamA','${escHtml(myName)}','${escHtml(p.name)}')">${escHtml(p.name)}</button>`;
+          return `<button class="mvp-cand-btn${picked?' selected':''}" onclick="confirmMvpVote('teamA','${escHtml(myName)}','${escHtml(p.name)}')">${escHtml(p.name)}</button>`;
         }).join('');
         myVoteHtml += `<div class="mvp-my-vote-block">
-          <div class="mvp-my-vote-label">🏅 상대팀에서 한 명 선택 (비밀투표)</div>
           <div class="mvp-candidates">${btns}</div>
           ${myPick ? `<div class="mvp-voted-indicator">✅ ${escHtml(myPick)} 선택 완료</div>` : ''}
         </div>`;
@@ -1719,10 +1718,9 @@ function renderMvpSection() {
         const myPick = (mvpVotes.teamB || {})[fbKey(myName)];
         const btns = currentTeamA.map(p => {
           const picked = myPick === p.name;
-          return `<button class="mvp-cand-btn${picked?' selected':''}" onclick="castMvpVote('teamB','${escHtml(myName)}','${escHtml(p.name)}')">${escHtml(p.name)}</button>`;
+          return `<button class="mvp-cand-btn${picked?' selected':''}" onclick="confirmMvpVote('teamB','${escHtml(myName)}','${escHtml(p.name)}')">${escHtml(p.name)}</button>`;
         }).join('');
         myVoteHtml += `<div class="mvp-my-vote-block">
-          <div class="mvp-my-vote-label">🏅 상대팀에서 한 명 선택 (비밀투표)</div>
           <div class="mvp-candidates">${btns}</div>
           ${myPick ? `<div class="mvp-voted-indicator">✅ ${escHtml(myPick)} 선택 완료</div>` : ''}
         </div>`;
@@ -1731,13 +1729,12 @@ function renderMvpSection() {
 
     sec.innerHTML = `
       <div class="mvp-title">🏆 MVP · SVP 투표</div>
-      <div class="mvp-sub">상대팀에서 한 명씩 선택해요 · 이긴팀 선정자 MVP 🏆 · 진팀 선정자 SVP 🥈 · 각 🪙+${GOLD_MVP}</div>
       ${myVoteHtml}
       <div class="mvp-progress">
         <span>🔵 1팀 투표: ${teamAVotedCount}/${currentTeamA.length}명</span>
         <span>🟡 2팀 투표: ${teamBVotedCount}/${currentTeamB.length}명</span>
       </div>
-      <button class="mvp-skip-btn" onclick="skipMvp()">건너뛰기</button>`;
+      <div class="mvp-sub">상대 팀에서 한 명씩 선택해요<br>이긴 팀 선정자 MVP 🏆 · 진 팀 선정자 SVP 🥈<br>선정된 플레이어는 🪙+${GOLD_MVP} 추가 지급</div>`;
 
     if (allVoted) autoConfirmMvp();
   }
@@ -1745,6 +1742,11 @@ function renderMvpSection() {
   render();
   sec._renderMvp = render;
 }
+
+window.confirmMvpVote = function(team, voter, candidate) {
+  if (!confirm(`"${candidate}"을(를) 선택하시겠어요?`)) return;
+  window.castMvpVote(team, voter, candidate);
+};
 
 window.castMvpVote = function(team, voter, candidate) {
   const safeKey = normName(voter).replace(/\s+/g, '_');
