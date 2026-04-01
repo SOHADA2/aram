@@ -476,12 +476,15 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .promo-sub.up{color:#ffb300;}
 .promo-sub.down{color:var(--red);}
 .promo-sub.new{color:var(--blue);}
+/* ── 눈보라 캔버스 ── */
+#blizzard{position:fixed;inset:0;z-index:0;pointer-events:none;}
 </style>
 </head>
 <body>
+<canvas id="blizzard"></canvas>
 <div class="wrapper">
 
-<div class="version-badge">v2.2.5</div>
+<div class="version-badge">v2.2.6</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -2796,6 +2799,76 @@ if (liveMode) {
 }
 // 이벤트 인원은 버튼으로 제어 (setEventSize)
 window.setSize(3);
+
+// ── 눈보라 파티클 ──
+(function blizzard() {
+  const cv = document.getElementById('blizzard');
+  const cx = cv.getContext('2d');
+  let W, H, flakes;
+
+  function resize() {
+    W = cv.width  = window.innerWidth;
+    H = cv.height = window.innerHeight;
+  }
+
+  function mkFlake() {
+    const size = Math.random() * 2.8 + 0.4;
+    return {
+      x: Math.random() * W,
+      y: Math.random() * H,
+      r: size,
+      opacity: Math.random() * 0.45 + 0.1,
+      speedX: Math.random() * 3.5 + 1.5,   // 바람 (오른쪽)
+      speedY: Math.random() * 1.0 + 0.2,   // 낙하
+      wobble: Math.random() * Math.PI * 2, // 흔들림 위상
+      wobbleSpeed: Math.random() * 0.03 + 0.01,
+      wobbleAmp: Math.random() * 0.8 + 0.2,
+    };
+  }
+
+  function init() {
+    resize();
+    const count = Math.floor((W * H) / 6000); // 화면 크기에 비례
+    flakes = Array.from({ length: Math.min(count, 220) }, mkFlake);
+  }
+
+  // 돌풍 효과
+  let gustTimer = 0;
+  let gustPower = 0;
+
+  function tick() {
+    cx.clearRect(0, 0, W, H);
+
+    // 돌풍 주기 (5~12초마다)
+    gustTimer--;
+    if (gustTimer <= 0) {
+      gustPower = Math.random() * 2.5 + 1;
+      gustTimer = Math.random() * 420 + 300;
+      setTimeout(() => { gustPower = 0; }, 1200);
+    }
+
+    for (const f of flakes) {
+      f.wobble += f.wobbleSpeed;
+      f.x += f.speedX + gustPower;
+      f.y += f.speedY + Math.sin(f.wobble) * f.wobbleAmp;
+
+      // 화면 밖으로 나가면 왼쪽 또는 위에서 재등장
+      if (f.x > W + 10) { f.x = -10; f.y = Math.random() * H; }
+      if (f.y > H + 10) { f.y = -10; f.x = Math.random() * W; }
+
+      cx.beginPath();
+      cx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+      cx.fillStyle = `rgba(200,230,255,${f.opacity})`;
+      cx.fill();
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  window.addEventListener('resize', init);
+  init();
+  tick();
+})();
 
 </script>
 </body>
