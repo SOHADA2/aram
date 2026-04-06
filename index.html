@@ -364,6 +364,15 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .my-info-name{font-weight:700;font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .my-info-gold{display:flex;align-items:center;gap:3px;font-family:'Black Han Sans',sans-serif;font-size:13px;color:var(--gold);flex-shrink:0;}
 .my-info-change{font-size:11px;margin-left:auto;}
+/* ── 출석 체크 ── */
+.attend-box{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;}
+.attend-info{display:flex;flex-direction:column;gap:4px;}
+.attend-date{font-size:11px;color:var(--text-dim);}
+.attend-reward{font-family:'Black Han Sans',sans-serif;font-size:14px;color:var(--gold);}
+.attend-btn{flex-shrink:0;padding:10px 18px;border-radius:8px;border:none;background:linear-gradient(135deg,#a07828,var(--gold));color:#0a0e1a;font-family:'Black Han Sans',sans-serif;font-size:13px;cursor:pointer;transition:all 0.15s;letter-spacing:1px;}
+.attend-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 12px rgba(200,155,60,0.35);}
+.attend-btn:disabled{opacity:0.45;cursor:not-allowed;transform:none;}
+.attend-done{flex-shrink:0;padding:10px 18px;border-radius:8px;border:1px solid rgba(0,199,122,0.4);background:rgba(0,199,122,0.08);color:var(--green);font-family:'Black Han Sans',sans-serif;font-size:12px;letter-spacing:1px;}
 /* ── 상점 탭 ── */
 .shop-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 @media(min-width:520px){.shop-grid{grid-template-columns:repeat(3,1fr);}}
@@ -488,7 +497,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.2.8</div>
+<div class="version-badge">v2.2.9</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -751,6 +760,10 @@ body.member-mode #event-no-save-notice{display:none!important;}
 
 <!-- ===== TAB: 상점 ===== -->
 <div id="tab-shop" class="tab-content">
+  <div class="card" id="attend-card" style="display:none;">
+    <div class="card-title">📅 출석 체크</div>
+    <div id="attend-content"></div>
+  </div>
   <div class="card">
     <div class="card-title">🛒 아이템 상점</div>
     <div id="shop-no-user" style="text-align:center;padding:20px;color:var(--text-dim);font-size:13px;">
@@ -834,9 +847,10 @@ const SHOP_ITEMS = [
   { id:'insurance', icon:'🛡️', name:'패배 방어권',   desc:'경기 전 활성화 → 패배해도 승점 차감 없음 (미사용 시 -7pt)', price:60, type:'oneshot' },
 ];
 
-const GOLD_WIN  = 15;
-const GOLD_LOSE = 5;
-const GOLD_MVP  = 10; // MVP 추가 골드
+const GOLD_WIN    = 15;
+const GOLD_LOSE   = 5;
+const GOLD_MVP    = 10; // MVP 추가 골드
+const GOLD_ATTEND = 30; // 출석 체크 보너스
 
 // ── FIREBASE REALTIME LISTENERS ───────────────────────────────
 setSyncStatus('syncing', '연결 중...');
@@ -2418,7 +2432,7 @@ function getMyGoldData() {
 function getMyGold() {
   const data = getMyGoldData();
   if (!data || !myName) return 0;
-  const earned = calcGoldFromMatches(myName);
+  const earned = calcGoldFromMatches(myName) + (data.goldBonus ?? 0);
   const spent = data.goldSpent ?? 0;
   return Math.max(0, earned - spent);
 }
@@ -2583,8 +2597,47 @@ window.selectMyName = async function(name) {
   updateMemberModeDisplay();
 };
 
+// 출석 체크 렌더링
+function renderAttendance() {
+  const card = document.getElementById('attend-card');
+  const content = document.getElementById('attend-content');
+  if (!card || !content) return;
+  if (!myName) { card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  const data = getMyGoldData();
+  const today = new Date().toLocaleDateString('ko-KR', {year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\. /g,'-').replace('.','');
+  const todayKey = new Date().toISOString().slice(0,10);
+  const alreadyDone = data?.lastAttendance === todayKey;
+  content.innerHTML = `
+    <div class="attend-box">
+      <div class="attend-info">
+        <div class="attend-date">📆 오늘 ${today}</div>
+        <div class="attend-reward">🪙 +${GOLD_ATTEND} 골드 지급</div>
+      </div>
+      ${alreadyDone
+        ? `<div class="attend-done">✅ 출석 완료</div>`
+        : `<button class="attend-btn" onclick="doAttendance()">출석 체크</button>`
+      }
+    </div>`;
+}
+
+// 출석 체크 실행
+window.doAttendance = async function() {
+  const key = getMyGoldKey();
+  if (!key) return;
+  const data = goldData[key];
+  const todayKey = new Date().toISOString().slice(0,10);
+  if (data?.lastAttendance === todayKey) {
+    showGoldToast('오늘 이미 출석 완료!'); return;
+  }
+  const newGoldBonus = (data.goldBonus ?? 0) + GOLD_ATTEND;
+  await set(ref(db, 'gold/' + key), { ...data, goldBonus: newGoldBonus, lastAttendance: todayKey });
+  showGoldToast(`🪙 +${GOLD_ATTEND} 출석 보너스!`);
+};
+
 // 상점 렌더링
 function renderShop() {
+  renderAttendance();
   const noUser  = document.getElementById('shop-no-user');
   const content = document.getElementById('shop-content');
   const myCard  = document.getElementById('my-items-card');

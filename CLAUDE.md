@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.2.0
+- 현재 버전: v2.2.9
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -82,6 +82,9 @@
 
 ## 골드 & 아이템 시스템
 - 경기 결과에 따라 골드 자동 지급: 승리 **+15G**, 패배 **+5G**
+- **출석 체크**: 하루 1회, **+30G** 지급 (상점 탭 최상단 카드)
+  - Firebase `/gold/{key}.goldBonus` 에 누적, `/gold/{key}.lastAttendance` (YYYY-MM-DD) 로 중복 방지
+  - `getMyGold()` = `calcGoldFromMatches() + goldBonus - goldSpent`
 - 기존 경기 기록 기반 소급 계산 자동 적용 (`retroApplied`)
 
 | 아이템 | 가격 | 효과 |
