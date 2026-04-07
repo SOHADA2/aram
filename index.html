@@ -403,7 +403,13 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .newbie-toggle-btn{background:none;border:1px solid rgba(0,199,122,0.3);border-radius:4px;padding:2px 7px;cursor:pointer;font-size:12px;transition:all 0.15s;opacity:0.4;line-height:1.6;font-family:'Noto Sans KR',sans-serif;}
 .newbie-toggle-btn:hover{opacity:1;border-color:var(--green);}
 .newbie-toggle-btn.active{opacity:1;border-color:var(--green);background:rgba(0,199,122,0.15);}
-.newbie-bonus-bar{padding:6px 16px;background:rgba(0,199,122,0.06);border-top:1px solid rgba(0,199,122,0.15);font-size:10px;color:var(--green);letter-spacing:0.5px;}
+.newbie-bonus-bar{padding:10px 14px;background:rgba(0,199,122,0.06);border-top:1px solid rgba(0,199,122,0.2);font-size:10px;color:var(--green);line-height:1.9;}
+.newbie-bonus-row{display:flex;flex-direction:column;gap:1px;}
+.newbie-bonus-item{display:flex;align-items:baseline;gap:6px;}
+.newbie-bonus-item .label{min-width:56px;flex-shrink:0;font-weight:700;}
+.newbie-bonus-item .detail{opacity:0.65;font-size:9px;}
+.newbie-bonus-sub{padding-left:14px;font-size:9px;opacity:0.7;line-height:1.7;}
+.newbie-bonus-divider{border-top:1px solid rgba(0,199,122,0.18);margin:5px 0;}
 /* ── 아이템 잠금 배너 ── */
 .item-lock-banner{display:none;align-items:center;gap:8px;padding:10px 14px;background:linear-gradient(135deg,rgba(232,64,87,0.12),rgba(200,155,60,0.08));border:1px solid rgba(232,64,87,0.4);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--text-dim);}
 .item-lock-banner.show{display:flex;}
@@ -503,7 +509,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.3.3</div>
+<div class="version-badge">v2.3.4</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1753,9 +1759,36 @@ function teamCard(title,cls,members,avg) {
     </div>`;
   }).join('');
   const hasNewbieInTeam = members.some(p => isNewbie(p.name));
-  const newbieBar = hasNewbieInTeam
-    ? `<div class="newbie-bonus-bar">🌱 뉴비 팀 · 승리 시 +${NEWBIE_WIN_BONUS_PT}pt +${NEWBIE_WIN_BONUS_GOLD}G 추가 · 패배 시 감점 완화</div>`
-    : '';
+  const newbieNames = members.filter(p => isNewbie(p.name)).map(p => escHtml(p.name)).join(', ');
+  const newbieBar = hasNewbieInTeam ? `<div class="newbie-bonus-bar">
+    <div style="font-weight:700;font-size:11px;margin-bottom:6px;">🌱 뉴비 팀원 보너스 (${newbieNames})</div>
+    <div class="newbie-bonus-row">
+      <div class="newbie-bonus-item">
+        <span class="label">🏆 승리 시</span>
+        <span>승점 <strong>+${WIN_PT + NEWBIE_WIN_BONUS_PT}pt</strong></span>
+        <span class="detail">(기본 +${WIN_PT} + 🌱 +${NEWBIE_WIN_BONUS_PT})</span>
+        <span style="margin-left:4px;">골드 <strong>+${GOLD_WIN + NEWBIE_WIN_BONUS_GOLD}G</strong></span>
+        <span class="detail">(기본 +${GOLD_WIN} + 🌱 +${NEWBIE_WIN_BONUS_GOLD})</span>
+      </div>
+      <div class="newbie-bonus-sub">⚡ 승점 2배권 사용 시 <strong>+${WIN_PT * 2 + NEWBIE_WIN_BONUS_PT}pt</strong> (2배권 +${WIN_PT*2} + 🌱 +${NEWBIE_WIN_BONUS_PT}) · 골드 동일 +${GOLD_WIN + NEWBIE_WIN_BONUS_GOLD}G</div>
+      <div class="newbie-bonus-divider"></div>
+      <div class="newbie-bonus-item">
+        <span class="label">💀 패배 시</span>
+        <span>승점 <strong>-${LOSS_PT - NEWBIE_LOSS_REDUCE_PT}pt</strong></span>
+        <span class="detail">(기본 -${LOSS_PT} → 🌱 완화)</span>
+        <span style="margin-left:4px;">골드 <strong>+${GOLD_LOSE}G</strong></span>
+        <span class="detail">(동일)</span>
+      </div>
+      <div class="newbie-bonus-sub">🛡️ 패배 방어권 사용 시 <strong>0pt</strong> (방어권이 뉴비 완화보다 우선 적용)</div>
+      <div class="newbie-bonus-divider"></div>
+      <div class="newbie-bonus-item" style="opacity:0.85;">
+        <span class="label">🌱 뉴비 본인</span>
+        <span>패배 시 <strong>-2pt</strong></span>
+        <span class="detail">(기본 -${LOSS_PT})</span>
+        <span style="margin-left:4px;font-size:9px;opacity:0.7;">· 방어권 사용 시 0pt</span>
+      </div>
+    </div>
+  </div>` : '';
   return`<div class="team-card ${cls}">
     <div class="team-header"><span>${title}</span><span class="team-avg">평균 ${avg}</span></div>
     <div class="team-players">${rows}</div>
