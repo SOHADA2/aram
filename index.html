@@ -398,6 +398,12 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .gold-toast.fade-out{animation:toastOut 0.4s ease forwards;}
 @keyframes toastIn{from{opacity:0;transform:translate(-50%,-60%)}to{opacity:1;transform:translate(-50%,-50%)}}
 @keyframes toastOut{from{opacity:1;transform:translate(-50%,-50%)}to{opacity:0;transform:translate(-50%,-42%)}}
+/* ── 뉴비 마크 ── */
+.newbie-badge{font-size:11px;line-height:1;display:inline-block;vertical-align:middle;}
+.newbie-toggle-btn{background:none;border:1px solid rgba(0,199,122,0.3);border-radius:4px;padding:2px 7px;cursor:pointer;font-size:12px;transition:all 0.15s;opacity:0.4;line-height:1.6;font-family:'Noto Sans KR',sans-serif;}
+.newbie-toggle-btn:hover{opacity:1;border-color:var(--green);}
+.newbie-toggle-btn.active{opacity:1;border-color:var(--green);background:rgba(0,199,122,0.15);}
+.newbie-bonus-bar{padding:6px 16px;background:rgba(0,199,122,0.06);border-top:1px solid rgba(0,199,122,0.15);font-size:10px;color:var(--green);letter-spacing:0.5px;}
 /* ── 아이템 잠금 배너 ── */
 .item-lock-banner{display:none;align-items:center;gap:8px;padding:10px 14px;background:linear-gradient(135deg,rgba(232,64,87,0.12),rgba(200,155,60,0.08));border:1px solid rgba(232,64,87,0.4);border-radius:8px;margin-bottom:12px;font-size:12px;color:var(--text-dim);}
 .item-lock-banner.show{display:flex;}
@@ -497,7 +503,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.2.9</div>
+<div class="version-badge">v2.3.0</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -745,6 +751,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
   <div class="card" style="font-size:12px;color:var(--text-dim);line-height:2;">
     <div class="card-title">티어 산정 기준</div>
     최소 <strong style="color:var(--text)">3판</strong> 이상 참여해야 티어가 부여됩니다. 승리 <strong style="color:var(--green)">+10pt</strong> · 패배 <strong style="color:var(--red)">-7pt</strong> · 시작 500pt · 판수가 쌓일수록 정확해집니다.<br>
+    🌱 뉴비와 같은 팀 승리 시 <strong style="color:var(--green)">+13pt / +20G</strong> · 패배 시 <strong style="color:var(--red)">-4pt</strong> · 뉴비 본인 패배 <strong style="color:var(--red)">-2pt</strong><br>
     <span style="color:var(--tier-challenger)">챌린저</span> 850↑ &nbsp;
     <span style="color:var(--tier-grandmaster)">그마</span> 780↑ &nbsp;
     <span style="color:var(--tier-master)">마스터</span> 720↑ &nbsp;
@@ -852,6 +859,11 @@ const GOLD_LOSE   = 5;
 const GOLD_MVP    = 10; // MVP 추가 골드
 const GOLD_ATTEND = 30; // 출석 체크 보너스
 
+// ── 뉴비 보너스 ──────────────────────────────────────────────
+const NEWBIE_WIN_BONUS_PT   = 3;  // 뉴비 팀원 있을 때 승리 추가 승점 (+10 → +13)
+const NEWBIE_WIN_BONUS_GOLD = 5;  // 뉴비 팀원 있을 때 승리 추가 골드 (+15 → +20)
+const NEWBIE_LOSS_REDUCE_PT = 3;  // 뉴비 팀원 있을 때 패배 감점 완화 (-7 → -4)
+
 // ── FIREBASE REALTIME LISTENERS ───────────────────────────────
 setSyncStatus('syncing', '연결 중...');
 
@@ -899,6 +911,12 @@ function calcGoldFromMatches(name) {
     if (m.mvp       && normName(m.mvp)       === key) gold += GOLD_MVP; // 구버전 호환
     if (m.mvpWinner && normName(m.mvpWinner) === key) gold += GOLD_MVP;
     if (m.mvpLoser  && normName(m.mvpLoser)  === key) gold += GOLD_MVP;
+    // 뉴비 팀원과 함께 승리 시 골드 보너스
+    if (won) {
+      const myTeam = inA ? (m.teamA||[]) : (m.teamB||[]);
+      const hasNewbieTeammate = myTeam.some(n => normName(n) !== key && isNewbie(n));
+      if (hasNewbieTeammate) gold += NEWBIE_WIN_BONUS_GOLD;
+    }
   });
   return gold;
 }
@@ -1056,6 +1074,12 @@ window.manualSync = function() {
 // 공백을 정규화해서 비교 (앞뒤 trim + 연속공백 단일화)
 function normName(n) { return String(n).trim().replace(/\s+/g,' '); }
 
+// 뉴비 여부 확인
+function isNewbie(name) {
+  const p = Object.values(registeredPlayers).find(r => normName(r.name) === normName(name));
+  return !!p?.isNewbie;
+}
+
 function calcStats(name) {
   const key = normName(name);
   let wins = 0, total = 0;
@@ -1091,12 +1115,22 @@ function calcScore(name) {
     const won  = (m.winner==='blue'&&inA)||(m.winner==='red'&&!inA);
     // 아이템 효과: matchItemEffects에 기록된 경우 반영
     const effects = m.itemEffects?.[key] || [];
+    // 뉴비 보너스 여부 확인
+    const myTeamArr = inA ? (m.teamA||[]) : (m.teamB||[]);
+    const hasNewbieTeammate = myTeamArr.some(n => normName(n) !== key && isNewbie(n));
+    const iAmNewbie = isNewbie(name);
     if (won) {
-      const pt = effects.includes('score2x') ? WIN_PT * 2 : WIN_PT;
+      let pt = effects.includes('score2x') ? WIN_PT * 2 : WIN_PT;
+      if (hasNewbieTeammate) pt += NEWBIE_WIN_BONUS_PT;
       raw = Math.min(1000, raw + pt);
     } else {
       const blocked = effects.includes('insurance');
-      if (!blocked) raw = Math.max(0, raw - LOSS_PT);
+      if (!blocked) {
+        let lpt = LOSS_PT;
+        if (iAmNewbie) lpt = 2; // 뉴비 본인 패배 감점 최소화 (기존 -7pt → -2pt)
+        else if (hasNewbieTeammate) lpt = Math.max(0, lpt - NEWBIE_LOSS_REDUCE_PT);
+        raw = Math.max(0, raw - lpt);
+      }
     }
   }
 
@@ -1244,7 +1278,7 @@ function renderMemberGrid() {
     const isChecked = sessionPlayers.some(sp => sp.name === p.name);
     return `<div class="member-chip${isChecked?' checked':''}">
       <div class="chip-check-box"></div>
-      <span class="member-chip-name">${escHtml(p.name)}</span>
+      <span class="member-chip-name">${escHtml(p.name)}${p.isNewbie ? ' <span class="newbie-badge">🌱</span>' : ''}</span>
       <span class="tier-badge member-chip-tier ${t.cls}">${t.label}</span>
     </div>`;
   }).join('');
@@ -1366,10 +1400,11 @@ function renderSessionPlayers() {
     const tier = getEffectiveTier(p.name, p.manualTier);
     const t = TIERS[tier]||TIERS.unranked;
     const s = calcStats(p.name);
+    const isNewbieP = isNewbie(p.name);
     const li = document.createElement('li');
     li.innerHTML = `
       <span class="player-num">${i+1}</span>
-      <span class="player-name">${escHtml(p.name)}</span>
+      <span class="player-name">${escHtml(p.name)}${isNewbieP ? ' <span class="newbie-badge">🌱</span>' : ''}</span>
       <span class="tier-badge ${t.cls}">${t.label}</span>
       ${s.total>0?`<span class="player-stats">${s.wins}승${s.losses}패 ${Math.round(s.wr*100)}%</span>`:''}
       <button class="btn btn-danger" onclick="removeSessionPlayer(${p.id})">✕</button>`;
@@ -1695,17 +1730,23 @@ function teamCard(title,cls,members,avg) {
         : `<span class="streak-inline loss">${streak.count}연패↓</span>`
       : '';
     const isMe = myName && normName(p.name)===normName(myName);
+    const nBadge = isNewbie(p.name) ? ' <span class="newbie-badge">🌱</span>' : '';
     return`<div class="team-player${isMe?' is-me':''}">
-      <div class="team-player-name">${escHtml(p.name)}${isMe?'&nbsp;<span class="me-badge">나</span>':''}</div>
+      <div class="team-player-name">${escHtml(p.name)}${nBadge}${isMe?'&nbsp;<span class="me-badge">나</span>':''}</div>
       <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
         ${streakHtml}
         <span class="tier-badge ${t.cls}">${t.label}</span>
       </div>
     </div>`;
   }).join('');
+  const hasNewbieInTeam = members.some(p => isNewbie(p.name));
+  const newbieBar = hasNewbieInTeam
+    ? `<div class="newbie-bonus-bar">🌱 뉴비 팀 · 승리 시 +${NEWBIE_WIN_BONUS_PT}pt +${NEWBIE_WIN_BONUS_GOLD}G 추가 · 패배 시 감점 완화</div>`
+    : '';
   return`<div class="team-card ${cls}">
     <div class="team-header"><span>${title}</span><span class="team-avg">평균 ${avg}</span></div>
     <div class="team-players">${rows}</div>
+    ${newbieBar}
   </div>`;
 }
 
@@ -2023,6 +2064,18 @@ window.deletePlayer = async function(key, name) {
   await remove(ref(db, 'players/'+key));
 };
 
+// 뉴비 마크 즉시 토글 (라이브 모드 전용, 랭킹 탭 버튼)
+window.toggleNewbie = async function(fbKey) {
+  if (!liveMode) return;
+  const player = registeredPlayers[fbKey];
+  if (!player) return;
+  const newIsNewbie = !player.isNewbie;
+  await set(ref(db, 'players/' + fbKey), {...player, isNewbie: newIsNewbie});
+  showGoldToast(newIsNewbie
+    ? `🌱 ${player.name} — 뉴비 마크 ON`
+    : `${player.name} — 뉴비 마크 해제`);
+};
+
 // ── STATUS EMOJI DEFINITIONS ─────────────────────────────────
 const STATUS_EMOJIS = ['😀','😎','😤','🔥','💀','🥱','😈','🤩','😭','🥶','💪','🎯','🦁','⚡','☕','🌙'];
 
@@ -2079,7 +2132,7 @@ window.openProfileModal = function(fbKey) {
       <div class="profile-modal-header">
         <div class="profile-modal-avatar">${avatarContent}</div>
         <div class="profile-modal-info">
-          <div class="profile-modal-name">${escHtml(player.name)}</div>
+          <div class="profile-modal-name">${escHtml(player.name)}${player.isNewbie ? ' <span class="newbie-badge">🌱</span>' : ''}</div>
           <div class="profile-modal-meta">
             <span class="tier-badge ${t.cls}">${t.label}</span>
             ${posIcons}
@@ -2221,7 +2274,9 @@ window.saveProfile = async function(fbKey) {
     const motto = mottoEl ? mottoEl.value.trim().slice(0,20) : (player.motto||'');
     const selectedEmojiBtn = panel.querySelector('.emoji-btn.selected');
     const statusEmoji = selectedEmojiBtn ? selectedEmojiBtn.dataset.emoji : '';
-    await set(ref(db, 'players/' + fbKey), {...player, champTier1: tier1, champTier2: tier2, motto, statusEmoji});
+    const newbieCheckEl = panel.querySelector('.newbie-check-input');
+    const isNewbieVal = liveMode && newbieCheckEl ? newbieCheckEl.checked : (player.isNewbie || false);
+    await set(ref(db, 'players/' + fbKey), {...player, champTier1: tier1, champTier2: tier2, motto, statusEmoji, isNewbie: isNewbieVal});
     btn.textContent = '✅ 저장됨';
     setTimeout(() => {
       if (inModal) closeProfileModal();
@@ -2335,6 +2390,14 @@ function buildProfilePanel(fbKey, player) {
   ).join('');
   return `<div class="profile-panel" id="edit-panel-${fbKey}">
     <div class="profile-panel-title">🎮 ${escHtml(player.name)} 프로필 설정</div>
+    ${liveMode ? `<div style="margin-bottom:14px;padding:10px 12px;background:rgba(0,199,122,0.06);border:1px solid rgba(0,199,122,0.2);border-radius:6px;">
+      <div class="champ-section-label" style="margin-bottom:8px;">🌱 뉴비 마크 (라이브 관리용)</div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;">
+        <input type="checkbox" class="newbie-check-input" ${player.isNewbie ? 'checked' : ''} style="width:16px;height:16px;accent-color:var(--green);cursor:pointer;">
+        <span>${player.isNewbie ? '🌱 뉴비 ON' : '🌱 뉴비 OFF'} — 저장 시 반영</span>
+      </label>
+      <div style="font-size:10px;color:var(--text-dim);margin-top:6px;line-height:1.6;">승리 시 팀원 +${NEWBIE_WIN_BONUS_PT}pt / +${NEWBIE_WIN_BONUS_GOLD}G · 패배 시 팀원 감점 완화 · 뉴비 본인 패배 -2pt (기본 -7pt)</div>
+    </div>` : ''}
     <div class="emoji-section">
       <div class="champ-section-label">😀 상태 이모티콘 (아바타에 표시)</div>
       <div class="emoji-grid">${emojiBtns}</div>
@@ -2396,6 +2459,7 @@ function renderRanking() {
     const tier1 = player?.champTier1 || [];
     const tier2 = player?.champTier2 || [];
     const motto = player?.motto || '';
+    const isNewbiePlayer = player?.isNewbie || false;
     const posIcons = [
       ...tier1.map(id=>{ const c=CHAMP_CLASSES.find(x=>x.id===id); return c?`<span class="pos-icon tier1">${c.label}</span>`:''; }),
       ...tier2.map(id=>{ const c=CHAMP_CLASSES.find(x=>x.id===id); return c?`<span class="pos-icon tier2">${c.label}</span>`:''; }),
@@ -2404,7 +2468,7 @@ function renderRanking() {
     <div class="lb-row" onclick="openProfileModal('${fbKey}')">
       <div class="lb-rank">${rankHtml}</div>
       <div class="lb-main">
-        <div class="lb-name-text">${escHtml(r.name)}</div>
+        <div class="lb-name-text">${escHtml(r.name)}${isNewbiePlayer ? ' <span class="newbie-badge">🌱</span>' : ''}</div>
         ${motto?`<div class="lb-motto">"${escHtml(motto)}"</div>`:''}
         ${posIcons?`<div class="lb-pos-icons">${posIcons}</div>`:''}
       </div>
@@ -2413,6 +2477,7 @@ function renderRanking() {
         ${r.total>=3
           ?`<div class="lb-score">${r.score}<span style="font-size:10px;color:var(--text-dim);font-family:'Noto Sans KR',sans-serif;font-weight:400;margin-left:2px;">pt</span></div>`
           :`<div style="font-size:11px;color:var(--text-dim);">-</div>`}
+        ${liveMode && fbKey ? `<button class="newbie-toggle-btn${isNewbiePlayer?' active':''}" onclick="event.stopPropagation();toggleNewbie('${fbKey}')" title="${isNewbiePlayer?'뉴비 해제':'뉴비 부여'}">🌱</button>` : ''}
       </div>
     </div>`;
   }).join('');
