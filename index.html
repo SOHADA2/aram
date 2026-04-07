@@ -503,7 +503,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.3.0</div>
+<div class="version-badge">v2.3.1</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -911,10 +911,11 @@ function calcGoldFromMatches(name) {
     if (m.mvp       && normName(m.mvp)       === key) gold += GOLD_MVP; // 구버전 호환
     if (m.mvpWinner && normName(m.mvpWinner) === key) gold += GOLD_MVP;
     if (m.mvpLoser  && normName(m.mvpLoser)  === key) gold += GOLD_MVP;
-    // 뉴비 팀원과 함께 승리 시 골드 보너스
+    // 뉴비 팀원과 함께 승리 시 골드 보너스 (뉴비 지정 이후 경기만)
     if (won) {
       const myTeam = inA ? (m.teamA||[]) : (m.teamB||[]);
-      const hasNewbieTeammate = myTeam.some(n => normName(n) !== key && isNewbie(n));
+      const matchTime = m.timestamp || 0;
+      const hasNewbieTeammate = myTeam.some(n => normName(n) !== key && matchTime >= getNewbieSince(n));
       if (hasNewbieTeammate) gold += NEWBIE_WIN_BONUS_GOLD;
     }
   });
@@ -1074,10 +1075,17 @@ window.manualSync = function() {
 // 공백을 정규화해서 비교 (앞뒤 trim + 연속공백 단일화)
 function normName(n) { return String(n).trim().replace(/\s+/g,' '); }
 
-// 뉴비 여부 확인
+// 뉴비 여부 확인 (현재 상태)
 function isNewbie(name) {
   const p = Object.values(registeredPlayers).find(r => normName(r.name) === normName(name));
   return !!p?.isNewbie;
+}
+
+// 뉴비 지정 시점 반환 — 지정 이전 경기에는 보너스 미적용
+function getNewbieSince(name) {
+  const p = Object.values(registeredPlayers).find(r => normName(r.name) === normName(name));
+  if (!p?.isNewbie) return Infinity; // 뉴비 아님
+  return p.newbieSince || 0; // newbieSince 없으면 0 (전체 적용, 구버전 호환)
 }
 
 function calcStats(name) {
@@ -1115,10 +1123,11 @@ function calcScore(name) {
     const won  = (m.winner==='blue'&&inA)||(m.winner==='red'&&!inA);
     // 아이템 효과: matchItemEffects에 기록된 경우 반영
     const effects = m.itemEffects?.[key] || [];
-    // 뉴비 보너스 여부 확인
+    // 뉴비 보너스 여부 확인 (뉴비 지정 이후 경기만 적용)
+    const matchTime = m.timestamp || 0;
     const myTeamArr = inA ? (m.teamA||[]) : (m.teamB||[]);
-    const hasNewbieTeammate = myTeamArr.some(n => normName(n) !== key && isNewbie(n));
-    const iAmNewbie = isNewbie(name);
+    const hasNewbieTeammate = myTeamArr.some(n => normName(n) !== key && matchTime >= getNewbieSince(n));
+    const iAmNewbie = matchTime >= getNewbieSince(name);
     if (won) {
       let pt = effects.includes('score2x') ? WIN_PT * 2 : WIN_PT;
       if (hasNewbieTeammate) pt += NEWBIE_WIN_BONUS_PT;
@@ -2064,13 +2073,15 @@ window.deletePlayer = async function(key, name) {
   await remove(ref(db, 'players/'+key));
 };
 
-// 뉴비 마크 즉시 토글 (라이브 모드 전용, 랭킹 탭 버튼)
+// 뉴비 마크 즉시 토글 (라이브 모드 전용)
 window.toggleNewbie = async function(fbKey) {
   if (!liveMode) return;
   const player = registeredPlayers[fbKey];
   if (!player) return;
   const newIsNewbie = !player.isNewbie;
-  await set(ref(db, 'players/' + fbKey), {...player, isNewbie: newIsNewbie});
+  // 새로 ON이면 지금 시점 저장, OFF면 초기화
+  const newbieSince = newIsNewbie ? Date.now() : null;
+  await set(ref(db, 'players/' + fbKey), {...player, isNewbie: newIsNewbie, newbieSince});
   showGoldToast(newIsNewbie
     ? `🌱 ${player.name} — 뉴비 마크 ON`
     : `${player.name} — 뉴비 마크 해제`);
@@ -2276,7 +2287,11 @@ window.saveProfile = async function(fbKey) {
     const statusEmoji = selectedEmojiBtn ? selectedEmojiBtn.dataset.emoji : '';
     const newbieCheckEl = panel.querySelector('.newbie-check-input');
     const isNewbieVal = liveMode && newbieCheckEl ? newbieCheckEl.checked : (player.isNewbie || false);
-    await set(ref(db, 'players/' + fbKey), {...player, champTier1: tier1, champTier2: tier2, motto, statusEmoji, isNewbie: isNewbieVal});
+    // 새로 뉴비 ON이면 현재 시점 저장, 기존 ON 유지면 기존 시점 보존, OFF면 초기화
+    const newbieSince = isNewbieVal
+      ? (!player.isNewbie ? Date.now() : (player.newbieSince || Date.now()))
+      : null;
+    await set(ref(db, 'players/' + fbKey), {...player, champTier1: tier1, champTier2: tier2, motto, statusEmoji, isNewbie: isNewbieVal, newbieSince});
     btn.textContent = '✅ 저장됨';
     setTimeout(() => {
       if (inModal) closeProfileModal();
@@ -2477,7 +2492,6 @@ function renderRanking() {
         ${r.total>=3
           ?`<div class="lb-score">${r.score}<span style="font-size:10px;color:var(--text-dim);font-family:'Noto Sans KR',sans-serif;font-weight:400;margin-left:2px;">pt</span></div>`
           :`<div style="font-size:11px;color:var(--text-dim);">-</div>`}
-        ${liveMode && fbKey ? `<button class="newbie-toggle-btn${isNewbiePlayer?' active':''}" onclick="event.stopPropagation();toggleNewbie('${fbKey}')" title="${isNewbiePlayer?'뉴비 해제':'뉴비 부여'}">🌱</button>` : ''}
       </div>
     </div>`;
   }).join('');
