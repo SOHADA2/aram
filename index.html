@@ -158,6 +158,14 @@ select option{background:var(--surface2);}
 .action-row{display:flex;gap:8px;flex-wrap:wrap;}
 .divider{height:1px;background:var(--border);margin:16px 0;}
 .warning{color:#f0a020;font-size:12px;padding:8px 12px;background:rgba(240,160,32,0.08);border:1px solid rgba(240,160,32,0.2);border-radius:4px;margin-bottom:12px;}
+.item-phase-card{padding:14px 16px;background:rgba(11,196,227,0.06);border:1px solid rgba(11,196,227,0.28);border-radius:10px;margin-bottom:12px;animation:fadeIn 0.2s ease;}
+.item-phase-title{font-size:12px;font-weight:700;color:var(--blue);margin-bottom:3px;}
+.item-phase-sub{font-size:11px;color:var(--text-dim);margin-bottom:10px;}
+.item-phase-timer{font-family:'Black Han Sans',sans-serif;font-size:32px;color:var(--blue);text-align:center;margin-bottom:8px;letter-spacing:1px;}
+.item-phase-timer.urgent{color:var(--red);animation:pulse 0.6s ease infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+.item-phase-bar-wrap{background:rgba(11,196,227,0.12);border-radius:4px;height:6px;margin-bottom:12px;overflow:hidden;}
+.item-phase-bar{height:100%;background:var(--blue);border-radius:4px;transition:width 1s linear;}
 .empty-state{text-align:center;padding:28px;color:var(--text-dim);font-size:13px;}
 .empty-state .icon{font-size:32px;margin-bottom:8px;}
 #result-section{display:none;}
@@ -526,7 +534,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.5.1</div>
+<div class="version-badge">v2.5.2</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -716,9 +724,16 @@ body.member-mode #event-no-save-notice{display:none!important;}
       <div id="event-size-info" style="font-size:11px;color:var(--blue);margin-bottom:4px;">→ 총 5명 필요</div>
     </div>
 
+    <div id="item-phase-card" class="item-phase-card" style="display:none;">
+      <div class="item-phase-title">⚡ 아이템 사용 시간</div>
+      <div class="item-phase-sub">상점에서 아이템을 활성화해 주세요! 시간이 지나면 자동으로 팀이 구성됩니다.</div>
+      <div class="item-phase-timer" id="item-phase-timer">15</div>
+      <div class="item-phase-bar-wrap"><div class="item-phase-bar" id="item-phase-bar"></div></div>
+      <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;" onclick="skipItemPhase()">바로 진행 →</button>
+    </div>
     <div id="warn-box"></div>
     <div class="action-row">
-      <button class="btn btn-gold" id="make-teams-btn" onclick="makeTeams()" style="flex:1;justify-content:center;font-size:15px;padding:13px;">⚔️ 팀 구성</button>
+      <button class="btn btn-gold" id="make-teams-btn" onclick="startItemPhase()" style="flex:1;justify-content:center;font-size:15px;padding:13px;">⚔️ 팀 구성</button>
       <button class="btn btn-ghost btn-sm" onclick="resetSession()">🔄 초기화</button>
     </div>
   </div>
@@ -1677,6 +1692,63 @@ function shuffle(arr) {
   for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
   return a;
 }
+
+let itemPhaseTimer = null;
+
+window.startItemPhase = function() {
+  if (isEventMatch) { makeTeams(); return; }
+
+  // 인원 수 검증 먼저 (통과 못 하면 카운트다운 안 띄움)
+  const warn = document.getElementById('warn-box');
+  warn.innerHTML = '';
+  const needed = teamSize * 2;
+  if (sessionPlayers.length < needed) {
+    warn.innerHTML = `<div class="warning">⚠️ 최소 ${needed}명 필요! (현재 ${sessionPlayers.length}명)</div>`;
+    return;
+  }
+
+  const card = document.getElementById('item-phase-card');
+  const timerEl = document.getElementById('item-phase-timer');
+  const barEl = document.getElementById('item-phase-bar');
+  const btn = document.getElementById('make-teams-btn');
+
+  btn.disabled = true;
+  card.style.display = 'block';
+  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  let remaining = 15;
+  timerEl.textContent = remaining;
+  timerEl.className = 'item-phase-timer';
+  barEl.style.transition = 'none';
+  barEl.style.width = '100%';
+  // 다음 프레임에 transition 복구 (애니메이션 시작)
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      barEl.style.transition = 'width 1s linear';
+      barEl.style.width = (14 / 15 * 100) + '%';
+    });
+  });
+
+  if (itemPhaseTimer) clearInterval(itemPhaseTimer);
+  itemPhaseTimer = setInterval(() => {
+    remaining--;
+    timerEl.textContent = remaining;
+    barEl.style.width = (remaining / 15 * 100) + '%';
+    if (remaining <= 3) timerEl.className = 'item-phase-timer urgent';
+    if (remaining <= 0) finishItemPhase();
+  }, 1000);
+};
+
+function finishItemPhase() {
+  if (itemPhaseTimer) { clearInterval(itemPhaseTimer); itemPhaseTimer = null; }
+  const card = document.getElementById('item-phase-card');
+  card.style.display = 'none';
+  document.getElementById('item-phase-timer').className = 'item-phase-timer';
+  document.getElementById('make-teams-btn').disabled = false;
+  makeTeams();
+}
+
+window.skipItemPhase = function() { finishItemPhase(); };
 
 window.makeTeams = function() {
   const warn = document.getElementById('warn-box');
