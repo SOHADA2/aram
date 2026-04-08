@@ -401,10 +401,17 @@ body.member-mode #event-no-save-notice{display:none!important;}
 /* ── 뉴비 마크 ── */
 .newbie-badge{font-size:11px;line-height:1;display:inline-block;vertical-align:middle;}
 .rank-badge{font-size:12px;line-height:1;display:inline-block;vertical-align:middle;}
+@keyframes goldShimmer{0%{background-position:-200% center}100%{background-position:200% center}}
+.rank-1-name{background:linear-gradient(90deg,#c8942a,#ffe566,#ffd700,#e8a000,#fff0a0,#ffd700,#c8942a);background-size:200% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:goldShimmer 2.5s linear infinite;font-weight:800;}
 .newbie-toggle-btn{background:none;border:1px solid rgba(0,199,122,0.3);border-radius:4px;padding:2px 7px;cursor:pointer;font-size:12px;transition:all 0.15s;opacity:0.4;line-height:1.6;font-family:'Noto Sans KR',sans-serif;}
 .newbie-toggle-btn:hover{opacity:1;border-color:var(--green);}
 .newbie-toggle-btn.active{opacity:1;border-color:var(--green);background:rgba(0,199,122,0.15);}
-.newbie-bonus-bar{padding:10px 14px;background:rgba(0,199,122,0.06);border-top:1px solid rgba(0,199,122,0.2);font-size:10px;color:var(--green);line-height:1.9;}
+.newbie-bonus-bar{background:rgba(0,199,122,0.06);border-top:1px solid rgba(0,199,122,0.2);font-size:10px;color:var(--green);cursor:pointer;user-select:none;}
+.newbie-bonus-summary{display:flex;align-items:center;gap:5px;padding:7px 14px;font-weight:700;font-size:11px;}
+.newbie-bonus-arrow{transition:transform 0.2s;font-size:10px;opacity:0.7;margin-left:auto;}
+.newbie-bonus-bar.open .newbie-bonus-arrow,.newbie-bonus-bar:hover .newbie-bonus-arrow{transform:rotate(180deg);}
+.newbie-bonus-detail{display:none;padding:0 14px 10px;line-height:1.9;}
+.newbie-bonus-bar.open .newbie-bonus-detail,.newbie-bonus-bar:hover .newbie-bonus-detail{display:block;}
 .newbie-bonus-row{display:flex;flex-direction:column;gap:1px;}
 .newbie-bonus-item{display:flex;align-items:baseline;gap:6px;}
 .newbie-bonus-item .label{min-width:56px;flex-shrink:0;font-weight:700;}
@@ -510,7 +517,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.4.0</div>
+<div class="version-badge">v2.4.1</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1111,6 +1118,12 @@ function getRankBadge(name) {
   return ' <span class="rank-badge">' + ['🥇','🥈','🥉'][pos-1] + '</span>';
 }
 
+function nameHtml(name) {
+  const pos = getTopThreeMap()[normName(name)];
+  const escaped = escHtml(name);
+  return pos === 1 ? `<span class="rank-1-name">${escaped}</span>` : escaped;
+}
+
 // 뉴비 보너스 적용 시작 시점 반환
 // - 현재 isNewbie=false면 Infinity (보너스 미적용)
 // - isNewbie=true면 newbieSince (ON된 시점 이후 경기에만 적용)
@@ -1320,7 +1333,7 @@ function renderMemberGrid() {
     const isChecked = sessionPlayers.some(sp => sp.name === p.name);
     return `<div class="member-chip${isChecked?' checked':''}">
       <div class="chip-check-box"></div>
-      <span class="member-chip-name">${escHtml(p.name)}</span>
+      <span class="member-chip-name">${nameHtml(p.name)}</span>
       ${p.isNewbie ? '<span class="newbie-badge" style="flex-shrink:0;">🌱</span>' : ''}
       ${getRankBadge(p.name)}
       <span class="tier-badge member-chip-tier ${t.cls}">${t.label}</span>
@@ -1448,7 +1461,7 @@ function renderSessionPlayers() {
     const li = document.createElement('li');
     li.innerHTML = `
       <span class="player-num">${i+1}</span>
-      <span class="player-name">${escHtml(p.name)}${isNewbieP ? ' <span class="newbie-badge">🌱</span>' : ''}${getRankBadge(p.name)}</span>
+      <span class="player-name">${nameHtml(p.name)}${isNewbieP ? ' <span class="newbie-badge">🌱</span>' : ''}${getRankBadge(p.name)}</span>
       <span class="tier-badge ${t.cls}">${t.label}</span>
       ${s.total>0?`<span class="player-stats">${s.wins}승${s.losses}패 ${Math.round(s.wr*100)}%</span>`:''}
       <button class="btn btn-danger" onclick="removeSessionPlayer(${p.id})">✕</button>`;
@@ -1777,7 +1790,7 @@ function teamCard(title,cls,members,avg) {
     const nBadge = isNewbie(p.name) ? ' <span class="newbie-badge">🌱</span>' : '';
     const rBadge = getRankBadge(p.name);
     return`<div class="team-player${isMe?' is-me':''}">
-      <div class="team-player-name">${escHtml(p.name)}${nBadge}${rBadge}${isMe?'&nbsp;<span class="me-badge">나</span>':''}</div>
+      <div class="team-player-name">${nameHtml(p.name)}${nBadge}${rBadge}${isMe?'&nbsp;<span class="me-badge">나</span>':''}</div>
       <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
         ${streakHtml}
         <span class="tier-badge ${t.cls}">${t.label}</span>
@@ -1786,32 +1799,34 @@ function teamCard(title,cls,members,avg) {
   }).join('');
   const hasNewbieInTeam = members.some(p => isNewbie(p.name));
   const newbieNames = members.filter(p => isNewbie(p.name)).map(p => escHtml(p.name)).join(', ');
-  const newbieBar = hasNewbieInTeam ? `<div class="newbie-bonus-bar">
-    <div style="font-weight:700;font-size:11px;margin-bottom:6px;">🌱 뉴비 팀원 보너스 (${newbieNames})</div>
-    <div class="newbie-bonus-row">
-      <div class="newbie-bonus-item">
-        <span class="label">🏆 승리 시</span>
-        <span>승점 <strong>+${WIN_PT + NEWBIE_WIN_BONUS_PT}pt</strong></span>
-        <span class="detail">(기본 +${WIN_PT} + 🌱 +${NEWBIE_WIN_BONUS_PT})</span>
-        <span style="margin-left:4px;">골드 <strong>+${GOLD_WIN + NEWBIE_WIN_BONUS_GOLD}G</strong></span>
-        <span class="detail">(기본 +${GOLD_WIN} + 🌱 +${NEWBIE_WIN_BONUS_GOLD})</span>
-      </div>
-      <div class="newbie-bonus-sub">⚡ 승점 2배권 사용 시 <strong>+${WIN_PT * 2 + NEWBIE_WIN_BONUS_PT}pt</strong> (2배권 +${WIN_PT*2} + 🌱 +${NEWBIE_WIN_BONUS_PT}) · 골드 동일 +${GOLD_WIN + NEWBIE_WIN_BONUS_GOLD}G</div>
-      <div class="newbie-bonus-divider"></div>
-      <div class="newbie-bonus-item">
-        <span class="label">💀 패배 시</span>
-        <span>승점 <strong>-${LOSS_PT - NEWBIE_LOSS_REDUCE_PT}pt</strong></span>
-        <span class="detail">(기본 -${LOSS_PT} → 🌱 완화)</span>
-        <span style="margin-left:4px;">골드 <strong>+${GOLD_LOSE}G</strong></span>
-        <span class="detail">(동일)</span>
-      </div>
-      <div class="newbie-bonus-sub">🛡️ 패배 방어권 사용 시 <strong>0pt</strong> (방어권이 뉴비 완화보다 우선 적용)</div>
-      <div class="newbie-bonus-divider"></div>
-      <div class="newbie-bonus-item" style="opacity:0.85;">
-        <span class="label">🌱 뉴비 본인</span>
-        <span>패배 시 <strong>-2pt</strong></span>
-        <span class="detail">(기본 -${LOSS_PT})</span>
-        <span style="margin-left:4px;font-size:9px;opacity:0.7;">· 방어권 사용 시 0pt</span>
+  const newbieBar = hasNewbieInTeam ? `<div class="newbie-bonus-bar" onclick="this.classList.toggle('open')">
+    <div class="newbie-bonus-summary">🌱 뉴비 보너스 적용 중 <span style="opacity:0.65;font-weight:400;">(${newbieNames})</span><span class="newbie-bonus-arrow">▾</span></div>
+    <div class="newbie-bonus-detail">
+      <div class="newbie-bonus-row">
+        <div class="newbie-bonus-item">
+          <span class="label">🏆 승리 시</span>
+          <span>승점 <strong>+${WIN_PT + NEWBIE_WIN_BONUS_PT}pt</strong></span>
+          <span class="detail">(기본 +${WIN_PT} + 🌱 +${NEWBIE_WIN_BONUS_PT})</span>
+          <span style="margin-left:4px;">골드 <strong>+${GOLD_WIN + NEWBIE_WIN_BONUS_GOLD}G</strong></span>
+          <span class="detail">(기본 +${GOLD_WIN} + 🌱 +${NEWBIE_WIN_BONUS_GOLD})</span>
+        </div>
+        <div class="newbie-bonus-sub">⚡ 승점 2배권 사용 시 <strong>+${WIN_PT * 2 + NEWBIE_WIN_BONUS_PT}pt</strong> (2배권 +${WIN_PT*2} + 🌱 +${NEWBIE_WIN_BONUS_PT}) · 골드 동일 +${GOLD_WIN + NEWBIE_WIN_BONUS_GOLD}G</div>
+        <div class="newbie-bonus-divider"></div>
+        <div class="newbie-bonus-item">
+          <span class="label">💀 패배 시</span>
+          <span>승점 <strong>-${LOSS_PT - NEWBIE_LOSS_REDUCE_PT}pt</strong></span>
+          <span class="detail">(기본 -${LOSS_PT} → 🌱 완화)</span>
+          <span style="margin-left:4px;">골드 <strong>+${GOLD_LOSE}G</strong></span>
+          <span class="detail">(동일)</span>
+        </div>
+        <div class="newbie-bonus-sub">🛡️ 패배 방어권 사용 시 <strong>0pt</strong> (방어권이 뉴비 완화보다 우선 적용)</div>
+        <div class="newbie-bonus-divider"></div>
+        <div class="newbie-bonus-item" style="opacity:0.85;">
+          <span class="label">🌱 뉴비 본인</span>
+          <span>패배 시 <strong>-2pt</strong></span>
+          <span class="detail">(기본 -${LOSS_PT})</span>
+          <span style="margin-left:4px;font-size:9px;opacity:0.7;">· 방어권 사용 시 0pt</span>
+        </div>
       </div>
     </div>
   </div>` : '';
@@ -2208,7 +2223,7 @@ window.openProfileModal = function(fbKey) {
       <div class="profile-modal-header">
         <div class="profile-modal-avatar">${avatarContent}</div>
         <div class="profile-modal-info">
-          <div class="profile-modal-name">${escHtml(player.name)}${player.isNewbie ? ' <span class="newbie-badge">🌱</span>' : ''}${getRankBadge(player.name)}</div>
+          <div class="profile-modal-name">${nameHtml(player.name)}${player.isNewbie ? ' <span class="newbie-badge">🌱</span>' : ''}${getRankBadge(player.name)}</div>
           <div class="profile-modal-meta">
             <span class="tier-badge ${t.cls}">${t.label}</span>
             ${posIcons}
@@ -2548,7 +2563,7 @@ function renderRanking() {
     <div class="lb-row" onclick="openProfileModal('${fbKey}')">
       <div class="lb-rank">${rankHtml}</div>
       <div class="lb-main">
-        <div class="lb-name-text">${escHtml(r.name)}${isNewbiePlayer ? ' <span class="newbie-badge">🌱</span>' : ''}${i<3?' <span class="rank-badge">'+['🥇','🥈','🥉'][i]+'</span>':''}</div>
+        <div class="lb-name-text">${i===0?`<span class="rank-1-name">${escHtml(r.name)}</span>`:escHtml(r.name)}${isNewbiePlayer ? ' <span class="newbie-badge">🌱</span>' : ''}${i<3?' <span class="rank-badge">'+['🥇','🥈','🥉'][i]+'</span>':''}</div>
         ${motto?`<div class="lb-motto">"${escHtml(motto)}"</div>`:''}
         ${posIcons?`<div class="lb-pos-icons">${posIcons}</div>`:''}
       </div>
