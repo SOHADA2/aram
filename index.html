@@ -1256,6 +1256,15 @@ function calcStats(name) {
   return {wins, losses:total-wins, total, wr: total>0 ? wins/total : null};
 }
 
+// ── 승률 기반 팀짜기 점수 ─────────────────────────────────────
+// 판수 적을수록 50%에 수렴 (신뢰도 가중치 적용)
+function getWinRateScore(name) {
+  const s = calcStats(name);
+  if (s.total === 0) return 0.5;
+  const trust = s.total / (s.total + 10);
+  return s.wr * trust + 0.5 * (1 - trust);
+}
+
 // ── 승점 계산 ──────────────────────────────────────────────────
 // 승: +10, 패: -7 (하한 0), 신뢰도 가중치로 판수 적을 때 500점에 수렴
 // 신뢰도 = total / (total + 10)
@@ -1845,10 +1854,10 @@ window.makeTeams = function() {
   if (mode==='random') {
     const s=shuffle(pool); currentTeamA=s.slice(0,teamSize); currentTeamB=s.slice(teamSize);
   } else {
-    const sorted=[...pool].sort((a,b)=>(TIERS[b.tier]?.score||0)-(TIERS[a.tier]?.score||0));
+    const sorted=[...pool].sort((a,b)=>getWinRateScore(b.name)-getWinRateScore(a.name));
     currentTeamA=[]; currentTeamB=[];
     sorted.forEach((p,i)=>(i%2===0?currentTeamA:currentTeamB).push(p));
-    const sc=arr=>arr.reduce((s,p)=>s+(TIERS[p.tier]?.score||0),0);
+    const sc=arr=>arr.reduce((s,p)=>s+getWinRateScore(p.name),0);
     for(let i=0;i<300;i++){
       const ia=Math.floor(Math.random()*currentTeamA.length);
       const ib=Math.floor(Math.random()*currentTeamB.length);
@@ -1912,8 +1921,8 @@ function renderResult() {
     document.getElementById('save-btn').style.opacity='';
     document.getElementById('save-btn').title='';
   }
-  const sc=arr=>arr.reduce((s,p)=>s+(TIERS[p.tier]?.score||0),0);
-  const avg=arr=>(sc(arr)/arr.length).toFixed(1);
+  const sc=arr=>arr.reduce((s,p)=>s+getWinRateScore(p.name),0);
+  const avg=arr=>(sc(arr)/arr.length*100).toFixed(1)+'%';
   const sA=sc(currentTeamA),sB=sc(currentTeamB),tot=sA+sB||1;
 
   document.getElementById('teams-grid').innerHTML=
@@ -1946,7 +1955,7 @@ function renderResult() {
         <div style="font-size:11px;color:var(--text-dim);margin-bottom:10px;text-align:center;letter-spacing:1px;">⚖️ 실력 밸런스 배분</div>
         <div class="balance-label">
           <span style="color:var(--blue)">블루 avg ${avg(currentTeamA)}</span>
-          <span>점수차 ${diff} ${diff<=2?'✅':diff<=4?'🟡':'🔴'}</span>
+          <span>승률차 ${(diff*100).toFixed(1)}% ${diff<=0.05?'✅':diff<=0.1?'🟡':'🔴'}</span>
           <span style="color:var(--red)">레드 avg ${avg(currentTeamB)}</span>
         </div>
         <div class="balance-bar"><div class="balance-fill" style="width:${pct}%;background:linear-gradient(90deg,var(--blue-dark),var(--blue))"></div></div>
