@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.4.1
+- 현재 버전: v2.5.0
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -93,6 +93,23 @@
 | 🛡️ 패배 방어권 | 60G | 경기 전 활성화 → 패배해도 감점 없음 |
 
 - 팀 구성 완료 후 **아이템 잠금** (경기 저장 시 자동 해제)
+
+## 매칭 퀘스트 시스템 (v2.5.0)
+- **발동 조건**: 팀 구성에 TOP3 플레이어(3판 이상) 포함 시 15% 확률 (`QUEST_TRIGGER_RATE`)
+- **발동 우선순위**: 여러 TOP3 포함 시 가장 높은 랭크(1등 우선) 퀘스트 발동
+- **퀘스트 종류** (`QUEST_CONFIGS`):
+  | 랭크 | 이름 | 상금 | 본인 패배 추가 감점 |
+  |------|------|------|-----------------|
+  | 1등 | 👑 왕관의 무게 | +100G | -10pt |
+  | 2등 | ⚔️ 역전의 기회 | +80G | -7pt |
+  | 3등 | 🚀 기회의 도약 | +60G | -5pt |
+- **효과**: 승리 시 양팀 전원 상금 지급 / 패배 시 양팀 전원 골드 없음
+- **상금은 독립**: MVP·뉴비·아이템 등 다른 골드 이벤트와 연산 없음
+- **팝업**: 팀 구성 완료 0.7초 후 `.quest-overlay` 모달로 표시
+- **저장**: `matches/{key}.questEvent` — `{ playerName, rank, bonusGold, lossExtraPt }`
+- **골드 계산**: `calcGoldFromMatches()` — questEvent 있으면 일반 골드 대신 bonusGold(승)/0(패)
+- **승점 계산**: `calcScore()` — 해당 플레이어 패배 시 normal loss 후 추가 lossExtraPt 감점
+- **상태 변수**: `questEventState` — 팀 구성~저장 완료 사이에만 유지, 저장 후 null 초기화
 
 ## UI 개선 (v2.4.1)
 - **뉴비 보너스 접기/펼치기**: 팀 카드 하단 뉴비 보너스 정보를 기본 접힘 상태로 변경

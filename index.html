@@ -316,6 +316,15 @@ select option{background:var(--surface2);}
 footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;letter-spacing:1px;}
 /* ── 본인 선택 모달 ── */
 .my-modal-overlay{position:fixed;inset:0;z-index:1000;background:rgba(4,11,21,0.92);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 0.2s ease;}
+.quest-overlay{position:fixed;inset:0;z-index:1100;background:rgba(4,11,21,0.93);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 0.25s ease;}
+.quest-modal{background:var(--surface);border:1px solid rgba(255,200,50,0.35);border-radius:16px;width:100%;max-width:360px;padding:26px 22px 22px;animation:popIn 0.35s cubic-bezier(0.175,0.885,0.32,1.275);text-align:center;box-shadow:0 0 40px rgba(255,200,50,0.12);}
+.quest-alert-label{font-size:10px;color:rgba(255,200,50,0.65);letter-spacing:3px;font-weight:700;margin-bottom:10px;text-transform:uppercase;}
+.quest-name{font-family:'Black Han Sans',sans-serif;font-size:24px;letter-spacing:1px;color:var(--gold);margin-bottom:6px;}
+.quest-player-line{font-size:12px;color:var(--text-dim);margin-bottom:18px;line-height:1.6;}
+.quest-rule-box{background:rgba(255,200,50,0.05);border:1px solid rgba(255,200,50,0.18);border-radius:10px;padding:13px 15px;text-align:left;font-size:11px;line-height:2.1;margin-bottom:18px;}
+.quest-rule-win{color:var(--green);font-weight:700;}
+.quest-rule-lose{color:var(--red);font-weight:700;}
+.quest-penalty-note{color:rgba(220,100,100,0.8);font-size:10px;padding-left:4px;line-height:1.7;margin-top:3px;opacity:0.9;}
 .my-modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;width:100%;max-width:400px;padding:24px;animation:popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275);}
 .my-modal-title{font-family:'Black Han Sans',sans-serif;font-size:18px;color:var(--gold);letter-spacing:2px;margin-bottom:6px;text-align:center;}
 .my-modal-sub{font-size:11px;color:var(--text-dim);text-align:center;margin-bottom:18px;}
@@ -517,7 +526,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.4.1</div>
+<div class="version-badge">v2.5.0</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -532,6 +541,16 @@ body.member-mode #event-no-save-notice{display:none!important;}
 </div>
 
 <!-- 본인 선택 모달 -->
+<div class="quest-overlay" id="quest-modal" style="display:none;">
+  <div class="quest-modal">
+    <div class="quest-alert-label">⚠ 매칭 퀘스트 발동</div>
+    <div class="quest-name" id="quest-modal-name"></div>
+    <div class="quest-player-line" id="quest-modal-player"></div>
+    <div class="quest-rule-box" id="quest-modal-rules"></div>
+    <button class="btn" style="width:100%;justify-content:center;" onclick="closeQuestModal()">확인</button>
+  </div>
+</div>
+
 <div class="my-modal-overlay" id="my-modal" style="display:none;">
   <div class="my-modal">
     <div class="my-modal-title">👋 나는 누구?</div>
@@ -861,6 +880,7 @@ let myName = localStorage.getItem('myName') || null; // 본인 닉네임
 let liveMode = !!localStorage.getItem('liveMode');   // 라이브 모드
 let itemsLocked = false; // 팀 구성 후 아이템 잠금 여부
 let goldLoaded = false; // goldData 로드 완료 여부
+let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 아이템 정의 ──────────────────────────────────────────────
 const SHOP_ITEMS = [
@@ -877,6 +897,14 @@ const GOLD_ATTEND = 30; // 출석 체크 보너스
 const NEWBIE_WIN_BONUS_PT   = 3;  // 뉴비 팀원 있을 때 승리 추가 승점 (+10 → +13)
 const NEWBIE_WIN_BONUS_GOLD = 5;  // 뉴비 팀원 있을 때 승리 추가 골드 (+15 → +20)
 const NEWBIE_LOSS_REDUCE_PT = 3;  // 뉴비 팀원 있을 때 패배 감점 완화 (-7 → -4)
+
+// ── 매칭 퀘스트 ──────────────────────────────────────────────
+const QUEST_TRIGGER_RATE = 0.15; // 15% 발동 확률
+const QUEST_CONFIGS = {
+  1: { name: '왕관의 무게', emoji: '👑', bonusGold: 100, lossExtraPt: 10 },
+  2: { name: '역전의 기회', emoji: '⚔️',  bonusGold: 80,  lossExtraPt: 7  },
+  3: { name: '기회의 도약', emoji: '🚀', bonusGold: 60,  lossExtraPt: 5  },
+};
 
 // ── FIREBASE REALTIME LISTENERS ───────────────────────────────
 setSyncStatus('syncing', '연결 중...');
@@ -921,6 +949,11 @@ function calcGoldFromMatches(name) {
     const inB = (m.teamB||[]).some(n=>normName(n)===key);
     if (!inA && !inB) return;
     const won = (m.winner==='blue'&&inA)||(m.winner==='red'&&inB);
+    // 퀘스트 이벤트 매치: 상금만 적용, MVP/뉴비 보너스 없음
+    if (m.questEvent) {
+      gold += won ? m.questEvent.bonusGold : 0;
+      return;
+    }
     gold += won ? GOLD_WIN : GOLD_LOSE;
     if (m.mvp       && normName(m.mvp)       === key) gold += GOLD_MVP; // 구버전 호환
     if (m.mvpWinner && normName(m.mvpWinner) === key) gold += GOLD_MVP;
@@ -1124,6 +1157,42 @@ function nameHtml(name) {
   return pos === 1 ? `<span class="rank-1-name">${escaped}</span>` : escaped;
 }
 
+function checkQuestEvent() {
+  questEventState = null;
+  if (isEventMatch) return;
+  const top3 = getTopThreeMap();
+  const allPlayers = [...currentTeamA, ...currentTeamB];
+  let bestRank = null, bestPlayer = null;
+  for (const p of allPlayers) {
+    const rank = top3[normName(p.name)];
+    if (rank && (bestRank === null || rank < bestRank)) {
+      bestRank = rank; bestPlayer = p.name;
+    }
+  }
+  if (!bestRank) return;
+  if (Math.random() > QUEST_TRIGGER_RATE) return;
+  const cfg = QUEST_CONFIGS[bestRank];
+  questEventState = { rank: bestRank, playerName: bestPlayer, ...cfg };
+  setTimeout(() => showQuestPopup(questEventState), 700);
+}
+
+function showQuestPopup(q) {
+  const nameDisplay = q.rank === 1
+    ? `<span class="rank-1-name">${escHtml(q.playerName)}</span>`
+    : escHtml(q.playerName);
+  document.getElementById('quest-modal-name').innerHTML = `${q.emoji} ${q.questName}`;
+  document.getElementById('quest-modal-player').innerHTML = `${nameDisplay}에게 발동됐습니다`;
+  document.getElementById('quest-modal-rules').innerHTML = `
+    <div><span class="quest-rule-win">🏆 승리 시</span> &nbsp;양팀 전원 <strong>+${q.bonusGold}G</strong> 상금 지급</div>
+    <div><span class="quest-rule-lose">💀 패배 시</span> &nbsp;양팀 전원 골드 없음</div>
+    <div class="quest-penalty-note">└ ${escHtml(q.playerName)} 본인 패배 시 승점 <strong>-${q.lossExtraPt}pt</strong> 추가 감점</div>`;
+  document.getElementById('quest-modal').style.display = 'flex';
+}
+
+window.closeQuestModal = function() {
+  document.getElementById('quest-modal').style.display = 'none';
+};
+
 // 뉴비 보너스 적용 시작 시점 반환
 // - 현재 isNewbie=false면 Infinity (보너스 미적용)
 // - isNewbie=true면 newbieSince (ON된 시점 이후 경기에만 적용)
@@ -1185,6 +1254,10 @@ function calcScore(name) {
         if (iAmNewbie) lpt = 2; // 뉴비 본인 패배 감점 최소화 (기존 -7pt → -2pt)
         else if (hasNewbieTeammate) lpt = Math.max(0, lpt - NEWBIE_LOSS_REDUCE_PT);
         raw = Math.max(0, raw - lpt);
+      }
+      // 퀘스트 이벤트 추가 감점 (해당 플레이어 본인에게만)
+      if (m.questEvent && normName(m.questEvent.playerName) === key) {
+        raw = Math.max(0, raw - m.questEvent.lossExtraPt);
       }
     }
   }
@@ -1683,6 +1756,7 @@ window.makeTeams = function() {
   itemsLocked = true;
   renderShop();
   renderResult();
+  checkQuestEvent();
   // Firebase에 팀 결과 기록 → 다른 기기에 실시간 동기화
   set(ref(db, 'session'), {
     active: true,
@@ -2033,6 +2107,12 @@ window.saveMatch = async function() {
     };
     if (mvpWinnerName) matchData.mvpWinner = mvpWinnerName;
     if (mvpLoserName)  matchData.mvpLoser  = mvpLoserName;
+    if (questEventState) matchData.questEvent = {
+      playerName: normName(questEventState.playerName),
+      rank: questEventState.rank,
+      bonusGold: questEventState.bonusGold,
+      lossExtraPt: questEventState.lossExtraPt,
+    };
     await push(ref(db, 'matches'), matchData);
 
     await giveMatchGold(winners, losers, matchTimestamp);
@@ -2042,10 +2122,17 @@ window.saveMatch = async function() {
       const isMyWin = winners.some(n=>normName(n)===normName(myName));
       const isMvp = (mvpWinnerName && normName(mvpWinnerName)===normName(myName)) ||
                     (mvpLoserName  && normName(mvpLoserName) ===normName(myName));
-      const earned  = (isMyWin ? GOLD_WIN : GOLD_LOSE) + (isMvp ? GOLD_MVP : 0);
-      const label   = isMvp ? `🏆 MVP! 🪙+${earned}골드` : `🪙 +${earned}골드 획득!`;
+      let label;
+      if (questEventState) {
+        const earned = isMyWin ? questEventState.bonusGold : 0;
+        label = isMyWin ? `💰 퀘스트 상금 +${earned}G 획득!` : `💀 퀘스트 패배 — 골드 없음`;
+      } else {
+        const earned = (isMyWin ? GOLD_WIN : GOLD_LOSE) + (isMvp ? GOLD_MVP : 0);
+        label = isMvp ? `🏆 MVP! 🪙+${earned}골드` : `🪙 +${earned}골드 획득!`;
+      }
       setTimeout(()=>showGoldToast(label), 300);
     }
+    questEventState = null;
 
     btn.textContent='✅ 저장 완료!';
     btn.style.background='linear-gradient(135deg,var(--green-dark),var(--green))';
@@ -2940,9 +3027,9 @@ async function giveMatchGold(winners, losers, matchTimestamp) {
   for (const name of winners) await processPlayer(name, true);
   for (const name of losers)  await processPlayer(name, false);
 
-  // 내가 이번 경기 참여자면 골드 획득 토스트
+  // 내가 이번 경기 참여자면 골드 획득 토스트 (퀘스트 발동 시 saveMatch에서 처리)
   const allPlayers = [...winners, ...losers];
-  if (myName && allPlayers.some(n => normName(n) === normName(myName))) {
+  if (!questEventState && myName && allPlayers.some(n => normName(n) === normName(myName))) {
     const isMyWin = winners.some(n => normName(n) === normName(myName));
     setTimeout(() => showGoldToast(`🪙 +${isMyWin ? GOLD_WIN : GOLD_LOSE} 골드 획득!`), 300);
   }
