@@ -333,6 +333,18 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .quest-rule-win{color:var(--green);font-weight:700;}
 .quest-rule-lose{color:var(--red);font-weight:700;}
 .quest-penalty-note{color:rgba(220,100,100,0.8);font-size:10px;padding-left:4px;line-height:1.7;margin-top:3px;opacity:0.9;}
+.quest-active-banner{display:flex;align-items:center;gap:12px;padding:10px 14px;background:rgba(255,200,50,0.07);border:1px solid rgba(255,200,50,0.25);border-radius:8px;margin-top:10px;animation:fadeIn 0.3s ease;}
+.quest-active-icon{font-size:20px;flex-shrink:0;}
+.quest-active-title{font-size:12px;font-weight:700;color:var(--gold);margin-bottom:2px;}
+.quest-active-sub{font-size:10px;color:var(--text-dim);line-height:1.6;}
+.quest-result-overlay{position:fixed;inset:0;z-index:1100;background:rgba(4,11,21,0.92);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 0.25s ease;}
+.quest-result-modal{background:var(--surface);border:1px solid rgba(255,200,50,0.3);border-radius:14px;width:100%;max-width:340px;padding:22px 20px;animation:popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275);text-align:center;}
+.quest-result-title{font-family:'Black Han Sans',sans-serif;font-size:18px;color:var(--gold);margin-bottom:4px;}
+.quest-result-sub{font-size:11px;color:var(--text-dim);margin-bottom:16px;}
+.quest-result-row{display:flex;justify-content:space-between;align-items:center;padding:9px 13px;border-radius:8px;margin-bottom:6px;font-size:12px;text-align:left;}
+.quest-result-row.win{background:rgba(0,199,122,0.08);border:1px solid rgba(0,199,122,0.22);}
+.quest-result-row.lose{background:rgba(220,50,50,0.06);border:1px solid rgba(220,50,50,0.18);}
+.quest-result-row.penalty{background:rgba(220,120,50,0.07);border:1px solid rgba(220,120,50,0.2);margin-top:8px;}
 .my-modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;width:100%;max-width:400px;padding:24px;animation:popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275);}
 .my-modal-title{font-family:'Black Han Sans',sans-serif;font-size:18px;color:var(--gold);letter-spacing:2px;margin-bottom:6px;text-align:center;}
 .my-modal-sub{font-size:11px;color:var(--text-dim);text-align:center;margin-bottom:18px;}
@@ -534,7 +546,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.5.3</div>
+<div class="version-badge">v2.5.4</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -549,6 +561,15 @@ body.member-mode #event-no-save-notice{display:none!important;}
 </div>
 
 <!-- 본인 선택 모달 -->
+<div class="quest-result-overlay" id="quest-result-modal" style="display:none;">
+  <div class="quest-result-modal">
+    <div class="quest-result-title">👑 왕관의 무게 결과</div>
+    <div class="quest-result-sub" id="quest-result-sub"></div>
+    <div id="quest-result-rows"></div>
+    <button class="btn" style="width:100%;justify-content:center;margin-top:6px;" onclick="document.getElementById('quest-result-modal').style.display='none'">확인</button>
+  </div>
+</div>
+
 <div class="quest-overlay" id="quest-modal" style="display:none;">
   <div class="quest-modal">
     <div class="quest-alert-label">⚠ 매칭 퀘스트 발동</div>
@@ -745,6 +766,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
       <p id="result-mode-label"></p>
     </div>
     <div class="teams-grid" id="teams-grid"></div>
+    <div id="quest-banner-section"></div>
     <div id="balance-bar-section"></div>
     <div id="chemi-legend-section"></div>
     <!-- 이벤트 핸디캡 박스 -->
@@ -1896,6 +1918,20 @@ function renderResult() {
     teamCard('1팀','team-blue',currentTeamA,avg(currentTeamA))+
     teamCard('2팀','team-yellow',currentTeamB,avg(currentTeamB));
 
+  // 퀘스트 발동 배너
+  const questBannerEl = document.getElementById('quest-banner-section');
+  if (questEventState && !isEventMatch) {
+    questBannerEl.innerHTML = `<div class="quest-active-banner">
+      <span class="quest-active-icon">👑</span>
+      <div>
+        <div class="quest-active-title">왕관의 무게 발동 중!</div>
+        <div class="quest-active-sub">승리팀 <strong style="color:var(--green)">+${questEventState.bonusGold}G</strong> 상금 · 패배팀 골드 없음 · ${escHtml(questEventState.playerName)} 패배 시 <strong style="color:var(--red)">-${questEventState.lossExtraPt}pt</strong> 추가</div>
+      </div>
+    </div>`;
+  } else {
+    questBannerEl.innerHTML = '';
+  }
+
   const pct=Math.round((sA/tot)*100), diff=Math.abs(sA-sB);
   if (isEventMatch) {
     document.getElementById('balance-bar-section').innerHTML=`
@@ -2216,6 +2252,22 @@ window.saveMatch = async function() {
         label = isMvp ? `🏆 MVP! 🪙+${earned}골드` : `🪙 +${earned}골드 획득!`;
       }
       setTimeout(()=>showGoldToast(label), 300);
+    }
+    // 퀘스트 결과 팝업 (저장 완료 후)
+    if (questEventState) {
+      const q = questEventState;
+      const winTeamLabel = selectedWinner === 'blue' ? '1팀 (블루)' : '2팀 (옐로우)';
+      const loseTeamLabel = selectedWinner === 'blue' ? '2팀 (옐로우)' : '1팀 (블루)';
+      const questPlayerWon = winners.some(n => normName(n) === normName(q.playerName));
+      const penaltyRow = !questPlayerWon
+        ? `<div class="quest-result-row penalty"><span>⚡ ${escHtml(q.playerName)} 추가 감점</span><strong style="color:var(--red)">-${q.lossExtraPt}pt</strong></div>`
+        : '';
+      document.getElementById('quest-result-sub').textContent = `${q.name} · ${escHtml(q.playerName)}`;
+      document.getElementById('quest-result-rows').innerHTML = `
+        <div class="quest-result-row win"><span>🏆 ${winTeamLabel} 승리</span><strong style="color:var(--green)">+${q.bonusGold}G 상금</strong></div>
+        <div class="quest-result-row lose"><span>💀 ${loseTeamLabel} 패배</span><strong style="color:var(--text-dim)">골드 없음</strong></div>
+        ${penaltyRow}`;
+      setTimeout(() => { document.getElementById('quest-result-modal').style.display = 'flex'; }, 600);
     }
     questEventState = null;
 
