@@ -345,6 +345,8 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .quest-result-row.win{background:rgba(0,199,122,0.08);border:1px solid rgba(0,199,122,0.22);}
 .quest-result-row.lose{background:rgba(220,50,50,0.06);border:1px solid rgba(220,50,50,0.18);}
 .quest-result-row.penalty{background:rgba(220,120,50,0.07);border:1px solid rgba(220,120,50,0.2);margin-top:8px;}
+.quest-defeat-warning{margin-top:12px;padding:10px 13px;background:rgba(220,50,50,0.08);border:1px solid rgba(220,50,50,0.25);border-radius:8px;font-size:11px;color:rgba(220,100,100,0.95);line-height:1.8;text-align:left;}
+.quest-defeat-warning strong{font-size:13px;color:var(--red);display:block;margin-top:2px;}
 .my-modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;width:100%;max-width:400px;padding:24px;animation:popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275);}
 .my-modal-title{font-family:'Black Han Sans',sans-serif;font-size:18px;color:var(--gold);letter-spacing:2px;margin-bottom:6px;text-align:center;}
 .my-modal-sub{font-size:11px;color:var(--text-dim);text-align:center;margin-bottom:18px;}
@@ -2256,17 +2258,22 @@ window.saveMatch = async function() {
     // 퀘스트 결과 팝업 (저장 완료 후)
     if (questEventState) {
       const q = questEventState;
-      const winTeamLabel = selectedWinner === 'blue' ? '1팀 (블루)' : '2팀 (옐로우)';
-      const loseTeamLabel = selectedWinner === 'blue' ? '2팀 (옐로우)' : '1팀 (블루)';
+      const winTeamLabel = selectedWinner === 'blue' ? '1팀' : '2팀';
+      const loseTeamLabel = selectedWinner === 'blue' ? '2팀' : '1팀';
       const questPlayerWon = winners.some(n => normName(n) === normName(q.playerName));
-      const penaltyRow = !questPlayerWon
-        ? `<div class="quest-result-row penalty"><span>⚡ ${escHtml(q.playerName)} 추가 감점</span><strong style="color:var(--red)">-${q.lossExtraPt}pt</strong></div>`
+      // 이/가 조사 판별
+      const lastChar = q.playerName[q.playerName.length - 1];
+      const code = lastChar.charCodeAt(0);
+      const hasJongseong = code >= 0xAC00 && code <= 0xD7A3 && (code - 0xAC00) % 28 !== 0;
+      const particle = hasJongseong ? '이' : '가';
+      const defeatWarning = !questPlayerWon
+        ? `<div class="quest-defeat-warning">💀 ${escHtml(q.playerName)}${particle} 왕관의 무게에 무너졌습니다.<strong>-${q.lossExtraPt}pt 추가 감점</strong></div>`
         : '';
       document.getElementById('quest-result-sub').textContent = `${q.name} · ${escHtml(q.playerName)}`;
       document.getElementById('quest-result-rows').innerHTML = `
         <div class="quest-result-row win"><span>🏆 ${winTeamLabel} 승리</span><strong style="color:var(--green)">+${q.bonusGold}G 상금</strong></div>
         <div class="quest-result-row lose"><span>💀 ${loseTeamLabel} 패배</span><strong style="color:var(--text-dim)">골드 없음</strong></div>
-        ${penaltyRow}`;
+        ${defeatWarning}`;
       setTimeout(() => { document.getElementById('quest-result-modal').style.display = 'flex'; }, 600);
     }
     questEventState = null;
