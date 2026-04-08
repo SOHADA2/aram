@@ -400,6 +400,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 @keyframes toastOut{from{opacity:1;transform:translate(-50%,-50%)}to{opacity:0;transform:translate(-50%,-42%)}}
 /* ── 뉴비 마크 ── */
 .newbie-badge{font-size:11px;line-height:1;display:inline-block;vertical-align:middle;}
+.rank-badge{font-size:12px;line-height:1;display:inline-block;vertical-align:middle;}
 .newbie-toggle-btn{background:none;border:1px solid rgba(0,199,122,0.3);border-radius:4px;padding:2px 7px;cursor:pointer;font-size:12px;transition:all 0.15s;opacity:0.4;line-height:1.6;font-family:'Noto Sans KR',sans-serif;}
 .newbie-toggle-btn:hover{opacity:1;border-color:var(--green);}
 .newbie-toggle-btn.active{opacity:1;border-color:var(--green);background:rgba(0,199,122,0.15);}
@@ -509,7 +510,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.3.4</div>
+<div class="version-badge">v2.4.0</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1087,6 +1088,29 @@ function isNewbie(name) {
   return !!p?.isNewbie;
 }
 
+function getTopThreeMap() {
+  const names = new Set();
+  Object.values(registeredPlayers).forEach(p => names.add(p.name));
+  Object.values(matches).forEach(m => {
+    (m.teamA||[]).forEach(n => names.add(n));
+    (m.teamB||[]).forEach(n => names.add(n));
+  });
+  const rows = [...names].map(name => {
+    const s = calcStats(name);
+    const sc = calcScore(name);
+    return { name, total: s.total, score: sc.score };
+  }).filter(r => r.total >= 3).sort((a, b) => b.score - a.score || b.total - a.total);
+  const map = {};
+  rows.slice(0, 3).forEach((r, i) => { map[normName(r.name)] = i + 1; });
+  return map;
+}
+
+function getRankBadge(name) {
+  const pos = getTopThreeMap()[normName(name)];
+  if (!pos) return '';
+  return ' <span class="rank-badge">' + ['🥇','🥈','🥉'][pos-1] + '</span>';
+}
+
 // 뉴비 보너스 적용 시작 시점 반환
 // - 현재 isNewbie=false면 Infinity (보너스 미적용)
 // - isNewbie=true면 newbieSince (ON된 시점 이후 경기에만 적용)
@@ -1298,6 +1322,7 @@ function renderMemberGrid() {
       <div class="chip-check-box"></div>
       <span class="member-chip-name">${escHtml(p.name)}</span>
       ${p.isNewbie ? '<span class="newbie-badge" style="flex-shrink:0;">🌱</span>' : ''}
+      ${getRankBadge(p.name)}
       <span class="tier-badge member-chip-tier ${t.cls}">${t.label}</span>
     </div>`;
   }).join('');
@@ -1423,7 +1448,7 @@ function renderSessionPlayers() {
     const li = document.createElement('li');
     li.innerHTML = `
       <span class="player-num">${i+1}</span>
-      <span class="player-name">${escHtml(p.name)}${isNewbieP ? ' <span class="newbie-badge">🌱</span>' : ''}</span>
+      <span class="player-name">${escHtml(p.name)}${isNewbieP ? ' <span class="newbie-badge">🌱</span>' : ''}${getRankBadge(p.name)}</span>
       <span class="tier-badge ${t.cls}">${t.label}</span>
       ${s.total>0?`<span class="player-stats">${s.wins}승${s.losses}패 ${Math.round(s.wr*100)}%</span>`:''}
       <button class="btn btn-danger" onclick="removeSessionPlayer(${p.id})">✕</button>`;
@@ -1750,8 +1775,9 @@ function teamCard(title,cls,members,avg) {
       : '';
     const isMe = myName && normName(p.name)===normName(myName);
     const nBadge = isNewbie(p.name) ? ' <span class="newbie-badge">🌱</span>' : '';
+    const rBadge = getRankBadge(p.name);
     return`<div class="team-player${isMe?' is-me':''}">
-      <div class="team-player-name">${escHtml(p.name)}${nBadge}${isMe?'&nbsp;<span class="me-badge">나</span>':''}</div>
+      <div class="team-player-name">${escHtml(p.name)}${nBadge}${rBadge}${isMe?'&nbsp;<span class="me-badge">나</span>':''}</div>
       <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
         ${streakHtml}
         <span class="tier-badge ${t.cls}">${t.label}</span>
@@ -2182,7 +2208,7 @@ window.openProfileModal = function(fbKey) {
       <div class="profile-modal-header">
         <div class="profile-modal-avatar">${avatarContent}</div>
         <div class="profile-modal-info">
-          <div class="profile-modal-name">${escHtml(player.name)}${player.isNewbie ? ' <span class="newbie-badge">🌱</span>' : ''}</div>
+          <div class="profile-modal-name">${escHtml(player.name)}${player.isNewbie ? ' <span class="newbie-badge">🌱</span>' : ''}${getRankBadge(player.name)}</div>
           <div class="profile-modal-meta">
             <span class="tier-badge ${t.cls}">${t.label}</span>
             ${posIcons}
@@ -2522,7 +2548,7 @@ function renderRanking() {
     <div class="lb-row" onclick="openProfileModal('${fbKey}')">
       <div class="lb-rank">${rankHtml}</div>
       <div class="lb-main">
-        <div class="lb-name-text">${escHtml(r.name)}${isNewbiePlayer ? ' <span class="newbie-badge">🌱</span>' : ''}</div>
+        <div class="lb-name-text">${escHtml(r.name)}${isNewbiePlayer ? ' <span class="newbie-badge">🌱</span>' : ''}${i<3?' <span class="rank-badge">'+['🥇','🥈','🥉'][i]+'</span>':''}</div>
         ${motto?`<div class="lb-motto">"${escHtml(motto)}"</div>`:''}
         ${posIcons?`<div class="lb-pos-icons">${posIcons}</div>`:''}
       </div>

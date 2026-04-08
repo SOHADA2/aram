@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.3.0
+- 현재 버전: v2.4.0
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -93,6 +93,13 @@
 | 🛡️ 패배 방어권 | 60G | 경기 전 활성화 → 패배해도 감점 없음 |
 
 - 팀 구성 완료 후 **아이템 잠금** (경기 저장 시 자동 해제)
+
+## 랭킹 TOP3 뱃지 시스템 (v2.4.0)
+- `/players` + `/matches` 기반으로 승점 상위 3명을 계산 (`getTopThreeMap()`)
+- 3판 이상 플레이어 중 승점 순 — 1등 🥇, 2등 🥈, 3등 🥉
+- `getRankBadge(name)` 헬퍼로 뱃지 HTML 반환
+- 표시 위치: 참가자 선택 칩, 참가자 목록, 팀 카드, 프로필 모달, 랭킹 리스트 이름 옆
+- 랭킹 리스트에서는 `i` 인덱스 직접 사용 (중복 계산 없음)
 
 ## 뉴비 시스템 (v2.3.0)
 - `/players/{key}.isNewbie: boolean` — 뉴비 마크 여부
