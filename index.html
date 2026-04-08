@@ -534,7 +534,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.5.2</div>
+<div class="version-badge">v2.5.3</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1089,6 +1089,17 @@ function applyMvpData(data) {
 
 onValue(ref(db, 'session'), (snapshot) => {
   const data = snapshot.val();
+
+  // 아이템 사용 단계: 모든 기기에 카운트다운 표시 + 아이템 잠금 해제
+  if (data?.phase === 'item' && data.itemPhaseEnd) {
+    if (itemsLocked) { itemsLocked = false; renderShop(); }
+    startItemCountdown(data.itemPhaseEnd);
+    return;
+  }
+
+  // 카운트다운 중이었다면 정리 (팀 결과 or 세션 종료로 전환)
+  if (itemPhaseTimer) stopItemCountdown();
+
   if (!data || !data.active) {
     // 세션 종료: 아이템 잠금 해제 (경기 저장·리셋 후)
     if (itemsLocked) { itemsLocked = false; renderShop(); }
@@ -1698,7 +1709,6 @@ let itemPhaseTimer = null;
 window.startItemPhase = function() {
   if (isEventMatch) { makeTeams(); return; }
 
-  // 인원 수 검증 먼저 (통과 못 하면 카운트다운 안 띄움)
   const warn = document.getElementById('warn-box');
   warn.innerHTML = '';
   const needed = teamSize * 2;
@@ -1707,48 +1717,62 @@ window.startItemPhase = function() {
     return;
   }
 
+  document.getElementById('make-teams-btn').disabled = true;
+  // Firebase에 아이템 사용 단계 기록 → 모든 기기에 동기화
+  set(ref(db, 'session'), { phase: 'item', itemPhaseEnd: Date.now() + 15000 }).catch(console.error);
+};
+
+function startItemCountdown(endTime) {
   const card = document.getElementById('item-phase-card');
   const timerEl = document.getElementById('item-phase-timer');
   const barEl = document.getElementById('item-phase-bar');
   const btn = document.getElementById('make-teams-btn');
+  const skipBtn = card.querySelector('button');
 
-  btn.disabled = true;
+  // 바로 진행 버튼은 라이브용 계정에서만 표시
+  if (skipBtn) skipBtn.style.display = liveMode ? '' : 'none';
+
   card.style.display = 'block';
-  card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-
-  let remaining = 15;
-  timerEl.textContent = remaining;
-  timerEl.className = 'item-phase-timer';
-  barEl.style.transition = 'none';
-  barEl.style.width = '100%';
-  // 다음 프레임에 transition 복구 (애니메이션 시작)
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      barEl.style.transition = 'width 1s linear';
-      barEl.style.width = (14 / 15 * 100) + '%';
-    });
-  });
+  if (btn) btn.disabled = true;
 
   if (itemPhaseTimer) clearInterval(itemPhaseTimer);
-  itemPhaseTimer = setInterval(() => {
-    remaining--;
-    timerEl.textContent = remaining;
-    barEl.style.width = (remaining / 15 * 100) + '%';
-    if (remaining <= 3) timerEl.className = 'item-phase-timer urgent';
-    if (remaining <= 0) finishItemPhase();
-  }, 1000);
-};
 
-function finishItemPhase() {
-  if (itemPhaseTimer) { clearInterval(itemPhaseTimer); itemPhaseTimer = null; }
-  const card = document.getElementById('item-phase-card');
-  card.style.display = 'none';
-  document.getElementById('item-phase-timer').className = 'item-phase-timer';
-  document.getElementById('make-teams-btn').disabled = false;
-  makeTeams();
+  const TOTAL_MS = 15000;
+  function tick() {
+    const remaining = Math.max(0, endTime - Date.now());
+    const secs = Math.ceil(remaining / 1000);
+    timerEl.textContent = secs;
+    barEl.style.transition = 'none';
+    barEl.style.width = (remaining / TOTAL_MS * 100) + '%';
+    timerEl.className = 'item-phase-timer' + (secs <= 3 ? ' urgent' : '');
+    if (remaining <= 0) {
+      clearInterval(itemPhaseTimer);
+      itemPhaseTimer = null;
+      card.style.display = 'none';
+      timerEl.className = 'item-phase-timer';
+      if (btn) btn.disabled = false;
+      if (liveMode) makeTeams(); // 호스트만 팀 구성 실행
+    }
+  }
+  tick();
+  itemPhaseTimer = setInterval(tick, 250);
 }
 
-window.skipItemPhase = function() { finishItemPhase(); };
+function stopItemCountdown() {
+  if (itemPhaseTimer) { clearInterval(itemPhaseTimer); itemPhaseTimer = null; }
+  const card = document.getElementById('item-phase-card');
+  if (card) card.style.display = 'none';
+  const timerEl = document.getElementById('item-phase-timer');
+  if (timerEl) timerEl.className = 'item-phase-timer';
+  const btn = document.getElementById('make-teams-btn');
+  if (btn) btn.disabled = false;
+}
+
+window.skipItemPhase = function() {
+  if (!liveMode) return;
+  stopItemCountdown();
+  makeTeams();
+};
 
 window.makeTeams = function() {
   const warn = document.getElementById('warn-box');
