@@ -2050,10 +2050,11 @@ async function autoFillParticipants() {
         );
         if (!mRes.ok) continue;
         const detail = await mRes.json();
-        const gameStart = detail.info.gameStartTimestamp;
+        // 게임 종료 시점 = 시작 + 진행시간(초→ms)
+        const gameEnd = detail.info.gameStartTimestamp + (detail.info.gameDuration * 1000);
 
-        // Firebase 기록과 timestamp 매칭 (±10분 오차 허용)
-        const idx = needsFill.findIndex(([, m]) => Math.abs(m.timestamp - gameStart) < 600000);
+        // Firebase timestamp는 저장 시점(게임 종료 + MVP 투표 후) → ±30분 오차 허용
+        const idx = needsFill.findIndex(([, m]) => Math.abs(m.timestamp - gameEnd) < 1800000);
         if (idx === -1) continue;
         const [fbKey] = needsFill[idx];
 
