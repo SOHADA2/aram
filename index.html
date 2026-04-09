@@ -478,6 +478,30 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .pos-icon.tier2{background:rgba(11,196,227,0.1);border:1px solid rgba(11,196,227,0.25);color:var(--blue);}
 /* ── 프로필 모달 ── */
 .profile-modal-overlay{position:fixed;inset:0;z-index:900;background:rgba(4,11,21,0.85);backdrop-filter:blur(6px);display:flex;align-items:flex-end;justify-content:center;padding:0;animation:fadeIn 0.2s ease;}
+/* ── 경기 상세 팝업 ── */
+.match-detail-overlay{position:fixed;inset:0;z-index:950;background:rgba(4,11,21,0.9);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center;padding:0;animation:fadeIn 0.2s ease;}
+@media(min-width:540px){.match-detail-overlay{align-items:center;padding:20px;}}
+.match-detail-modal{background:var(--surface);border:1px solid var(--border);border-radius:16px 16px 0 0;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;animation:slideUp 0.25s cubic-bezier(0.25,1,0.5,1);}
+@media(min-width:540px){.match-detail-modal{border-radius:16px;}}
+.match-detail-header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid var(--border);}
+.match-detail-title{font-family:'Black Han Sans',sans-serif;font-size:15px;letter-spacing:1px;}
+.match-detail-close{background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer;padding:0 4px;line-height:1;}
+.match-detail-body{padding:14px 16px;}
+.match-detail-team{margin-bottom:14px;}
+.match-detail-team-title{font-size:11px;font-weight:700;letter-spacing:1px;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border);}
+.match-detail-team-title.blue{color:var(--blue);}
+.match-detail-team-title.yellow{color:#ffd740;}
+.match-detail-row{display:grid;grid-template-columns:1fr 80px 60px 80px;gap:4px;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px;}
+.match-detail-row:last-child{border-bottom:none;}
+.match-detail-col-header{font-size:10px;color:var(--text-dim);font-weight:700;}
+.match-detail-player{display:flex;flex-direction:column;gap:1px;min-width:0;}
+.match-detail-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;}
+.match-detail-champ{font-size:10px;color:var(--gold);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.match-detail-kda{text-align:center;color:var(--text-dim);}
+.match-detail-cs{text-align:center;color:var(--text-dim);}
+.match-detail-dmg{text-align:right;color:var(--text-dim);}
+.match-item{cursor:pointer;transition:border-color 0.15s;}
+.match-item:hover{border-color:rgba(11,196,227,0.4);}
 @media(min-width:540px){.profile-modal-overlay{align-items:center;padding:20px;}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .profile-modal{background:var(--surface);border:1px solid var(--border);border-radius:16px 16px 0 0;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;animation:slideUp 0.25s cubic-bezier(0.25,1,0.5,1);}
@@ -565,7 +589,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.11.0</div>
+<div class="version-badge">v2.12.0</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1991,6 +2015,7 @@ let gameDetectionState = 'idle'; // idle | waiting | inGame | ended
 let gameDetectionTimer = null;
 let detectedGameId = null;
 let gameDetectRetry = 0;
+let currentMatchParticipants = {}; // normName → {champion, kills, deaths, assists, cs, damage}
 const GAME_DETECT_INTERVAL = 30000; // 30초 폴링
 const MATCH_FETCH_RETRY_MAX = 6;    // 최대 6회 재시도 (3분)
 
@@ -2096,6 +2121,22 @@ async function fetchMatchResult(players) {
     }
 
     if (detectedWinner) {
+      // 참가자 챔피언/KDA/CS/딜량 저장
+      currentMatchParticipants = {};
+      for (const pt of match.info.participants) {
+        // PUUID → 우리 앱 플레이어 매핑
+        const fbPlayer = Object.values(registeredPlayers).find(r => r.puuid === pt.puuid);
+        if (fbPlayer) {
+          currentMatchParticipants[normName(fbPlayer.name)] = {
+            champion: pt.championName,
+            kills: pt.kills,
+            deaths: pt.deaths,
+            assists: pt.assists,
+            cs: pt.totalMinionsKilled + (pt.neutralMinionsKilled || 0),
+            damage: pt.totalDamageDealtToChampions,
+          };
+        }
+      }
       showAutoResultPopup(detectedWinner);
     } else {
       setGameDetectionUI('matchFailed');
@@ -2368,7 +2409,9 @@ function renderMvpSection() {
         const myPick = (mvpVotes.teamA || {})[fbKey(myName)];
         const btns = currentTeamB.map(p => {
           const picked = myPick === p.name;
-          return `<button class="mvp-cand-btn${picked?' selected':''}" onclick="confirmMvpVote('teamA','${escHtml(myName)}','${escHtml(p.name)}')">${escHtml(p.name)}</button>`;
+          const pt = currentMatchParticipants[normName(p.name)];
+          const champLine = pt ? `<div style="font-size:10px;color:var(--text-dim);font-weight:400;margin-top:2px;">${pt.champion}</div>` : '';
+          return `<button class="mvp-cand-btn${picked?' selected':''}" onclick="confirmMvpVote('teamA','${escHtml(myName)}','${escHtml(p.name)}')">${escHtml(p.name)}${champLine}</button>`;
         }).join('');
         myVoteHtml += `<div class="mvp-my-vote-block">
           <div class="mvp-candidates">${btns}</div>
@@ -2380,7 +2423,9 @@ function renderMvpSection() {
         const myPick = (mvpVotes.teamB || {})[fbKey(myName)];
         const btns = currentTeamA.map(p => {
           const picked = myPick === p.name;
-          return `<button class="mvp-cand-btn${picked?' selected':''}" onclick="confirmMvpVote('teamB','${escHtml(myName)}','${escHtml(p.name)}')">${escHtml(p.name)}</button>`;
+          const pt = currentMatchParticipants[normName(p.name)];
+          const champLine = pt ? `<div style="font-size:10px;color:var(--text-dim);font-weight:400;margin-top:2px;">${pt.champion}</div>` : '';
+          return `<button class="mvp-cand-btn${picked?' selected':''}" onclick="confirmMvpVote('teamB','${escHtml(myName)}','${escHtml(p.name)}')">${escHtml(p.name)}${champLine}</button>`;
         }).join('');
         myVoteHtml += `<div class="mvp-my-vote-block">
           <div class="mvp-candidates">${btns}</div>
@@ -2496,6 +2541,8 @@ window.saveMatch = async function() {
       bonusGold: questEventState.bonusGold,
       lossExtraPt: questEventState.lossExtraPt,
     };
+    if (Object.keys(currentMatchParticipants).length > 0)
+      matchData.participants = currentMatchParticipants;
     await push(ref(db, 'matches'), matchData);
 
     await giveMatchGold(winners, losers, matchTimestamp);
@@ -2616,11 +2663,13 @@ function renderMatchHistory() {
       ${memberHtml(m.teamB||[], !teamAWin)}
     </div>`;
 
-    return`<div class="match-item">
+    const hasDetail = m.participants && Object.keys(m.participants).length > 0;
+    return`<div class="match-item" onclick="openMatchDetail('${m.key}')">
       <div class="match-header">
         <span class="match-winner-badge ${wc}">${wl}</span>
         <span class="match-date">${m.date||''}</span>
-        ${liveMode?`<button class="match-del" onclick="deleteMatch('${m.key}')" title="삭제">🗑</button>`:''}
+        ${hasDetail ? `<span style="font-size:10px;color:var(--text-dim);">📊 상세보기</span>` : ''}
+        ${liveMode?`<button class="match-del" onclick="event.stopPropagation();deleteMatch('${m.key}')" title="삭제">🗑</button>`:''}
       </div>
       <div class="match-body">
         ${boxA}
@@ -2630,6 +2679,69 @@ function renderMatchHistory() {
     </div>`;
   }).join('');
 }
+
+window.openMatchDetail = function(key) {
+  const m = matches[key];
+  if (!m) return;
+  const old = document.getElementById('match-detail-root');
+  if (old) old.remove();
+
+  const isBlueWin = m.winner === 'blue';
+  const pts = m.participants || {};
+
+  function teamRows(names, isWin) {
+    const header = `<div class="match-detail-row">
+      <div class="match-detail-col-header">플레이어</div>
+      <div class="match-detail-col-header" style="text-align:center;">KDA</div>
+      <div class="match-detail-col-header" style="text-align:center;">CS</div>
+      <div class="match-detail-col-header" style="text-align:right;">딜량</div>
+    </div>`;
+    const rows = names.map(n => {
+      const pt = pts[normName(n)];
+      return `<div class="match-detail-row">
+        <div class="match-detail-player">
+          <div class="match-detail-name">${escHtml(n)}</div>
+          ${pt ? `<div class="match-detail-champ">${escHtml(pt.champion)}</div>` : ''}
+        </div>
+        <div class="match-detail-kda">${pt ? `${pt.kills}/${pt.deaths}/${pt.assists}` : '—'}</div>
+        <div class="match-detail-cs">${pt ? pt.cs : '—'}</div>
+        <div class="match-detail-dmg">${pt ? (pt.damage/1000).toFixed(1)+'k' : '—'}</div>
+      </div>`;
+    }).join('');
+    return header + rows;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'match-detail-overlay';
+  overlay.id = 'match-detail-root';
+  overlay.onclick = e => { if (e.target === overlay) closeMatchDetail(); };
+  overlay.innerHTML = `
+    <div class="match-detail-modal" onclick="event.stopPropagation()">
+      <div class="match-detail-header">
+        <div class="match-detail-title">📊 경기 상세 — ${m.date||''}</div>
+        <button class="match-detail-close" onclick="closeMatchDetail()">✕</button>
+      </div>
+      <div class="match-detail-body">
+        <div class="match-detail-team">
+          <div class="match-detail-team-title blue">🔵 1팀 ${isBlueWin?'<span style="color:var(--green);">WIN</span>':''}</div>
+          ${teamRows(m.teamA||[], isBlueWin)}
+        </div>
+        <div class="match-detail-team">
+          <div class="match-detail-team-title yellow">🟡 2팀 ${!isBlueWin?'<span style="color:var(--green);">WIN</span>':''}</div>
+          ${teamRows(m.teamB||[], !isBlueWin)}
+        </div>
+        ${Object.keys(pts).length === 0 ? '<div style="text-align:center;font-size:12px;color:var(--text-dim);padding:8px 0;">📊 상세 데이터 없음<br>자동 감지된 경기에만 표시돼요</div>' : ''}
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden';
+};
+
+window.closeMatchDetail = function() {
+  const el = document.getElementById('match-detail-root');
+  if (el) el.remove();
+  document.body.style.overflow = '';
+};
 
 window.deleteMatch = async function(key) {
   if(!liveMode) return;
