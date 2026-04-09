@@ -2030,6 +2030,38 @@ async function autoFillParticipants() {
   const puuidPlayer = Object.values(registeredPlayers).find(p => p.puuid);
   if (!puuidPlayer) return;
 
+  // Firebase 경기별 PUUID 목록 미리 계산
+  const fbPuuidMap = {}; // fbKey → Set<puuid>
+  for (const [fbKey, m] of needsFill) {
+    const allNames = [...(m.teamA || []), ...(m.teamB || [])];
+    const puuids = new Set(allNames.map(name => {
+      const p = Object.values(registeredPlayers).find(r => normName(r.name) === normName(name));
+      return p?.puuid || null;
+    }).filter(Boolean));
+    fbPuuidMap[fbKey] = puuids;
+  }
+
+  // Riot 경기와 Firebase 경기 매칭 함수
+  // 1순위: 참가자 PUUID 절반 이상 일치
+  // 2순위: 게임 종료 시점과 저장 시점 ±2시간 이내 (오매칭 방지)
+  function findFbMatch(riotParticipants, gameEnd) {
+    const riotPuuids = new Set(riotParticipants.map(p => p.puuid));
+    let bestIdx = -1, bestScore = 0;
+    needsFill.forEach(([fbKey, m], idx) => {
+      const fbPuuids = fbPuuidMap[fbKey];
+      if (!fbPuuids || fbPuuids.size === 0) return;
+      // 일치하는 PUUID 수
+      let matchCount = 0;
+      fbPuuids.forEach(p => { if (riotPuuids.has(p)) matchCount++; });
+      const score = matchCount / fbPuuids.size; // 일치율
+      // 절반 이상 일치 + 시간 ±2시간 이내
+      if (score >= 0.5 && Math.abs(m.timestamp - gameEnd) < 7200000) {
+        if (score > bestScore) { bestScore = score; bestIdx = idx; }
+      }
+    });
+    return bestIdx;
+  }
+
   autoFillRunning = true;
   try {
     // 최근 커스텀 게임 100건 조회
@@ -2050,11 +2082,8 @@ async function autoFillParticipants() {
         );
         if (!mRes.ok) continue;
         const detail = await mRes.json();
-        // 게임 종료 시점 = 시작 + 진행시간(초→ms)
         const gameEnd = detail.info.gameStartTimestamp + (detail.info.gameDuration * 1000);
-
-        // Firebase timestamp는 저장 시점(게임 종료 + MVP 투표 후) → ±30분 오차 허용
-        const idx = needsFill.findIndex(([, m]) => Math.abs(m.timestamp - gameEnd) < 1800000);
+        const idx = findFbMatch(detail.info.participants, gameEnd);
         if (idx === -1) continue;
         const [fbKey] = needsFill[idx];
 
@@ -2075,7 +2104,8 @@ async function autoFillParticipants() {
         }
         if (Object.keys(participants).length > 0) {
           await update(ref(db, 'matches/' + fbKey), { participants });
-          needsFill.splice(idx, 1); // 처리 완료 → 목록에서 제거
+          needsFill.splice(idx, 1);
+          delete fbPuuidMap[fbKey];
         }
       } catch(e) { continue; }
     }
