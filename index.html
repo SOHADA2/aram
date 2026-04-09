@@ -589,7 +589,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.13.3</div>
+<div class="version-badge">v2.13.4</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -2030,9 +2030,26 @@ window.makeTeams = function() {
 
 // ── 과거 경기 참가자 데이터 자동 보완 ─────────────────────────
 let autoFillRunning = false;
+let autoFillLastRun = 0;
+const AUTO_FILL_COOLDOWN = 5 * 60 * 1000; // 5분 쿨다운
+const RIOT_API_DELAY = 1500; // 1.5초 (100req/2min 제한 준수)
+
+// Riot API 요청 래퍼: 429 시 Retry-After 만큼 대기 후 1회 재시도
+async function riotFetch(url) {
+  const res = await fetch(url, { headers: { 'X-Riot-Token': riotApiKey } });
+  if (res.status === 429) {
+    const retryAfter = parseInt(res.headers.get('Retry-After') || '10', 10);
+    console.warn(`[AutoFill] 429 Too Many Requests → ${retryAfter}초 대기 후 재시도`);
+    await new Promise(r => setTimeout(r, (retryAfter + 1) * 1000));
+    return fetch(url, { headers: { 'X-Riot-Token': riotApiKey } });
+  }
+  return res;
+}
 
 async function autoFillParticipants() {
   if (autoFillRunning || !riotApiKey) return;
+  // 5분 쿨다운: 너무 잦은 재실행 방지
+  if (Date.now() - autoFillLastRun < AUTO_FILL_COOLDOWN) return;
 
   // participants 없는 경기 목록 (최근 50건)
   const needsFill = Object.entries(matches)
@@ -2062,20 +2079,16 @@ async function autoFillParticipants() {
   function findFbMatch(riotParticipants, gameEnd) {
     const riotPuuids = new Set(riotParticipants.map(p => p.puuid));
     let bestIdx = -1, bestScore = 0;
-
     needsFill.forEach(([fbKey, m], idx) => {
       const fbPuuids = fbPuuidMap[fbKey];
-      // PUUID 등록자가 1명 이상이면 PUUID 매칭 시도
       if (fbPuuids && fbPuuids.size >= 1) {
         let matchCount = 0;
         fbPuuids.forEach(p => { if (riotPuuids.has(p)) matchCount++; });
         const score = matchCount / fbPuuids.size;
-        // PUUID 1명 이상 일치 + 시간 ±3시간 이내
         if (matchCount >= 1 && Math.abs(m.timestamp - gameEnd) < 10800000) {
           if (score > bestScore) { bestScore = score; bestIdx = idx; }
         }
       } else {
-        // PUUID 없는 경기 → 시간만으로 매칭 (±30분)
         if (Math.abs(m.timestamp - gameEnd) < 1800000) {
           if (0.1 > bestScore) { bestScore = 0.1; bestIdx = idx; }
         }
@@ -2085,15 +2098,16 @@ async function autoFillParticipants() {
   }
 
   autoFillRunning = true;
+  autoFillLastRun = Date.now();
   try {
     // 여러 플레이어의 매치 ID를 합산하여 커버리지 확대 (개인키: count 최대 20)
     const allMatchIds = new Set();
-    for (const pp of puuidPlayers.slice(0, 5)) {
+    for (const pp of puuidPlayers.slice(0, 3)) { // 3명으로 제한 (API 절약)
       if (!pp.puuid || pp.puuid.length < 10) continue;
       try {
-        const idsRes = await fetch(
-          `https://asia.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(pp.puuid)}/ids?count=20`,
-          { headers: { 'X-Riot-Token': riotApiKey } }
+        await new Promise(r => setTimeout(r, RIOT_API_DELAY));
+        const idsRes = await riotFetch(
+          `https://asia.api.riotgames.com/lol/match/v5/matches/by-puuid/${encodeURIComponent(pp.puuid)}/ids?count=20`
         );
         if (!idsRes.ok) {
           const errText = await idsRes.text();
@@ -2102,7 +2116,6 @@ async function autoFillParticipants() {
         }
         const ids = await idsRes.json();
         ids.forEach(id => allMatchIds.add(id));
-        await new Promise(r => setTimeout(r, 200));
       } catch(e) { console.warn('[AutoFill] PUUID 조회 오류:', e); }
     }
     const matchIds = [...allMatchIds];
@@ -2110,15 +2123,15 @@ async function autoFillParticipants() {
       console.log('[AutoFill] 조회된 매치 없음. API 키 또는 PUUID 확인 필요');
       autoFillRunning = false; return;
     }
-    console.log(`[AutoFill] Riot 경기 ${matchIds.length}건 처리 시작`);
+    console.log(`[AutoFill] Riot 경기 ${matchIds.length}건 처리 시작 (간격 ${RIOT_API_DELAY}ms)`);
 
+    let matched = 0;
     for (const matchId of matchIds) {
       if (needsFill.length === 0) break;
-      await new Promise(r => setTimeout(r, 150));
+      await new Promise(r => setTimeout(r, RIOT_API_DELAY));
       try {
-        const mRes = await fetch(
-          `https://asia.api.riotgames.com/lol/match/v5/matches/${matchId}`,
-          { headers: { 'X-Riot-Token': riotApiKey } }
+        const mRes = await riotFetch(
+          `https://asia.api.riotgames.com/lol/match/v5/matches/${matchId}`
         );
         if (!mRes.ok) continue;
         const detail = await mRes.json();
@@ -2145,14 +2158,15 @@ async function autoFillParticipants() {
           }
         }
         if (Object.keys(participants).length > 0) {
-          console.log(`[AutoFill] 매칭 성공: ${fbKey} ← ${matchId} (${Object.keys(participants).length}명)`);
+          matched++;
+          console.log(`[AutoFill] 매칭 성공 (${matched}건): ${fbKey} ← ${matchId}`);
           await update(ref(db, 'matches/' + fbKey), { participants });
           needsFill.splice(idx, 1);
           delete fbPuuidMap[fbKey];
         }
       } catch(e) { continue; }
     }
-    console.log(`[AutoFill] 완료. 미매칭 ${needsFill.length}건 남음`);
+    console.log(`[AutoFill] 완료. 매칭 ${matched}건 성공 / 미매칭 ${needsFill.length}건 남음`);
   } catch(e) { console.log('[AutoFill] 오류:', e); }
   autoFillRunning = false;
 }
