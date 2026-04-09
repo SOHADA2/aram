@@ -548,7 +548,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.5.5</div>
+<div class="version-badge">v2.6.0</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -565,7 +565,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <!-- 본인 선택 모달 -->
 <div class="quest-result-overlay" id="quest-result-modal" style="display:none;">
   <div class="quest-result-modal">
-    <div class="quest-result-title">👑 왕관의 무게 결과</div>
+    <div class="quest-result-title" id="quest-result-title">결과</div>
     <div class="quest-result-sub" id="quest-result-sub"></div>
     <div id="quest-result-rows"></div>
     <button class="btn" style="width:100%;justify-content:center;margin-top:6px;" onclick="document.getElementById('quest-result-modal').style.display='none'">확인</button>
@@ -939,7 +939,11 @@ const NEWBIE_LOSS_REDUCE_PT = 3;  // 뉴비 팀원 있을 때 패배 감점 완�
 
 // ── 매칭 퀘스트 ──────────────────────────────────────────────
 const QUEST_TRIGGER_RATE = 0.15; // 15% 발동 확률
-const QUEST_CONFIG = { name: '왕관의 무게', emoji: '👑', bonusGold: 100, lossExtraPt: 10 };
+const QUEST_CONFIGS = {
+  1: { name: '왕관의 무게', emoji: '👑', bonusGold: 100, lossExtraPt: 10 },
+  2: { name: '역전의 기회', emoji: '⚔️',  bonusGold: 80,  lossExtraPt: 8  },
+  3: { name: '기회의 도약', emoji: '🚀', bonusGold: 50,  lossExtraPt: 5  },
+};
 
 // ── FIREBASE REALTIME LISTENERS ───────────────────────────────
 setSyncStatus('syncing', '연결 중...');
@@ -1208,10 +1212,15 @@ function checkQuestEvent() {
   if (isEventMatch) return;
   const top3 = getTopThreeMap();
   const allPlayers = [...currentTeamA, ...currentTeamB];
-  const rank1Player = allPlayers.find(p => top3[normName(p.name)] === 1);
-  if (!rank1Player) return;
+  // 1등 우선, 없으면 2등, 없으면 3등
+  let triggeredRank = null, triggeredPlayer = null;
+  for (let rank = 1; rank <= 3; rank++) {
+    const found = allPlayers.find(p => top3[normName(p.name)] === rank);
+    if (found) { triggeredRank = rank; triggeredPlayer = found.name; break; }
+  }
+  if (!triggeredRank) return;
   if (Math.random() > QUEST_TRIGGER_RATE) return;
-  questEventState = { rank: 1, playerName: rank1Player.name, ...QUEST_CONFIG };
+  questEventState = { rank: triggeredRank, playerName: triggeredPlayer, ...QUEST_CONFIGS[triggeredRank] };
   setTimeout(() => showQuestPopup(questEventState), 700);
 }
 
@@ -1933,9 +1942,9 @@ function renderResult() {
   const questBannerEl = document.getElementById('quest-banner-section');
   if (questEventState && !isEventMatch) {
     questBannerEl.innerHTML = `<div class="quest-active-banner">
-      <span class="quest-active-icon">👑</span>
+      <span class="quest-active-icon">${questEventState.emoji}</span>
       <div>
-        <div class="quest-active-title">왕관의 무게 발동 중!</div>
+        <div class="quest-active-title">${questEventState.name} 발동 중!</div>
         <div class="quest-active-sub">승리팀 <strong style="color:var(--green)">+${questEventState.bonusGold}G</strong> 상금 · 패배팀 골드 없음 · ${escHtml(questEventState.playerName)} 패배 시 <strong style="color:var(--red)">-${questEventState.lossExtraPt}pt</strong> 추가</div>
       </div>
     </div>`;
@@ -2276,8 +2285,9 @@ window.saveMatch = async function() {
       const hasJongseong = code >= 0xAC00 && code <= 0xD7A3 && (code - 0xAC00) % 28 !== 0;
       const particle = hasJongseong ? '이' : '가';
       const defeatWarning = !questPlayerWon
-        ? `<div class="quest-defeat-warning">💀 ${escHtml(q.playerName)}${particle} 왕관의 무게에 무너졌습니다.<strong>-${q.lossExtraPt}pt 추가 감점</strong></div>`
+        ? `<div class="quest-defeat-warning">💀 ${escHtml(q.playerName)}${particle} ${escHtml(q.name)}에 무너졌습니다.<strong>-${q.lossExtraPt}pt 추가 감점</strong></div>`
         : '';
+      document.getElementById('quest-result-title').textContent = `${q.emoji} ${q.name} 결과`;
       document.getElementById('quest-result-sub').textContent = `${q.name} · ${escHtml(q.playerName)}`;
       document.getElementById('quest-result-rows').innerHTML = `
         <div class="quest-result-row win"><span>🏆 ${winTeamLabel} 승리</span><strong style="color:var(--green)">+${q.bonusGold}G 상금</strong></div>
