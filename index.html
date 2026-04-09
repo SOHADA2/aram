@@ -989,6 +989,13 @@ const ACHIEVEMENTS = [
   { id:'tier_master', cat:'티어 기반',  icon:'🔮', name:'마스터 달성',    desc:'마스터 티어에 진입하세요 (720pt↑)',    reward:70,  check:s=>s.score>=720&&s.total>=3, prog:null },
   { id:'tier_gm',     cat:'티어 기반',  icon:'✨', name:'그랜드마스터',   desc:'그랜드마스터에 진입하세요 (780pt↑)',   reward:90,  check:s=>s.score>=780&&s.total>=3, prog:null },
   { id:'tier_chal',   cat:'티어 기반',  icon:'🏅', name:'챌린저 달성',    desc:'챌린저 티어에 진입하세요 (850pt↑)',   reward:120, check:s=>s.score>=850&&s.total>=3, prog:null },
+  // 아이템
+  { id:'s2x_win_3',   cat:'아이템',    icon:'⚡', name:'2배권 승리 3회',  desc:'승점 2배권 사용 후 승리를 3회 달성하세요',  reward:15,  check:s=>s.score2xWin>=3,   prog:s=>[Math.min(s.score2xWin,3),3] },
+  { id:'s2x_win_5',   cat:'아이템',    icon:'⚡', name:'2배권 승리 5회',  desc:'승점 2배권 사용 후 승리를 5회 달성하세요',  reward:30,  check:s=>s.score2xWin>=5,   prog:s=>[Math.min(s.score2xWin,5),5] },
+  { id:'s2x_win_10',  cat:'아이템',    icon:'⚡', name:'2배권 승리 10회', desc:'승점 2배권 사용 후 승리를 10회 달성하세요', reward:60,  check:s=>s.score2xWin>=10,  prog:s=>[Math.min(s.score2xWin,10),10] },
+  { id:'ins_3',       cat:'아이템',    icon:'🛡️', name:'철벽 방어 3회',   desc:'패배 방어권으로 감점을 3회 막으세요',       reward:10,  check:s=>s.insuranceUsed>=3,  prog:s=>[Math.min(s.insuranceUsed,3),3] },
+  { id:'ins_5',       cat:'아이템',    icon:'🛡️', name:'철벽 방어 5회',   desc:'패배 방어권으로 감점을 5회 막으세요',       reward:25,  check:s=>s.insuranceUsed>=5,  prog:s=>[Math.min(s.insuranceUsed,5),5] },
+  { id:'ins_10',      cat:'아이템',    icon:'🛡️', name:'철벽 방어 10회',  desc:'패배 방어권으로 감점을 10회 막으세요',      reward:50,  check:s=>s.insuranceUsed>=10, prog:s=>[Math.min(s.insuranceUsed,10),10] },
 ];
 const QUEST_CONFIGS = {
   1: { name: '왕관의 무게', emoji: '👑', bonusGold: 100, lossExtraPt: 10 },
@@ -2845,6 +2852,25 @@ function calcMaxStreaks(name) {
   return { maxWin, maxLoss };
 }
 
+// 아이템 사용 통계 계산
+function calcItemStats(name) {
+  const key = normName(name);
+  const myMatches = Object.values(matchData)
+    .filter(m => (m.teamA||[]).some(n=>normName(n)===key) || (m.teamB||[]).some(n=>normName(n)===key))
+    .sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
+
+  let score2xWin = 0, insuranceUsed = 0;
+  for (const m of myMatches) {
+    // itemEffects 키는 normName 기준
+    const effects = m.itemEffects ? (m.itemEffects[key] || []) : [];
+    const inA = (m.teamA||[]).some(n=>normName(n)===key);
+    const won = (m.winner==='blue'&&inA)||(m.winner==='red'&&!inA);
+    if (effects.includes('score2x') && won) score2xWin++;
+    if (effects.includes('insurance') && !won) insuranceUsed++;
+  }
+  return { score2xWin, insuranceUsed };
+}
+
 window.renderAchievements = function renderAchievements() {
   const el = document.getElementById('achievement-content');
   if (!myName) {
@@ -2854,11 +2880,12 @@ window.renderAchievements = function renderAchievements() {
   const s = calcStats(myName);
   const { score } = calcScore(myName);
   const { maxWin, maxLoss } = calcMaxStreaks(myName);
+  const { score2xWin, insuranceUsed } = calcItemStats(myName);
   const myEntry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(myName));
   const claimed = myEntry?.[1]?.achievements || {};
-  const stats = { wins: s.wins, losses: s.losses, total: s.total, score, maxWin, maxLoss };
+  const stats = { wins: s.wins, losses: s.losses, total: s.total, score, maxWin, maxLoss, score2xWin, insuranceUsed };
 
-  const cats = ['전적 기반', '연속 기록', '티어 기반'];
+  const cats = ['전적 기반', '연속 기록', '티어 기반', '아이템'];
   el.innerHTML = cats.map(cat => {
     const items = ACHIEVEMENTS.filter(a => a.cat === cat);
     return `<div class="achievement-cat">
