@@ -589,7 +589,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.13.4</div>
+<div class="version-badge">v2.13.5</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -2125,7 +2125,13 @@ async function autoFillParticipants() {
     }
     console.log(`[AutoFill] Riot 경기 ${matchIds.length}건 처리 시작 (간격 ${RIOT_API_DELAY}ms)`);
 
-    let matched = 0;
+    let matched = 0, customCount = 0, skipQueue = 0, skipTime = 0, skipPuuid = 0;
+    // Firebase 최신/최고 경기 타임스탬프 범위 (디버그용)
+    const fbTimes = needsFill.map(([,m]) => m.timestamp).filter(Boolean);
+    const fbMin = fbTimes.length ? new Date(Math.min(...fbTimes)).toLocaleString() : '?';
+    const fbMax = fbTimes.length ? new Date(Math.max(...fbTimes)).toLocaleString() : '?';
+    console.log(`[AutoFill] Firebase 경기 시간 범위: ${fbMin} ~ ${fbMax}`);
+
     for (const matchId of matchIds) {
       if (needsFill.length === 0) break;
       await new Promise(r => setTimeout(r, RIOT_API_DELAY));
@@ -2135,11 +2141,14 @@ async function autoFillParticipants() {
         );
         if (!mRes.ok) continue;
         const detail = await mRes.json();
-        // 커스텀 게임만 처리 (queueId 0)
-        if (detail.info.queueId !== 0) continue;
+        const qId = detail.info.queueId;
         const gameEnd = detail.info.gameStartTimestamp + (detail.info.gameDuration * 1000);
+        // 커스텀 게임만 처리 (queueId 0)
+        if (qId !== 0) { skipQueue++; continue; }
+        customCount++;
+        console.log(`[AutoFill] 커스텀 게임 발견: ${matchId} | 종료: ${new Date(gameEnd).toLocaleString()}`);
         const idx = findFbMatch(detail.info.participants, gameEnd);
-        if (idx === -1) continue;
+        if (idx === -1) { skipTime++; continue; }
         const [fbKey] = needsFill[idx];
 
         // 참가자 데이터 구성
@@ -2167,6 +2176,7 @@ async function autoFillParticipants() {
       } catch(e) { continue; }
     }
     console.log(`[AutoFill] 완료. 매칭 ${matched}건 성공 / 미매칭 ${needsFill.length}건 남음`);
+    console.log(`[AutoFill] 상세: 커스텀게임 ${customCount}건 / 일반게임 필터 ${skipQueue}건 / 시간불일치 ${skipTime}건`);
   } catch(e) { console.log('[AutoFill] 오류:', e); }
   autoFillRunning = false;
 }
