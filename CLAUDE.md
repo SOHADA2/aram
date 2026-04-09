@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.10.0
+- 현재 버전: v2.11.0
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -192,11 +192,18 @@
 
 ## Riot API 연동 계획 (v2.10.0~)
 - **1단계 (완료)**: 플레이어 프로필에 Riot ID 등록 — `/players/{key}.riotId` (형식: `닉네임#태그`)
-  - 라이브용 계정에서만 프로필 편집 → Riot ID 입력 가능
-  - `saveProfile()` 에서 `riotId` 함께 저장
-- **2단계 (예정)**: Riot API Key 발급 + Firebase Functions 세팅
-- **3단계 (예정)**: 소환사 정보 조회 연동
-- **4단계 (예정)**: 게임 종료 감지 + 자동 승패 기록
+- **2단계 (완료)**: Firebase `/config/riotApiKey` 에서 API Key 로드 + PUUID 조회 저장
+  - `lookupRiotId(fbKey)` — Riot ID → PUUID 조회 후 `/players/{key}.puuid` 저장
+  - `onValue(ref(db,'config/riotApiKey'))` 로 키 실시간 수신 (코드에 키 없음)
+- **3단계 (완료)**: 게임 자동 감지 + 승패 자동 판정 (v2.11.0)
+  - `startGameDetection()` — makeTeams() 완료 후 자동 시작
+  - `pollGameStatus()` — 30초 간격 Spectator API 폴링 (kr.api.riotgames.com)
+  - `fetchMatchResult()` — 게임 종료 후 Match-v5 API로 결과 조회 (최대 6회 재시도)
+  - `showAutoResultPopup()` — 자동 감지 결과 표시 + selectWinner() 자동 호출
+  - 감지 실패 시 수동 입력 fallback
+  - `stopGameDetection()` — saveMatch() / resetSession() 시 폴링 중단
+  - UI: `#game-detection-status` — 감지 상태 실시간 표시
+- **API Key 관리**: Firebase `/config/riotApiKey` 에 저장 (24시간마다 갱신 필요)
 
 ## 코드 규칙
 - 모든 사용자 입력은 `escHtml()` 이스케이프 (`&` `<` `>` `"` `'` 포함)

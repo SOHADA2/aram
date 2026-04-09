@@ -565,7 +565,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.10.0</div>
+<div class="version-badge">v2.11.0</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -795,6 +795,8 @@ body.member-mode #event-no-save-notice{display:none!important;}
     <div class="record-panel">
       <div class="record-panel-title">🏁 경기 결과 기록</div>
       <div id="event-no-save-notice" class="event-no-save" style="display:none;">🎉 이벤트 매치 — 결과가 티어에 반영되지 않아요</div>
+      <!-- 게임 자동 감지 상태 -->
+      <div id="game-detection-status" style="display:none;font-size:12px;padding:8px 12px;border-radius:6px;margin-bottom:10px;background:var(--surface2);border:1px solid var(--border);text-align:center;"></div>
       <div class="winner-btns">
         <button class="winner-btn blue" id="wb-blue" onclick="selectWinner('blue')">🔵 1팀 승리</button>
         <button class="winner-btn red" id="wb-red" onclick="selectWinner('red')">🟡 2팀 승리</button>
@@ -1980,7 +1982,159 @@ window.makeTeams = function() {
   }).catch(console.error);
   // MVP 투표 초기화 → 팀 구성 즉시 투표 시작
   set(ref(db, 'session/mvp'), { active: true }).catch(console.error);
+  // 게임 자동 감지 시작
+  startGameDetection();
 };
+
+// ── 게임 자동 감지 시스템 ──────────────────────────────────────
+let gameDetectionState = 'idle'; // idle | waiting | inGame | ended
+let gameDetectionTimer = null;
+let detectedGameId = null;
+let gameDetectRetry = 0;
+const GAME_DETECT_INTERVAL = 30000; // 30초 폴링
+const MATCH_FETCH_RETRY_MAX = 6;    // 최대 6회 재시도 (3분)
+
+function getTeamPuuids() {
+  const allPlayers = [...currentTeamA, ...currentTeamB];
+  return allPlayers.map(p => {
+    const fb = Object.values(registeredPlayers).find(r => normName(r.name) === normName(p.name));
+    return fb?.puuid ? { name: p.name, puuid: fb.puuid } : null;
+  }).filter(Boolean);
+}
+
+function startGameDetection() {
+  if (!riotApiKey || isEventMatch) return;
+  const players = getTeamPuuids();
+  if (players.length === 0) return; // PUUID 등록자 없으면 건너뜀
+
+  stopGameDetection();
+  gameDetectionState = 'waiting';
+  detectedGameId = null;
+  gameDetectRetry = 0;
+  setGameDetectionUI('waiting');
+
+  gameDetectionTimer = setInterval(() => pollGameStatus(players), GAME_DETECT_INTERVAL);
+  pollGameStatus(players); // 즉시 1회 실행
+}
+
+function stopGameDetection() {
+  if (gameDetectionTimer) { clearInterval(gameDetectionTimer); gameDetectionTimer = null; }
+  gameDetectionState = 'idle';
+  setGameDetectionUI(null);
+}
+
+async function pollGameStatus(players) {
+  if (gameDetectionState !== 'waiting' && gameDetectionState !== 'inGame') return;
+
+  for (const { puuid } of players) {
+    try {
+      const res = await fetch(
+        `https://kr.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/${puuid}`,
+        { headers: { 'X-Riot-Token': riotApiKey } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (gameDetectionState === 'waiting') {
+          gameDetectionState = 'inGame';
+          detectedGameId = data.gameId;
+          setGameDetectionUI('inGame');
+        }
+        return;
+      } else if (res.status === 404) {
+        if (gameDetectionState === 'inGame') {
+          // 게임 종료!
+          gameDetectionState = 'ended';
+          clearInterval(gameDetectionTimer); gameDetectionTimer = null;
+          setGameDetectionUI('ended');
+          // 30초 후 결과 조회 시작 (API 반영 지연)
+          setTimeout(() => fetchMatchResult(players), 30000);
+        }
+        return;
+      }
+    } catch(e) { /* CORS 또는 네트워크 오류 — 다음 플레이어로 */ }
+  }
+}
+
+async function fetchMatchResult(players) {
+  if (gameDetectRetry >= MATCH_FETCH_RETRY_MAX) {
+    setGameDetectionUI('fetchFailed'); return;
+  }
+  gameDetectRetry++;
+  try {
+    const puuid = players[0].puuid;
+    const idsRes = await fetch(
+      `https://asia.api.riotgames.com/lol/match/v5/matches/by-puuid/${puuid}/ids?queue=0&count=5`,
+      { headers: { 'X-Riot-Token': riotApiKey } }
+    );
+    if (!idsRes.ok) { setTimeout(() => fetchMatchResult(players), 30000); return; }
+    const ids = await idsRes.json();
+
+    // gameId가 포함된 matchId 찾기
+    const targetId = detectedGameId ? ids.find(id => id.includes(String(detectedGameId))) : ids[0];
+    if (!targetId) { setTimeout(() => fetchMatchResult(players), 30000); return; }
+
+    const matchRes = await fetch(
+      `https://asia.api.riotgames.com/lol/match/v5/matches/${targetId}`,
+      { headers: { 'X-Riot-Token': riotApiKey } }
+    );
+    if (!matchRes.ok) { setTimeout(() => fetchMatchResult(players), 30000); return; }
+    const match = await matchRes.json();
+
+    // 1팀(currentTeamA) 중 한 명의 PUUID로 teamId 확인
+    const teamAPuuids = currentTeamA.map(p => {
+      const fb = Object.values(registeredPlayers).find(r => normName(r.name) === normName(p.name));
+      return fb?.puuid;
+    }).filter(Boolean);
+
+    let detectedWinner = null;
+    for (const puuidA of teamAPuuids) {
+      const participant = match.info.participants.find(p => p.puuid === puuidA);
+      if (participant) {
+        detectedWinner = participant.win ? 'blue' : 'red';
+        break;
+      }
+    }
+
+    if (detectedWinner) {
+      showAutoResultPopup(detectedWinner);
+    } else {
+      setGameDetectionUI('matchFailed');
+    }
+  } catch(e) {
+    setTimeout(() => fetchMatchResult(players), 30000);
+  }
+}
+
+function setGameDetectionUI(state) {
+  const el = document.getElementById('game-detection-status');
+  if (!el) return;
+  if (!state) { el.style.display = 'none'; return; }
+  const cfg = {
+    waiting:     { text: '🔍 게임 시작 대기 중... (자동 감지)', color: 'var(--text-dim)' },
+    inGame:      { text: '🎮 게임 진행 중 — 종료 시 자동으로 결과를 불러옵니다', color: 'var(--blue)' },
+    ended:       { text: '⏳ 게임 종료! 결과 불러오는 중...', color: 'var(--gold)' },
+    fetchFailed: { text: '❌ 결과 조회 실패 — 아래에서 수동으로 승패를 선택해주세요', color: 'var(--red)' },
+    matchFailed: { text: '❌ 팀 매칭 실패 — 아래에서 수동으로 승패를 선택해주세요', color: 'var(--red)' },
+    detected:    { text: '', color: 'var(--green)' },
+  };
+  const c = cfg[state] || { text: '', color: 'var(--text-dim)' };
+  el.textContent = c.text;
+  el.style.color = c.color;
+  el.style.borderColor = c.color;
+  el.style.display = 'block';
+}
+
+function showAutoResultPopup(winner) {
+  const label = winner === 'blue' ? '🔵 1팀 승리' : '🟡 2팀 승리';
+  const el = document.getElementById('game-detection-status');
+  if (el) {
+    el.innerHTML = `✅ <strong>${label}</strong> 자동 감지 완료! MVP 투표 후 저장해주세요`;
+    el.style.color = 'var(--green)';
+    el.style.borderColor = 'var(--green)';
+  }
+  selectWinner(winner);
+  document.getElementById('result-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
 function renderResult() {
   const section=document.getElementById('result-section');
@@ -2304,6 +2458,7 @@ window.resetMvp = function() {
 window.saveMatch = async function() {
   if (isEventMatch) return;
   if (!selectedWinner) return;
+  stopGameDetection(); // 감지 중단
   const btn=document.getElementById('save-btn');
   btn.disabled=true; btn.textContent='저장 중...';
   try {
@@ -3480,6 +3635,7 @@ window.goToTab = function(tabId, btnEl) {
 };
 window.resetSession = function() {
   if(sessionPlayers.length>0&&!confirm('현재 참가자 목록을 비울까요?')) return;
+  stopGameDetection(); // 감지 중단
   sessionPlayers=[];
   itemsLocked = false;
   set(ref(db, 'session'), { active: false }).catch(console.error); // 리셋 → session 종료 동기화
