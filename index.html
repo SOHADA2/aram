@@ -933,6 +933,7 @@ const TIERS = {
 let registeredPlayers = {};  // Firebase key → {name, manualTier}
 let matches = {};             // Firebase key → match object
 let goldData = {};            // Firebase key → {name, gold, items:[]}
+let riotApiKey = '';          // Firebase /config/riotApiKey 에서 로드
 let sessionPlayers = [];
 let teamSize = 3;
 let mode = 'balance';
@@ -1124,6 +1125,11 @@ async function seedGoldForAllPlayers() {
     }
   }
 }
+
+// Riot API 키 구독 (Firebase /config/riotApiKey)
+onValue(ref(db, 'config/riotApiKey'), (snapshot) => {
+  riotApiKey = snapshot.val() || '';
+});
 
 // 플레이어 목록 실시간 구독
 onValue(ref(db, 'players'), (snapshot) => {
@@ -2715,6 +2721,39 @@ window.saveProfile = async function(fbKey) {
   }
 };
 
+// Riot ID → PUUID 조회 및 저장
+window.lookupRiotId = async function(fbKey) {
+  const panel = document.getElementById('edit-panel-' + fbKey);
+  if (!panel) return;
+  const riotIdEl = panel.querySelector('.riot-id-input');
+  const statusEl = panel.querySelector('.riot-id-status');
+  const riotId = riotIdEl ? riotIdEl.value.trim() : '';
+  if (!riotId) { statusEl.textContent = '❌ Riot ID를 먼저 입력해주세요'; return; }
+  if (!riotApiKey) { statusEl.textContent = '❌ API Key가 설정되지 않았습니다'; return; }
+  const parts = riotId.split('#');
+  if (parts.length !== 2) { statusEl.textContent = '❌ 형식 오류 (닉네임#태그)'; return; }
+  const [gameName, tagLine] = parts;
+  statusEl.textContent = '🔍 조회 중...';
+  try {
+    const res = await fetch(
+      `https://asia.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`,
+      { headers: { 'X-Riot-Token': riotApiKey } }
+    );
+    if (!res.ok) {
+      if (res.status === 404) { statusEl.textContent = '❌ 소환사를 찾을 수 없습니다'; return; }
+      if (res.status === 403) { statusEl.textContent = '❌ API Key가 만료됐습니다 (Firebase에서 갱신 필요)'; return; }
+      statusEl.textContent = `❌ 오류 (${res.status})`; return;
+    }
+    const data = await res.json();
+    const puuid = data.puuid;
+    await update(ref(db, 'players/' + fbKey), { riotId, puuid });
+    statusEl.textContent = `✅ PUUID 저장 완료`;
+    statusEl.style.color = 'var(--green)';
+  } catch(e) {
+    statusEl.textContent = '❌ 네트워크 오류 (CORS 문제일 수 있음)';
+  }
+};
+
 function buildBuddySection(name) {
   // 단짝: 3판 이상, 승률 55% 이상, 높은순
   // 웬수: 3판 이상, 승률 40% 이하, 낮은순
@@ -2832,8 +2871,12 @@ function buildProfilePanel(fbKey, player) {
             value="${escHtml(player.riotId||'')}"
             placeholder="닉네임#KR1"
             style="flex:1;font-size:12px;">
+          <button class="btn btn-primary btn-sm" onclick="lookupRiotId('${fbKey}')" style="white-space:nowrap;font-size:11px;">🔍 조회</button>
         </div>
-        <div style="font-size:10px;color:var(--text-dim);margin-top:4px;">형식: 게임닉네임#태그 (예: 울퉁쓰#KR1) · 자동 승패 감지에 사용</div>
+        <div class="riot-id-status" style="font-size:10px;color:var(--text-dim);margin-top:4px;">
+          ${player.puuid ? `✅ PUUID 등록됨` : '조회 버튼을 눌러 PUUID를 등록하세요'}
+        </div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:2px;">형식: 게임닉네임#태그 (예: 울퉁쓰#KR1) · 자동 승패 감지에 사용</div>
       </div>
     </div>` : ''}
     <div class="emoji-section">
