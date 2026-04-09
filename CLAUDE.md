@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.7.0
+- 현재 버전: v2.8.0
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -48,11 +48,12 @@
   retroApplied: boolean         // 소급 계산 완료 여부
 ```
 
-## 탭 구성 (4탭)
+## 탭 구성 (5탭)
 1. **⚔️ 팀구성** — 참가자 선택 → 팀 설정 → 결과 → 경기 저장
 2. **📋 기록** — 전체 매치 히스토리
 3. **🏆 랭킹** — 승점 기반 티어, 프로필 모달 포함
 4. **🛒 상점** — 골드로 아이템 구매, 내 아이템 관리
+5. **🏅 업적** — 업적 달성 및 골드 보상 수령 (라이브용 계정에선 미표시)
 
 ## 티어 / 승점 시스템 (v1.8.8 기준)
 - 기존 승률% 방식 → **MMR 승점 방식**으로 전면 개편
@@ -84,6 +85,7 @@
 - 경기 결과에 따라 골드 자동 지급: 승리 **+15G**, 패배 **+5G**
 - **출석 체크**: 하루 1회, **+30G** 지급 (상점 탭 최상단 카드)
   - Firebase `/gold/{key}.goldBonus` 에 누적, `/gold/{key}.lastAttendance` (YYYY-MM-DD) 로 중복 방지
+  - 날짜 기준: **로컬 시간** (`getLocalDateKey()`) — UTC 기준 버그 수정 (v2.8.0)
   - `getMyGold()` = `calcGoldFromMatches() + goldBonus - goldSpent`
 - 기존 경기 기록 기반 소급 계산 자동 적용 (`retroApplied`)
 
@@ -93,6 +95,9 @@
 | 🛡️ 패배 방어권 | 60G | 경기 전 활성화 → 패배해도 감점 없음 |
 
 - 팀 구성 완료 후 **아이템 잠금** (경기 저장 시 자동 해제)
+- 아이템 사용 통계: `calcItemStats(name)` — `matches[].itemEffects[normName]` 스캔
+  - `score2xWin`: 2배권 사용 후 승리 횟수
+  - `insuranceUsed`: 방어권 사용 후 패배(감점 막기) 횟수
 
 ## 매칭 퀘스트 시스템 (v2.5.0)
 - **발동 조건**: 팀 구성에 TOP3 플레이어(3판 이상) 포함 시 15% 확률 (`QUEST_TRIGGER_RATE`)
@@ -110,6 +115,41 @@
 - **골드 계산**: `calcGoldFromMatches()` — questEvent 있으면 일반 골드 대신 bonusGold(승)/0(패)
 - **승점 계산**: `calcScore()` — 해당 플레이어 패배 시 normal loss 후 추가 lossExtraPt 감점
 - **상태 변수**: `questEventState` — 팀 구성~저장 완료 사이에만 유지, 저장 후 null 초기화
+
+## 업적 시스템 (v2.7.0 → v2.8.0)
+- **탭**: 🏅 업적 (5번째 탭) — 라이브용 계정에서는 탭 미표시
+- **Firebase 저장**: `/gold/{key}/achievements/{id}: true` — 수령 완료 여부
+- **골드 지급**: `claimAchievement(id)` → `goldBonus` 에 누적
+- **통계 계산**: `calcMaxStreaks(name)` → `{ maxWin, maxLoss }`, `calcItemStats(name)` → `{ score2xWin, insuranceUsed }`
+- **카테고리 4종**: 전적 기반 / 연속 기록 / 티어 기반 / 아이템
+
+| 카테고리 | 업적 | 조건 | 보상 |
+|----------|------|------|------|
+| 전적 기반 | 첫 승리 | 1승 | 10G |
+| 전적 기반 | 10승 달성 | 10승 | 20G |
+| 전적 기반 | 50승 달성 | 50승 | 50G |
+| 전적 기반 | 100승 달성 | 100승 | 100G |
+| 전적 기반 | 50전 참전 | 50경기 | 30G |
+| 전적 기반 | 100전 참전 | 100경기 | 50G |
+| 연속 기록 | 3연승 | maxWin≥3 | 15G |
+| 연속 기록 | 5연승 | maxWin≥5 | 30G |
+| 연속 기록 | 10연승 | maxWin≥10 | 80G |
+| 연속 기록 | 3연패 | maxLoss≥3 | 10G |
+| 연속 기록 | 5연패 | maxLoss≥5 | 20G |
+| 연속 기록 | 10연패 | maxLoss≥10 | 50G |
+| 티어 기반 | 첫 티어 부여 | 3판↑ | 10G |
+| 티어 기반 | 골드 달성 | 480pt↑ | 20G |
+| 티어 기반 | 플래티넘 달성 | 540pt↑ | 30G |
+| 티어 기반 | 다이아 달성 | 660pt↑ | 50G |
+| 티어 기반 | 마스터 달성 | 720pt↑ | 70G |
+| 티어 기반 | 그랜드마스터 | 780pt↑ | 90G |
+| 티어 기반 | 챌린저 달성 | 850pt↑ | 120G |
+| 아이템 | 2배권 승리 3회 | score2xWin≥3 | 15G |
+| 아이템 | 2배권 승리 5회 | score2xWin≥5 | 30G |
+| 아이템 | 2배권 승리 10회 | score2xWin≥10 | 60G |
+| 아이템 | 철벽 방어 3회 | insuranceUsed≥3 | 10G |
+| 아이템 | 철벽 방어 5회 | insuranceUsed≥5 | 25G |
+| 아이템 | 철벽 방어 10회 | insuranceUsed≥10 | 50G |
 
 ## UI 개선 (v2.4.1)
 - **뉴비 보너스 접기/펼치기**: 팀 카드 하단 뉴비 보너스 정보를 기본 접힘 상태로 변경
