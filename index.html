@@ -589,7 +589,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.13.2</div>
+<div class="version-badge">v2.13.3</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1571,6 +1571,21 @@ function renderMemberGrid() {
   actions.style.display = 'flex';
   grid.style.display = 'grid';
   firstBtn.style.display = 'none';
+
+  // 라이브 모드: PUUID 재등록 버튼 표시
+  let refreshBtn = document.getElementById('puuid-refresh-btn-wrap');
+  if (liveMode) {
+    if (!refreshBtn) {
+      refreshBtn = document.createElement('div');
+      refreshBtn.id = 'puuid-refresh-btn-wrap';
+      refreshBtn.style.cssText = 'margin-bottom:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+      refreshBtn.innerHTML = `<button class="btn btn-ghost btn-sm" onclick="refreshAllPuuids()" style="font-size:11px;">🔄 PUUID 전체 재등록</button><span id="puuid-refresh-status" style="font-size:11px;color:var(--text-dim);"></span>`;
+      const gridEl = document.getElementById('member-grid');
+      gridEl.parentNode.insertBefore(refreshBtn, gridEl);
+    }
+  } else {
+    if (refreshBtn) refreshBtn.remove();
+  }
 
   grid.innerHTML = playerArr.map(p => {
     const tier = getEffectiveTier(p.name, p.manualTier);
@@ -3118,6 +3133,41 @@ window.saveProfile = async function(fbKey) {
   } catch(e) {
     btn.textContent = '❌ 실패'; btn.disabled = false;
   }
+};
+
+// Riot ID가 저장된 모든 플레이어 PUUID 일괄 재등록 (API 키 교체 후 사용)
+window.refreshAllPuuids = async function() {
+  if (!riotApiKey) { alert('API 키가 설정되지 않았습니다.'); return; }
+  const players = Object.entries(registeredPlayers).filter(([, p]) => p.riotId);
+  if (players.length === 0) { alert('Riot ID가 등록된 플레이어가 없습니다.'); return; }
+  if (!confirm(`Riot ID가 등록된 ${players.length}명의 PUUID를 새 API 키로 재등록합니다.\n계속하시겠습니까?`)) return;
+
+  const statusEl = document.getElementById('puuid-refresh-status');
+  let ok = 0, fail = 0;
+  for (const [fbKey, p] of players) {
+    const parts = p.riotId.split('#');
+    if (parts.length !== 2) { fail++; continue; }
+    const [gameName, tagLine] = parts;
+    if (statusEl) statusEl.textContent = `🔄 재등록 중... (${ok + fail + 1}/${players.length}) ${p.name}`;
+    try {
+      await new Promise(r => setTimeout(r, 300)); // rate limit 방지
+      const res = await fetch(
+        `https://asia.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`,
+        { headers: { 'X-Riot-Token': riotApiKey } }
+      );
+      if (!res.ok) { console.warn(`[PUUID 재등록] ${p.name} 실패: ${res.status}`); fail++; continue; }
+      const data = await res.json();
+      await update(ref(db, 'players/' + fbKey), { puuid: data.puuid });
+      console.log(`[PUUID 재등록] ${p.name} ✅ ${data.puuid.slice(0,8)}…`);
+      ok++;
+    } catch(e) { console.warn(`[PUUID 재등록] ${p.name} 오류:`, e); fail++; }
+  }
+  const msg = `PUUID 재등록 완료: ✅ ${ok}명 성공 / ❌ ${fail}명 실패`;
+  if (statusEl) statusEl.textContent = msg;
+  alert(msg);
+  // 재등록 후 autoFill 재실행
+  autoFillRunning = false;
+  autoFillParticipants();
 };
 
 // Riot ID → PUUID 조회 및 저장
