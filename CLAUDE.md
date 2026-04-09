@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.9.0
+- 현재 버전: v2.10.0
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -189,6 +189,14 @@
 ## 기본 팀원 (DEFAULT_MEMBERS)
 앱 최초 실행 시 Firebase `/players`에 자동 등록:
 `애긔반달곰`, `ap렉사이서폿`, `울퉁쓰`, `빛나는언즈`, `나랑듀오해듀오`, `맹독 벌꿀오소리`, `브랜딩프로`, `신규회원임`, `조조와빈찬합`
+
+## Riot API 연동 계획 (v2.10.0~)
+- **1단계 (완료)**: 플레이어 프로필에 Riot ID 등록 — `/players/{key}.riotId` (형식: `닉네임#태그`)
+  - 라이브용 계정에서만 프로필 편집 → Riot ID 입력 가능
+  - `saveProfile()` 에서 `riotId` 함께 저장
+- **2단계 (예정)**: Riot API Key 발급 + Firebase Functions 세팅
+- **3단계 (예정)**: 소환사 정보 조회 연동
+- **4단계 (예정)**: 게임 종료 감지 + 자동 승패 기록
 
 ## 코드 규칙
 - 모든 사용자 입력은 `escHtml()` 이스케이프 (`&` `<` `>` `"` `'` 포함)
