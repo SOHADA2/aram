@@ -589,7 +589,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.12.0</div>
+<div class="version-badge">v2.13.0</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1155,6 +1155,7 @@ async function seedGoldForAllPlayers() {
 // Riot API 키 구독 (Firebase /config/riotApiKey)
 onValue(ref(db, 'config/riotApiKey'), (snapshot) => {
   riotApiKey = snapshot.val() || '';
+  if (riotApiKey && matchesLoaded && playersLoaded) autoFillParticipants();
 });
 
 // 플레이어 목록 실시간 구독
@@ -1188,6 +1189,8 @@ onValue(ref(db, 'matches'), (snapshot) => {
   renderAllWhenReady();
   // 경기 추가/삭제 시 골드 표시도 갱신 (동적 계산 기반)
   if (goldLoaded) { updateMyInfoBar(); renderShop(); }
+  // 과거 경기 참가자 데이터 자동 보완
+  if (riotApiKey && playersLoaded) autoFillParticipants();
 }, (err) => {
   setSyncStatus('err', '연결 실패');
 });
@@ -2009,6 +2012,75 @@ window.makeTeams = function() {
   // 게임 자동 감지 시작
   startGameDetection();
 };
+
+// ── 과거 경기 참가자 데이터 자동 보완 ─────────────────────────
+let autoFillRunning = false;
+
+async function autoFillParticipants() {
+  if (autoFillRunning || !riotApiKey) return;
+
+  // participants 없는 경기 목록 (최근 50건)
+  const needsFill = Object.entries(matches)
+    .filter(([, m]) => !m.participants && m.timestamp && m.teamA && m.teamB)
+    .sort((a, b) => b[1].timestamp - a[1].timestamp)
+    .slice(0, 50);
+  if (needsFill.length === 0) return;
+
+  // PUUID 등록된 플레이어 찾기
+  const puuidPlayer = Object.values(registeredPlayers).find(p => p.puuid);
+  if (!puuidPlayer) return;
+
+  autoFillRunning = true;
+  try {
+    // 최근 커스텀 게임 100건 조회
+    const idsRes = await fetch(
+      `https://asia.api.riotgames.com/lol/match/v5/matches/by-puuid/${puuidPlayer.puuid}/ids?queue=0&count=100`,
+      { headers: { 'X-Riot-Token': riotApiKey } }
+    );
+    if (!idsRes.ok) { autoFillRunning = false; return; }
+    const matchIds = await idsRes.json();
+
+    for (const matchId of matchIds) {
+      if (needsFill.length === 0) break;
+      await new Promise(r => setTimeout(r, 150)); // 레이트 리밋 방지
+      try {
+        const mRes = await fetch(
+          `https://asia.api.riotgames.com/lol/match/v5/matches/${matchId}`,
+          { headers: { 'X-Riot-Token': riotApiKey } }
+        );
+        if (!mRes.ok) continue;
+        const detail = await mRes.json();
+        const gameStart = detail.info.gameStartTimestamp;
+
+        // Firebase 기록과 timestamp 매칭 (±10분 오차 허용)
+        const idx = needsFill.findIndex(([, m]) => Math.abs(m.timestamp - gameStart) < 600000);
+        if (idx === -1) continue;
+        const [fbKey] = needsFill[idx];
+
+        // 참가자 데이터 구성
+        const participants = {};
+        for (const pt of detail.info.participants) {
+          const fbPlayer = Object.values(registeredPlayers).find(r => r.puuid === pt.puuid);
+          if (fbPlayer) {
+            participants[normName(fbPlayer.name)] = {
+              champion: pt.championName,
+              kills: pt.kills,
+              deaths: pt.deaths,
+              assists: pt.assists,
+              cs: pt.totalMinionsKilled + (pt.neutralMinionsKilled || 0),
+              damage: pt.totalDamageDealtToChampions,
+            };
+          }
+        }
+        if (Object.keys(participants).length > 0) {
+          await update(ref(db, 'matches/' + fbKey), { participants });
+          needsFill.splice(idx, 1); // 처리 완료 → 목록에서 제거
+        }
+      } catch(e) { continue; }
+    }
+  } catch(e) { /* 무시 */ }
+  autoFillRunning = false;
+}
 
 // ── 게임 자동 감지 시스템 ──────────────────────────────────────
 let gameDetectionState = 'idle'; // idle | waiting | inGame | ended
