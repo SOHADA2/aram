@@ -175,6 +175,9 @@ select option{background:var(--surface2);}
 .teams-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 @media(max-width:540px){.teams-grid{grid-template-columns:1fr;}}
 .team-card{border-radius:8px;overflow:hidden;border:1px solid;animation:popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275) both;}
+.spectator-box{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-top:10px;font-size:13px;}
+.spectator-label{font-size:11px;color:var(--text-dim);white-space:nowrap;}
+.spectator-name{font-weight:700;color:var(--text);}
 .team-card:nth-child(2){animation-delay:0.1s;}
 @keyframes popIn{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
 .team-blue{border-color:var(--blue-dark);}
@@ -589,7 +592,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.14.1</div>
+<div class="version-badge">v2.14.2</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -810,6 +813,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
       <p id="result-mode-label"></p>
     </div>
     <div class="teams-grid" id="teams-grid"></div>
+    <div id="spectator-section"></div>
     <div id="quest-banner-section"></div>
     <div id="balance-bar-section"></div>
     <div id="chemi-legend-section"></div>
@@ -966,6 +970,7 @@ let mode = 'balance';
 let matchType = 'normal'; // 'normal' | 'event'
 let isEventMatch = false;
 let currentTeamA = [], currentTeamB = [];
+let currentSpectator = null; // 홀수 인원 시 랜덤 제외된 관전자
 let selectedWinner = null;
 let myName = localStorage.getItem('myName') || null; // 본인 닉네임
 let liveMode = !!localStorage.getItem('liveMode');   // 라이브 모드
@@ -1204,6 +1209,7 @@ function applySessionData(data) {
   teamSize      = data.teamSize  || teamSize;
   mode          = data.mode      || mode;
   isEventMatch  = !!data.isEventMatch;
+  currentSpectator = data.spectator ? { name: data.spectator } : null;
   itemsLocked   = true;
   renderShop();
   if (currentTeamA.length || currentTeamB.length) renderResult();
@@ -1962,13 +1968,15 @@ window.makeTeams = function() {
     warn.innerHTML = `<div class="warning">⚠️ 일반 매치엔 최소 4명이 필요해요! (현재 ${sessionPlayers.length}명)</div>`;
     return;
   }
-  if (sessionPlayers.length % 2 !== 0) {
-    warn.innerHTML = `<div class="warning">⚠️ 짝수 인원이 필요해요! (현재 ${sessionPlayers.length}명) 홀수 인원은 이벤트 매치를 이용해주세요.</div>`;
-    return;
-  }
-  teamSize = sessionPlayers.length / 2;
-  const needed = teamSize * 2;
   let pool = sessionPlayers.map(p=>({...p, tier: getEffectiveTier(p.name, p.manualTier)}));
+  // 홀수 인원이면 랜덤으로 1명 관전자 제외
+  currentSpectator = null;
+  if (pool.length % 2 !== 0) {
+    const idx = Math.floor(Math.random() * pool.length);
+    currentSpectator = pool.splice(idx, 1)[0];
+  }
+  teamSize = pool.length / 2;
+  const needed = teamSize * 2;
   if (pool.length > needed) {
     warn.innerHTML = `<div class="warning">👥 ${pool.length}명 중 ${needed}명 선발!</div>`;
     pool = shuffle(pool).slice(0, needed);
@@ -2002,7 +2010,8 @@ window.makeTeams = function() {
     active: true,
     teamA: currentTeamA.map(p => p.name),
     teamB: currentTeamB.map(p => p.name),
-    teamSize, mode, isEventMatch: false
+    teamSize, mode, isEventMatch: false,
+    spectator: currentSpectator ? currentSpectator.name : null
   }).catch(console.error);
   // MVP 투표 초기화 → 팀 구성 즉시 투표 시작
   set(ref(db, 'session/mvp'), { active: true }).catch(console.error);
@@ -2219,6 +2228,18 @@ function renderResult() {
   document.getElementById('teams-grid').innerHTML=
     teamCard('1팀','team-blue',currentTeamA,avg(currentTeamA))+
     teamCard('2팀','team-yellow',currentTeamB,avg(currentTeamB));
+
+  // 관전자 표시
+  const spectatorEl = document.getElementById('spectator-section');
+  if (currentSpectator && !isEventMatch) {
+    spectatorEl.innerHTML = `<div class="spectator-box">
+      <span style="font-size:16px;">👀</span>
+      <span class="spectator-label">이번 게임 관전자</span>
+      <span class="spectator-name">${escHtml(currentSpectator.name)}</span>
+    </div>`;
+  } else {
+    spectatorEl.innerHTML = '';
+  }
 
   // 퀘스트 발동 배너
   const questBannerEl = document.getElementById('quest-banner-section');
