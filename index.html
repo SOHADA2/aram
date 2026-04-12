@@ -598,7 +598,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.14.5</div>
+<div class="version-badge">v2.14.6</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1935,6 +1935,26 @@ window.startItemPhase = function() {
   set(ref(db, 'session'), { phase: 'item', itemPhaseEnd: Date.now() + 15000 }).catch(console.error);
 };
 
+// 아이템 페이즈 카운트다운 틱 사운드 (Web Audio API — 외부 파일 불필요)
+let _tickAudioCtx = null;
+function playTickSound(secs) {
+  try {
+    if (!_tickAudioCtx) _tickAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const ctx = _tickAudioCtx;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    const isLast = secs === 1;
+    osc.frequency.value = isLast ? 880 : 660;
+    const dur = isLast ? 0.15 : 0.07;
+    gain.gain.setValueAtTime(isLast ? 0.35 : 0.2, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + dur);
+  } catch(e) {}
+}
+
 function startItemCountdown(endTime) {
   const card = document.getElementById('item-phase-card');
   const timerEl = document.getElementById('item-phase-timer');
@@ -1951,6 +1971,7 @@ function startItemCountdown(endTime) {
   if (itemPhaseTimer) clearInterval(itemPhaseTimer);
 
   const TOTAL_MS = 15000;
+  let lastTickSec = -1;
   function tick() {
     const remaining = Math.max(0, endTime - Date.now());
     const secs = Math.ceil(remaining / 1000);
@@ -1958,6 +1979,11 @@ function startItemCountdown(endTime) {
     barEl.style.transition = 'none';
     barEl.style.width = ((TOTAL_MS - remaining) / TOTAL_MS * 100) + '%';
     timerEl.className = 'item-phase-timer' + (secs <= 3 ? ' urgent' : '');
+    // 마지막 5초 틱 사운드 — 초가 바뀔 때마다 1회만
+    if (secs <= 5 && secs > 0 && secs !== lastTickSec) {
+      lastTickSec = secs;
+      playTickSound(secs);
+    }
     if (remaining <= 0) {
       clearInterval(itemPhaseTimer);
       itemPhaseTimer = null;
@@ -1965,6 +1991,7 @@ function startItemCountdown(endTime) {
       timerEl.className = 'item-phase-timer';
       if (btn) btn.disabled = false;
       if (liveMode) makeTeams(); // 호스트만 팀 구성 실행
+      lastTickSec = -1;
     }
   }
   tick();
@@ -2373,30 +2400,10 @@ function teamCard(title,cls,members,avg) {
     <div class="newbie-bonus-summary">🌱 뉴비 보너스 적용 중 <span style="opacity:0.65;font-weight:400;">(${newbieNames})</span><span class="newbie-bonus-arrow">▾</span></div>
     <div class="newbie-bonus-detail">
       <div class="newbie-bonus-row">
-        <div class="newbie-bonus-item">
-          <span class="label">🏆 승리 시</span>
-          <span>승점 <strong>+${WIN_PT + NEWBIE_WIN_BONUS_PT}pt</strong></span>
-          <span class="detail">(기본 +${WIN_PT} + 🌱 +${NEWBIE_WIN_BONUS_PT})</span>
-          <span style="margin-left:4px;">골드 <strong>+${GOLD_WIN + NEWBIE_WIN_BONUS_GOLD}G</strong></span>
-          <span class="detail">(기본 +${GOLD_WIN} + 🌱 +${NEWBIE_WIN_BONUS_GOLD})</span>
-        </div>
-        <div class="newbie-bonus-sub">⚡ 승점 2배권 사용 시 <strong>+${WIN_PT * 2 + NEWBIE_WIN_BONUS_PT}pt</strong> (2배권 +${WIN_PT*2} + 🌱 +${NEWBIE_WIN_BONUS_PT}) · 골드 동일 +${GOLD_WIN + NEWBIE_WIN_BONUS_GOLD}G</div>
+        <div class="newbie-bonus-item"><span class="label">🏆 승리</span><span><strong>+${WIN_PT + NEWBIE_WIN_BONUS_PT}pt</strong> · <strong>+${GOLD_WIN + NEWBIE_WIN_BONUS_GOLD}G</strong></span></div>
+        <div class="newbie-bonus-item"><span class="label">💀 패배</span><span><strong>-${LOSS_PT - NEWBIE_LOSS_REDUCE_PT}pt</strong> · <strong>+${GOLD_LOSE}G</strong></span></div>
         <div class="newbie-bonus-divider"></div>
-        <div class="newbie-bonus-item">
-          <span class="label">💀 패배 시</span>
-          <span>승점 <strong>-${LOSS_PT - NEWBIE_LOSS_REDUCE_PT}pt</strong></span>
-          <span class="detail">(기본 -${LOSS_PT} → 🌱 완화)</span>
-          <span style="margin-left:4px;">골드 <strong>+${GOLD_LOSE}G</strong></span>
-          <span class="detail">(동일)</span>
-        </div>
-        <div class="newbie-bonus-sub">🛡️ 패배 방어권 사용 시 <strong>0pt</strong> (방어권이 뉴비 완화보다 우선 적용)</div>
-        <div class="newbie-bonus-divider"></div>
-        <div class="newbie-bonus-item" style="opacity:0.85;">
-          <span class="label">🌱 뉴비 본인</span>
-          <span>패배 시 <strong>-2pt</strong></span>
-          <span class="detail">(기본 -${LOSS_PT})</span>
-          <span style="margin-left:4px;font-size:9px;opacity:0.7;">· 방어권 사용 시 0pt</span>
-        </div>
+        <div class="newbie-bonus-item" style="opacity:0.8;"><span class="label">🌱 본인 패배</span><span><strong>-2pt</strong></span></div>
       </div>
     </div>
   </div>` : '';
