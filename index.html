@@ -604,7 +604,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.14.8</div>
+<div class="version-badge">v2.14.9</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1982,24 +1982,38 @@ window.startItemPhase = function() {
   set(ref(db, 'session'), { phase: 'item', itemPhaseEnd: Date.now() + 15000 }).catch(console.error);
 };
 
-// 아이템 페이즈 카운트다운 틱 사운드 (Web Audio API — 외부 파일 불필요)
+// ── 카운트다운 사운드 (Web Audio API) ────────────────────────
 let _tickAudioCtx = null;
-function playTickSound(secs) {
+function _getAudioCtx() {
+  if (!_tickAudioCtx) _tickAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return _tickAudioCtx;
+}
+function _beep(freq, vol, dur, delay = 0) {
   try {
-    if (!_tickAudioCtx) _tickAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const ctx = _tickAudioCtx;
+    const ctx = _getAudioCtx();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    const isLast = secs === 1;
-    osc.frequency.value = isLast ? 880 : 660;
-    const dur = isLast ? 0.15 : 0.07;
-    gain.gain.setValueAtTime(isLast ? 0.35 : 0.2, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + dur);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = freq;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0, ctx.currentTime + delay);
+    gain.gain.linearRampToValueAtTime(vol, ctx.currentTime + delay + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + dur);
+    osc.start(ctx.currentTime + delay);
+    osc.stop(ctx.currentTime + delay + dur + 0.01);
   } catch(e) {}
+}
+// 매 초 틱: 구간별 음색 다르게
+function playTickSound(secs) {
+  if (secs <= 1)      _beep(880, 0.32, 0.14); // 마지막 1초: 강하고 높게
+  else if (secs <= 5) _beep(660, 0.20, 0.08); // 5~2초: 긴박한 틱
+  else                _beep(440, 0.07, 0.05); // 6초~: 조용한 배경 틱
+}
+// 팀 구성 완료 사운드: C-E-G 상승 화음
+function playCompleteSound() {
+  [[523, 0], [659, 0.13], [784, 0.28]].forEach(([freq, delay]) => {
+    _beep(freq, 0.28, 0.22, delay);
+  });
 }
 
 function startItemCountdown(endTime) {
@@ -2026,8 +2040,8 @@ function startItemCountdown(endTime) {
     barEl.style.transition = 'none';
     barEl.style.width = ((TOTAL_MS - remaining) / TOTAL_MS * 100) + '%';
     timerEl.className = 'item-phase-timer' + (secs <= 3 ? ' urgent' : '');
-    // 마지막 5초 틱 사운드 — 초가 바뀔 때마다 1회만
-    if (secs <= 5 && secs > 0 && secs !== lastTickSec) {
+    // 전 구간 틱 사운드 — 초가 바뀔 때마다 1회만
+    if (secs > 0 && secs !== lastTickSec) {
       lastTickSec = secs;
       playTickSound(secs);
     }
@@ -2037,6 +2051,7 @@ function startItemCountdown(endTime) {
       card.style.display = 'none';
       timerEl.className = 'item-phase-timer';
       if (btn) btn.disabled = false;
+      playCompleteSound(); // 모든 기기에서 완료 사운드
       if (liveMode) makeTeams(); // 호스트만 팀 구성 실행
       lastTickSec = -1;
     }
