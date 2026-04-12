@@ -421,7 +421,13 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .shop-buy-btn{width:100%;padding:6px;border-radius:5px;border:none;background:linear-gradient(135deg,#a07828,var(--gold));color:#0a0e1a;font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:10px;cursor:pointer;transition:all 0.15s;}
 .shop-buy-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(200,155,60,0.3);}
 .shop-buy-btn:disabled{opacity:0.4;cursor:not-allowed;transform:none;}
-.shop-owned-badge{position:absolute;top:6px;right:6px;font-size:8px;background:rgba(0,199,122,0.15);border:1px solid rgba(0,199,122,0.4);color:var(--green);border-radius:8px;padding:1px 5px;}
+.shop-owned-badge{position:absolute;top:6px;left:6px;font-size:8px;background:rgba(0,199,122,0.15);border:1px solid rgba(0,199,122,0.4);color:var(--green);border-radius:8px;padding:1px 5px;}
+/* ── 아이템 상점 ? 툴팁 ── */
+.shop-item-help-wrap{position:absolute;top:6px;right:6px;z-index:5;}
+.shop-item-help-btn{width:15px;height:15px;border-radius:50%;border:1px solid rgba(110,144,184,0.35);background:rgba(13,24,41,0.55);color:rgba(110,144,184,0.5);font-size:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;padding:0;font-family:'Noto Sans KR',sans-serif;line-height:1;}
+.shop-item-help-btn:hover{border-color:var(--text-dim);color:var(--text-dim);background:rgba(13,24,41,0.85);}
+.shop-item-tooltip{display:none;position:absolute;right:0;top:19px;width:155px;background:rgba(9,18,35,0.97);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:10px;color:var(--text-dim);line-height:1.6;text-align:left;word-break:keep-all;box-shadow:0 6px 20px rgba(0,0,0,0.55);z-index:20;}
+.shop-item-help-wrap:hover .shop-item-tooltip,.shop-item-tooltip.open{display:block;}
 /* ── 내 아이템 ── */
 .my-item-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;}
 .my-item-icon{font-size:22px;flex-shrink:0;}
@@ -592,7 +598,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.14.3</div>
+<div class="version-badge">v2.14.4</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -895,11 +901,11 @@ body.member-mode #event-no-save-notice{display:none!important;}
 
 <div id="tab-shop" class="tab-content">
   <div class="card" id="attend-card" style="display:none;">
-    <div class="card-title">📅 출석 체크</div>
+    <div class="card-title">출석 체크</div>
     <div id="attend-content"></div>
   </div>
   <div class="card">
-    <div class="card-title">🛒 아이템 상점</div>
+    <div class="card-title">아이템 상점</div>
     <div id="shop-no-user" style="text-align:center;padding:20px;color:var(--text-dim);font-size:13px;">
       위의 <strong style="color:var(--gold)">내 닉네임</strong>을 먼저 선택해주세요!
     </div>
@@ -3647,11 +3653,13 @@ function renderShop() {
     const canBuy  = myGold >= item.price && !itemsLocked;
     return`<div class="shop-item${itemsLocked?' item-locked-overlay':''}">
       ${owned>0?`<div class="shop-owned-badge">보유 ${owned}개</div>`:''}
-      <div class="shop-item-icon">${item.icon}</div>
-      <div class="shop-item-name">${item.name}</div>
-      <div class="shop-item-desc">${item.desc}</div>
-      <div class="shop-item-price">🪙 ${item.price}</div><br>
-      <button class="shop-buy-btn" ${(!canBuy)?'disabled':''} onclick="buyItem('${item.id}')">
+      <div class="shop-item-help-wrap">
+        <button class="shop-item-help-btn" onclick="toggleItemHelp(this)">?</button>
+        <div class="shop-item-tooltip">${item.desc}</div>
+      </div>
+      <div class="shop-item-name" style="margin-top:8px;">${item.name}</div>
+      <div class="shop-item-price">🪙 ${item.price}</div>
+      <button class="shop-buy-btn" style="margin-top:6px;" ${(!canBuy)?'disabled':''} onclick="buyItem('${item.id}')">
         ${itemsLocked?'🔒 잠김':canBuy?'구매':'골드 부족'}
       </button>
     </div>`;
@@ -3684,6 +3692,26 @@ function renderShop() {
 }
 
 // 아이템 구매
+// 아이템 상점 ? 툴팁 토글 (모바일: 탭, PC: hover는 CSS로 처리)
+window.toggleItemHelp = function(btn) {
+  const tooltip = btn.nextElementSibling;
+  const isOpen = tooltip.classList.contains('open');
+  // 다른 열린 툴팁 모두 닫기
+  document.querySelectorAll('.shop-item-tooltip.open').forEach(t => t.classList.remove('open'));
+  if (!isOpen) {
+    tooltip.classList.add('open');
+    // 외부 클릭 시 닫기
+    setTimeout(() => {
+      document.addEventListener('click', function closeHelp(e) {
+        if (!btn.contains(e.target) && !tooltip.contains(e.target)) {
+          tooltip.classList.remove('open');
+          document.removeEventListener('click', closeHelp);
+        }
+      });
+    }, 0);
+  }
+};
+
 window.buyItem = async function(itemId) {
   if (itemsLocked) { showGoldToast('🔒 팀 구성 후에는 구매할 수 없어요!'); return; }
   const key = getMyGoldKey();
