@@ -558,6 +558,12 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .buddy-empty{font-size:11px;color:var(--text-dim);text-align:center;padding:10px;background:var(--surface2);border-radius:6px;}
 /* ── 저장 완료 패널 ── */
 .save-done-panel{display:none;margin-top:12px;background:linear-gradient(135deg,rgba(0,40,20,0.7),rgba(0,60,30,0.5));border:1px solid rgba(0,199,122,0.4);border-radius:8px;padding:16px;text-align:center;animation:popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275);}
+/* ── 저장 확인 팝업 ── */
+.save-confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px;}
+.save-confirm-modal{background:linear-gradient(135deg,rgba(13,24,41,0.98),rgba(17,32,64,0.98));border:1px solid rgba(240,160,32,0.45);border-radius:12px;padding:26px 22px;max-width:300px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.6);}
+.save-confirm-title{font-family:'Black Han Sans',sans-serif;font-size:15px;color:#f0a020;margin-bottom:10px;letter-spacing:1px;}
+.save-confirm-body{font-size:12px;color:var(--text-dim);line-height:1.9;margin-bottom:20px;}
+.save-confirm-btns{display:flex;gap:8px;justify-content:center;}
 .achievement-cat{margin-bottom:16px;}
 .achievement-cat-title{font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border);}
 .achievement-item{display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);margin-bottom:7px;transition:opacity 0.2s;}
@@ -598,7 +604,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.14.7</div>
+<div class="version-badge">v2.14.8</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -924,6 +930,18 @@ body.member-mode #event-no-save-notice{display:none!important;}
       </div>
     </div>
     <div id="my-items-list"></div>
+  </div>
+</div>
+
+<!-- ===== 저장 확인 팝업 ===== -->
+<div class="save-confirm-overlay" id="save-confirm-overlay" style="display:none;">
+  <div class="save-confirm-modal">
+    <div class="save-confirm-title">⚠️ 결과가 저장되지 않았어요</div>
+    <div class="save-confirm-body">이전 경기 결과를 저장하지 않고<br>새로 팀을 짜면 기록이 남지 않아요.<br>그래도 계속 진행할까요?</div>
+    <div class="save-confirm-btns">
+      <button class="btn btn-ghost btn-sm" onclick="closeSaveConfirm()">취소</button>
+      <button class="btn btn-danger btn-sm" onclick="confirmNewTeam()">저장 없이 진행</button>
+    </div>
   </div>
 </div>
 
@@ -1928,7 +1946,27 @@ function shuffle(arr) {
 
 let itemPhaseTimer = null;
 
+let _pendingNewTeamFn = null;
+
+window.closeSaveConfirm = function() {
+  document.getElementById('save-confirm-overlay').style.display = 'none';
+  _pendingNewTeamFn = null;
+};
+window.confirmNewTeam = function() {
+  document.getElementById('save-confirm-overlay').style.display = 'none';
+  if (_pendingNewTeamFn) { _pendingNewTeamFn(); _pendingNewTeamFn = null; }
+};
+
 window.startItemPhase = function() {
+  // 팀 결과가 있고 아직 저장 안 된 경우 확인 팝업
+  if ((currentTeamA.length > 0 || currentTeamB.length > 0) && !matchSaved) {
+    _pendingNewTeamFn = () => window.startItemPhase();
+    // 팝업을 열기 전에 currentTeamA/B를 잠깐 비워 재진입 무한루프 방지
+    _pendingNewTeamFn = () => { currentTeamA=[]; currentTeamB=[]; window.startItemPhase(); };
+    document.getElementById('save-confirm-overlay').style.display = 'flex';
+    return;
+  }
+
   if (isEventMatch) { makeTeams(); return; }
 
   const warn = document.getElementById('warn-box');
@@ -2274,10 +2312,18 @@ function showAutoResultPopup(winner) {
   document.getElementById('result-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+let matchSaved = false; // 현재 팀 결과 저장 여부
+
 function renderResult() {
   const section=document.getElementById('result-section');
   section.style.display='block';
   section.scrollIntoView({behavior:'smooth',block:'start'});
+  // 새 결과 렌더 시 승리 버튼·저장 버튼 복원
+  document.querySelector('.winner-btns').style.display='';
+  document.getElementById('winner-selected-msg').style.display='';
+  document.getElementById('save-btn').style.display='';
+  document.getElementById('save-done-panel').classList.remove('show');
+  matchSaved = false;
 
   // 상단 헤더("1팀 N:N 2팀") 숨김
   document.getElementById('result-header').style.display='none';
@@ -2675,21 +2721,21 @@ window.saveMatch = async function() {
     }
     questEventState = null;
 
-    btn.textContent='✅ 저장 완료!';
-    btn.style.background='linear-gradient(135deg,var(--green-dark),var(--green))';
     btn.disabled=true;
     itemsLocked = false;
     set(ref(db, 'session'), { active: false }).catch(console.error); // 경기 저장 → session 종료 동기화
     renderShop();
+    // 승리 버튼·저장 버튼 숨기고 저장 완료 패널 표시
+    document.querySelector('.winner-btns').style.display='none';
+    document.getElementById('winner-selected-msg').style.display='none';
+    document.getElementById('save-btn').style.display='none';
     document.getElementById('save-done-panel').classList.add('show');
+    matchSaved = true;
     // MVP 섹션 초기화
     const sec = document.getElementById('mvp-section');
     if (sec) sec.style.display='none';
     mvpVotes = { teamA: {}, teamB: {} }; mvpConfirmed = null;
     selectedWinner=null;
-    document.getElementById('wb-blue').className='winner-btn blue';
-    document.getElementById('wb-red').className='winner-btn red';
-    document.getElementById('winner-selected-msg').textContent='';
   } catch(e) {
     btn.textContent='❌ 저장 실패'; btn.disabled=false;
     setTimeout(()=>{btn.textContent='💾 결과 저장하기';},2000);
