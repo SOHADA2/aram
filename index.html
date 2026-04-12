@@ -592,7 +592,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.14.2</div>
+<div class="version-badge">v2.14.3</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1592,10 +1592,19 @@ function renderMemberGrid() {
 }
 
 // ── 드래그 선택 (클릭 + 드래그 모두 처리) ─────────────────────
+// PC(마우스): mousedown 즉시 드래그 시작 — 기존 동작 유지
+// 모바일(터치): 탭은 단순 선택/해제, 롱프레스(300ms) 후 드래그로 다중 선택
 (function initDragSelect() {
   const grid = document.getElementById('member-grid');
   if (!grid) return;
   let drag = null; // { targetChecked: bool, processed: Set<Element> }
+
+  // 모바일 롱프레스 상태
+  let lpTimer = null;
+  let lpChip = null;
+  let lpStartX = 0, lpStartY = 0;
+  const LP_MS = 300;          // 롱프레스 임계 시간 (ms)
+  const SCROLL_THR = 8;       // 스크롤 판정 이동 거리 (px)
 
   function applyChip(chip) {
     if (!chip || !drag || drag.processed.has(chip)) return;
@@ -1604,13 +1613,17 @@ function renderMemberGrid() {
     updateCheckedLabel();
   }
 
-  // 마우스
+  function startDrag(chip) {
+    drag = { targetChecked: !chip.classList.contains('checked'), processed: new Set() };
+    applyChip(chip);
+  }
+
+  // ── PC 마우스 — 기존 동작 유지 ──
   grid.addEventListener('mousedown', e => {
     const chip = e.target.closest('.member-chip');
     if (!chip) return;
     e.preventDefault();
-    drag = { targetChecked: !chip.classList.contains('checked'), processed: new Set() };
-    applyChip(chip);
+    startDrag(chip);
   });
   document.addEventListener('mousemove', e => {
     if (!drag) return;
@@ -1618,20 +1631,53 @@ function renderMemberGrid() {
   });
   document.addEventListener('mouseup', () => { drag = null; });
 
-  // 터치
+  // ── 모바일 터치 — 탭: 단순 선택 / 롱프레스 후 이동: 다중 드래그 선택 ──
   grid.addEventListener('touchstart', e => {
     const t = e.touches[0];
     const chip = document.elementFromPoint(t.clientX, t.clientY)?.closest('.member-chip');
     if (!chip) return;
-    drag = { targetChecked: !chip.classList.contains('checked'), processed: new Set() };
-    applyChip(chip);
+    lpChip = chip;
+    lpStartX = t.clientX;
+    lpStartY = t.clientY;
+    // 300ms 후 드래그 모드 진입
+    lpTimer = setTimeout(() => {
+      if (lpChip) {
+        startDrag(lpChip);
+        if (navigator.vibrate) navigator.vibrate(30); // 진동 피드백
+      }
+    }, LP_MS);
   }, { passive: true });
+
+  // passive: false — 드래그 활성화 시 스크롤 방지(preventDefault)를 위해 필요
   document.addEventListener('touchmove', e => {
-    if (!drag) return;
     const t = e.touches[0];
+    if (!drag) {
+      // 드래그 미활성 상태: 이동량이 임계값 초과 시 스크롤로 판정 → 롱프레스 취소
+      const dx = t.clientX - lpStartX;
+      const dy = t.clientY - lpStartY;
+      if (Math.sqrt(dx * dx + dy * dy) > SCROLL_THR) {
+        clearTimeout(lpTimer);
+        lpTimer = null;
+        lpChip = null;
+      }
+      return;
+    }
+    // 드래그 활성 상태: 스크롤 차단 후 칩 선택 적용
+    e.preventDefault();
     applyChip(document.elementFromPoint(t.clientX, t.clientY)?.closest('.member-chip'));
+  }, { passive: false });
+
+  document.addEventListener('touchend', () => {
+    clearTimeout(lpTimer);
+    // 드래그가 활성화되지 않은 경우 → 탭으로 처리 (단순 선택/해제)
+    if (!drag && lpChip) {
+      lpChip.classList.toggle('checked');
+      updateCheckedLabel();
+    }
+    drag = null;
+    lpTimer = null;
+    lpChip = null;
   }, { passive: true });
-  document.addEventListener('touchend', () => { drag = null; }, { passive: true });
 })();
 
 function updateCheckedLabel() {
