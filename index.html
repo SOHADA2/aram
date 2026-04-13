@@ -654,6 +654,16 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .save-done-panel.show{display:block;}
 .save-done-title{font-family:'Black Han Sans',sans-serif;font-size:16px;color:var(--green);letter-spacing:2px;margin-bottom:4px;}
 .save-done-sub{font-size:11px;color:var(--text-dim);margin-bottom:14px;}
+/* ── 티어 변동 요약 ── */
+.tier-changes-row{display:flex;flex-direction:column;gap:6px;margin:10px 0 14px;}
+.tier-change-item{display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;padding:6px 12px;border-radius:6px;background:var(--surface2);}
+.tier-change-item.up{border:1px solid rgba(0,199,122,0.35);}
+.tier-change-item.down{border:1px solid rgba(232,64,87,0.25);}
+.tier-change-name{font-weight:700;flex-shrink:0;}
+.tier-change-arrow{font-size:14px;font-weight:700;margin:0 2px;}
+.tier-change-arrow.up{color:var(--green);}
+.tier-change-arrow.down{color:var(--red);}
+.tier-change-badge{font-size:11px;padding:1px 6px;border-radius:4px;font-weight:700;}
 .save-done-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
 .team-player{position:relative;}
 /* ── 연승/연패 뱃지 ── */
@@ -678,7 +688,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.18.3</div>
+<div class="version-badge">v2.19.0</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -927,6 +937,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
       <div class="save-done-panel" id="save-done-panel">
         <div class="save-done-title">✅ 경기 결과 저장 완료!</div>
         <div class="save-done-sub">결과가 기록됐어요. 어디로 이동할까요?</div>
+        <div id="tier-changes-row" class="tier-changes-row"></div>
         <div class="save-done-btns">
           <button class="btn btn-primary btn-sm" onclick="goToTab('tab-record',this)">📋 경기 기록 보러가기</button>
           <button class="btn btn-gold btn-sm" onclick="goToTab('tab-rank',this)">🏆 랭킹 보러가기</button>
@@ -2579,6 +2590,7 @@ function renderResult() {
   document.getElementById('winner-selected-msg').style.display='';
   document.getElementById('save-btn').style.display='';
   document.getElementById('save-done-panel').classList.remove('show');
+  document.getElementById('tier-changes-row').innerHTML = '';
   matchSaved = false;
 
   // 상단 헤더("1팀 N:N 2팀") 숨김
@@ -2930,6 +2942,13 @@ window.saveMatch = async function() {
   try {
     const winners = selectedWinner==='blue' ? currentTeamA.map(p=>p.name) : currentTeamB.map(p=>p.name);
     const losers  = selectedWinner==='blue' ? currentTeamB.map(p=>p.name) : currentTeamA.map(p=>p.name);
+
+    // ── 저장 전 티어 스냅샷 ──────────────────────────────────────
+    const allMatchPlayers = [...currentTeamA, ...currentTeamB];
+    const tiersBefore = {};
+    allMatchPlayers.forEach(p => {
+      tiersBefore[normName(p.name)] = getEffectiveTier(p.name, null);
+    });
     // teamA=1팀(블루), teamB=2팀(레드) → 승리팀에 따라 winner/loser MVP 매핑
     const mvpWinnerName = selectedWinner==='blue' ? (mvpConfirmed?.teamAMvp || null) : (mvpConfirmed?.teamBMvp || null);
     const mvpLoserName  = selectedWinner==='blue' ? (mvpConfirmed?.teamBMvp || null) : (mvpConfirmed?.teamAMvp || null);
@@ -2965,6 +2984,19 @@ window.saveMatch = async function() {
     if (Object.keys(currentMatchParticipants).length > 0)
       matchData.participants = currentMatchParticipants;
     await push(ref(db, 'matches'), matchData);
+    // onValue 리스너가 matches 즉시 업데이트 → 새 티어 계산 가능
+
+    // ── 티어 변동 계산 ───────────────────────────────────────────
+    const tierChanges = [];
+    allMatchPlayers.forEach(p => {
+      const before = tiersBefore[normName(p.name)];
+      const after  = getEffectiveTier(p.name, null);
+      if (before !== after) {
+        const bInfo = TIERS[before] || TIERS.unranked;
+        const aInfo = TIERS[after]  || TIERS.unranked;
+        tierChanges.push({ name: p.name, before, after, bInfo, aInfo, up: (aInfo.score||0) > (bInfo.score||0) });
+      }
+    });
 
     await giveMatchGold(winners, losers, matchTimestamp);
 
@@ -3015,6 +3047,25 @@ window.saveMatch = async function() {
     document.querySelector('.winner-btns').style.display='none';
     document.getElementById('winner-selected-msg').style.display='none';
     document.getElementById('save-btn').style.display='none';
+
+    // ── 티어 변동 렌더 ───────────────────────────────────────────
+    const tcRow = document.getElementById('tier-changes-row');
+    if (tierChanges.length > 0) {
+      tcRow.innerHTML = tierChanges.map(c => {
+        const arrow = c.up ? '↑' : '↓';
+        const dir   = c.up ? 'up' : 'down';
+        const icon  = c.up ? '🎉 ' : '';
+        return `<div class="tier-change-item ${dir}">
+          <span class="tier-change-name">${icon}${escHtml(c.name)}</span>
+          <span class="tier-change-badge ${c.bInfo.cls}">${c.bInfo.label}</span>
+          <span class="tier-change-arrow ${dir}">${arrow}</span>
+          <span class="tier-change-badge ${c.aInfo.cls}">${c.aInfo.label}</span>
+        </div>`;
+      }).join('');
+    } else {
+      tcRow.innerHTML = '';
+    }
+
     document.getElementById('save-done-panel').classList.add('show');
     matchSaved = true;
     // MVP 섹션 초기화
