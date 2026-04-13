@@ -1985,61 +1985,56 @@ window.showWatchingPoints = function() {
     return null;
   };
 
-  // 같은 팀 내 케미 (높은 승률)
-  const sameTeamChemi = chemiPairs.filter(p => getTeam(p.nameA, p.nameB));
-  // 같은 팀 내 웬수 → 오늘 징크스 깰 기회 (긍정 재해석)
-  const sameTeamReverse = enemyPairs.filter(p => getTeam(p.nameA, p.nameB));
-  // 케미 파트너끼리 이번엔 적팀
-  const crossChemi = chemiPairs.filter(p => {
+  // 각 카테고리에서 가장 극적인 1개씩만 선택
+  // 1) 같은 팀 내 최고 케미 (승률 최고)
+  const bestChemi = chemiPairs.find(p => getTeam(p.nameA, p.nameB)) || null;
+  // 2) 케미 파트너끼리 이번엔 적팀 (승률 최고인 1쌍)
+  const bestCross = chemiPairs.find(p => {
     const nA=normName(p.nameA), nB=normName(p.nameB);
     return (teamASet.has(nA)&&teamBSet.has(nB)) || (teamBSet.has(nA)&&teamASet.has(nB));
-  });
+  }) || null;
+  // 3) 같은 팀 내 가장 심각한 징크스 (승률 최저)
+  const worstReverse = enemyPairs.find(p => getTeam(p.nameA, p.nameB)) || null;
 
   let html = '';
 
-  if (sameTeamChemi.length) {
+  if (bestChemi) {
+    const team = getTeam(bestChemi.nameA, bestChemi.nameB);
+    const cls = team === '1팀' ? 'blue' : 'yellow';
+    const pct = Math.round(bestChemi.wr * 100);
     html += `<div class="wp-section">
-      <div class="wp-section-title chemi">💚 믿을 수 있는 조합</div>`;
-    sameTeamChemi.forEach(p => {
-      const team = getTeam(p.nameA, p.nameB);
-      const cls = team === '1팀' ? 'blue' : 'yellow';
-      const pct = Math.round(p.wr * 100);
-      html += `<div class="wp-item chemi">
-        <span class="wp-names">${escHtml(p.nameA)} <span class="wp-connector">+</span> ${escHtml(p.nameB)}</span>
+      <div class="wp-section-title chemi">💚 오늘의 최고 케미</div>
+      <div class="wp-item chemi">
+        <span class="wp-names">${escHtml(bestChemi.nameA)} <span class="wp-connector">+</span> ${escHtml(bestChemi.nameB)}</span>
         <span class="wp-team-tag ${cls}">${team}</span>
-        <span class="wp-stat good">${p.together}전 ${pct}%</span>
-      </div>`;
-    });
-    html += `</div>`;
+        <span class="wp-stat good">${bestChemi.together}전 ${pct}%</span>
+      </div>
+    </div>`;
   }
 
-  if (crossChemi.length) {
+  if (bestCross) {
+    const pct = Math.round(bestCross.wr * 100);
     html += `<div class="wp-section">
-      <div class="wp-section-title cross">⚔️ 케미 파트너끼리 맞대결!</div>`;
-    crossChemi.forEach(p => {
-      const pct = Math.round(p.wr * 100);
-      html += `<div class="wp-item cross">
-        <span class="wp-names">${escHtml(p.nameA)} <span class="wp-connector">VS</span> ${escHtml(p.nameB)}</span>
-        <span class="wp-stat">함께했을 때 ${p.together}전 ${pct}%</span>
-      </div>`;
-    });
-    html += `</div>`;
+      <div class="wp-section-title cross">⚔️ 케미 파트너끼리 맞대결!</div>
+      <div class="wp-item cross">
+        <span class="wp-names">${escHtml(bestCross.nameA)} <span class="wp-connector">VS</span> ${escHtml(bestCross.nameB)}</span>
+        <span class="wp-stat">함께했을 때 ${bestCross.together}전 ${pct}%</span>
+      </div>
+    </div>`;
   }
 
-  if (sameTeamReverse.length) {
+  if (worstReverse) {
+    const team = getTeam(worstReverse.nameA, worstReverse.nameB);
+    const cls = team === '1팀' ? 'blue' : 'yellow';
+    const pct = Math.round(worstReverse.wr * 100);
     html += `<div class="wp-section">
-      <div class="wp-section-title reverse">⚡ 오늘 함께 징크스를 깰 수 있을까?</div>`;
-    sameTeamReverse.forEach(p => {
-      const team = getTeam(p.nameA, p.nameB);
-      const cls = team === '1팀' ? 'blue' : 'yellow';
-      const pct = Math.round(p.wr * 100);
-      html += `<div class="wp-item reverse">
-        <span class="wp-names">${escHtml(p.nameA)} <span class="wp-connector">+</span> ${escHtml(p.nameB)}</span>
+      <div class="wp-section-title reverse">⚡ 오늘 징크스를 깰 수 있을까?</div>
+      <div class="wp-item reverse">
+        <span class="wp-names">${escHtml(worstReverse.nameA)} <span class="wp-connector">+</span> ${escHtml(worstReverse.nameB)}</span>
         <span class="wp-team-tag ${cls}">${team}</span>
-        <span class="wp-stat bad">지금까지 ${p.together}전 ${pct}%</span>
-      </div>`;
-    });
-    html += `</div>`;
+        <span class="wp-stat bad">지금까지 ${worstReverse.together}전 ${pct}%</span>
+      </div>
+    </div>`;
   }
 
   if (!html) {
