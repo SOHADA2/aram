@@ -556,6 +556,30 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .buddy-wr.mid{color:var(--gold);}
 .buddy-wr.low{color:var(--red);}
 .buddy-empty{font-size:11px;color:var(--text-dim);text-align:center;padding:10px;background:var(--surface2);border-radius:6px;}
+/* ── 팀 발표 오버레이 ── */
+.team-announce-overlay{position:fixed;inset:0;z-index:2000;background:rgba(4,10,20,0.97);display:flex;flex-direction:column;align-items:center;justify-content:center;animation:taFadeIn 0.4s ease;cursor:pointer;user-select:none;padding:16px;}
+@keyframes taFadeIn{from{opacity:0}to{opacity:1}}
+@keyframes taFadeOut{from{opacity:1}to{opacity:0}}
+.ta-title{font-family:'Black Han Sans',sans-serif;font-size:20px;color:var(--gold);letter-spacing:4px;margin-bottom:20px;animation:taPopIn 0.5s cubic-bezier(0.175,0.885,0.32,1.275) 0.1s both;text-shadow:0 0 24px rgba(200,155,60,0.6);}
+@keyframes taPopIn{from{opacity:0;transform:scale(0.5)}to{opacity:1;transform:scale(1)}}
+.ta-teams{display:flex;gap:0;align-items:stretch;width:100%;max-width:580px;}
+.ta-team{flex:1;display:flex;flex-direction:column;align-items:center;padding:16px 10px;border-radius:12px;gap:6px;}
+.ta-team.blue{background:linear-gradient(180deg,rgba(30,80,200,0.22) 0%,rgba(0,30,100,0.12) 100%);border:1px solid rgba(80,140,255,0.35);animation:taSlideLeft 0.5s cubic-bezier(0.175,0.885,0.32,1.275) 0.25s both;}
+.ta-team.red{background:linear-gradient(180deg,rgba(200,140,20,0.22) 0%,rgba(100,60,0,0.12) 100%);border:1px solid rgba(255,190,60,0.35);animation:taSlideRight 0.5s cubic-bezier(0.175,0.885,0.32,1.275) 0.25s both;}
+@keyframes taSlideLeft{from{opacity:0;transform:translateX(-28px)}to{opacity:1;transform:translateX(0)}}
+@keyframes taSlideRight{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:translateX(0)}}
+.ta-team-label{font-family:'Black Han Sans',sans-serif;font-size:15px;letter-spacing:2px;margin-bottom:6px;}
+.ta-team.blue .ta-team-label{color:var(--blue);}
+.ta-team.red .ta-team-label{color:var(--gold);}
+.ta-vs{font-family:'Black Han Sans',sans-serif;font-size:26px;color:var(--gold);display:flex;align-items:center;padding:0 10px;flex-shrink:0;animation:taVsPulse 1.2s ease infinite;text-shadow:0 0 20px rgba(200,155,60,0.8);}
+@keyframes taVsPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.65;transform:scale(1.12)}}
+.ta-player{width:100%;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:5px 8px;border-radius:6px;background:rgba(255,255,255,0.04);animation:taPlayerIn 0.35s ease both;}
+@keyframes taPlayerIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.ta-player-name{font-size:13px;color:var(--text);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ta-dismiss{margin-top:16px;font-size:11px;color:var(--text-dim);animation:taFadeIn 0.5s ease 1.2s both;letter-spacing:1px;}
+.ta-progress{width:120px;height:2px;background:rgba(255,255,255,0.1);border-radius:1px;margin-top:6px;overflow:hidden;animation:taFadeIn 0.5s ease 1.2s both;}
+.ta-progress-bar{height:100%;background:var(--gold);border-radius:1px;}
+
 /* ── 저장 완료 패널 ── */
 .save-done-panel{display:none;margin-top:12px;background:linear-gradient(135deg,rgba(0,40,20,0.7),rgba(0,60,30,0.5));border:1px solid rgba(0,199,122,0.4);border-radius:8px;padding:16px;text-align:center;animation:popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275);}
 /* ── 저장 확인 팝업 ── */
@@ -604,7 +628,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.15.3</div>
+<div class="version-badge">v2.16.0</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1245,7 +1269,13 @@ function applySessionData(data) {
       showGoldToast('⚔️ 팀 구성 완료! 결과창으로 이동합니다');
       setTimeout(() => showTab('tab-team', teamTabBtn), 800);
     }
+    // 새 팀 구성 시 발표 오버레이 (초기 로드 시엔 표시 안 함)
+    if (_initialSessionLoaded && !_justMadeTeams) {
+      showTeamAnnounce(currentTeamA, currentTeamB);
+    }
+    _justMadeTeams = false;
   }
+  _initialSessionLoaded = true;
   // 팀 복원 후 대기 중인 MVP 데이터 적용
   if (pendingMvpData) { applyMvpData(pendingMvpData); pendingMvpData = null; }
 }
@@ -2133,6 +2163,8 @@ window.makeTeams = function() {
   itemsLocked = true;
   renderShop();
   renderResult();
+  _justMadeTeams = true;
+  showTeamAnnounce(currentTeamA, currentTeamB);
   checkQuestEvent();
   // Firebase에 팀 결과 기록 → 다른 기기에 실시간 동기화
   set(ref(db, 'session'), {
@@ -2316,6 +2348,70 @@ function showAutoResultPopup(winner) {
 }
 
 let matchSaved = false; // 현재 팀 결과 저장 여부
+
+let _initialSessionLoaded = false;
+let _justMadeTeams = false;
+
+function showTeamAnnounce(teamA, teamB) {
+  const old = document.getElementById('team-announce-root');
+  if (old) old.remove();
+
+  const DURATION = 7000;
+
+  function playerRow(p, delay) {
+    const t = TIERS[p.tier] || TIERS.unranked;
+    const rBadge = getRankBadge(p.name);
+    return `<div class="ta-player" style="animation-delay:${delay}s">
+      <span class="ta-player-name">${nameHtml(p.name)}${rBadge}</span>
+      <span class="tier-badge ${t.cls}" style="font-size:10px;padding:2px 6px;">${t.label}</span>
+    </div>`;
+  }
+
+  const maxLen = Math.max(teamA.length, teamB.length);
+  const aRows = teamA.map((p, i) => playerRow(p, 0.45 + i * 0.1)).join('');
+  const bRows = teamB.map((p, i) => playerRow(p, 0.45 + i * 0.1)).join('');
+
+  const el = document.createElement('div');
+  el.id = 'team-announce-root';
+  el.className = 'team-announce-overlay';
+  el.innerHTML = `
+    <div class="ta-title">⚔️ 팀 구성 완료 ⚔️</div>
+    <div class="ta-teams">
+      <div class="ta-team blue">
+        <div class="ta-team-label">🔵 1팀</div>
+        ${aRows}
+      </div>
+      <div class="ta-vs">VS</div>
+      <div class="ta-team red">
+        <div class="ta-team-label">🟡 2팀</div>
+        ${bRows}
+      </div>
+    </div>
+    <div class="ta-dismiss">화면을 클릭하면 닫힙니다</div>
+    <div class="ta-progress"><div class="ta-progress-bar" id="ta-bar" style="width:100%"></div></div>
+  `;
+  document.body.appendChild(el);
+
+  // 프로그레스 바
+  requestAnimationFrame(() => {
+    const bar = document.getElementById('ta-bar');
+    if (bar) {
+      bar.style.transition = `width ${DURATION / 1000}s linear`;
+      bar.style.width = '0%';
+    }
+  });
+
+  // 자동 닫힘
+  const timer = setTimeout(() => close(), DURATION);
+
+  function close() {
+    clearTimeout(timer);
+    el.style.animation = 'taFadeOut 0.35s ease forwards';
+    setTimeout(() => { if (el.parentNode) el.remove(); }, 380);
+  }
+
+  el.addEventListener('click', close);
+}
 
 function renderResult() {
   const section=document.getElementById('result-section');
