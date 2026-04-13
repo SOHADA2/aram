@@ -634,7 +634,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.16.2</div>
+<div class="version-badge">v2.17.0</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -857,7 +857,6 @@ body.member-mode #event-no-save-notice{display:none!important;}
     <div class="teams-grid" id="teams-grid"></div>
     <div id="spectator-section"></div>
     <div id="quest-banner-section"></div>
-    <div id="balance-bar-section"></div>
     <div id="chemi-legend-section"></div>
     <!-- 이벤트 핸디캡 박스 -->
     <div id="handicap-section"></div>
@@ -867,13 +866,13 @@ body.member-mode #event-no-save-notice{display:none!important;}
       <div id="event-no-save-notice" class="event-no-save" style="display:none;">🎉 이벤트 매치 — 결과가 티어에 반영되지 않아요</div>
       <!-- 게임 자동 감지 상태 -->
       <div id="game-detection-status" style="display:none;font-size:12px;padding:8px 12px;border-radius:6px;margin-bottom:10px;background:var(--surface2);border:1px solid var(--border);text-align:center;"></div>
+      <!-- MVP 투표 섹션 -->
+      <div id="mvp-section" class="mvp-section" style="display:none;"></div>
       <div class="winner-btns">
         <button class="winner-btn blue" id="wb-blue" onclick="selectWinner('blue')">🔵 1팀 승리</button>
         <button class="winner-btn red" id="wb-red" onclick="selectWinner('red')">🟡 2팀 승리</button>
       </div>
       <div id="winner-selected-msg" style="font-size:12px;color:var(--text-dim);margin-bottom:10px;min-height:18px;"></div>
-      <!-- MVP 투표 섹션 -->
-      <div id="mvp-section" class="mvp-section" style="display:none;"></div>
       <button class="btn btn-green" id="save-btn" onclick="saveMatch()" style="width:100%;justify-content:center;" disabled>💾 결과 저장하기</button>
       <!-- 저장 완료 패널 -->
       <div class="save-done-panel" id="save-done-panel">
@@ -2510,27 +2509,6 @@ function renderResult() {
     questBannerEl.innerHTML = '';
   }
 
-  const pct=Math.round((sA/tot)*100), diff=Math.abs(sA-sB);
-  if (isEventMatch) {
-    document.getElementById('balance-bar-section').innerHTML=`
-      <div style="text-align:center;margin-top:10px;">
-        <span class="event-badge">🎉 이벤트 매치 · 티어 미반영</span>
-      </div>`;
-  } else if (mode==='balance') {
-    document.getElementById('balance-bar-section').innerHTML=`
-      <div class="balance-bar-wrap">
-        <div style="font-size:11px;color:var(--text-dim);margin-bottom:10px;text-align:center;letter-spacing:1px;">⚖️ 실력 밸런스 배분</div>
-        <div class="balance-label">
-          <span style="color:var(--blue)">블루 avg ${avg(currentTeamA)}</span>
-          <span>승률차 ${(diff*100).toFixed(1)}% ${diff<=0.05?'✅':diff<=0.1?'🟡':'🔴'}</span>
-          <span style="color:var(--red)">레드 avg ${avg(currentTeamB)}</span>
-        </div>
-        <div class="balance-bar"><div class="balance-fill" style="width:${pct}%;background:linear-gradient(90deg,var(--blue-dark),var(--blue))"></div></div>
-      </div>`;
-  } else {
-    document.getElementById('balance-bar-section').innerHTML=`
-      <div style="text-align:center;margin-top:10px;font-size:11px;color:var(--text-dim);letter-spacing:1px;">🎲 완전 랜덤 배분</div>`;
-  }
 
   document.getElementById('chemi-legend-section').innerHTML = '';
 
@@ -2618,6 +2596,8 @@ function renderMvpSection() {
   const fbKey = (name) => normName(name).replace(/\s+/g, '_');
 
   function render() {
+    const savedScrollY = window.scrollY;
+
     if (mvpConfirmed !== null) {
       const hasAny = mvpConfirmed.teamAMvp || mvpConfirmed.teamBMvp;
       let banners = '';
@@ -2640,6 +2620,7 @@ function renderMvpSection() {
         <div class="mvp-title">🏆 MVP · SVP 결과</div>
         ${banners}
         <button class="mvp-skip-btn" onclick="resetMvp()">↩ 다시 투표</button>`;
+      requestAnimationFrame(() => window.scrollTo(0, savedScrollY));
       checkSaveReady();
       return;
     }
@@ -2649,10 +2630,18 @@ function renderMvpSection() {
     const amITeamA = myNorm && currentTeamA.some(p => normName(p.name) === myNorm);
     const amITeamB = myNorm && currentTeamB.some(p => normName(p.name) === myNorm);
 
-    // 투표 진행 현황
-    const teamAVotedCount = Object.keys(mvpVotes.teamA || {}).length;
-    const teamBVotedCount = Object.keys(mvpVotes.teamB || {}).length;
-    const allVoted = teamAVotedCount === currentTeamA.length && teamBVotedCount === currentTeamB.length;
+    // 투표 진행 현황 + 미투표자 계산
+    const teamAVoters = new Set(Object.keys(mvpVotes.teamA || {}));
+    const teamBVoters = new Set(Object.keys(mvpVotes.teamB || {}));
+    const teamANotVoted = currentTeamA.filter(p => !teamAVoters.has(fbKey(p.name)));
+    const teamBNotVoted = currentTeamB.filter(p => !teamBVoters.has(fbKey(p.name)));
+    const teamAVotedCount = currentTeamA.length - teamANotVoted.length;
+    const teamBVotedCount = currentTeamB.length - teamBNotVoted.length;
+    const allVoted = teamANotVoted.length === 0 && teamBNotVoted.length === 0;
+
+    const pendingHtml = (notVoted, color) => notVoted.length === 0
+      ? `<span style="color:var(--green)">✅ 완료</span>`
+      : notVoted.map(p => `<span style="color:${color};font-weight:700;">${escHtml(p.name)}</span>`).join(', ');
 
     let myVoteHtml = '';
     if (!myNorm) {
@@ -2661,7 +2650,6 @@ function renderMvpSection() {
       myVoteHtml = `<div style="font-size:12px;color:var(--text-dim);padding:8px 0 12px;">이번 경기에 참가하지 않아 투표할 수 없어요.</div>`;
     } else {
       if (amITeamA) {
-        // 1팀 → 2팀 Best 투표
         const myPick = (mvpVotes.teamA || {})[fbKey(myName)];
         const btns = currentTeamB.map(p => {
           const picked = myPick === p.name;
@@ -2675,7 +2663,6 @@ function renderMvpSection() {
         </div>`;
       }
       if (amITeamB) {
-        // 2팀 → 1팀 Best 투표
         const myPick = (mvpVotes.teamB || {})[fbKey(myName)];
         const btns = currentTeamA.map(p => {
           const picked = myPick === p.name;
@@ -2694,11 +2681,18 @@ function renderMvpSection() {
       <div class="mvp-title">🏆 MVP · SVP 투표</div>
       ${myVoteHtml}
       <div class="mvp-progress">
-        <span>🔵 1팀 투표: ${teamAVotedCount}/${currentTeamA.length}명</span>
-        <span>🟡 2팀 투표: ${teamBVotedCount}/${currentTeamB.length}명</span>
+        <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">
+          <span style="flex-shrink:0;">🔵 1팀 (${teamAVotedCount}/${currentTeamA.length})</span>
+          <span style="font-size:11px;">미투표: ${pendingHtml(teamANotVoted, 'var(--blue)')}</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">
+          <span style="flex-shrink:0;">🟡 2팀 (${teamBVotedCount}/${currentTeamB.length})</span>
+          <span style="font-size:11px;">미투표: ${pendingHtml(teamBNotVoted, 'var(--gold)')}</span>
+        </div>
       </div>
       <div class="mvp-sub">상대 팀에서 한 명씩 선택해요<br>이긴 팀 선정자 MVP 🏆 · 진 팀 선정자 SVP 🥈<br>선정된 플레이어는 🪙+${GOLD_MVP} 추가 지급</div>`;
 
+    requestAnimationFrame(() => window.scrollTo(0, savedScrollY));
     if (allVoted) autoConfirmMvp();
   }
 
