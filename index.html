@@ -557,8 +557,8 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .buddy-wr.low{color:var(--red);}
 .buddy-empty{font-size:11px;color:var(--text-dim);text-align:center;padding:10px;background:var(--surface2);border-radius:6px;}
 /* ── 팀 발표 오버레이 ── */
-.team-announce-overlay{position:fixed;inset:0;z-index:2000;background:rgba(4,10,20,0.97);overflow-y:auto;animation:taFadeIn 0.4s ease;cursor:pointer;user-select:none;}
-.ta-inner{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100%;padding:20px 12px;box-sizing:border-box;}
+.team-announce-overlay{position:fixed;inset:0;z-index:2000;background:rgba(4,10,20,0.97);overflow-y:auto;display:flex;flex-direction:column;animation:taFadeIn 0.4s ease;cursor:pointer;user-select:none;}
+.ta-inner{display:flex;flex-direction:column;align-items:center;padding:20px 12px;box-sizing:border-box;width:100%;margin:auto;}
 @keyframes taFadeIn{from{opacity:0}to{opacity:1}}
 @keyframes taFadeOut{from{opacity:1}to{opacity:0}}
 .ta-title{font-family:'Black Han Sans',sans-serif;font-size:20px;color:var(--gold);letter-spacing:4px;margin-bottom:16px;animation:taPopIn 0.5s cubic-bezier(0.175,0.885,0.32,1.275) 0.1s both;text-shadow:0 0 24px rgba(200,155,60,0.6);}
@@ -577,6 +577,10 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .ta-player{width:100%;display:flex;align-items:center;justify-content:space-between;gap:5px;padding:4px 7px;border-radius:6px;background:rgba(255,255,255,0.04);animation:taPlayerIn 0.35s ease both;}
 @keyframes taPlayerIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .ta-player-name{font-size:12px;color:var(--text);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ta-quest{width:100%;max-width:580px;margin-top:12px;background:rgba(255,200,50,0.06);border:1px solid rgba(255,200,50,0.28);border-radius:10px;padding:12px 16px;text-align:center;animation:taPlayerIn 0.45s ease both;box-shadow:0 0 20px rgba(255,200,50,0.08);}
+.ta-quest-label{font-size:10px;color:rgba(255,200,50,0.6);letter-spacing:3px;font-weight:700;margin-bottom:6px;}
+.ta-quest-name{font-family:'Black Han Sans',sans-serif;font-size:18px;color:var(--gold);margin-bottom:6px;}
+.ta-quest-desc{font-size:11px;color:var(--text-dim);line-height:1.9;}
 .ta-dismiss{margin-top:14px;font-size:11px;color:var(--text-dim);animation:taFadeIn 0.5s ease 1.2s both;letter-spacing:1px;}
 .ta-progress{width:120px;height:2px;background:rgba(255,255,255,0.1);border-radius:1px;margin-top:6px;overflow:hidden;animation:taFadeIn 0.5s ease 1.2s both;}
 .ta-progress-bar{height:100%;background:var(--gold);border-radius:1px;}
@@ -630,7 +634,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.16.1</div>
+<div class="version-badge">v2.16.2</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1405,7 +1409,7 @@ function checkQuestEvent() {
   if (!triggeredRank) return;
   if (Math.random() > QUEST_TRIGGER_RATE) return;
   questEventState = { rank: triggeredRank, playerName: triggeredPlayer, ...QUEST_CONFIGS[triggeredRank] };
-  setTimeout(() => showQuestPopup(questEventState), 700);
+  // 팝업은 showTeamAnnounce 오버레이에 통합 — 별도 호출 없음
 }
 
 function showQuestPopup(q) {
@@ -2165,9 +2169,9 @@ window.makeTeams = function() {
   itemsLocked = true;
   renderShop();
   renderResult();
+  checkQuestEvent(); // questEventState 먼저 확정
   _justMadeTeams = true;
   showTeamAnnounce(currentTeamA, currentTeamB);
-  checkQuestEvent();
   // Firebase에 팀 결과 기록 → 다른 기기에 실시간 동기화
   set(ref(db, 'session'), {
     active: true,
@@ -2373,6 +2377,19 @@ function showTeamAnnounce(teamA, teamB) {
   const aRows = teamA.map((p, i) => playerRow(p, 0.45 + i * 0.1)).join('');
   const bRows = teamB.map((p, i) => playerRow(p, 0.45 + i * 0.1)).join('');
 
+  // 퀘스트 섹션 — 팀원 등장 후 나타남
+  const questDelay = (0.45 + maxLen * 0.1 + 0.3).toFixed(2);
+  const questHtml = questEventState ? `
+    <div class="ta-quest" style="animation-delay:${questDelay}s">
+      <div class="ta-quest-label">⚠ 매칭 퀘스트 발동</div>
+      <div class="ta-quest-name">${questEventState.emoji} ${questEventState.name}</div>
+      <div class="ta-quest-desc">
+        <strong>${escHtml(questEventState.playerName)}</strong>에게 발동됐습니다<br>
+        승리팀 <strong style="color:var(--green)">+${questEventState.bonusGold}G</strong> 상금 &nbsp;·&nbsp; 패배팀 골드 없음<br>
+        ${escHtml(questEventState.playerName)} 패배 시 <strong style="color:var(--red)">-${questEventState.lossExtraPt}pt</strong> 추가
+      </div>
+    </div>` : '';
+
   const el = document.createElement('div');
   el.id = 'team-announce-root';
   el.className = 'team-announce-overlay';
@@ -2390,6 +2407,7 @@ function showTeamAnnounce(teamA, teamB) {
           ${bRows}
         </div>
       </div>
+      ${questHtml}
       <div class="ta-dismiss">화면을 클릭하면 닫힙니다</div>
       <div class="ta-progress"><div class="ta-progress-bar" id="ta-bar" style="width:100%"></div></div>
     </div>
