@@ -634,7 +634,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.17.0</div>
+<div class="version-badge">v2.17.1</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1274,8 +1274,10 @@ function applySessionData(data) {
       showGoldToast('⚔️ 팀 구성 완료! 결과창으로 이동합니다');
       setTimeout(() => showTab('tab-team', teamTabBtn), 800);
     }
-    // 새 팀 구성 시 발표 오버레이 (초기 로드 시엔 표시 안 함)
-    if (_initialSessionLoaded && !_justMadeTeams) {
+    // 새 팀 구성 시 발표 오버레이 (팀 멤버가 실제로 바뀐 경우만)
+    const sig = _teamSig(currentTeamA, currentTeamB);
+    if (_initialSessionLoaded && !_justMadeTeams && sig !== _lastAnnounceTeamSig) {
+      _lastAnnounceTeamSig = sig;
       showTeamAnnounce(currentTeamA, currentTeamB);
     }
     _justMadeTeams = false;
@@ -2170,6 +2172,7 @@ window.makeTeams = function() {
   renderResult();
   checkQuestEvent(); // questEventState 먼저 확정
   _justMadeTeams = true;
+  _lastAnnounceTeamSig = _teamSig(currentTeamA, currentTeamB);
   showTeamAnnounce(currentTeamA, currentTeamB);
   // Firebase에 팀 결과 기록 → 다른 기기에 실시간 동기화
   set(ref(db, 'session'), {
@@ -2356,6 +2359,11 @@ let matchSaved = false; // 현재 팀 결과 저장 여부
 
 let _initialSessionLoaded = false;
 let _justMadeTeams = false;
+let _lastAnnounceTeamSig = null;
+
+function _teamSig(teamA, teamB) {
+  return teamA.map(p => p.name).join(',') + '|' + teamB.map(p => p.name).join(',');
+}
 
 function showTeamAnnounce(teamA, teamB) {
   const old = document.getElementById('team-announce-root');
