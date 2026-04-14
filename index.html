@@ -178,20 +178,22 @@ select option{background:var(--surface2);}
 .spectator-box{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-top:10px;font-size:13px;}
 .spectator-label{font-size:11px;color:var(--text-dim);white-space:nowrap;}
 .spectator-name{font-weight:700;color:var(--text);}
-/* ── 관전자 예측 모달 ── */
-.sp-overlay{position:fixed;inset:0;z-index:2200;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;padding:20px;animation:taFadeIn 0.2s ease;}
-.sp-sheet{background:var(--surface);border-radius:16px;width:100%;max-width:340px;padding:28px 20px 22px;text-align:center;}
-.sp-emoji{font-size:38px;margin-bottom:8px;line-height:1;}
-.sp-title{font-family:'Black Han Sans',sans-serif;font-size:18px;color:var(--gold);margin-bottom:6px;letter-spacing:1px;}
-.sp-sub{font-size:12px;color:var(--text-dim);line-height:1.9;margin-bottom:14px;}
-.sp-timer{font-family:'Gmarket Sans',sans-serif;font-size:44px;font-weight:700;color:var(--gold-light);margin-bottom:18px;line-height:1;transition:color 0.3s;}
+/* ── 관전자 예측 하단 배너 ── */
+.sp-overlay{position:fixed;left:0;right:0;bottom:0;z-index:2200;padding:0 12px 12px;display:flex;justify-content:center;pointer-events:none;animation:spSlideUp 0.35s ease both;}
+@keyframes spSlideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spSlideDown{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(30px)}}
+.sp-sheet{pointer-events:auto;background:var(--surface);border-radius:16px;width:100%;max-width:400px;padding:18px 18px 14px;text-align:center;box-shadow:0 -4px 24px rgba(0,0,0,0.45);border:1px solid var(--border);}
+.sp-emoji{font-size:28px;margin-bottom:4px;line-height:1;}
+.sp-title{font-family:'Black Han Sans',sans-serif;font-size:16px;color:var(--gold);margin-bottom:4px;letter-spacing:1px;}
+.sp-sub{font-size:12px;color:var(--text-dim);line-height:1.7;margin-bottom:10px;}
+.sp-timer{font-family:'Gmarket Sans',sans-serif;font-size:36px;font-weight:700;color:var(--gold-light);margin-bottom:12px;line-height:1;transition:color 0.3s;}
 .sp-timer.urgent{color:var(--red);}
-.sp-btns{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
-.sp-pick-btn{padding:13px 16px;border-radius:10px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:all 0.2s;}
-.sp-pick-btn.blue:hover,.sp-pick-btn.blue.picked{border-color:var(--blue);background:rgba(66,135,245,0.12);color:#7ab3ff;}
-.sp-pick-btn.red:hover,.sp-pick-btn.red.picked{border-color:var(--red);background:rgba(255,80,80,0.12);color:#ff9090;}
+.sp-btns{display:flex;gap:8px;margin-bottom:8px;}
+.sp-pick-btn{flex:1;padding:12px 10px;border-radius:10px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:all 0.2s;}
+.sp-pick-btn.team1:hover,.sp-pick-btn.team1.picked{border-color:var(--gold);background:rgba(255,200,60,0.1);color:var(--gold-light);}
+.sp-pick-btn.team2:hover,.sp-pick-btn.team2.picked{border-color:var(--gold);background:rgba(255,200,60,0.1);color:var(--gold-light);}
 .sp-hint{font-size:11px;color:var(--text-dim);}
-.sp-announce-icon{font-size:48px;margin-bottom:14px;line-height:1;}
+.sp-announce-icon{font-size:36px;margin-bottom:8px;line-height:1;}
 .sp-announce-text{font-size:14px;color:var(--text);line-height:2.1;}
 .spectator-pick-banner{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(120,60,220,0.07);border:1px solid rgba(160,100,255,0.28);border-radius:8px;margin-top:8px;font-size:13px;color:var(--text-dim);}
 .team-card:nth-child(2){animation-delay:0.1s;}
@@ -704,7 +706,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.22.3</div>
+<div class="version-badge">v2.23.0</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1394,16 +1396,29 @@ function applySessionData(data) {
       applySpectatorPickResult(data.spectatorPick, null);
     }
   } else if (!data.spectatorPick && currentSpectator && data.spectatorPickStartAt && !_justMadeTeams) {
-    // 예측 미완료 + 다른 기기에서 팀 구성받음 → 남은 시간으로 모달 표시
+    // 예측 미완료 + 다른 기기에서 팀 구성받음 → 남은 시간으로 배너 표시
+    // spectatorPickStartAt은 팀 발표 종료 시점(미래)을 가리킴
     spectatorPick = null;
     _spectatorPickAnnounced = false;
-    const elapsed = Math.floor((Date.now() - data.spectatorPickStartAt) / 1000);
-    const remaining = Math.max(0, 15 - elapsed);
-    // 이미 모달이 표시 중이거나 타이머가 실행 중이면 중복 표시 방지
-    if (remaining > 0 && !document.getElementById('sp-overlay') && !spectatorPickTimer) {
-      setTimeout(() => {
-        if (!document.getElementById('sp-overlay') && !spectatorPickTimer) showSpectatorPickModal(remaining);
-      }, 800);
+    const now = Date.now();
+    const pickStartAt = data.spectatorPickStartAt;
+    if (now < pickStartAt) {
+      // 아직 팀 발표 진행 중 → 팀 발표 종료 후 모달 표시
+      const delayMs = pickStartAt - now;
+      if (!document.getElementById('sp-overlay') && !spectatorPickTimer) {
+        setTimeout(() => {
+          if (!document.getElementById('sp-overlay') && !spectatorPickTimer) showSpectatorPickModal(15);
+        }, delayMs);
+      }
+    } else {
+      // 이미 팀 발표 종료 → 남은 시간으로 즉시 표시
+      const elapsed = Math.floor((now - pickStartAt) / 1000);
+      const remaining = Math.max(0, 15 - elapsed);
+      if (remaining > 0 && !document.getElementById('sp-overlay') && !spectatorPickTimer) {
+        setTimeout(() => {
+          if (!document.getElementById('sp-overlay') && !spectatorPickTimer) showSpectatorPickModal(remaining);
+        }, 300);
+      }
     }
   } else if (!currentSpectator) {
     spectatorPick = null;
@@ -2099,8 +2114,8 @@ function showSpectatorPickModal(seconds = 15) {
       <div class="sp-sub">어느 팀이 이길 것 같나요?<br>적중 시 🪙<strong>+${GOLD_SPECTATOR_CORRECT}G</strong> 지급</div>
       <div class="sp-timer" id="sp-timer">${seconds}</div>
       <div class="sp-btns">
-        <button class="sp-pick-btn blue" onclick="spectatorPickTeam('blue')">🔵 1팀 (블루) 승리</button>
-        <button class="sp-pick-btn red"  onclick="spectatorPickTeam('red')">🔴 2팀 (레드) 승리</button>
+        <button class="sp-pick-btn team1" onclick="spectatorPickTeam('blue')">1팀 승리</button>
+        <button class="sp-pick-btn team2" onclick="spectatorPickTeam('red')">2팀 승리</button>
       </div>
       <div class="sp-hint">미선택 시 자동으로 랜덤 선택됩니다</div>
     </div>`;
@@ -2134,8 +2149,9 @@ window.spectatorPickTeam = function(pick) {
   spectatorPick = pick;
   _spectatorPickAnnounced = true;
   // 선택 버튼 하이라이트
+  const pickCls = pick === 'blue' ? 'team1' : 'team2';
   document.querySelectorAll('.sp-pick-btn').forEach(btn =>
-    btn.classList.toggle('picked', btn.classList.contains(pick))
+    btn.classList.toggle('picked', btn.classList.contains(pickCls))
   );
   // Firebase 저장 → 다른 기기 동기화
   set(ref(db, 'session/spectatorPick'), pick).catch(console.error);
@@ -2147,9 +2163,7 @@ window.spectatorPickTeam = function(pick) {
 function applySpectatorPickResult(pick, existingOverlay) {
   if (!currentSpectator) return;
   const specName = currentSpectator.name;
-  const teamLabel = pick === 'blue' ? '1팀 (블루)' : '2팀 (레드)';
-  const teamColor = pick === 'blue' ? 'var(--blue)' : 'var(--red)';
-  const emoji     = pick === 'blue' ? '🔵' : '🔴';
+  const teamLabel = pick === 'blue' ? '1팀' : '2팀';
   // 이/가 조사
   const lastChar = specName[specName.length - 1];
   const code = lastChar?.charCodeAt(0) || 0;
@@ -2157,11 +2171,11 @@ function applySpectatorPickResult(pick, existingOverlay) {
   const particle = hasJongseong ? '이' : '가';
 
   const html = `<div class="sp-sheet" onclick="event.stopPropagation()">
-    <div class="sp-announce-icon">${emoji}</div>
+    <div class="sp-announce-icon">🔮</div>
     <div class="sp-title">관전자의 예측!</div>
     <div class="sp-announce-text">
       관전자 <strong style="color:var(--text)">${escHtml(specName)}</strong>${particle}<br>
-      <strong style="color:${teamColor};font-size:17px;">${teamLabel}</strong>의<br>
+      <strong style="color:var(--gold);font-size:17px;">${teamLabel}</strong>의<br>
       승리로 점쳤습니다!
     </div>
     <div class="sp-hint" style="margin-top:14px;">적중 시 🪙+${GOLD_SPECTATOR_CORRECT}G 지급</div>
@@ -2173,10 +2187,15 @@ function applySpectatorPickResult(pick, existingOverlay) {
     overlay = document.createElement('div');
     overlay.className = 'sp-overlay'; overlay.id = 'sp-overlay';
     overlay.innerHTML = html;
-    overlay.addEventListener('click', () => overlay.remove());
     document.body.appendChild(overlay);
   }
-  setTimeout(() => { overlay?.remove(); renderResult(); }, 3500);
+  // 3.5초 뒤 슬라이드다운 후 제거
+  setTimeout(() => {
+    if (overlay) {
+      overlay.style.animation = 'spSlideDown 0.35s ease forwards';
+      setTimeout(() => { overlay?.remove(); renderResult(); }, 380);
+    }
+  }, 3500);
 }
 
 // ── 관전 포인트 모달 ─────────────────────────────────────────
@@ -2518,7 +2537,9 @@ window.makeTeams = function() {
   clearInterval(spectatorPickTimer);
   document.getElementById('sp-overlay')?.remove();
 
-  const spectatorPickStartAt = currentSpectator ? Date.now() : null;
+  // 관전자 예측은 팀 발표(7초) 종료 후 시작 → spectatorPickStartAt도 그 시점 기준
+  const ANNOUNCE_DURATION = 7400; // showTeamAnnounce DURATION(7000) + fadeOut(400)
+  const spectatorPickStartAt = currentSpectator ? Date.now() + ANNOUNCE_DURATION : null;
   set(ref(db, 'session'), {
     active: true,
     teamA: currentTeamA.map(p => p.name),
@@ -2529,8 +2550,8 @@ window.makeTeams = function() {
     spectatorPick: null,
     mvp: { active: true }, // MVP 초기화 통합 → onValue 이중 발화 방지
   }).catch(console.error);
-  // 관전자 예측 모달 표시 (0.7s 딜레이, 퀘스트 팝업과 동일)
-  if (currentSpectator) setTimeout(() => showSpectatorPickModal(15), 700);
+  // 관전자 예측 배너 표시 (팀 발표 종료 후)
+  if (currentSpectator) setTimeout(() => showSpectatorPickModal(15), ANNOUNCE_DURATION);
   // 게임 자동 감지 시작
   startGameDetection();
 };
@@ -2842,17 +2863,16 @@ function renderResult() {
   // 관전자 표시
   const spectatorEl = document.getElementById('spectator-section');
   if (currentSpectator && !isEventMatch) {
-    const pickLabel = spectatorPick === 'blue' ? '🔵 1팀 (블루) 승리'
-                    : spectatorPick === 'red'  ? '🔴 2팀 (레드) 승리' : null;
-    const pickColor = spectatorPick === 'blue' ? 'var(--blue)' : 'var(--red)';
+    const pickLabel = spectatorPick === 'blue' ? '1팀 승리'
+                    : spectatorPick === 'red'  ? '2팀 승리' : null;
     spectatorEl.innerHTML = `<div class="spectator-box">
       <span style="font-size:16px;">👀</span>
       <span class="spectator-label">이번 게임 관전자</span>
       <span class="spectator-name">${escHtml(currentSpectator.name)}</span>
     </div>
     ${pickLabel ? `<div class="spectator-pick-banner">
-      <span>🎲</span>
-      <span><strong style="color:${pickColor}">${pickLabel}</strong> 예측 중</span>
+      <span>🔮</span>
+      <span><strong style="color:var(--gold)">${pickLabel}</strong> 예측</span>
       <span style="margin-left:auto;font-size:11px;white-space:nowrap;">적중 시 🪙+${GOLD_SPECTATOR_CORRECT}G</span>
     </div>` : ''}`;
   } else {
