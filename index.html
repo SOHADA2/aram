@@ -704,7 +704,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.22.1</div>
+<div class="version-badge">v2.22.2</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1399,7 +1399,12 @@ function applySessionData(data) {
     _spectatorPickAnnounced = false;
     const elapsed = Math.floor((Date.now() - data.spectatorPickStartAt) / 1000);
     const remaining = Math.max(0, 15 - elapsed);
-    if (remaining > 0) setTimeout(() => showSpectatorPickModal(remaining), 800);
+    // 이미 모달이 표시 중이거나 타이머가 실행 중이면 중복 표시 방지
+    if (remaining > 0 && !document.getElementById('sp-overlay') && !spectatorPickTimer) {
+      setTimeout(() => {
+        if (!document.getElementById('sp-overlay') && !spectatorPickTimer) showSpectatorPickModal(remaining);
+      }, 800);
+    }
   } else if (!currentSpectator) {
     spectatorPick = null;
     _spectatorPickAnnounced = false;
@@ -2522,9 +2527,8 @@ window.makeTeams = function() {
     spectator: currentSpectator ? currentSpectator.name : null,
     spectatorPickStartAt,
     spectatorPick: null,
+    mvp: { active: true }, // MVP 초기화 통합 → onValue 이중 발화 방지
   }).catch(console.error);
-  // MVP 투표 초기화 → 팀 구성 즉시 투표 시작
-  set(ref(db, 'session/mvp'), { active: true }).catch(console.error);
   // 관전자 예측 모달 표시 (0.7s 딜레이, 퀘스트 팝업과 동일)
   if (currentSpectator) setTimeout(() => showSpectatorPickModal(15), 700);
   // 게임 자동 감지 시작
