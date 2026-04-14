@@ -704,7 +704,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.22.0</div>
+<div class="version-badge">v2.22.1</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1123,7 +1123,7 @@ const BTN_TIPS = {
   insurance:    `<strong style="color:#7dd3fc">🛡️ 패배 방어권 사용 성공</strong><br>패배했지만 <strong style="color:#e8e8f0">승점 차감 없음</strong><br><span style="color:#a0b0c8;">(일반 패배는 -7pt)</span>`,
   item_score2x: `<strong style="color:#ffd700">⚡ 승점 2배권</strong><br>경기 전 활성화 시 승리하면<br><strong style="color:#e8e8f0">+20pt</strong> 획득<br><span style="color:#a0b0c8;">미활성 승리 +10pt · 패배 시 소모</span>`,
   item_insurance:`<strong style="color:#7dd3fc">🛡️ 패배 방어권</strong><br>경기 전 활성화 시 패배해도<br><strong style="color:#e8e8f0">승점 차감 없음</strong><br><span style="color:#a0b0c8;">미활성 패배 -7pt · 승리 시 소모</span>`,
-  item_gamble:   `<strong style="color:#c084fc">🎲 도박 주사위</strong><br>경기 전 활성화 시 결과에 배팅<br>승리 <strong style="color:#4ade80">+25pt</strong> · 패배 <strong style="color:#ff8080">-15pt</strong> 고정<br><span style="color:#a0b0c8;">일반: 승 +10pt · 패 -7pt</span><br><span style="color:#ff8080;">⚠ 방어권·새싹 보정 모두 무시</span>`,
+  item_gamble:   `<strong style="color:#c084fc">🎲 도박 주사위</strong><br>경기 전 활성화 시 결과에 배팅<br>승리 <strong style="color:#4ade80">+25pt</strong> · 패배 <strong style="color:#ff8080">-15pt</strong> 고정<br><span style="color:#a0b0c8;">일반: 승 +10pt · 패 -7pt</span><br><span style="color:#ff8080;">⚠ 2배권·방어권·새싹 보정 모두 무시</span>`,
 };
 function _positionTip(box, cx, cy) {
   box.style.visibility = 'hidden';
@@ -4372,20 +4372,19 @@ window.toggleItemActive = async function(idx) {
   if (!isActive) {
     items.forEach((it,i) => { if (it.id===items[idx].id) items[i] = {...it, active:false}; });
   }
-  items[idx] = {...items[idx], active: !isActive};
-  await set(ref(db,'gold/'+key), {...data, items});
-  const activatedId = items[idx].id;
-  const activatedOn = items[idx].active;
-  if (activatedOn) {
-    // 도박+방어권 동시 활성화 시 경고
-    const hasGamble    = activatedId === 'gamble'    && items.some((it,i)=>i!==idx && it.id==='insurance' && it.active);
-    const hasInsurance = activatedId === 'insurance' && items.some((it,i)=>i!==idx && it.id==='gamble'    && it.active);
-    if (hasGamble || hasInsurance) {
-      showGoldToast(`⚠ 도박 주사위 활성 중에는 방어권이 적용되지 않아요`);
+  // 도박 주사위 ↔ 승점 2배권 / 방어권 동시 활성화 방지 (Firebase 쓰기 전에 체크)
+  if (!isActive) {
+    const tryId   = items[idx].id;
+    const gambleOn = items.some((it,i) => i!==idx && it.id==='gamble'                         && it.active);
+    const otherOn  = items.some((it,i) => i!==idx && (it.id==='score2x'||it.id==='insurance') && it.active);
+    if ((tryId === 'gamble' && otherOn) || (tryId !== 'gamble' && gambleOn)) {
+      showGoldToast(`⚠ 도박 주사위는 다른 아이템과 함께 사용할 수 없어요`);
       return;
     }
   }
-  showGoldToast(activatedOn
+  items[idx] = {...items[idx], active: !isActive};
+  await set(ref(db,'gold/'+key), {...data, items});
+  showGoldToast(items[idx].active
     ? `${def?.icon} ${def?.name} 활성화! 다음 경기에 적용돼요`
     : `${def?.icon} ${def?.name} 비활성화됨`);
 };
@@ -4416,6 +4415,8 @@ async function giveMatchGold(winners, losers, matchTimestamp) {
     items = items.filter(item => {
       if (!item.active) return true;
       if (item.id === 'score2x') {
+        // 도박 주사위 활성 시 2배권은 소모되지 않고 인벤토리에 보존됨 (안전망)
+        if (gambleActive) return true;
         if (isWinner) applyLog.push(`⚡ ${name} 승점 2배!`);
         else          applyLog.push(`⚡ ${name} 2배권 소모 (패배)`);
         return false; // 소모
