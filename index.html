@@ -694,7 +694,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.19.5</div>
+<div class="version-badge">v2.19.6</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -904,7 +904,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
     <div id="warn-box"></div>
     <div class="action-row">
       <button class="btn btn-gold" id="make-teams-btn" onclick="startItemPhase()" style="flex:1;justify-content:center;font-size:15px;padding:13px;">⚔️ 팀 구성</button>
-      <button class="btn btn-ghost btn-sm" style="position:relative;padding-right:20px;" onclick="resetSession()">🔄 초기화<span class="btn-q" onmouseenter="showBtnTip(event,'reset')" onmouseleave="hideBtnTip()" onclick="event.stopPropagation();toggleBtnTip(event,'reset')"><span class="btn-q-icon">?</span></span></button>
+      <button class="btn btn-ghost btn-sm" style="position:relative;padding-right:20px;" onclick="resetSession()">🔄 초기화<span class="btn-q" data-tip="reset" onclick="event.stopPropagation()"><span class="btn-q-icon">?</span></span></button>
     </div>
   </div>
 
@@ -1105,30 +1105,37 @@ const BTN_TIPS = {
   reset: `참가자 명단을 <strong style="color:#e8e8f0">전부 삭제</strong>하고<br>처음부터 다시 시작해요.<br><span style="color:#ff8080;">⚠ 저장 안 된 팀 결과도 사라져요</span>`,
   mvp:   `상대 팀에서 <strong style="color:#e8e8f0">각 1명씩</strong> 선택해요.<br>이긴 팀 선정자 → <strong style="color:#ffd700">MVP 🏆</strong><br>진 팀 선정자 → <strong style="color:#b0b8d0">SVP 🥈</strong><br>선정된 플레이어 <strong style="color:#ffd700">🪙+${GOLD_MVP}G</strong> 추가 지급`,
 };
-function showBtnTip(event, key) {
-  const box = document.getElementById('tip-box');
-  if (!box || !BTN_TIPS[key]) return;
-  box.innerHTML = BTN_TIPS[key];
+function _positionTip(box, cx, cy) {
+  box.style.visibility = 'hidden';
   box.style.display = 'block';
   const bw = box.offsetWidth, bh = box.offsetHeight;
-  const x = Math.min(event.clientX + 12, window.innerWidth - bw - 8);
-  const y = Math.max(event.clientY - bh - 10, 8);
-  box.style.left = x + 'px';
-  box.style.top  = y + 'px';
+  box.style.left = Math.min(cx + 14, window.innerWidth  - bw - 8) + 'px';
+  box.style.top  = Math.max(cy - bh - 10, 8) + 'px';
+  box.style.visibility = 'visible';
 }
 function hideBtnTip() {
   const box = document.getElementById('tip-box');
-  if (box) box.style.display = 'none';
+  if (box) { box.style.display = 'none'; box.dataset.tipKey = ''; }
 }
-function toggleBtnTip(event, key) {
+// 이벤트 위임 — data-tip 속성이 있는 요소에 자동 적용
+document.addEventListener('mouseover', function(e) {
+  const el = e.target.closest('[data-tip]');
+  if (!el) return;
+  const key = el.dataset.tip;
+  if (!BTN_TIPS[key]) return;
   const box = document.getElementById('tip-box');
-  if (box && box.style.display === 'block' && box.dataset.tipKey === key) {
-    hideBtnTip(); return;
-  }
-  if (box) box.dataset.tipKey = key;
-  showBtnTip(event, key);
-}
-document.addEventListener('click', hideBtnTip);
+  if (!box) return;
+  box.innerHTML = BTN_TIPS[key];
+  box.dataset.tipKey = key;
+  _positionTip(box, e.clientX, e.clientY);
+});
+document.addEventListener('mouseout', function(e) {
+  const el = e.target.closest('[data-tip]');
+  if (el && !el.contains(e.relatedTarget)) hideBtnTip();
+});
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('[data-tip]')) hideBtnTip();
+});
 
 // ── 뉴비 보너스 ──────────────────────────────────────────────
 const NEWBIE_WIN_BONUS_PT   = 3;  // 뉴비 팀원 있을 때 승리 추가 승점 (+10 → +13)
@@ -2893,7 +2900,7 @@ function renderMvpSection() {
     }
 
     sec.innerHTML = `
-      <div class="mvp-title" style="position:relative;padding-right:20px;">🏆 MVP · SVP 투표<span class="btn-q" onmouseenter="showBtnTip(event,'mvp')" onmouseleave="hideBtnTip()" onclick="event.stopPropagation();toggleBtnTip(event,'mvp')"><span class="btn-q-icon">?</span></span></div>
+      <div class="mvp-title" style="position:relative;padding-right:20px;">🏆 MVP · SVP 투표<span class="btn-q" data-tip="mvp"><span class="btn-q-icon">?</span></span></div>
       ${myVoteHtml}
       <div class="mvp-progress">
         ${progBlock('🔵 1팀', 'var(--blue)', teamAVoted, teamANotVoted)}
