@@ -434,9 +434,8 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .shop-item{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px 10px 12px;text-align:center;transition:all 0.2s;position:relative;display:flex;flex-direction:column;align-items:center;}
 .shop-item:hover{border-color:rgba(200,155,60,0.45);background:rgba(200,155,60,0.04);transform:translateY(-1px);}
 .shop-item-icon{font-size:34px;margin-bottom:6px;line-height:1;}
-.shop-item-name{font-family:'Black Han Sans',sans-serif;font-size:15px;letter-spacing:1px;margin-bottom:6px;word-break:keep-all;}
-.shop-item-price{display:inline-flex;align-items:center;gap:3px;font-family:'Black Han Sans',sans-serif;font-size:13px;color:var(--gold);background:rgba(200,155,60,0.12);border:1px solid rgba(200,155,60,0.35);border-radius:10px;padding:3px 10px;margin-bottom:8px;}
-.shop-buy-btn{width:100%;padding:7px;border-radius:6px;border:none;background:linear-gradient(135deg,#a07828,var(--gold));color:#0a0e1a;font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:11px;cursor:pointer;transition:all 0.15s;}
+.shop-item-name{font-family:'Noto Sans KR',sans-serif;font-weight:500;font-size:18px;margin-bottom:10px;word-break:keep-all;}
+.shop-buy-btn{width:100%;padding:9px 7px;border-radius:6px;border:none;background:linear-gradient(135deg,#a07828,var(--gold));color:#0a0e1a;font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:12px;cursor:pointer;transition:all 0.15s;}
 .shop-buy-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(200,155,60,0.35);}
 .shop-buy-btn:disabled{opacity:0.4;cursor:not-allowed;transform:none;}
 .shop-owned-badge{position:absolute;top:7px;left:7px;font-size:8px;background:rgba(0,199,122,0.15);border:1px solid rgba(0,199,122,0.4);color:var(--green);border-radius:8px;padding:1px 6px;}
@@ -689,7 +688,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.20.0</div>
+<div class="version-badge">v2.21.0</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1088,6 +1087,7 @@ let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName
 const SHOP_ITEMS = [
   { id:'score2x',   icon:'⚡', name:'승점 2배권', color:'#ffd700', desc:'경기 전 활성화 → 승리 시 +20pt (미사용 시 +10pt)', price:80, type:'oneshot' },
   { id:'insurance', icon:'🛡️', name:'패배 방어권', color:'#7dd3fc', desc:'경기 전 활성화 → 패배해도 승점 차감 없음 (미사용 시 -7pt)', price:60, type:'oneshot' },
+  { id:'gamble',    icon:'🎲', name:'도박 주사위', color:'#c084fc', desc:'경기 전 활성화 → 승리 시 +25pt / 패배 시 -15pt (일반: 승 +10pt · 패 -7pt)', price:50, type:'oneshot' },
 ];
 
 const GOLD_WIN    = 15;
@@ -1103,6 +1103,7 @@ const BTN_TIPS = {
   insurance:    `<strong style="color:#7dd3fc">🛡️ 패배 방어권 사용 성공</strong><br>패배했지만 <strong style="color:#e8e8f0">승점 차감 없음</strong><br><span style="color:#a0b0c8;">(일반 패배는 -7pt)</span>`,
   item_score2x: `<strong style="color:#ffd700">⚡ 승점 2배권</strong><br>경기 전 활성화 시 승리하면<br><strong style="color:#e8e8f0">+20pt</strong> 획득<br><span style="color:#a0b0c8;">미활성 승리 +10pt · 패배 시 소모</span>`,
   item_insurance:`<strong style="color:#7dd3fc">🛡️ 패배 방어권</strong><br>경기 전 활성화 시 패배해도<br><strong style="color:#e8e8f0">승점 차감 없음</strong><br><span style="color:#a0b0c8;">미활성 패배 -7pt · 승리 시 소모</span>`,
+  item_gamble:   `<strong style="color:#c084fc">🎲 도박 주사위</strong><br>경기 전 활성화 시 결과에 배팅<br>승리 <strong style="color:#4ade80">+25pt</strong> · 패배 <strong style="color:#ff8080">-15pt</strong><br><span style="color:#a0b0c8;">일반: 승 +10pt · 패 -7pt</span>`,
 };
 function _positionTip(box, cx, cy) {
   box.style.visibility = 'hidden';
@@ -1562,6 +1563,7 @@ function getWinRateScore(name) {
 // 신뢰도 = total / (total + 10)
 const BASE_SCORE = 500;
 const WIN_PT = 10, LOSS_PT = 7;
+const GAMBLE_WIN_PT = 25, GAMBLE_LOSS_PT = 15;
 
 function calcScore(name) {
   const key = normName(name);
@@ -1584,13 +1586,14 @@ function calcScore(name) {
     const hasNewbieTeammate = myTeamArr.some(n => normName(n) !== key && matchTime >= getNewbieSince(n));
     const iAmNewbie = matchTime >= getNewbieSince(name);
     if (won) {
-      let pt = effects.includes('score2x') ? WIN_PT * 2 : WIN_PT;
+      let pt = effects.includes('gamble') ? GAMBLE_WIN_PT
+             : effects.includes('score2x') ? WIN_PT * 2 : WIN_PT;
       if (hasNewbieTeammate) pt += NEWBIE_WIN_BONUS_PT;
       raw = Math.min(1000, raw + pt);
     } else {
       const blocked = effects.includes('insurance');
       if (!blocked) {
-        let lpt = LOSS_PT;
+        let lpt = effects.includes('gamble') ? GAMBLE_LOSS_PT : LOSS_PT;
         if (iAmNewbie) lpt = 2; // 뉴비 본인 패배 감점 최소화 (기존 -7pt → -2pt)
         else if (hasNewbieTeammate) lpt = Math.max(0, lpt - NEWBIE_LOSS_REDUCE_PT);
         raw = Math.max(0, raw - lpt);
@@ -4087,9 +4090,8 @@ function renderShop() {
       <button class="shop-item-help-btn" data-tip="item_${item.id}">?</button>
       <div class="shop-item-icon" style="color:${nameColor};">${item.icon}</div>
       <div class="shop-item-name" style="color:${nameColor};">${item.name}</div>
-      <div class="shop-item-price">🪙 ${item.price}</div>
       <button class="shop-buy-btn" ${(!canBuy)?'disabled':''} onclick="buyItem('${item.id}')">
-        ${itemsLocked?'🔒 잠김':canBuy?'구매':'골드 부족'}
+        ${itemsLocked?'🔒 잠김':canBuy?`구매 · 🪙${item.price}G`:`🪙${item.price}G (골드 부족)`}
       </button>
     </div>`;
   }).join('');
@@ -4213,6 +4215,11 @@ async function giveMatchGold(winners, losers, matchTimestamp) {
       if (item.id === 'insurance') {
         if (!isWinner) applyLog.push(`🛡️ ${name} 패배 방어!`);
         else           applyLog.push(`🛡️ ${name} 방어권 소모 (승리)`);
+        return false; // 소모
+      }
+      if (item.id === 'gamble') {
+        if (isWinner) applyLog.push(`🎲 ${name} 도박 성공! (+25pt)`);
+        else          applyLog.push(`🎲 ${name} 도박 실패... (-15pt)`);
         return false; // 소모
       }
       return false; // 그 외 active 아이템도 소모
