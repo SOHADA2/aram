@@ -214,9 +214,11 @@ select option{background:var(--surface2);}
 .cl-changes{list-style:none;padding:0;margin:0;}
 .cl-changes li{font-size:12px;color:var(--text);line-height:1.8;padding-left:14px;position:relative;}
 .cl-changes li::before{content:'·';position:absolute;left:2px;color:var(--text-dim);font-weight:700;}
-.changelog-footer{padding:12px 20px;border-top:1px solid var(--border);text-align:center;}
+.changelog-footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px;}
 .changelog-close-btn{width:100%;padding:10px;border-radius:10px;border:none;background:var(--gold);color:#1a1a2e;font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:opacity 0.2s;}
 .changelog-close-btn:hover{opacity:0.85;}
+.changelog-mute-btn{width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text-dim);font-family:'Noto Sans KR',sans-serif;font-size:12px;cursor:pointer;transition:opacity 0.2s;}
+.changelog-mute-btn:hover{opacity:0.7;}
 .team-card:nth-child(2){animation-delay:0.1s;}
 @keyframes popIn{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
 .team-blue{border-color:var(--blue-dark);}
@@ -727,7 +729,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge" id="version-badge" onclick="showChangelog(true)">v2.23.1</div>
+<div class="version-badge" id="version-badge" onclick="showChangelog()">v2.23.2</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1126,11 +1128,12 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.23.1';
+const APP_VERSION = 'v2.23.2';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
-  { ver: 'v2.23.1', date: '2026-04-14', changes: [
-    { tag: 'new', text: '업데이트 노트 시스템 추가 (버전 뱃지 클릭으로 확인)' },
+  { ver: 'v2.23.2', date: '2026-04-14', changes: [
+    { tag: 'new', text: '업데이트 노트 시스템 추가 (접속 시 자동 표시)' },
+    { tag: 'new', text: '"오늘은 그만 볼게요" 버튼으로 하루 동안 숨기기' },
   ]},
   { ver: 'v2.23.0', date: '2026-04-14', changes: [
     { tag: 'improve', text: '관전자 예측이 팀 발표 종료 후 시작되도록 변경' },
@@ -1180,31 +1183,22 @@ const CHANGELOG = [
   ]},
 ];
 
-window.showChangelog = function(showAll) {
+function _getToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+window.showChangelog = function() {
   document.querySelector('.changelog-overlay')?.remove();
   const TAG_LABELS = { new: '신규', fix: '수정', improve: '개선' };
-  const lastSeen = localStorage.getItem('lastSeenVersion') || '';
-  const seenIdx = lastSeen ? CHANGELOG.findIndex(c => c.ver === lastSeen) : -1;
-  // 새 업데이트 개수: seenIdx 앞의 항목들이 새 업데이트
-  const newCount = seenIdx === 0 ? 0 : (seenIdx > 0 ? seenIdx : (!lastSeen ? 1 : CHANGELOG.length));
 
-  let entries;
-  if (showAll) {
-    entries = CHANGELOG;
-  } else {
-    entries = newCount > 0 ? CHANGELOG.slice(0, newCount) : [];
-  }
-  if (entries.length === 0) return;
-
-  const versionsHtml = entries.map((c, i) => {
-    const isNew = i < newCount;
-    return `<div class="cl-version">
-      <div class="cl-ver-title">${c.ver}${isNew && showAll ? ' <span class="cl-tag new" style="font-size:9px;">NEW</span>' : ''} <span class="cl-date">${c.date}</span></div>
+  const versionsHtml = CHANGELOG.map(c => `
+    <div class="cl-version">
+      <div class="cl-ver-title">${c.ver} <span class="cl-date">${c.date}</span></div>
       <ul class="cl-changes">${c.changes.map(ch =>
         `<li><span class="cl-tag ${ch.tag}">${TAG_LABELS[ch.tag]||ch.tag}</span>${escHtml(ch.text)}</li>`
       ).join('')}</ul>
-    </div>`;
-  }).join('');
+    </div>`).join('');
 
   const overlay = document.createElement('div');
   overlay.className = 'changelog-overlay';
@@ -1216,22 +1210,23 @@ window.showChangelog = function(showAll) {
       </div>
       <div class="changelog-body">${versionsHtml}</div>
       <div class="changelog-footer">
-        <button class="changelog-close-btn" onclick="dismissChangelog()">확인</button>
+        <button class="changelog-close-btn" onclick="dismissChangelog(false)">확인</button>
+        <button class="changelog-mute-btn" onclick="dismissChangelog(true)">오늘은 그만 볼게요</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);
 };
 
-window.dismissChangelog = function() {
-  localStorage.setItem('lastSeenVersion', APP_VERSION);
+window.dismissChangelog = function(muteToday) {
+  if (muteToday) localStorage.setItem('changelogMuteDate', _getToday());
   const overlay = document.querySelector('.changelog-overlay');
   if (overlay) { overlay.style.animation = 'taFadeOut 0.25s ease forwards'; setTimeout(() => overlay.remove(), 280); }
 };
 
-// 앱 로드 시 업데이트 노트 체크 (약간의 딜레이로 자연스럽게)
+// 접속 시 업데이트 노트 표시 (오늘 "그만 볼게요" 누르지 않았으면 항상 표시)
 setTimeout(() => {
-  const lastSeen = localStorage.getItem('lastSeenVersion') || '';
-  if (lastSeen !== APP_VERSION) window.showChangelog(false);
+  const muteDate = localStorage.getItem('changelogMuteDate') || '';
+  if (muteDate !== _getToday()) window.showChangelog();
 }, 1500);
 
 // ── 아이템 정의 ──────────────────────────────────────────────
