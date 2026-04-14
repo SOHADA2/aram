@@ -704,7 +704,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.22.2</div>
+<div class="version-badge">v2.22.3</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -3015,6 +3015,7 @@ function renderMvpSection() {
     const myNorm = myName ? normName(myName) : null;
     const amITeamA = myNorm && currentTeamA.some(p => normName(p.name) === myNorm);
     const amITeamB = myNorm && currentTeamB.some(p => normName(p.name) === myNorm);
+    const amISpectator = myNorm && currentSpectator && normName(currentSpectator.name) === myNorm;
 
     // 투표 진행 현황 + 투표자/미투표자 분리
     const teamAVoters = new Set(Object.keys(mvpVotes.teamA || {}));
@@ -3045,6 +3046,8 @@ function renderMvpSection() {
     let myVoteHtml = '';
     if (!myNorm) {
       myVoteHtml = '';
+    } else if (amISpectator) {
+      myVoteHtml = `<div style="font-size:12px;color:var(--text-dim);padding:8px 0 12px;">👀 관전자는 MVP 투표에 참여할 수 없어요.</div>`;
     } else if (!amITeamA && !amITeamB) {
       myVoteHtml = `<div style="font-size:12px;color:var(--text-dim);padding:8px 0 12px;">이번 경기에 참가하지 않아 투표할 수 없어요.</div>`;
     } else {
@@ -3098,7 +3101,14 @@ window.confirmMvpVote = function(team, voter, candidate) {
 };
 
 window.castMvpVote = function(team, voter, candidate) {
-  const safeKey = normName(voter).replace(/\s+/g, '_');
+  // 관전자·비참가자 투표 차단: 실제 해당 팀 멤버인지 확인
+  const voterNorm = normName(voter);
+  const inTeamA = currentTeamA.some(p => normName(p.name) === voterNorm);
+  const inTeamB = currentTeamB.some(p => normName(p.name) === voterNorm);
+  if (team === 'teamA' && !inTeamA) return;
+  if (team === 'teamB' && !inTeamB) return;
+
+  const safeKey = voterNorm.replace(/\s+/g, '_');
   const path = team === 'teamA'
     ? `session/mvp/teamAVotes/${safeKey}`
     : `session/mvp/teamBVotes/${safeKey}`;
