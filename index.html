@@ -688,7 +688,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.21.1</div>
+<div class="version-badge">v2.21.2</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1103,7 +1103,7 @@ const BTN_TIPS = {
   insurance:    `<strong style="color:#7dd3fc">🛡️ 패배 방어권 사용 성공</strong><br>패배했지만 <strong style="color:#e8e8f0">승점 차감 없음</strong><br><span style="color:#a0b0c8;">(일반 패배는 -7pt)</span>`,
   item_score2x: `<strong style="color:#ffd700">⚡ 승점 2배권</strong><br>경기 전 활성화 시 승리하면<br><strong style="color:#e8e8f0">+20pt</strong> 획득<br><span style="color:#a0b0c8;">미활성 승리 +10pt · 패배 시 소모</span>`,
   item_insurance:`<strong style="color:#7dd3fc">🛡️ 패배 방어권</strong><br>경기 전 활성화 시 패배해도<br><strong style="color:#e8e8f0">승점 차감 없음</strong><br><span style="color:#a0b0c8;">미활성 패배 -7pt · 승리 시 소모</span>`,
-  item_gamble:   `<strong style="color:#c084fc">🎲 도박 주사위</strong><br>경기 전 활성화 시 결과에 배팅<br>승리 <strong style="color:#4ade80">+25pt</strong> · 패배 <strong style="color:#ff8080">-15pt</strong><br><span style="color:#a0b0c8;">일반: 승 +10pt · 패 -7pt</span><br><span style="color:#ff8080;">⚠ 방어권과 동시 사용 불가</span>`,
+  item_gamble:   `<strong style="color:#c084fc">🎲 도박 주사위</strong><br>경기 전 활성화 시 결과에 배팅<br>승리 <strong style="color:#4ade80">+25pt</strong> · 패배 <strong style="color:#ff8080">-15pt</strong> 고정<br><span style="color:#a0b0c8;">일반: 승 +10pt · 패 -7pt</span><br><span style="color:#ff8080;">⚠ 방어권·새싹 보정 모두 무시</span>`,
 };
 function _positionTip(box, cx, cy) {
   box.style.visibility = 'hidden';
@@ -1588,15 +1588,19 @@ function calcScore(name) {
     if (won) {
       let pt = effects.includes('gamble') ? GAMBLE_WIN_PT
              : effects.includes('score2x') ? WIN_PT * 2 : WIN_PT;
-      if (hasNewbieTeammate) pt += NEWBIE_WIN_BONUS_PT;
+      // 도박 주사위 사용 시 뉴비 보너스 미적용 (도박은 뉴비 시스템과 독립)
+      if (!effects.includes('gamble') && hasNewbieTeammate) pt += NEWBIE_WIN_BONUS_PT;
       raw = Math.min(1000, raw + pt);
     } else {
       // 도박 주사위 활성 시 방어권 효과 무시 (도박의 리스크는 보장되어야 함)
       const blocked = !effects.includes('gamble') && effects.includes('insurance');
       if (!blocked) {
         let lpt = effects.includes('gamble') ? GAMBLE_LOSS_PT : LOSS_PT;
-        if (iAmNewbie) lpt = 2; // 뉴비 본인 패배 감점 최소화 (기존 -7pt → -2pt)
-        else if (hasNewbieTeammate) lpt = Math.max(0, lpt - NEWBIE_LOSS_REDUCE_PT);
+        // 도박 주사위 사용 시 뉴비 보호/완화 미적용 (도박은 뉴비 시스템과 독립)
+        if (!effects.includes('gamble')) {
+          if (iAmNewbie) lpt = 2;
+          else if (hasNewbieTeammate) lpt = Math.max(0, lpt - NEWBIE_LOSS_REDUCE_PT);
+        }
         raw = Math.max(0, raw - lpt);
       }
       // 퀘스트 이벤트 추가 감점 (해당 플레이어 본인에게만)
