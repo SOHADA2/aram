@@ -727,7 +727,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge" id="version-badge" onclick="showChangelog()">v2.23.1</div>
+<div class="version-badge" id="version-badge" onclick="showChangelog(true)">v2.23.1</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1129,41 +1129,82 @@ let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName
 const APP_VERSION = 'v2.23.1';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
-  // { ver: 'v0.0.0', date: '2026-04-14', changes: [
-  //   { tag: 'new', text: '변경 내용' },
-  // ]},
+  { ver: 'v2.23.1', date: '2026-04-14', changes: [
+    { tag: 'new', text: '업데이트 노트 시스템 추가 (버전 뱃지 클릭으로 확인)' },
+  ]},
   { ver: 'v2.23.0', date: '2026-04-14', changes: [
     { tag: 'improve', text: '관전자 예측이 팀 발표 종료 후 시작되도록 변경' },
     { tag: 'improve', text: '관전자 예측 UI를 하단 배너로 변경 (팀 구성 확인 가능)' },
     { tag: 'improve', text: '1팀/2팀 표기 통일 (블루/레드 색상 제거)' },
   ]},
   { ver: 'v2.22.0', date: '2026-04-14', changes: [
-    { tag: 'new', text: '관전자 승리 예측 시스템 추가' },
+    { tag: 'new', text: '관전자 승리 예측 시스템 추가 (적중 시 골드 지급)' },
     { tag: 'fix', text: '관전자 MVP/SVP 투표 참여 차단' },
-    { tag: 'fix', text: '관전자 예측 모달 미표시 버그 수정' },
+  ]},
+  { ver: 'v2.21.0', date: '2026-04-13', changes: [
+    { tag: 'new', text: '도박 주사위 아이템 추가 (승리 +25pt / 패배 -15pt)' },
+    { tag: 'improve', text: '상점 UI 개선' },
+    { tag: 'fix', text: '도박+방어권 조합 버그 수정' },
+  ]},
+  { ver: 'v2.20.0', date: '2026-04-13', changes: [
+    { tag: 'improve', text: '상점 아이템 카드 디자인 개선' },
+    { tag: 'improve', text: '툴팁 시스템 전역으로 교체' },
+  ]},
+  { ver: 'v2.19.0', date: '2026-04-12', changes: [
+    { tag: 'new', text: '경기 저장 후 티어 변동 요약 표시' },
+    { tag: 'new', text: '관전 포인트 모달 추가' },
+    { tag: 'fix', text: '툴팁 작동 오류 수정' },
+  ]},
+  { ver: 'v2.18.0', date: '2026-04-12', changes: [
+    { tag: 'new', text: '관전 포인트 버튼 추가' },
+    { tag: 'improve', text: 'UI 정리 (버튼 간격, 닉네임 안내 제거)' },
+  ]},
+  { ver: 'v2.17.0', date: '2026-04-11', changes: [
+    { tag: 'improve', text: '결과 화면 개선 (밸런스 섹션 제거, 승리 버튼 위치 변경)' },
+    { tag: 'new', text: 'MVP/SVP 미투표자 표시' },
+    { tag: 'fix', text: '투표 시 팀 발표 오버레이 재표시 버그 수정' },
+  ]},
+  { ver: 'v2.16.0', date: '2026-04-11', changes: [
+    { tag: 'new', text: '팀 구성 완료 시 전체화면 발표 오버레이 추가' },
+    { tag: 'new', text: '매칭 퀘스트 팀 발표 오버레이 통합' },
+    { tag: 'fix', text: '모바일 오버레이 잘림 수정' },
+  ]},
+  { ver: 'v2.15.0', date: '2026-04-10', changes: [
+    { tag: 'new', text: '카운트다운 사운드 효과 추가 (틱/완료음)' },
+    { tag: 'fix', text: '이전 게임 teamSize 잔존 팀짜기 차단 버그 수정' },
+  ]},
+  { ver: 'v2.14.2', date: '2026-04-10', changes: [
+    { tag: 'new', text: '홀수 인원 시 관전자 자동 배정 기능 추가' },
+    { tag: 'improve', text: '모바일 참가자 선택 UX 개선 (탭/롱프레스)' },
+    { tag: 'new', text: '팀 구성 완료 시 모든 기기 자동 탭 이동' },
   ]},
 ];
 
-function showChangelog() {
+function showChangelog(showAll) {
+  document.querySelector('.changelog-overlay')?.remove();
   const TAG_LABELS = { new: '신규', fix: '수정', improve: '개선' };
   const lastSeen = localStorage.getItem('lastSeenVersion') || '';
-  // 마지막으로 본 버전 이후의 업데이트만 필터 (처음이면 최신 1개만)
-  let entries = CHANGELOG;
-  if (lastSeen) {
-    const idx = CHANGELOG.findIndex(c => c.ver === lastSeen);
-    entries = idx > 0 ? CHANGELOG.slice(0, idx) : (idx === 0 ? [] : CHANGELOG);
+  const seenIdx = lastSeen ? CHANGELOG.findIndex(c => c.ver === lastSeen) : -1;
+  // 새 업데이트 개수: seenIdx 앞의 항목들이 새 업데이트
+  const newCount = seenIdx === 0 ? 0 : (seenIdx > 0 ? seenIdx : (!lastSeen ? 1 : CHANGELOG.length));
+
+  let entries;
+  if (showAll) {
+    entries = CHANGELOG;
   } else {
-    entries = CHANGELOG.slice(0, 1);
+    entries = newCount > 0 ? CHANGELOG.slice(0, newCount) : [];
   }
   if (entries.length === 0) return;
 
-  const versionsHtml = entries.map(c => `
-    <div class="cl-version">
-      <div class="cl-ver-title">${c.ver} <span class="cl-date">${c.date}</span></div>
+  const versionsHtml = entries.map((c, i) => {
+    const isNew = i < newCount;
+    return `<div class="cl-version">
+      <div class="cl-ver-title">${c.ver}${isNew && showAll ? ' <span class="cl-tag new" style="font-size:9px;">NEW</span>' : ''} <span class="cl-date">${c.date}</span></div>
       <ul class="cl-changes">${c.changes.map(ch =>
         `<li><span class="cl-tag ${ch.tag}">${TAG_LABELS[ch.tag]||ch.tag}</span>${escHtml(ch.text)}</li>`
       ).join('')}</ul>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   const overlay = document.createElement('div');
   overlay.className = 'changelog-overlay';
@@ -1190,7 +1231,7 @@ window.dismissChangelog = function() {
 // 앱 로드 시 업데이트 노트 체크 (약간의 딜레이로 자연스럽게)
 setTimeout(() => {
   const lastSeen = localStorage.getItem('lastSeenVersion') || '';
-  if (lastSeen !== APP_VERSION) showChangelog();
+  if (lastSeen !== APP_VERSION) showChangelog(false);
 }, 1500);
 
 // ── 아이템 정의 ──────────────────────────────────────────────
