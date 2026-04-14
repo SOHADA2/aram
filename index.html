@@ -178,6 +178,22 @@ select option{background:var(--surface2);}
 .spectator-box{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-top:10px;font-size:13px;}
 .spectator-label{font-size:11px;color:var(--text-dim);white-space:nowrap;}
 .spectator-name{font-weight:700;color:var(--text);}
+/* ── 관전자 예측 모달 ── */
+.sp-overlay{position:fixed;inset:0;z-index:2200;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;padding:20px;animation:taFadeIn 0.2s ease;}
+.sp-sheet{background:var(--surface);border-radius:16px;width:100%;max-width:340px;padding:28px 20px 22px;text-align:center;}
+.sp-emoji{font-size:38px;margin-bottom:8px;line-height:1;}
+.sp-title{font-family:'Black Han Sans',sans-serif;font-size:18px;color:var(--gold);margin-bottom:6px;letter-spacing:1px;}
+.sp-sub{font-size:12px;color:var(--text-dim);line-height:1.9;margin-bottom:14px;}
+.sp-timer{font-family:'Gmarket Sans',sans-serif;font-size:44px;font-weight:700;color:var(--gold-light);margin-bottom:18px;line-height:1;transition:color 0.3s;}
+.sp-timer.urgent{color:var(--red);}
+.sp-btns{display:flex;flex-direction:column;gap:8px;margin-bottom:12px;}
+.sp-pick-btn{padding:13px 16px;border-radius:10px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:all 0.2s;}
+.sp-pick-btn.blue:hover,.sp-pick-btn.blue.picked{border-color:var(--blue);background:rgba(66,135,245,0.12);color:#7ab3ff;}
+.sp-pick-btn.red:hover,.sp-pick-btn.red.picked{border-color:var(--red);background:rgba(255,80,80,0.12);color:#ff9090;}
+.sp-hint{font-size:11px;color:var(--text-dim);}
+.sp-announce-icon{font-size:48px;margin-bottom:14px;line-height:1;}
+.sp-announce-text{font-size:14px;color:var(--text);line-height:2.1;}
+.spectator-pick-banner{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(120,60,220,0.07);border:1px solid rgba(160,100,255,0.28);border-radius:8px;margin-top:8px;font-size:13px;color:var(--text-dim);}
 .team-card:nth-child(2){animation-delay:0.1s;}
 @keyframes popIn{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
 .team-blue{border-color:var(--blue-dark);}
@@ -688,7 +704,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.21.4</div>
+<div class="version-badge">v2.22.0</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1076,6 +1092,9 @@ let matchType = 'normal'; // 'normal' | 'event'
 let isEventMatch = false;
 let currentTeamA = [], currentTeamB = [];
 let currentSpectator = null; // 홀수 인원 시 랜덤 제외된 관전자
+let spectatorPick = null;          // 관전자 예측: 'blue' | 'red'
+let spectatorPickTimer = null;     // 카운트다운 인터벌
+let _spectatorPickAnnounced = false; // 중복 발표 방지 플래그
 let selectedWinner = null;
 let myName = localStorage.getItem('myName') || null; // 본인 닉네임
 let liveMode = !!localStorage.getItem('liveMode');   // 라이브 모드
@@ -1094,6 +1113,7 @@ const GOLD_WIN    = 15;
 const GOLD_LOSE   = 5;
 const GOLD_MVP    = 10; // MVP 추가 골드
 const GOLD_ATTEND = 30; // 출석 체크 보너스
+const GOLD_SPECTATOR_CORRECT = 15; // 관전자 예측 적중 골드
 
 // ── 전역 툴팁 시스템 ─────────────────────────────────────────
 const BTN_TIPS = {
@@ -1234,6 +1254,8 @@ function calcGoldFromMatches(name) {
   Object.values(matches).forEach(m => {
     const inA = (m.teamA||[]).some(n=>normName(n)===key);
     const inB = (m.teamB||[]).some(n=>normName(n)===key);
+    // 관전자 예측 적중 골드 (팀에 속하지 않으므로 별도 처리)
+    if (m.spectatorName === key && m.spectatorCorrect) gold += GOLD_SPECTATOR_CORRECT;
     if (!inA && !inB) return;
     const won = (m.winner==='blue'&&inA)||(m.winner==='red'&&inB);
     // 퀘스트 이벤트 매치: 상금만 적용, MVP/뉴비 보너스 없음
@@ -1358,6 +1380,31 @@ function applySessionData(data) {
   mode          = data.mode      || mode;
   isEventMatch  = !!data.isEventMatch;
   currentSpectator = data.spectator ? { name: data.spectator } : null;
+
+  // ── 관전자 예측 상태 복원 ─────────────────────────────────────
+  if (data.spectatorPick && !_spectatorPickAnnounced) {
+    // 이미 예측 완료 → 다른 기기에서 발표 표시
+    _spectatorPickAnnounced = true;
+    spectatorPick = data.spectatorPick;
+    const existingOverlay = document.getElementById('sp-overlay');
+    if (existingOverlay) {
+      clearInterval(spectatorPickTimer);
+      setTimeout(() => applySpectatorPickResult(data.spectatorPick, existingOverlay), 0);
+    } else if (!_justMadeTeams) {
+      applySpectatorPickResult(data.spectatorPick, null);
+    }
+  } else if (!data.spectatorPick && currentSpectator && data.spectatorPickStartAt && !_justMadeTeams) {
+    // 예측 미완료 + 다른 기기에서 팀 구성받음 → 남은 시간으로 모달 표시
+    spectatorPick = null;
+    _spectatorPickAnnounced = false;
+    const elapsed = Math.floor((Date.now() - data.spectatorPickStartAt) / 1000);
+    const remaining = Math.max(0, 15 - elapsed);
+    if (remaining > 0) setTimeout(() => showSpectatorPickModal(remaining), 800);
+  } else if (!currentSpectator) {
+    spectatorPick = null;
+    _spectatorPickAnnounced = false;
+  }
+
   itemsLocked   = true;
   renderShop();
   if (currentTeamA.length || currentTeamB.length) {
@@ -2027,6 +2074,106 @@ function getEnemyFor(name, enemyPairs) {
   return enemyPairs.filter(p => p.nameA===name || p.nameB===name);
 }
 
+// ── 관전자 예측 시스템 ─────────────────────────────────────────
+function showSpectatorPickModal(seconds = 15) {
+  if (!currentSpectator || isEventMatch) return;
+  document.getElementById('sp-overlay')?.remove();
+  clearInterval(spectatorPickTimer);
+
+  const specName = currentSpectator.name;
+  const isMe = !!(myName && normName(myName) === normName(specName));
+
+  const overlay = document.createElement('div');
+  overlay.className = 'sp-overlay';
+  overlay.id = 'sp-overlay';
+
+  if (isMe) {
+    overlay.innerHTML = `<div class="sp-sheet" onclick="event.stopPropagation()">
+      <div class="sp-emoji">🎲</div>
+      <div class="sp-title">관전자 예측!</div>
+      <div class="sp-sub">어느 팀이 이길 것 같나요?<br>적중 시 🪙<strong>+${GOLD_SPECTATOR_CORRECT}G</strong> 지급</div>
+      <div class="sp-timer" id="sp-timer">${seconds}</div>
+      <div class="sp-btns">
+        <button class="sp-pick-btn blue" onclick="spectatorPickTeam('blue')">🔵 1팀 (블루) 승리</button>
+        <button class="sp-pick-btn red"  onclick="spectatorPickTeam('red')">🔴 2팀 (레드) 승리</button>
+      </div>
+      <div class="sp-hint">미선택 시 자동으로 랜덤 선택됩니다</div>
+    </div>`;
+  } else {
+    overlay.innerHTML = `<div class="sp-sheet" onclick="event.stopPropagation()">
+      <div class="sp-emoji">👀</div>
+      <div class="sp-title">관전자 예측 중...</div>
+      <div class="sp-sub"><strong style="color:var(--text)">${escHtml(specName)}</strong>이(가)<br>승리팀을 선택하고 있어요</div>
+      <div class="sp-timer" id="sp-timer">${seconds}</div>
+    </div>`;
+  }
+  document.body.appendChild(overlay);
+
+  let timeLeft = seconds;
+  spectatorPickTimer = setInterval(() => {
+    timeLeft--;
+    const timerEl = document.getElementById('sp-timer');
+    if (timerEl) { timerEl.textContent = timeLeft; if (timeLeft <= 5) timerEl.classList.add('urgent'); }
+    if (timeLeft <= 0) {
+      clearInterval(spectatorPickTimer);
+      if (!spectatorPick && (isMe || liveMode)) {
+        spectatorPickTeam(Math.random() < 0.5 ? 'blue' : 'red');
+      }
+    }
+  }, 1000);
+}
+
+window.spectatorPickTeam = function(pick) {
+  if (spectatorPick) return;
+  clearInterval(spectatorPickTimer);
+  spectatorPick = pick;
+  _spectatorPickAnnounced = true;
+  // 선택 버튼 하이라이트
+  document.querySelectorAll('.sp-pick-btn').forEach(btn =>
+    btn.classList.toggle('picked', btn.classList.contains(pick))
+  );
+  // Firebase 저장 → 다른 기기 동기화
+  set(ref(db, 'session/spectatorPick'), pick).catch(console.error);
+  // 0.6초 뒤 발표 전환
+  const overlay = document.getElementById('sp-overlay');
+  setTimeout(() => applySpectatorPickResult(pick, overlay), 600);
+};
+
+function applySpectatorPickResult(pick, existingOverlay) {
+  if (!currentSpectator) return;
+  const specName = currentSpectator.name;
+  const teamLabel = pick === 'blue' ? '1팀 (블루)' : '2팀 (레드)';
+  const teamColor = pick === 'blue' ? 'var(--blue)' : 'var(--red)';
+  const emoji     = pick === 'blue' ? '🔵' : '🔴';
+  // 이/가 조사
+  const lastChar = specName[specName.length - 1];
+  const code = lastChar?.charCodeAt(0) || 0;
+  const hasJongseong = code >= 0xAC00 && code <= 0xD7A3 && (code - 0xAC00) % 28 !== 0;
+  const particle = hasJongseong ? '이' : '가';
+
+  const html = `<div class="sp-sheet" onclick="event.stopPropagation()">
+    <div class="sp-announce-icon">${emoji}</div>
+    <div class="sp-title">관전자의 예측!</div>
+    <div class="sp-announce-text">
+      관전자 <strong style="color:var(--text)">${escHtml(specName)}</strong>${particle}<br>
+      <strong style="color:${teamColor};font-size:17px;">${teamLabel}</strong>의<br>
+      승리로 점쳤습니다!
+    </div>
+    <div class="sp-hint" style="margin-top:14px;">적중 시 🪙+${GOLD_SPECTATOR_CORRECT}G 지급</div>
+  </div>`;
+
+  let overlay;
+  if (existingOverlay) { existingOverlay.innerHTML = html; overlay = existingOverlay; }
+  else {
+    overlay = document.createElement('div');
+    overlay.className = 'sp-overlay'; overlay.id = 'sp-overlay';
+    overlay.innerHTML = html;
+    overlay.addEventListener('click', () => overlay.remove());
+    document.body.appendChild(overlay);
+  }
+  setTimeout(() => { overlay?.remove(); renderResult(); }, 3500);
+}
+
 // ── 관전 포인트 모달 ─────────────────────────────────────────
 window.showWatchingPoints = function() {
   const allNames = [...currentTeamA, ...currentTeamB].map(p => p.name);
@@ -2360,15 +2507,26 @@ window.makeTeams = function() {
   _lastAnnounceTeamSig = _teamSig(currentTeamA, currentTeamB);
   showTeamAnnounce(currentTeamA, currentTeamB);
   // Firebase에 팀 결과 기록 → 다른 기기에 실시간 동기화
+  // 관전자 예측 상태 초기화
+  spectatorPick = null;
+  _spectatorPickAnnounced = false;
+  clearInterval(spectatorPickTimer);
+  document.getElementById('sp-overlay')?.remove();
+
+  const spectatorPickStartAt = currentSpectator ? Date.now() : null;
   set(ref(db, 'session'), {
     active: true,
     teamA: currentTeamA.map(p => p.name),
     teamB: currentTeamB.map(p => p.name),
     teamSize, mode, isEventMatch: false,
-    spectator: currentSpectator ? currentSpectator.name : null
+    spectator: currentSpectator ? currentSpectator.name : null,
+    spectatorPickStartAt,
+    spectatorPick: null,
   }).catch(console.error);
   // MVP 투표 초기화 → 팀 구성 즉시 투표 시작
   set(ref(db, 'session/mvp'), { active: true }).catch(console.error);
+  // 관전자 예측 모달 표시 (0.7s 딜레이, 퀘스트 팝업과 동일)
+  if (currentSpectator) setTimeout(() => showSpectatorPickModal(15), 700);
   // 게임 자동 감지 시작
   startGameDetection();
 };
@@ -2680,11 +2838,19 @@ function renderResult() {
   // 관전자 표시
   const spectatorEl = document.getElementById('spectator-section');
   if (currentSpectator && !isEventMatch) {
+    const pickLabel = spectatorPick === 'blue' ? '🔵 1팀 (블루) 승리'
+                    : spectatorPick === 'red'  ? '🔴 2팀 (레드) 승리' : null;
+    const pickColor = spectatorPick === 'blue' ? 'var(--blue)' : 'var(--red)';
     spectatorEl.innerHTML = `<div class="spectator-box">
       <span style="font-size:16px;">👀</span>
       <span class="spectator-label">이번 게임 관전자</span>
       <span class="spectator-name">${escHtml(currentSpectator.name)}</span>
-    </div>`;
+    </div>
+    ${pickLabel ? `<div class="spectator-pick-banner">
+      <span>🎲</span>
+      <span><strong style="color:${pickColor}">${pickLabel}</strong> 예측 중</span>
+      <span style="margin-left:auto;font-size:11px;white-space:nowrap;">적중 시 🪙+${GOLD_SPECTATOR_CORRECT}G</span>
+    </div>` : ''}`;
   } else {
     spectatorEl.innerHTML = '';
   }
@@ -3014,6 +3180,13 @@ window.saveMatch = async function() {
     };
     if (mvpWinnerName) matchData.mvpWinner = mvpWinnerName;
     if (mvpLoserName)  matchData.mvpLoser  = mvpLoserName;
+    // 관전자 예측 데이터
+    if (currentSpectator && spectatorPick) {
+      const spectatorCorrect = spectatorPick === selectedWinner;
+      matchData.spectatorName    = normName(currentSpectator.name);
+      matchData.spectatorPick    = spectatorPick;
+      matchData.spectatorCorrect = spectatorCorrect;
+    }
     if (questEventState) matchData.questEvent = {
       playerName: normName(questEventState.playerName),
       rank: questEventState.rank,
@@ -3076,7 +3249,25 @@ window.saveMatch = async function() {
         ${defeatWarning}`;
       setTimeout(() => { document.getElementById('quest-result-modal').style.display = 'flex'; }, 600);
     }
+    // 관전자 예측 결과 토스트
+    if (currentSpectator && spectatorPick) {
+      const correct = spectatorPick === selectedWinner;
+      const specNorm = normName(currentSpectator.name);
+      if (myName && normName(myName) === specNorm) {
+        setTimeout(() => showGoldToast(correct
+          ? `🎯 예측 적중! 🪙+${GOLD_SPECTATOR_CORRECT}G`
+          : `❌ 예측 실패... 다음엔 맞춰봐요!`
+        ), 500);
+      } else if (liveMode) {
+        setTimeout(() => showGoldToast(correct
+          ? `🎯 관전자 ${escHtml(currentSpectator.name)} 예측 적중!`
+          : `❌ 관전자 ${escHtml(currentSpectator.name)} 예측 빗나감`
+        ), 700);
+      }
+    }
     questEventState = null;
+    spectatorPick = null;
+    _spectatorPickAnnounced = false;
 
     btn.disabled=true;
     itemsLocked = false;
