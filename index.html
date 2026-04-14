@@ -60,7 +60,7 @@ body::after{
 header{text-align:center;padding:48px 0 32px;position:relative;}
 .version-badge{
   position:fixed;top:8px;right:10px;z-index:999;
-  font-size:9px;color:rgba(100,140,200,0.5);
+  font-size:9px;color:rgba(100,140,200,0.5);cursor:pointer;
   letter-spacing:1px;font-family:'Noto Sans KR',sans-serif;
   background:rgba(6,13,24,0.7);border:1px solid rgba(30,60,110,0.3);
   border-radius:3px;padding:2px 6px;
@@ -196,6 +196,27 @@ select option{background:var(--surface2);}
 .sp-announce-icon{font-size:36px;margin-bottom:8px;line-height:1;}
 .sp-announce-text{font-size:14px;color:var(--text);line-height:2.1;}
 .spectator-pick-banner{display:flex;align-items:center;gap:8px;padding:10px 14px;background:rgba(120,60,220,0.07);border:1px solid rgba(160,100,255,0.28);border-radius:8px;margin-top:8px;font-size:13px;color:var(--text-dim);}
+/* ── 업데이트 노트 모달 ── */
+.changelog-overlay{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;padding:16px;animation:taFadeIn 0.25s ease;}
+.changelog-sheet{background:var(--surface);border-radius:16px;width:100%;max-width:380px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border);box-shadow:0 8px 32px rgba(0,0,0,0.5);}
+.changelog-header{padding:20px 20px 12px;text-align:center;border-bottom:1px solid var(--border);}
+.changelog-header h3{font-family:'Black Han Sans',sans-serif;font-size:18px;color:var(--gold);margin:0 0 4px;letter-spacing:1px;}
+.changelog-header .cl-ver{font-size:12px;color:var(--text-dim);}
+.changelog-body{padding:16px 20px;overflow-y:auto;flex:1;}
+.cl-version{margin-bottom:14px;}
+.cl-version:last-child{margin-bottom:0;}
+.cl-ver-title{font-family:'Gmarket Sans',sans-serif;font-weight:700;font-size:13px;color:var(--gold-light);margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+.cl-ver-title .cl-date{font-weight:400;font-size:11px;color:var(--text-dim);font-family:'Noto Sans KR',sans-serif;}
+.cl-tag{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;margin-right:4px;font-family:'Noto Sans KR',sans-serif;}
+.cl-tag.new{background:rgba(80,200,120,0.15);color:#6ee7a0;}
+.cl-tag.fix{background:rgba(100,160,255,0.15);color:#7ab3ff;}
+.cl-tag.improve{background:rgba(255,200,60,0.15);color:var(--gold-light);}
+.cl-changes{list-style:none;padding:0;margin:0;}
+.cl-changes li{font-size:12px;color:var(--text);line-height:1.8;padding-left:14px;position:relative;}
+.cl-changes li::before{content:'·';position:absolute;left:2px;color:var(--text-dim);font-weight:700;}
+.changelog-footer{padding:12px 20px;border-top:1px solid var(--border);text-align:center;}
+.changelog-close-btn{width:100%;padding:10px;border-radius:10px;border:none;background:var(--gold);color:#1a1a2e;font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:opacity 0.2s;}
+.changelog-close-btn:hover{opacity:0.85;}
 .team-card:nth-child(2){animation-delay:0.1s;}
 @keyframes popIn{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
 .team-blue{border-color:var(--blue-dark);}
@@ -706,7 +727,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge">v2.23.0</div>
+<div class="version-badge" id="version-badge" onclick="showChangelog()">v2.23.1</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1103,6 +1124,74 @@ let liveMode = !!localStorage.getItem('liveMode');   // 라이브 모드
 let itemsLocked = false; // 팀 구성 후 아이템 잠금 여부
 let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
+
+// ── 업데이트 노트 ────────────────────────────────────────────
+const APP_VERSION = 'v2.23.1';
+const CHANGELOG = [
+  // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  // { ver: 'v0.0.0', date: '2026-04-14', changes: [
+  //   { tag: 'new', text: '변경 내용' },
+  // ]},
+  { ver: 'v2.23.0', date: '2026-04-14', changes: [
+    { tag: 'improve', text: '관전자 예측이 팀 발표 종료 후 시작되도록 변경' },
+    { tag: 'improve', text: '관전자 예측 UI를 하단 배너로 변경 (팀 구성 확인 가능)' },
+    { tag: 'improve', text: '1팀/2팀 표기 통일 (블루/레드 색상 제거)' },
+  ]},
+  { ver: 'v2.22.0', date: '2026-04-14', changes: [
+    { tag: 'new', text: '관전자 승리 예측 시스템 추가' },
+    { tag: 'fix', text: '관전자 MVP/SVP 투표 참여 차단' },
+    { tag: 'fix', text: '관전자 예측 모달 미표시 버그 수정' },
+  ]},
+];
+
+function showChangelog() {
+  const TAG_LABELS = { new: '신규', fix: '수정', improve: '개선' };
+  const lastSeen = localStorage.getItem('lastSeenVersion') || '';
+  // 마지막으로 본 버전 이후의 업데이트만 필터 (처음이면 최신 1개만)
+  let entries = CHANGELOG;
+  if (lastSeen) {
+    const idx = CHANGELOG.findIndex(c => c.ver === lastSeen);
+    entries = idx > 0 ? CHANGELOG.slice(0, idx) : (idx === 0 ? [] : CHANGELOG);
+  } else {
+    entries = CHANGELOG.slice(0, 1);
+  }
+  if (entries.length === 0) return;
+
+  const versionsHtml = entries.map(c => `
+    <div class="cl-version">
+      <div class="cl-ver-title">${c.ver} <span class="cl-date">${c.date}</span></div>
+      <ul class="cl-changes">${c.changes.map(ch =>
+        `<li><span class="cl-tag ${ch.tag}">${TAG_LABELS[ch.tag]||ch.tag}</span>${escHtml(ch.text)}</li>`
+      ).join('')}</ul>
+    </div>`).join('');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'changelog-overlay';
+  overlay.innerHTML = `
+    <div class="changelog-sheet">
+      <div class="changelog-header">
+        <h3>📋 업데이트 노트</h3>
+        <div class="cl-ver">${APP_VERSION}</div>
+      </div>
+      <div class="changelog-body">${versionsHtml}</div>
+      <div class="changelog-footer">
+        <button class="changelog-close-btn" onclick="dismissChangelog()">확인</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+window.dismissChangelog = function() {
+  localStorage.setItem('lastSeenVersion', APP_VERSION);
+  const overlay = document.querySelector('.changelog-overlay');
+  if (overlay) { overlay.style.animation = 'taFadeOut 0.25s ease forwards'; setTimeout(() => overlay.remove(), 280); }
+};
+
+// 앱 로드 시 업데이트 노트 체크 (약간의 딜레이로 자연스럽게)
+setTimeout(() => {
+  const lastSeen = localStorage.getItem('lastSeenVersion') || '';
+  if (lastSeen !== APP_VERSION) showChangelog();
+}, 1500);
 
 // ── 아이템 정의 ──────────────────────────────────────────────
 const SHOP_ITEMS = [
