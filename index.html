@@ -3407,6 +3407,7 @@ function showMatchSummary({ winners, losers, itemEffects, tierChanges, questEven
     // 승점 계산
     let ptChange = 0;
     let ptLabel = '';
+    let questExtraPt = 0;
     if (isWin) {
       ptChange = effects.includes('gamble') ? GAMBLE_WIN_PT
                : effects.includes('score2x') ? WIN_PT * 2 : WIN_PT;
@@ -3420,6 +3421,10 @@ function showMatchSummary({ winners, losers, itemEffects, tierChanges, questEven
           if (iAmNewbie) ptChange = 2;
           else if (hasNewbieTeammate) ptChange = Math.max(0, ptChange - NEWBIE_LOSS_REDUCE_PT);
         }
+      }
+      // 퀘스트 추가 감점 (본인만)
+      if (questEvent && normName(questEvent.playerName) === normName(name)) {
+        questExtraPt = questEvent.lossExtraPt || 0;
       }
     }
 
@@ -3435,11 +3440,12 @@ function showMatchSummary({ winners, losers, itemEffects, tierChanges, questEven
     const isMvp = normName(name) === normName(mvpWinner || '') || normName(name) === normName(mvpLoser || '');
     if (isMvp) gold += GOLD_MVP;
 
+    const totalPtLoss = ptChange + questExtraPt;
     if (isWin) ptLabel = `+${ptChange}pt`;
-    else if (ptChange === 0) ptLabel = `±0pt`;
-    else ptLabel = `-${ptChange}pt`;
+    else if (totalPtLoss === 0) ptLabel = `±0pt`;
+    else ptLabel = `-${totalPtLoss}pt` + (questExtraPt > 0 ? ` (퀘스트 -${questExtraPt})` : '');
 
-    const ptClass = isWin ? 'plus' : (ptChange === 0 ? 'zero' : 'minus');
+    const ptClass = isWin ? 'plus' : (totalPtLoss === 0 ? 'zero' : 'minus');
 
     // 아이템 아이콘
     const itemHtml = effects.map(id => `<span class="ms-item-icon" title="${ITEM_NAMES[id]||id}">${ITEM_ICONS[id]||'📦'}</span>`).join('');
