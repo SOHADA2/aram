@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.25.0
+- 현재 버전: v2.13.1
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -176,16 +176,6 @@
 - **뉴비 본인 패배 시**: -2pt (기존 -7pt → 대폭 완화, 0pt는 랭킹 인플레 유발)
 - 팀 결과 카드 하단에 뉴비 보너스 안내 표시
 - `isNewbie()` 헬퍼 함수로 뉴비 여부 조회
-
-## BGM 시스템 (v2.25.0)
-- **2트랙 구조**: 로비용 `02_ARAM_music_part_1.wav` / 팀 구성 완료용 `03_ARAM_music_part_2.wav`
-- **로비(라이브 모드 진입)**: Part 1 자동 재생
-- **팀 구성 완료(`makeTeams`)**: Part 2로 크로스페이드 전환 (1.5초)
-- **초기화(`resetSession`)**: Part 1으로 크로스페이드 복귀
-- **라이브 모드 종료**: 0.8초 페이드아웃 후 정지
-- **핵심 함수**: `playBgm()` (Part 1), `playBgmTeam()` (Part 2), `stopBgm()`, `_fadeBgm(fadeOut, fadeIn, title, onDone)`
-- **볼륨 슬라이더**: 재생 중인 트랙에만 즉시 반영
-- **UI**: 라이브 모드 바에 곡명(`#bgm-title`), EQ 애니메이션, 재생/정지 버튼, 볼륨 슬라이더 표시
 
 ## 부가 기능
 - **연승/연패 표시**: 2연속 이상 시 랭킹/팀카드에 표시
