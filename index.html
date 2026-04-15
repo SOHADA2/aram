@@ -753,7 +753,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge" id="version-badge" onclick="showChangelog()">v2.25.0</div>
+<div class="version-badge" id="version-badge" onclick="showChangelog()">v2.24.0</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -800,8 +800,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 </div>
 
 <!-- BGM -->
-<audio id="live-bgm" src="02_ARAM_music_part_1.wav" loop preload="none"></audio>
-<audio id="live-bgm2" src="03_ARAM_music_part_2.wav" loop preload="none"></audio>
+<audio id="live-bgm" src="bgm.mp3" loop preload="none"></audio>
 
 <!-- 라이브 모드 바 -->
 <div class="live-mode-bar" id="live-mode-bar">
@@ -809,7 +808,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
   <span class="live-mode-label">라이브 모드</span>
   <div class="bgm-info" id="bgm-info" style="display:none;">
     <div class="bgm-eq" id="bgm-eq"><span></span><span></span><span></span><span></span></div>
-    <span class="bgm-title" id="bgm-title">ARAM Part 1</span>
+    <span class="bgm-title">Do My Thing</span>
   </div>
   <button class="bgm-btn" id="bgm-btn" style="display:none;" onclick="toggleBgm()">⏸</button>
   <input type="range" class="bgm-vol" id="bgm-vol" min="0" max="100" step="5" value="40" oninput="setBgmVol(this.value)" style="display:none;">
@@ -1153,14 +1152,9 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.25.0';
+const APP_VERSION = 'v2.24.0';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
-  { ver: 'v2.25.0', date: '2026-04-15', changes: [
-    { tag: 'improve', text: '로비 BGM을 ARAM Part 1으로 교체' },
-    { tag: 'new', text: '팀 구성 완료 시 ARAM Part 2 BGM으로 자동 전환' },
-    { tag: 'improve', text: 'BGM 전환 시 자연스러운 페이드 디졸브 효과 적용' },
-  ]},
   { ver: 'v2.24.0', date: '2026-04-15', changes: [
     { tag: 'new', text: '경기 결과 요약 모달 추가 (승점/골드/아이템 효과 한눈에 확인)' },
     { tag: 'fix', text: '5:5 아이템 사용 시 결과 잘림 문제 해결 (스크롤 가능)' },
@@ -2744,7 +2738,6 @@ window.makeTeams = function() {
   itemsLocked = true;
   renderShop();
   renderResult();
-  if (liveMode) playBgmTeam();
   checkQuestEvent(); // questEventState 먼저 확정
   _justMadeTeams = true;
   _lastAnnounceTeamSig = _teamSig(currentTeamA, currentTeamB);
@@ -4473,45 +4466,7 @@ function setLiveMode(enabled) {
   updateMemberModeDisplay();
 }
 // ── BGM 제어 ──────────────────────────────────────────────────
-function getBgm()  { return document.getElementById('live-bgm'); }
-function getBgm2() { return document.getElementById('live-bgm2'); }
-
-let _bgmFadeTimer = null;
-const BGM_FADE_DURATION = 1500; // ms
-
-function _getBgmTargetVol() {
-  return (document.getElementById('bgm-vol')?.value ?? 40) / 100;
-}
-
-function _fadeBgm(fadeOut, fadeIn, title, onDone) {
-  if (_bgmFadeTimer) { clearInterval(_bgmFadeTimer); _bgmFadeTimer = null; }
-  const targetVol = _getBgmTargetVol();
-  const steps = 30;
-  const interval = BGM_FADE_DURATION / steps;
-  let step = 0;
-
-  if (fadeIn) {
-    fadeIn.volume = 0;
-    fadeIn.currentTime = 0;
-    fadeIn.play().catch(() => {});
-  }
-
-  _bgmFadeTimer = setInterval(() => {
-    step++;
-    const ratio = step / steps;
-    if (fadeOut) fadeOut.volume = Math.max(0, targetVol * (1 - ratio));
-    if (fadeIn)  fadeIn.volume  = Math.min(targetVol, targetVol * ratio);
-    if (step >= steps) {
-      clearInterval(_bgmFadeTimer);
-      _bgmFadeTimer = null;
-      if (fadeOut) { fadeOut.pause(); fadeOut.currentTime = 0; fadeOut.volume = targetVol; }
-      const titleEl = document.getElementById('bgm-title');
-      if (titleEl && title) titleEl.textContent = title;
-      if (onDone) onDone();
-    }
-  }, interval);
-}
-
+function getBgm() { return document.getElementById('live-bgm'); }
 function setBgmUI(playing) {
   const btn  = document.getElementById('bgm-btn');
   const info = document.getElementById('bgm-info');
@@ -4524,73 +4479,18 @@ function setBgmUI(playing) {
   if (vol) vol.style.display = 'block';
   if (eq) eq.classList.toggle('paused', !playing);
 }
-
 function playBgm() {
-  const bgm  = getBgm();
-  const bgm2 = getBgm2();
+  const bgm = getBgm();
   if (!bgm) return;
-  const titleEl = document.getElementById('bgm-title');
-  if (!bgm2 || bgm2.paused) {
-    // 직접 재생 (전환할 대상 없음)
-    if (bgm2) { bgm2.pause(); bgm2.currentTime = 0; }
-    if (titleEl) titleEl.textContent = 'ARAM Part 1';
-    bgm.volume = _getBgmTargetVol();
-    bgm.currentTime = 0;
-    bgm.play().then(() => setBgmUI(true)).catch(() => {});
-  } else {
-    // bgm2 → bgm 크로스페이드
-    setBgmUI(true);
-    _fadeBgm(bgm2, bgm, 'ARAM Part 1', null);
-  }
+  bgm.volume = (document.getElementById('bgm-vol')?.value ?? 40) / 100;
+  bgm.currentTime = 0;
+  bgm.play().then(() => setBgmUI(true)).catch(() => {});
 }
-
-function playBgmTeam() {
-  const bgm  = getBgm();
-  const bgm2 = getBgm2();
-  if (!bgm2) return;
-  const titleEl = document.getElementById('bgm-title');
-  if (!bgm || bgm.paused) {
-    // 직접 재생 (전환할 대상 없음)
-    if (bgm) { bgm.pause(); bgm.currentTime = 0; }
-    if (titleEl) titleEl.textContent = 'ARAM Part 2';
-    bgm2.volume = _getBgmTargetVol();
-    bgm2.currentTime = 0;
-    bgm2.play().then(() => setBgmUI(true)).catch(() => {});
-  } else {
-    // bgm → bgm2 크로스페이드
-    setBgmUI(true);
-    _fadeBgm(bgm, bgm2, 'ARAM Part 2', null);
-  }
-}
-
 function stopBgm() {
-  if (_bgmFadeTimer) { clearInterval(_bgmFadeTimer); _bgmFadeTimer = null; }
-  const targetVol = _getBgmTargetVol();
-  const bgm  = getBgm();
-  const bgm2 = getBgm2();
-  const active = (bgm2 && !bgm2.paused) ? bgm2 : bgm;
-  if (!active || active.paused) {
-    [bgm, bgm2].forEach(b => { if (b) { b.pause(); b.currentTime = 0; } });
-    _applyStopUI();
-    return;
-  }
-  // 페이드 아웃 후 정지
-  const steps = 20;
-  const interval = 800 / steps;
-  let step = 0;
-  const startVol = active.volume;
-  const timer = setInterval(() => {
-    step++;
-    active.volume = Math.max(0, startVol * (1 - step / steps));
-    if (step >= steps) {
-      clearInterval(timer);
-      [bgm, bgm2].forEach(b => { if (b) { b.pause(); b.currentTime = 0; b.volume = targetVol; } });
-      _applyStopUI();
-    }
-  }, interval);
-}
-
-function _applyStopUI() {
+  const bgm = getBgm();
+  if (!bgm) return;
+  bgm.pause();
+  bgm.currentTime = 0;
   const btn  = document.getElementById('bgm-btn');
   const info = document.getElementById('bgm-info');
   const vol  = document.getElementById('bgm-vol');
@@ -4600,18 +4500,15 @@ function _applyStopUI() {
   const eq = document.getElementById('bgm-eq');
   if (eq) eq.classList.remove('paused');
 }
-
 window.toggleBgm = function() {
-  const bgm2 = getBgm2();
-  const bgm  = getBgm();
-  const active = (bgm2 && !bgm2.paused) ? bgm2 : bgm;
-  if (!active) return;
-  if (active.paused) { active.play().then(() => setBgmUI(true)).catch(() => {}); }
-  else               { active.pause(); setBgmUI(false); }
+  const bgm = getBgm();
+  if (!bgm) return;
+  if (bgm.paused) { bgm.play().then(() => setBgmUI(true)).catch(() => {}); }
+  else            { bgm.pause(); setBgmUI(false); }
 };
 window.setBgmVol = function(val) {
-  const targetVol = val / 100;
-  [getBgm(), getBgm2()].forEach(bgm => { if (bgm && !bgm.paused) bgm.volume = targetVol; });
+  const bgm = getBgm();
+  if (bgm) bgm.volume = val / 100;
 };
 
 window.confirmLiveMode = function() {
@@ -4949,7 +4846,6 @@ window.resetSession = function() {
   document.getElementById('result-section').style.display='none';
   document.getElementById('warn-box').innerHTML='';
   updateMemberModeDisplay();
-  if (liveMode) playBgm();
 };
 
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
