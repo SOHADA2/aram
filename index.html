@@ -178,11 +178,14 @@ select option{background:var(--surface2);}
 .spectator-box{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-top:10px;font-size:13px;}
 .spectator-label{font-size:11px;color:var(--text-dim);white-space:nowrap;}
 .spectator-name{font-weight:700;color:var(--text);}
-/* ── 관전자 예측 하단 배너 ── */
+/* ── 관전자 예측 하단 배너 (관전자 본인용) ── */
 .sp-overlay{position:fixed;left:0;right:0;bottom:0;z-index:2200;padding:0 12px 12px;display:flex;justify-content:center;pointer-events:none;animation:spSlideUp 0.35s ease both;}
 @keyframes spSlideUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
 @keyframes spSlideDown{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(30px)}}
 .sp-sheet{pointer-events:auto;background:var(--surface);border-radius:16px;width:100%;max-width:400px;padding:18px 18px 14px;text-align:center;box-shadow:0 -4px 24px rgba(0,0,0,0.45);border:1px solid var(--border);}
+/* ── 관전자 예측 중앙 오버레이 (팀원용) ── */
+.sp-overlay.sp-center{inset:0;bottom:auto;padding:20px;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);pointer-events:auto;animation:taFadeIn 0.25s ease;}
+.sp-overlay.sp-center .sp-sheet{max-width:340px;box-shadow:0 8px 32px rgba(0,0,0,0.5);}
 .sp-emoji{font-size:28px;margin-bottom:4px;line-height:1;}
 .sp-title{font-family:'Black Han Sans',sans-serif;font-size:16px;color:var(--gold);margin-bottom:4px;letter-spacing:1px;}
 .sp-sub{font-size:12px;color:var(--text-dim);line-height:1.7;margin-bottom:10px;}
@@ -729,7 +732,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge" id="version-badge" onclick="showChangelog()">v2.23.2</div>
+<div class="version-badge" id="version-badge" onclick="showChangelog()">v2.23.3</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1128,12 +1131,12 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.23.2';
+const APP_VERSION = 'v2.23.3';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
-  { ver: 'v2.23.2', date: '2026-04-14', changes: [
+  { ver: 'v2.23.3', date: '2026-04-15', changes: [
+    { tag: 'fix', text: '관전자 예측 시 팀원에게 중앙 오버레이로 표시 (가시성 개선)' },
     { tag: 'new', text: '업데이트 노트 시스템 추가 (접속 시 자동 표시)' },
-    { tag: 'new', text: '"오늘은 그만 볼게요" 버튼으로 하루 동안 숨기기' },
   ]},
   { ver: 'v2.23.0', date: '2026-04-14', changes: [
     { tag: 'improve', text: '관전자 예측이 팀 발표 종료 후 시작되도록 변경' },
@@ -2231,10 +2234,11 @@ function showSpectatorPickModal(seconds = 15) {
   const isMe = !!(myName && normName(myName) === normName(specName));
 
   const overlay = document.createElement('div');
-  overlay.className = 'sp-overlay';
   overlay.id = 'sp-overlay';
 
   if (isMe) {
+    // 관전자 본인 → 하단 배너 (팀 구성 확인하면서 투표)
+    overlay.className = 'sp-overlay';
     overlay.innerHTML = `<div class="sp-sheet" onclick="event.stopPropagation()">
       <div class="sp-emoji">🎲</div>
       <div class="sp-title">관전자 예측!</div>
@@ -2247,11 +2251,14 @@ function showSpectatorPickModal(seconds = 15) {
       <div class="sp-hint">미선택 시 자동으로 랜덤 선택됩니다</div>
     </div>`;
   } else {
+    // 팀원 → 중앙 오버레이 (명확하게 예측 진행 중 알림)
+    overlay.className = 'sp-overlay sp-center';
     overlay.innerHTML = `<div class="sp-sheet" onclick="event.stopPropagation()">
       <div class="sp-emoji">👀</div>
-      <div class="sp-title">관전자 예측 중...</div>
+      <div class="sp-title">관전자 예측 진행 중</div>
       <div class="sp-sub"><strong style="color:var(--text)">${escHtml(specName)}</strong>이(가)<br>승리팀을 선택하고 있어요</div>
       <div class="sp-timer" id="sp-timer">${seconds}</div>
+      <div class="sp-hint">잠시만 기다려주세요...</div>
     </div>`;
   }
   document.body.appendChild(overlay);
@@ -2307,18 +2314,21 @@ function applySpectatorPickResult(pick, existingOverlay) {
   </div>`;
 
   let overlay;
-  if (existingOverlay) { existingOverlay.innerHTML = html; overlay = existingOverlay; }
-  else {
+  if (existingOverlay) {
+    existingOverlay.innerHTML = html;
+    existingOverlay.className = 'sp-overlay sp-center'; // 결과 발표는 항상 중앙
+    overlay = existingOverlay;
+  } else {
     overlay = document.createElement('div');
-    overlay.className = 'sp-overlay'; overlay.id = 'sp-overlay';
+    overlay.className = 'sp-overlay sp-center'; overlay.id = 'sp-overlay';
     overlay.innerHTML = html;
     document.body.appendChild(overlay);
   }
-  // 3.5초 뒤 슬라이드다운 후 제거
+  // 3.5초 뒤 페이드아웃 후 제거
   setTimeout(() => {
     if (overlay) {
-      overlay.style.animation = 'spSlideDown 0.35s ease forwards';
-      setTimeout(() => { overlay?.remove(); renderResult(); }, 380);
+      overlay.style.animation = 'taFadeOut 0.3s ease forwards';
+      setTimeout(() => { overlay?.remove(); renderResult(); }, 350);
     }
   }, 3500);
 }
