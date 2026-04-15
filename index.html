@@ -709,6 +709,27 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .tier-change-arrow.down{color:var(--red);}
 .tier-change-badge{font-size:11px;padding:1px 6px;border-radius:4px;font-weight:700;}
 .save-done-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+/* ── 경기 결과 요약 모달 ── */
+.match-summary-overlay{position:fixed;inset:0;z-index:2500;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;padding:14px;animation:taFadeIn 0.25s ease;}
+.match-summary-sheet{background:var(--surface);border-radius:16px;width:100%;max-width:400px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border);box-shadow:0 8px 32px rgba(0,0,0,0.5);}
+.ms-header{padding:18px 18px 10px;text-align:center;border-bottom:1px solid var(--border);}
+.ms-header h3{font-family:'Black Han Sans',sans-serif;font-size:17px;color:var(--gold);margin:0 0 2px;letter-spacing:1px;}
+.ms-header .ms-sub{font-size:11px;color:var(--text-dim);}
+.ms-body{padding:14px 16px;overflow-y:auto;flex:1;}
+.ms-section{margin-bottom:12px;}
+.ms-section:last-child{margin-bottom:0;}
+.ms-section-title{font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:1px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);}
+.ms-player-row{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;background:var(--surface2);margin-bottom:4px;font-size:12px;}
+.ms-player-row .ms-name{flex:1;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ms-player-row .ms-effect{display:flex;align-items:center;gap:4px;flex-shrink:0;}
+.ms-pt{font-weight:700;font-size:11px;white-space:nowrap;}
+.ms-pt.plus{color:var(--green);}
+.ms-pt.minus{color:var(--red);}
+.ms-pt.zero{color:var(--text-dim);}
+.ms-item-icon{font-size:13px;}
+.ms-gold{font-size:11px;color:var(--gold-light);white-space:nowrap;}
+.ms-footer{padding:10px 16px;border-top:1px solid var(--border);text-align:center;}
+.ms-footer .btn{width:100%;}
 .team-player{position:relative;}
 /* ── 연승/연패 뱃지 ── */
 /* ── 연승/연패 인라인 텍스트 ── */
@@ -732,7 +753,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <body>
 <div class="wrapper">
 
-<div class="version-badge" id="version-badge" onclick="showChangelog()">v2.23.3</div>
+<div class="version-badge" id="version-badge" onclick="showChangelog()">v2.24.0</div>
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -1131,11 +1152,13 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.23.3';
+const APP_VERSION = 'v2.24.0';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
-  { ver: 'v2.23.3', date: '2026-04-15', changes: [
-    { tag: 'fix', text: '관전자 예측 시 팀원에게 중앙 오버레이로 표시 (가시성 개선)' },
+  { ver: 'v2.24.0', date: '2026-04-15', changes: [
+    { tag: 'new', text: '경기 결과 요약 모달 추가 (승점/골드/아이템 효과 한눈에 확인)' },
+    { tag: 'fix', text: '5:5 아이템 사용 시 결과 잘림 문제 해결 (스크롤 가능)' },
+    { tag: 'improve', text: '관전자 예측 시 팀원에게 중앙 오버레이로 표시' },
     { tag: 'new', text: '업데이트 노트 시스템 추가 (접속 시 자동 표시)' },
   ]},
   { ver: 'v2.23.0', date: '2026-04-14', changes: [
@@ -3307,6 +3330,147 @@ window.resetMvp = function() {
   set(ref(db, 'session/mvp'), { active: true }).catch(console.error);
 };
 
+// ── 경기 결과 요약 모달 ──────────────────────────────────────
+function showMatchSummary({ winners, losers, itemEffects, tierChanges, questEvent, spectatorResult, mvpWinner, mvpLoser }) {
+  document.querySelector('.match-summary-overlay')?.remove();
+  const ITEM_ICONS = { score2x: '⚡', insurance: '🛡️', gamble: '🎲' };
+  const ITEM_NAMES = { score2x: '승점 2배', insurance: '패배 방어', gamble: '도박 주사위' };
+
+  function playerRow(name, isWin) {
+    const effects = itemEffects[normName(name)] || [];
+    const iAmNewbie = isNewbie(name);
+    const myTeam = isWin ? winners : losers;
+    const hasNewbieTeammate = myTeam.some(n => normName(n) !== normName(name) && isNewbie(n));
+
+    // 승점 계산
+    let ptChange = 0;
+    let ptLabel = '';
+    if (isWin) {
+      ptChange = effects.includes('gamble') ? GAMBLE_WIN_PT
+               : effects.includes('score2x') ? WIN_PT * 2 : WIN_PT;
+      if (!effects.includes('gamble') && hasNewbieTeammate) ptChange += NEWBIE_WIN_BONUS_PT;
+    } else {
+      const blocked = !effects.includes('gamble') && effects.includes('insurance');
+      if (blocked) { ptChange = 0; }
+      else {
+        ptChange = effects.includes('gamble') ? GAMBLE_LOSS_PT : LOSS_PT;
+        if (!effects.includes('gamble')) {
+          if (iAmNewbie) ptChange = 2;
+          else if (hasNewbieTeammate) ptChange = Math.max(0, ptChange - NEWBIE_LOSS_REDUCE_PT);
+        }
+      }
+    }
+
+    // 골드 계산
+    let gold = 0;
+    if (questEvent) {
+      gold = isWin ? questEvent.bonusGold : 0;
+    } else {
+      gold = isWin ? GOLD_WIN : GOLD_LOSE;
+      if (!isWin && iAmNewbie) gold = GOLD_LOSE;
+      if (isWin && hasNewbieTeammate && !effects.includes('gamble')) gold += NEWBIE_WIN_BONUS_GOLD;
+    }
+    const isMvp = normName(name) === normName(mvpWinner || '') || normName(name) === normName(mvpLoser || '');
+    if (isMvp) gold += GOLD_MVP;
+
+    if (isWin) ptLabel = `+${ptChange}pt`;
+    else if (ptChange === 0) ptLabel = `±0pt`;
+    else ptLabel = `-${ptChange}pt`;
+
+    const ptClass = isWin ? 'plus' : (ptChange === 0 ? 'zero' : 'minus');
+
+    // 아이템 아이콘
+    const itemHtml = effects.map(id => `<span class="ms-item-icon" title="${ITEM_NAMES[id]||id}">${ITEM_ICONS[id]||'📦'}</span>`).join('');
+    // MVP 표시
+    const mvpBadge = (normName(name) === normName(mvpWinner || '')) ? ' 🏆'
+                   : (normName(name) === normName(mvpLoser || ''))  ? ' 🥈' : '';
+
+    return `<div class="ms-player-row">
+      <span class="ms-name">${escHtml(name)}${mvpBadge}</span>
+      <span class="ms-effect">${itemHtml}</span>
+      <span class="ms-pt ${ptClass}">${ptLabel}</span>
+      <span class="ms-gold">🪙${gold > 0 ? '+' : ''}${gold}G</span>
+    </div>`;
+  }
+
+  const winLabel = '🏆 승리팀';
+  const loseLabel = '💀 패배팀';
+  const winRows = winners.map(n => playerRow(n, true)).join('');
+  const loseRows = losers.map(n => playerRow(n, false)).join('');
+
+  // 퀘스트 결과
+  let questHtml = '';
+  if (questEvent) {
+    const questPlayerWon = winners.some(n => normName(n) === normName(questEvent.playerName));
+    questHtml = `<div class="ms-section">
+      <div class="ms-section-title">${questEvent.emoji || '⚠'} ${escHtml(questEvent.name || '매칭 퀘스트')}</div>
+      <div class="ms-player-row" style="justify-content:center;gap:12px;">
+        <span>${escHtml(questEvent.playerName)}</span>
+        <span style="color:${questPlayerWon ? 'var(--green)' : 'var(--red)'}">${questPlayerWon ? '생존 성공' : `-${questEvent.lossExtraPt}pt 추가 감점`}</span>
+      </div>
+    </div>`;
+  }
+
+  // 관전자 예측 결과
+  let specHtml = '';
+  if (spectatorResult) {
+    specHtml = `<div class="ms-section">
+      <div class="ms-section-title">🔮 관전자 예측</div>
+      <div class="ms-player-row" style="justify-content:center;gap:8px;">
+        <span>${escHtml(spectatorResult.name)}</span>
+        <span style="color:${spectatorResult.correct ? 'var(--green)' : 'var(--red)'}">${spectatorResult.correct ? `🎯 적중! +${GOLD_SPECTATOR_CORRECT}G` : '❌ 빗나감'}</span>
+      </div>
+    </div>`;
+  }
+
+  // 티어 변동
+  let tierHtml = '';
+  if (tierChanges.length > 0) {
+    tierHtml = `<div class="ms-section">
+      <div class="ms-section-title">티어 변동</div>
+      ${tierChanges.map(c => {
+        const dir = c.up ? 'up' : 'down';
+        return `<div class="tier-change-item ${dir}" style="margin-bottom:4px;">
+          <span class="tier-change-name">${c.up ? '🎉 ' : ''}${escHtml(c.name)}</span>
+          <span class="tier-change-badge ${c.bInfo.cls}">${c.bInfo.label}</span>
+          <span class="tier-change-arrow ${dir}">${c.up ? '↑' : '↓'}</span>
+          <span class="tier-change-badge ${c.aInfo.cls}">${c.aInfo.label}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'match-summary-overlay';
+  overlay.innerHTML = `
+    <div class="match-summary-sheet">
+      <div class="ms-header">
+        <h3>⚔️ 경기 결과</h3>
+        <div class="ms-sub">승점 · 골드 · 아이템 효과 요약</div>
+      </div>
+      <div class="ms-body">
+        <div class="ms-section">
+          <div class="ms-section-title">${winLabel}</div>
+          ${winRows}
+        </div>
+        <div class="ms-section">
+          <div class="ms-section-title">${loseLabel}</div>
+          ${loseRows}
+        </div>
+        ${questHtml}${specHtml}${tierHtml}
+      </div>
+      <div class="ms-footer">
+        <button class="btn btn-primary" onclick="closeMatchSummary()">확인</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+window.closeMatchSummary = function() {
+  const overlay = document.querySelector('.match-summary-overlay');
+  if (overlay) { overlay.style.animation = 'taFadeOut 0.25s ease forwards'; setTimeout(() => overlay.remove(), 280); }
+};
+
 window.saveMatch = async function() {
   if (isEventMatch) return;
   if (!selectedWinner) return;
@@ -3381,59 +3545,18 @@ window.saveMatch = async function() {
 
     await giveMatchGold(winners, losers, matchTimestamp);
 
-    // 내 골드 토스트
-    if (myName && allPlayers.some(p=>normName(p.name)===normName(myName))) {
-      const isMyWin = winners.some(n=>normName(n)===normName(myName));
-      const isMvp = (mvpWinnerName && normName(mvpWinnerName)===normName(myName)) ||
-                    (mvpLoserName  && normName(mvpLoserName) ===normName(myName));
-      let label;
-      if (questEventState) {
-        const earned = isMyWin ? questEventState.bonusGold : 0;
-        label = isMyWin ? `💰 퀘스트 상금 +${earned}G 획득!` : `💀 퀘스트 패배 — 골드 없음`;
-      } else {
-        const earned = (isMyWin ? GOLD_WIN : GOLD_LOSE) + (isMvp ? GOLD_MVP : 0);
-        label = isMvp ? `🏆 MVP! 🪙+${earned}골드` : `🪙 +${earned}골드 획득!`;
-      }
-      setTimeout(()=>showGoldToast(label), 300);
-    }
-    // 퀘스트 결과 팝업 (저장 완료 후)
-    if (questEventState) {
-      const q = questEventState;
-      const winTeamLabel = selectedWinner === 'blue' ? '1팀' : '2팀';
-      const loseTeamLabel = selectedWinner === 'blue' ? '2팀' : '1팀';
-      const questPlayerWon = winners.some(n => normName(n) === normName(q.playerName));
-      // 이/가 조사 판별
-      const lastChar = q.playerName[q.playerName.length - 1];
-      const code = lastChar.charCodeAt(0);
-      const hasJongseong = code >= 0xAC00 && code <= 0xD7A3 && (code - 0xAC00) % 28 !== 0;
-      const particle = hasJongseong ? '이' : '가';
-      const defeatWarning = !questPlayerWon
-        ? `<div class="quest-defeat-warning">💀 ${escHtml(q.playerName)}${particle} ${escHtml(q.name)}에 무너졌습니다.<strong>-${q.lossExtraPt}pt 추가 감점</strong></div>`
-        : '';
-      document.getElementById('quest-result-title').textContent = `${q.emoji} ${q.name} 결과`;
-      document.getElementById('quest-result-sub').textContent = `${q.name} · ${escHtml(q.playerName)}`;
-      document.getElementById('quest-result-rows').innerHTML = `
-        <div class="quest-result-row win"><span>🏆 ${winTeamLabel} 승리</span><strong style="color:var(--green)">+${q.bonusGold}G 상금</strong></div>
-        <div class="quest-result-row lose"><span>💀 ${loseTeamLabel} 패배</span><strong style="color:var(--text-dim)">골드 없음</strong></div>
-        ${defeatWarning}`;
-      setTimeout(() => { document.getElementById('quest-result-modal').style.display = 'flex'; }, 600);
-    }
-    // 관전자 예측 결과 토스트
-    if (currentSpectator && spectatorPick) {
-      const correct = spectatorPick === selectedWinner;
-      const specNorm = normName(currentSpectator.name);
-      if (myName && normName(myName) === specNorm) {
-        setTimeout(() => showGoldToast(correct
-          ? `🎯 예측 적중! 🪙+${GOLD_SPECTATOR_CORRECT}G`
-          : `❌ 예측 실패... 다음엔 맞춰봐요!`
-        ), 500);
-      } else if (liveMode) {
-        setTimeout(() => showGoldToast(correct
-          ? `🎯 관전자 ${escHtml(currentSpectator.name)} 예측 적중!`
-          : `❌ 관전자 ${escHtml(currentSpectator.name)} 예측 빗나감`
-        ), 700);
-      }
-    }
+    // ── 결과 요약 모달 (아이템·골드·퀘스트·관전자 통합) ─────────
+    const spectatorResult = (currentSpectator && spectatorPick)
+      ? { name: currentSpectator.name, correct: spectatorPick === selectedWinner }
+      : null;
+    setTimeout(() => showMatchSummary({
+      winners, losers, itemEffects,
+      tierChanges,
+      questEvent: questEventState ? { ...questEventState } : null,
+      spectatorResult,
+      mvpWinner: mvpWinnerName,
+      mvpLoser: mvpLoserName,
+    }), 400);
     questEventState = null;
     spectatorPick = null;
     _spectatorPickAnnounced = false;
