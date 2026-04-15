@@ -2534,22 +2534,78 @@ window.startItemPhase = function() {
   set(ref(db, 'session'), { phase: 'item', itemPhaseEnd: Date.now() + 15000 }).catch(console.error);
 };
 
-// ── 카운트다운 사운드 (Web Audio API) ────────────────────────
-// 오디오 파일 프리로드
-const _tickAudio = new Audio('./tick.mp3');
-const _completeAudio = new Audio('./complete.mp3');
+// ── 카운트다운 사운드 (Web Audio API — 파일 불필요) ────────────
+let _audioCtx = null;
+function _getAudioCtx() {
+  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (_audioCtx.state === 'suspended') _audioCtx.resume();
+  return _audioCtx;
+}
 
 function playTickSound(secs) {
   try {
-    _tickAudio.currentTime = 0;
-    _tickAudio.play().catch(() => {});
+    const ctx = _getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    if (secs <= 3) {
+      // 마지막 3초: 긴장감 — 높은 피치 + 더블탭
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880 + (3 - secs) * 120, ctx.currentTime); // 880→1120Hz
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.12);
+      // 더블탭 (짧은 간격으로 2번째 톤)
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(880 + (3 - secs) * 120, ctx.currentTime + 0.08);
+      gain2.gain.setValueAtTime(0.12, ctx.currentTime + 0.08);
+      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+      osc2.start(ctx.currentTime + 0.08);
+      osc2.stop(ctx.currentTime + 0.18);
+    } else if (secs <= 5) {
+      // 5~4초: 약간 긴장 — 중간 피치
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(660, ctx.currentTime);
+      gain.gain.setValueAtTime(0.13, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.1);
+    } else {
+      // 일반 구간: 부드러운 틱
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(520, ctx.currentTime);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.07);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.07);
+    }
   } catch(e) {}
 }
 
 function playCompleteSound() {
   try {
-    _completeAudio.currentTime = 0;
-    _completeAudio.play().catch(() => {});
+    const ctx = _getAudioCtx();
+    // 3음 상승 코드 — 완료 느낌 (도-미-솔 느낌)
+    [523, 659, 784].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      const t = ctx.currentTime + i * 0.1;
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0.18, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.35);
+      osc.start(t);
+      osc.stop(t + 0.35);
+    });
   } catch(e) {}
 }
 
@@ -2588,8 +2644,6 @@ function startItemCountdown(endTime) {
       card.style.display = 'none';
       timerEl.className = 'item-phase-timer';
       if (btn) btn.disabled = false;
-      _tickAudio.pause();
-      _tickAudio.currentTime = 0;
       playCompleteSound(); // 모든 기기에서 완료 사운드
       if (liveMode) makeTeams(); // 호스트만 팀 구성 실행
       lastTickSec = -1;
@@ -2601,8 +2655,6 @@ function startItemCountdown(endTime) {
 
 function stopItemCountdown() {
   if (itemPhaseTimer) { clearInterval(itemPhaseTimer); itemPhaseTimer = null; }
-  _tickAudio.pause();
-  _tickAudio.currentTime = 0;
   const card = document.getElementById('item-phase-card');
   if (card) card.style.display = 'none';
   const timerEl = document.getElementById('item-phase-timer');
