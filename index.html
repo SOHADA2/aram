@@ -960,6 +960,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
     <div id="warn-box"></div>
     <div class="action-row">
       <button class="btn btn-gold" id="make-teams-btn" onclick="startItemPhase()" style="flex:1;justify-content:center;font-size:15px;padding:13px;">⚔️ 팀 구성</button>
+      <button class="btn btn-ghost btn-sm" id="rematch-btn" style="display:none;white-space:nowrap;" onclick="rematchSameTeams()">🔁 한 판 더</button>
       <button class="btn btn-ghost btn-sm" style="position:relative;padding-right:20px;" onclick="resetSession()">🔄 초기화<span class="btn-q" data-tip="reset" onclick="event.stopPropagation()"><span class="btn-q-icon">?</span></span></button>
     </div>
   </div>
@@ -1145,13 +1146,19 @@ let selectedWinner = null;
 let myName = localStorage.getItem('myName') || null; // 본인 닉네임
 let liveMode = !!localStorage.getItem('liveMode');   // 라이브 모드
 let itemsLocked = false; // 팀 구성 후 아이템 잠금 여부
+let _pendingRematchTeams = null; // 한 판 더: { teamA, teamB, teamSize, spectator }
 let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.24.3';
+const APP_VERSION = 'v2.24.4';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.24.4', date: '2026-04-16', changes: [
+    { tag: 'new', text: '이 팀 그대로 한 판 더 버튼 추가 (저장 완료 후 같은 팀으로 재경기)' },
+    { tag: 'improve', text: '게임 자동 감지 영역에 업데이트 준비중 안내 추가' },
+    { tag: 'fix', text: '경기 결과 확인 버튼 가운데 정렬 수정' },
+  ]},
   { ver: 'v2.24.3', date: '2026-04-15', changes: [
     { tag: 'improve', text: '경기 기록 디자인 전면 개편 (팀원별 행 구분, 깔끔한 카드)' },
     { tag: 'improve', text: 'MVP/SVP 표기 개선 (닉네임 옆 흐릿한 텍스트)' },
@@ -2703,38 +2710,47 @@ window.makeTeams = function() {
   }
 
   // ── 일반 매치 ──────────────────────────────────────────────
-  // 인원수에 따라 teamSize 자동 결정
-  if (sessionPlayers.length < 4) {
-    warn.innerHTML = `<div class="warning">⚠️ 일반 매치엔 최소 4명이 필요해요! (현재 ${sessionPlayers.length}명)</div>`;
-    return;
-  }
-  let pool = sessionPlayers.map(p=>({...p, tier: getEffectiveTier(p.name, p.manualTier)}));
-  // 홀수 인원이면 랜덤으로 1명 관전자 제외
-  currentSpectator = null;
-  if (pool.length % 2 !== 0) {
-    const idx = Math.floor(Math.random() * pool.length);
-    currentSpectator = pool.splice(idx, 1)[0];
-  }
-  teamSize = pool.length / 2;
-  const needed = teamSize * 2;
-  if (pool.length > needed) {
-    warn.innerHTML = `<div class="warning">👥 ${pool.length}명 중 ${needed}명 선발!</div>`;
-    pool = shuffle(pool).slice(0, needed);
-  }
-  if (mode==='random') {
-    const s=shuffle(pool); currentTeamA=s.slice(0,teamSize); currentTeamB=s.slice(teamSize);
+  if (_pendingRematchTeams) {
+    // 한 판 더: 기존 팀 그대로 재사용
+    currentTeamA = _pendingRematchTeams.teamA;
+    currentTeamB = _pendingRematchTeams.teamB;
+    teamSize = _pendingRematchTeams.teamSize;
+    currentSpectator = _pendingRematchTeams.spectator;
+    _pendingRematchTeams = null;
   } else {
-    const sorted=[...pool].sort((a,b)=>getWinRateScore(b.name)-getWinRateScore(a.name));
-    currentTeamA=[]; currentTeamB=[];
-    sorted.forEach((p,i)=>(i%2===0?currentTeamA:currentTeamB).push(p));
-    const sc=arr=>arr.reduce((s,p)=>s+getWinRateScore(p.name),0);
-    for(let i=0;i<300;i++){
-      const ia=Math.floor(Math.random()*currentTeamA.length);
-      const ib=Math.floor(Math.random()*currentTeamB.length);
-      const before=Math.abs(sc(currentTeamA)-sc(currentTeamB));
-      [currentTeamA[ia],currentTeamB[ib]]=[currentTeamB[ib],currentTeamA[ia]];
-      if(Math.abs(sc(currentTeamA)-sc(currentTeamB))>before)
+    // 인원수에 따라 teamSize 자동 결정
+    if (sessionPlayers.length < 4) {
+      warn.innerHTML = `<div class="warning">⚠️ 일반 매치엔 최소 4명이 필요해요! (현재 ${sessionPlayers.length}명)</div>`;
+      return;
+    }
+    let pool = sessionPlayers.map(p=>({...p, tier: getEffectiveTier(p.name, p.manualTier)}));
+    // 홀수 인원이면 랜덤으로 1명 관전자 제외
+    currentSpectator = null;
+    if (pool.length % 2 !== 0) {
+      const idx = Math.floor(Math.random() * pool.length);
+      currentSpectator = pool.splice(idx, 1)[0];
+    }
+    teamSize = pool.length / 2;
+    const needed = teamSize * 2;
+    if (pool.length > needed) {
+      warn.innerHTML = `<div class="warning">👥 ${pool.length}명 중 ${needed}명 선발!</div>`;
+      pool = shuffle(pool).slice(0, needed);
+    }
+    if (mode==='random') {
+      const s=shuffle(pool); currentTeamA=s.slice(0,teamSize); currentTeamB=s.slice(teamSize);
+    } else {
+      const sorted=[...pool].sort((a,b)=>getWinRateScore(b.name)-getWinRateScore(a.name));
+      currentTeamA=[]; currentTeamB=[];
+      sorted.forEach((p,i)=>(i%2===0?currentTeamA:currentTeamB).push(p));
+      const sc=arr=>arr.reduce((s,p)=>s+getWinRateScore(p.name),0);
+      for(let i=0;i<300;i++){
+        const ia=Math.floor(Math.random()*currentTeamA.length);
+        const ib=Math.floor(Math.random()*currentTeamB.length);
+        const before=Math.abs(sc(currentTeamA)-sc(currentTeamB));
         [currentTeamA[ia],currentTeamB[ib]]=[currentTeamB[ib],currentTeamA[ia]];
+        if(Math.abs(sc(currentTeamA)-sc(currentTeamB))>before)
+          [currentTeamA[ia],currentTeamB[ib]]=[currentTeamB[ib],currentTeamA[ia]];
+      }
     }
   }
   selectedWinner = null;
@@ -2915,7 +2931,7 @@ function setGameDetectionUI(state) {
   if (!el) return;
   if (!state) { el.style.display = 'none'; return; }
   const cfg = {
-    waiting:     { text: '🔍 게임 시작 대기 중... (자동 감지)', color: 'var(--text-dim)' },
+    waiting:     { text: '🔍 게임 시작 감지 중...<br><span style="font-size:10px;opacity:0.55;">자동 감지 기능 업데이트 준비중</span>', color: 'var(--text-dim)' },
     inGame:      { text: '🎮 게임 진행 중 — 종료 시 자동으로 결과를 불러옵니다', color: 'var(--blue)' },
     ended:       { text: '⏳ 게임 종료! 결과 불러오는 중...', color: 'var(--gold)' },
     fetchFailed: { text: '❌ 결과 조회 실패 — 아래에서 수동으로 승패를 선택해주세요', color: 'var(--red)' },
@@ -2923,7 +2939,7 @@ function setGameDetectionUI(state) {
     detected:    { text: '', color: 'var(--green)' },
   };
   const c = cfg[state] || { text: '', color: 'var(--text-dim)' };
-  el.textContent = c.text;
+  el.innerHTML = c.text;
   el.style.color = c.color;
   el.style.borderColor = c.color;
   el.style.display = 'block';
@@ -3037,6 +3053,7 @@ function renderResult() {
   document.getElementById('winner-selected-msg').style.display='';
   document.getElementById('save-btn').style.display='';
   document.getElementById('save-done-panel').classList.remove('show');
+  document.getElementById('rematch-btn').style.display = 'none';
   document.getElementById('tier-changes-row').innerHTML = '';
   matchSaved = false;
 
@@ -3667,6 +3684,7 @@ window.saveMatch = async function() {
     }
 
     document.getElementById('save-done-panel').classList.add('show');
+    document.getElementById('rematch-btn').style.display = '';
     matchSaved = true;
     // MVP 섹션 초기화
     const sec = document.getElementById('mvp-section');
@@ -4856,9 +4874,24 @@ window.goToTab = function(tabId, btnEl) {
   // 맨 위로 스크롤
   window.scrollTo({top:0, behavior:'smooth'});
 };
+window.rematchSameTeams = function() {
+  if (!currentTeamA.length && !currentTeamB.length) return;
+  _pendingRematchTeams = {
+    teamA: [...currentTeamA],
+    teamB: [...currentTeamB],
+    teamSize,
+    spectator: currentSpectator,
+  };
+  // 아이템 페이즈 재시작 (아이템 활성화 기회 + 팀 구성 트리거)
+  document.getElementById('make-teams-btn').disabled = true;
+  set(ref(db, 'session'), { phase: 'item', itemPhaseEnd: Date.now() + 15000 }).catch(console.error);
+};
+
 window.resetSession = function() {
   if(sessionPlayers.length>0&&!confirm('현재 참가자 목록을 비울까요?')) return;
   stopGameDetection(); // 감지 중단
+  _pendingRematchTeams = null;
+  document.getElementById('rematch-btn').style.display = 'none';
   sessionPlayers=[];
   teamSize = 3; // 이전 게임 teamSize 초기화 (stale 값 방지)
   itemsLocked = false;
