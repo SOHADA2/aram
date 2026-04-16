@@ -697,6 +697,13 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .ftz-chip.in-none{background:var(--surface2);border-color:var(--border);color:var(--text-dim);}
 .ftz-footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;}
 .ftz-footer .btn{flex:1;justify-content:center;}
+.ftz-zone.active-target{box-shadow:0 0 0 3px var(--gold);}
+.ftz-zone.drag-over{border-style:dashed !important;background:rgba(200,155,60,0.14) !important;}
+.ftz-chip.dragging{opacity:0.3;transform:scale(0.92);}
+.ftz-drag-ghost{position:fixed;pointer-events:none;z-index:9999;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:700;font-family:'Noto Sans KR',sans-serif;background:rgba(200,155,60,0.95);color:#111;transform:translate(-50%,-50%);white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,0.45);}
+.ftz-zone-label{cursor:pointer;display:flex;align-items:center;gap:5px;-webkit-tap-highlight-color:transparent;}
+.ftz-zone-label:active{opacity:0.7;}
+.ftz-active-badge{font-size:9px;padding:1px 5px;border-radius:3px;background:var(--gold);color:#111;font-weight:700;}
 .save-confirm-modal{background:linear-gradient(135deg,rgba(13,24,41,0.98),rgba(17,32,64,0.98));border:1px solid rgba(240,160,32,0.45);border-radius:12px;padding:26px 22px;max-width:300px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.6);}
 .save-confirm-title{font-family:'Black Han Sans',sans-serif;font-size:15px;color:#f0a020;margin-bottom:10px;letter-spacing:1px;}
 .save-confirm-body{font-size:12px;color:var(--text-dim);line-height:1.9;margin-bottom:20px;}
@@ -1105,19 +1112,22 @@ body.member-mode #event-no-save-notice{display:none!important;}
   <div class="fixed-team-sheet">
     <div class="ftz-header">
       <span class="ftz-header-title">🔒 고정 팀짜기</span>
-      <span class="ftz-header-hint">칩을 눌러 팀을 배정하세요</span>
+      <span class="ftz-header-hint">팀 이름 탭 → 팀원 선택 · 드래그 가능</span>
     </div>
     <div class="ftz-body">
-      <div class="ftz-zone team-a" id="ftz-zone-a">
-        <div class="ftz-zone-label" id="ftz-label-a">🔵 1팀 · 0명</div>
+      <div class="ftz-zone team-a" id="ftz-zone-a" data-ftz-zone="a"
+           ondragover="onFtzDragOver(event)" ondragleave="onFtzDragLeave(event)" ondrop="onFtzDrop(event,'a')">
+        <div class="ftz-zone-label" id="ftz-label-a" onclick="activateFtzZone('a')">🔵 1팀 · 0명</div>
         <div class="ftz-chips" id="ftz-chips-a"></div>
       </div>
-      <div class="ftz-zone team-b" id="ftz-zone-b">
-        <div class="ftz-zone-label" id="ftz-label-b">🟡 2팀 · 0명</div>
+      <div class="ftz-zone team-b" id="ftz-zone-b" data-ftz-zone="b"
+           ondragover="onFtzDragOver(event)" ondragleave="onFtzDragLeave(event)" ondrop="onFtzDrop(event,'b')">
+        <div class="ftz-zone-label" id="ftz-label-b" onclick="activateFtzZone('b')">🟡 2팀 · 0명</div>
         <div class="ftz-chips" id="ftz-chips-b"></div>
       </div>
-      <div class="ftz-zone unset" id="ftz-zone-none">
-        <div class="ftz-zone-label" id="ftz-label-none">미배정</div>
+      <div class="ftz-zone unset" id="ftz-zone-none" data-ftz-zone=""
+           ondragover="onFtzDragOver(event)" ondragleave="onFtzDragLeave(event)" ondrop="onFtzDrop(event,null)">
+        <div class="ftz-zone-label" id="ftz-label-none" style="cursor:default;">미배정</div>
         <div class="ftz-chips" id="ftz-chips-none"></div>
       </div>
     </div>
@@ -4940,65 +4950,186 @@ window.rematchSameTeams = function() {
 };
 
 // ── 고정 팀짜기 ────────────────────────────────────────────────
-let _fixedAssign = {}; // normName → 'a' | 'b' | null
+let _fixedAssign = {};       // normName → 'a' | 'b' | null
+let _ftzActiveZone = null;   // 클릭 모드 활성 존: 'a' | 'b' | null
+let _ftzDragName = null;     // 드래그 중인 플레이어명
+let _ftzGhost = null;        // 모바일 고스트 엘리먼트
+let _ftzLongPressTimer = null;
+
+function _ftzPool() {
+  return sessionPlayers.length > 0 ? sessionPlayers
+    : Object.keys(_fixedAssign).map(key => ({ name: key }));
+}
 
 function openFixedTeamBuilder(presetA, presetB, presetSpectator) {
   _fixedAssign = {};
+  _ftzActiveZone = null;
   const pool = sessionPlayers.length > 0 ? sessionPlayers
     : [...(presetA||[]), ...(presetB||[]), ...(presetSpectator ? [presetSpectator] : [])];
-
   pool.forEach(p => { _fixedAssign[normName(p.name)] = null; });
   (presetA||[]).forEach(p => { _fixedAssign[normName(p.name)] = 'a'; });
   (presetB||[]).forEach(p => { _fixedAssign[normName(p.name)] = 'b'; });
-  // 관전자는 미배정으로 시작 (유저가 원하는 팀에 배정 가능)
-
   _renderFixedTeamBuilder();
   document.getElementById('fixed-team-overlay').style.display = 'flex';
 }
 
 function _renderFixedTeamBuilder() {
-  const pool = sessionPlayers.length > 0 ? sessionPlayers
-    : Object.keys(_fixedAssign).map(key => ({ name: key }));
+  const pool  = _ftzPool();
+  const teamA = pool.filter(p => _fixedAssign[normName(p.name)] === 'a');
+  const teamB = pool.filter(p => _fixedAssign[normName(p.name)] === 'b');
+  const unset = pool.filter(p => _fixedAssign[normName(p.name)] == null);
 
-  const teamA   = pool.filter(p => _fixedAssign[normName(p.name)] === 'a');
-  const teamB   = pool.filter(p => _fixedAssign[normName(p.name)] === 'b');
-  const unset   = pool.filter(p => _fixedAssign[normName(p.name)] == null);
+  const makeChip = (p, cls) => {
+    const dn = p.name.replace(/"/g, '&quot;');
+    return `<span class="ftz-chip ${cls}" data-pname="${dn}"
+      onclick="toggleFixedPlayer(this.dataset.pname)"
+      draggable="true"
+      ondragstart="onFtzDragStart(event,this.dataset.pname)"
+      ondragend="onFtzDragEnd(event)"
+      ontouchstart="onFtzTouchStart(event,this.dataset.pname)"
+      ontouchmove="onFtzTouchMove(event)"
+      ontouchend="onFtzTouchEnd(event)"
+    >${escHtml(p.name)}</span>`;
+  };
 
-  const makeChip = (p, cls) =>
-    `<span class="ftz-chip ${cls}" onclick="toggleFixedPlayer('${escHtml(p.name)}')">${escHtml(p.name)}</span>`;
+  const empty = '<span style="font-size:11px;color:var(--text-dim);">—</span>';
+  document.getElementById('ftz-chips-a').innerHTML    = teamA.map(p=>makeChip(p,'in-a')).join('')||empty;
+  document.getElementById('ftz-chips-b').innerHTML    = teamB.map(p=>makeChip(p,'in-b')).join('')||empty;
+  document.getElementById('ftz-chips-none').innerHTML = unset.map(p=>makeChip(p,'in-none')).join('')||empty;
 
-  document.getElementById('ftz-chips-a').innerHTML    = teamA.map(p => makeChip(p,'in-a')).join('') || '<span style="font-size:11px;color:var(--text-dim);">—</span>';
-  document.getElementById('ftz-chips-b').innerHTML    = teamB.map(p => makeChip(p,'in-b')).join('') || '<span style="font-size:11px;color:var(--text-dim);">—</span>';
-  document.getElementById('ftz-chips-none').innerHTML = unset.map(p => makeChip(p,'in-none')).join('') || '<span style="font-size:11px;color:var(--text-dim);">—</span>';
+  // 존 레이블 + 활성 배지
+  const badgeA = _ftzActiveZone==='a' ? ' <span class="ftz-active-badge">선택중</span>' : '';
+  const badgeB = _ftzActiveZone==='b' ? ' <span class="ftz-active-badge">선택중</span>' : '';
+  document.getElementById('ftz-label-a').innerHTML = `🔵 1팀 · ${teamA.length}명${badgeA}`;
+  document.getElementById('ftz-label-b').innerHTML = `🟡 2팀 · ${teamB.length}명${badgeB}`;
+  document.getElementById('ftz-label-none').textContent = unset.length ? `미배정 · ${unset.length}명` : '미배정';
 
-  document.getElementById('ftz-label-a').textContent    = `🔵 1팀 · ${teamA.length}명`;
-  document.getElementById('ftz-label-b').textContent    = `🟡 2팀 · ${teamB.length}명`;
-  document.getElementById('ftz-label-none').textContent = unset.length > 0 ? `미배정 · ${unset.length}명` : '미배정';
+  // 활성 존 테두리
+  document.getElementById('ftz-zone-a').classList.toggle('active-target', _ftzActiveZone==='a');
+  document.getElementById('ftz-zone-b').classList.toggle('active-target', _ftzActiveZone==='b');
 
-  // 확정 가능 조건: 양팀 인원 동일, 최소 1명, 미배정 최대 1명(홀수 관전자)
   const ok = teamA.length > 0 && teamA.length === teamB.length && unset.length <= 1;
   document.getElementById('ftz-confirm-btn').disabled = !ok;
 }
 
-window.toggleFixedPlayer = function(name) {
-  const key = normName(name);
-  const cur = _fixedAssign[key];
-  _fixedAssign[key] = cur === null ? 'a' : cur === 'a' ? 'b' : null;
+// 존 클릭 → 활성화 토글
+window.activateFtzZone = function(team) {
+  _ftzActiveZone = _ftzActiveZone === team ? null : team;
   _renderFixedTeamBuilder();
 };
 
+// 칩 클릭 → 활성 존이 있으면 그 존으로, 없으면 순환
+window.toggleFixedPlayer = function(name) {
+  const key = normName(name);
+  if (_ftzActiveZone) {
+    _fixedAssign[key] = _fixedAssign[key] === _ftzActiveZone ? null : _ftzActiveZone;
+  } else {
+    const c = _fixedAssign[key];
+    _fixedAssign[key] = c === null ? 'a' : c === 'a' ? 'b' : null;
+  }
+  _renderFixedTeamBuilder();
+};
+
+// ── 데스크탑 HTML5 드래그 ────────────────────────────────────────
+window.onFtzDragStart = function(e, name) {
+  _ftzDragName = name;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', name);
+  setTimeout(() => e.target && e.target.classList.add('dragging'), 0);
+};
+window.onFtzDragEnd = function(e) {
+  _ftzDragName = null;
+  if (e.target) e.target.classList.remove('dragging');
+  document.querySelectorAll('.ftz-zone').forEach(z => z.classList.remove('drag-over'));
+};
+window.onFtzDragOver = function(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drag-over');
+};
+window.onFtzDragLeave = function(e) {
+  e.currentTarget.classList.remove('drag-over');
+};
+window.onFtzDrop = function(e, team) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('drag-over');
+  const name = (e.dataTransfer.getData('text/plain') || _ftzDragName || '').trim();
+  if (!name) return;
+  _fixedAssign[normName(name)] = team || null;
+  _ftzDragName = null;
+  _renderFixedTeamBuilder();
+};
+
+// ── 모바일 터치 드래그 (꾹 눌러서) ──────────────────────────────
+window.onFtzTouchStart = function(e, name) {
+  _ftzLongPressTimer = setTimeout(() => {
+    _ftzLongPressTimer = null;
+    _ftzDragName = name;
+    e.target.classList.add('dragging');
+    _ftzGhost = document.createElement('span');
+    _ftzGhost.className = 'ftz-drag-ghost';
+    _ftzGhost.textContent = name;
+    document.body.appendChild(_ftzGhost);
+    const t = e.touches[0];
+    _ftzMoveGhost(t.clientX, t.clientY);
+  }, 400);
+};
+window.onFtzTouchMove = function(e) {
+  if (_ftzLongPressTimer) {
+    // 롱프레스 전 이동 → 취소 (스크롤 허용)
+    clearTimeout(_ftzLongPressTimer);
+    _ftzLongPressTimer = null;
+    return;
+  }
+  if (!_ftzDragName) return;
+  e.preventDefault();
+  const t = e.touches[0];
+  _ftzMoveGhost(t.clientX, t.clientY);
+  // 고스트 숨기고 아래 엘리먼트 탐색
+  _ftzGhost.style.display = 'none';
+  const below = document.elementFromPoint(t.clientX, t.clientY);
+  _ftzGhost.style.display = '';
+  const zone = below && below.closest('[data-ftz-zone]');
+  document.querySelectorAll('.ftz-zone').forEach(z => z.classList.remove('drag-over'));
+  if (zone) zone.classList.add('drag-over');
+};
+window.onFtzTouchEnd = function(e) {
+  clearTimeout(_ftzLongPressTimer);
+  _ftzLongPressTimer = null;
+  if (!_ftzDragName) return;
+  const t = e.changedTouches[0];
+  if (_ftzGhost) { _ftzGhost.remove(); _ftzGhost = null; }
+  document.querySelectorAll('.ftz-zone').forEach(z => z.classList.remove('drag-over'));
+  document.querySelectorAll('.ftz-chip.dragging').forEach(c => c.classList.remove('dragging'));
+  // 드롭 존 판별
+  const below = document.elementFromPoint(t.clientX, t.clientY);
+  const zone  = below && below.closest('[data-ftz-zone]');
+  if (zone) {
+    const team = zone.dataset.ftzZone || null;
+    _fixedAssign[normName(_ftzDragName)] = team || null;
+    _renderFixedTeamBuilder();
+  }
+  _ftzDragName = null;
+};
+function _ftzMoveGhost(x, y) {
+  if (!_ftzGhost) return;
+  _ftzGhost.style.left = x + 'px';
+  _ftzGhost.style.top  = y + 'px';
+}
+
 window.closeFixedTeamBuilder = function() {
+  _ftzActiveZone = null;
+  _ftzDragName = null;
+  if (_ftzGhost) { _ftzGhost.remove(); _ftzGhost = null; }
+  clearTimeout(_ftzLongPressTimer);
   document.getElementById('fixed-team-overlay').style.display = 'none';
 };
 
 window.confirmFixedTeams = function() {
-  const pool = sessionPlayers.length > 0 ? sessionPlayers
-    : Object.keys(_fixedAssign).map(key => ({ name: key }));
-
-  const teamA   = pool.filter(p => _fixedAssign[normName(p.name)] === 'a');
-  const teamB   = pool.filter(p => _fixedAssign[normName(p.name)] === 'b');
+  const pool = _ftzPool();
+  const teamA    = pool.filter(p => _fixedAssign[normName(p.name)] === 'a');
+  const teamB    = pool.filter(p => _fixedAssign[normName(p.name)] === 'b');
   const spectator = pool.find(p => _fixedAssign[normName(p.name)] == null) || null;
-
   _pendingRematchTeams = {
     teamA: teamA.map(p => ({...p, tier: getEffectiveTier(p.name, p.manualTier)})),
     teamB: teamB.map(p => ({...p, tier: getEffectiveTier(p.name, p.manualTier)})),
@@ -5006,7 +5137,6 @@ window.confirmFixedTeams = function() {
     spectator: spectator ? {...spectator} : null,
   };
   closeFixedTeamBuilder();
-  // 아이템 페이즈 시작
   document.getElementById('make-teams-btn').disabled = true;
   set(ref(db, 'session'), { phase: 'item', itemPhaseEnd: Date.now() + 15000 }).catch(console.error);
 };
