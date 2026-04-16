@@ -676,6 +676,27 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .save-done-panel{display:none;margin-top:12px;background:linear-gradient(135deg,rgba(0,40,20,0.7),rgba(0,60,30,0.5));border:1px solid rgba(0,199,122,0.4);border-radius:8px;padding:16px;text-align:center;animation:popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275);}
 /* ── 저장 확인 팝업 ── */
 .save-confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px;}
+.fixed-team-overlay{position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,0.72);display:flex;align-items:flex-end;justify-content:center;animation:taFadeIn 0.2s ease;}
+.fixed-team-sheet{background:var(--surface);border-radius:16px 16px 0 0;width:100%;max-width:480px;max-height:86vh;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--border);}
+.ftz-header{padding:16px 20px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.ftz-header-title{font-family:'Black Han Sans',sans-serif;font-size:16px;color:var(--gold);letter-spacing:1px;}
+.ftz-header-hint{font-size:10px;color:var(--text-dim);}
+.ftz-body{padding:14px 16px;overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:10px;}
+.ftz-zone{border-radius:10px;padding:10px 12px;border:2px solid transparent;min-height:52px;}
+.ftz-zone.team-a{background:rgba(11,196,227,0.06);border-color:rgba(11,196,227,0.3);}
+.ftz-zone.team-b{background:rgba(255,210,60,0.06);border-color:rgba(255,210,60,0.3);}
+.ftz-zone.unset{background:var(--surface2);border-color:var(--border);}
+.ftz-zone-label{font-size:11px;font-weight:700;margin-bottom:8px;}
+.ftz-zone.team-a .ftz-zone-label{color:var(--blue);}
+.ftz-zone.team-b .ftz-zone-label{color:var(--gold-light);}
+.ftz-zone.unset .ftz-zone-label{color:var(--text-dim);}
+.ftz-chips{display:flex;flex-wrap:wrap;gap:6px;min-height:24px;}
+.ftz-chip{padding:5px 13px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid transparent;transition:all 0.15s;font-family:'Noto Sans KR',sans-serif;user-select:none;}
+.ftz-chip.in-a{background:rgba(11,196,227,0.18);border-color:var(--blue);color:var(--blue);}
+.ftz-chip.in-b{background:rgba(255,210,60,0.14);border-color:var(--gold);color:var(--gold-light);}
+.ftz-chip.in-none{background:var(--surface2);border-color:var(--border);color:var(--text-dim);}
+.ftz-footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;}
+.ftz-footer .btn{flex:1;justify-content:center;}
 .save-confirm-modal{background:linear-gradient(135deg,rgba(13,24,41,0.98),rgba(17,32,64,0.98));border:1px solid rgba(240,160,32,0.45);border-radius:12px;padding:26px 22px;max-width:300px;width:100%;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.6);}
 .save-confirm-title{font-family:'Black Han Sans',sans-serif;font-size:15px;color:#f0a020;margin-bottom:10px;letter-spacing:1px;}
 .save-confirm-body{font-size:12px;color:var(--text-dim);line-height:1.9;margin-bottom:20px;}
@@ -921,6 +942,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
       <div class="mode-tabs">
         <div class="mode-tab active" data-mode="balance" onclick="setMode('balance')">⚖️ 실력 밸런스<span>티어로 균형 맞추기</span></div>
         <div class="mode-tab" data-mode="random" onclick="setMode('random')">🎲 완전 랜덤<span>운에 맡기자</span></div>
+        <div class="mode-tab" data-mode="fixed" onclick="setMode('fixed')">🔒 고정 팀짜기<span>직접 팀 배정</span></div>
       </div>
     </div>
 
@@ -961,7 +983,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
     <div id="warn-box"></div>
     <div class="action-row">
       <button class="btn btn-gold" id="make-teams-btn" onclick="startItemPhase()" style="flex:1;justify-content:center;font-size:15px;padding:13px;">⚔️ 팀 구성</button>
-      <button class="btn btn-ghost btn-sm" id="rematch-btn" style="display:none;white-space:nowrap;" onclick="rematchSameTeams()">🔁 한 판 더</button>
+      <button class="btn btn-ghost btn-sm" id="rematch-btn" style="display:none;white-space:nowrap;" onclick="rematchSameTeams()">🔒 팀 고정 재경기</button>
       <button class="btn btn-ghost btn-sm" style="position:relative;padding-right:20px;" onclick="resetSession()">🔄 초기화<span class="btn-q" data-tip="reset" onclick="event.stopPropagation()"><span class="btn-q-icon">?</span></span></button>
     </div>
   </div>
@@ -1079,6 +1101,33 @@ body.member-mode #event-no-save-notice{display:none!important;}
 </div>
 
 <!-- ===== 저장 확인 팝업 ===== -->
+<div id="fixed-team-overlay" class="fixed-team-overlay" style="display:none;">
+  <div class="fixed-team-sheet">
+    <div class="ftz-header">
+      <span class="ftz-header-title">🔒 고정 팀짜기</span>
+      <span class="ftz-header-hint">칩을 눌러 팀을 배정하세요</span>
+    </div>
+    <div class="ftz-body">
+      <div class="ftz-zone team-a" id="ftz-zone-a">
+        <div class="ftz-zone-label" id="ftz-label-a">🔵 1팀 · 0명</div>
+        <div class="ftz-chips" id="ftz-chips-a"></div>
+      </div>
+      <div class="ftz-zone team-b" id="ftz-zone-b">
+        <div class="ftz-zone-label" id="ftz-label-b">🟡 2팀 · 0명</div>
+        <div class="ftz-chips" id="ftz-chips-b"></div>
+      </div>
+      <div class="ftz-zone unset" id="ftz-zone-none">
+        <div class="ftz-zone-label" id="ftz-label-none">미배정</div>
+        <div class="ftz-chips" id="ftz-chips-none"></div>
+      </div>
+    </div>
+    <div class="ftz-footer">
+      <button class="btn btn-ghost btn-sm" onclick="closeFixedTeamBuilder()">취소</button>
+      <button class="btn btn-gold" id="ftz-confirm-btn" onclick="confirmFixedTeams()" disabled style="justify-content:center;">팀 구성 완료</button>
+    </div>
+  </div>
+</div>
+
 <div class="save-confirm-overlay" id="save-confirm-overlay" style="display:none;">
   <div class="save-confirm-modal">
     <div class="save-confirm-title">⚠️ 결과가 저장되지 않았어요</div>
@@ -1152,10 +1201,14 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.24.4';
+const APP_VERSION = 'v2.24.5';
 document.getElementById('version-badge').textContent = APP_VERSION;
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.24.5', date: '2026-04-16', changes: [
+    { tag: 'new', text: '고정 팀짜기 모드 추가 — 직접 1팀/2팀 배정 후 경기 진행' },
+    { tag: 'improve', text: '저장 완료 후 팀 고정 재경기 버튼 → 이전 팀 그대로 고정 팀빌더 오픈 (팀원 교체 가능)' },
+  ]},
   { ver: 'v2.24.4', date: '2026-04-16', changes: [
     { tag: 'new', text: '이 팀 그대로 한 판 더 버튼 추가 (저장 완료 후 같은 팀으로 재경기)' },
     { tag: 'improve', text: '게임 자동 감지 영역에 업데이트 준비중 안내 추가' },
@@ -2528,14 +2581,18 @@ window.confirmNewTeam = function() {
 window.startItemPhase = function() {
   // 팀 결과가 있고 아직 저장 안 된 경우 확인 팝업
   if ((currentTeamA.length > 0 || currentTeamB.length > 0) && !matchSaved) {
-    _pendingNewTeamFn = () => window.startItemPhase();
-    // 팝업을 열기 전에 currentTeamA/B를 잠깐 비워 재진입 무한루프 방지
     _pendingNewTeamFn = () => { currentTeamA=[]; currentTeamB=[]; window.startItemPhase(); };
     document.getElementById('save-confirm-overlay').style.display = 'flex';
     return;
   }
 
   if (isEventMatch) { makeTeams(); return; }
+
+  // 고정 팀짜기 모드: 팀빌더 먼저 열기
+  if (mode === 'fixed') {
+    openFixedTeamBuilder([], [], null);
+    return;
+  }
 
   const warn = document.getElementById('warn-box');
   warn.innerHTML = '';
@@ -4878,13 +4935,78 @@ window.goToTab = function(tabId, btnEl) {
 };
 window.rematchSameTeams = function() {
   if (!currentTeamA.length && !currentTeamB.length) return;
+  // 이전 팀 그대로 고정 팀빌더 열기 (원하면 멤버 교체 가능)
+  openFixedTeamBuilder([...currentTeamA], [...currentTeamB], currentSpectator);
+};
+
+// ── 고정 팀짜기 ────────────────────────────────────────────────
+let _fixedAssign = {}; // normName → 'a' | 'b' | null
+
+function openFixedTeamBuilder(presetA, presetB, presetSpectator) {
+  _fixedAssign = {};
+  const pool = sessionPlayers.length > 0 ? sessionPlayers
+    : [...(presetA||[]), ...(presetB||[]), ...(presetSpectator ? [presetSpectator] : [])];
+
+  pool.forEach(p => { _fixedAssign[normName(p.name)] = null; });
+  (presetA||[]).forEach(p => { _fixedAssign[normName(p.name)] = 'a'; });
+  (presetB||[]).forEach(p => { _fixedAssign[normName(p.name)] = 'b'; });
+  // 관전자는 미배정으로 시작 (유저가 원하는 팀에 배정 가능)
+
+  _renderFixedTeamBuilder();
+  document.getElementById('fixed-team-overlay').style.display = 'flex';
+}
+
+function _renderFixedTeamBuilder() {
+  const pool = sessionPlayers.length > 0 ? sessionPlayers
+    : Object.keys(_fixedAssign).map(key => ({ name: key }));
+
+  const teamA   = pool.filter(p => _fixedAssign[normName(p.name)] === 'a');
+  const teamB   = pool.filter(p => _fixedAssign[normName(p.name)] === 'b');
+  const unset   = pool.filter(p => _fixedAssign[normName(p.name)] == null);
+
+  const makeChip = (p, cls) =>
+    `<span class="ftz-chip ${cls}" onclick="toggleFixedPlayer('${escHtml(p.name)}')">${escHtml(p.name)}</span>`;
+
+  document.getElementById('ftz-chips-a').innerHTML    = teamA.map(p => makeChip(p,'in-a')).join('') || '<span style="font-size:11px;color:var(--text-dim);">—</span>';
+  document.getElementById('ftz-chips-b').innerHTML    = teamB.map(p => makeChip(p,'in-b')).join('') || '<span style="font-size:11px;color:var(--text-dim);">—</span>';
+  document.getElementById('ftz-chips-none').innerHTML = unset.map(p => makeChip(p,'in-none')).join('') || '<span style="font-size:11px;color:var(--text-dim);">—</span>';
+
+  document.getElementById('ftz-label-a').textContent    = `🔵 1팀 · ${teamA.length}명`;
+  document.getElementById('ftz-label-b').textContent    = `🟡 2팀 · ${teamB.length}명`;
+  document.getElementById('ftz-label-none').textContent = unset.length > 0 ? `미배정 · ${unset.length}명` : '미배정';
+
+  // 확정 가능 조건: 양팀 인원 동일, 최소 1명, 미배정 최대 1명(홀수 관전자)
+  const ok = teamA.length > 0 && teamA.length === teamB.length && unset.length <= 1;
+  document.getElementById('ftz-confirm-btn').disabled = !ok;
+}
+
+window.toggleFixedPlayer = function(name) {
+  const key = normName(name);
+  const cur = _fixedAssign[key];
+  _fixedAssign[key] = cur === null ? 'a' : cur === 'a' ? 'b' : null;
+  _renderFixedTeamBuilder();
+};
+
+window.closeFixedTeamBuilder = function() {
+  document.getElementById('fixed-team-overlay').style.display = 'none';
+};
+
+window.confirmFixedTeams = function() {
+  const pool = sessionPlayers.length > 0 ? sessionPlayers
+    : Object.keys(_fixedAssign).map(key => ({ name: key }));
+
+  const teamA   = pool.filter(p => _fixedAssign[normName(p.name)] === 'a');
+  const teamB   = pool.filter(p => _fixedAssign[normName(p.name)] === 'b');
+  const spectator = pool.find(p => _fixedAssign[normName(p.name)] == null) || null;
+
   _pendingRematchTeams = {
-    teamA: [...currentTeamA],
-    teamB: [...currentTeamB],
-    teamSize,
-    spectator: currentSpectator,
+    teamA: teamA.map(p => ({...p, tier: getEffectiveTier(p.name, p.manualTier)})),
+    teamB: teamB.map(p => ({...p, tier: getEffectiveTier(p.name, p.manualTier)})),
+    teamSize: teamA.length,
+    spectator: spectator ? {...spectator} : null,
   };
-  // 아이템 페이즈 재시작 (아이템 활성화 기회 + 팀 구성 트리거)
+  closeFixedTeamBuilder();
+  // 아이템 페이즈 시작
   document.getElementById('make-teams-btn').disabled = true;
   set(ref(db, 'session'), { phase: 'item', itemPhaseEnd: Date.now() + 15000 }).catch(console.error);
 };
