@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.25.0
+- 현재 버전: v2.25.2
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -96,15 +96,16 @@
 - **매너왕**: `goldVersion >= 2` 경기에만 존재, 항상 50G
 - 골드 점검 시 `GOLD_MVP_LEGACY`, `GOLD_SPECTATOR_CORRECT_LEGACY` 상수 확인 필요
 
-## 매너왕 시스템 (v2.25.0~)
-- MVP/SVP 투표 섹션 아래 독립 섹션으로 표시
-- **투표 대상**: 양 팀 전체 참가자 (관전자 제외)
-- **투표 가능자**: 경기 참가자 + 관전자
-- **이유 태그**: `cheer`(📣 응원왕) / `kind`(🤝 분위기 메이커) / `guide`(📚 뉴비 가이드)
-- **Firebase**: `session/manner/votes/{fbKey}: { pick, tag }` / `session/manner/confirmed: { winner, tag }`
-- **Match 저장**: `matches/{key}.mannerKing`, `matches/{key}.mannerTag`
-- **골드**: 선정자 +50G (`GOLD_MANNER`), `calcGoldFromMatches()`에서 계산
-- 저장 버튼을 막지 않음 (선택사항) — 건너뛰기 가능
+## 매너왕 시스템 (v2.25.2~)
+- **MVP 투표 카드에 통합** — MVP·SVP·매너왕을 한 카드에서 동시에 투표
+- **팀별 2인 선정**: 상대팀에서 MVP 1명 + 매너왕 1명 선택 (MVP와 매너왕은 다른 사람도 가능)
+  - teamA 플레이어 → teamB에서 MVP 1명, 매너왕 1명 선택
+  - teamB 플레이어 → teamA에서 MVP 1명, 매너왕 1명 선택
+- **저장 조건**: MVP와 매너왕 투표 모두 완료(또는 건너뛰기)해야 저장 활성화
+- **Firebase**: `session/manner/teamAVotes/{fbKey}: name` / `session/manner/teamBVotes/{fbKey}: name` / `session/manner/confirmed: { teamAManner, teamBManner }`
+- **Match 저장**: `matches/{key}.mannerWinner` (승리팀 매너왕), `matches/{key}.mannerLoser` (패배팀 매너왕)
+- **레거시 호환**: `matches/{key}.mannerKing` (v2.25.1 이하) — `calcGoldFromMatches()`에서 계속 지원
+- **골드**: 선정자 각각 +50G (`GOLD_MANNER`)
 
 | 아이템 | 가격 | 효과 |
 |--------|------|------|

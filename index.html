@@ -1228,10 +1228,16 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.25.1';
+const APP_VERSION = 'v2.25.2';
 document.getElementById('version-badge').textContent = APP_VERSION;
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.25.2', date: '2026-04-17', changes: [
+    { tag: 'improve', text: 'MVP·매너왕 투표를 하나의 카드로 통합 — 상대팀에서 MVP와 매너왕을 동시에 선택' },
+    { tag: 'improve', text: '매너왕도 팀별 2인 선정 (MVP/SVP와 동일한 구조) — 승리팀·패배팀 각각 1명' },
+    { tag: 'improve', text: '브라우저 confirm() 팝업 제거 — 앱 내 스타일 통일 UI로 교체' },
+    { tag: 'improve', text: 'MVP와 매너왕 모두 완료해야 저장 버튼 활성화' },
+  ]},
   { ver: 'v2.25.1', date: '2026-04-17', changes: [
     { tag: 'improve', text: '매너왕 투표 — 이유 태그 제거, 단순 투표 방식으로 변경' },
     { tag: 'fix',     text: '매너왕 본인 자신에게 투표 불가' },
@@ -1548,7 +1554,9 @@ function calcGoldFromMatches(name) {
     if (m.mvp       && normName(m.mvp)       === key) gold += mvpGold; // 구버전 호환
     if (m.mvpWinner && normName(m.mvpWinner) === key) gold += mvpGold;
     if (m.mvpLoser  && normName(m.mvpLoser)  === key) gold += mvpGold;
-    if (m.mannerKing && normName(m.mannerKing) === key) gold += GOLD_MANNER;
+    if (m.mannerKing   && normName(m.mannerKing)   === key) gold += GOLD_MANNER; // legacy
+    if (m.mannerWinner && normName(m.mannerWinner) === key) gold += GOLD_MANNER;
+    if (m.mannerLoser  && normName(m.mannerLoser)  === key) gold += GOLD_MANNER;
     // 뉴비 팀원과 함께 승리 시 골드 보너스 (뉴비 지정 이후 경기만)
     if (won) {
       const myTeam = inA ? (m.teamA||[]) : (m.teamB||[]);
@@ -1747,12 +1755,15 @@ function applyMvpData(data) {
 
 function applyMannerData(data) {
   if (!data || !data.active) return;
-  mannerVotes     = data.votes     || {};
+  mannerVotes = {
+    teamA: data.teamAVotes || {},
+    teamB: data.teamBVotes || {}
+  };
   mannerConfirmed = data.confirmed || null;
   if (currentTeamA.length && currentTeamB.length) {
-    const sec = document.getElementById('manner-section');
-    if (sec && sec._renderManner) sec._renderManner();
-    else renderMannerSection();
+    const sec = document.getElementById('mvp-section');
+    if (sec && sec._renderMvp) sec._renderMvp();
+    else renderMvpSection();
   }
 }
 
@@ -1801,7 +1812,7 @@ onValue(ref(db, 'session/mvp'), (snapshot) => {
 onValue(ref(db, 'session/manner'), (snapshot) => {
   const data = snapshot.val();
   if (!data || !data.active) {
-    mannerVotes = {};
+    mannerVotes = { teamA: {}, teamB: {} };
     mannerConfirmed = null;
     pendingMannerData = null;
     return;
@@ -2897,7 +2908,7 @@ window.makeTeams = function() {
   selectedWinner = null;
   mvpVotes = { teamA: {}, teamB: {} };
   mvpConfirmed = null;
-  mannerVotes = {};
+  mannerVotes = { teamA: {}, teamB: {} };
   mannerConfirmed = null;
   // 팀 구성 완료 → 아이템 잠금
   itemsLocked = true;
@@ -3358,14 +3369,14 @@ function teamCard(title,cls,members,avg) {
 let mvpVotes = { teamA: {}, teamB: {} }; // teamA: 1팀이 2팀에서 고름, teamB: 2팀이 1팀에서 고름
 let mvpConfirmed = null; // null | { teamAMvp: string, teamBMvp: string }
 let pendingMvpData = null; // 팀 데이터 로드 전 도착한 MVP 데이터 임시 보관
-let mannerVotes = {};     // { [voterFbKey]: { pick: name, tag: tagId } }
-let mannerConfirmed = null; // null | { winner: string, tag: string }
+let mannerVotes = { teamA: {}, teamB: {} }; // teamA: 1팀이 2팀에서 고름, teamB: 2팀이 1팀에서 고름
+let mannerConfirmed = null; // null | { teamAManner: string, teamBManner: string }
 let pendingMannerData = null;
 
-// 승리팀 선택 + MVP 완료 시에만 저장 버튼 활성화
+// 승리팀 선택 + MVP + 매너왕 모두 완료 시에만 저장 버튼 활성화
 function checkSaveReady() {
   if (isEventMatch) return;
-  document.getElementById('save-btn').disabled = !(selectedWinner !== null && mvpConfirmed !== null);
+  document.getElementById('save-btn').disabled = !(selectedWinner !== null && mvpConfirmed !== null && mannerConfirmed !== null);
 }
 
 window.selectWinner = function(side) {
@@ -3382,33 +3393,42 @@ function renderMvpSection() {
   if (!currentTeamA.length || !currentTeamB.length) { sec.style.display='none'; return; }
   sec.style.display = 'block';
 
-  const fbKey = (name) => normName(name).replace(/\s+/g, '_');
+  const fbKeyOf = (name) => normName(name).replace(/\s+/g, '_');
 
   function render() {
     const savedScrollY = window.scrollY;
 
-    if (mvpConfirmed !== null) {
-      const hasAny = mvpConfirmed.teamAMvp || mvpConfirmed.teamBMvp;
-      let banners = '';
-      if (hasAny) {
+    // 두 투표 모두 확정됐을 때 결과 화면
+    if (mvpConfirmed !== null && mannerConfirmed !== null) {
+      const hasMvp = mvpConfirmed.teamAMvp || mvpConfirmed.teamBMvp;
+      const hasManner = mannerConfirmed.teamAManner || mannerConfirmed.teamBManner;
+      let mvpBanners = '';
+      if (hasMvp) {
         if (selectedWinner) {
           const winMvp  = selectedWinner==='blue' ? mvpConfirmed.teamAMvp : mvpConfirmed.teamBMvp;
           const loseMvp = selectedWinner==='blue' ? mvpConfirmed.teamBMvp : mvpConfirmed.teamAMvp;
           const winLbl  = selectedWinner==='blue' ? '🔵 1팀' : '🟡 2팀';
           const loseLbl = selectedWinner==='blue' ? '🟡 2팀' : '🔵 1팀';
-          banners = `${winMvp  ? `<div class="mvp-winner-banner">🏆 MVP (${winLbl}): ${escHtml(winMvp)}</div>`  : ''}
-                     ${loseMvp ? `<div class="mvp-loser-banner">🥈 SVP (${loseLbl}): ${escHtml(loseMvp)}</div>` : ''}`;
+          mvpBanners = `${winMvp  ? `<div class="mvp-winner-banner">🏆 MVP (${winLbl}): ${escHtml(winMvp)}</div>`  : ''}
+                        ${loseMvp ? `<div class="mvp-loser-banner">🥈 SVP (${loseLbl}): ${escHtml(loseMvp)}</div>` : ''}`;
         } else {
-          banners = `${mvpConfirmed.teamAMvp ? `<div class="mvp-winner-banner" style="border-color:var(--blue);color:var(--blue);">🔵 1팀 Best: ${escHtml(mvpConfirmed.teamAMvp)}</div>` : ''}
-                     ${mvpConfirmed.teamBMvp ? `<div class="mvp-winner-banner" style="border-color:#ffd740;color:#ffd740;">🟡 2팀 Best: ${escHtml(mvpConfirmed.teamBMvp)}</div>` : ''}`;
+          mvpBanners = `${mvpConfirmed.teamAMvp ? `<div class="mvp-winner-banner" style="border-color:var(--blue);color:var(--blue);">🔵 1팀 Best: ${escHtml(mvpConfirmed.teamAMvp)}</div>` : ''}
+                        ${mvpConfirmed.teamBMvp ? `<div class="mvp-winner-banner" style="border-color:#ffd740;color:#ffd740;">🟡 2팀 Best: ${escHtml(mvpConfirmed.teamBMvp)}</div>` : ''}`;
         }
       } else {
-        banners = `<div style="font-size:12px;color:var(--text-dim);margin-bottom:10px;">MVP / SVP 투표를 건너뛰었어요.</div>`;
+        mvpBanners = `<div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;">MVP / SVP 투표를 건너뛰었어요.</div>`;
+      }
+      let mannerBanners = '';
+      if (hasManner) {
+        mannerBanners = `${mannerConfirmed.teamAManner ? `<div class="manner-king-banner" style="border-color:var(--blue);color:var(--blue);">🤝 🔵 1팀 매너왕: ${escHtml(mannerConfirmed.teamAManner)}</div>` : ''}
+                         ${mannerConfirmed.teamBManner ? `<div class="manner-king-banner" style="border-color:#ffd740;color:#ffd740;">🤝 🟡 2팀 매너왕: ${escHtml(mannerConfirmed.teamBManner)}</div>` : ''}`;
+      } else {
+        mannerBanners = `<div style="font-size:12px;color:var(--text-dim);margin-bottom:6px;">매너왕 투표를 건너뛰었어요.</div>`;
       }
       sec.innerHTML = `
-        <div class="mvp-title">🏆 MVP · SVP 결과</div>
-        ${banners}
-        <button class="mvp-skip-btn" onclick="resetMvp()">↩ 다시 투표</button>`;
+        <div class="mvp-title">🏆 MVP · SVP · 매너왕 결과</div>
+        ${mvpBanners}${mannerBanners}
+        <button class="mvp-skip-btn" onclick="resetMvpAndManner()">↩ 다시 투표</button>`;
       requestAnimationFrame(() => window.scrollTo(0, savedScrollY));
       checkSaveReady();
       return;
@@ -3420,13 +3440,13 @@ function renderMvpSection() {
     const amITeamB = myNorm && currentTeamB.some(p => normName(p.name) === myNorm);
     const amISpectator = myNorm && currentSpectator && normName(currentSpectator.name) === myNorm;
 
-    // 투표 진행 현황 + 투표자/미투표자 분리
+    // 투표 진행 현황
     const teamAVoters = new Set(Object.keys(mvpVotes.teamA || {}));
     const teamBVoters = new Set(Object.keys(mvpVotes.teamB || {}));
-    const teamAVoted    = currentTeamA.filter(p =>  teamAVoters.has(fbKey(p.name)));
-    const teamANotVoted = currentTeamA.filter(p => !teamAVoters.has(fbKey(p.name)));
-    const teamBVoted    = currentTeamB.filter(p =>  teamBVoters.has(fbKey(p.name)));
-    const teamBNotVoted = currentTeamB.filter(p => !teamBVoters.has(fbKey(p.name)));
+    const teamAVoted    = currentTeamA.filter(p =>  teamAVoters.has(fbKeyOf(p.name)));
+    const teamANotVoted = currentTeamA.filter(p => !teamAVoters.has(fbKeyOf(p.name)));
+    const teamBVoted    = currentTeamB.filter(p =>  teamBVoters.has(fbKeyOf(p.name)));
+    const teamBNotVoted = currentTeamB.filter(p => !teamBVoters.has(fbKeyOf(p.name)));
     const allVoted = teamANotVoted.length === 0 && teamBNotVoted.length === 0;
 
     const chips = (list, cls, emptyText) => list.length
@@ -3450,45 +3470,59 @@ function renderMvpSection() {
     if (!myNorm) {
       myVoteHtml = '';
     } else if (amISpectator) {
-      myVoteHtml = `<div style="font-size:12px;color:var(--text-dim);padding:8px 0 12px;">👀 관전자는 MVP 투표에 참여할 수 없어요.</div>`;
+      myVoteHtml = `<div style="font-size:12px;color:var(--text-dim);padding:8px 0 12px;">👀 관전자는 투표에 참여할 수 없어요.</div>`;
     } else if (!amITeamA && !amITeamB) {
       myVoteHtml = `<div style="font-size:12px;color:var(--text-dim);padding:8px 0 12px;">이번 경기에 참가하지 않아 투표할 수 없어요.</div>`;
     } else {
-      if (amITeamA) {
-        const myPick = (mvpVotes.teamA || {})[fbKey(myName)];
-        const btns = currentTeamB.map(p => {
-          const picked = myPick === p.name;
-          const pt = currentMatchParticipants[normName(p.name)];
-          const champLine = pt ? `<div style="font-size:10px;color:var(--text-dim);font-weight:400;margin-top:2px;">${pt.champion}</div>` : '';
-          return `<button class="mvp-cand-btn${picked?' selected':''}" onclick="confirmMvpVote('teamA','${escHtml(myName)}','${escHtml(p.name)}')">${escHtml(p.name)}${champLine}</button>`;
-        }).join('');
-        myVoteHtml += `<div class="mvp-my-vote-block">
-          <div class="mvp-candidates">${btns}</div>
-          ${myPick ? `<div class="mvp-voted-indicator">✅ ${escHtml(myPick)} 선택 완료</div>` : ''}
+      const myTeam   = amITeamA ? 'teamA' : 'teamB';
+      const oppTeam  = amITeamA ? currentTeamB : currentTeamA;
+      const myMvpPick    = (mvpVotes[myTeam] || {})[fbKeyOf(myName)];
+      const myMannerPick = (mannerVotes[myTeam] || {})[fbKeyOf(myName)];
+
+      if (myMvpPick && myMannerPick) {
+        myVoteHtml = `<div class="mvp-my-vote-block">
+          <div class="mvp-voted-indicator">✅ MVP: ${escHtml(myMvpPick)} · 매너왕: ${escHtml(myMannerPick)} 선택 완료</div>
         </div>`;
-      }
-      if (amITeamB) {
-        const myPick = (mvpVotes.teamB || {})[fbKey(myName)];
-        const btns = currentTeamA.map(p => {
-          const picked = myPick === p.name;
+      } else {
+        const pendingMvp    = sec._pendingMvp    || null;
+        const pendingManner = sec._pendingManner || null;
+
+        const mvpBtns = oppTeam.map(p => {
+          const sel = pendingMvp === p.name;
           const pt = currentMatchParticipants[normName(p.name)];
           const champLine = pt ? `<div style="font-size:10px;color:var(--text-dim);font-weight:400;margin-top:2px;">${pt.champion}</div>` : '';
-          return `<button class="mvp-cand-btn${picked?' selected':''}" onclick="confirmMvpVote('teamB','${escHtml(myName)}','${escHtml(p.name)}')">${escHtml(p.name)}${champLine}</button>`;
+          return `<button class="mvp-cand-btn${sel?' selected':''}" onclick="setMvpPick('${escHtml(p.name)}')">${escHtml(p.name)}${champLine}</button>`;
         }).join('');
-        myVoteHtml += `<div class="mvp-my-vote-block">
-          <div class="mvp-candidates">${btns}</div>
-          ${myPick ? `<div class="mvp-voted-indicator">✅ ${escHtml(myPick)} 선택 완료</div>` : ''}
+
+        const mannerBtns = oppTeam.map(p => {
+          const sel = pendingManner === p.name;
+          return `<button class="mvp-cand-btn${sel?' selected':''}" onclick="setMannerPick('${escHtml(p.name)}')">${escHtml(p.name)}</button>`;
+        }).join('');
+
+        const canCast = pendingMvp && pendingManner;
+        const confirmBtn = canCast
+          ? `<button class="btn btn-sm" style="background:var(--green);color:#000;font-weight:700;margin-top:8px;" onclick="castCombinedVote('${myTeam}','${escHtml(myName)}','${escHtml(pendingMvp)}','${escHtml(pendingManner)}')">✅ 투표하기</button>`
+          : `<button class="btn btn-sm" disabled style="opacity:0.4;margin-top:8px;">MVP와 매너왕을 모두 선택해주세요</button>`;
+
+        myVoteHtml = `<div class="mvp-my-vote-block">
+          <div class="mvp-my-vote-label">🏆 MVP 선택 (상대팀)</div>
+          <div class="mvp-candidates">${mvpBtns}</div>
+          <div class="mvp-my-vote-label" style="margin-top:10px;">🤝 매너왕 선택 (상대팀)</div>
+          <div class="mvp-candidates">${mannerBtns}</div>
+          ${confirmBtn}
         </div>`;
       }
     }
 
     sec.innerHTML = `
-      <div class="mvp-title" style="position:relative;padding-right:20px;">🏆 MVP · SVP 투표<span class="btn-q" data-tip="mvp"><span class="btn-q-icon">?</span></span></div>
+      <div class="mvp-title" style="position:relative;padding-right:20px;">🏆 MVP · SVP · 매너왕 투표<span class="btn-q" data-tip="mvp"><span class="btn-q-icon">?</span></span></div>
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">상대팀에서 각각 선택 · MVP/SVP +${GOLD_MVP}G · 매너왕 +${GOLD_MANNER}G</div>
       ${myVoteHtml}
       <div class="mvp-progress">
         ${progBlock('🔵 1팀', 'var(--blue)', teamAVoted, teamANotVoted)}
         ${progBlock('🟡 2팀', 'var(--gold)', teamBVoted, teamBNotVoted)}
-      </div>`;
+      </div>
+      <button class="mvp-skip-btn" style="margin-top:6px;" onclick="skipAll()">건너뛰기</button>`;
 
     requestAnimationFrame(() => window.scrollTo(0, savedScrollY));
     if (allVoted) autoConfirmMvp();
@@ -3498,13 +3532,14 @@ function renderMvpSection() {
   sec._renderMvp = render;
 }
 
-window.confirmMvpVote = function(team, voter, candidate) {
-  if (!confirm(`"${candidate}"을(를) 선택하시겠어요?`)) return;
-  window.castMvpVote(team, voter, candidate);
+window.setMvpPick = function(name) {
+  const sec = document.getElementById('mvp-section');
+  if (!sec) return;
+  sec._pendingMvp = name;
+  if (sec._renderMvp) sec._renderMvp();
 };
 
-window.castMvpVote = function(team, voter, candidate) {
-  // 관전자·비참가자 투표 차단: 실제 해당 팀 멤버인지 확인
+window.castCombinedVote = function(team, voter, mvpPick, mannerPick) {
   const voterNorm = normName(voter);
   const inTeamA = currentTeamA.some(p => normName(p.name) === voterNorm);
   const inTeamB = currentTeamB.some(p => normName(p.name) === voterNorm);
@@ -3512,217 +3547,95 @@ window.castMvpVote = function(team, voter, candidate) {
   if (team === 'teamB' && !inTeamB) return;
 
   const safeKey = voterNorm.replace(/\s+/g, '_');
-  const path = team === 'teamA'
-    ? `session/mvp/teamAVotes/${safeKey}`
-    : `session/mvp/teamBVotes/${safeKey}`;
-  set(ref(db, path), candidate).catch(console.error);
-  // 로컬 즉시 반영 (Firebase 콜백 전에 UI 선택 상태 표시)
-  if (team === 'teamA') (mvpVotes.teamA = mvpVotes.teamA || {})[safeKey] = candidate;
-  else (mvpVotes.teamB = mvpVotes.teamB || {})[safeKey] = candidate;
+  const mvpPath    = team === 'teamA' ? `session/mvp/teamAVotes/${safeKey}` : `session/mvp/teamBVotes/${safeKey}`;
+  const mannerPath = team === 'teamA' ? `session/manner/teamAVotes/${safeKey}` : `session/manner/teamBVotes/${safeKey}`;
+  set(ref(db, mvpPath), mvpPick).catch(console.error);
+  set(ref(db, mannerPath), mannerPick).catch(console.error);
+
+  if (team === 'teamA') {
+    (mvpVotes.teamA    = mvpVotes.teamA    || {})[safeKey] = mvpPick;
+    (mannerVotes.teamA = mannerVotes.teamA || {})[safeKey] = mannerPick;
+  } else {
+    (mvpVotes.teamB    = mvpVotes.teamB    || {})[safeKey] = mvpPick;
+    (mannerVotes.teamB = mannerVotes.teamB || {})[safeKey] = mannerPick;
+  }
   const sec = document.getElementById('mvp-section');
+  if (sec) { sec._pendingMvp = null; sec._pendingManner = null; }
   if (sec && sec._renderMvp) sec._renderMvp();
 };
 
 function autoConfirmMvp() {
-  // 이미 확정됐으면 중복 실행 방지
   if (mvpConfirmed !== null) return;
-  // 1팀(teamA) MVP: 2팀(teamB)이 투표 → currentTeamA에서 선정
+  // 1팀 MVP: 2팀이 투표
   const aCounts = {};
   currentTeamA.forEach(p => aCounts[p.name] = 0);
   Object.values(mvpVotes.teamB || {}).forEach(v => { if (aCounts[v]!==undefined) aCounts[v]++; });
   const aMax = Math.max(...Object.values(aCounts));
   const aTop = currentTeamA.filter(p => aCounts[p.name]===aMax && aMax>0).map(p=>p.name);
   const teamAMvp = aTop.length ? aTop[Math.floor(Math.random()*aTop.length)] : '';
-  // 2팀(teamB) MVP: 1팀(teamA)이 투표 → currentTeamB에서 선정
+  // 2팀 MVP: 1팀이 투표
   const bCounts = {};
   currentTeamB.forEach(p => bCounts[p.name] = 0);
   Object.values(mvpVotes.teamA || {}).forEach(v => { if (bCounts[v]!==undefined) bCounts[v]++; });
   const bMax = Math.max(...Object.values(bCounts));
   const bTop = currentTeamB.filter(p => bCounts[p.name]===bMax && bMax>0).map(p=>p.name);
   const teamBMvp = bTop.length ? bTop[Math.floor(Math.random()*bTop.length)] : '';
-  // Firebase에 확정 기록 → 모든 기기에 동기화
   set(ref(db, 'session/mvp/confirmed'), { teamAMvp, teamBMvp }).catch(console.error);
+  // 매너왕도 함께 확정
+  autoConfirmManner();
 }
 
-window.skipMvp = function() {
-  set(ref(db, 'session/mvp/confirmed'), { teamAMvp: '', teamBMvp: '' }).catch(console.error);
+window.skipAll = function() {
+  set(ref(db, 'session/mvp/confirmed'),    { teamAMvp: '', teamBMvp: '' }).catch(console.error);
+  set(ref(db, 'session/manner/confirmed'), { teamAManner: '', teamBManner: '' }).catch(console.error);
 };
 
-window.resetMvp = function() {
+window.resetMvpAndManner = function() {
   mvpVotes = { teamA: {}, teamB: {} };
   mvpConfirmed = null;
-  document.getElementById('save-btn').disabled = true;
-  set(ref(db, 'session/mvp'), { active: true }).catch(console.error);
-};
-
-// ── 매너왕 투표 ──────────────────────────────────────────────
-const MANNER_TAGS = [
-  { id: 'cheer', label: '📣 응원왕' },
-  { id: 'kind',  label: '🤝 분위기 메이커' },
-  { id: 'guide', label: '📚 뉴비 가이드' },
-];
-
-function renderMannerSection() {
-  const sec = document.getElementById('manner-section');
-  if (!sec) return;
-  if (!currentTeamA.length || !currentTeamB.length) { sec.style.display='none'; return; }
-  sec.style.display = 'block';
-
-  const fbKeyOf = (name) => normName(name).replace(/\s+/g, '_');
-
-  function render() {
-    const savedScrollY = window.scrollY;
-
-    if (mannerConfirmed !== null) {
-      const content = mannerConfirmed.winner
-        ? `<div class="manner-king-banner">🤝 매너왕: ${escHtml(mannerConfirmed.winner)}</div>`
-        : `<div style="font-size:12px;color:var(--text-dim);margin-bottom:10px;">매너왕 투표를 건너뛰었어요.</div>`;
-      sec.innerHTML = `
-        <div class="mvp-title">🤝 매너왕 결과</div>
-        ${content}
-        <button class="mvp-skip-btn" onclick="resetManner()">↩ 다시 투표</button>`;
-      requestAnimationFrame(() => window.scrollTo(0, savedScrollY));
-      return;
-    }
-
-    const myNorm = myName ? normName(myName) : null;
-    const allPlayers = [...currentTeamA, ...currentTeamB];
-    const canVote = myNorm && (
-      allPlayers.some(p => normName(p.name) === myNorm) ||
-      (currentSpectator && normName(currentSpectator.name) === myNorm)
-    );
-    const myKey  = myNorm ? myNorm.replace(/\s+/g, '_') : null;
-    const myVote = myKey ? mannerVotes[myKey] : null;
-
-    // 투표 현황 (라이브 계정만 표시)
-    const voters = new Set(Object.keys(mannerVotes));
-    const allVoted = allPlayers.every(p => voters.has(fbKeyOf(p.name))) && Object.keys(mannerVotes).length > 0;
-
-    let progressHtml = '';
-    if (liveMode) {
-      const voted    = allPlayers.filter(p =>  voters.has(fbKeyOf(p.name)));
-      const notVoted = allPlayers.filter(p => !voters.has(fbKeyOf(p.name)));
-      if (currentSpectator) {
-        const spKey = fbKeyOf(currentSpectator.name);
-        if (voters.has(spKey)) voted.push(currentSpectator);
-        else notVoted.push(currentSpectator);
-      }
-      const chips = (list, cls, emptyText) => list.length
-        ? list.map(p => `<span class="mvp-chip ${cls}">${escHtml(p.name)}</span>`).join('')
-        : `<span class="mvp-chip empty">${emptyText}</span>`;
-      progressHtml = `
-        <div class="mvp-progress">
-          <div class="mvp-prog-block">
-            <div class="mvp-prog-row">
-              <span class="mvp-prog-row-label voted">투표 완료</span>
-              <div class="mvp-prog-chips">${chips(voted, 'voted', '없음')}</div>
-            </div>
-            <div class="mvp-prog-row">
-              <span class="mvp-prog-row-label pending">미투표</span>
-              <div class="mvp-prog-chips">${chips(notVoted, 'pending', '✅ 없음')}</div>
-            </div>
-          </div>
-        </div>`;
-    }
-
-    let myVoteHtml = '';
-    if (!myNorm) {
-      myVoteHtml = '';
-    } else if (!canVote) {
-      myVoteHtml = `<div style="font-size:12px;color:var(--text-dim);padding:8px 0 12px;">이번 경기에 참가하지 않아 투표할 수 없어요.</div>`;
-    } else if (myVote) {
-      myVoteHtml = `<div class="mvp-my-vote-block">
-        <div class="mvp-voted-indicator">✅ ${escHtml(myVote.pick)} 선택 완료</div>
-      </div>`;
-    } else {
-      // 본인 제외한 후보 목록
-      const candidates = allPlayers.filter(p => normName(p.name) !== myNorm);
-      const pendingPick = sec._pendingPick || null;
-      const candidateBtns = candidates.map(p => {
-        const sel = pendingPick === p.name;
-        return `<button class="mvp-cand-btn${sel?' selected':''}" onclick="setMannerPick('${escHtml(p.name)}')">${escHtml(p.name)}</button>`;
-      }).join('');
-      const confirmBtn = pendingPick
-        ? `<button class="btn btn-sm" style="background:var(--green);color:#000;font-weight:700;margin-top:4px;" onclick="confirmMannerVote('${escHtml(myName)}','${escHtml(pendingPick)}')">✅ 투표하기</button>`
-        : `<button class="btn btn-sm" disabled style="opacity:0.4;margin-top:4px;">후보를 선택해주세요</button>`;
-      myVoteHtml = `<div class="mvp-my-vote-block">
-        <div class="mvp-my-vote-label">누구를 선택하시겠어요?</div>
-        <div class="mvp-candidates">${candidateBtns}</div>
-        ${confirmBtn}
-      </div>`;
-    }
-
-    sec.innerHTML = `
-      <div class="mvp-title">🤝 매너왕 투표</div>
-      <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">이번 경기에서 가장 매너 좋았던 한 분을 선택해주세요 · 선정 시 🪙+${GOLD_MANNER}G</div>
-      ${myVoteHtml}
-      ${progressHtml}
-      <button class="mvp-skip-btn" style="margin-top:6px;" onclick="skipManner()">건너뛰기</button>`;
-
-    requestAnimationFrame(() => window.scrollTo(0, savedScrollY));
-    if (allVoted) autoConfirmManner();
-  }
-
-  render();
-  sec._renderManner = render;
-}
-
-window.setMannerPick = function(name) {
-  const sec = document.getElementById('manner-section');
-  if (!sec) return;
-  sec._pendingPick = name;
-  if (sec._renderManner) sec._renderManner();
-};
-
-window.confirmMannerVote = function(voter, pick) {
-  if (!confirm(`"${pick}"을(를) 매너왕으로 투표하시겠어요?`)) return;
-  castMannerVote(voter, pick);
-};
-
-function castMannerVote(voter, pick) {
-  const voterNorm = normName(voter);
-  const allPlayers = [...currentTeamA, ...currentTeamB];
-  const isParticipant = allPlayers.some(p => normName(p.name) === voterNorm)
-    || (currentSpectator && normName(currentSpectator.name) === voterNorm);
-  if (!isParticipant) return;
-  // 본인 자신에게 투표 차단
-  if (normName(pick) === voterNorm) return;
-  const safeKey = voterNorm.replace(/\s+/g, '_');
-  set(ref(db, `session/manner/votes/${safeKey}`), { pick }).catch(console.error);
-  mannerVotes[safeKey] = { pick };
-  const sec = document.getElementById('manner-section');
-  if (sec) sec._pendingPick = null;
-  if (sec && sec._renderManner) sec._renderManner();
-}
-
-function autoConfirmManner() {
-  if (mannerConfirmed !== null) return;
-  const counts = {};
-  [...currentTeamA, ...currentTeamB].forEach(p => { counts[p.name] = 0; });
-  Object.values(mannerVotes).forEach(v => {
-    if (counts[v.pick] !== undefined) counts[v.pick]++;
-  });
-  const max = Math.max(...Object.values(counts), 0);
-  if (max === 0) { set(ref(db, 'session/manner/confirmed'), { winner: '' }).catch(console.error); return; }
-  const tops   = Object.keys(counts).filter(n => counts[n] === max);
-  const winner = tops[Math.floor(Math.random() * tops.length)];
-  set(ref(db, 'session/manner/confirmed'), { winner }).catch(console.error);
-}
-
-window.skipManner = function() {
-  set(ref(db, 'session/manner/confirmed'), { winner: '' }).catch(console.error);
-};
-
-window.resetManner = function() {
-  mannerVotes = {};
+  mannerVotes = { teamA: {}, teamB: {} };
   mannerConfirmed = null;
-  const sec = document.getElementById('manner-section');
-  if (sec) sec._pendingPick = null;
+  document.getElementById('save-btn').disabled = true;
+  const sec = document.getElementById('mvp-section');
+  if (sec) { sec._pendingMvp = null; sec._pendingManner = null; }
+  set(ref(db, 'session/mvp'),    { active: true }).catch(console.error);
   set(ref(db, 'session/manner'), { active: true }).catch(console.error);
 };
 
+// ── 매너왕 투표 (v2.25.2: MVP 섹션에 통합됨) ──────────────────
+function renderMannerSection() {
+  const sec = document.getElementById('manner-section');
+  if (sec) sec.style.display = 'none';
+}
+
+window.setMannerPick = function(name) {
+  const sec = document.getElementById('mvp-section');
+  if (!sec) return;
+  sec._pendingManner = name;
+  if (sec._renderMvp) sec._renderMvp();
+};
+
+function autoConfirmManner() {
+  if (mannerConfirmed !== null) return;
+  // 1팀 매너왕: 2팀이 1팀에서 선택 (mannerVotes.teamB → teamA candidates)
+  const aCounts = {};
+  currentTeamA.forEach(p => aCounts[p.name] = 0);
+  Object.values(mannerVotes.teamB || {}).forEach(v => { if (aCounts[v]!==undefined) aCounts[v]++; });
+  const aMax = Math.max(...Object.values(aCounts), 0);
+  const aTop = currentTeamA.filter(p => aCounts[p.name]===aMax && aMax>0).map(p=>p.name);
+  const teamAManner = aTop.length ? aTop[Math.floor(Math.random()*aTop.length)] : '';
+  // 2팀 매너왕: 1팀이 2팀에서 선택 (mannerVotes.teamA → teamB candidates)
+  const bCounts = {};
+  currentTeamB.forEach(p => bCounts[p.name] = 0);
+  Object.values(mannerVotes.teamA || {}).forEach(v => { if (bCounts[v]!==undefined) bCounts[v]++; });
+  const bMax = Math.max(...Object.values(bCounts), 0);
+  const bTop = currentTeamB.filter(p => bCounts[p.name]===bMax && bMax>0).map(p=>p.name);
+  const teamBManner = bTop.length ? bTop[Math.floor(Math.random()*bTop.length)] : '';
+  set(ref(db, 'session/manner/confirmed'), { teamAManner, teamBManner }).catch(console.error);
+}
+
 // ── 경기 결과 요약 모달 ──────────────────────────────────────
-function showMatchSummary({ winners, losers, itemEffects, tierChanges, questEvent, spectatorResult, mvpWinner, mvpLoser, mannerKing }) {
+function showMatchSummary({ winners, losers, itemEffects, tierChanges, questEvent, spectatorResult, mvpWinner, mvpLoser, mannerWinner, mannerLoser }) {
   document.querySelector('.match-summary-overlay')?.remove();
   const ITEM_ICONS = { score2x: '⚡', insurance: '🛡️', gamble: '🎲' };
   const ITEM_NAMES = { score2x: '승점 2배', insurance: '패배 방어', gamble: '도박 주사위' };
@@ -3766,10 +3679,11 @@ function showMatchSummary({ winners, losers, itemEffects, tierChanges, questEven
       if (!isWin && iAmNewbie) gold = GOLD_LOSE;
       if (isWin && hasNewbieTeammate && !effects.includes('gamble')) gold += NEWBIE_WIN_BONUS_GOLD;
     }
-    const isMvp    = normName(name) === normName(mvpWinner || '') || normName(name) === normName(mvpLoser || '');
-    const isManner = normName(name) === normName(mannerKing || '');
-    if (isMvp)    gold += GOLD_MVP;
-    if (isManner) gold += GOLD_MANNER;
+    const isMvp       = normName(name) === normName(mvpWinner || '') || normName(name) === normName(mvpLoser || '');
+    const isMannerWin = normName(name) === normName(mannerWinner || '');
+    const isMannerLos = normName(name) === normName(mannerLoser  || '');
+    if (isMvp)                  gold += GOLD_MVP;
+    if (isMannerWin||isMannerLos) gold += GOLD_MANNER;
 
     const totalPtLoss = ptChange + questExtraPt;
     if (isWin) ptLabel = `+${ptChange}pt`;
@@ -3778,12 +3692,10 @@ function showMatchSummary({ winners, losers, itemEffects, tierChanges, questEven
 
     const ptClass = isWin ? 'plus' : (totalPtLoss === 0 ? 'zero' : 'minus');
 
-    // 아이템 아이콘
     const itemHtml = effects.map(id => `<span class="ms-item-icon" title="${ITEM_NAMES[id]||id}">${ITEM_ICONS[id]||'📦'}</span>`).join('');
-    // MVP / 매너왕 표시
     const mvpBadge = (normName(name) === normName(mvpWinner || '')) ? ' 🏆'
                    : (normName(name) === normName(mvpLoser  || '')) ? ' 🥈'
-                   : (normName(name) === normName(mannerKing|| '')) ? ' 🤝' : '';
+                   : (isMannerWin||isMannerLos)                     ? ' 🤝' : '';
 
     return `<div class="ms-player-row">
       <span class="ms-name">${escHtml(name)}${mvpBadge}</span>
@@ -3857,7 +3769,7 @@ function showMatchSummary({ winners, losers, itemEffects, tierChanges, questEven
           <div class="ms-section-title">${loseLabel}</div>
           ${loseRows}
         </div>
-        ${questHtml}${specHtml}${tierHtml}${mannerKing ? `<div style="margin-top:10px;padding:10px 14px;background:rgba(0,199,122,0.08);border:1px solid rgba(0,199,122,0.25);border-radius:8px;text-align:center;font-size:13px;color:var(--green);">🤝 매너왕: <strong>${escHtml(mannerKing)}</strong> · +${GOLD_MANNER}G</div>` : ''}
+        ${questHtml}${specHtml}${tierHtml}${(mannerWinner||mannerLoser) ? `<div style="margin-top:10px;padding:10px 14px;background:rgba(0,199,122,0.08);border:1px solid rgba(0,199,122,0.25);border-radius:8px;font-size:13px;color:var(--green);">${mannerWinner?`<div>🤝 승리팀 매너왕: <strong>${escHtml(mannerWinner)}</strong> · +${GOLD_MANNER}G</div>`:''}${mannerLoser?`<div style="margin-top:4px;">🤝 패배팀 매너왕: <strong>${escHtml(mannerLoser)}</strong> · +${GOLD_MANNER}G</div>`:''}</div>` : ''}
       </div>
       <div class="ms-footer">
         <button class="btn btn-primary" onclick="closeMatchSummary()">확인</button>
@@ -3925,9 +3837,10 @@ window.saveMatch = async function() {
     };
     if (mvpWinnerName) matchData.mvpWinner = mvpWinnerName;
     if (mvpLoserName)  matchData.mvpLoser  = mvpLoserName;
-    if (mannerConfirmed?.winner) {
-      matchData.mannerKing = mannerConfirmed.winner;
-    }
+    const mannerWinnerName = selectedWinner==='blue' ? (mannerConfirmed?.teamAManner||null) : (mannerConfirmed?.teamBManner||null);
+    const mannerLoserName  = selectedWinner==='blue' ? (mannerConfirmed?.teamBManner||null) : (mannerConfirmed?.teamAManner||null);
+    if (mannerWinnerName) matchData.mannerWinner = mannerWinnerName;
+    if (mannerLoserName)  matchData.mannerLoser  = mannerLoserName;
     matchData.goldVersion = 2; // v2.25.0~ 골드 상향 적용 버전 표시
     // 관전자 예측 데이터
     if (currentSpectator && spectatorPick) {
@@ -3972,7 +3885,8 @@ window.saveMatch = async function() {
       spectatorResult,
       mvpWinner: mvpWinnerName,
       mvpLoser: mvpLoserName,
-      mannerKing: mannerConfirmed?.winner || null,
+      mannerWinner: mannerWinnerName,
+      mannerLoser: mannerLoserName,
     }), 400);
     questEventState = null;
     spectatorPick = null;
@@ -4014,7 +3928,7 @@ window.saveMatch = async function() {
     const mannerSec = document.getElementById('manner-section');
     if (mannerSec) mannerSec.style.display='none';
     mvpVotes = { teamA: {}, teamB: {} }; mvpConfirmed = null;
-    mannerVotes = {}; mannerConfirmed = null;
+    mannerVotes = { teamA: {}, teamB: {} }; mannerConfirmed = null;
     selectedWinner=null;
   } catch(e) {
     btn.textContent='❌ 저장 실패'; btn.disabled=false;
@@ -4089,7 +4003,7 @@ function renderMatchHistory() {
         <div class="match-vs-sep">VS</div>
         ${boxB}
       </div>
-      ${m.mannerKing ? `<div style="padding:6px 10px;background:rgba(0,199,122,0.07);border-top:1px solid rgba(0,199,122,0.15);font-size:11px;color:var(--green);text-align:center;">🤝 매너왕: <strong>${escHtml(m.mannerKing)}</strong></div>` : ''}
+      ${(m.mannerWinner||m.mannerLoser||m.mannerKing) ? `<div style="padding:6px 10px;background:rgba(0,199,122,0.07);border-top:1px solid rgba(0,199,122,0.15);font-size:11px;color:var(--green);text-align:center;">🤝 매너왕: <strong>${[m.mannerWinner,m.mannerLoser].filter(Boolean).map(n=>escHtml(n)).join(' · ') || escHtml(m.mannerKing)}</strong></div>` : ''}
       <button class="match-detail-btn" onclick="openMatchDetail('${m.key}')">경기 상세내용 보기 (업데이트 예정)</button>
     </div>`;
   }).join('');
