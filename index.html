@@ -716,9 +716,18 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .save-confirm-title{font-family:'Black Han Sans',sans-serif;font-size:15px;color:#f0a020;margin-bottom:10px;letter-spacing:1px;}
 .save-confirm-body{font-size:12px;color:var(--text-dim);line-height:1.9;margin-bottom:20px;}
 .save-confirm-btns{display:flex;gap:8px;justify-content:center;}
-.achievement-cat{margin-bottom:16px;}
-.achievement-cat-title{font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--border);}
-.achievement-item{display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);margin-bottom:7px;transition:opacity 0.2s;}
+.achievement-cat{margin-bottom:8px;}
+.achievement-cat-header{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);cursor:pointer;user-select:none;transition:border-color 0.15s;}
+.achievement-cat-header:hover{border-color:rgba(255,255,255,0.25);}
+.achievement-cat-header.open{border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom-color:transparent;}
+.achievement-cat-icon{font-size:18px;flex-shrink:0;}
+.achievement-cat-name{flex:1;font-size:13px;font-weight:700;}
+.achievement-cat-meta{font-size:11px;color:var(--text-dim);}
+.achievement-cat-arrow{font-size:11px;color:var(--text-dim);margin-left:4px;}
+.achievement-cat-body{display:none;padding:8px;background:var(--surface2);border:1px solid var(--border);border-top:none;border-bottom-left-radius:10px;border-bottom-right-radius:10px;}
+.achievement-cat-body.open{display:block;}
+.achievement-item{display:flex;align-items:center;gap:12px;padding:11px 13px;border-radius:8px;background:var(--surface);border:1px solid var(--border);margin-bottom:6px;transition:opacity 0.2s;}
+.achievement-item:last-child{margin-bottom:0;}
 .achievement-item.claimed{opacity:0.4;}
 .achievement-icon{font-size:22px;flex-shrink:0;width:32px;text-align:center;}
 .achievement-info{flex:1;min-width:0;}
@@ -1223,10 +1232,16 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.25.5';
+const APP_VERSION = 'v2.26.0';
 document.getElementById('version-badge').textContent = APP_VERSION;
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.26.0', date: '2026-04-17', changes: [
+    { tag: 'new',     text: '업적 카테고리 아코디언 UI — 카테고리 클릭으로 펼치기/접기, 달성 수 표시' },
+    { tag: 'new',     text: '업적 25개 추가 — MVP·MMP / 관전자 / 출석 / 퀘스트 / 뉴비 / 전적·아이템 확장' },
+    { tag: 'improve', text: '도박 주사위 업적(도박사·리스크 테이커) 아이템 카테고리에 추가' },
+    { tag: 'improve', text: '출석 카운터 누적 저장 시작 (업적 조건 반영)' },
+  ]},
   { ver: 'v2.25.5', date: '2026-04-17', changes: [
     { tag: 'improve', text: '투표 건너뛰기 버튼 라이브용 계정에서만 표시' },
   ]},
@@ -1468,35 +1483,62 @@ const OLD_ACHIEVEMENT_REWARDS = {
 
 // ── 업적 정의 ────────────────────────────────────────────────
 const ACHIEVEMENTS = [
-  // 전적 기반
-  { id:'first_win',   cat:'전적 기반',  icon:'🏆', name:'첫 승리',        desc:'첫 번째 승리를 거두세요',              reward:5,   check:s=>s.wins>=1,              prog:s=>[s.wins,1] },
-  { id:'win_10',      cat:'전적 기반',  icon:'🥊', name:'10승 달성',      desc:'누적 10승을 달성하세요',               reward:10,  check:s=>s.wins>=10,             prog:s=>[s.wins,10] },
-  { id:'win_50',      cat:'전적 기반',  icon:'⚔️',  name:'50승 달성',      desc:'누적 50승을 달성하세요',               reward:25,  check:s=>s.wins>=50,             prog:s=>[s.wins,50] },
-  { id:'win_100',     cat:'전적 기반',  icon:'👑', name:'100승 달성',     desc:'누적 100승을 달성하세요',              reward:50,  check:s=>s.wins>=100,            prog:s=>[s.wins,100] },
-  { id:'match_50',    cat:'전적 기반',  icon:'📋', name:'50전 참전',      desc:'총 50경기에 참여하세요',               reward:15,  check:s=>s.total>=50,            prog:s=>[s.total,50] },
-  { id:'match_100',   cat:'전적 기반',  icon:'🎖️', name:'100전 참전',    desc:'총 100경기에 참여하세요',              reward:25,  check:s=>s.total>=100,           prog:s=>[s.total,100] },
-  // 연속 기록
-  { id:'streak_3',    cat:'연속 기록',  icon:'🔥', name:'3연승',          desc:'3연승을 달성하세요',                   reward:10,  check:s=>s.maxWin>=3,            prog:s=>[Math.min(s.maxWin,3),3] },
-  { id:'streak_5',    cat:'연속 기록',  icon:'💥', name:'5연승',          desc:'5연승을 달성하세요',                   reward:15,  check:s=>s.maxWin>=5,            prog:s=>[Math.min(s.maxWin,5),5] },
-  { id:'streak_10',   cat:'연속 기록',  icon:'⚡', name:'10연승',         desc:'10연승을 달성하세요',                  reward:40,  check:s=>s.maxWin>=10,           prog:s=>[Math.min(s.maxWin,10),10] },
-  { id:'loss_3',      cat:'연속 기록',  icon:'😥', name:'3연패',          desc:'3연패를 경험하세요 (위로 보상!)',       reward:5,   check:s=>s.maxLoss>=3,           prog:s=>[Math.min(s.maxLoss,3),3] },
-  { id:'loss_5',      cat:'연속 기록',  icon:'😭', name:'5연패',          desc:'5연패를 경험하세요 (위로 보상!)',       reward:10,  check:s=>s.maxLoss>=5,           prog:s=>[Math.min(s.maxLoss,5),5] },
-  { id:'loss_10',     cat:'연속 기록',  icon:'💀', name:'10연패',         desc:'10연패를 경험하세요 (위로 보상!)',      reward:25,  check:s=>s.maxLoss>=10,          prog:s=>[Math.min(s.maxLoss,10),10] },
-  // 티어 기반
-  { id:'tier_first',  cat:'티어 기반',  icon:'🌟', name:'첫 티어 부여',   desc:'3판 이상 플레이하여 티어를 받으세요',   reward:5,   check:s=>s.total>=3,             prog:s=>[Math.min(s.total,3),3] },
-  { id:'tier_gold',   cat:'티어 기반',  icon:'🥇', name:'골드 달성',      desc:'골드 티어에 진입하세요 (480pt↑)',      reward:10,  check:s=>s.score>=480&&s.total>=3, prog:null },
-  { id:'tier_plat',   cat:'티어 기반',  icon:'💎', name:'플래티넘 달성',  desc:'플래티넘 티어에 진입하세요 (540pt↑)',  reward:15,  check:s=>s.score>=540&&s.total>=3, prog:null },
-  { id:'tier_dia',    cat:'티어 기반',  icon:'💠', name:'다이아 달성',    desc:'다이아 티어에 진입하세요 (660pt↑)',    reward:25,  check:s=>s.score>=660&&s.total>=3, prog:null },
-  { id:'tier_master', cat:'티어 기반',  icon:'🔮', name:'마스터 달성',    desc:'마스터 티어에 진입하세요 (720pt↑)',    reward:35,  check:s=>s.score>=720&&s.total>=3, prog:null },
-  { id:'tier_gm',     cat:'티어 기반',  icon:'✨', name:'그랜드마스터',   desc:'그랜드마스터에 진입하세요 (780pt↑)',   reward:45,  check:s=>s.score>=780&&s.total>=3, prog:null },
-  { id:'tier_chal',   cat:'티어 기반',  icon:'🏅', name:'챌린저 달성',    desc:'챌린저 티어에 진입하세요 (850pt↑)',   reward:60,  check:s=>s.score>=850&&s.total>=3, prog:null },
-  // 아이템
-  { id:'s2x_win_3',   cat:'아이템',    icon:'⚡', name:'2배권 승리 3회',  desc:'승점 2배권 사용 후 승리를 3회 달성하세요',  reward:10,  check:s=>s.score2xWin>=3,   prog:s=>[Math.min(s.score2xWin,3),3] },
-  { id:'s2x_win_5',   cat:'아이템',    icon:'⚡', name:'2배권 승리 5회',  desc:'승점 2배권 사용 후 승리를 5회 달성하세요',  reward:15,  check:s=>s.score2xWin>=5,   prog:s=>[Math.min(s.score2xWin,5),5] },
-  { id:'s2x_win_10',  cat:'아이템',    icon:'⚡', name:'2배권 승리 10회', desc:'승점 2배권 사용 후 승리를 10회 달성하세요', reward:30,  check:s=>s.score2xWin>=10,  prog:s=>[Math.min(s.score2xWin,10),10] },
-  { id:'ins_3',       cat:'아이템',    icon:'🛡️', name:'철벽 방어 3회',   desc:'패배 방어권으로 감점을 3회 막으세요',       reward:5,   check:s=>s.insuranceUsed>=3,  prog:s=>[Math.min(s.insuranceUsed,3),3] },
-  { id:'ins_5',       cat:'아이템',    icon:'🛡️', name:'철벽 방어 5회',   desc:'패배 방어권으로 감점을 5회 막으세요',       reward:15,  check:s=>s.insuranceUsed>=5,  prog:s=>[Math.min(s.insuranceUsed,5),5] },
-  { id:'ins_10',      cat:'아이템',    icon:'🛡️', name:'철벽 방어 10회',  desc:'패배 방어권으로 감점을 10회 막으세요',      reward:25,  check:s=>s.insuranceUsed>=10, prog:s=>[Math.min(s.insuranceUsed,10),10] },
+  // ── 전적 기반
+  { id:'first_win',    cat:'전적 기반',  icon:'🏆', name:'첫 승리',         desc:'첫 번째 승리를 거두세요',               reward:5,   check:s=>s.wins>=1,               prog:s=>[s.wins,1] },
+  { id:'win_10',       cat:'전적 기반',  icon:'🥊', name:'10승 달성',       desc:'누적 10승을 달성하세요',                reward:10,  check:s=>s.wins>=10,              prog:s=>[s.wins,10] },
+  { id:'win_50',       cat:'전적 기반',  icon:'⚔️',  name:'50승 달성',       desc:'누적 50승을 달성하세요',                reward:25,  check:s=>s.wins>=50,              prog:s=>[s.wins,50] },
+  { id:'win_100',      cat:'전적 기반',  icon:'👑', name:'100승 달성',      desc:'누적 100승을 달성하세요',               reward:50,  check:s=>s.wins>=100,             prog:s=>[s.wins,100] },
+  { id:'win_200',      cat:'전적 기반',  icon:'💪', name:'200승 달성',      desc:'누적 200승을 달성하세요',               reward:80,  check:s=>s.wins>=200,             prog:s=>[s.wins,200] },
+  { id:'match_50',     cat:'전적 기반',  icon:'📋', name:'50전 참전',       desc:'총 50경기에 참여하세요',                reward:15,  check:s=>s.total>=50,             prog:s=>[s.total,50] },
+  { id:'match_100',    cat:'전적 기반',  icon:'🎖️', name:'100전 참전',      desc:'총 100경기에 참여하세요',               reward:25,  check:s=>s.total>=100,            prog:s=>[s.total,100] },
+  { id:'match_200',    cat:'전적 기반',  icon:'🗡️', name:'200전 참전',      desc:'총 200경기에 참여하세요',               reward:40,  check:s=>s.total>=200,            prog:s=>[s.total,200] },
+  // ── 연속 기록
+  { id:'streak_3',     cat:'연속 기록',  icon:'🔥', name:'3연승',           desc:'3연승을 달성하세요',                    reward:10,  check:s=>s.maxWin>=3,             prog:s=>[Math.min(s.maxWin,3),3] },
+  { id:'streak_5',     cat:'연속 기록',  icon:'💥', name:'5연승',           desc:'5연승을 달성하세요',                    reward:15,  check:s=>s.maxWin>=5,             prog:s=>[Math.min(s.maxWin,5),5] },
+  { id:'streak_10',    cat:'연속 기록',  icon:'⚡', name:'10연승',          desc:'10연승을 달성하세요',                   reward:40,  check:s=>s.maxWin>=10,            prog:s=>[Math.min(s.maxWin,10),10] },
+  { id:'loss_3',       cat:'연속 기록',  icon:'😥', name:'3연패',           desc:'3연패를 경험하세요 (위로 보상!)',        reward:5,   check:s=>s.maxLoss>=3,            prog:s=>[Math.min(s.maxLoss,3),3] },
+  { id:'loss_5',       cat:'연속 기록',  icon:'😭', name:'5연패',           desc:'5연패를 경험하세요 (위로 보상!)',        reward:10,  check:s=>s.maxLoss>=5,            prog:s=>[Math.min(s.maxLoss,5),5] },
+  { id:'loss_10',      cat:'연속 기록',  icon:'💀', name:'10연패',          desc:'10연패를 경험하세요 (위로 보상!)',       reward:25,  check:s=>s.maxLoss>=10,           prog:s=>[Math.min(s.maxLoss,10),10] },
+  // ── 티어 기반
+  { id:'tier_first',   cat:'티어 기반',  icon:'🌟', name:'첫 티어 부여',    desc:'3판 이상 플레이하여 티어를 받으세요',    reward:5,   check:s=>s.total>=3,              prog:s=>[Math.min(s.total,3),3] },
+  { id:'tier_gold',    cat:'티어 기반',  icon:'🥇', name:'골드 달성',       desc:'골드 티어에 진입하세요 (480pt↑)',       reward:10,  check:s=>s.score>=480&&s.total>=3,  prog:null },
+  { id:'tier_plat',    cat:'티어 기반',  icon:'💎', name:'플래티넘 달성',   desc:'플래티넘 티어에 진입하세요 (540pt↑)',   reward:15,  check:s=>s.score>=540&&s.total>=3,  prog:null },
+  { id:'tier_dia',     cat:'티어 기반',  icon:'💠', name:'다이아 달성',     desc:'다이아 티어에 진입하세요 (660pt↑)',     reward:25,  check:s=>s.score>=660&&s.total>=3,  prog:null },
+  { id:'tier_master',  cat:'티어 기반',  icon:'🔮', name:'마스터 달성',     desc:'마스터 티어에 진입하세요 (720pt↑)',     reward:35,  check:s=>s.score>=720&&s.total>=3,  prog:null },
+  { id:'tier_gm',      cat:'티어 기반',  icon:'✨', name:'그랜드마스터',    desc:'그랜드마스터에 진입하세요 (780pt↑)',    reward:45,  check:s=>s.score>=780&&s.total>=3,  prog:null },
+  { id:'tier_chal',    cat:'티어 기반',  icon:'🏅', name:'챌린저 달성',     desc:'챌린저 티어에 진입하세요 (850pt↑)',    reward:60,  check:s=>s.score>=850&&s.total>=3,  prog:null },
+  // ── 아이템
+  { id:'s2x_win_3',    cat:'아이템',    icon:'⚡', name:'2배권 승리 3회',   desc:'승점 2배권 사용 후 승리를 3회 달성하세요',   reward:10,  check:s=>s.score2xWin>=3,    prog:s=>[Math.min(s.score2xWin,3),3] },
+  { id:'s2x_win_5',    cat:'아이템',    icon:'⚡', name:'2배권 승리 5회',   desc:'승점 2배권 사용 후 승리를 5회 달성하세요',   reward:15,  check:s=>s.score2xWin>=5,    prog:s=>[Math.min(s.score2xWin,5),5] },
+  { id:'s2x_win_10',   cat:'아이템',    icon:'⚡', name:'2배권 승리 10회',  desc:'승점 2배권 사용 후 승리를 10회 달성하세요',  reward:30,  check:s=>s.score2xWin>=10,   prog:s=>[Math.min(s.score2xWin,10),10] },
+  { id:'ins_3',        cat:'아이템',    icon:'🛡️', name:'철벽 방어 3회',    desc:'패배 방어권으로 감점을 3회 막으세요',        reward:5,   check:s=>s.insuranceUsed>=3,  prog:s=>[Math.min(s.insuranceUsed,3),3] },
+  { id:'ins_5',        cat:'아이템',    icon:'🛡️', name:'철벽 방어 5회',    desc:'패배 방어권으로 감점을 5회 막으세요',        reward:15,  check:s=>s.insuranceUsed>=5,  prog:s=>[Math.min(s.insuranceUsed,5),5] },
+  { id:'ins_10',       cat:'아이템',    icon:'🛡️', name:'철벽 방어 10회',   desc:'패배 방어권으로 감점을 10회 막으세요',       reward:25,  check:s=>s.insuranceUsed>=10, prog:s=>[Math.min(s.insuranceUsed,10),10] },
+  { id:'gamble_win_3', cat:'아이템',    icon:'🎲', name:'도박사 3회',       desc:'도박 주사위 사용 후 승리를 3회 달성하세요',  reward:15,  check:s=>s.gambleWin>=3,     prog:s=>[Math.min(s.gambleWin,3),3] },
+  { id:'gamble_win_5', cat:'아이템',    icon:'🎲', name:'도박사 5회',       desc:'도박 주사위 사용 후 승리를 5회 달성하세요',  reward:25,  check:s=>s.gambleWin>=5,     prog:s=>[Math.min(s.gambleWin,5),5] },
+  { id:'gamble_loss_3',cat:'아이템',    icon:'🎲', name:'리스크 테이커',    desc:'도박 주사위 사용 후 패배를 3회 경험하세요',  reward:10,  check:s=>s.gambleLoss>=3,    prog:s=>[Math.min(s.gambleLoss,3),3] },
+  // ── MVP · MMP
+  { id:'mvp_first',    cat:'MVP · MMP', icon:'🏆', name:'MVP 첫 선정',     desc:'처음으로 MVP로 선정되세요',              reward:10,  check:s=>s.mvpCount>=1,           prog:s=>[Math.min(s.mvpCount,1),1] },
+  { id:'mvp_5',        cat:'MVP · MMP', icon:'🏆', name:'MVP 5회',         desc:'MVP로 5회 선정되세요',                  reward:25,  check:s=>s.mvpCount>=5,           prog:s=>[Math.min(s.mvpCount,5),5] },
+  { id:'mvp_10',       cat:'MVP · MMP', icon:'🏆', name:'MVP 10회',        desc:'MVP로 10회 선정되세요',                 reward:50,  check:s=>s.mvpCount>=10,          prog:s=>[Math.min(s.mvpCount,10),10] },
+  { id:'mmp_first',    cat:'MVP · MMP', icon:'🤝', name:'MMP 첫 선정',     desc:'처음으로 MMP로 선정되세요',              reward:10,  check:s=>s.mmpCount>=1,           prog:s=>[Math.min(s.mmpCount,1),1] },
+  { id:'mmp_5',        cat:'MVP · MMP', icon:'🤝', name:'MMP 5회',         desc:'MMP로 5회 선정되세요',                  reward:25,  check:s=>s.mmpCount>=5,           prog:s=>[Math.min(s.mmpCount,5),5] },
+  { id:'mmp_10',       cat:'MVP · MMP', icon:'🤝', name:'MMP 10회',        desc:'MMP로 10회 선정되세요',                 reward:50,  check:s=>s.mmpCount>=10,          prog:s=>[Math.min(s.mmpCount,10),10] },
+  // ── 관전자
+  { id:'spec_first',   cat:'관전자',    icon:'🔭', name:'예측 적중',        desc:'관전자 예측을 처음으로 적중하세요',       reward:5,   check:s=>s.specCorrect>=1,        prog:s=>[Math.min(s.specCorrect,1),1] },
+  { id:'spec_5',       cat:'관전자',    icon:'🔭', name:'예측 달인',        desc:'관전자 예측을 5회 적중하세요',            reward:15,  check:s=>s.specCorrect>=5,        prog:s=>[Math.min(s.specCorrect,5),5] },
+  { id:'spec_10',      cat:'관전자',    icon:'🔭', name:'예측 마스터',      desc:'관전자 예측을 10회 적중하세요',           reward:30,  check:s=>s.specCorrect>=10,       prog:s=>[Math.min(s.specCorrect,10),10] },
+  // ── 출석
+  { id:'attend_5',     cat:'출석',      icon:'📅', name:'출석 5일',         desc:'출석 체크를 5회 달성하세요',              reward:10,  check:s=>s.attendanceCount>=5,    prog:s=>[Math.min(s.attendanceCount,5),5] },
+  { id:'attend_10',    cat:'출석',      icon:'📅', name:'출석 10일',        desc:'출석 체크를 10회 달성하세요',             reward:20,  check:s=>s.attendanceCount>=10,   prog:s=>[Math.min(s.attendanceCount,10),10] },
+  { id:'attend_30',    cat:'출석',      icon:'📅', name:'출석 30일',        desc:'출석 체크를 30회 달성하세요',             reward:50,  check:s=>s.attendanceCount>=30,   prog:s=>[Math.min(s.attendanceCount,30),30] },
+  // ── 퀘스트
+  { id:'quest_win',    cat:'퀘스트',    icon:'⚔️',  name:'압박 뚫기',        desc:'퀘스트 발동 경기에서 승리하세요',         reward:20,  check:s=>s.questWin>=1,           prog:s=>[Math.min(s.questWin,1),1] },
+  { id:'quest_hero',   cat:'퀘스트',    icon:'👑', name:'왕관의 무게',      desc:'퀘스트 발동 당사자로서 경기에서 패배하세요', reward:15, check:s=>s.questHeroLoss>=1,      prog:s=>[Math.min(s.questHeroLoss,1),1] },
+  { id:'quest_3',      cat:'퀘스트',    icon:'⚡', name:'퀘스트 3회 참전',  desc:'퀘스트 발동 경기에 3회 참전하세요',       reward:10,  check:s=>s.questTotal>=3,         prog:s=>[Math.min(s.questTotal,3),3] },
+  // ── 뉴비
+  { id:'newbie_5',     cat:'뉴비',      icon:'🌱', name:'뉴비와 5승',       desc:'뉴비 팀원과 함께 5승을 달성하세요',       reward:10,  check:s=>s.newbieTeamWins>=5,     prog:s=>[Math.min(s.newbieTeamWins,5),5] },
+  { id:'newbie_10',    cat:'뉴비',      icon:'🌱', name:'뉴비와 10승',      desc:'뉴비 팀원과 함께 10승을 달성하세요',      reward:20,  check:s=>s.newbieTeamWins>=10,    prog:s=>[Math.min(s.newbieTeamWins,10),10] },
 ];
 const QUEST_CONFIGS = {
   1: { name: '왕관의 무게', emoji: '👑', bonusGold: 100, lossExtraPt: 10 },
@@ -4558,23 +4600,75 @@ function calcMaxStreaks(name) {
   return { maxWin, maxLoss };
 }
 
-// 아이템 사용 통계 계산
+// 아이템 사용 통계 계산 (2배권·방어권·도박)
 function calcItemStats(name) {
   const key = normName(name);
   const myMatches = Object.values(matches)
     .filter(m => (m.teamA||[]).some(n=>normName(n)===key) || (m.teamB||[]).some(n=>normName(n)===key))
     .sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
 
-  let score2xWin = 0, insuranceUsed = 0;
+  let score2xWin = 0, insuranceUsed = 0, gambleWin = 0, gambleLoss = 0;
   for (const m of myMatches) {
-    // itemEffects 키는 normName 기준
     const effects = m.itemEffects ? (m.itemEffects[key] || []) : [];
     const inA = (m.teamA||[]).some(n=>normName(n)===key);
     const won = (m.winner==='blue'&&inA)||(m.winner==='red'&&!inA);
     if (effects.includes('score2x') && won) score2xWin++;
     if (effects.includes('insurance') && !won) insuranceUsed++;
+    if (effects.includes('gamble')) { if (won) gambleWin++; else gambleLoss++; }
   }
-  return { score2xWin, insuranceUsed };
+  return { score2xWin, insuranceUsed, gambleWin, gambleLoss };
+}
+
+function calcMvpMmpStats(name) {
+  const key = normName(name);
+  let mvpCount = 0, mmpCount = 0;
+  Object.values(matches).forEach(m => {
+    if (normName(m.mvpWinner||'')===key || normName(m.mvpLoser||'')===key) mvpCount++;
+    if (normName(m.mannerWinner||'')===key || normName(m.mannerLoser||'')===key || normName(m.mannerKing||'')===key) mmpCount++;
+  });
+  return { mvpCount, mmpCount };
+}
+
+function calcSpectatorStats(name) {
+  const key = normName(name);
+  let specCorrect = 0;
+  Object.values(matches).forEach(m => {
+    if (m.spectatorName === key && m.spectatorCorrect) specCorrect++;
+  });
+  return { specCorrect };
+}
+
+function calcQuestStats(name) {
+  const key = normName(name);
+  let questWin = 0, questHeroLoss = 0, questTotal = 0;
+  Object.values(matches).forEach(m => {
+    if (!m.questEvent) return;
+    const inA = (m.teamA||[]).some(n=>normName(n)===key);
+    const inB = (m.teamB||[]).some(n=>normName(n)===key);
+    if (!inA && !inB) return;
+    questTotal++;
+    const won = (m.winner==='blue'&&inA)||(m.winner==='red'&&inB);
+    if (won) questWin++;
+    if (!won && normName(m.questEvent.playerName)===key) questHeroLoss++;
+  });
+  return { questWin, questHeroLoss, questTotal };
+}
+
+function calcNewbieWins(name) {
+  const key = normName(name);
+  let newbieTeamWins = 0;
+  const sorted = Object.values(matches).sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
+  for (const m of sorted) {
+    const inA = (m.teamA||[]).some(n=>normName(n)===key);
+    const inB = (m.teamB||[]).some(n=>normName(n)===key);
+    if (!inA && !inB) continue;
+    const matchTime = m.timestamp || 0;
+    const myTeamArr = inA ? (m.teamA||[]) : (m.teamB||[]);
+    const hasNewbieTeammate = myTeamArr.some(n => normName(n)!==key && matchTime>=getNewbieSince(n));
+    const won = (m.winner==='blue'&&inA)||(m.winner==='red'&&inB);
+    if (won && hasNewbieTeammate) newbieTeamWins++;
+  }
+  return { newbieTeamWins };
 }
 
 window.renderAchievements = function renderAchievements() {
@@ -4586,39 +4680,69 @@ window.renderAchievements = function renderAchievements() {
   const s = calcStats(myName);
   const { score } = calcScore(myName);
   const { maxWin, maxLoss } = calcMaxStreaks(myName);
-  const { score2xWin, insuranceUsed } = calcItemStats(myName);
+  const { score2xWin, insuranceUsed, gambleWin, gambleLoss } = calcItemStats(myName);
+  const { mvpCount, mmpCount } = calcMvpMmpStats(myName);
+  const { specCorrect } = calcSpectatorStats(myName);
+  const { questWin, questHeroLoss, questTotal } = calcQuestStats(myName);
+  const { newbieTeamWins } = calcNewbieWins(myName);
   const myEntry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(myName));
   const claimed = myEntry?.[1]?.achievements || {};
-  const stats = { wins: s.wins, losses: s.losses, total: s.total, score, maxWin, maxLoss, score2xWin, insuranceUsed };
+  const attendanceCount = myEntry?.[1]?.attendanceCount || 0;
+  const stats = { wins:s.wins, losses:s.losses, total:s.total, score, maxWin, maxLoss,
+    score2xWin, insuranceUsed, gambleWin, gambleLoss,
+    mvpCount, mmpCount, specCorrect, questWin, questHeroLoss, questTotal,
+    newbieTeamWins, attendanceCount };
 
-  const cats = ['전적 기반', '연속 기록', '티어 기반', '아이템'];
-  el.innerHTML = cats.map(cat => {
-    const items = ACHIEVEMENTS.filter(a => a.cat === cat);
-    return `<div class="achievement-cat">
-      <div class="achievement-cat-title">${cat}</div>
-      ${items.map(a => {
-        const done = a.check(stats);
-        const isClaimed = !!claimed[a.id];
-        const p = a.prog ? a.prog(stats) : null;
-        const progHtml = p && !isClaimed
-          ? `<span class="achievement-prog">${p[0]} / ${p[1]}</span>`
-          : '';
-        const rightHtml = isClaimed
-          ? `<span class="achievement-done-badge">✅ 완료</span>`
-          : done
-            ? `<button class="btn btn-gold btn-sm achievement-claim-btn" onclick="claimAchievement('${a.id}')">🪙 +${a.reward}G 받기</button>`
-            : `<span class="achievement-reward-preview">🪙 ${a.reward}G</span>`;
-        return `<div class="achievement-item${isClaimed?' claimed':''}">
-          <div class="achievement-icon">${a.icon}</div>
-          <div class="achievement-info">
-            <div class="achievement-name">${a.name} ${progHtml}</div>
-            <div class="achievement-desc">${a.desc}</div>
-          </div>
-          <div class="achievement-right">${rightHtml}</div>
-        </div>`;
-      }).join('')}
+  const CAT_META = [
+    { id:'전적 기반', icon:'⚔️' }, { id:'연속 기록', icon:'🔥' },
+    { id:'티어 기반', icon:'🌟' }, { id:'아이템',    icon:'🎒' },
+    { id:'MVP · MMP', icon:'🏆' }, { id:'관전자',    icon:'🔭' },
+    { id:'출석',      icon:'📅' }, { id:'퀘스트',    icon:'⚡' },
+    { id:'뉴비',      icon:'🌱' },
+  ];
+
+  el.innerHTML = CAT_META.map((cat, idx) => {
+    const items = ACHIEVEMENTS.filter(a => a.cat === cat.id);
+    const claimedCount = items.filter(a => !!claimed[a.id]).length;
+    const isOpen = idx === 0;
+    const itemsHtml = items.map(a => {
+      const done = a.check(stats);
+      const isClaimed = !!claimed[a.id];
+      const p = a.prog ? a.prog(stats) : null;
+      const progHtml = p && !isClaimed ? `<span class="achievement-prog">${p[0]} / ${p[1]}</span>` : '';
+      const rightHtml = isClaimed
+        ? `<span class="achievement-done-badge">✅ 완료</span>`
+        : done
+          ? `<button class="btn btn-gold btn-sm achievement-claim-btn" onclick="claimAchievement('${a.id}')">🪙 +${a.reward}G 받기</button>`
+          : `<span class="achievement-reward-preview">🪙 ${a.reward}G</span>`;
+      return `<div class="achievement-item${isClaimed?' claimed':''}">
+        <div class="achievement-icon">${a.icon}</div>
+        <div class="achievement-info">
+          <div class="achievement-name">${a.name} ${progHtml}</div>
+          <div class="achievement-desc">${a.desc}</div>
+        </div>
+        <div class="achievement-right">${rightHtml}</div>
+      </div>`;
+    }).join('');
+    return `<div class="achievement-cat" id="achcat-${idx}">
+      <div class="achievement-cat-header${isOpen?' open':''}" onclick="toggleAchCat(${idx})">
+        <span class="achievement-cat-icon">${cat.icon}</span>
+        <span class="achievement-cat-name">${cat.id}</span>
+        <span class="achievement-cat-meta">${claimedCount} / ${items.length}</span>
+        <span class="achievement-cat-arrow">${isOpen?'▾':'▸'}</span>
+      </div>
+      <div class="achievement-cat-body${isOpen?' open':''}">${itemsHtml}</div>
     </div>`;
   }).join('');
+};
+
+window.toggleAchCat = function(idx) {
+  const header = document.querySelector(`#achcat-${idx} .achievement-cat-header`);
+  const body   = document.querySelector(`#achcat-${idx} .achievement-cat-body`);
+  const arrow  = header.querySelector('.achievement-cat-arrow');
+  const isOpen = body.classList.toggle('open');
+  header.classList.toggle('open', isOpen);
+  arrow.textContent = isOpen ? '▾' : '▸';
 };
 
 window.claimAchievement = async function(id) {
@@ -4916,7 +5040,7 @@ window.doAttendance = async function() {
     showGoldToast('오늘 이미 출석 완료!'); return;
   }
   const newGoldBonus = (data.goldBonus ?? 0) + GOLD_ATTEND;
-  await set(ref(db, 'gold/' + key), { ...data, goldBonus: newGoldBonus, lastAttendance: todayKey });
+  await set(ref(db, 'gold/' + key), { ...data, goldBonus: newGoldBonus, lastAttendance: todayKey, attendanceCount: (data.attendanceCount ?? 0) + 1 });
   showGoldToast(`🪙 +${GOLD_ATTEND} 출석 보너스!`);
 };
 
