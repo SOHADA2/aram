@@ -1228,10 +1228,15 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.25.0';
+const APP_VERSION = 'v2.25.1';
 document.getElementById('version-badge').textContent = APP_VERSION;
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.25.1', date: '2026-04-17', changes: [
+    { tag: 'improve', text: '매너왕 투표 — 이유 태그 제거, 단순 투표 방식으로 변경' },
+    { tag: 'fix',     text: '매너왕 본인 자신에게 투표 불가' },
+    { tag: 'improve', text: '매너왕 투표 현황(누가 투표했나)은 라이브 계정에만 표시' },
+  ]},
   { ver: 'v2.25.0', date: '2026-04-17', changes: [
     { tag: 'new',     text: '매너왕 투표 시스템 추가 — 경기 후 전체 참가자 대상 투표, 이유 태그(응원왕/분위기 메이커/뉴비 가이드) 선택, 선정 시 +50G' },
     { tag: 'improve', text: 'MVP·SVP·관전자 적중 골드 50G로 상향 (이전 경기 소급 없음)' },
@@ -3569,9 +3574,8 @@ function renderMannerSection() {
     const savedScrollY = window.scrollY;
 
     if (mannerConfirmed !== null) {
-      const tag = MANNER_TAGS.find(t => t.id === mannerConfirmed.tag);
       const content = mannerConfirmed.winner
-        ? `<div class="manner-king-banner">🤝 매너왕: ${escHtml(mannerConfirmed.winner)}${tag ? ` <span style="font-size:12px;opacity:0.7;">(${tag.label})</span>` : ''}</div>`
+        ? `<div class="manner-king-banner">🤝 매너왕: ${escHtml(mannerConfirmed.winner)}</div>`
         : `<div style="font-size:12px;color:var(--text-dim);margin-bottom:10px;">매너왕 투표를 건너뛰었어요.</div>`;
       sec.innerHTML = `
         <div class="mvp-title">🤝 매너왕 결과</div>
@@ -3590,20 +3594,36 @@ function renderMannerSection() {
     const myKey  = myNorm ? myNorm.replace(/\s+/g, '_') : null;
     const myVote = myKey ? mannerVotes[myKey] : null;
 
-    // 투표 현황
+    // 투표 현황 (라이브 계정만 표시)
     const voters = new Set(Object.keys(mannerVotes));
-    const voted    = allPlayers.filter(p =>  voters.has(fbKeyOf(p.name)));
-    const notVoted = allPlayers.filter(p => !voters.has(fbKeyOf(p.name)));
-    if (currentSpectator) {
-      const spKey = fbKeyOf(currentSpectator.name);
-      if (voters.has(spKey)) voted.push(currentSpectator);
-      else notVoted.push(currentSpectator);
-    }
-    const allVoted = notVoted.length === 0 && Object.keys(mannerVotes).length > 0;
+    const allVoted = allPlayers.every(p => voters.has(fbKeyOf(p.name))) && Object.keys(mannerVotes).length > 0;
 
-    const chips = (list, cls, emptyText) => list.length
-      ? list.map(p => `<span class="mvp-chip ${cls}">${escHtml(p.name)}</span>`).join('')
-      : `<span class="mvp-chip empty">${emptyText}</span>`;
+    let progressHtml = '';
+    if (liveMode) {
+      const voted    = allPlayers.filter(p =>  voters.has(fbKeyOf(p.name)));
+      const notVoted = allPlayers.filter(p => !voters.has(fbKeyOf(p.name)));
+      if (currentSpectator) {
+        const spKey = fbKeyOf(currentSpectator.name);
+        if (voters.has(spKey)) voted.push(currentSpectator);
+        else notVoted.push(currentSpectator);
+      }
+      const chips = (list, cls, emptyText) => list.length
+        ? list.map(p => `<span class="mvp-chip ${cls}">${escHtml(p.name)}</span>`).join('')
+        : `<span class="mvp-chip empty">${emptyText}</span>`;
+      progressHtml = `
+        <div class="mvp-progress">
+          <div class="mvp-prog-block">
+            <div class="mvp-prog-row">
+              <span class="mvp-prog-row-label voted">투표 완료</span>
+              <div class="mvp-prog-chips">${chips(voted, 'voted', '없음')}</div>
+            </div>
+            <div class="mvp-prog-row">
+              <span class="mvp-prog-row-label pending">미투표</span>
+              <div class="mvp-prog-chips">${chips(notVoted, 'pending', '✅ 없음')}</div>
+            </div>
+          </div>
+        </div>`;
+    }
 
     let myVoteHtml = '';
     if (!myNorm) {
@@ -3611,30 +3631,23 @@ function renderMannerSection() {
     } else if (!canVote) {
       myVoteHtml = `<div style="font-size:12px;color:var(--text-dim);padding:8px 0 12px;">이번 경기에 참가하지 않아 투표할 수 없어요.</div>`;
     } else if (myVote) {
-      const tag = MANNER_TAGS.find(t => t.id === myVote.tag);
       myVoteHtml = `<div class="mvp-my-vote-block">
-        <div class="mvp-voted-indicator">✅ ${escHtml(myVote.pick)} · ${tag ? tag.label : ''} 선택 완료</div>
+        <div class="mvp-voted-indicator">✅ ${escHtml(myVote.pick)} 선택 완료</div>
       </div>`;
     } else {
+      // 본인 제외한 후보 목록
+      const candidates = allPlayers.filter(p => normName(p.name) !== myNorm);
       const pendingPick = sec._pendingPick || null;
-      const pendingTag  = sec._pendingTag  || null;
-      const candidateBtns = allPlayers.map(p => {
+      const candidateBtns = candidates.map(p => {
         const sel = pendingPick === p.name;
         return `<button class="mvp-cand-btn${sel?' selected':''}" onclick="setMannerPick('${escHtml(p.name)}')">${escHtml(p.name)}</button>`;
       }).join('');
-      const tagBtns = MANNER_TAGS.map(t => {
-        const sel = pendingTag === t.id;
-        return `<button class="manner-tag-btn${sel?' selected':''}" onclick="setMannerTag('${t.id}')">${t.label}</button>`;
-      }).join('');
-      const readyToVote = pendingPick && pendingTag;
-      const confirmBtn = readyToVote
-        ? `<button class="btn btn-sm" style="background:var(--green);color:#000;font-weight:700;margin-top:4px;" onclick="confirmMannerVote('${escHtml(myName)}','${escHtml(pendingPick)}','${escHtml(pendingTag)}')">✅ 투표하기</button>`
-        : `<button class="btn btn-sm" disabled style="opacity:0.4;margin-top:4px;">후보와 이유를 모두 선택해주세요</button>`;
+      const confirmBtn = pendingPick
+        ? `<button class="btn btn-sm" style="background:var(--green);color:#000;font-weight:700;margin-top:4px;" onclick="confirmMannerVote('${escHtml(myName)}','${escHtml(pendingPick)}')">✅ 투표하기</button>`
+        : `<button class="btn btn-sm" disabled style="opacity:0.4;margin-top:4px;">후보를 선택해주세요</button>`;
       myVoteHtml = `<div class="mvp-my-vote-block">
         <div class="mvp-my-vote-label">누구를 선택하시겠어요?</div>
         <div class="mvp-candidates">${candidateBtns}</div>
-        <div class="mvp-my-vote-label" style="margin-top:12px;">이유를 선택해주세요</div>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">${tagBtns}</div>
         ${confirmBtn}
       </div>`;
     }
@@ -3643,18 +3656,7 @@ function renderMannerSection() {
       <div class="mvp-title">🤝 매너왕 투표</div>
       <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">이번 경기에서 가장 매너 좋았던 한 분을 선택해주세요 · 선정 시 🪙+${GOLD_MANNER}G</div>
       ${myVoteHtml}
-      <div class="mvp-progress">
-        <div class="mvp-prog-block">
-          <div class="mvp-prog-row">
-            <span class="mvp-prog-row-label voted">투표 완료</span>
-            <div class="mvp-prog-chips">${chips(voted, 'voted', '없음')}</div>
-          </div>
-          <div class="mvp-prog-row">
-            <span class="mvp-prog-row-label pending">미투표</span>
-            <div class="mvp-prog-chips">${chips(notVoted, 'pending', '✅ 없음')}</div>
-          </div>
-        </div>
-      </div>
+      ${progressHtml}
       <button class="mvp-skip-btn" style="margin-top:6px;" onclick="skipManner()">건너뛰기</button>`;
 
     requestAnimationFrame(() => window.scrollTo(0, savedScrollY));
@@ -3672,61 +3674,55 @@ window.setMannerPick = function(name) {
   if (sec._renderManner) sec._renderManner();
 };
 
-window.setMannerTag = function(tagId) {
-  const sec = document.getElementById('manner-section');
-  if (!sec) return;
-  sec._pendingTag = tagId;
-  if (sec._renderManner) sec._renderManner();
-};
-
-window.confirmMannerVote = function(voter, pick, tag) {
+window.confirmMannerVote = function(voter, pick) {
   if (!confirm(`"${pick}"을(를) 매너왕으로 투표하시겠어요?`)) return;
-  castMannerVote(voter, pick, tag);
+  castMannerVote(voter, pick);
 };
 
-function castMannerVote(voter, pick, tag) {
+function castMannerVote(voter, pick) {
   const voterNorm = normName(voter);
   const allPlayers = [...currentTeamA, ...currentTeamB];
   const isParticipant = allPlayers.some(p => normName(p.name) === voterNorm)
     || (currentSpectator && normName(currentSpectator.name) === voterNorm);
   if (!isParticipant) return;
+  // 본인 자신에게 투표 차단
+  if (normName(pick) === voterNorm) return;
   const safeKey = voterNorm.replace(/\s+/g, '_');
-  set(ref(db, `session/manner/votes/${safeKey}`), { pick, tag }).catch(console.error);
-  mannerVotes[safeKey] = { pick, tag };
+  set(ref(db, `session/manner/votes/${safeKey}`), { pick }).catch(console.error);
+  mannerVotes[safeKey] = { pick };
   const sec = document.getElementById('manner-section');
-  if (sec) { sec._pendingPick = null; sec._pendingTag = null; }
+  if (sec) sec._pendingPick = null;
   if (sec && sec._renderManner) sec._renderManner();
 }
 
 function autoConfirmManner() {
   if (mannerConfirmed !== null) return;
   const counts = {};
-  const tagMap  = {};
   [...currentTeamA, ...currentTeamB].forEach(p => { counts[p.name] = 0; });
   Object.values(mannerVotes).forEach(v => {
-    if (counts[v.pick] !== undefined) { counts[v.pick]++; tagMap[v.pick] = v.tag; }
+    if (counts[v.pick] !== undefined) counts[v.pick]++;
   });
   const max = Math.max(...Object.values(counts), 0);
-  if (max === 0) { set(ref(db, 'session/manner/confirmed'), { winner: '', tag: '' }).catch(console.error); return; }
+  if (max === 0) { set(ref(db, 'session/manner/confirmed'), { winner: '' }).catch(console.error); return; }
   const tops   = Object.keys(counts).filter(n => counts[n] === max);
   const winner = tops[Math.floor(Math.random() * tops.length)];
-  set(ref(db, 'session/manner/confirmed'), { winner, tag: tagMap[winner] || '' }).catch(console.error);
+  set(ref(db, 'session/manner/confirmed'), { winner }).catch(console.error);
 }
 
 window.skipManner = function() {
-  set(ref(db, 'session/manner/confirmed'), { winner: '', tag: '' }).catch(console.error);
+  set(ref(db, 'session/manner/confirmed'), { winner: '' }).catch(console.error);
 };
 
 window.resetManner = function() {
   mannerVotes = {};
   mannerConfirmed = null;
   const sec = document.getElementById('manner-section');
-  if (sec) { sec._pendingPick = null; sec._pendingTag = null; }
+  if (sec) sec._pendingPick = null;
   set(ref(db, 'session/manner'), { active: true }).catch(console.error);
 };
 
 // ── 경기 결과 요약 모달 ──────────────────────────────────────
-function showMatchSummary({ winners, losers, itemEffects, tierChanges, questEvent, spectatorResult, mvpWinner, mvpLoser, mannerKing, mannerTag }) {
+function showMatchSummary({ winners, losers, itemEffects, tierChanges, questEvent, spectatorResult, mvpWinner, mvpLoser, mannerKing }) {
   document.querySelector('.match-summary-overlay')?.remove();
   const ITEM_ICONS = { score2x: '⚡', insurance: '🛡️', gamble: '🎲' };
   const ITEM_NAMES = { score2x: '승점 2배', insurance: '패배 방어', gamble: '도박 주사위' };
@@ -3861,7 +3857,7 @@ function showMatchSummary({ winners, losers, itemEffects, tierChanges, questEven
           <div class="ms-section-title">${loseLabel}</div>
           ${loseRows}
         </div>
-        ${questHtml}${specHtml}${tierHtml}${mannerKing ? `<div style="margin-top:10px;padding:10px 14px;background:rgba(0,199,122,0.08);border:1px solid rgba(0,199,122,0.25);border-radius:8px;text-align:center;font-size:13px;color:var(--green);">🤝 매너왕: <strong>${escHtml(mannerKing)}</strong>${mannerTag ? ` <span style="opacity:0.7;">(${MANNER_TAGS.find(t=>t.id===mannerTag)?.label||''})</span>` : ''} · +${GOLD_MANNER}G</div>` : ''}
+        ${questHtml}${specHtml}${tierHtml}${mannerKing ? `<div style="margin-top:10px;padding:10px 14px;background:rgba(0,199,122,0.08);border:1px solid rgba(0,199,122,0.25);border-radius:8px;text-align:center;font-size:13px;color:var(--green);">🤝 매너왕: <strong>${escHtml(mannerKing)}</strong> · +${GOLD_MANNER}G</div>` : ''}
       </div>
       <div class="ms-footer">
         <button class="btn btn-primary" onclick="closeMatchSummary()">확인</button>
@@ -3931,7 +3927,6 @@ window.saveMatch = async function() {
     if (mvpLoserName)  matchData.mvpLoser  = mvpLoserName;
     if (mannerConfirmed?.winner) {
       matchData.mannerKing = mannerConfirmed.winner;
-      if (mannerConfirmed.tag) matchData.mannerTag = mannerConfirmed.tag;
     }
     matchData.goldVersion = 2; // v2.25.0~ 골드 상향 적용 버전 표시
     // 관전자 예측 데이터
@@ -3978,7 +3973,6 @@ window.saveMatch = async function() {
       mvpWinner: mvpWinnerName,
       mvpLoser: mvpLoserName,
       mannerKing: mannerConfirmed?.winner || null,
-      mannerTag:  mannerConfirmed?.tag    || null,
     }), 400);
     questEventState = null;
     spectatorPick = null;
