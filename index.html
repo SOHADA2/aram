@@ -1399,7 +1399,7 @@ const GOLD_MANNER = 50; // 매너왕 골드 (v2.25.0~)
 // ── 전역 툴팁 시스템 ─────────────────────────────────────────
 const BTN_TIPS = {
   reset: `참가자 명단을 <strong style="color:#e8e8f0">전부 삭제</strong>하고<br>처음부터 다시 시작해요.<br><span style="color:#ff8080;">⚠ 저장 안 된 팀 결과도 사라져요</span>`,
-  mvp:   `상대 팀에서 <strong style="color:#e8e8f0">각 1명씩</strong> 선택해요.<br>이긴 팀 선정자 → <strong style="color:#ffd700">MVP 🏆</strong><br>진 팀 선정자 → <strong style="color:#b0b8d0">SVP 🥈</strong><br>선정된 플레이어 <strong style="color:#ffd700">🪙+${GOLD_MVP}G</strong> 추가 지급`,
+  mvp:   `<strong style="color:#ffd700">🏆 베스트 플레이어</strong> — 상대팀에서 선택<br>이긴 팀 선정자 → <strong style="color:#ffd700">MVP 🏆</strong><br>진 팀 선정자 → <strong style="color:#b0b8d0">SVP 🥈</strong><br>선정 시 <strong style="color:#ffd700">🪙+${GOLD_MVP}G</strong> 지급<br><br><strong style="color:#00c77a">🤝 매너왕</strong> — 본인 팀에서 선택 (본인 제외)<br>이긴 팀·진 팀 각 1명씩 선정<br>선정 시 <strong style="color:#00c77a">🪙+${GOLD_MANNER}G</strong> 지급<br><br><span style="color:#a0b0c8;">MVP/SVP는 승리팀 결정 후 자동 분류</span>`,
   score2x:      `<strong style="color:#ffd700">⚡ 승점 2배권 사용 성공</strong><br>이 경기 승리로 <strong style="color:#e8e8f0">+20pt</strong> 획득<br><span style="color:#a0b0c8;">(일반 승리는 +10pt)</span>`,
   insurance:    `<strong style="color:#7dd3fc">🛡️ 패배 방어권 사용 성공</strong><br>패배했지만 <strong style="color:#e8e8f0">승점 차감 없음</strong><br><span style="color:#a0b0c8;">(일반 패배는 -7pt)</span>`,
   gamble_win:   `<strong style="color:#4ade80">🎲 도박 성공!</strong><br>승리 <strong style="color:#e8e8f0">+25pt</strong> 획득<br><span style="color:#a0b0c8;">(일반 승리는 +10pt)</span>`,
@@ -3484,12 +3484,13 @@ function renderMvpSection() {
     } else {
       const myTeam   = amITeamA ? 'teamA' : 'teamB';
       const oppTeam  = amITeamA ? currentTeamB : currentTeamA;
+      const sameTeam = amITeamA ? currentTeamA : currentTeamB;
       const myMvpPick    = (mvpVotes[myTeam] || {})[fbKeyOf(myName)];
       const myMannerPick = (mannerVotes[myTeam] || {})[fbKeyOf(myName)];
 
       if (myMvpPick && myMannerPick) {
         myVoteHtml = `<div class="mvp-my-vote-block">
-          <div class="mvp-voted-indicator">✅ MVP: ${escHtml(myMvpPick)} · 매너왕: ${escHtml(myMannerPick)} 선택 완료</div>
+          <div class="mvp-voted-indicator">✅ 베스트: ${escHtml(myMvpPick)} · 매너왕: ${escHtml(myMannerPick)} 선택 완료</div>
         </div>`;
       } else {
         const pendingMvp    = sec._pendingMvp    || null;
@@ -3502,7 +3503,9 @@ function renderMvpSection() {
           return `<button class="mvp-cand-btn${sel?' selected':''}" onclick="setMvpPick('${escHtml(p.name)}')">${escHtml(p.name)}${champLine}</button>`;
         }).join('');
 
-        const mannerBtns = oppTeam.map(p => {
+        // 매너왕: 본인 팀에서 선택 (본인 제외)
+        const mannerCandidates = sameTeam.filter(p => normName(p.name) !== myNorm);
+        const mannerBtns = mannerCandidates.map(p => {
           const sel = pendingManner === p.name;
           return `<button class="mvp-cand-btn${sel?' selected':''}" onclick="setMannerPick('${escHtml(p.name)}')">${escHtml(p.name)}</button>`;
         }).join('');
@@ -3510,12 +3513,12 @@ function renderMvpSection() {
         const canCast = pendingMvp && pendingManner;
         const confirmBtn = canCast
           ? `<button class="btn btn-sm" style="background:var(--green);color:#000;font-weight:700;margin-top:8px;" onclick="castCombinedVote('${myTeam}','${escHtml(myName)}','${escHtml(pendingMvp)}','${escHtml(pendingManner)}')">✅ 투표하기</button>`
-          : `<button class="btn btn-sm" disabled style="opacity:0.4;margin-top:8px;">MVP와 매너왕을 모두 선택해주세요</button>`;
+          : `<button class="btn btn-sm" disabled style="opacity:0.4;margin-top:8px;">베스트 플레이어와 매너왕을 모두 선택해주세요</button>`;
 
         myVoteHtml = `<div class="mvp-my-vote-block">
           <div class="mvp-my-vote-label">🏆 베스트 플레이어 선택 (상대팀)</div>
           <div class="mvp-candidates">${mvpBtns}</div>
-          <div class="mvp-my-vote-label" style="margin-top:10px;">🤝 매너왕 선택 (상대팀)</div>
+          <div class="mvp-my-vote-label" style="margin-top:10px;">🤝 매너왕 선택 (본인 팀)</div>
           <div class="mvp-candidates">${mannerBtns}</div>
           ${confirmBtn}
         </div>`;
@@ -3524,7 +3527,6 @@ function renderMvpSection() {
 
     sec.innerHTML = `
       <div class="mvp-title" style="position:relative;padding-right:20px;">🏆 베스트 플레이어 · 매너왕 투표<span class="btn-q" data-tip="mvp"><span class="btn-q-icon">?</span></span></div>
-      <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">상대팀에서 각각 선택 · MVP/SVP는 승리팀 결정 후 자동 분류 · 선정 시 +${GOLD_MVP}G / 매너왕 +${GOLD_MANNER}G</div>
       ${myVoteHtml}
       <div class="mvp-progress">
         ${progBlock('🔵 1팀', 'var(--blue)', teamAVoted, teamANotVoted)}
@@ -3625,17 +3627,17 @@ window.setMannerPick = function(name) {
 
 function autoConfirmManner() {
   if (mannerConfirmed !== null) return;
-  // 1팀 매너왕: 2팀이 1팀에서 선택 (mannerVotes.teamB → teamA candidates)
+  // 1팀 매너왕: 1팀 구성원이 1팀 내에서 선택 (mannerVotes.teamA → teamA candidates)
   const aCounts = {};
   currentTeamA.forEach(p => aCounts[p.name] = 0);
-  Object.values(mannerVotes.teamB || {}).forEach(v => { if (aCounts[v]!==undefined) aCounts[v]++; });
+  Object.values(mannerVotes.teamA || {}).forEach(v => { if (aCounts[v]!==undefined) aCounts[v]++; });
   const aMax = Math.max(...Object.values(aCounts), 0);
   const aTop = currentTeamA.filter(p => aCounts[p.name]===aMax && aMax>0).map(p=>p.name);
   const teamAManner = aTop.length ? aTop[Math.floor(Math.random()*aTop.length)] : '';
-  // 2팀 매너왕: 1팀이 2팀에서 선택 (mannerVotes.teamA → teamB candidates)
+  // 2팀 매너왕: 2팀 구성원이 2팀 내에서 선택 (mannerVotes.teamB → teamB candidates)
   const bCounts = {};
   currentTeamB.forEach(p => bCounts[p.name] = 0);
-  Object.values(mannerVotes.teamA || {}).forEach(v => { if (bCounts[v]!==undefined) bCounts[v]++; });
+  Object.values(mannerVotes.teamB || {}).forEach(v => { if (bCounts[v]!==undefined) bCounts[v]++; });
   const bMax = Math.max(...Object.values(bCounts), 0);
   const bTop = currentTeamB.filter(p => bCounts[p.name]===bMax && bMax>0).map(p=>p.name);
   const teamBManner = bTop.length ? bTop[Math.floor(Math.random()*bTop.length)] : '';
