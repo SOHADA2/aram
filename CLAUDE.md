@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.13.1
+- 현재 버전: v2.25.0
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -88,6 +88,23 @@
   - 날짜 기준: **로컬 시간** (`getLocalDateKey()`) — UTC 기준 버그 수정 (v2.8.0)
   - `getMyGold()` = `calcGoldFromMatches() + goldBonus - goldSpent`
 - 기존 경기 기록 기반 소급 계산 자동 적용 (`retroApplied`)
+
+## 골드 상수 버전 관리 (v2.25.0~)
+- **goldVersion 필드**: 매치 데이터에 저장 — v2.25.0 이상 경기는 `goldVersion: 2`
+- **MVP/SVP**: `goldVersion >= 2` → 50G / 구버전 → 10G (소급 방지)
+- **관전자 적중**: `goldVersion >= 2` → 50G / 구버전 → 15G (소급 방지)
+- **매너왕**: `goldVersion >= 2` 경기에만 존재, 항상 50G
+- 골드 점검 시 `GOLD_MVP_LEGACY`, `GOLD_SPECTATOR_CORRECT_LEGACY` 상수 확인 필요
+
+## 매너왕 시스템 (v2.25.0~)
+- MVP/SVP 투표 섹션 아래 독립 섹션으로 표시
+- **투표 대상**: 양 팀 전체 참가자 (관전자 제외)
+- **투표 가능자**: 경기 참가자 + 관전자
+- **이유 태그**: `cheer`(📣 응원왕) / `kind`(🤝 분위기 메이커) / `guide`(📚 뉴비 가이드)
+- **Firebase**: `session/manner/votes/{fbKey}: { pick, tag }` / `session/manner/confirmed: { winner, tag }`
+- **Match 저장**: `matches/{key}.mannerKing`, `matches/{key}.mannerTag`
+- **골드**: 선정자 +50G (`GOLD_MANNER`), `calcGoldFromMatches()`에서 계산
+- 저장 버튼을 막지 않음 (선택사항) — 건너뛰기 가능
 
 | 아이템 | 가격 | 효과 |
 |--------|------|------|
