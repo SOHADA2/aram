@@ -723,6 +723,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .achievement-cat-icon{font-size:18px;flex-shrink:0;}
 .achievement-cat-name{flex:1;font-size:13px;font-weight:700;}
 .achievement-cat-meta{font-size:11px;color:var(--text-dim);}
+.achievement-cat-claimable{font-size:10px;font-weight:700;color:#fff;background:var(--gold);border-radius:10px;padding:2px 7px;margin-left:4px;}
 .achievement-cat-arrow{font-size:11px;color:var(--text-dim);margin-left:4px;}
 .achievement-cat-body{display:none;padding:8px;background:var(--surface2);border:1px solid var(--border);border-top:none;border-bottom-left-radius:10px;border-bottom-right-radius:10px;}
 .achievement-cat-body.open{display:block;}
@@ -4701,10 +4702,17 @@ window.renderAchievements = function renderAchievements() {
     { id:'뉴비',      icon:'🌱' },
   ];
 
+  // 현재 열린 카테고리 상태 저장
+  const openStates = CAT_META.map((_, idx) => {
+    const body = document.querySelector(`#achcat-${idx} .achievement-cat-body`);
+    return body ? body.classList.contains('open') : idx === 0;
+  });
+
   el.innerHTML = CAT_META.map((cat, idx) => {
     const items = ACHIEVEMENTS.filter(a => a.cat === cat.id);
     const claimedCount = items.filter(a => !!claimed[a.id]).length;
-    const isOpen = idx === 0;
+    const claimableCount = items.filter(a => !claimed[a.id] && a.check(stats)).length;
+    const isOpen = openStates[idx];
     const itemsHtml = items.map(a => {
       const done = a.check(stats);
       const isClaimed = !!claimed[a.id];
@@ -4724,10 +4732,13 @@ window.renderAchievements = function renderAchievements() {
         <div class="achievement-right">${rightHtml}</div>
       </div>`;
     }).join('');
+    const claimableBadge = claimableCount > 0
+      ? `<span class="achievement-cat-claimable">+${claimableCount} 수령가능</span>` : '';
     return `<div class="achievement-cat" id="achcat-${idx}">
       <div class="achievement-cat-header${isOpen?' open':''}" onclick="toggleAchCat(${idx})">
         <span class="achievement-cat-icon">${cat.icon}</span>
         <span class="achievement-cat-name">${cat.id}</span>
+        ${claimableBadge}
         <span class="achievement-cat-meta">${claimedCount} / ${items.length}</span>
         <span class="achievement-cat-arrow">${isOpen?'▾':'▸'}</span>
       </div>
