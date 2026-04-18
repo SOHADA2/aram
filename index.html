@@ -1214,6 +1214,7 @@ let registeredPlayers = {};  // Firebase key → {name, manualTier}
 let matches = {};             // Firebase key → match object
 let goldData = {};            // Firebase key → {name, gold, items:[]}
 let riotApiKey = '';          // Firebase /config/riotApiKey 에서 로드
+let riotWorkerUrl = '';       // Firebase /config/riotWorkerUrl 에서 로드 (Cloudflare Worker 프록시)
 let sessionPlayers = [];
 let teamSize = 3;
 let mode = 'balance';
@@ -1233,10 +1234,16 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.26.0';
+const APP_VERSION = 'v2.26.2';
 document.getElementById('version-badge').textContent = APP_VERSION;
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.26.2', date: '2026-04-18', changes: [
+    { tag: 'improve', text: 'Riot API 호출을 Cloudflare Worker 프록시 경유로 변경 — CORS 문제 해결, Firebase /config/riotWorkerUrl 설정 시 자동 적용' },
+  ]},
+  { ver: 'v2.26.1', date: '2026-04-17', changes: [
+    { tag: 'fix',     text: '업적 수령 후 카테고리 열림 상태 유지, 수령 가능 뱃지 표시' },
+  ]},
   { ver: 'v2.26.0', date: '2026-04-17', changes: [
     { tag: 'new',     text: '업적 카테고리 아코디언 UI — 카테고리 클릭으로 펼치기/접기, 달성 수 표시' },
     { tag: 'new',     text: '업적 25개 추가 — MVP·MMP / 관전자 / 출석 / 퀘스트 / 뉴비 / 전적·아이템 확장' },
@@ -1672,6 +1679,18 @@ async function seedGoldForAllPlayers() {
 onValue(ref(db, 'config/riotApiKey'), (snapshot) => {
   riotApiKey = (snapshot.val() || '').trim();
 });
+// Cloudflare Worker 프록시 URL 구독 (Firebase /config/riotWorkerUrl)
+onValue(ref(db, 'config/riotWorkerUrl'), (snapshot) => {
+  riotWorkerUrl = (snapshot.val() || '').trim().replace(/\/$/, '');
+});
+
+// Riot API 호출 헬퍼 — Worker 설정 시 프록시 경유, 없으면 직접 호출(CORS 실패 가능)
+function riotFetch(region, path) {
+  if (riotWorkerUrl) {
+    return fetch(`${riotWorkerUrl}/${region}${path}`);
+  }
+  return fetch(`https://${region}.api.riotgames.com${path}`, { headers: { 'X-Riot-Token': riotApiKey } });
+}
 
 // 플레이어 목록 실시간 구독
 onValue(ref(db, 'players'), (snapshot) => {
@@ -3047,10 +3066,7 @@ async function pollGameStatus(players) {
 
   for (const { puuid } of players) {
     try {
-      const res = await fetch(
-        `https://kr.api.riotgames.com/lol/spectator/v5/active-games/by-summoner/${puuid}`,
-        { headers: { 'X-Riot-Token': riotApiKey } }
-      );
+      const res = await riotFetch('kr', `/lol/spectator/v5/active-games/by-summoner/${puuid}`);
       if (res.ok) {
         const data = await res.json();
         if (gameDetectionState === 'waiting') {
@@ -3081,10 +3097,7 @@ async function fetchMatchResult(players) {
   gameDetectRetry++;
   try {
     const puuid = players[0].puuid;
-    const idsRes = await fetch(
-      `https://asia.api.riotgames.com/lol/match/v5/matches/by-puuid/${puuid}/ids?count=10`,
-      { headers: { 'X-Riot-Token': riotApiKey } }
-    );
+    const idsRes = await riotFetch('asia', `/lol/match/v5/matches/by-puuid/${puuid}/ids?count=10`);
     if (!idsRes.ok) { setTimeout(() => fetchMatchResult(players), 30000); return; }
     const ids = await idsRes.json();
 
@@ -3092,10 +3105,7 @@ async function fetchMatchResult(players) {
     const targetId = detectedGameId ? ids.find(id => id.includes(String(detectedGameId))) : ids[0];
     if (!targetId) { setTimeout(() => fetchMatchResult(players), 30000); return; }
 
-    const matchRes = await fetch(
-      `https://asia.api.riotgames.com/lol/match/v5/matches/${targetId}`,
-      { headers: { 'X-Riot-Token': riotApiKey } }
-    );
+    const matchRes = await riotFetch('asia', `/lol/match/v5/matches/${targetId}`);
     if (!matchRes.ok) { setTimeout(() => fetchMatchResult(players), 30000); return; }
     const match = await matchRes.json();
 
@@ -4408,10 +4418,7 @@ window.lookupRiotId = async function(fbKey) {
   const [gameName, tagLine] = parts;
   statusEl.textContent = '🔍 조회 중...';
   try {
-    const res = await fetch(
-      `https://asia.api.riotgames.com/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`,
-      { headers: { 'X-Riot-Token': riotApiKey } }
-    );
+    const res = await riotFetch('asia', `/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`);
     if (!res.ok) {
       if (res.status === 404) { statusEl.textContent = '❌ 소환사를 찾을 수 없습니다'; return; }
       if (res.status === 403) { statusEl.textContent = '❌ API Key가 만료됐습니다 (Firebase에서 갱신 필요)'; return; }
