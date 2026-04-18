@@ -1240,10 +1240,13 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.26.4';
+const APP_VERSION = 'v2.26.5';
 document.getElementById('version-badge').textContent = APP_VERSION;
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.26.5', date: '2026-04-18', changes: [
+    { tag: 'improve', text: '자동 감지 경기에 Riot Match ID 저장 — 향후 상세 데이터 연동 기반 마련' },
+  ]},
   { ver: 'v2.26.4', date: '2026-04-18', changes: [
     { tag: 'improve', text: '기록 탭 상세 보기 — 버튼 텍스트 정리, MVP/SVP/MMP 정보 상세 모달에 표시' },
   ]},
@@ -3041,6 +3044,7 @@ let gameDetectionTimer = null;
 let detectedGameId = null;
 let gameDetectRetry = 0;
 let currentMatchParticipants = {}; // normName → {champion, kills, deaths, assists, cs, damage}
+let currentRiotMatchId = null;    // Riot match ID (저장 시 Firebase에 기록)
 const GAME_DETECT_INTERVAL = 30000; // 30초 폴링
 const MATCH_FETCH_RETRY_MAX = 6;    // 최대 6회 재시도 (3분)
 const DDRAGON_VERSION = '15.8.1';   // Data Dragon 버전 (챔피언 이미지)
@@ -3086,6 +3090,8 @@ function startGameDetection() {
 function stopGameDetection() {
   if (gameDetectionTimer) { clearInterval(gameDetectionTimer); gameDetectionTimer = null; }
   gameDetectionState = 'idle';
+  currentMatchParticipants = {};
+  currentRiotMatchId = null;
   setGameDetectionUI(null);
 }
 
@@ -3132,6 +3138,7 @@ async function fetchMatchResult(players) {
     // gameId가 포함된 matchId 찾기
     const targetId = detectedGameId ? ids.find(id => id.includes(String(detectedGameId))) : ids[0];
     if (!targetId) { setTimeout(() => fetchMatchResult(players), 30000); return; }
+    currentRiotMatchId = targetId;
 
     const matchRes = await riotFetch('asia', `/lol/match/v5/matches/${targetId}`);
     if (!matchRes.ok) { setTimeout(() => fetchMatchResult(players), 30000); return; }
@@ -3968,6 +3975,7 @@ window.saveMatch = async function() {
     };
     if (Object.keys(currentMatchParticipants).length > 0)
       matchData.participants = currentMatchParticipants;
+    if (currentRiotMatchId) matchData.riotMatchId = currentRiotMatchId;
     await push(ref(db, 'matches'), matchData);
     // onValue 리스너가 matches 즉시 업데이트 → 새 티어 계산 가능
 
