@@ -332,13 +332,13 @@ select option{background:var(--surface2);}
 .match-date{font-size:10px;color:var(--text-dim);flex:1;text-align:right;}
 .match-winner-badge{font-size:11px;font-family:'Black Han Sans',sans-serif;letter-spacing:1px;padding:2px 8px;border-radius:3px;}
 .match-body{display:grid;grid-template-columns:1fr auto 1fr;gap:0;align-items:start;}
-.match-team-box{padding:4px 0;display:flex;flex-direction:column;gap:0;}
+.match-team-box{padding:4px 8px;display:flex;flex-direction:column;gap:0;border-radius:6px;transition:all 0.2s;}
+.match-team-box.lose{opacity:0.68;filter:saturate(0.8);}
+.match-team-box.win{background:linear-gradient(90deg,rgba(200,168,75,0.14) 0%,rgba(200,168,75,0.02) 100%);box-shadow:inset 3px 0 0 var(--gold);}
 .match-team-title{display:flex;align-items:center;gap:5px;font-size:11px;font-family:'Black Han Sans',sans-serif;letter-spacing:0.5px;margin-bottom:4px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,0.06);color:var(--text-dim);}
-.match-team-box.team-right .match-team-title{justify-content:flex-end;}
-.match-team-title .team-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
-.match-team-title .team-dot.c-blue{background:#4fc3f7;}
-.match-team-title .team-dot.c-yellow{background:#ffd740;}
-.match-team-title .win-tag{font-size:8px;padding:1px 5px;border-radius:3px;background:rgba(76,175,80,0.15);color:var(--green);border:1px solid rgba(76,175,80,0.3);font-family:'Black Han Sans',sans-serif;letter-spacing:0.5px;}
+.match-team-box.win .match-team-title{color:var(--gold-light);font-size:12px;border-bottom-color:rgba(200,168,75,0.3);}
+.match-team-title .trophy{font-size:10px;line-height:1;filter:drop-shadow(0 0 3px rgba(232,208,128,0.7));}
+.match-detail-date{font-size:10px;color:rgba(255,255,255,0.35);font-weight:400;letter-spacing:0;margin-left:4px;}
 .match-vs-sep{display:flex;align-items:center;justify-content:center;padding:0 8px;font-size:10px;font-family:'Black Han Sans',sans-serif;color:rgba(255,255,255,0.12);padding-top:6px;}
 .match-member{display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text-dim);padding:3px 6px;margin:1px 0;line-height:1.4;word-break:keep-all;border-radius:4px;background:rgba(255,255,255,0.02);}
 .match-team-box.win .match-member{color:var(--text);background:rgba(255,255,255,0.04);}
@@ -356,6 +356,9 @@ select option{background:var(--surface2);}
 .match-member.manner-king{color:var(--green);font-weight:700;background:rgba(0,199,122,0.06)!important;}
 .manner-label{font-size:9px;font-weight:700;letter-spacing:0.5px;opacity:0.35;color:var(--green);}
 .item-effect-tag{font-size:11px;flex-shrink:0;line-height:1;margin-left:auto;}
+.item-effect-tag+.item-effect-tag{margin-left:3px;}
+.item-effect-tag.success{filter:drop-shadow(0 0 2px rgba(255,215,128,0.45));}
+.item-effect-tag.fail{filter:grayscale(1) brightness(0.55);opacity:0.55;}
 @media(max-width:400px){
   .match-vs-sep{padding:0 4px;font-size:8px;}
   .match-member{font-size:11px;padding:2px 5px;}
@@ -855,9 +858,57 @@ body.member-mode #event-no-save-notice{display:none!important;}
   80% {opacity:var(--op);}
   100%{transform:translate(calc(var(--sx) + var(--ex)),calc(var(--sy) + var(--ey)));opacity:0;}
 }
+
+/* ── Twemoji (모든 플랫폼 동일 이모지) ── */
+img.emoji{
+  height:1em;width:1em;
+  margin:0 .05em 0 .1em;
+  vertical-align:-0.1em;
+  display:inline-block;
+}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
+<script>
+/* Twemoji 자동 적용 — DOM 변경 감지 후 SVG 이모지로 치환 (모든 플랫폼 동일 렌더) */
+(function(){
+  function applyTwemoji(root){
+    if (!window.twemoji) return;
+    try {
+      window.twemoji.parse(root || document.body, { folder:'svg', ext:'.svg' });
+    } catch(e) {}
+  }
+  let scheduled = false;
+  function schedule(){
+    if (scheduled) return;
+    scheduled = true;
+    requestAnimationFrame(function(){
+      scheduled = false;
+      applyTwemoji();
+    });
+  }
+  // twemoji 스크립트가 비동기 로드될 수 있으므로 준비되면 즉시 초기 파싱
+  function init(){
+    if (!window.twemoji){ setTimeout(init, 80); return; }
+    applyTwemoji();
+    const obs = new MutationObserver(function(muts){
+      // img.emoji 자체 추가는 무시 (무한 루프 방지)
+      for (const m of muts){
+        for (const n of m.addedNodes){
+          if (n.nodeType===1 && !(n.tagName==='IMG' && n.classList && n.classList.contains('emoji'))){
+            schedule(); return;
+          }
+          if (n.nodeType===3) { schedule(); return; }
+        }
+      }
+    });
+    obs.observe(document.body, { childList:true, subtree:true, characterData:true });
+  }
+  if (document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
 <div class="wrapper">
 
 <div class="version-badge" id="version-badge" onclick="showChangelog()"></div>
@@ -1314,7 +1365,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.2';
+const APP_VERSION = 'v2.29.3';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1323,6 +1374,13 @@ const APP_VERSION = 'v2.29.2';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.3', date: '2026-04-20', changes: [
+    { tag: 'new', text: 'Twemoji 도입 — 모든 플랫폼(Windows·macOS·iOS·Android)에서 동일한 이모지 렌더' },
+    { tag: 'improve', text: '경기 기록 승리팀 표시 전면 개편 — 황금빛 좌측 바 + 🏆 트로피 + 패배팀 디밍으로 시인성 강화' },
+    { tag: 'improve', text: '팀 색상 동그라미 제거, 양팀 모두 좌→우 통일, 트로피 크기 축소' },
+    { tag: 'improve', text: '경기 날짜를 상세 보기 버튼 뒤 괄호로 이동해 카드 상단 간결화' },
+    { tag: 'improve', text: '아이템 효과 성공·실패 모두 표시 — 성공은 색상, 실패는 회색 처리 + 실패 툴팁 안내' },
+  ]},
   { ver: 'v2.29.2', date: '2026-04-20', changes: [
     { tag: 'improve', text: '업데이트 노트 — 접속 시 자동 팝업 제거, 우상단 "버전 · 업데이트 노트" 뱃지 클릭 시 표시' },
     { tag: 'improve', text: '미확인 버전은 버전 뱃지가 금빛으로 반짝이며 알림, 확인 시 반짝임 해제' },
@@ -1586,6 +1644,8 @@ const BTN_TIPS = {
   mvp:   `<strong style="color:#ffd700">🏆 베스트 플레이어</strong> — 상대팀에서 선택<br>이긴 팀 선정자 → <strong style="color:#ffd700">MVP 🏆</strong><br>진 팀 선정자 → <strong style="color:#b0b8d0">SVP 🥈</strong><br>선정 시 <strong style="color:#ffd700">🪙+${GOLD_MVP}G</strong> 지급<br><br><strong style="color:#00c77a">🤝 매너왕</strong> — 본인 팀에서 선택 (본인 제외)<br>이긴 팀·진 팀 각 1명씩 선정<br>선정 시 <strong style="color:#00c77a">🪙+${GOLD_MANNER}G</strong> 지급<br><br><span style="color:#a0b0c8;">MVP/SVP는 승리팀 결정 후 자동 분류</span>`,
   score2x:      `<strong style="color:#ffd700">⚡ 승점 2배권 사용 성공</strong><br>이 경기 승리로 <strong style="color:#e8e8f0">+20pt</strong> 획득<br><span style="color:#a0b0c8;">(일반 승리는 +10pt)</span>`,
   insurance:    `<strong style="color:#7dd3fc">🛡️ 패배 방어권 사용 성공</strong><br>패배했지만 <strong style="color:#e8e8f0">승점 차감 없음</strong><br><span style="color:#a0b0c8;">(일반 패배는 -7pt)</span>`,
+  score2x_fail: `<strong style="color:#a0a0a0">⚡ 승점 2배권 실패</strong><br>패배하여 <strong style="color:#e8e8f0">효과 없이 소모</strong><br><span style="color:#a0b0c8;">승리 시 +20pt 획득 가능했음</span>`,
+  insurance_fail:`<strong style="color:#a0a0a0">🛡️ 패배 방어권 불발</strong><br>승리하여 <strong style="color:#e8e8f0">효과 없이 소모</strong><br><span style="color:#a0b0c8;">패배 시 승점 차감 방지 가능했음</span>`,
   gamble_win:   `<strong style="color:#4ade80">🎲 도박 성공!</strong><br>승리 <strong style="color:#e8e8f0">+25pt</strong> 획득<br><span style="color:#a0b0c8;">(일반 승리는 +10pt)</span>`,
   gamble_lose:  `<strong style="color:#ff8080">🎲 도박 실패...</strong><br>패배 <strong style="color:#e8e8f0">-15pt</strong> 감점<br><span style="color:#a0b0c8;">(일반 패배는 -7pt)</span>`,
   item_score2x: `<strong style="color:#ffd700">⚡ 승점 2배권</strong><br>경기 전 활성화 시 승리하면<br><strong style="color:#e8e8f0">+20pt</strong> 획득<br><span style="color:#a0b0c8;">미활성 승리 +10pt · 패배 시 소모</span>`,
@@ -4395,8 +4455,6 @@ function renderMatchHistory() {
 if(matchArr.length===0){el.innerHTML='<div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>';return;}
   el.innerHTML=matchArr.map(m=>{
     const isBlueWin = m.winner==='blue';
-    const wc = isBlueWin ? 'mw-blue' : 'mw-red';
-    const wl = isBlueWin ? '1팀 승' : '2팀 승';
 
     const mvpWin = m.mvpWinner || m.mvp || '';
     const mvpLos = m.mvpLoser  || '';
@@ -4421,10 +4479,19 @@ if(matchArr.length===0){el.innerHTML='<div class="empty-state"><div class="icon"
         const mvpLabel = isWinMvp ? '<span class="mvp-label">MVP</span>' : isLosMvp ? '<span class="svp-label">SVP</span>' : '';
         const mmpLabel = isMmp ? '<span class="mmp-label">MMP</span>' : '';
         const effects = (m.itemEffects && m.itemEffects[nNorm]) || [];
-        let itemTag = '';
-        if (effects.includes('gamble'))                       itemTag = `<span class="item-effect-tag" data-tip="${isWinTeam ? 'gamble_win' : 'gamble_lose'}">🎲</span>`;
-        else if (isWinTeam && effects.includes('score2x'))    itemTag = '<span class="item-effect-tag" data-tip="score2x">⚡</span>';
-        else if (!isWinTeam && effects.includes('insurance')) itemTag = '<span class="item-effect-tag" data-tip="insurance">🛡️</span>';
+        const itemTags = [];
+        if (effects.includes('gamble')) {
+          itemTags.push(`<span class="item-effect-tag success" data-tip="${isWinTeam ? 'gamble_win' : 'gamble_lose'}">🎲</span>`);
+        }
+        if (effects.includes('score2x')) {
+          const ok = isWinTeam;
+          itemTags.push(`<span class="item-effect-tag ${ok?'success':'fail'}" data-tip="${ok?'score2x':'score2x_fail'}">⚡</span>`);
+        }
+        if (effects.includes('insurance')) {
+          const ok = !isWinTeam;
+          itemTags.push(`<span class="item-effect-tag ${ok?'success':'fail'}" data-tip="${ok?'insurance':'insurance_fail'}">🛡️</span>`);
+        }
+        const itemTag = itemTags.join('');
         const pt = m.participants && m.participants[nNorm];
         const iconHtml = pt ? `<img class="match-member-icon" src="https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(pt.champion)}.png" onerror="this.style.display='none'" alt="">` : '';
         return `<div class="match-member${cls}">
@@ -4435,27 +4502,23 @@ if(matchArr.length===0){el.innerHTML='<div class="empty-state"><div class="icon"
     };
 
     const teamAWin = isBlueWin;
-    const boxA = `<div class="match-team-box${teamAWin?' win':''}">
-      <div class="match-team-title"><span class="team-dot c-blue"></span>1팀${teamAWin?' <span class="win-tag">WIN</span>':''}</div>
+    const boxA = `<div class="match-team-box${teamAWin?' win':' lose'}">
+      <div class="match-team-title">${teamAWin?'<span class="trophy">🏆</span>':''}1팀${teamAWin?' 승리':''}</div>
       ${memberHtml(m.teamA||[], teamAWin)}
     </div>`;
-    const boxB = `<div class="match-team-box team-right${!teamAWin?' win':''}">
-      <div class="match-team-title"><span class="team-dot c-yellow"></span>2팀${!teamAWin?' <span class="win-tag">WIN</span>':''}</div>
+    const boxB = `<div class="match-team-box${!teamAWin?' win':' lose'}">
+      <div class="match-team-title">${!teamAWin?'<span class="trophy">🏆</span>':''}2팀${!teamAWin?' 승리':''}</div>
       ${memberHtml(m.teamB||[], !teamAWin)}
     </div>`;
 
     return`<div class="match-item">
-      <div class="match-header">
-        <span class="match-winner-badge ${wc}">${wl}</span>
-        <span class="match-date">${m.date||''}</span>
-        ${liveMode?`<button class="match-del" onclick="deleteMatch('${m.key}')" title="삭제">🗑</button>`:''}
-      </div>
+      ${liveMode?`<div class="match-header"><button class="match-del" onclick="deleteMatch('${m.key}')" title="삭제">🗑</button></div>`:''}
       <div class="match-body">
         ${boxA}
         <div class="match-vs-sep">VS</div>
         ${boxB}
       </div>
-      <button class="match-detail-btn" onclick="openMatchDetail('${m.key}')">📊 경기 상세 보기</button>
+      <button class="match-detail-btn" onclick="openMatchDetail('${m.key}')">📊 경기 상세 보기 <span class="match-detail-date">(${escHtml(m.date||'')})</span></button>
     </div>`;
   }).join('');
 }
