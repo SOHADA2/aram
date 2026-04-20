@@ -1240,10 +1240,13 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.26.7';
+const APP_VERSION = 'v2.26.8';
 document.getElementById('version-badge').textContent = APP_VERSION;
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.26.8', date: '2026-04-20', changes: [
+    { tag: 'improve', text: '커스텀 게임 결과 자동 조회 — KR_<gameId> 직접 조회로 커스텀 게임 지원 (Match list 미포함 우회)' },
+  ]},
   { ver: 'v2.26.7', date: '2026-04-20', changes: [
     { tag: 'improve', text: '게임 감지 UI 개선 — PUUID 등록 인원·마지막 확인 시간 표시, 지금 확인 버튼 추가' },
     { tag: 'fix', text: '"업데이트 준비중" 안내 문구 제거' },
@@ -3171,19 +3174,32 @@ async function fetchMatchResult(players) {
   }
   gameDetectRetry++;
   try {
-    const puuid = players[0].puuid;
-    const idsRes = await riotFetch('asia', `/lol/match/v5/matches/by-puuid/${puuid}/ids?count=10`);
-    if (!idsRes.ok) { setTimeout(() => fetchMatchResult(players), 30000); return; }
-    const ids = await idsRes.json();
+    let match = null;
+    let targetId = null;
 
-    // gameId가 포함된 matchId 찾기
-    const targetId = detectedGameId ? ids.find(id => id.includes(String(detectedGameId))) : ids[0];
-    if (!targetId) { setTimeout(() => fetchMatchResult(players), 30000); return; }
-    currentRiotMatchId = targetId;
+    // 1순위: detectedGameId로 KR_<gameId> 직접 조회 (커스텀 게임 포함)
+    if (detectedGameId) {
+      targetId = `KR_${detectedGameId}`;
+      const directRes = await riotFetch('asia', `/lol/match/v5/matches/${targetId}`);
+      if (directRes.ok) {
+        match = await directRes.json();
+        currentRiotMatchId = targetId;
+      }
+    }
 
-    const matchRes = await riotFetch('asia', `/lol/match/v5/matches/${targetId}`);
-    if (!matchRes.ok) { setTimeout(() => fetchMatchResult(players), 30000); return; }
-    const match = await matchRes.json();
+    // 2순위: match list에서 최근 경기 조회 (일반 게임 fallback)
+    if (!match) {
+      const puuid = players[0].puuid;
+      const idsRes = await riotFetch('asia', `/lol/match/v5/matches/by-puuid/${puuid}/ids?count=10`);
+      if (!idsRes.ok) { setTimeout(() => fetchMatchResult(players), 30000); return; }
+      const ids = await idsRes.json();
+      targetId = detectedGameId ? ids.find(id => id.includes(String(detectedGameId))) : ids[0];
+      if (!targetId) { setTimeout(() => fetchMatchResult(players), 30000); return; }
+      currentRiotMatchId = targetId;
+      const matchRes = await riotFetch('asia', `/lol/match/v5/matches/${targetId}`);
+      if (!matchRes.ok) { setTimeout(() => fetchMatchResult(players), 30000); return; }
+      match = await matchRes.json();
+    }
 
     // 1팀(currentTeamA) 중 한 명의 PUUID로 teamId 확인
     const teamAPuuids = currentTeamA.map(p => {
