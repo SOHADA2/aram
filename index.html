@@ -1397,7 +1397,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.16';
+const APP_VERSION = 'v2.29.17';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1406,6 +1406,9 @@ const APP_VERSION = 'v2.29.16';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.17', date: '2026-04-20', changes: [
+    { tag: 'fix', text: '게임 감지 디버그 — 에러 메시지 상세 표시, Worker URL 표시' },
+  ]},
   { ver: 'v2.29.16', date: '2026-04-20', changes: [
     { tag: 'fix', text: '게임 감지 — 새로고침 시 세션 복원 후 자동 재시작' },
   ]},
@@ -3331,6 +3334,7 @@ let lastPollAt = null;
 let waitingUiTimer = null;
 let _detectionPlayers = null;
 let _lastPollError = null;
+let _lastPollErrorMsg = '';
 const GAME_DETECT_INTERVAL = 30000; // 30초 폴링
 const MATCH_FETCH_RETRY_MAX = 6;    // 최대 6회 재시도 (3분)
 const DDRAGON_VERSION = '15.8.1';   // Data Dragon 버전 (챔피언 이미지)
@@ -3386,9 +3390,10 @@ function updateWaitingUI() {
     ? `마지막 확인 ${Math.round((Date.now() - lastPollAt) / 1000)}초 전`
     : '확인 중...';
   const errHint = _lastPollError
-    ? ` <span style="color:var(--red);font-size:10px;">⚠️ API 오류 ${_lastPollError === 'net' ? '(네트워크)' : `(HTTP ${_lastPollError})`}</span>`
+    ? ` <span style="color:var(--red);font-size:10px;">⚠️ API 오류 ${_lastPollError === 'net' ? `(네트워크: ${_lastPollErrorMsg || 'fetch failed'})` : `(HTTP ${_lastPollError})`}</span>`
     : '';
-  el.innerHTML = `🔍 게임 시작 감지 중 <span style="opacity:0.6;font-size:11px;">(PUUID 등록 ${playerCount}명 · ${lastCheck})</span>${errHint}
+  const workerDbg = ` <span style="opacity:0.4;font-size:9px;">· Worker: ${riotWorkerUrl ? riotWorkerUrl.replace(/^https?:\/\//,'') : '(없음, 직접호출)'}</span>`;
+  el.innerHTML = `🔍 게임 시작 감지 중 <span style="opacity:0.6;font-size:11px;">(PUUID 등록 ${playerCount}명 · ${lastCheck})</span>${errHint}${workerDbg}
     <button onclick="window.manualPollNow()" style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface3);cursor:pointer;color:var(--text);">지금 확인</button>`;
   el.style.color = 'var(--text-dim)';
   el.style.borderColor = 'var(--border)';
@@ -3459,7 +3464,7 @@ async function pollGameStatus(players) {
         lastErrorStatus = res.status; // 400/401/403/502 등 오류 기록
         continue;
       }
-    } catch(e) { lastErrorStatus = 'net'; continue; }
+    } catch(e) { lastErrorStatus = 'net'; _lastPollErrorMsg = e.message || String(e); continue; }
   }
   // 모든 플레이어 확인 완료 (게임 없음) — 마지막 확인 시간 갱신
   lastPollAt = Date.now();
