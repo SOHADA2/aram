@@ -585,10 +585,10 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .mk-quadra{background:rgba(255,140,0,0.2);color:#ffaa40;border:1px solid rgba(255,140,0,0.4);}
 .mk-triple{background:rgba(200,168,75,0.2);color:var(--gold);border:1px solid rgba(200,168,75,0.3);}
 .mk-double{background:rgba(100,180,255,0.15);color:var(--blue);border:1px solid rgba(100,180,255,0.25);}
-.match-detail-stats{display:flex;flex-wrap:wrap;gap:6px;}
-.match-detail-stat{display:flex;flex-direction:column;align-items:center;min-width:44px;flex:1;}
-.match-detail-stat-val{font-size:12px;font-weight:700;color:var(--text);}
-.match-detail-stat-lbl{font-size:9px;color:var(--text-dim);margin-top:1px;}
+.match-detail-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;background:rgba(255,255,255,0.03);border-radius:7px;padding:7px 6px;}
+.match-detail-stat{display:flex;flex-direction:column;align-items:center;gap:2px;}
+.match-detail-stat-val{font-size:11px;font-weight:700;color:var(--text);white-space:nowrap;}
+.match-detail-stat-lbl{font-size:9px;color:var(--text-dim);}
 .match-member-icon{width:18px;height:18px;border-radius:3px;object-fit:cover;vertical-align:middle;margin-right:4px;border:1px solid rgba(255,255,255,0.1);}
 .match-item{transition:border-color 0.15s;}
 .match-detail-btn{display:flex;align-items:center;justify-content:center;gap:5px;margin-top:4px;padding:7px 0;background:rgba(11,196,227,0.08);border:1px solid rgba(11,196,227,0.2);border-radius:6px;color:rgba(11,196,227,0.85);font-size:12px;cursor:pointer;transition:all 0.15s;width:100%;}
@@ -1260,10 +1260,13 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.28.2';
+const APP_VERSION = 'v2.28.3';
 document.getElementById('version-badge').textContent = APP_VERSION;
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.28.3', date: '2026-04-20', changes: [
+    { tag: 'fix', text: '경기 상세 스탯 바 — flex에서 5열 grid로 변경하여 KDA 등 가변 너비 정렬 수정' },
+  ]},
   { ver: 'v2.28.2', date: '2026-04-20', changes: [
     { tag: 'new', text: '경기 상세 — 받은 피해량·힐+보호막·멀티킬(더블~펜타) 저장 및 표시 추가' },
     { tag: 'improve', text: '경기 상세 레이아웃 개편 — 플레이어 카드형, 멀티킬 뱃지, 컬러 구분 스탯 바' },
@@ -4482,6 +4485,42 @@ window.autoLinkAllMatches = async function() {
   }
   if (autoBtn) { autoBtn.disabled = false; }
   renderMatchHistory();
+};
+
+window.showDetailPreview = function() {
+  loadChampNamesKR();
+  const mockPlayers = Object.values(registeredPlayers).slice(0, 8).map(p => p.name);
+  const half = Math.ceil(mockPlayers.length / 2);
+  const mockMatch = {
+    key: '__preview__',
+    date: '미리보기',
+    winner: 'blue',
+    teamA: mockPlayers.slice(0, half),
+    teamB: mockPlayers.slice(half),
+    participants: {},
+  };
+  const champions = ['Lux','Jinx','Yasuo','Thresh','Ahri','Zed','Sona','Ezreal'];
+  mockPlayers.forEach((n, i) => {
+    mockMatch.participants[normName(n)] = {
+      champion: champions[i % champions.length],
+      kills: Math.floor(Math.random()*15),
+      deaths: Math.floor(Math.random()*10)+1,
+      assists: Math.floor(Math.random()*20),
+      cs: Math.floor(Math.random()*60)+10,
+      damage: Math.floor(Math.random()*25000)+5000,
+      damageTaken: Math.floor(Math.random()*30000)+8000,
+      healing: Math.floor(Math.random()*8000),
+      doubleKills: i===0?1:0,
+      tripleKills: i===1?1:0,
+      quadraKills: 0,
+      pentaKills: i===2?1:0,
+    };
+  });
+  matches['__preview__'] = mockMatch;
+  openMatchDetail('__preview__');
+  // 모달 닫을 때 가짜 데이터 제거
+  const orig = window.closeMatchDetail;
+  window.closeMatchDetail = function() { delete matches['__preview__']; window.closeMatchDetail = orig; orig(); };
 };
 
 window.openMatchDetail = function(key) {
