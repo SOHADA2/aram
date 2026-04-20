@@ -1397,7 +1397,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.17';
+const APP_VERSION = 'v2.29.18';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1406,6 +1406,9 @@ const APP_VERSION = 'v2.29.17';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.18', date: '2026-04-20', changes: [
+    { tag: 'fix', text: '게임 감지 — Worker 테스트 버튼 추가 (상태창에서 직접 Worker 핑 테스트)' },
+  ]},
   { ver: 'v2.29.17', date: '2026-04-20', changes: [
     { tag: 'fix', text: '게임 감지 디버그 — 에러 메시지 상세 표시, Worker URL 표시' },
   ]},
@@ -3394,7 +3397,8 @@ function updateWaitingUI() {
     : '';
   const workerDbg = ` <span style="opacity:0.4;font-size:9px;">· Worker: ${riotWorkerUrl ? riotWorkerUrl.replace(/^https?:\/\//,'') : '(없음, 직접호출)'}</span>`;
   el.innerHTML = `🔍 게임 시작 감지 중 <span style="opacity:0.6;font-size:11px;">(PUUID 등록 ${playerCount}명 · ${lastCheck})</span>${errHint}${workerDbg}
-    <button onclick="window.manualPollNow()" style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface3);cursor:pointer;color:var(--text);">지금 확인</button>`;
+    <button onclick="window.manualPollNow()" style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface3);cursor:pointer;color:var(--text);">지금 확인</button>
+    <button onclick="window.testWorker()" style="margin-left:4px;font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface3);cursor:pointer;color:var(--text);">Worker 테스트</button>`;
   el.style.color = 'var(--text-dim)';
   el.style.borderColor = 'var(--border)';
   el.style.display = 'block';
@@ -3403,6 +3407,27 @@ function updateWaitingUI() {
 window.manualPollNow = async function() {
   if (gameDetectionState !== 'waiting' || !_detectionPlayers) return;
   await pollGameStatus(_detectionPlayers);
+};
+
+window.testWorker = async function() {
+  const el = document.getElementById('game-detection-status');
+  if (!el) return;
+  el.innerHTML = '🧪 Worker 테스트 중...';
+  const testUrl = `${riotWorkerUrl}/kr/lol/status/v4/platform-data`;
+  try {
+    const res = await fetch(testUrl);
+    const body = await res.text();
+    const shortBody = body.length > 100 ? body.slice(0, 100) + '...' : body;
+    el.innerHTML = `🧪 Worker 테스트 결과: <strong>HTTP ${res.status}</strong> · ${escHtml(shortBody)}
+      <button onclick="updateWaitingUI()" style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface3);cursor:pointer;color:var(--text);">돌아가기</button>`;
+    el.style.color = res.ok ? 'var(--green)' : 'var(--red)';
+    el.style.borderColor = res.ok ? 'var(--green)' : 'var(--red)';
+  } catch(e) {
+    el.innerHTML = `🧪 Worker 테스트 실패: ${escHtml(e.message || String(e))} · URL: ${escHtml(testUrl)}
+      <button onclick="updateWaitingUI()" style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface3);cursor:pointer;color:var(--text);">돌아가기</button>`;
+    el.style.color = 'var(--red)';
+    el.style.borderColor = 'var(--red)';
+  }
 };
 
 function startGameDetection() {
