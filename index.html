@@ -586,6 +586,13 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .match-item{transition:border-color 0.15s;}
 .match-detail-btn{display:flex;align-items:center;justify-content:center;gap:5px;margin-top:4px;padding:7px 0;background:rgba(11,196,227,0.08);border:1px solid rgba(11,196,227,0.2);border-radius:6px;color:rgba(11,196,227,0.85);font-size:12px;cursor:pointer;transition:all 0.15s;width:100%;}
 .match-detail-btn:hover{background:rgba(11,196,227,0.15);border-color:rgba(11,196,227,0.4);color:rgba(11,196,227,1);}
+.match-link-btn{display:flex;align-items:center;justify-content:center;gap:5px;margin-top:4px;padding:6px 0;background:rgba(160,100,255,0.07);border:1px solid rgba(160,100,255,0.2);border-radius:6px;color:rgba(160,100,255,0.85);font-size:12px;cursor:pointer;transition:all 0.15s;width:100%;}
+.match-link-btn:hover{background:rgba(160,100,255,0.15);border-color:rgba(160,100,255,0.4);}
+.match-link-area{padding:10px 12px;border-top:1px solid var(--border);background:rgba(160,100,255,0.04);}
+.match-link-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px;box-sizing:border-box;margin-bottom:6px;}
+.match-link-input:focus{outline:none;border-color:rgba(160,100,255,0.5);}
+.match-link-submit{width:100%;padding:7px;background:rgba(160,100,255,0.15);border:1px solid rgba(160,100,255,0.3);border-radius:6px;color:rgba(160,100,255,1);font-size:12px;font-weight:700;cursor:pointer;}
+.match-link-submit:disabled{opacity:0.4;cursor:not-allowed;}
 @media(min-width:540px){.profile-modal-overlay{align-items:center;padding:20px;}}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 .profile-modal{background:var(--surface);border:1px solid var(--border);border-radius:16px 16px 0 0;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;animation:slideUp 0.25s cubic-bezier(0.25,1,0.5,1);}
@@ -1246,10 +1253,13 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.27.2';
+const APP_VERSION = 'v2.27.3';
 document.getElementById('version-badge').textContent = APP_VERSION;
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.27.3', date: '2026-04-20', changes: [
+    { tag: 'new', text: '경기 기록 데이터 연동 — Match ID 입력으로 기존 경기에 챔피언/KDA/딜량 소급 적용 (라이브 모드)' },
+  ]},
   { ver: 'v2.27.2', date: '2026-04-20', changes: [
     { tag: 'improve', text: '경기 기록 상세 보기 — 챔피언 아이콘(34px) + 한국어 이름 추가' },
     { tag: 'improve', text: '경기 목록 — 플레이어 이름 옆에 챔피언 아이콘(18px) 표시 (자동 감지 경기)' },
@@ -4266,9 +4276,82 @@ function renderMatchHistory() {
       </div>
       ${(m.mannerWinner||m.mannerLoser||m.mannerKing) ? `<div style="padding:6px 10px;background:rgba(0,199,122,0.07);border-top:1px solid rgba(0,199,122,0.15);font-size:11px;color:var(--green);text-align:center;">🤝 MMP: <strong>${[m.mannerWinner,m.mannerLoser].filter(Boolean).map(n=>escHtml(n)).join(' · ') || escHtml(m.mannerKing)}</strong></div>` : ''}
       <button class="match-detail-btn" onclick="openMatchDetail('${m.key}')">📊 경기 상세 보기</button>
+      ${liveMode && !m.participants ? `
+        <button class="match-link-btn" onclick="toggleMatchLink('${m.key}')">🔗 데이터 연동</button>
+        <div id="match-link-${m.key}" style="display:none;" class="match-link-area">
+          <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px;">Match ID 입력 <span style="opacity:0.6;">(예: KR_1234567890)</span></div>
+          <input id="match-link-input-${m.key}" class="match-link-input" type="text" placeholder="KR_..." />
+          <button class="match-link-submit" id="match-link-submit-${m.key}" onclick="submitMatchLink('${m.key}')">데이터 불러오기</button>
+          <div id="match-link-msg-${m.key}" style="font-size:11px;margin-top:6px;min-height:14px;"></div>
+        </div>` : ''}
     </div>`;
   }).join('');
 }
+
+window.toggleMatchLink = function(key) {
+  const area = document.getElementById('match-link-' + key);
+  if (!area) return;
+  const visible = area.style.display !== 'none';
+  area.style.display = visible ? 'none' : 'block';
+  if (!visible) document.getElementById('match-link-input-' + key)?.focus();
+};
+
+window.submitMatchLink = async function(key) {
+  const input = document.getElementById('match-link-input-' + key);
+  const msgEl = document.getElementById('match-link-msg-' + key);
+  const submitBtn = document.getElementById('match-link-submit-' + key);
+  if (!input || !msgEl) return;
+
+  const matchId = input.value.trim();
+  if (!matchId) { msgEl.textContent = '⚠️ Match ID를 입력해주세요'; msgEl.style.color = 'var(--red)'; return; }
+
+  submitBtn.disabled = true;
+  msgEl.style.color = 'var(--text-dim)';
+  msgEl.textContent = '조회 중...';
+
+  try {
+    const res = await riotFetch('asia', `/lol/match/v5/matches/${matchId}`);
+    if (!res.ok) {
+      msgEl.textContent = res.status === 404 ? '❌ 해당 Match ID를 찾을 수 없어요' : `❌ API 오류 (${res.status})`;
+      msgEl.style.color = 'var(--red)';
+      submitBtn.disabled = false;
+      return;
+    }
+    const match = await res.json();
+
+    // PUUID → 플레이어 매핑
+    const participants = {};
+    for (const pt of match.info.participants) {
+      const fbPlayer = Object.values(registeredPlayers).find(r => r.puuid === pt.puuid);
+      if (fbPlayer) {
+        participants[normName(fbPlayer.name)] = {
+          champion: pt.championName,
+          kills: pt.kills,
+          deaths: pt.deaths,
+          assists: pt.assists,
+          cs: pt.totalMinionsKilled + (pt.neutralMinionsKilled || 0),
+          damage: pt.totalDamageDealtToChampions,
+        };
+      }
+    }
+
+    if (Object.keys(participants).length === 0) {
+      msgEl.textContent = '⚠️ 매칭된 플레이어가 없어요. PUUID가 등록된 플레이어가 있는지 확인해주세요';
+      msgEl.style.color = 'var(--gold)';
+      submitBtn.disabled = false;
+      return;
+    }
+
+    await update(ref(db, 'matches/' + key), { participants, riotMatchId: matchId });
+    msgEl.textContent = `✅ ${Object.keys(participants).length}명 데이터 연동 완료!`;
+    msgEl.style.color = 'var(--green)';
+    setTimeout(() => renderMatchHistory(), 500);
+  } catch(e) {
+    msgEl.textContent = '❌ 네트워크 오류가 발생했어요';
+    msgEl.style.color = 'var(--red)';
+    submitBtn.disabled = false;
+  }
+};
 
 window.openMatchDetail = function(key) {
   const m = matches[key];
