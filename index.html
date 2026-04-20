@@ -72,6 +72,18 @@ header{text-align:center;padding:48px 0 32px;position:relative;}
   background:rgba(6,13,24,0.7);border:1px solid rgba(30,60,110,0.3);
   border-radius:3px;padding:2px 6px;
   backdrop-filter:blur(4px);
+  transition:color 0.2s, border-color 0.2s, background 0.2s;
+}
+.version-badge:hover{color:rgba(200,230,255,0.9);border-color:rgba(100,160,220,0.5);}
+.version-badge.unseen{
+  color:var(--gold-light);
+  border-color:rgba(200,168,75,0.55);
+  background:rgba(40,32,8,0.75);
+  animation:verBadgePulse 1.8s ease-in-out infinite;
+}
+@keyframes verBadgePulse{
+  0%,100%{box-shadow:0 0 0 0 rgba(200,168,75,0.55);border-color:rgba(200,168,75,0.55);}
+  50%   {box-shadow:0 0 10px 2px rgba(232,208,128,0.55);border-color:rgba(232,208,128,0.95);}
 }
 .logo-badge{
   display:inline-flex;align-items:center;gap:10px;
@@ -1111,9 +1123,10 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <!-- ===== TAB: 경기 기록 ===== -->
 <div id="tab-record" class="tab-content">
   <div class="card">
-    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-      <span>전체 경기 기록 <span class="badge" id="match-count-badge">0경기</span></span>
-      <div class="season-selector" id="season-selector">
+    <div class="card-title">
+      <span>전체 경기 기록</span>
+      <span class="badge" id="match-count-badge">0경기</span>
+      <div class="season-selector" id="season-selector" style="margin-left:auto;">
         <button class="season-selector-btn" id="season-selector-btn" onclick="toggleSeasonDropdown()">
           <span id="season-selector-label">시즌0</span><span class="s-chev">▼</span>
         </button>
@@ -1301,10 +1314,22 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.1';
-document.getElementById('version-badge').textContent = APP_VERSION;
+const APP_VERSION = 'v2.29.2';
+(function initVersionBadge(){
+  const el = document.getElementById('version-badge');
+  el.textContent = `${APP_VERSION} · 업데이트 노트`;
+  const lastSeen = localStorage.getItem('lastSeenVersion') || '';
+  if (lastSeen !== APP_VERSION) el.classList.add('unseen');
+})();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.2', date: '2026-04-20', changes: [
+    { tag: 'improve', text: '업데이트 노트 — 접속 시 자동 팝업 제거, 우상단 "버전 · 업데이트 노트" 뱃지 클릭 시 표시' },
+    { tag: 'improve', text: '미확인 버전은 버전 뱃지가 금빛으로 반짝이며 알림, 확인 시 반짝임 해제' },
+    { tag: 'improve', text: '전체 경기 기록 카드 타이틀 레이아웃 정리 — 시즌 셀렉터 우측 고정, 제목 중앙 몰림 해결' },
+    { tag: 'improve', text: '시즌1 전환 대비 — 업적 통계 함수(연승·아이템·MVP·관전·퀘스트·뉴비)에 시즌 필터 파라미터 추가' },
+    { tag: 'fix', text: '신규 계정 등록·골드 시딩 시 sField 누락 버그 수정 (시즌별 goldSpent·items 키 정확히 적용)' },
+  ]},
   { ver: 'v2.29.1', date: '2026-04-20', changes: [
     { tag: 'new', text: '경기 기록 탭 — 시즌 선택 드롭다운 추가, 시즌별 경기 기록 필터링' },
   ]},
@@ -1501,6 +1526,8 @@ function _getToday() {
 
 window.showChangelog = function() {
   document.querySelector('.changelog-overlay')?.remove();
+  localStorage.setItem('lastSeenVersion', APP_VERSION);
+  document.getElementById('version-badge')?.classList.remove('unseen');
   const TAG_LABELS = { new: '신규', fix: '수정', improve: '개선' };
 
   const versionsHtml = CHANGELOG.map(c => `
@@ -1529,18 +1556,13 @@ window.showChangelog = function() {
 };
 
 window.dismissChangelog = function(markSeen) {
-  if (markSeen) localStorage.setItem('lastSeenVersion', APP_VERSION);
-  sessionStorage.setItem('changelogDismissed', '1');
+  if (markSeen) {
+    localStorage.setItem('lastSeenVersion', APP_VERSION);
+    document.getElementById('version-badge')?.classList.remove('unseen');
+  }
   const overlay = document.querySelector('.changelog-overlay');
   if (overlay) { overlay.style.animation = 'taFadeOut 0.25s ease forwards'; setTimeout(() => overlay.remove(), 280); }
 };
-
-// 접속 시 업데이트 노트 표시 — 새 버전일 때만 자동 표시
-setTimeout(() => {
-  if (sessionStorage.getItem('changelogDismissed')) return;
-  const lastSeen = localStorage.getItem('lastSeenVersion') || '';
-  if (lastSeen !== APP_VERSION) window.showChangelog();
-}, 1500);
 
 // ── 아이템 정의 ──────────────────────────────────────────────
 const SHOP_ITEMS = [
@@ -1775,8 +1797,8 @@ async function seedGoldForAllPlayers() {
       // 신규: goldSpent=0으로 등록
       await push(ref(db,'gold'), {
         name,
-        goldSpent: 0,
-        items: [],
+        [sField('goldSpent')]: 0,
+        [sField('items')]: [],
         retroApplied: true,
       });
     } else {
@@ -5190,10 +5212,10 @@ function buildProfilePanel(fbKey, player) {
 // ── RANKING ───────────────────────────────────────────────────
 // ── 업적 시스템 ───────────────────────────────────────────────
 
-function calcMaxStreaks(name) {
+function calcMaxStreaks(name, season = CURRENT_SEASON) {
   const key = normName(name);
   const sorted = Object.values(matches)
-    .filter(m => (m.teamA||[]).some(n=>normName(n)===key) || (m.teamB||[]).some(n=>normName(n)===key))
+    .filter(m => (m.season ?? 0) === season && ((m.teamA||[]).some(n=>normName(n)===key) || (m.teamB||[]).some(n=>normName(n)===key)))
     .sort((a,b) => (a.timestamp||0)-(b.timestamp||0));
   let maxWin=0, maxLoss=0, curWin=0, curLoss=0;
   for (const m of sorted) {
@@ -5206,10 +5228,10 @@ function calcMaxStreaks(name) {
 }
 
 // 아이템 사용 통계 계산 (2배권·방어권·도박)
-function calcItemStats(name) {
+function calcItemStats(name, season = CURRENT_SEASON) {
   const key = normName(name);
   const myMatches = Object.values(matches)
-    .filter(m => (m.teamA||[]).some(n=>normName(n)===key) || (m.teamB||[]).some(n=>normName(n)===key))
+    .filter(m => (m.season ?? 0) === season && ((m.teamA||[]).some(n=>normName(n)===key) || (m.teamB||[]).some(n=>normName(n)===key)))
     .sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
 
   let score2xWin = 0, insuranceUsed = 0, gambleWin = 0, gambleLoss = 0;
@@ -5224,29 +5246,32 @@ function calcItemStats(name) {
   return { score2xWin, insuranceUsed, gambleWin, gambleLoss };
 }
 
-function calcMvpMmpStats(name) {
+function calcMvpMmpStats(name, season = CURRENT_SEASON) {
   const key = normName(name);
   let mvpCount = 0, mmpCount = 0;
   Object.values(matches).forEach(m => {
+    if ((m.season ?? 0) !== season) return;
     if (normName(m.mvpWinner||'')===key || normName(m.mvpLoser||'')===key) mvpCount++;
     if (normName(m.mannerWinner||'')===key || normName(m.mannerLoser||'')===key || normName(m.mannerKing||'')===key) mmpCount++;
   });
   return { mvpCount, mmpCount };
 }
 
-function calcSpectatorStats(name) {
+function calcSpectatorStats(name, season = CURRENT_SEASON) {
   const key = normName(name);
   let specCorrect = 0;
   Object.values(matches).forEach(m => {
+    if ((m.season ?? 0) !== season) return;
     if (m.spectatorName === key && m.spectatorCorrect) specCorrect++;
   });
   return { specCorrect };
 }
 
-function calcQuestStats(name) {
+function calcQuestStats(name, season = CURRENT_SEASON) {
   const key = normName(name);
   let questWin = 0, questHeroLoss = 0, questTotal = 0;
   Object.values(matches).forEach(m => {
+    if ((m.season ?? 0) !== season) return;
     if (!m.questEvent) return;
     const inA = (m.teamA||[]).some(n=>normName(n)===key);
     const inB = (m.teamB||[]).some(n=>normName(n)===key);
@@ -5259,10 +5284,12 @@ function calcQuestStats(name) {
   return { questWin, questHeroLoss, questTotal };
 }
 
-function calcNewbieWins(name) {
+function calcNewbieWins(name, season = CURRENT_SEASON) {
   const key = normName(name);
   let newbieTeamWins = 0;
-  const sorted = Object.values(matches).sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
+  const sorted = Object.values(matches)
+    .filter(m => (m.season ?? 0) === season)
+    .sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
   for (const m of sorted) {
     const inA = (m.teamA||[]).some(n=>normName(n)===key);
     const inB = (m.teamB||[]).some(n=>normName(n)===key);
@@ -5600,8 +5627,8 @@ window.selectMyName = async function(name) {
     // Firebase에 없음 → 최초 등록 (골드는 경기 기록 기반 동적 계산)
     await push(ref(db,'gold'), {
       name,
-      goldSpent: 0,
-      items: [],
+      [sField('goldSpent')]: 0,
+      [sField('items')]: [],
       retroApplied: true,
     });
     const earned = calcGoldFromMatches(name);
@@ -5609,7 +5636,7 @@ window.selectMyName = async function(name) {
   } else {
     const [, existData] = existEntry;
     const earned = calcGoldFromMatches(name);
-    const currentGold = Math.max(0, earned - (existData.goldSpent ?? 0));
+    const currentGold = Math.max(0, earned - (existData[sField('goldSpent')] ?? 0));
     showGoldToast(`✅ ${name} 으로 설정됐어요! 🪙${currentGold}`);
   }
   closeMyModal();
@@ -5808,8 +5835,8 @@ async function giveMatchGold(winners, losers, matchTimestamp) {
       // goldData 미등록자 → 기본 엔트리 생성 (골드는 calcGoldFromMatches로 동적 계산)
       await push(ref(db,'gold'), {
         name,
-        goldSpent: 0,
-        items: [],
+        [sField('goldSpent')]: 0,
+        [sField('items')]: [],
         retroApplied: true,
       });
       return;
