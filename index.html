@@ -571,17 +571,24 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .match-detail-team-title{font-size:11px;font-weight:700;letter-spacing:1px;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border);}
 .match-detail-team-title.blue{color:var(--blue);}
 .match-detail-team-title.yellow{color:#ffd740;}
-.match-detail-row{display:grid;grid-template-columns:1fr 64px 42px 56px;gap:4px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px;}
+.match-detail-row{display:flex;flex-direction:column;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px;gap:5px;}
 .match-detail-row:last-child{border-bottom:none;}
-.match-detail-col-header{font-size:10px;color:var(--text-dim);font-weight:700;}
-.match-detail-player{display:flex;flex-direction:row;align-items:center;gap:8px;min-width:0;}
+.match-detail-row-top{display:flex;align-items:center;justify-content:space-between;gap:6px;}
+.match-detail-player{display:flex;flex-direction:row;align-items:center;gap:8px;min-width:0;flex:1;}
 .match-detail-champ-img{width:34px;height:34px;border-radius:5px;object-fit:cover;object-position:center top;flex-shrink:0;border:1px solid var(--border);}
 .match-detail-player-info{display:flex;flex-direction:column;gap:1px;min-width:0;}
 .match-detail-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;}
 .match-detail-champ{font-size:10px;color:var(--gold);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.match-detail-kda{text-align:center;color:var(--text-dim);}
-.match-detail-cs{text-align:center;color:var(--text-dim);}
-.match-detail-dmg{text-align:right;color:var(--text-dim);}
+.match-detail-multikill{display:flex;gap:3px;flex-shrink:0;}
+.match-detail-mk-badge{font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;white-space:nowrap;}
+.mk-penta{background:rgba(255,60,60,0.2);color:#ff6b6b;border:1px solid rgba(255,60,60,0.4);}
+.mk-quadra{background:rgba(255,140,0,0.2);color:#ffaa40;border:1px solid rgba(255,140,0,0.4);}
+.mk-triple{background:rgba(200,168,75,0.2);color:var(--gold);border:1px solid rgba(200,168,75,0.3);}
+.mk-double{background:rgba(100,180,255,0.15);color:var(--blue);border:1px solid rgba(100,180,255,0.25);}
+.match-detail-stats{display:flex;flex-wrap:wrap;gap:6px;}
+.match-detail-stat{display:flex;flex-direction:column;align-items:center;min-width:44px;flex:1;}
+.match-detail-stat-val{font-size:12px;font-weight:700;color:var(--text);}
+.match-detail-stat-lbl{font-size:9px;color:var(--text-dim);margin-top:1px;}
 .match-member-icon{width:18px;height:18px;border-radius:3px;object-fit:cover;vertical-align:middle;margin-right:4px;border:1px solid rgba(255,255,255,0.1);}
 .match-item{transition:border-color 0.15s;}
 .match-detail-btn{display:flex;align-items:center;justify-content:center;gap:5px;margin-top:4px;padding:7px 0;background:rgba(11,196,227,0.08);border:1px solid rgba(11,196,227,0.2);border-radius:6px;color:rgba(11,196,227,0.85);font-size:12px;cursor:pointer;transition:all 0.15s;width:100%;}
@@ -1253,10 +1260,14 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.28.1';
+const APP_VERSION = 'v2.28.2';
 document.getElementById('version-badge').textContent = APP_VERSION;
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.28.2', date: '2026-04-20', changes: [
+    { tag: 'new', text: '경기 상세 — 받은 피해량·힐+보호막·멀티킬(더블~펜타) 저장 및 표시 추가' },
+    { tag: 'improve', text: '경기 상세 레이아웃 개편 — 플레이어 카드형, 멀티킬 뱃지, 컬러 구분 스탯 바' },
+  ]},
   { ver: 'v2.28.1', date: '2026-04-20', changes: [
     { tag: 'fix', text: '데이터 연동 버튼 제거 — 커스텀 게임(내전)은 Riot 매치 히스토리 API에서 제외되어 소급 연동 불가' },
   ]},
@@ -3279,6 +3290,12 @@ async function fetchMatchResult(players) {
             assists: pt.assists,
             cs: pt.totalMinionsKilled + (pt.neutralMinionsKilled || 0),
             damage: pt.totalDamageDealtToChampions,
+            damageTaken: pt.totalDamageTaken || 0,
+            healing: (pt.totalHealsOnTeammates || 0) + (pt.totalDamageShieldedOnTeammates || 0),
+            doubleKills: pt.doubleKills || 0,
+            tripleKills: pt.tripleKills || 0,
+            quadraKills: pt.quadraKills || 0,
+            pentaKills: pt.pentaKills || 0,
           };
         }
       }
@@ -4477,33 +4494,47 @@ window.openMatchDetail = function(key) {
   const isBlueWin = m.winner === 'blue';
   const pts = m.participants || {};
 
-  function teamRows(names, isWin) {
-    const header = `<div class="match-detail-row">
-      <div class="match-detail-col-header">플레이어</div>
-      <div class="match-detail-col-header" style="text-align:center;">KDA</div>
-      <div class="match-detail-col-header" style="text-align:center;">CS</div>
-      <div class="match-detail-col-header" style="text-align:right;">딜량</div>
-    </div>`;
-    const rows = names.map(n => {
+  function teamRows(names) {
+    return names.map(n => {
       const pt = pts[normName(n)];
       const champKR = pt ? (champNamesKR[pt.champion] || pt.champion) : '';
       const champImg = pt
         ? `<img class="match-detail-champ-img" src="https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(pt.champion)}.png" onerror="this.style.display='none'" alt="">`
-        : '';
+        : `<div style="width:34px;height:34px;border-radius:5px;background:var(--surface2);border:1px solid var(--border);flex-shrink:0;"></div>`;
+
+      let mkBadges = '';
+      if (pt) {
+        if (pt.pentaKills > 0) mkBadges += `<span class="match-detail-mk-badge mk-penta">펜타킬</span>`;
+        else if (pt.quadraKills > 0) mkBadges += `<span class="match-detail-mk-badge mk-quadra">쿼드라킬</span>`;
+        else if (pt.tripleKills > 0) mkBadges += `<span class="match-detail-mk-badge mk-triple">트리플킬</span>`;
+        else if (pt.doubleKills > 0) mkBadges += `<span class="match-detail-mk-badge mk-double">더블킬</span>`;
+      }
+
+      const fmt = v => v >= 1000 ? (v/1000).toFixed(1)+'k' : String(v);
+
+      const statsHtml = pt ? `
+        <div class="match-detail-stats">
+          <div class="match-detail-stat"><div class="match-detail-stat-val">${pt.kills}/${pt.deaths}/${pt.assists}</div><div class="match-detail-stat-lbl">KDA</div></div>
+          <div class="match-detail-stat"><div class="match-detail-stat-val">${pt.cs}</div><div class="match-detail-stat-lbl">CS</div></div>
+          <div class="match-detail-stat"><div class="match-detail-stat-val" style="color:#f87171;">${fmt(pt.damage||0)}</div><div class="match-detail-stat-lbl">딜량</div></div>
+          <div class="match-detail-stat"><div class="match-detail-stat-val" style="color:#60a5fa;">${fmt(pt.damageTaken||0)}</div><div class="match-detail-stat-lbl">받은피해</div></div>
+          <div class="match-detail-stat"><div class="match-detail-stat-val" style="color:#4ade80;">${fmt(pt.healing||0)}</div><div class="match-detail-stat-lbl">힐+보호막</div></div>
+        </div>` : `<div style="font-size:11px;color:var(--text-dim);">데이터 없음</div>`;
+
       return `<div class="match-detail-row">
-        <div class="match-detail-player">
-          ${champImg}
-          <div class="match-detail-player-info">
-            <div class="match-detail-name">${escHtml(n)}</div>
-            ${pt ? `<div class="match-detail-champ">${escHtml(champKR)}</div>` : ''}
+        <div class="match-detail-row-top">
+          <div class="match-detail-player">
+            ${champImg}
+            <div class="match-detail-player-info">
+              <div class="match-detail-name">${escHtml(n)}</div>
+              ${pt ? `<div class="match-detail-champ">${escHtml(champKR)}</div>` : ''}
+            </div>
           </div>
+          ${mkBadges ? `<div class="match-detail-multikill">${mkBadges}</div>` : ''}
         </div>
-        <div class="match-detail-kda">${pt ? `${pt.kills}/${pt.deaths}/${pt.assists}` : '—'}</div>
-        <div class="match-detail-cs">${pt ? pt.cs : '—'}</div>
-        <div class="match-detail-dmg">${pt ? (pt.damage/1000).toFixed(1)+'k' : '—'}</div>
+        ${statsHtml}
       </div>`;
     }).join('');
-    return header + rows;
   }
 
   const overlay = document.createElement('div');
@@ -4519,11 +4550,11 @@ window.openMatchDetail = function(key) {
       <div class="match-detail-body">
         <div class="match-detail-team">
           <div class="match-detail-team-title blue">🔵 1팀 ${isBlueWin?'<span style="color:var(--green);">WIN</span>':''}</div>
-          ${teamRows(m.teamA||[], isBlueWin)}
+          ${teamRows(m.teamA||[])}
         </div>
         <div class="match-detail-team">
           <div class="match-detail-team-title yellow">🟡 2팀 ${!isBlueWin?'<span style="color:var(--green);">WIN</span>':''}</div>
-          ${teamRows(m.teamB||[], !isBlueWin)}
+          ${teamRows(m.teamB||[])}
         </div>
         ${Object.keys(pts).length === 0 ? '<div style="text-align:center;font-size:12px;color:var(--text-dim);padding:8px 0;">📊 상세 데이터 없음<br>자동 감지된 경기에만 표시돼요</div>' : ''}
         ${(() => {
