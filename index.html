@@ -1240,10 +1240,14 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.26.6';
+const APP_VERSION = 'v2.26.7';
 document.getElementById('version-badge').textContent = APP_VERSION;
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.26.7', date: '2026-04-20', changes: [
+    { tag: 'improve', text: '게임 감지 UI 개선 — PUUID 등록 인원·마지막 확인 시간 표시, 지금 확인 버튼 추가' },
+    { tag: 'fix', text: '"업데이트 준비중" 안내 문구 제거' },
+  ]},
   { ver: 'v2.26.6', date: '2026-04-20', changes: [
     { tag: 'fix', text: 'Cloudflare Worker 프록시 사용 시 게임 감지가 시작되지 않던 버그 수정' },
     { tag: 'fix', text: '팀원 중 첫 번째 플레이어가 게임 중이 아닐 때 나머지 플레이어 확인 없이 감지 종료되던 버그 수정' },
@@ -3049,6 +3053,9 @@ let detectedGameId = null;
 let gameDetectRetry = 0;
 let currentMatchParticipants = {}; // normName → {champion, kills, deaths, assists, cs, damage}
 let currentRiotMatchId = null;    // Riot match ID (저장 시 Firebase에 기록)
+let lastPollAt = null;
+let waitingUiTimer = null;
+let _detectionPlayers = null;
 const GAME_DETECT_INTERVAL = 30000; // 30초 폴링
 const MATCH_FETCH_RETRY_MAX = 6;    // 최대 6회 재시도 (3분)
 const DDRAGON_VERSION = '15.8.1';   // Data Dragon 버전 (챔피언 이미지)
@@ -3076,16 +3083,39 @@ function getTeamPuuids() {
   }).filter(Boolean);
 }
 
+function updateWaitingUI() {
+  if (gameDetectionState !== 'waiting') return;
+  const el = document.getElementById('game-detection-status');
+  if (!el) return;
+  const playerCount = _detectionPlayers ? _detectionPlayers.length : 0;
+  const lastCheck = lastPollAt
+    ? `마지막 확인 ${Math.round((Date.now() - lastPollAt) / 1000)}초 전`
+    : '확인 중...';
+  el.innerHTML = `🔍 게임 시작 감지 중 <span style="opacity:0.6;font-size:11px;">(PUUID 등록 ${playerCount}명 · ${lastCheck})</span>
+    <button onclick="window.manualPollNow()" style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface3);cursor:pointer;color:var(--text);">지금 확인</button>`;
+  el.style.color = 'var(--text-dim)';
+  el.style.borderColor = 'var(--border)';
+  el.style.display = 'block';
+}
+
+window.manualPollNow = async function() {
+  if (gameDetectionState !== 'waiting' || !_detectionPlayers) return;
+  await pollGameStatus(_detectionPlayers);
+};
+
 function startGameDetection() {
   if ((!riotWorkerUrl && !riotApiKey) || isEventMatch) return;
   const players = getTeamPuuids();
   if (players.length === 0) return; // PUUID 등록자 없으면 건너뜀
 
+  _detectionPlayers = players;
   stopGameDetection();
   gameDetectionState = 'waiting';
   detectedGameId = null;
   gameDetectRetry = 0;
-  setGameDetectionUI('waiting');
+  lastPollAt = null;
+  updateWaitingUI();
+  waitingUiTimer = setInterval(updateWaitingUI, 1000);
 
   gameDetectionTimer = setInterval(() => pollGameStatus(players), GAME_DETECT_INTERVAL);
   pollGameStatus(players); // 즉시 1회 실행
@@ -3093,9 +3123,12 @@ function startGameDetection() {
 
 function stopGameDetection() {
   if (gameDetectionTimer) { clearInterval(gameDetectionTimer); gameDetectionTimer = null; }
+  if (waitingUiTimer) { clearInterval(waitingUiTimer); waitingUiTimer = null; }
   gameDetectionState = 'idle';
   currentMatchParticipants = {};
   currentRiotMatchId = null;
+  lastPollAt = null;
+  _detectionPlayers = null;
   setGameDetectionUI(null);
 }
 
@@ -3127,6 +3160,9 @@ async function pollGameStatus(players) {
       }
     } catch(e) { /* CORS 또는 네트워크 오류 — 다음 플레이어로 */ }
   }
+  // 모든 플레이어 확인 완료 (게임 없음) — 마지막 확인 시간 갱신
+  lastPollAt = Date.now();
+  updateWaitingUI();
 }
 
 async function fetchMatchResult(players) {
@@ -3194,8 +3230,8 @@ function setGameDetectionUI(state) {
   const el = document.getElementById('game-detection-status');
   if (!el) return;
   if (!state) { el.style.display = 'none'; return; }
+  if (state === 'waiting') { updateWaitingUI(); return; }
   const cfg = {
-    waiting:     { text: '🔍 게임 시작 감지 중...<br><span style="font-size:10px;opacity:0.55;">자동 감지 기능 업데이트 준비중</span>', color: 'var(--text-dim)' },
     inGame:      { text: '🎮 게임 진행 중 — 종료 시 자동으로 결과를 불러옵니다', color: 'var(--blue)' },
     ended:       { text: '⏳ 게임 종료! 결과 불러오는 중...', color: 'var(--gold)' },
     fetchFailed: { text: '❌ 결과 조회 실패 — 아래에서 수동으로 승패를 선택해주세요', color: 'var(--red)' },
