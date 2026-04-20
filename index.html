@@ -1101,7 +1101,10 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <!-- ===== TAB: 경기 기록 ===== -->
 <div id="tab-record" class="tab-content">
   <div class="card">
-    <div class="card-title">전체 경기 기록 <span class="badge" id="match-count-badge">0경기</span></div>
+    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
+      <span>전체 경기 기록 <span class="badge" id="match-count-badge">0경기</span></span>
+      <button id="season-migrate-btn" onclick="migrateSeasonZero()" style="display:none;padding:4px 10px;background:rgba(200,168,75,0.1);border:1px solid rgba(200,168,75,0.3);border-radius:6px;color:var(--gold);font-size:11px;cursor:pointer;">⚙️ 기존 경기 시즌0 마킹</button>
+    </div>
     <div id="match-history-list">
       <div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>
     </div>
@@ -1251,6 +1254,12 @@ const TIERS = {
   challenger:  {label:'챌린저',score:10, cls:'t-challenger'},
 };
 
+// ── SEASON ────────────────────────────────────────────────────
+let CURRENT_SEASON = 0; // Firebase /config/currentSeason 에서 로드
+// 시즌별 Firebase 필드명 (season 0은 기존 필드명 유지, 이후부터 _s1, _s2 ...)
+function seasonSuffix(s) { return s === 0 ? '' : '_s' + s; }
+function sField(field) { return field + seasonSuffix(CURRENT_SEASON); }
+
 // ── STATE ─────────────────────────────────────────────────────
 let registeredPlayers = {};  // Firebase key → {name, manualTier}
 let matches = {};             // Firebase key → match object
@@ -1276,10 +1285,15 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.28.7';
+const APP_VERSION = 'v2.29.0';
 document.getElementById('version-badge').textContent = APP_VERSION;
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.0', date: '2026-04-20', changes: [
+    { tag: 'new', text: '시즌 시스템 기반 구현 — 경기·승점·골드·아이템·업적 모두 시즌별 분리' },
+    { tag: 'new', text: '신규 경기 저장 시 season 필드 자동 기록, Firebase /config/currentSeason 으로 시즌 전환 가능' },
+    { tag: 'new', text: '기존 경기 시즌0 일괄 마킹 버튼 (라이브 모드 → 기록 탭)' },
+  ]},
   { ver: 'v2.28.7', date: '2026-04-20', changes: [
     { tag: 'improve', text: 'MMP 표시 방식 변경 — 하단 별도 바 제거, 닉네임 옆 MMP 뱃지로 통합 (MVP·SVP와 동일한 방식)' },
   ]},
@@ -1687,10 +1701,11 @@ function renderAllWhenReady() {
 }
 
 // 전체 경기 기록 기반 획득 골드 계산 (항상 현재 matches 상태 기준)
-function calcGoldFromMatches(name) {
+function calcGoldFromMatches(name, season = CURRENT_SEASON) {
   const key = normName(name);
   let gold = 0;
   Object.values(matches).forEach(m => {
+    if ((m.season ?? 0) !== season) return;
     const inA = (m.teamA||[]).some(n=>normName(n)===key);
     const inB = (m.teamB||[]).some(n=>normName(n)===key);
     // v2.25.0부터 골드 상향 — 이전 경기는 구버전 금액 유지 (소급 방지)
@@ -1777,9 +1792,12 @@ async function seedGoldForAllPlayers() {
 onValue(ref(db, 'config/riotApiKey'), (snapshot) => {
   riotApiKey = (snapshot.val() || '').trim();
 });
-// Cloudflare Worker 프록시 URL 구독 (Firebase /config/riotWorkerUrl)
 onValue(ref(db, 'config/riotWorkerUrl'), (snapshot) => {
   riotWorkerUrl = (snapshot.val() || '').trim().replace(/\/$/, '');
+});
+onValue(ref(db, 'config/currentSeason'), (snapshot) => {
+  const val = snapshot.val();
+  CURRENT_SEASON = (val !== null && val !== undefined) ? Number(val) : 0;
 });
 
 // Riot API 호출 헬퍼 — Worker 설정 시 프록시 경유, 없으면 직접 호출(CORS 실패 가능)
@@ -2097,10 +2115,11 @@ function getNewbieSince(name) {
   return p.newbieSince || 0;
 }
 
-function calcStats(name) {
+function calcStats(name, season = CURRENT_SEASON) {
   const key = normName(name);
   let wins = 0, total = 0;
   Object.values(matches).forEach(m => {
+    if ((m.season ?? 0) !== season) return;
     const inA = m.teamA && m.teamA.some(n => normName(n) === key);
     const inB = m.teamB && m.teamB.some(n => normName(n) === key);
     if (inA || inB) {
@@ -2127,13 +2146,12 @@ const BASE_SCORE = 500;
 const WIN_PT = 10, LOSS_PT = 7;
 const GAMBLE_WIN_PT = 25, GAMBLE_LOSS_PT = 15;
 
-function calcScore(name) {
+function calcScore(name, season = CURRENT_SEASON) {
   const key = normName(name);
-  // goldData에서 이 플레이어의 lastUsedItems 참고 (경기 타임스탬프별)
   const goldEntry = Object.values(goldData).find(g=>normName(g.name)===key);
 
   const sorted = Object.values(matches)
-    .filter(m => (m.teamA||[]).some(n=>normName(n)===key) || (m.teamB||[]).some(n=>normName(n)===key))
+    .filter(m => (m.season ?? 0) === season && ((m.teamA||[]).some(n=>normName(n)===key) || (m.teamB||[]).some(n=>normName(n)===key)))
     .sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
 
   let raw = BASE_SCORE;
@@ -4129,6 +4147,7 @@ window.saveMatch = async function() {
       mode, size: teamSize,
       itemEffects: Object.keys(itemEffects).length>0 ? itemEffects : null,
       goldVersion: 2,
+      season: CURRENT_SEASON,
     };
     // 관전자 예측 데이터
     if (currentSpectator && spectatorPick) {
@@ -4269,6 +4288,17 @@ async function finalizeVotes() {
   postSaveMatchData = null;
 }
 
+window.migrateSeasonZero = async function() {
+  if (!liveMode) return;
+  const untagged = Object.entries(matches).filter(([,m]) => m.season === undefined);
+  if (untagged.length === 0) { alert('모든 경기에 이미 시즌이 설정되어 있어요.'); return; }
+  if (!confirm(`시즌 미설정 경기 ${untagged.length}건을 모두 시즌0으로 마킹할까요?`)) return;
+  for (const [key] of untagged) {
+    await update(ref(db, 'matches/' + key), { season: 0 });
+  }
+  alert(`✅ ${untagged.length}건 완료`);
+};
+
 // ── MATCH HISTORY ─────────────────────────────────────────────
 function renderMatchHistory() {
   const el=document.getElementById('match-history-list');
@@ -4277,7 +4307,11 @@ function renderMatchHistory() {
     .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
   document.getElementById('match-count-badge').textContent=matchArr.length+'경기';
 
-if(matchArr.length===0){el.innerHTML='<div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>';return;}
+  // 시즌0 마이그레이션 버튼: 라이브 모드이고 season 미설정 경기가 있을 때만 표시
+  const migrateBtn = document.getElementById('season-migrate-btn');
+  if (migrateBtn) migrateBtn.style.display = (liveMode && matchArr.some(m => m.season === undefined)) ? '' : 'none';
+
+  if(matchArr.length===0){el.innerHTML='<div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>';return;}
   el.innerHTML=matchArr.map(m=>{
     const isBlueWin = m.winner==='blue';
     const wc = isBlueWin ? 'mw-blue' : 'mw-red';
@@ -5198,7 +5232,7 @@ window.renderAchievements = function renderAchievements() {
   const { questWin, questHeroLoss, questTotal } = calcQuestStats(myName);
   const { newbieTeamWins } = calcNewbieWins(myName);
   const myEntry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(myName));
-  const claimed = myEntry?.[1]?.achievements || {};
+  const claimed = myEntry?.[1]?.[sField('achievements')] || {};
   const attendanceCount = myEntry?.[1]?.attendanceCount || 0;
   const stats = { wins:s.wins, losses:s.losses, total:s.total, score, maxWin, maxLoss,
     score2xWin, insuranceUsed, gambleWin, gambleLoss,
@@ -5274,9 +5308,10 @@ window.claimAchievement = async function(id) {
   const myEntry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(myName));
   if (!myEntry) return;
   const [key, data] = myEntry;
-  if (data.achievements?.[id]) return;
+  const achieveKey = sField('achievements');
+  if (data[achieveKey]?.[id]) return;
   await update(ref(db, 'gold/' + key), {
-    [`achievements/${id}`]: true,
+    [`${achieveKey}/${id}`]: true,
   });
   showGoldToast(`🏅 [${a.name}] 달성! +${a.reward}G`);
   renderAchievements();
@@ -5357,11 +5392,14 @@ function calcAchievementGold(claimed) {
 function getMyGold() {
   const data = getMyGoldData();
   if (!data || !myName) return 0;
-  const earned = calcGoldFromMatches(myName) + (data.goldBonus ?? 0) + calcAchievementGold(data.achievements);
-  const spent = data.goldSpent ?? 0;
+  const bonusKey = sField('goldBonus');
+  const spentKey = sField('goldSpent');
+  const achieveKey = sField('achievements');
+  const earned = calcGoldFromMatches(myName) + (data[bonusKey] ?? 0) + calcAchievementGold(data[achieveKey]);
+  const spent = data[spentKey] ?? 0;
   return Math.max(0, earned - spent);
 }
-function getMyItems() { return getMyGoldData()?.items || []; }
+function getMyItems() { return getMyGoldData()?.[sField('items')] || []; }
 
 // 내 정보 바 업데이트
 function updateMyInfoBar() {
@@ -5561,8 +5599,9 @@ window.doAttendance = async function() {
   if (data?.lastAttendance === todayKey) {
     showGoldToast('오늘 이미 출석 완료!'); return;
   }
-  const newGoldBonus = (data.goldBonus ?? 0) + GOLD_ATTEND;
-  await set(ref(db, 'gold/' + key), { ...data, goldBonus: newGoldBonus, lastAttendance: todayKey, attendanceCount: (data.attendanceCount ?? 0) + 1 });
+  const bonusKey = sField('goldBonus');
+  const newGoldBonus = (data[bonusKey] ?? 0) + GOLD_ATTEND;
+  await set(ref(db, 'gold/' + key), { ...data, [bonusKey]: newGoldBonus, lastAttendance: todayKey, attendanceCount: (data.attendanceCount ?? 0) + 1 });
   showGoldToast(`🪙 +${GOLD_ATTEND} 출석 보너스!`);
 };
 
@@ -5659,9 +5698,11 @@ window.buyItem = async function(itemId) {
     showGoldToast(`🪙 골드가 부족해요! (보유: ${currentGold} / 필요: ${item.price})`);
     return;
   }
-  const newGoldSpent = (data.goldSpent ?? 0) + item.price;
-  const newItems = [...(data.items||[]), {id:itemId, boughtAt:Date.now(), active:false}];
-  await set(ref(db,'gold/'+key), {...data, goldSpent:newGoldSpent, items:newItems});
+  const spentKey = sField('goldSpent');
+  const itemsKey = sField('items');
+  const newGoldSpent = (data[spentKey] ?? 0) + item.price;
+  const newItems = [...(data[itemsKey]||[]), {id:itemId, boughtAt:Date.now(), active:false}];
+  await set(ref(db,'gold/'+key), {...data, [spentKey]:newGoldSpent, [itemsKey]:newItems});
   showGoldToast(`${item.icon} ${item.name} 구매! 🪙${currentGold - item.price} 남음`);
 };
 
@@ -5671,7 +5712,8 @@ window.toggleItemActive = async function(idx) {
   const key = getMyGoldKey();
   if (!key) return;
   const data = goldData[key];
-  const items = [...(data.items||[])];
+  const itemsKey = sField('items');
+  const items = [...(data[itemsKey]||[])];
   if (!items[idx]) return;
   const def = SHOP_ITEMS.find(s=>s.id===items[idx].id);
   const isActive = !!items[idx].active;
@@ -5690,7 +5732,7 @@ window.toggleItemActive = async function(idx) {
     }
   }
   items[idx] = {...items[idx], active: !isActive};
-  await set(ref(db,'gold/'+key), {...data, items});
+  await set(ref(db,'gold/'+key), {...data, [itemsKey]: items});
   showGoldToast(items[idx].active
     ? `${def?.icon} ${def?.name} 활성화! 다음 경기에 적용돼요`
     : `${def?.icon} ${def?.name} 비활성화됨`);
@@ -5715,7 +5757,8 @@ async function giveMatchGold(winners, losers, matchTimestamp) {
     }
 
     const [k, d] = entry;
-    let items = [...(d.items||[])];
+    const itemsKey = sField('items');
+    let items = [...(d[itemsKey]||[])];
 
     // 활성화된 아이템 처리 및 소모 (active 상태면 결과에 관계없이 소모)
     const gambleActive = items.some(it => it.id === 'gamble' && it.active);
@@ -5744,7 +5787,7 @@ async function giveMatchGold(winners, losers, matchTimestamp) {
     }).map(item => ({...item, active: false}));
 
     await set(ref(db,'gold/'+k), {
-      ...d, items,
+      ...d, [itemsKey]: items,
       lastMatch: { isWinner, at: Date.now() }
     });
   };
