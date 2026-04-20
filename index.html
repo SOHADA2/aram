@@ -255,15 +255,16 @@ select option{background:var(--surface2);}
 .mvp-section{margin:10px 0 14px;padding:14px;background:rgba(200,168,75,0.06);border:1px solid rgba(200,168,75,0.2);border-radius:8px;}
 .mvp-title{font-family:'Black Han Sans',sans-serif;font-size:16px;color:var(--gold);letter-spacing:1px;margin-bottom:14px;word-break:keep-all;line-height:1.4;white-space:normal;}
 .mvp-sub{font-size:11px;color:var(--text-dim);margin-top:12px;margin-bottom:0;line-height:1.8;border-top:1px solid rgba(200,168,75,0.15);padding-top:10px;}
-.mvp-candidates{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
-.mvp-cand-btn{flex:1;min-width:120px;max-width:calc(50% - 4px);padding:0;border-radius:10px;border:2px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;transition:border-color 0.2s,box-shadow 0.2s;text-align:center;display:flex;flex-direction:column;align-items:stretch;overflow:hidden;word-break:break-all;}
-.mvp-cand-btn:hover{border-color:rgba(255,255,255,0.3);box-shadow:0 0 0 1px rgba(255,255,255,0.08);}
-.mvp-cand-btn.selected{border-color:var(--gold);box-shadow:0 0 0 2px rgba(200,168,75,0.3);}
-.mvp-cand-champ-img{width:100%;height:82px;object-fit:cover;object-position:center top;display:block;flex-shrink:0;background:var(--surface2);}
-.mvp-cand-champ-placeholder{width:100%;height:82px;display:flex;align-items:center;justify-content:center;background:var(--surface2);font-size:28px;flex-shrink:0;}
-.mvp-cand-info{padding:7px 8px 9px;display:flex;flex-direction:column;align-items:center;gap:2px;}
-.mvp-cand-champ-name{font-size:10px;color:var(--gold);font-weight:700;letter-spacing:0.3px;line-height:1.2;}
-.mvp-cand-player-name{font-size:13px;font-weight:700;line-height:1.3;}
+.mvp-candidates{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+.mvp-cand-btn{flex:1;min-width:140px;max-width:calc(50% - 3px);padding:8px 10px;border-radius:8px;border:2px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;display:flex;flex-direction:row;align-items:center;gap:9px;text-align:left;overflow:hidden;}
+.mvp-cand-btn:hover{border-color:rgba(255,255,255,0.28);box-shadow:0 0 0 1px rgba(255,255,255,0.06);}
+.mvp-cand-btn.selected{border-color:var(--gold);box-shadow:0 0 0 2px rgba(200,168,75,0.25);}
+.mvp-cand-champ-img{width:44px;height:44px;border-radius:6px;object-fit:cover;object-position:center top;flex-shrink:0;border:2px solid var(--border);display:block;}
+.mvp-cand-btn.selected .mvp-cand-champ-img{border-color:var(--gold);}
+.mvp-cand-champ-placeholder{width:44px;height:44px;border-radius:6px;display:flex;align-items:center;justify-content:center;background:var(--surface2);font-size:18px;flex-shrink:0;border:2px solid var(--border);}
+.mvp-cand-info{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1;}
+.mvp-cand-player-name{font-size:13px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mvp-cand-champ-name{font-size:11px;color:var(--gold);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .mvp-cand-kda{font-size:10px;color:var(--text-dim);}
 .mvp-my-vote-block{background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:12px 14px;margin-bottom:10px;}
 .mvp-my-vote-label{font-size:11px;color:var(--text-dim);margin-bottom:8px;letter-spacing:0.5px;word-break:keep-all;}
@@ -1241,10 +1242,13 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.27.0';
+const APP_VERSION = 'v2.27.1';
 document.getElementById('version-badge').textContent = APP_VERSION;
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.27.1', date: '2026-04-20', changes: [
+    { tag: 'improve', text: '투표 카드 컴팩트 재설계 — 작은 초상화 + 닉네임 + 한국어 챔피언명 + KDA 가로 배치, 모바일 스크롤 최소화' },
+  ]},
   { ver: 'v2.27.0', date: '2026-04-20', changes: [
     { tag: 'improve', text: '투표 카드 디자인 개선 — 챔피언 이미지 카드 상단 전체로 확대, 이름·KDA 하단 정렬' },
   ]},
@@ -3057,6 +3061,19 @@ window.makeTeams = function() {
   startGameDetection();
 };
 
+// ── 챔피언 한국어 이름 로더 ────────────────────────────────────
+let champNamesKR = {};
+async function loadChampNamesKR() {
+  if (Object.keys(champNamesKR).length > 0) return;
+  try {
+    const res = await fetch(`https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/data/ko_KR/champion.json`);
+    const data = await res.json();
+    for (const [id, champ] of Object.entries(data.data)) {
+      champNamesKR[id] = champ.name;
+    }
+  } catch(e) {}
+}
+
 // ── 게임 자동 감지 시스템 ──────────────────────────────────────
 let gameDetectionState = 'idle'; // idle | waiting | inGame | ended
 let gameDetectionTimer = null;
@@ -3074,17 +3091,17 @@ const DDRAGON_VERSION = '15.8.1';   // Data Dragon 버전 (챔피언 이미지)
 function champCardHtml(p, selectedName, onclick, showKda = false) {
   const pt = currentMatchParticipants[normName(p.name)];
   const sel = selectedName === p.name;
-  const topHtml = pt
-    ? `<img class="mvp-cand-champ-img" src="https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(pt.champion)}.png" onerror="this.className='mvp-cand-champ-placeholder';this.outerHTML='<div class=\\'mvp-cand-champ-placeholder\\'>⚔️</div>'" alt="${escHtml(pt.champion)}">`
+  const portrait = pt
+    ? `<img class="mvp-cand-champ-img" src="https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(pt.champion)}.png" onerror="this.outerHTML='<div class=\\'mvp-cand-champ-placeholder\\'>⚔️</div>'" alt="">`
     : `<div class="mvp-cand-champ-placeholder">⚔️</div>`;
-  const champName = pt ? `<div class="mvp-cand-champ-name">${escHtml(pt.champion)}</div>` : '';
+  const champKR = pt ? (champNamesKR[pt.champion] || pt.champion) : '';
+  const champName = pt ? `<div class="mvp-cand-champ-name">${escHtml(champKR)}</div>` : '';
   const kdaHtml = (showKda && pt) ? `<div class="mvp-cand-kda">${pt.kills}/${pt.deaths}/${pt.assists}</div>` : '';
   return `<button class="mvp-cand-btn${sel ? ' selected' : ''}" onclick="${onclick}">
-    ${topHtml}
+    ${portrait}
     <div class="mvp-cand-info">
-      ${champName}
       <div class="mvp-cand-player-name">${escHtml(p.name)}</div>
-      ${kdaHtml}
+      ${champName}${kdaHtml}
     </div>
   </button>`;
 }
@@ -3244,6 +3261,7 @@ async function fetchMatchResult(players) {
           };
         }
       }
+      loadChampNamesKR(); // 한국어 챔피언명 비동기 로드
       showAutoResultPopup(detectedWinner);
     } else {
       setGameDetectionUI('matchFailed');
