@@ -1101,10 +1101,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <!-- ===== TAB: 경기 기록 ===== -->
 <div id="tab-record" class="tab-content">
   <div class="card">
-    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">
-      <span>전체 경기 기록 <span class="badge" id="match-count-badge">0경기</span></span>
-      <button id="season-migrate-btn" onclick="migrateSeasonZero()" style="display:none;padding:4px 10px;background:rgba(200,168,75,0.1);border:1px solid rgba(200,168,75,0.3);border-radius:6px;color:var(--gold);font-size:11px;cursor:pointer;">⚙️ 기존 경기 시즌0 마킹</button>
-    </div>
+    <div class="card-title">전체 경기 기록 <span class="badge" id="match-count-badge">0경기</span></div>
     <div id="match-history-list">
       <div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>
     </div>
@@ -4288,17 +4285,6 @@ async function finalizeVotes() {
   postSaveMatchData = null;
 }
 
-window.migrateSeasonZero = async function() {
-  if (!liveMode) return;
-  const untagged = Object.entries(matches).filter(([,m]) => m.season === undefined);
-  if (untagged.length === 0) { alert('모든 경기에 이미 시즌이 설정되어 있어요.'); return; }
-  if (!confirm(`시즌 미설정 경기 ${untagged.length}건을 모두 시즌0으로 마킹할까요?`)) return;
-  for (const [key] of untagged) {
-    await update(ref(db, 'matches/' + key), { season: 0 });
-  }
-  alert(`✅ ${untagged.length}건 완료`);
-};
-
 // ── MATCH HISTORY ─────────────────────────────────────────────
 function renderMatchHistory() {
   const el=document.getElementById('match-history-list');
@@ -4307,11 +4293,7 @@ function renderMatchHistory() {
     .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
   document.getElementById('match-count-badge').textContent=matchArr.length+'경기';
 
-  // 시즌0 마이그레이션 버튼: 라이브 모드이고 season 미설정 경기가 있을 때만 표시
-  const migrateBtn = document.getElementById('season-migrate-btn');
-  if (migrateBtn) migrateBtn.style.display = (liveMode && matchArr.some(m => m.season === undefined)) ? '' : 'none';
-
-  if(matchArr.length===0){el.innerHTML='<div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>';return;}
+if(matchArr.length===0){el.innerHTML='<div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>';return;}
   el.innerHTML=matchArr.map(m=>{
     const isBlueWin = m.winner==='blue';
     const wc = isBlueWin ? 'mw-blue' : 'mw-red';
