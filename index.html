@@ -571,15 +571,18 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .match-detail-team-title{font-size:11px;font-weight:700;letter-spacing:1px;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border);}
 .match-detail-team-title.blue{color:var(--blue);}
 .match-detail-team-title.yellow{color:#ffd740;}
-.match-detail-row{display:grid;grid-template-columns:1fr 80px 60px 80px;gap:4px;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px;}
+.match-detail-row{display:grid;grid-template-columns:1fr 64px 42px 56px;gap:4px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px;}
 .match-detail-row:last-child{border-bottom:none;}
 .match-detail-col-header{font-size:10px;color:var(--text-dim);font-weight:700;}
-.match-detail-player{display:flex;flex-direction:column;gap:1px;min-width:0;}
+.match-detail-player{display:flex;flex-direction:row;align-items:center;gap:8px;min-width:0;}
+.match-detail-champ-img{width:34px;height:34px;border-radius:5px;object-fit:cover;object-position:center top;flex-shrink:0;border:1px solid var(--border);}
+.match-detail-player-info{display:flex;flex-direction:column;gap:1px;min-width:0;}
 .match-detail-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;}
 .match-detail-champ{font-size:10px;color:var(--gold);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .match-detail-kda{text-align:center;color:var(--text-dim);}
 .match-detail-cs{text-align:center;color:var(--text-dim);}
 .match-detail-dmg{text-align:right;color:var(--text-dim);}
+.match-member-icon{width:18px;height:18px;border-radius:3px;object-fit:cover;vertical-align:middle;margin-right:4px;border:1px solid rgba(255,255,255,0.1);}
 .match-item{transition:border-color 0.15s;}
 .match-detail-btn{display:flex;align-items:center;justify-content:center;gap:5px;margin-top:4px;padding:7px 0;background:rgba(11,196,227,0.08);border:1px solid rgba(11,196,227,0.2);border-radius:6px;color:rgba(11,196,227,0.85);font-size:12px;cursor:pointer;transition:all 0.15s;width:100%;}
 .match-detail-btn:hover{background:rgba(11,196,227,0.15);border-color:rgba(11,196,227,0.4);color:rgba(11,196,227,1);}
@@ -1243,10 +1246,14 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.27.1';
+const APP_VERSION = 'v2.27.2';
 document.getElementById('version-badge').textContent = APP_VERSION;
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.27.2', date: '2026-04-20', changes: [
+    { tag: 'improve', text: '경기 기록 상세 보기 — 챔피언 아이콘(34px) + 한국어 이름 추가' },
+    { tag: 'improve', text: '경기 목록 — 플레이어 이름 옆에 챔피언 아이콘(18px) 표시 (자동 감지 경기)' },
+  ]},
   { ver: 'v2.27.1', date: '2026-04-20', changes: [
     { tag: 'improve', text: '투표 카드 컴팩트 재설계 — 작은 초상화 + 닉네임 + 한국어 챔피언명 + KDA 가로 배치, 모바일 스크롤 최소화' },
   ]},
@@ -4227,8 +4234,10 @@ function renderMatchHistory() {
         if (effects.includes('gamble'))                       itemTag = `<span class="item-effect-tag" data-tip="${isWinTeam ? 'gamble_win' : 'gamble_lose'}">🎲</span>`;
         else if (isWinTeam && effects.includes('score2x'))    itemTag = '<span class="item-effect-tag" data-tip="score2x">⚡</span>';
         else if (!isWinTeam && effects.includes('insurance')) itemTag = '<span class="item-effect-tag" data-tip="insurance">🛡️</span>';
+        const pt = m.participants && m.participants[nNorm];
+        const iconHtml = pt ? `<img class="match-member-icon" src="https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(pt.champion)}.png" onerror="this.style.display='none'" alt="">` : '';
         return `<div class="match-member${cls}">
-          <span class="member-name">${escHtml(n)}${mvpLabel}</span>
+          <span class="member-name">${iconHtml}${escHtml(n)}${mvpLabel}</span>
           ${itemTag}
         </div>`;
       }).join('');
@@ -4264,6 +4273,7 @@ function renderMatchHistory() {
 window.openMatchDetail = function(key) {
   const m = matches[key];
   if (!m) return;
+  loadChampNamesKR(); // 한국어 챔피언명 비동기 로드 (이미 로드됐으면 무시)
   const old = document.getElementById('match-detail-root');
   if (old) old.remove();
 
@@ -4279,10 +4289,17 @@ window.openMatchDetail = function(key) {
     </div>`;
     const rows = names.map(n => {
       const pt = pts[normName(n)];
+      const champKR = pt ? (champNamesKR[pt.champion] || pt.champion) : '';
+      const champImg = pt
+        ? `<img class="match-detail-champ-img" src="https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(pt.champion)}.png" onerror="this.style.display='none'" alt="">`
+        : '';
       return `<div class="match-detail-row">
         <div class="match-detail-player">
-          <div class="match-detail-name">${escHtml(n)}</div>
-          ${pt ? `<div class="match-detail-champ">${escHtml(pt.champion)}</div>` : ''}
+          ${champImg}
+          <div class="match-detail-player-info">
+            <div class="match-detail-name">${escHtml(n)}</div>
+            ${pt ? `<div class="match-detail-champ">${escHtml(champKR)}</div>` : ''}
+          </div>
         </div>
         <div class="match-detail-kda">${pt ? `${pt.kills}/${pt.deaths}/${pt.assists}` : '—'}</div>
         <div class="match-detail-cs">${pt ? pt.cs : '—'}</div>
