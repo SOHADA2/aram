@@ -1078,7 +1078,11 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <!-- ===== TAB: 경기 기록 ===== -->
 <div id="tab-record" class="tab-content">
   <div class="card">
-    <div class="card-title">전체 경기 기록 <span class="badge" id="match-count-badge">0경기</span></div>
+    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <span>전체 경기 기록 <span class="badge" id="match-count-badge">0경기</span></span>
+      <button id="auto-link-btn" onclick="autoLinkAllMatches()" style="display:none;padding:6px 12px;background:rgba(160,100,255,0.12);border:1px solid rgba(160,100,255,0.3);border-radius:8px;color:rgba(180,130,255,1);font-size:12px;font-weight:700;cursor:pointer;">🔄 전체 자동 연동</button>
+    </div>
+    <div id="auto-link-progress" style="display:none;padding:10px 12px;background:rgba(160,100,255,0.07);border-bottom:1px solid rgba(160,100,255,0.15);font-size:12px;color:var(--text-dim);"></div>
     <div id="match-history-list">
       <div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>
     </div>
@@ -1253,10 +1257,13 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.27.3';
+const APP_VERSION = 'v2.28.0';
 document.getElementById('version-badge').textContent = APP_VERSION;
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.28.0', date: '2026-04-20', changes: [
+    { tag: 'new', text: '경기 기록 자동 연동 — Riot API로 기존 모든 미연동 경기를 자동 매칭 (라이브 모드)' },
+  ]},
   { ver: 'v2.27.3', date: '2026-04-20', changes: [
     { tag: 'new', text: '경기 기록 데이터 연동 — Match ID 입력으로 기존 경기에 챔피언/KDA/딜량 소급 적용 (라이브 모드)' },
   ]},
@@ -4212,6 +4219,15 @@ function renderMatchHistory() {
     .map(([key,m])=>({key,...m}))
     .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
   document.getElementById('match-count-badge').textContent=matchArr.length+'경기';
+
+  // 자동 연동 버튼: 라이브 모드이고, 미연동 경기 있고, Riot API 사용 가능할 때만 표시
+  const autoBtn = document.getElementById('auto-link-btn');
+  if (autoBtn) {
+    const hasUnlinked = liveMode && matchArr.some(m => !m.participants);
+    const hasApi = !!(riotWorkerUrl || riotApiKey);
+    autoBtn.style.display = (hasUnlinked && hasApi) ? '' : 'none';
+  }
+
   if(matchArr.length===0){el.innerHTML='<div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>';return;}
   el.innerHTML=matchArr.map(m=>{
     const isBlueWin = m.winner==='blue';
@@ -4351,6 +4367,124 @@ window.submitMatchLink = async function(key) {
     msgEl.style.color = 'var(--red)';
     submitBtn.disabled = false;
   }
+};
+
+window.autoLinkAllMatches = async function() {
+  if (!liveMode || (!riotWorkerUrl && !riotApiKey)) return;
+  await loadChampNamesKR();
+
+  const progressEl = document.getElementById('auto-link-progress');
+  const autoBtn = document.getElementById('auto-link-btn');
+  if (progressEl) { progressEl.style.display = 'block'; progressEl.textContent = '⏳ 자동 연동 준비 중...'; }
+  if (autoBtn) autoBtn.disabled = true;
+
+  // PUUID 보유 플레이어 목록
+  const puuidPlayers = Object.values(registeredPlayers).filter(p => p.puuid);
+  if (puuidPlayers.length === 0) {
+    if (progressEl) { progressEl.textContent = '⚠️ PUUID가 등록된 플레이어가 없어요. 플레이어 프로필에서 Riot ID를 등록해주세요.'; }
+    if (autoBtn) autoBtn.disabled = false;
+    return;
+  }
+
+  // 미연동 경기 목록 (timestamp 있는 것만)
+  const unlinked = Object.entries(matches)
+    .map(([key, m]) => ({ key, ...m }))
+    .filter(m => !m.participants && m.timestamp)
+    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+  if (unlinked.length === 0) {
+    if (progressEl) { progressEl.textContent = '✅ 모든 경기가 이미 연동되어 있어요.'; setTimeout(() => { if(progressEl) progressEl.style.display='none'; }, 3000); }
+    if (autoBtn) { autoBtn.disabled = false; autoBtn.style.display = 'none'; }
+    return;
+  }
+
+  let linked = 0, failed = 0, total = unlinked.length;
+
+  for (let i = 0; i < unlinked.length; i++) {
+    const m = unlinked[i];
+    if (progressEl) progressEl.textContent = `🔄 자동 연동 중... (${i+1}/${total}) — 연동 ${linked}건 / 실패 ${failed}건`;
+
+    // 이 경기에 참여한 PUUID 등록 플레이어 찾기
+    const allNames = [...(m.teamA || []), ...(m.teamB || [])].map(normName);
+    const matchPlayers = puuidPlayers.filter(p => allNames.includes(normName(p.name)));
+    if (matchPlayers.length === 0) { failed++; await new Promise(r => setTimeout(r, 100)); continue; }
+
+    // 타임스탬프 기준 ±2시간 범위로 매치 목록 조회
+    const ts = Math.floor(m.timestamp / 1000);
+    const startTime = ts - 7200;
+    const endTime = ts + 3600;
+
+    let foundMatch = null;
+
+    // detectedGameId로 직접 조회 시도 (있는 경우)
+    // 없으면 첫 번째 매치 플레이어 기준 by-puuid 조회
+    const queryPlayer = matchPlayers[0];
+    try {
+      const idsRes = await riotFetch('asia',
+        `/lol/match/v5/matches/by-puuid/${queryPlayer.puuid}/ids?queue=450&start=0&count=20&startTime=${startTime}&endTime=${endTime}`
+      );
+      if (idsRes.ok) {
+        const ids = await idsRes.json();
+        for (const matchId of ids) {
+          await new Promise(r => setTimeout(r, 200));
+          try {
+            const detailRes = await riotFetch('asia', `/lol/match/v5/matches/${matchId}`);
+            if (!detailRes.ok) continue;
+            const detail = await detailRes.json();
+
+            // 참여자 PUUID와 우리 플레이어 PUUID 겹치는 수 확인
+            const matchPuuids = detail.info.participants.map(p => p.puuid);
+            const ourPuuids = matchPlayers.map(p => p.puuid);
+            const overlap = ourPuuids.filter(pu => matchPuuids.includes(pu)).length;
+            const threshold = Math.max(1, Math.floor(allNames.length * 0.4));
+            if (overlap >= threshold) {
+              foundMatch = { id: matchId, detail };
+              break;
+            }
+          } catch(e) { /* 다음 시도 */ }
+        }
+      }
+    } catch(e) { /* 다음 경기로 */ }
+
+    if (foundMatch) {
+      const participants = {};
+      for (const pt of foundMatch.detail.info.participants) {
+        const fbPlayer = Object.values(registeredPlayers).find(r => r.puuid === pt.puuid);
+        if (fbPlayer) {
+          participants[normName(fbPlayer.name)] = {
+            champion: pt.championName,
+            kills: pt.kills,
+            deaths: pt.deaths,
+            assists: pt.assists,
+            cs: pt.totalMinionsKilled + (pt.neutralMinionsKilled || 0),
+            damage: pt.totalDamageDealtToChampions,
+          };
+        }
+      }
+      if (Object.keys(participants).length > 0) {
+        try {
+          await update(ref(db, 'matches/' + m.key), { participants, riotMatchId: foundMatch.id });
+          linked++;
+        } catch(e) { failed++; }
+      } else {
+        failed++;
+      }
+    } else {
+      failed++;
+    }
+
+    await new Promise(r => setTimeout(r, 300));
+  }
+
+  if (progressEl) {
+    progressEl.style.color = linked > 0 ? 'var(--green)' : 'var(--text-dim)';
+    progressEl.textContent = `✅ 자동 연동 완료 — ${linked}건 성공 / ${failed}건 미연동 (수동 입력 필요)`;
+    setTimeout(() => {
+      if (progressEl) { progressEl.style.display = 'none'; progressEl.style.color = ''; }
+    }, 6000);
+  }
+  if (autoBtn) { autoBtn.disabled = false; }
+  renderMatchHistory();
 };
 
 window.openMatchDetail = function(key) {
