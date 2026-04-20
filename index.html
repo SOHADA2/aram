@@ -328,8 +328,13 @@ select option{background:var(--surface2);}
 .lb-score{font-size:21px;font-weight:500;font-family:'Gmarket Sans',sans-serif;color:var(--gold-light);letter-spacing:-0.5px;}
 .wr-high{color:var(--green);} .wr-mid{color:var(--gold);} .wr-low{color:var(--red);}
 .match-item{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;}
-.match-header{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.match-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;padding-bottom:8px;border-bottom:1px solid var(--border);}
 .match-date{font-size:10px;color:var(--text-dim);flex:1;text-align:right;}
+.match-meta{font-size:10px;color:var(--text-dim);display:flex;align-items:center;gap:5px;letter-spacing:0.2px;}
+.match-meta-sep{color:rgba(255,255,255,0.15);font-size:9px;}
+.match-header-right{display:flex;align-items:center;gap:8px;}
+.match-detail-link{font-size:11px;color:rgba(110,144,184,0.7);background:none;border:none;cursor:pointer;padding:0;font-family:'Noto Sans KR',sans-serif;letter-spacing:0.3px;transition:color 0.2s;line-height:1;}
+.match-detail-link:hover{color:var(--gold-light);}
 .match-winner-badge{font-size:11px;font-family:'Black Han Sans',sans-serif;letter-spacing:1px;padding:2px 8px;border-radius:3px;}
 .match-body{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:0;align-items:start;}
 .match-team-box{padding:4px 8px;display:flex;flex-direction:column;gap:0;border-radius:6px;transition:all 0.2s;min-width:0;}
@@ -625,8 +630,6 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .match-detail-no-data{font-size:11px;color:var(--text-dim);text-align:center;padding:8px 0;}
 .match-member-icon{width:18px;height:18px;border-radius:3px;object-fit:cover;vertical-align:middle;margin-right:4px;border:1px solid rgba(255,255,255,0.1);}
 .match-item{transition:border-color 0.15s;}
-.match-detail-btn{display:flex;align-items:center;justify-content:center;gap:5px;margin-top:4px;padding:7px 0;background:rgba(11,196,227,0.08);border:1px solid rgba(11,196,227,0.2);border-radius:6px;color:rgba(11,196,227,0.85);font-size:12px;cursor:pointer;transition:all 0.15s;width:100%;}
-.match-detail-btn:hover{background:rgba(11,196,227,0.15);border-color:rgba(11,196,227,0.4);color:rgba(11,196,227,1);}
 .season-selector{position:relative;display:inline-block;}
 .season-selector-btn{display:flex;align-items:center;gap:4px;padding:3px 10px;background:rgba(200,168,75,0.1);border:1px solid rgba(200,168,75,0.3);border-radius:20px;color:var(--gold);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;}
 .season-selector-btn:hover{background:rgba(200,168,75,0.18);}
@@ -1369,7 +1372,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.5';
+const APP_VERSION = 'v2.29.6';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1378,6 +1381,9 @@ const APP_VERSION = 'v2.29.5';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.6', date: '2026-04-20', changes: [
+    { tag: 'improve', text: '기록 탭 카드 헤더 개편 — 날짜·사이즈·모드를 상단 메타 바로, 상세 보기를 텍스트 링크로 변경해 시인성 및 톤앤매너 개선' },
+  ]},
   { ver: 'v2.29.5', date: '2026-04-20', changes: [
     { tag: 'fix', text: '기록 탭 도박 주사위 — 실패 시 흑백(grayscale) 처리로 성공/실패 시각적 구분 강화' },
   ]},
@@ -4521,14 +4527,25 @@ if(matchArr.length===0){el.innerHTML='<div class="empty-state"><div class="icon"
       ${memberHtml(m.teamB||[], !teamAWin)}
     </div>`;
 
+    const modeLabel = m.mode === 'random' ? '랜덤' : '밸런스';
+    const sizeLabel = m.size ? `${m.size}:${m.size}` : '';
     return`<div class="match-item">
-      ${liveMode?`<div class="match-header"><button class="match-del" onclick="deleteMatch('${m.key}')" title="삭제">🗑</button></div>`:''}
+      <div class="match-header">
+        <div class="match-meta">
+          <span>${escHtml(m.date||'')}</span>
+          ${sizeLabel ? `<span class="match-meta-sep">·</span><span>${sizeLabel}</span>` : ''}
+          <span class="match-meta-sep">·</span><span>${modeLabel}</span>
+        </div>
+        <div class="match-header-right">
+          <button class="match-detail-link" onclick="openMatchDetail('${m.key}')">상세 ›</button>
+          ${liveMode?`<button class="match-del" onclick="deleteMatch('${m.key}')" title="삭제">🗑</button>`:''}
+        </div>
+      </div>
       <div class="match-body">
         ${boxA}
         <div class="match-vs-sep">VS</div>
         ${boxB}
       </div>
-      <button class="match-detail-btn" onclick="openMatchDetail('${m.key}')">📊 경기 상세 보기 <span class="match-detail-date">(${escHtml(m.date||'')})</span></button>
     </div>`;
   }).join('');
 }
