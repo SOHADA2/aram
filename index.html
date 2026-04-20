@@ -608,6 +608,16 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .match-item{transition:border-color 0.15s;}
 .match-detail-btn{display:flex;align-items:center;justify-content:center;gap:5px;margin-top:4px;padding:7px 0;background:rgba(11,196,227,0.08);border:1px solid rgba(11,196,227,0.2);border-radius:6px;color:rgba(11,196,227,0.85);font-size:12px;cursor:pointer;transition:all 0.15s;width:100%;}
 .match-detail-btn:hover{background:rgba(11,196,227,0.15);border-color:rgba(11,196,227,0.4);color:rgba(11,196,227,1);}
+.season-selector{position:relative;display:inline-block;}
+.season-selector-btn{display:flex;align-items:center;gap:4px;padding:3px 10px;background:rgba(200,168,75,0.1);border:1px solid rgba(200,168,75,0.3);border-radius:20px;color:var(--gold);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;}
+.season-selector-btn:hover{background:rgba(200,168,75,0.18);}
+.season-selector-btn .s-chev{font-size:9px;transition:transform 0.2s;}
+.season-selector-btn.open .s-chev{transform:rotate(180deg);}
+.season-dropdown{position:absolute;top:calc(100% + 4px);right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;z-index:50;min-width:90px;box-shadow:0 4px 16px rgba(0,0,0,0.4);display:none;}
+.season-dropdown.show{display:block;}
+.season-dropdown-item{padding:8px 14px;font-size:12px;cursor:pointer;white-space:nowrap;transition:background 0.1s;}
+.season-dropdown-item:hover{background:rgba(255,255,255,0.07);}
+.season-dropdown-item.active{color:var(--gold);font-weight:700;}
 .match-link-btn{display:flex;align-items:center;justify-content:center;gap:5px;margin-top:4px;padding:6px 0;background:rgba(160,100,255,0.07);border:1px solid rgba(160,100,255,0.2);border-radius:6px;color:rgba(160,100,255,0.85);font-size:12px;cursor:pointer;transition:all 0.15s;width:100%;}
 .match-link-btn:hover{background:rgba(160,100,255,0.15);border-color:rgba(160,100,255,0.4);}
 .match-link-area{padding:10px 12px;border-top:1px solid var(--border);background:rgba(160,100,255,0.04);}
@@ -1101,7 +1111,15 @@ body.member-mode #event-no-save-notice{display:none!important;}
 <!-- ===== TAB: 경기 기록 ===== -->
 <div id="tab-record" class="tab-content">
   <div class="card">
-    <div class="card-title">전체 경기 기록 <span class="badge" id="match-count-badge">0경기</span></div>
+    <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+      <span>전체 경기 기록 <span class="badge" id="match-count-badge">0경기</span></span>
+      <div class="season-selector" id="season-selector">
+        <button class="season-selector-btn" id="season-selector-btn" onclick="toggleSeasonDropdown()">
+          <span id="season-selector-label">시즌0</span><span class="s-chev">▼</span>
+        </button>
+        <div class="season-dropdown" id="season-dropdown"></div>
+      </div>
+    </div>
     <div id="match-history-list">
       <div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>
     </div>
@@ -1253,6 +1271,7 @@ const TIERS = {
 
 // ── SEASON ────────────────────────────────────────────────────
 let CURRENT_SEASON = 0; // Firebase /config/currentSeason 에서 로드
+let viewSeason = 0;     // 현재 경기 기록 탭에서 보고 있는 시즌
 // 시즌별 Firebase 필드명 (season 0은 기존 필드명 유지, 이후부터 _s1, _s2 ...)
 function seasonSuffix(s) { return s === 0 ? '' : '_s' + s; }
 function sField(field) { return field + seasonSuffix(CURRENT_SEASON); }
@@ -1282,10 +1301,13 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.0';
+const APP_VERSION = 'v2.29.1';
 document.getElementById('version-badge').textContent = APP_VERSION;
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.1', date: '2026-04-20', changes: [
+    { tag: 'new', text: '경기 기록 탭 — 시즌 선택 드롭다운 추가, 시즌별 경기 기록 필터링' },
+  ]},
   { ver: 'v2.29.0', date: '2026-04-20', changes: [
     { tag: 'new', text: '시즌 시스템 기반 구현 — 경기·승점·골드·아이템·업적 모두 시즌별 분리' },
     { tag: 'new', text: '신규 경기 저장 시 season 필드 자동 기록, Firebase /config/currentSeason 으로 시즌 전환 가능' },
@@ -1795,6 +1817,8 @@ onValue(ref(db, 'config/riotWorkerUrl'), (snapshot) => {
 onValue(ref(db, 'config/currentSeason'), (snapshot) => {
   const val = snapshot.val();
   CURRENT_SEASON = (val !== null && val !== undefined) ? Number(val) : 0;
+  viewSeason = CURRENT_SEASON;
+  renderSeasonSelector();
 });
 
 // Riot API 호출 헬퍼 — Worker 설정 시 프록시 경유, 없으면 직접 호출(CORS 실패 가능)
@@ -4285,13 +4309,66 @@ async function finalizeVotes() {
   postSaveMatchData = null;
 }
 
+// ── SEASON SELECTOR ───────────────────────────────────────────
+function getAvailableSeasons() {
+  const set = new Set(Object.values(matches).map(m => m.season ?? 0));
+  // 현재 시즌은 경기 없어도 항상 포함
+  set.add(CURRENT_SEASON);
+  return [...set].sort((a,b) => a - b);
+}
+
+function renderSeasonSelector() {
+  const btn = document.getElementById('season-selector-btn');
+  const dropdown = document.getElementById('season-dropdown');
+  const label = document.getElementById('season-selector-label');
+  if (!btn || !dropdown) return;
+  const seasons = getAvailableSeasons();
+  label.textContent = `시즌${viewSeason}`;
+  dropdown.innerHTML = seasons.map(s =>
+    `<div class="season-dropdown-item${s===viewSeason?' active':''}" onclick="selectViewSeason(${s})">
+      시즌${s}${s===CURRENT_SEASON?' <span style="font-size:9px;color:var(--green);">●</span>':''}
+    </div>`
+  ).join('');
+}
+
+window.toggleSeasonDropdown = function() {
+  const btn = document.getElementById('season-selector-btn');
+  const dropdown = document.getElementById('season-dropdown');
+  if (!dropdown) return;
+  renderSeasonSelector();
+  const open = dropdown.classList.toggle('show');
+  btn.classList.toggle('open', open);
+  if (open) {
+    // 외부 클릭 시 닫기
+    setTimeout(() => {
+      document.addEventListener('click', function handler(e) {
+        if (!document.getElementById('season-selector')?.contains(e.target)) {
+          dropdown.classList.remove('show');
+          btn.classList.remove('open');
+          document.removeEventListener('click', handler);
+        }
+      });
+    }, 0);
+  }
+};
+
+window.selectViewSeason = function(s) {
+  viewSeason = s;
+  document.getElementById('season-selector-label').textContent = `시즌${s}`;
+  document.getElementById('season-dropdown').classList.remove('show');
+  document.getElementById('season-selector-btn').classList.remove('open');
+  renderMatchHistory();
+};
+
 // ── MATCH HISTORY ─────────────────────────────────────────────
 function renderMatchHistory() {
   const el=document.getElementById('match-history-list');
   const matchArr = Object.entries(matches)
     .map(([key,m])=>({key,...m}))
+    .filter(m => (m.season ?? 0) === viewSeason)
     .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
   document.getElementById('match-count-badge').textContent=matchArr.length+'경기';
+  renderSeasonSelector();
 
 if(matchArr.length===0){el.innerHTML='<div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>';return;}
   el.innerHTML=matchArr.map(m=>{
