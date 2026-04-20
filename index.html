@@ -152,15 +152,24 @@ select option{background:var(--surface2);}
 /* 멤버 체크박스 그리드 */
 .member-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:14px;}
 @media(min-width:480px){.member-grid{grid-template-columns:repeat(3,1fr);}}
-@media(min-width:720px){.member-grid{grid-template-columns:repeat(4,1fr);}}
+@media(min-width:720px){.member-grid{grid-template-columns:repeat(2,1fr);gap:8px;}}
 .member-chip{display:flex;align-items:center;gap:5px;padding:7px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:all 0.15s;user-select:none;min-width:0;overflow:hidden;}
 .member-chip:hover{border-color:var(--text-dim);}
 .member-chip.checked{border-color:var(--blue);background:rgba(11,196,227,0.08);}
 .chip-check-box{width:14px;height:14px;min-width:14px;border:1.5px solid var(--border);border-radius:3px;background:var(--surface);flex-shrink:0;transition:all 0.15s;position:relative;pointer-events:none;}
 .member-chip.checked .chip-check-box{background:var(--blue);border-color:var(--blue);}
 .member-chip.checked .chip-check-box::after{content:'✓';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:9px;color:#fff;font-weight:700;}
+.chip-top{display:contents;}
 .member-chip-name{font-weight:700;font-size:11px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
 .member-chip-tier{font-size:8px;flex-shrink:0;padding:1px 4px;}
+.chip-stats{display:none;}
+@media(min-width:720px){
+  .member-chip{flex-direction:column;align-items:stretch;gap:5px;padding:10px 11px;}
+  .chip-top{display:flex;align-items:center;gap:5px;min-width:0;}
+  .chip-top .member-chip-name{font-size:12px;}
+  .chip-stats{display:block;font-size:10px;color:var(--text-dim);padding-left:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .member-chip.checked .chip-stats{color:rgba(11,196,227,0.6);}
+}
 .member-select-actions{display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap;}
 .member-select-actions span{font-size:11px;color:var(--text-dim);}
 .new-player-toggle{font-size:12px;color:var(--blue);cursor:pointer;background:none;border:none;padding:0;letter-spacing:0;font-family:'Noto Sans KR',sans-serif;text-decoration:underline;margin-left:auto;}
@@ -1372,7 +1381,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.6';
+const APP_VERSION = 'v2.29.7';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1381,6 +1390,9 @@ const APP_VERSION = 'v2.29.6';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.7', date: '2026-04-20', changes: [
+    { tag: 'improve', text: '참가자 선택 PC 레이아웃 — 2열 카드로 전환, 칩에 승/패·점수 2줄 표시로 정보량 강화 (모바일은 기존 유지)' },
+  ]},
   { ver: 'v2.29.6', date: '2026-04-20', changes: [
     { tag: 'improve', text: '기록 탭 카드 헤더 개편 — 날짜·사이즈·모드를 상단 메타 바로, 상세 보기를 텍스트 링크로 변경해 시인성 및 톤앤매너 개선' },
   ]},
@@ -2447,13 +2459,20 @@ function renderMemberGrid() {
     const tier = getEffectiveTier(p.name, p.manualTier);
     const t = TIERS[tier] || TIERS.unranked;
     const s = calcStats(p.name);
+    const score = calcScore(p.name);
     const isChecked = sessionPlayers.some(sp => sp.name === p.name);
+    const statsText = s.total > 0
+      ? `${s.wins}승 ${s.losses}패 · ${Math.round(score)}pt`
+      : '신규 플레이어';
     return `<div class="member-chip${isChecked?' checked':''}">
-      <div class="chip-check-box"></div>
-      <span class="member-chip-name">${nameHtml(p.name)}</span>
-      ${p.isNewbie ? '<span class="newbie-badge" style="flex-shrink:0;">🌱</span>' : ''}
-      ${getRankBadge(p.name)}
-      <span class="tier-badge member-chip-tier ${t.cls}">${t.label}</span>
+      <div class="chip-top">
+        <div class="chip-check-box"></div>
+        <span class="member-chip-name">${nameHtml(p.name)}</span>
+        ${p.isNewbie ? '<span class="newbie-badge" style="flex-shrink:0;">🌱</span>' : ''}
+        ${getRankBadge(p.name)}
+        <span class="tier-badge member-chip-tier ${t.cls}">${t.label}</span>
+      </div>
+      <div class="chip-stats">${statsText}</div>
     </div>`;
   }).join('');
   updateCheckedLabel();
