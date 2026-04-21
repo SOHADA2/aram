@@ -269,6 +269,7 @@ select option{background:var(--surface2);}
 .team-player{display:flex;align-items:center;gap:8px;padding:9px 16px;border-bottom:1px solid var(--border);}
 .team-player:last-child{border-bottom:none;}
 .team-player-name{flex:1;font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.team-player-champ{width:20px;height:20px;border-radius:4px;object-fit:cover;object-position:center top;border:1px solid var(--border);vertical-align:middle;margin-right:5px;}
 .team-player.is-me{background:rgba(200,168,75,0.1);border-left:3px solid var(--gold);padding-left:13px;}
 .me-badge{font-size:10px;background:var(--gold);color:#1a1200;padding:1px 6px;border-radius:3px;font-family:'Black Han Sans',sans-serif;flex-shrink:0;letter-spacing:0.5px;}
 .balance-bar-wrap{margin-top:16px;background:var(--surface2);border-radius:6px;padding:14px 16px;border:1px solid var(--border);}
@@ -1661,7 +1662,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.23';
+const APP_VERSION = 'v2.29.24';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1670,6 +1671,9 @@ const APP_VERSION = 'v2.29.23';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.24', date: '2026-04-21', changes: [
+    { tag: 'improve', text: '팀 카드 — Match ID 불러오기 후 각 플레이어 이름 앞에 챔피언 아이콘(20px) 표시, hover 시 한국어 챔피언명 tooltip' },
+  ]},
   { ver: 'v2.29.23', date: '2026-04-21', changes: [
     { tag: 'new', text: '🏆 랭킹 탭 리디자인 — TOP3 영웅 카드(1위 풀폭 + 2·3위 2열) + 4위↓ 미니 카드 레이아웃, 시즌 드롭다운(S0/S1...)·GAMES/PLAYERS 스트립 헤더, 1·2위 이름 골드/실버 shimmer 애니메이션' },
     { tag: 'new', text: '🎴 랭킹 카드 → 신규 프로필 시트 — 중앙 팝업(view/edit 모드), 5칸 통계(경기/승/패/승률/MVP)·시즌 점수 카드·단짝💞/웬수💢 아코디언 + 편집 시 상태 이모지 그리드·한마디 20자 카운터·포지션 1군→2군→해제 토글, LIVE 계정에서만 뉴비 토글/Riot ID 조회/삭제 노출' },
@@ -4075,8 +4079,12 @@ function teamCard(title,cls,members,avg) {
     const isMe = myName && normName(p.name)===normName(myName);
     const nBadge = isNewbie(p.name) ? ' <span class="newbie-badge">🌱</span>' : '';
     const rBadge = getRankBadge(p.name);
+    const pt = currentMatchParticipants[normName(p.name)];
+    const champIcon = pt && pt.champion
+      ? `<img class="team-player-champ" src="https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(pt.champion)}.png" onerror="this.style.display='none'" alt="" title="${escHtml(champNamesKR[pt.champion] || pt.champion)}">`
+      : '';
     return`<div class="team-player${isMe?' is-me':''}">
-      <div class="team-player-name">${nameHtml(p.name)}${nBadge}${rBadge}${isMe?'&nbsp;<span class="me-badge">나</span>':''}</div>
+      <div class="team-player-name">${champIcon}${nameHtml(p.name)}${nBadge}${rBadge}${isMe?'&nbsp;<span class="me-badge">나</span>':''}</div>
       <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
         ${streakHtml}
         <span class="tier-badge ${t.cls}">${t.label}</span>
