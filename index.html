@@ -1405,7 +1405,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.20';
+const APP_VERSION = 'v2.29.21';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1414,6 +1414,10 @@ const APP_VERSION = 'v2.29.20';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.21', date: '2026-04-21', changes: [
+    { tag: 'new', text: 'Match ID 연동 시 투표 완료 자동 저장 — 라이브용 계정이 Match ID를 불러오면 저장 버튼이 "투표 완료 시 자동 저장" 안내로 바뀌고, MVP·매너왕 투표가 모두 확정되는 즉시 자동으로 결과가 저장되어 결과창으로 넘어감' },
+    { tag: 'improve', text: 'Match ID 미입력 시에는 기존처럼 승리 버튼 → 수동 저장 흐름 그대로 사용 가능' },
+  ]},
   { ver: 'v2.29.20', date: '2026-04-21', changes: [
     { tag: 'fix', text: '게임 자동 감지 전체 제거 — Spectator·매치 히스토리 API 모두 커스텀(내전)을 노출하지 않아 구조적으로 발동 불가' },
     { tag: 'new', text: '라이브용 Match ID 수동 입력 — 게임 종료 후 클라이언트에서 Match ID 복사 → 팀구성 결과 영역에 입력하면 승자·챔피언·KDA·딜량이 자동으로 채워지고 승리팀까지 선택됨 (KR_ 접두사 생략 가능)' },
@@ -3345,6 +3349,7 @@ async function loadChampNamesKR() {
 // 대신 라이브용 계정에서 게임 종료 후 Match ID를 복사해 입력 → match-v5 조회.
 let currentMatchParticipants = {}; // normName → {champion, kills, deaths, assists, cs, damage, ...}
 let currentRiotMatchId = null;    // Riot match ID (저장 시 Firebase에 기록)
+let autoSaveOnVotesComplete = false; // Match ID 연동 완료 시 true → MVP/매너 투표 완료 후 자동 저장
 const DDRAGON_VERSION = '15.8.1';   // Data Dragon 버전 (챔피언 이미지)
 
 function champCardHtml(p, selectedName, onclick) {
@@ -3432,7 +3437,7 @@ window.fetchMatchByGameId = async function() {
     const match = await res.json();
     const applied = await applyRiotMatch(match, matchId);
     if (!applied.ok) { setMatchIdMsg(`⚠️ ${applied.reason}`, 'warn'); return; }
-    setMatchIdMsg(`✅ 불러오기 성공 — ${applied.winnerLabel} · 참가자 ${applied.count}명 연동 완료. 이제 MVP/매너왕 투표 후 저장해주세요.`, 'success');
+    setMatchIdMsg(`✅ 불러오기 성공 — ${applied.winnerLabel} · 참가자 ${applied.count}명 연동 완료. MVP · 매너왕 투표가 모두 끝나면 자동으로 저장됩니다.`, 'success');
   } catch(e) {
     setMatchIdMsg(`❌ 네트워크 오류: ${e.message || e}`, 'error');
   } finally {
@@ -3485,8 +3490,10 @@ async function applyRiotMatch(match, matchId) {
     }
   }
   currentRiotMatchId = matchId;
+  autoSaveOnVotesComplete = true; // 투표 완료 시 자동 저장 모드 활성화
   await loadChampNamesKR(); // 한글 챔피언명 로드 완료까지 대기 (투표 카드에 한글 챔프명 표시)
   selectWinner(detectedWinner);
+  checkSaveReady(); // 저장 버튼 라벨 "투표 완료 시 자동 저장"으로 교체
   // 투표 카드(champCardHtml) 재렌더 → 챔프 이미지 · KDA · 딜량 스탯 즉시 반영
   if (!isEventMatch) {
     renderMvpSection();
@@ -3768,7 +3775,16 @@ let postSaveMatchData = null; // finalizeVotes 시 결과 요약에 사용
 // 승리팀 선택 시 저장 버튼 활성화 (MVP·매너왕은 저장 후 투표)
 function checkSaveReady() {
   if (isEventMatch) return;
-  document.getElementById('save-btn').disabled = !(selectedWinner !== null);
+  const btn = document.getElementById('save-btn');
+  if (!btn) return;
+  if (autoSaveOnVotesComplete) {
+    // Match ID 연동 상태 — 수동 저장 차단, 투표 완료 시 자동 저장
+    btn.disabled = true;
+    btn.textContent = '🗳️ MVP·매너왕 투표 완료 시 자동 저장됩니다';
+  } else {
+    btn.disabled = !(selectedWinner !== null);
+    btn.textContent = '💾 결과 저장하기';
+  }
 }
 
 window.selectWinner = function(side) {
@@ -3826,6 +3842,10 @@ function renderMvpSection() {
       requestAnimationFrame(() => window.scrollTo(0, savedScrollY));
       if (savedMatchKey) {
         finalizeVotes();
+      } else if (autoSaveOnVotesComplete && selectedWinner && !isEventMatch) {
+        // Match ID 연동 상태 · 승자 확정 → 투표 완료되었으므로 자동 저장
+        // saveMatch 내부에서 mvpConfirmed/mannerConfirmed 이미 완료되었으므로 finalizeVotes 자동 호출됨
+        setTimeout(() => window.saveMatch(), 600); // 투표 결과 배너 노출 시간 확보
       } else {
         checkSaveReady();
       }
@@ -4323,6 +4343,7 @@ window.saveMatch = async function() {
     }
 
     matchSaved = true;
+    autoSaveOnVotesComplete = false; // 저장 완료 → 자동 저장 모드 해제
     selectedWinner = null;
 
     // 저장 완료 — Match ID 입력 패널 숨김
@@ -6309,6 +6330,7 @@ window.resetSession = function() {
   itemsLocked = false;
   currentMatchParticipants = {};
   currentRiotMatchId = null;
+  autoSaveOnVotesComplete = false;
   set(ref(db, 'session'), { active: false }).catch(console.error); // 리셋 → session 종료 동기화
   renderSessionPlayers();
   renderShop();
