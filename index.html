@@ -1413,16 +1413,8 @@ img.emoji{
     <div class="record-panel">
       <div class="record-panel-title">🏁 경기 결과 기록</div>
       <div id="event-no-save-notice" class="event-no-save" style="display:none;">🎉 이벤트 매치 — 결과가 티어에 반영되지 않아요</div>
-      <!-- 라이브용 Match ID 입력 (게임 종료 후 gameId 복사 → 승자/참가자 자동 채움) -->
-      <div id="match-id-input-panel" style="display:none;font-size:12px;padding:10px 12px;border-radius:6px;margin-bottom:10px;background:var(--surface2);border:1px solid var(--border);">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;font-weight:600;color:var(--text);">🎮 Match ID 불러오기 <span style="font-size:10px;font-weight:400;color:var(--text-dim);">(라이브용 전용)</span></div>
-        <div style="font-size:11px;color:var(--text-dim);line-height:1.5;margin-bottom:8px;">게임 종료 후 클라이언트에서 복사한 Match ID를 입력하면 승자 · 챔피언 · KDA · 딜량이 자동으로 채워져요. <code style="background:var(--surface3);padding:1px 4px;border-radius:3px;">KR_</code> 접두사는 생략해도 됩니다.</div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;">
-          <input id="match-id-input" type="text" placeholder="예: KR_7654321098 또는 7654321098" style="flex:1;min-width:180px;padding:6px 10px;border-radius:4px;border:1px solid var(--border);background:var(--surface3);color:var(--text);font-size:12px;" onkeydown="if(event.key==='Enter'){event.preventDefault();window.fetchMatchByGameId();}">
-          <button id="match-id-submit-btn" onclick="window.fetchMatchByGameId()" style="padding:6px 14px;border-radius:4px;border:none;background:var(--blue);color:#fff;font-size:12px;font-weight:600;cursor:pointer;">불러오기</button>
-        </div>
-        <div id="match-id-msg" style="font-size:11px;margin-top:6px;min-height:16px;color:var(--text-dim);"></div>
-      </div>
+      <!-- 게임 자동 감지 상태 표시 -->
+      <div id="game-detection-status" style="display:none;font-size:12px;padding:8px 12px;border-radius:6px;margin-bottom:10px;background:var(--surface2);border:1px solid var(--border);text-align:center;"></div>
       <!-- MVP 투표 섹션 -->
       <div id="mvp-section" class="mvp-section" style="display:none;"></div>
       <!-- 매너왕 투표 섹션 -->
@@ -1662,7 +1654,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.24';
+const APP_VERSION = 'v2.29.25';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1671,6 +1663,9 @@ const APP_VERSION = 'v2.29.24';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.25', date: '2026-04-21', changes: [
+    { tag: 'improve', text: '게임 자동 감지 복원 — Spectator API(공방) + 매치 히스토리 폴링(내전 시도), 게임 중 챔피언 실시간 표시 포함. Match ID 수동 입력 방식 제거' },
+  ]},
   { ver: 'v2.29.24', date: '2026-04-21', changes: [
     { tag: 'improve', text: '팀 카드 — Match ID 불러오기 후 각 플레이어 이름 앞에 챔피언 아이콘(20px) 표시, hover 시 한국어 챔피언명 tooltip' },
   ]},
@@ -2388,12 +2383,13 @@ function applySessionData(data) {
     _justMadeTeams = false;
   }
   _initialSessionLoaded = true;
-  // 팀 복원 후 대기 중인 MVP / 매너 / Riot Match 데이터 적용
-  if (pendingRiotMatchData) { applyRiotMatchData(pendingRiotMatchData); pendingRiotMatchData = null; }
+  // 팀 복원 후 대기 중인 MVP / 매너 데이터 적용
   if (pendingMvpData)    { applyMvpData(pendingMvpData); pendingMvpData = null; }
   if (pendingMannerData) { applyMannerData(pendingMannerData); pendingMannerData = null; }
-  // 세션 복원/변경 시 Match ID 입력 패널 가시성 갱신
-  updateMatchIdPanelVisibility();
+  // 세션 복원 시 자동 게임 감지 시작
+  if (!isEventMatch && gameDetectionState === 'idle' && (currentTeamA.length || currentTeamB.length)) {
+    startGameDetection();
+  }
 }
 
 function applyMvpData(data) {
@@ -2482,30 +2478,6 @@ onValue(ref(db, 'session/manner'), (snapshot) => {
   applyMannerData(data);
 });
 
-// Riot Match 연동 실시간 구독 — 라이브 계정이 업로드한 Match 정보를 모든 기기에 동기화
-onValue(ref(db, 'session/riotMatch'), (snapshot) => {
-  const data = snapshot.val();
-  if (!data) {
-    // 연동 취소 or 세션 종료 → 로컬 연동 상태 해제
-    if (currentRiotMatchId) {
-      currentRiotMatchId = null;
-      currentMatchParticipants = {};
-      autoSaveOnVotesComplete = false;
-      if (!isEventMatch) {
-        renderMvpSection();
-        renderMannerSection();
-      }
-      checkSaveReady();
-    }
-    pendingRiotMatchData = null;
-    return;
-  }
-  if (!currentTeamA.length || !currentTeamB.length) {
-    pendingRiotMatchData = data; // 팀 로드 전이면 대기
-    return;
-  }
-  applyRiotMatchData(data);
-});
 
 // ── SYNC STATUS ───────────────────────────────────────────────
 function setSyncStatus(state, msg) {
@@ -3624,12 +3596,14 @@ window.makeTeams = function() {
   }).catch(console.error);
   // 관전자 예측 배너 표시 (팀 발표 종료 후)
   if (currentSpectator) setTimeout(() => showSpectatorPickModal(25), ANNOUNCE_DURATION);
-  // 라이브용 계정 Match ID 입력 패널 노출
-  updateMatchIdPanelVisibility();
+  // 게임 자동 감지 시작
+  startGameDetection();
 };
 
 // ── 챔피언 한국어 이름 로더 ────────────────────────────────────
+const DDRAGON_VERSION = '15.8.1';   // Data Dragon 버전 (챔피언 이미지)
 let champNamesKR = {};
+let champIdToSlug = {}; // championId(숫자) → championName 슬러그 (예: "266" → "Aatrox")
 async function loadChampNamesKR() {
   if (Object.keys(champNamesKR).length > 0) return;
   try {
@@ -3637,17 +3611,333 @@ async function loadChampNamesKR() {
     const data = await res.json();
     for (const [id, champ] of Object.entries(data.data)) {
       champNamesKR[id] = champ.name;
+      if (champ.key) champIdToSlug[String(champ.key)] = id; // key는 숫자ID 문자열
     }
   } catch(e) {}
 }
 
-// ── Riot 경기 연동 (Match ID 수동 입력 기반) ────────────────────
-// 자동 감지(Spectator/매치히스토리)는 내전(커스텀)을 노출하지 않아 제거됨.
-// 대신 라이브용 계정에서 게임 종료 후 Match ID를 복사해 입력 → match-v5 조회.
-let currentMatchParticipants = {}; // normName → {champion, kills, deaths, assists, cs, damage, ...}
+// ── 게임 자동 감지 시스템 ──────────────────────────────────────────────────────────────────────
+let gameDetectionState = 'idle'; // idle | waiting | inGame | ended
+let gameDetectionTimer = null;
+let detectedGameId = null;
+let gameDetectRetry = 0;
+let currentMatchParticipants = {}; // normName → {champion, kills, deaths, assists, cs, damage}
 let currentRiotMatchId = null;    // Riot match ID (저장 시 Firebase에 기록)
-let autoSaveOnVotesComplete = false; // Match ID 연동 완료 시 true → MVP/매너 투표 완료 후 자동 저장
-const DDRAGON_VERSION = '15.8.1';   // Data Dragon 버전 (챔피언 이미지)
+let lastPollAt = null;
+let waitingUiTimer = null;
+let _detectionPlayers = null;
+let _lastPollError = null;
+let _lastPollErrorMsg = '';
+let customGamePollTimer = null;   // 내전 감지용 매치 히스토리 폴링
+let _teamBuildTime = 0;            // 팀 구성 시각 (초)
+let _seenMatchIds = new Set();     // 이미 확인한 매치 ID (중복 조회 방지)
+const GAME_DETECT_INTERVAL = 30000; // 30초 폴링 (Spectator)
+const CUSTOM_POLL_INTERVAL = 60000; // 60초 폴링 (매치 히스토리)
+const CUSTOM_POLL_START_DELAY = 60000; // 팀 구성 후 60초부터 폴링 시작
+const MATCH_FETCH_RETRY_MAX = 6;    // 최대 6회 재시도 (3분)
+
+function getTeamPuuids() {
+  const allPlayers = [...currentTeamA, ...currentTeamB];
+  return allPlayers.map(p => {
+    const fb = Object.values(registeredPlayers).find(r => normName(r.name) === normName(p.name));
+    return fb?.puuid ? { name: p.name, puuid: fb.puuid } : null;
+  }).filter(Boolean);
+}
+
+function updateWaitingUI() {
+  if (gameDetectionState !== 'waiting') return;
+  const el = document.getElementById('game-detection-status');
+  if (!el) return;
+  const playerCount = _detectionPlayers ? _detectionPlayers.length : 0;
+  const lastCheck = lastPollAt
+    ? `마지막 확인 ${Math.round((Date.now() - lastPollAt) / 1000)}초 전`
+    : '확인 중...';
+  const errHint = _lastPollError
+    ? ` <span style="color:var(--red);font-size:10px;">⚠️ API 오류 ${_lastPollError === 'net' ? `(네트워크: ${_lastPollErrorMsg || 'fetch failed'})` : `(HTTP ${_lastPollError})`}</span>`
+    : '';
+  const workerDbg = ` <span style="opacity:0.4;font-size:9px;">· Worker: ${riotWorkerUrl ? riotWorkerUrl.replace(/^https?:\/\//,'') : '(없음, 직접호출)'}</span>`;
+  el.innerHTML = `🔍 게임 시작 감지 중 <span style="opacity:0.6;font-size:11px;">(PUUID 등록 ${playerCount}명 · ${lastCheck})</span>${errHint}${workerDbg}
+    <button onclick="window.manualPollNow()" style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface3);cursor:pointer;color:var(--text);">지금 확인</button>
+    <button onclick="window.testWorker()" style="margin-left:4px;font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface3);cursor:pointer;color:var(--text);">Worker 테스트</button>`;
+  el.style.color = 'var(--text-dim)';
+  el.style.borderColor = 'var(--border)';
+  el.style.display = 'block';
+}
+
+window.manualPollNow = async function() {
+  if (gameDetectionState !== 'waiting' || !_detectionPlayers) return;
+  await pollGameStatus(_detectionPlayers);
+};
+
+window.testWorker = async function() {
+  const el = document.getElementById('game-detection-status');
+  if (!el) return;
+  el.innerHTML = '🧪 Worker 테스트 중...';
+  const testUrl = `${riotWorkerUrl}/kr/lol/status/v4/platform-data`;
+  try {
+    const res = await fetch(testUrl);
+    const body = await res.text();
+    const shortBody = body.length > 100 ? body.slice(0, 100) + '...' : body;
+    el.innerHTML = `🧪 Worker 테스트 결과: <strong>HTTP ${res.status}</strong> · ${escHtml(shortBody)}
+      <button onclick="updateWaitingUI()" style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface3);cursor:pointer;color:var(--text);">돌아가기</button>`;
+    el.style.color = res.ok ? 'var(--green)' : 'var(--red)';
+    el.style.borderColor = res.ok ? 'var(--green)' : 'var(--red)';
+  } catch(e) {
+    el.innerHTML = `🧪 Worker 테스트 실패: ${escHtml(e.message || String(e))} · URL: ${escHtml(testUrl)}
+      <button onclick="updateWaitingUI()" style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface3);cursor:pointer;color:var(--text);">돌아가기</button>`;
+    el.style.color = 'var(--red)';
+    el.style.borderColor = 'var(--red)';
+  }
+};
+
+function startGameDetection() {
+  if ((!riotWorkerUrl && !riotApiKey) || isEventMatch) return;
+  const players = getTeamPuuids();
+  if (players.length === 0) return;
+
+  stopGameDetection();
+  _detectionPlayers = players;
+  gameDetectionState = 'waiting';
+  detectedGameId = null;
+  gameDetectRetry = 0;
+  lastPollAt = null;
+  _teamBuildTime = Math.floor(Date.now() / 1000);
+  _seenMatchIds = new Set();
+  updateWaitingUI();
+  waitingUiTimer = setInterval(updateWaitingUI, 1000);
+
+  gameDetectionTimer = setInterval(() => pollGameStatus(players), GAME_DETECT_INTERVAL);
+  pollGameStatus(players);
+
+  setTimeout(() => {
+    if (gameDetectionState === 'waiting') {
+      customGamePollTimer = setInterval(() => pollCustomGameHistory(players), CUSTOM_POLL_INTERVAL);
+      pollCustomGameHistory(players);
+    }
+  }, CUSTOM_POLL_START_DELAY);
+}
+
+function stopGameDetection() {
+  if (gameDetectionTimer) { clearInterval(gameDetectionTimer); gameDetectionTimer = null; }
+  if (customGamePollTimer) { clearInterval(customGamePollTimer); customGamePollTimer = null; }
+  if (waitingUiTimer) { clearInterval(waitingUiTimer); waitingUiTimer = null; }
+  gameDetectionState = 'idle';
+  currentMatchParticipants = {};
+  currentRiotMatchId = null;
+  lastPollAt = null;
+  _detectionPlayers = null;
+  setGameDetectionUI(null);
+}
+
+async function pollGameStatus(players) {
+  if (gameDetectionState !== 'waiting' && gameDetectionState !== 'inGame') return;
+
+  let lastErrorStatus = null;
+  for (const { puuid } of players) {
+    try {
+      const res = await riotFetch('kr', `/lol/spectator/v5/active-games/by-summoner/${puuid}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (gameDetectionState === 'waiting') {
+          gameDetectionState = 'inGame';
+          detectedGameId = data.gameId;
+          setGameDetectionUI('inGame');
+        }
+        // 게임 중 챔피언 정보 실시간 추출
+        await updateLiveParticipants(data);
+        return;
+      } else if (res.status === 404) {
+        if (gameDetectionState === 'inGame') {
+          gameDetectionState = 'ended';
+          clearInterval(gameDetectionTimer); gameDetectionTimer = null;
+          setGameDetectionUI('ended');
+          setTimeout(() => fetchMatchResult(players), 30000);
+          return;
+        }
+        continue;
+      } else {
+        lastErrorStatus = res.status;
+        continue;
+      }
+    } catch(e) { lastErrorStatus = 'net'; _lastPollErrorMsg = e.message || String(e); continue; }
+  }
+  lastPollAt = Date.now();
+  _lastPollError = lastErrorStatus;
+  updateWaitingUI();
+}
+
+// 게임 중 Spectator API 응답으로 챔피언 정보 채우기
+async function updateLiveParticipants(activeGameData) {
+  if (!activeGameData || !Array.isArray(activeGameData.participants)) return;
+  await loadChampNamesKR();
+  let changed = false;
+  for (const pt of activeGameData.participants) {
+    if (!pt.puuid || pt.championId == null) continue;
+    const fbPlayer = Object.values(registeredPlayers).find(r => r.puuid === pt.puuid);
+    if (!fbPlayer) continue;
+    const slug = champIdToSlug[String(pt.championId)];
+    if (!slug) continue;
+    const key = normName(fbPlayer.name);
+    const existing = currentMatchParticipants[key];
+    if (existing && existing.kills != null) continue;
+    if (!existing || existing.champion !== slug) {
+      currentMatchParticipants[key] = { ...(existing || {}), champion: slug };
+      changed = true;
+    }
+  }
+  if (changed && (currentTeamA.length || currentTeamB.length)) {
+    renderResult();
+  }
+}
+
+async function fetchMatchResult(players) {
+  if (gameDetectRetry >= MATCH_FETCH_RETRY_MAX) {
+    setGameDetectionUI('fetchFailed'); return;
+  }
+  gameDetectRetry++;
+  try {
+    let match = null;
+    let targetId = null;
+
+    if (detectedGameId) {
+      targetId = `KR_${detectedGameId}`;
+      const directRes = await riotFetch('asia', `/lol/match/v5/matches/${targetId}`);
+      if (directRes.ok) {
+        match = await directRes.json();
+        currentRiotMatchId = targetId;
+      }
+    }
+
+    if (!match) {
+      const puuid = players[0].puuid;
+      const idsRes = await riotFetch('asia', `/lol/match/v5/matches/by-puuid/${puuid}/ids?count=10`);
+      if (!idsRes.ok) { setTimeout(() => fetchMatchResult(players), 30000); return; }
+      const ids = await idsRes.json();
+      targetId = detectedGameId ? ids.find(id => id.includes(String(detectedGameId))) : ids[0];
+      if (!targetId) { setTimeout(() => fetchMatchResult(players), 30000); return; }
+      currentRiotMatchId = targetId;
+      const matchRes = await riotFetch('asia', `/lol/match/v5/matches/${targetId}`);
+      if (!matchRes.ok) { setTimeout(() => fetchMatchResult(players), 30000); return; }
+      match = await matchRes.json();
+    }
+
+    processMatchData(match, () => setTimeout(() => fetchMatchResult(players), 30000));
+  } catch(e) {
+    setTimeout(() => fetchMatchResult(players), 30000);
+  }
+}
+
+function processMatchData(match, onFail) {
+  const teamAPuuids = currentTeamA.map(p => {
+    const fb = Object.values(registeredPlayers).find(r => normName(r.name) === normName(p.name));
+    return fb?.puuid;
+  }).filter(Boolean);
+
+  let detectedWinner = null;
+  for (const puuidA of teamAPuuids) {
+    const participant = match.info.participants.find(p => p.puuid === puuidA);
+    if (participant) {
+      detectedWinner = participant.win ? 'blue' : 'red';
+      break;
+    }
+  }
+
+  if (detectedWinner) {
+    currentMatchParticipants = {};
+    for (const pt of match.info.participants) {
+      const fbPlayer = Object.values(registeredPlayers).find(r => r.puuid === pt.puuid);
+      if (fbPlayer) {
+        currentMatchParticipants[normName(fbPlayer.name)] = {
+          champion: pt.championName,
+          kills: pt.kills,
+          deaths: pt.deaths,
+          assists: pt.assists,
+          cs: pt.totalMinionsKilled + (pt.neutralMinionsKilled || 0),
+          damage: pt.totalDamageDealtToChampions,
+          damageTaken: pt.totalDamageTaken || 0,
+          healing: (pt.totalHealsOnTeammates || 0) + (pt.totalDamageShieldedOnTeammates || 0),
+          doubleKills: pt.doubleKills || 0,
+          tripleKills: pt.tripleKills || 0,
+          quadraKills: pt.quadraKills || 0,
+          pentaKills: pt.pentaKills || 0,
+        };
+      }
+    }
+    loadChampNamesKR();
+    showAutoResultPopup(detectedWinner);
+  } else {
+    if (onFail) onFail(); else setGameDetectionUI('matchFailed');
+  }
+}
+
+async function pollCustomGameHistory(players) {
+  if (gameDetectionState !== 'waiting') return;
+  try {
+    const puuid = players[0].puuid;
+    const idsRes = await riotFetch('asia', `/lol/match/v5/matches/by-puuid/${puuid}/ids?startTime=${_teamBuildTime}&count=5`);
+    if (!idsRes.ok) return;
+    const ids = await idsRes.json();
+    if (!Array.isArray(ids) || ids.length === 0) return;
+
+    const ourPuuids = new Set(players.map(p => p.puuid));
+    const minMatch = Math.max(2, Math.floor(players.length * 0.6));
+
+    for (const matchId of ids) {
+      if (_seenMatchIds.has(matchId)) continue;
+      _seenMatchIds.add(matchId);
+
+      const detailRes = await riotFetch('asia', `/lol/match/v5/matches/${matchId}`);
+      if (!detailRes.ok) continue;
+      const match = await detailRes.json();
+
+      const matchEndSec = Math.floor((match.info.gameEndTimestamp || 0) / 1000);
+      if (matchEndSec && matchEndSec < _teamBuildTime) continue;
+
+      const matchPuuids = new Set(match.info.participants.map(p => p.puuid));
+      const overlap = [...ourPuuids].filter(p => matchPuuids.has(p)).length;
+      if (overlap < minMatch) continue;
+
+      if (gameDetectionTimer) { clearInterval(gameDetectionTimer); gameDetectionTimer = null; }
+      if (customGamePollTimer) { clearInterval(customGamePollTimer); customGamePollTimer = null; }
+      gameDetectionState = 'ended';
+      setGameDetectionUI('ended');
+      currentRiotMatchId = matchId;
+      processMatchData(match);
+      return;
+    }
+  } catch(e) {}
+}
+
+function setGameDetectionUI(state) {
+  const el = document.getElementById('game-detection-status');
+  if (!el) return;
+  if (!state) { el.style.display = 'none'; return; }
+  if (state === 'waiting') { updateWaitingUI(); return; }
+  const cfg = {
+    inGame:      { text: '🎮 게임 진행 중 — 종료 시 자동으로 결과를 불러옵니다', color: 'var(--blue)' },
+    ended:       { text: '⏳ 게임 종료! 결과 불러오는 중...', color: 'var(--gold)' },
+    fetchFailed: { text: '❌ 결과 조회 실패 — 아래에서 수동으로 승패를 선택해주세요', color: 'var(--red)' },
+    matchFailed: { text: '❌ 팀 매칭 실패 — 아래에서 수동으로 승패를 선택해주세요', color: 'var(--red)' },
+  };
+  const c = cfg[state] || { text: '', color: 'var(--text-dim)' };
+  el.innerHTML = c.text;
+  el.style.color = c.color;
+  el.style.borderColor = c.color;
+  el.style.display = 'block';
+}
+
+function showAutoResultPopup(winner) {
+  const label = winner === 'blue' ? '🔵 1팀 승리' : '🟡 2팀 승리';
+  const el = document.getElementById('game-detection-status');
+  if (el) {
+    el.innerHTML = `✅ <strong>${label}</strong> 자동 감지 완료! 결과 저장 중...`;
+    el.style.color = 'var(--green)';
+    el.style.borderColor = 'var(--green)';
+  }
+  selectWinner(winner);
+  document.getElementById('result-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setTimeout(() => window.saveMatch(), 300);
+}
 
 function champCardHtml(p, selectedName, onclick) {
   const pt = currentMatchParticipants[normName(p.name)];
@@ -3683,176 +3973,6 @@ function champCardHtml(p, selectedName, onclick) {
   </div>`;
 }
 
-// ── Match ID 입력 패널 가시성 ─────────────────────────────────
-// 라이브용 계정 · 일반 매치 · 팀이 구성된 상태에서만 노출.
-function updateMatchIdPanelVisibility() {
-  const panel = document.getElementById('match-id-input-panel');
-  if (!panel) return;
-  const hasTeam = (currentTeamA && currentTeamA.length) || (currentTeamB && currentTeamB.length);
-  const show = !!(liveMode && !isEventMatch && hasTeam && (riotWorkerUrl || riotApiKey));
-  panel.style.display = show ? 'block' : 'none';
-}
-
-function setMatchIdMsg(text, tone) {
-  const el = document.getElementById('match-id-msg');
-  if (!el) return;
-  // HTML 허용 (취소 버튼 포함) — text는 내부에서 생성한 안전 문자열만 전달됨
-  el.innerHTML = text || '';
-  const color = tone === 'error' ? 'var(--red)'
-              : tone === 'success' ? 'var(--green)'
-              : tone === 'warn' ? 'var(--gold)'
-              : 'var(--text-dim)';
-  el.style.color = color;
-}
-
-// Match ID → match-v5 조회 → 승자 감지 + 참가자 스탯 채움 + selectWinner 자동 호출.
-// 저장은 사용자가 MVP/매너왕 투표 후 기존 흐름 그대로 진행.
-window.fetchMatchByGameId = async function() {
-  const input = document.getElementById('match-id-input');
-  const btn = document.getElementById('match-id-submit-btn');
-  if (!input) return;
-  const raw = (input.value || '').trim();
-  if (!raw) { setMatchIdMsg('⚠️ Match ID를 입력해주세요', 'warn'); return; }
-  if (!riotWorkerUrl && !riotApiKey) {
-    setMatchIdMsg('⚠️ Riot API Key가 설정되지 않았어요', 'error'); return;
-  }
-
-  // "KR_1234567890" 또는 "1234567890" 모두 허용
-  const matchId = /^KR_/i.test(raw) ? raw.toUpperCase() : `KR_${raw.replace(/[^0-9]/g,'')}`;
-  if (!/^KR_\d+$/.test(matchId)) {
-    setMatchIdMsg('⚠️ Match ID 형식이 올바르지 않아요 (예: KR_7654321098)', 'error'); return;
-  }
-
-  if (btn) btn.disabled = true;
-  setMatchIdMsg('⏳ 조회 중...', 'info');
-  try {
-    const res = await riotFetch('asia', `/lol/match/v5/matches/${matchId}`);
-    if (!res.ok) {
-      const hint = res.status === 404 ? '해당 Match ID를 찾을 수 없어요' : `API 오류 (HTTP ${res.status})`;
-      setMatchIdMsg(`❌ ${hint}`, 'error');
-      return;
-    }
-    const match = await res.json();
-    const applied = await applyRiotMatch(match, matchId);
-    if (!applied.ok) { setMatchIdMsg(`⚠️ ${applied.reason}`, 'warn'); return; }
-    document.getElementById('result-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    // 이미 MVP·매너왕 투표가 모두 끝난 상태에서 뒤늦게 Match ID를 불러왔다면 즉시 저장
-    if (applied.mvpAlreadyDone && liveMode && !isEventMatch) {
-      setMatchIdMsg(`✅ 불러오기 성공 — ${applied.winnerLabel} · 참가자 ${applied.count}명. 투표가 이미 완료돼 즉시 저장합니다...`, 'success');
-      autoSaveOnVotesComplete = false; // 중복 방지
-      setTimeout(() => window.saveMatch(), 300);
-    } else {
-      setMatchIdMsg(`✅ 불러오기 성공 — ${applied.winnerLabel} · 참가자 ${applied.count}명 연동 완료. MVP · 매너왕 투표가 모두 끝나면 자동으로 저장됩니다. <button onclick="window.cancelMatchIdLink()" style="margin-left:6px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface3);cursor:pointer;color:var(--text);font-size:11px;">↩ 연동 취소</button>`, 'success');
-    }
-  } catch(e) {
-    setMatchIdMsg(`❌ 네트워크 오류: ${e.message || e}`, 'error');
-  } finally {
-    if (btn) btn.disabled = false;
-  }
-};
-
-// Match ID 연동 취소 — /session/riotMatch 제거 → onValue가 모든 기기의 로컬 상태 해제
-window.cancelMatchIdLink = async function() {
-  const midInput = document.getElementById('match-id-input');
-  if (midInput) midInput.value = '';
-  setMatchIdMsg('↩ 연동 취소 중...', 'info');
-  try {
-    await remove(ref(db, 'session/riotMatch'));
-    // 승자 선택도 초기화 (사용자가 수동으로 다시 선택하거나 다른 Match ID 입력하도록)
-    selectedWinner = null;
-    const wbBlue = document.getElementById('wb-blue');
-    const wbRed  = document.getElementById('wb-red');
-    if (wbBlue) wbBlue.className = 'winner-btn blue';
-    if (wbRed)  wbRed.className  = 'winner-btn red';
-    const msg = document.getElementById('winner-selected-msg');
-    if (msg) msg.textContent = '';
-    checkSaveReady();
-    setMatchIdMsg('연동이 취소됐어요. 다른 Match ID를 입력하거나 수동으로 승리팀을 선택해주세요.', 'info');
-  } catch (e) {
-    setMatchIdMsg(`❌ 취소 실패: ${e.message || e}`, 'error');
-  }
-};
-
-// 매치 데이터 → 승자 판정 + 참가자 스탯 추출 → Firebase /session/riotMatch 업로드.
-// 업로드된 데이터는 onValue 리스너가 모든 기기에 적용(applyRiotMatchData).
-// 성공 시 { ok: true, winnerLabel, count }, 실패 시 { ok: false, reason }.
-async function applyRiotMatch(match, matchId) {
-  const teamAPuuids = currentTeamA.map(p => {
-    const fb = Object.values(registeredPlayers).find(r => normName(r.name) === normName(p.name));
-    return fb?.puuid;
-  }).filter(Boolean);
-
-  if (teamAPuuids.length === 0) {
-    return { ok: false, reason: '1팀에 PUUID가 등록된 플레이어가 없어요 (프로필에서 Riot ID 등록 필요)' };
-  }
-
-  let detectedWinner = null;
-  for (const puuidA of teamAPuuids) {
-    const participant = match.info.participants.find(p => p.puuid === puuidA);
-    if (participant) {
-      detectedWinner = participant.win ? 'blue' : 'red';
-      break;
-    }
-  }
-  if (!detectedWinner) {
-    return { ok: false, reason: '이 Match ID에서 우리 팀 PUUID를 찾지 못했어요. 다른 경기 ID일 가능성이 있어요.' };
-  }
-
-  const participants = {};
-  for (const pt of match.info.participants) {
-    const fbPlayer = Object.values(registeredPlayers).find(r => r.puuid === pt.puuid);
-    if (fbPlayer) {
-      participants[normName(fbPlayer.name)] = {
-        champion: pt.championName,
-        kills: pt.kills,
-        deaths: pt.deaths,
-        assists: pt.assists,
-        cs: pt.totalMinionsKilled + (pt.neutralMinionsKilled || 0),
-        damage: pt.totalDamageDealtToChampions,
-        damageTaken: pt.totalDamageTaken || 0,
-        healing: (pt.totalHealsOnTeammates || 0) + (pt.totalDamageShieldedOnTeammates || 0),
-        doubleKills: pt.doubleKills || 0,
-        tripleKills: pt.tripleKills || 0,
-        quadraKills: pt.quadraKills || 0,
-        pentaKills: pt.pentaKills || 0,
-      };
-    }
-  }
-
-  // Firebase 업로드 → onValue 리스너가 모든 기기(자기 자신 포함)에서 applyRiotMatchData 호출
-  const payload = { riotMatchId: matchId, winner: detectedWinner, participants };
-  try {
-    await update(ref(db, 'session'), { riotMatch: payload });
-  } catch (e) {
-    return { ok: false, reason: 'Firebase 저장 실패 — 네트워크를 확인해주세요' };
-  }
-  // 한글 챔피언명은 미리 로드 (onValue 도착 전에 캐시)
-  await loadChampNamesKR();
-
-  return {
-    ok: true,
-    winnerLabel: detectedWinner === 'blue' ? '🔵 1팀 승리' : '🟡 2팀 승리',
-    count: Object.keys(participants).length,
-    mvpAlreadyDone: (mvpConfirmed !== null && mannerConfirmed !== null),
-  };
-}
-
-// Firebase /session/riotMatch → 로컬 상태 적용 (모든 기기에서 호출됨).
-function applyRiotMatchData(data) {
-  if (!data || !data.riotMatchId) return;
-  const sameMatch = currentRiotMatchId === data.riotMatchId;
-  currentRiotMatchId = data.riotMatchId;
-  currentMatchParticipants = data.participants || {};
-  autoSaveOnVotesComplete = true;
-  // 승자 자동 선택 — 사용자가 직접 다른 팀 고른 경우엔 덮어쓰지 않음 (같은 Match ID 재수신만 허용)
-  if (!selectedWinner || sameMatch) selectWinner(data.winner);
-  loadChampNamesKR(); // 캐시 보장 (async, UI는 championName 영문으로도 렌더됨)
-  checkSaveReady(); // 저장 버튼 라벨 교체
-  if (!isEventMatch) {
-    renderMvpSection();
-    renderMannerSection();
-  }
-}
 
 let matchSaved = false; // 현재 팀 결과 저장 여부
 
@@ -4114,7 +4234,6 @@ function teamCard(title,cls,members,avg) {
 // ── WINNER / SAVE ─────────────────────────────────────────────
 let mvpVotes = { teamA: {}, teamB: {} }; // teamA: 1팀이 2팀에서 고름, teamB: 2팀이 1팀에서 고름
 let mvpConfirmed = null; // null | { teamAMvp: string, teamBMvp: string }
-let pendingRiotMatchData = null; // 팀 데이터 로드 전 도착한 Riot Match 데이터 임시 보관
 let pendingMvpData = null; // 팀 데이터 로드 전 도착한 MVP 데이터 임시 보관
 let mannerVotes = { teamA: {}, teamB: {} }; // teamA: 1팀이 2팀에서 고름, teamB: 2팀이 1팀에서 고름
 let mannerConfirmed = null; // null | { teamAManner: string, teamBManner: string }
@@ -4128,14 +4247,8 @@ function checkSaveReady() {
   if (isEventMatch) return;
   const btn = document.getElementById('save-btn');
   if (!btn) return;
-  if (autoSaveOnVotesComplete) {
-    // Match ID 연동 상태 — 수동 저장 차단, 투표 완료 시 자동 저장
-    btn.disabled = true;
-    btn.textContent = '🗳️ MVP·매너왕 투표 완료 시 자동 저장됩니다';
-  } else {
-    btn.disabled = !(selectedWinner !== null);
-    btn.textContent = '💾 결과 저장하기';
-  }
+  btn.disabled = !(selectedWinner !== null);
+  btn.textContent = '💾 결과 저장하기';
 }
 
 window.selectWinner = function(side) {
@@ -4193,11 +4306,6 @@ function renderMvpSection() {
       requestAnimationFrame(() => window.scrollTo(0, savedScrollY));
       if (savedMatchKey) {
         finalizeVotes();
-      } else if (autoSaveOnVotesComplete && liveMode && selectedWinner && !isEventMatch) {
-        // 라이브 계정 · Match ID 연동 · 승자 확정 → 투표 완료되었으므로 자동 저장
-        // (liveMode 가드로 팀원 기기에서 중복 saveMatch 호출 방지)
-        autoSaveOnVotesComplete = false; // 즉시 차단 — renderMvpSection 재호출 시 중복 예약 방지
-        setTimeout(() => window.saveMatch(), 600); // 투표 결과 배너 노출 시간 확보
       } else {
         checkSaveReady();
       }
@@ -4695,12 +4803,12 @@ window.saveMatch = async function() {
     }
 
     matchSaved = true;
-    autoSaveOnVotesComplete = false; // 저장 완료 → 자동 저장 모드 해제
     selectedWinner = null;
 
-    // 저장 완료 — Match ID 입력 패널 숨김
-    const midPanel = document.getElementById('match-id-input-panel');
-    if (midPanel) midPanel.style.display = 'none';
+    // 저장 완료 — 자동 감지 중단 + 상태 UI 숨김
+    stopGameDetection();
+    const gds = document.getElementById('game-detection-status');
+    if (gds) gds.style.display = 'none';
     // 투표가 이미 완료됐으면 바로 확정, 아니면 투표 UI 유지
     if (mvpConfirmed !== null && mannerConfirmed !== null) {
       finalizeVotes();
@@ -6778,7 +6886,6 @@ function setLiveMode(enabled) {
     updateMyInfoBar();
   }
   updateMemberModeDisplay();
-  updateMatchIdPanelVisibility();
 }
 // ── BGM 제어 ──────────────────────────────────────────────────
 function getBgm() { return document.getElementById('live-bgm'); }
@@ -7359,18 +7466,12 @@ window.resetSession = function() {
   sessionPlayers=[];
   teamSize = 3; // 이전 게임 teamSize 초기화 (stale 값 방지)
   itemsLocked = false;
-  currentMatchParticipants = {};
-  currentRiotMatchId = null;
-  autoSaveOnVotesComplete = false;
+  stopGameDetection();
   set(ref(db, 'session'), { active: false }).catch(console.error); // 리셋 → session 종료 동기화
   renderSessionPlayers();
   renderShop();
   document.getElementById('result-section').style.display='none';
   document.getElementById('warn-box').innerHTML='';
-  const midInput = document.getElementById('match-id-input');
-  if (midInput) midInput.value = '';
-  setMatchIdMsg('', 'info');
-  updateMatchIdPanelVisibility();
   updateMemberModeDisplay();
 };
 
