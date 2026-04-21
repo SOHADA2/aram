@@ -1405,7 +1405,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.21';
+const APP_VERSION = 'v2.29.22';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1414,6 +1414,12 @@ const APP_VERSION = 'v2.29.21';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.22', date: '2026-04-21', changes: [
+    { tag: 'new', text: 'Match ID 연동 정보 Firebase 동기화 — 라이브용 계정이 불러온 승자·챔피언·KDA·딜량이 팀원 기기 MVP·매너왕 투표 카드에도 즉시 반영되고, 새로고침 시에도 복원됨' },
+    { tag: 'new', text: '연동 취소 버튼 — 잘못된 Match ID를 불러온 경우 성공 안내의 "↩ 연동 취소" 버튼으로 승자·챔피언 정보·자동 저장 모드를 모두 원상복구' },
+    { tag: 'improve', text: '투표가 이미 끝난 뒤 늦게 Match ID를 불러온 경우에도 즉시 저장되도록 처리' },
+    { tag: 'fix', text: '다중 기기 자동 저장 중복 방지 — 라이브용 계정 한 대에서만 saveMatch가 트리거되도록 liveMode 가드 + 재진입 차단 플래그 추가' },
+  ]},
   { ver: 'v2.29.21', date: '2026-04-21', changes: [
     { tag: 'new', text: 'Match ID 연동 시 투표 완료 자동 저장 — 라이브용 계정이 Match ID를 불러오면 저장 버튼이 "투표 완료 시 자동 저장" 안내로 바뀌고, MVP·매너왕 투표가 모두 확정되는 즉시 자동으로 결과가 저장되어 결과창으로 넘어감' },
     { tag: 'improve', text: 'Match ID 미입력 시에는 기존처럼 승리 버튼 → 수동 저장 흐름 그대로 사용 가능' },
@@ -2117,7 +2123,8 @@ function applySessionData(data) {
     _justMadeTeams = false;
   }
   _initialSessionLoaded = true;
-  // 팀 복원 후 대기 중인 MVP / 매너 데이터 적용
+  // 팀 복원 후 대기 중인 MVP / 매너 / Riot Match 데이터 적용
+  if (pendingRiotMatchData) { applyRiotMatchData(pendingRiotMatchData); pendingRiotMatchData = null; }
   if (pendingMvpData)    { applyMvpData(pendingMvpData); pendingMvpData = null; }
   if (pendingMannerData) { applyMannerData(pendingMannerData); pendingMannerData = null; }
   // 세션 복원/변경 시 Match ID 입력 패널 가시성 갱신
@@ -2208,6 +2215,31 @@ onValue(ref(db, 'session/manner'), (snapshot) => {
     return;
   }
   applyMannerData(data);
+});
+
+// Riot Match 연동 실시간 구독 — 라이브 계정이 업로드한 Match 정보를 모든 기기에 동기화
+onValue(ref(db, 'session/riotMatch'), (snapshot) => {
+  const data = snapshot.val();
+  if (!data) {
+    // 연동 취소 or 세션 종료 → 로컬 연동 상태 해제
+    if (currentRiotMatchId) {
+      currentRiotMatchId = null;
+      currentMatchParticipants = {};
+      autoSaveOnVotesComplete = false;
+      if (!isEventMatch) {
+        renderMvpSection();
+        renderMannerSection();
+      }
+      checkSaveReady();
+    }
+    pendingRiotMatchData = null;
+    return;
+  }
+  if (!currentTeamA.length || !currentTeamB.length) {
+    pendingRiotMatchData = data; // 팀 로드 전이면 대기
+    return;
+  }
+  applyRiotMatchData(data);
 });
 
 // ── SYNC STATUS ───────────────────────────────────────────────
@@ -3399,7 +3431,8 @@ function updateMatchIdPanelVisibility() {
 function setMatchIdMsg(text, tone) {
   const el = document.getElementById('match-id-msg');
   if (!el) return;
-  el.textContent = text || '';
+  // HTML 허용 (취소 버튼 포함) — text는 내부에서 생성한 안전 문자열만 전달됨
+  el.innerHTML = text || '';
   const color = tone === 'error' ? 'var(--red)'
               : tone === 'success' ? 'var(--green)'
               : tone === 'warn' ? 'var(--gold)'
@@ -3437,7 +3470,15 @@ window.fetchMatchByGameId = async function() {
     const match = await res.json();
     const applied = await applyRiotMatch(match, matchId);
     if (!applied.ok) { setMatchIdMsg(`⚠️ ${applied.reason}`, 'warn'); return; }
-    setMatchIdMsg(`✅ 불러오기 성공 — ${applied.winnerLabel} · 참가자 ${applied.count}명 연동 완료. MVP · 매너왕 투표가 모두 끝나면 자동으로 저장됩니다.`, 'success');
+    document.getElementById('result-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // 이미 MVP·매너왕 투표가 모두 끝난 상태에서 뒤늦게 Match ID를 불러왔다면 즉시 저장
+    if (applied.mvpAlreadyDone && liveMode && !isEventMatch) {
+      setMatchIdMsg(`✅ 불러오기 성공 — ${applied.winnerLabel} · 참가자 ${applied.count}명. 투표가 이미 완료돼 즉시 저장합니다...`, 'success');
+      autoSaveOnVotesComplete = false; // 중복 방지
+      setTimeout(() => window.saveMatch(), 300);
+    } else {
+      setMatchIdMsg(`✅ 불러오기 성공 — ${applied.winnerLabel} · 참가자 ${applied.count}명 연동 완료. MVP · 매너왕 투표가 모두 끝나면 자동으로 저장됩니다. <button onclick="window.cancelMatchIdLink()" style="margin-left:6px;padding:2px 8px;border-radius:4px;border:1px solid var(--border);background:var(--surface3);cursor:pointer;color:var(--text);font-size:11px;">↩ 연동 취소</button>`, 'success');
+    }
   } catch(e) {
     setMatchIdMsg(`❌ 네트워크 오류: ${e.message || e}`, 'error');
   } finally {
@@ -3445,7 +3486,30 @@ window.fetchMatchByGameId = async function() {
   }
 };
 
-// 매치 데이터 → 승자 판정 + 참가자 스탯 저장 + selectWinner 호출 + MVP/매너 카드 재렌더.
+// Match ID 연동 취소 — /session/riotMatch 제거 → onValue가 모든 기기의 로컬 상태 해제
+window.cancelMatchIdLink = async function() {
+  const midInput = document.getElementById('match-id-input');
+  if (midInput) midInput.value = '';
+  setMatchIdMsg('↩ 연동 취소 중...', 'info');
+  try {
+    await remove(ref(db, 'session/riotMatch'));
+    // 승자 선택도 초기화 (사용자가 수동으로 다시 선택하거나 다른 Match ID 입력하도록)
+    selectedWinner = null;
+    const wbBlue = document.getElementById('wb-blue');
+    const wbRed  = document.getElementById('wb-red');
+    if (wbBlue) wbBlue.className = 'winner-btn blue';
+    if (wbRed)  wbRed.className  = 'winner-btn red';
+    const msg = document.getElementById('winner-selected-msg');
+    if (msg) msg.textContent = '';
+    checkSaveReady();
+    setMatchIdMsg('연동이 취소됐어요. 다른 Match ID를 입력하거나 수동으로 승리팀을 선택해주세요.', 'info');
+  } catch (e) {
+    setMatchIdMsg(`❌ 취소 실패: ${e.message || e}`, 'error');
+  }
+};
+
+// 매치 데이터 → 승자 판정 + 참가자 스탯 추출 → Firebase /session/riotMatch 업로드.
+// 업로드된 데이터는 onValue 리스너가 모든 기기에 적용(applyRiotMatchData).
 // 성공 시 { ok: true, winnerLabel, count }, 실패 시 { ok: false, reason }.
 async function applyRiotMatch(match, matchId) {
   const teamAPuuids = currentTeamA.map(p => {
@@ -3469,11 +3533,11 @@ async function applyRiotMatch(match, matchId) {
     return { ok: false, reason: '이 Match ID에서 우리 팀 PUUID를 찾지 못했어요. 다른 경기 ID일 가능성이 있어요.' };
   }
 
-  currentMatchParticipants = {};
+  const participants = {};
   for (const pt of match.info.participants) {
     const fbPlayer = Object.values(registeredPlayers).find(r => r.puuid === pt.puuid);
     if (fbPlayer) {
-      currentMatchParticipants[normName(fbPlayer.name)] = {
+      participants[normName(fbPlayer.name)] = {
         champion: pt.championName,
         kills: pt.kills,
         deaths: pt.deaths,
@@ -3489,23 +3553,40 @@ async function applyRiotMatch(match, matchId) {
       };
     }
   }
-  currentRiotMatchId = matchId;
-  autoSaveOnVotesComplete = true; // 투표 완료 시 자동 저장 모드 활성화
-  await loadChampNamesKR(); // 한글 챔피언명 로드 완료까지 대기 (투표 카드에 한글 챔프명 표시)
-  selectWinner(detectedWinner);
-  checkSaveReady(); // 저장 버튼 라벨 "투표 완료 시 자동 저장"으로 교체
-  // 투표 카드(champCardHtml) 재렌더 → 챔프 이미지 · KDA · 딜량 스탯 즉시 반영
-  if (!isEventMatch) {
-    renderMvpSection();
-    renderMannerSection();
+
+  // Firebase 업로드 → onValue 리스너가 모든 기기(자기 자신 포함)에서 applyRiotMatchData 호출
+  const payload = { riotMatchId: matchId, winner: detectedWinner, participants };
+  try {
+    await update(ref(db, 'session'), { riotMatch: payload });
+  } catch (e) {
+    return { ok: false, reason: 'Firebase 저장 실패 — 네트워크를 확인해주세요' };
   }
-  document.getElementById('result-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // 한글 챔피언명은 미리 로드 (onValue 도착 전에 캐시)
+  await loadChampNamesKR();
 
   return {
     ok: true,
     winnerLabel: detectedWinner === 'blue' ? '🔵 1팀 승리' : '🟡 2팀 승리',
-    count: Object.keys(currentMatchParticipants).length,
+    count: Object.keys(participants).length,
+    mvpAlreadyDone: (mvpConfirmed !== null && mannerConfirmed !== null),
   };
+}
+
+// Firebase /session/riotMatch → 로컬 상태 적용 (모든 기기에서 호출됨).
+function applyRiotMatchData(data) {
+  if (!data || !data.riotMatchId) return;
+  const sameMatch = currentRiotMatchId === data.riotMatchId;
+  currentRiotMatchId = data.riotMatchId;
+  currentMatchParticipants = data.participants || {};
+  autoSaveOnVotesComplete = true;
+  // 승자 자동 선택 — 사용자가 직접 다른 팀 고른 경우엔 덮어쓰지 않음 (같은 Match ID 재수신만 허용)
+  if (!selectedWinner || sameMatch) selectWinner(data.winner);
+  loadChampNamesKR(); // 캐시 보장 (async, UI는 championName 영문으로도 렌더됨)
+  checkSaveReady(); // 저장 버튼 라벨 교체
+  if (!isEventMatch) {
+    renderMvpSection();
+    renderMannerSection();
+  }
 }
 
 let matchSaved = false; // 현재 팀 결과 저장 여부
@@ -3764,6 +3845,7 @@ function teamCard(title,cls,members,avg) {
 // ── WINNER / SAVE ─────────────────────────────────────────────
 let mvpVotes = { teamA: {}, teamB: {} }; // teamA: 1팀이 2팀에서 고름, teamB: 2팀이 1팀에서 고름
 let mvpConfirmed = null; // null | { teamAMvp: string, teamBMvp: string }
+let pendingRiotMatchData = null; // 팀 데이터 로드 전 도착한 Riot Match 데이터 임시 보관
 let pendingMvpData = null; // 팀 데이터 로드 전 도착한 MVP 데이터 임시 보관
 let mannerVotes = { teamA: {}, teamB: {} }; // teamA: 1팀이 2팀에서 고름, teamB: 2팀이 1팀에서 고름
 let mannerConfirmed = null; // null | { teamAManner: string, teamBManner: string }
@@ -3842,9 +3924,10 @@ function renderMvpSection() {
       requestAnimationFrame(() => window.scrollTo(0, savedScrollY));
       if (savedMatchKey) {
         finalizeVotes();
-      } else if (autoSaveOnVotesComplete && selectedWinner && !isEventMatch) {
-        // Match ID 연동 상태 · 승자 확정 → 투표 완료되었으므로 자동 저장
-        // saveMatch 내부에서 mvpConfirmed/mannerConfirmed 이미 완료되었으므로 finalizeVotes 자동 호출됨
+      } else if (autoSaveOnVotesComplete && liveMode && selectedWinner && !isEventMatch) {
+        // 라이브 계정 · Match ID 연동 · 승자 확정 → 투표 완료되었으므로 자동 저장
+        // (liveMode 가드로 팀원 기기에서 중복 saveMatch 호출 방지)
+        autoSaveOnVotesComplete = false; // 즉시 차단 — renderMvpSection 재호출 시 중복 예약 방지
         setTimeout(() => window.saveMatch(), 600); // 투표 결과 배너 노출 시간 확보
       } else {
         checkSaveReady();
