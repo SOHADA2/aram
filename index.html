@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>무작위총력전 아수라장 내전</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Black+Han+Sans&family=Gmarket+Sans:wght@300;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Black+Han+Sans&family=Gmarket+Sans:wght@300;500;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
   --bg:#060d18; --surface:#0d1829; --surface2:#112040; --border:#1a3558;
@@ -17,6 +17,18 @@
   --tier-grandmaster:#e84057; --tier-challenger:#00e4ff;
   --ice1:rgba(130,200,255,0.06);
   --ice2:rgba(80,160,240,0.04);
+  /* 랭킹 v2 디자인 토큰 (v2.29.23~) */
+  --rk-card:#0d1829; --rk-sub:#112040;
+  --rk-text:#e6ebf2; --rk-text-dim:rgba(230,235,242,.55); --rk-text-muted:rgba(230,235,242,.35);
+  --rk-border:rgba(255,255,255,.06); --rk-border-strong:rgba(255,255,255,.1);
+  --rk-dash:rgba(255,255,255,.08);
+  --rk-gold:#e8d080; --rk-gold-deep:#c8a84b; --rk-gold-glow:rgba(232,208,128,.3);
+  --rk-pink:#ff6b9d;
+  /* 랭킹용 티어 컬러 (시안) */
+  --rk-tier-challenger:#00e4ff; --rk-tier-grandmaster:#e84057; --rk-tier-master:#9b59b6;
+  --rk-tier-diamond:#5588ff; --rk-tier-emerald:#00a152; --rk-tier-platinum:#5588ff;
+  --rk-tier-gold:#c8a84b; --rk-tier-silver:#9aa4b0; --rk-tier-bronze:#a06b3a;
+  --rk-tier-iron:#6b6b6b; --rk-tier-unranked:#4a5568;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif;min-height:100vh;overflow-x:hidden;}
@@ -330,6 +342,229 @@ select option{background:var(--surface2);}
 .lb-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;min-width:64px;}
 .lb-score{font-size:21px;font-weight:500;font-family:'Gmarket Sans',sans-serif;color:var(--gold-light);letter-spacing:-0.5px;}
 .wr-high{color:var(--green);} .wr-mid{color:var(--gold);} .wr-low{color:var(--red);}
+
+/* ── 랭킹 v2 (v2.29.23~) ─────────────────────────────────── */
+@keyframes rkGoldShimmer { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+@keyframes rkSilverShimmer { 0%{background-position:0% 50%} 50%{background-position:100% 50%} 100%{background-position:0% 50%} }
+.rk-name-gold{
+  background:linear-gradient(90deg,#8c6d22 0%,#e8d080 25%,#fff4c8 50%,#e8d080 75%,#8c6d22 100%);
+  background-size:200% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+  animation:rkGoldShimmer 2.5s linear infinite;
+}
+.rk-name-silver{
+  background:linear-gradient(90deg,#6b7280 0%,#d1d5db 25%,#ffffff 50%,#d1d5db 75%,#6b7280 100%);
+  background-size:200% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+  animation:rkSilverShimmer 2.5s linear infinite;
+}
+
+/* 헤더 */
+.rk-header{padding:14px 16px;border-bottom:1px solid var(--rk-border);position:relative;}
+.rk-header-row{display:flex;justify-content:space-between;align-items:center;}
+.rk-title{font-family:'Black Han Sans',sans-serif;font-size:20px;letter-spacing:.02em;color:var(--rk-text);display:flex;align-items:baseline;gap:8px;}
+.rk-title-dot{color:var(--rk-gold);letter-spacing:0;}
+.rk-header-actions{display:flex;gap:6px;align-items:center;}
+.rk-season-btn{padding:4px 8px;border-radius:10px;background:rgba(200,168,75,.13);color:var(--rk-gold);border:1px solid rgba(200,168,75,.35);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px;line-height:1;}
+.rk-season-btn .caret{font-size:8px;transition:transform .12s;}
+.rk-season-btn.open .caret{transform:rotate(180deg);}
+.rk-season-dd{position:absolute;top:calc(100% + 4px);right:16px;z-index:30;background:var(--rk-card);border:1px solid var(--rk-border-strong);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);min-width:124px;overflow:hidden;display:none;}
+.rk-season-dd.show{display:block;}
+.rk-season-dd-item{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:9px 11px;border:none;background:transparent;color:var(--rk-text);cursor:pointer;font-family:inherit;text-align:left;font-size:12px;border-bottom:1px solid var(--rk-border);}
+.rk-season-dd-item.active{background:rgba(200,168,75,.13);color:var(--rk-gold);}
+.rk-season-dd-item .nm{font-weight:700;}
+.rk-season-dd-item .st{font-size:8px;letter-spacing:.12em;font-weight:700;font-family:'JetBrains Mono',monospace;padding:2px 5px;border-radius:3px;background:rgba(255,255,255,.06);color:var(--rk-text-muted);}
+.rk-season-dd-item .st.now{background:rgba(0,230,118,.15);color:var(--green);}
+.rk-live-tag{font-size:9px;padding:3px 7px;border-radius:10px;background:rgba(239,83,80,.15);color:var(--red);border:1px solid rgba(239,83,80,.35);font-family:'JetBrains Mono',monospace;letter-spacing:.12em;font-weight:600;}
+.rk-stats-strip{margin-top:12px;padding-top:10px;border-top:1px dashed var(--rk-dash);display:flex;align-items:baseline;gap:14px;font-family:'JetBrains Mono',monospace;}
+.rk-stat{display:flex;align-items:baseline;gap:6px;}
+.rk-stat-label{font-size:9px;letter-spacing:.18em;color:var(--rk-text-muted);font-weight:600;}
+.rk-stat-val{font-family:'Gmarket Sans',sans-serif;font-size:15px;font-weight:700;letter-spacing:-.02em;line-height:1;}
+.rk-stat-sep{width:1px;height:14px;background:var(--rk-border);align-self:center;}
+
+/* 섹션 헤더 */
+.rk-section-bar{padding:6px 18px 10px;display:flex;justify-content:space-between;align-items:baseline;}
+.rk-section-bar .lbl{font-family:'Black Han Sans',sans-serif;font-size:14px;color:var(--rk-text);letter-spacing:.03em;}
+.rk-section-bar .meta{font-size:10px;color:var(--rk-text-muted);font-family:'JetBrains Mono',monospace;letter-spacing:.1em;}
+
+/* TOP3 컨테이너 */
+.rk-top3{padding:18px 14px 14px;display:flex;flex-direction:column;gap:10px;}
+.rk-top3-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+
+/* HeroCard */
+.rk-hero{position:relative;border-radius:12px;overflow:hidden;background:linear-gradient(160deg,var(--rk-card) 0%,var(--rk-sub) 100%);display:flex;flex-direction:column;cursor:pointer;transition:transform .15s;}
+.rk-hero.first{padding:16px 18px 14px;min-height:200px;border:1.5px solid #e8d08040;}
+.rk-hero.second{padding:12px 12px 10px;min-height:180px;border:1.5px solid #d1d5db40;}
+.rk-hero.third{padding:12px 12px 10px;min-height:180px;border:1.5px solid #c9946640;}
+.rk-hero.me{box-shadow:0 0 0 2px var(--rk-gold-deep),0 0 20px var(--rk-gold-glow);}
+.rk-hero:active{transform:scale(.99);}
+.rk-hero .glow{position:absolute;top:0;left:0;right:0;height:60%;pointer-events:none;}
+.rk-hero.first .glow{background:radial-gradient(ellipse 140% 85% at 50% 0%,#e8d08030 0%,transparent 70%);}
+.rk-hero.second .glow{background:radial-gradient(ellipse 140% 85% at 50% 0%,#d1d5db30 0%,transparent 70%);}
+.rk-hero.third .glow{background:radial-gradient(ellipse 140% 85% at 50% 0%,#c9946630 0%,transparent 70%);}
+.rk-hero .hatch{position:absolute;inset:0;pointer-events:none;background-image:repeating-linear-gradient(135deg,transparent 0 12px,rgba(255,255,255,.02) 12px 13px);}
+.rk-hero-top{display:flex;justify-content:space-between;align-items:flex-start;z-index:1;margin-bottom:6px;position:relative;}
+.rk-hero-top-left{display:flex;align-items:center;gap:6px;}
+.rk-medal{line-height:1;filter:drop-shadow(0 0 8px rgba(255,255,255,.15));}
+.rk-hero.first .rk-medal{font-size:32px;}
+.rk-hero.second .rk-medal,.rk-hero.third .rk-medal{font-size:22px;}
+.rk-hero-name{font-weight:800;margin-top:4px;display:flex;align-items:center;gap:4px;z-index:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--rk-text);position:relative;}
+.rk-hero.first .rk-hero-name{font-size:22px;}
+.rk-hero.second .rk-hero-name,.rk-hero.third .rk-hero-name{font-size:15px;}
+.rk-hero-motto{font-style:italic;color:var(--rk-text-dim);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;z-index:1;position:relative;}
+.rk-hero.first .rk-hero-motto{font-size:12px;}
+.rk-hero.second .rk-hero-motto,.rk-hero.third .rk-hero-motto{font-size:10px;}
+.rk-hero-chips{display:flex;gap:4px;margin-top:8px;flex-wrap:wrap;z-index:1;position:relative;}
+.rk-hero-bottom{margin-top:auto;padding-top:10px;z-index:1;border-top:1px dashed var(--rk-dash);display:flex;align-items:baseline;justify-content:space-between;gap:6px;position:relative;}
+.rk-hero-score{display:flex;align-items:baseline;gap:4px;}
+.rk-hero-score .num{font-family:'Gmarket Sans',sans-serif;font-weight:700;color:var(--rk-gold);letter-spacing:-.02em;line-height:1;text-shadow:0 0 16px var(--rk-gold-glow);}
+.rk-hero-score .num.dim{color:var(--rk-text-muted);text-shadow:none;}
+.rk-hero.first .rk-hero-score .num{font-size:30px;}
+.rk-hero.second .rk-hero-score .num,.rk-hero.third .rk-hero-score .num{font-size:21px;}
+.rk-hero-score .pt{font-size:10px;color:rgba(232,208,128,.6);font-weight:500;}
+
+/* MiniCard */
+.rk-list{padding:0 14px;display:flex;flex-direction:column;gap:8px;}
+.rk-mini{position:relative;display:grid;grid-template-columns:26px 1fr auto;gap:10px;padding:10px 12px 10px 16px;align-items:center;background:var(--rk-card);border-radius:10px;border:1px solid var(--rk-border);overflow:hidden;cursor:pointer;}
+.rk-mini.me{box-shadow:0 0 0 1.5px var(--rk-gold-deep),0 0 14px var(--rk-gold-glow);}
+.rk-mini .stripe{position:absolute;left:0;top:0;bottom:0;width:3px;}
+.rk-mini-rank{display:flex;align-items:center;justify-content:center;font-family:'Black Han Sans',sans-serif;font-size:22px;color:var(--rk-text-muted);line-height:1;}
+.rk-mini-main{min-width:0;display:flex;flex-direction:column;gap:3px;}
+.rk-mini-name-row{display:flex;align-items:center;gap:5px;}
+.rk-mini-name{font-size:14px;font-weight:700;color:var(--rk-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rk-mini-motto{font-size:10.5px;font-style:italic;color:var(--rk-text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;}
+.rk-mini-meta{display:flex;gap:4px;align-items:center;margin-top:2px;}
+.rk-mini-right{display:flex;flex-direction:column;align-items:flex-end;gap:3px;}
+.rk-mini-score{display:flex;align-items:baseline;gap:2px;}
+.rk-mini-score .num{font-family:'Gmarket Sans',sans-serif;font-weight:700;font-size:21px;color:var(--rk-gold);letter-spacing:-.02em;line-height:1;}
+.rk-mini-score .num.dim{color:var(--rk-text-muted);}
+.rk-mini-score .pt{font-size:10px;color:rgba(232,208,128,.6);font-weight:500;}
+.rk-newbie-emoji{font-size:10px;}
+.rk-hero-newbie{font-size:12px;}
+
+/* TierBadge */
+.rk-tier{display:inline-flex;align-items:center;justify-content:center;font-family:'Gmarket Sans','Noto Sans KR',sans-serif;font-weight:700;line-height:1;border-radius:4px;letter-spacing:.02em;white-space:nowrap;box-sizing:border-box;}
+.rk-tier.big{height:22px;padding:0 10px;font-size:11px;}
+.rk-tier.mid{height:20px;padding:0 8px;font-size:10px;}
+.rk-tier.mini{height:18px;padding:0 7px;font-size:10px;}
+.rk-tier-challenger{color:var(--rk-tier-challenger);border:1px solid var(--rk-tier-challenger);background:rgba(0,228,255,.08);box-shadow:0 0 8px rgba(0,228,255,.25);}
+.rk-tier-grandmaster{color:var(--rk-tier-grandmaster);border:1px solid var(--rk-tier-grandmaster);background:rgba(232,64,87,.08);box-shadow:0 0 8px rgba(232,64,87,.25);}
+.rk-tier-master{color:var(--rk-tier-master);border:1px solid var(--rk-tier-master);background:rgba(155,89,182,.08);box-shadow:0 0 8px rgba(155,89,182,.25);}
+.rk-tier-diamond{color:var(--rk-tier-diamond);border:1px solid var(--rk-tier-diamond);background:rgba(85,136,255,.08);box-shadow:0 0 8px rgba(85,136,255,.25);}
+.rk-tier-emerald{color:var(--rk-tier-emerald);border:1px solid var(--rk-tier-emerald);background:rgba(0,161,82,.08);box-shadow:0 0 8px rgba(0,161,82,.25);}
+.rk-tier-platinum{color:var(--rk-tier-platinum);border:1px solid var(--rk-tier-platinum);background:rgba(85,136,255,.08);box-shadow:0 0 8px rgba(85,136,255,.25);}
+.rk-tier-gold{color:var(--rk-tier-gold);border:1px solid var(--rk-tier-gold);background:rgba(200,168,75,.08);box-shadow:0 0 8px rgba(200,168,75,.25);}
+.rk-tier-silver{color:var(--rk-tier-silver);border:1px solid var(--rk-tier-silver);background:rgba(154,164,176,.08);box-shadow:0 0 8px rgba(154,164,176,.25);}
+.rk-tier-bronze{color:var(--rk-tier-bronze);border:1px solid var(--rk-tier-bronze);background:rgba(160,107,58,.08);box-shadow:0 0 8px rgba(160,107,58,.25);}
+.rk-tier-iron{color:var(--rk-tier-iron);border:1px solid var(--rk-tier-iron);background:rgba(107,107,107,.08);box-shadow:0 0 8px rgba(107,107,107,.25);}
+.rk-tier-unranked{color:var(--rk-tier-unranked);border:1px solid var(--rk-tier-unranked);background:rgba(74,85,104,.08);}
+
+/* ClassChip */
+.rk-cls{padding:2px 8px;font-size:10px;font-weight:600;border-radius:3px;display:inline-flex;align-items:center;gap:3px;}
+.rk-cls.tiny{padding:1px 6px;font-size:9px;}
+.rk-cls-1{color:#c8a84b;background:rgba(200,168,75,.09);border:1px solid rgba(200,168,75,.25);}
+.rk-cls-2{color:#4fc3f7;background:rgba(79,195,247,.09);border:1px solid rgba(79,195,247,.25);}
+
+/* StreakDots */
+.rk-streak{display:flex;gap:3px;align-items:center;}
+.rk-streak.tiny{gap:2px;}
+.rk-streak-dot{border-radius:50%;}
+.rk-streak-dot.w{background:#00e676;box-shadow:0 0 4px rgba(0,230,118,.5);}
+.rk-streak-dot.l{background:#ef5350;box-shadow:0 0 4px rgba(239,83,80,.4);}
+
+/* MeTag */
+.rk-me{padding:2px 5px;background:var(--rk-gold-deep);color:#060d18;font-weight:800;letter-spacing:.05em;border-radius:3px;font-family:'Black Han Sans',sans-serif;font-size:9px;}
+.rk-me.small{padding:1px 4px;font-size:8px;}
+
+/* ProfileSheet */
+@keyframes rkSheetFade { from{opacity:0} to{opacity:1} }
+@keyframes rkSheetPop { from{opacity:0;transform:scale(.94) translateY(8px)} to{opacity:1;transform:scale(1) translateY(0)} }
+.rk-sheet-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.6);backdrop-filter:blur(2px);animation:rkSheetFade .18s ease-out;padding:20px 14px;}
+.rk-sheet{width:100%;max-width:360px;max-height:90vh;background:var(--rk-card);border-radius:16px;border:1px solid rgba(255,255,255,.1);box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 0 1px rgba(200,168,75,.08);display:flex;flex-direction:column;overflow:hidden;animation:rkSheetPop .2s cubic-bezier(.2,.8,.2,1);}
+.rk-sheet-head{padding:10px 18px 16px;border-bottom:1px solid var(--rk-border);display:flex;align-items:center;gap:12px;background:linear-gradient(180deg,rgba(200,168,75,.06) 0%,transparent 100%);}
+.rk-sheet-avatar{width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#112040 0%,#1a2b4a 100%);display:flex;align-items:center;justify-content:center;color:var(--rk-text);font-weight:900;flex-shrink:0;box-sizing:border-box;}
+.rk-sheet-avatar.has-emoji{font-size:26px;}
+.rk-sheet-avatar.no-emoji{font-size:22px;}
+.rk-sheet-info{flex:1;min-width:0;}
+.rk-sheet-name-row{display:flex;align-items:center;gap:5px;margin-bottom:3px;}
+.rk-sheet-name{font-size:18px;font-weight:800;color:var(--rk-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.rk-sheet-meta-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;}
+.rk-sheet-actions{display:flex;gap:6px;}
+.rk-sheet-btn{width:32px;height:32px;border-radius:8px;background:transparent;color:var(--rk-text);cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;justify-content:center;font-family:inherit;}
+.rk-sheet-btn.edit{border:1px solid var(--rk-gold-deep);}
+.rk-sheet-btn.close{border:1px solid rgba(255,255,255,.2);}
+.rk-sheet-body{flex:1;overflow-y:auto;padding:0 18px 20px;}
+.rk-sheet-motto{padding:14px 2px;font-style:italic;color:rgba(230,235,242,.7);font-size:13px;line-height:1.5;border-bottom:1px dashed var(--rk-dash);}
+.rk-sheet-stats{margin:16px 0;padding:14px 10px;background:var(--rk-sub);border-radius:10px;display:grid;grid-template-columns:repeat(5,1fr);gap:4px;}
+.rk-stat-cell{text-align:center;}
+.rk-stat-cell .k{font-size:9px;letter-spacing:.15em;color:rgba(255,255,255,.4);font-family:'JetBrains Mono',monospace;font-weight:600;margin-bottom:3px;}
+.rk-stat-cell .v{font-family:'Gmarket Sans',sans-serif;font-size:17px;font-weight:700;color:var(--rk-text);letter-spacing:-.02em;line-height:1;}
+.rk-score-card{margin:16px 0 20px;padding:14px 18px;background:linear-gradient(135deg,rgba(200,168,75,.12),rgba(200,168,75,.04));border:1px solid rgba(200,168,75,.3);border-radius:10px;display:flex;align-items:center;justify-content:space-between;}
+.rk-score-card .lbl{font-size:9px;letter-spacing:.2em;color:rgba(232,208,128,.7);font-family:'JetBrains Mono',monospace;font-weight:600;margin-bottom:4px;}
+.rk-score-card .sub{font-size:11px;color:rgba(230,235,242,.5);}
+.rk-score-card .big{font-family:'Gmarket Sans',sans-serif;font-weight:700;font-size:36px;color:var(--rk-gold);letter-spacing:-.02em;line-height:1;text-shadow:0 0 20px rgba(232,208,128,.35);}
+.rk-score-card .pt{font-size:12px;color:rgba(232,208,128,.7);font-weight:500;margin-left:4px;}
+.rk-acc{margin:10px 0;border:1px solid var(--rk-border);border-radius:10px;overflow:hidden;}
+.rk-acc-head{width:100%;padding:12px 14px;border:none;background:var(--rk-sub);display:flex;align-items:center;gap:8px;cursor:pointer;font-family:inherit;color:var(--rk-text);}
+.rk-acc.open .rk-acc-head{background:rgba(255,107,157,.07);}
+.rk-acc.rivals.open .rk-acc-head{background:rgba(239,83,80,.07);}
+.rk-acc-head .icon{font-size:15px;}
+.rk-acc-head .title{font-size:13px;font-weight:700;}
+.rk-acc-head .count{font-size:10px;padding:2px 6px;border-radius:10px;font-family:'JetBrains Mono',monospace;font-weight:700;background:rgba(255,107,157,.18);color:var(--rk-pink);}
+.rk-acc.rivals .rk-acc-head .count{background:rgba(239,83,80,.18);color:var(--red);}
+.rk-acc-head .chev{margin-left:auto;color:rgba(255,255,255,.4);font-size:11px;transition:transform .15s;}
+.rk-acc.open .rk-acc-head .chev{transform:rotate(180deg);}
+.rk-acc-body{padding:8px 14px 14px;background:var(--rk-card);display:none;}
+.rk-acc.open .rk-acc-body{display:block;}
+.rk-pair{display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px dashed rgba(255,255,255,.05);}
+.rk-pair-avatar{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;}
+.rk-pair-name{flex:1;font-size:13px;font-weight:600;color:var(--rk-text);}
+.rk-pair-games{font-size:11px;color:rgba(230,235,242,.5);font-family:'JetBrains Mono',monospace;}
+.rk-pair-wr{font-size:13px;font-weight:700;font-family:'Gmarket Sans',sans-serif;}
+.rk-pair.soul .rk-pair-avatar{background:rgba(255,107,157,.13);border:1px solid rgba(255,107,157,.3);color:var(--rk-pink);}
+.rk-pair.soul .rk-pair-wr{color:var(--rk-pink);}
+.rk-pair.rival .rk-pair-avatar{background:rgba(239,83,80,.13);border:1px solid rgba(239,83,80,.3);color:var(--red);}
+.rk-pair.rival .rk-pair-wr{color:var(--red);}
+.rk-empty{padding:16px 4px;font-size:11px;color:rgba(255,255,255,.35);text-align:center;}
+.rk-pos-icon{width:20px;height:20px;border-radius:4px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;}
+.rk-pos-icon.g1{background:rgba(200,168,75,.13);border:1px solid rgba(200,168,75,.3);color:#c8a84b;}
+.rk-pos-icon.g2{background:rgba(79,195,247,.13);border:1px solid rgba(79,195,247,.3);color:#4fc3f7;}
+
+/* 편집 모드 */
+.rk-edit-section{margin-bottom:14px;}
+.rk-edit-section .lbl{font-size:11px;color:rgba(230,235,242,.7);font-weight:600;margin-bottom:7px;letter-spacing:.02em;}
+.rk-edit-section .hint{font-size:10px;color:rgba(255,255,255,.4);margin-top:6px;font-style:italic;}
+.rk-emoji-grid{display:flex;flex-wrap:wrap;gap:5px;}
+.rk-emoji-btn{width:30px;height:30px;border:1px solid rgba(255,255,255,.08);background:var(--rk-sub);border-radius:6px;cursor:pointer;font-size:15px;padding:0;font-family:inherit;line-height:1;color:var(--rk-text);}
+.rk-emoji-btn.selected{border:1.5px solid var(--rk-gold-deep);background:rgba(200,168,75,.2);}
+.rk-emoji-btn.none{border:1px dashed rgba(255,255,255,.15);background:transparent;color:rgba(255,255,255,.4);font-size:10px;}
+.rk-emoji-btn.none.selected{background:rgba(200,168,75,.13);}
+.rk-motto-wrap{position:relative;}
+.rk-motto-input{width:100%;padding:10px 48px 10px 12px;background:var(--rk-sub);border:1px solid rgba(255,255,255,.1);color:var(--rk-text);border-radius:8px;font-size:13px;font-family:inherit;}
+.rk-motto-counter{position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:10px;color:rgba(255,255,255,.4);font-family:'JetBrains Mono',monospace;}
+.rk-class-grid{display:flex;flex-wrap:wrap;gap:5px;}
+.rk-class-btn{padding:5px 9px;border:1px solid rgba(255,255,255,.08);background:var(--rk-sub);border-radius:14px;cursor:pointer;font-size:11px;font-weight:600;font-family:inherit;line-height:1;display:inline-flex;align-items:center;gap:4px;color:rgba(255,255,255,.4);}
+.rk-class-btn.g1{color:#c8a84b;border-color:#c8a84b;background:rgba(200,168,75,.09);}
+.rk-class-btn.g2{color:#4fc3f7;border-color:#4fc3f7;background:rgba(79,195,247,.09);}
+.rk-class-btn[disabled]{opacity:.4;cursor:not-allowed;background:rgba(255,255,255,.02);}
+.rk-class-btn .grp{font-size:8px;letter-spacing:.08em;font-family:'JetBrains Mono',monospace;font-weight:700;padding:1px 4px;border-radius:3px;background:rgba(0,0,0,.3);}
+.rk-live-block{margin:16px 0;padding:12px;background:rgba(239,83,80,.06);border:1px solid rgba(239,83,80,.2);border-radius:10px;}
+.rk-live-tag-inline{font-size:10px;letter-spacing:.15em;color:var(--red);font-family:'JetBrains Mono',monospace;font-weight:700;margin-bottom:10px;}
+.rk-newbie-toggle{display:flex;align-items:center;gap:10px;cursor:pointer;}
+.rk-newbie-toggle input{width:18px;height:18px;accent-color:var(--green);}
+.rk-newbie-toggle .text{font-size:12px;color:var(--rk-text);}
+.rk-riot-row{display:flex;gap:6px;}
+.rk-riot-input{flex:1;padding:8px 10px;background:var(--rk-card);border:1px solid rgba(255,255,255,.1);color:var(--rk-text);border-radius:6px;font-size:12px;font-family:'JetBrains Mono',monospace;}
+.rk-riot-btn{padding:8px 12px;border:1px solid rgba(126,203,255,.4);background:rgba(126,203,255,.1);color:#7ecbff;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;}
+.rk-riot-status{font-size:10px;margin-top:6px;font-family:'JetBrains Mono',monospace;}
+.rk-riot-status.ok{color:var(--green);}
+.rk-riot-status.err{color:var(--red);}
+.rk-delete-btn{width:100%;padding:9px;margin-top:4px;border:1px solid rgba(239,83,80,.4);background:rgba(239,83,80,.1);color:var(--red);border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;}
+.rk-edit-actions{display:flex;gap:8px;margin-top:18px;position:sticky;bottom:0;background:linear-gradient(180deg,transparent,var(--rk-card) 30%);padding:12px 0 4px;}
+.rk-edit-cancel{flex:1;padding:12px;border:1px solid rgba(255,255,255,.12);background:transparent;color:rgba(230,235,242,.7);border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;}
+.rk-edit-save{flex:2;padding:12px;border:none;background:linear-gradient(135deg,#e8d080,#c8a84b);color:#060d18;border-radius:8px;cursor:pointer;font-size:13px;font-weight:800;font-family:inherit;box-shadow:0 4px 16px rgba(200,168,75,.3);}
 .match-item{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:10px;}
 .match-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;padding-bottom:8px;border-bottom:1px solid var(--border);}
 .match-date{font-size:10px;color:var(--text-dim);flex:1;text-align:right;}
@@ -1232,13 +1467,34 @@ img.emoji{
 
 <!-- ===== TAB: 랭킹 ===== -->
 <div id="tab-rank" class="tab-content">
-  <div class="card">
-    <div class="card-title">내전 랭킹 🏆</div>
-    <div id="rank-list">
-      <div class="empty-state"><div class="icon">🏆</div>경기 기록이 쌓이면 랭킹이 생성됩니다</div>
+  <div class="rk-header">
+    <div class="rk-header-row">
+      <div class="rk-title">ARAM<span class="rk-title-dot">·</span>내전</div>
+      <div class="rk-header-actions">
+        <button id="rk-season-btn" class="rk-season-btn" onclick="toggleRankSeasonDropdown(event)">
+          <span id="rk-season-label">S0</span>
+          <span class="caret">▾</span>
+        </button>
+        <span id="rk-live-tag" class="rk-live-tag" style="display:none;">LIVE</span>
+      </div>
+    </div>
+    <div id="rk-season-dd" class="rk-season-dd"></div>
+    <div class="rk-stats-strip">
+      <div class="rk-stat">
+        <span class="rk-stat-label">GAMES</span>
+        <span id="rk-stat-games" class="rk-stat-val" style="color:var(--rk-gold);">0</span>
+      </div>
+      <span class="rk-stat-sep"></span>
+      <div class="rk-stat">
+        <span class="rk-stat-label">PLAYERS</span>
+        <span id="rk-stat-players" class="rk-stat-val" style="color:var(--rk-text);">0</span>
+      </div>
     </div>
   </div>
-  <div class="card" style="font-size:12px;color:var(--text-dim);line-height:2;">
+  <div id="rank-list">
+    <div class="empty-state"><div class="icon">🏆</div>경기 기록이 쌓이면 랭킹이 생성됩니다</div>
+  </div>
+  <div class="card" style="font-size:12px;color:var(--text-dim);line-height:2;margin:12px 14px 0;">
     <div class="card-title">티어 산정 기준</div>
     최소 <strong style="color:var(--text)">3판</strong> 이상 참여해야 티어가 부여됩니다. 승리 <strong style="color:var(--green)">+10pt</strong> · 패배 <strong style="color:var(--red)">-7pt</strong> · 시작 500pt · 판수가 쌓일수록 정확해집니다.<br>
     🌱 뉴비와 같은 팀 승리 시 <strong style="color:var(--green)">+13pt / +20G</strong> · 패배 시 <strong style="color:var(--red)">-4pt</strong> · 뉴비 본인 패배 <strong style="color:var(--red)">-2pt</strong><br>
@@ -1405,7 +1661,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.22';
+const APP_VERSION = 'v2.29.23';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1414,6 +1670,11 @@ const APP_VERSION = 'v2.29.22';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.23', date: '2026-04-21', changes: [
+    { tag: 'new', text: '🏆 랭킹 탭 리디자인 — TOP3 영웅 카드(1위 풀폭 + 2·3위 2열) + 4위↓ 미니 카드 레이아웃, 시즌 드롭다운(S0/S1...)·GAMES/PLAYERS 스트립 헤더, 1·2위 이름 골드/실버 shimmer 애니메이션' },
+    { tag: 'new', text: '🎴 랭킹 카드 → 신규 프로필 시트 — 중앙 팝업(view/edit 모드), 5칸 통계(경기/승/패/승률/MVP)·시즌 점수 카드·단짝💞/웬수💢 아코디언 + 편집 시 상태 이모지 그리드·한마디 20자 카운터·포지션 1군→2군→해제 토글, LIVE 계정에서만 뉴비 토글/Riot ID 조회/삭제 노출' },
+    { tag: 'improve', text: '색상/폰트 시스템 정리 — JetBrains Mono 추가(라벨용), 티어별 컬러 CSS 변수(--rk-tier-*)·골드 액센트(--rk-gold/--rk-gold-deep) 토큰화' },
+  ]},
   { ver: 'v2.29.22', date: '2026-04-21', changes: [
     { tag: 'new', text: 'Match ID 연동 정보 Firebase 동기화 — 라이브용 계정이 불러온 승자·챔피언·KDA·딜량이 팀원 기기 MVP·매너왕 투표 카드에도 즉시 반영되고, 새로고침 시에도 복원됨' },
     { tag: 'new', text: '연동 취소 버튼 — 잘못된 Match ID를 불러온 경우 성공 안내의 "↩ 연동 취소" 버튼으로 승자·챔피언 정보·자동 저장 모드를 모두 원상복구' },
@@ -5574,56 +5835,735 @@ window.claimAchievement = async function(id) {
   updateMyInfoBar();
 };
 
-function renderRanking() {
-  const el=document.getElementById('rank-list');
-  const names=new Set();
-  Object.values(registeredPlayers).forEach(p=>names.add(p.name));
-  Object.values(matches).forEach(m=>{
-    (m.teamA||[]).forEach(n=>names.add(n));
-    (m.teamB||[]).forEach(n=>names.add(n));
+// ── 랭킹 v2 헬퍼 (v2.29.23~) ──────────────────────────────
+// 이름으로 Firebase key 찾기
+function findFbKeyByName(name) {
+  const k = normName(name);
+  return Object.entries(registeredPlayers).find(([,p]) => normName(p.name) === k)?.[0] || null;
+}
+
+// 최근 5판 W/L 문자열 ("WWLWW" 형식, 좌→우 = 오래된→최신)
+function calcRecentStreak(name, season = CURRENT_SEASON, n = 5) {
+  const key = normName(name);
+  const arr = Object.values(matches)
+    .filter(m => (m.season ?? 0) === season)
+    .map(m => {
+      const inA = (m.teamA||[]).some(x => normName(x) === key);
+      const inB = (m.teamB||[]).some(x => normName(x) === key);
+      if (!inA && !inB) return null;
+      const won = (m.winner==='blue'&&inA)||(m.winner==='red'&&inB);
+      return { ts: m.timestamp || 0, c: won ? 'W' : 'L' };
+    })
+    .filter(Boolean)
+    .sort((a,b) => b.ts - a.ts) // 최신 먼저
+    .slice(0, n)
+    .reverse(); // 시안 형식: 좌=오래된 → 우=최신
+  return arr.map(x => x.c).join('');
+}
+
+// 시안용 단짝/웬수: 한 번 호출로 모아서 반환
+function calcPairStatsForRank(name, season = CURRENT_SEASON) {
+  const allNames = new Set();
+  Object.values(registeredPlayers).forEach(p => allNames.add(p.name));
+  Object.values(matches).forEach(m => {
+    if ((m.season ?? 0) !== season) return;
+    (m.teamA||[]).forEach(n => allNames.add(n));
+    (m.teamB||[]).forEach(n => allNames.add(n));
   });
-  if(names.size===0){el.innerHTML='<div class="empty-state"><div class="icon">🏆</div>경기 기록이 쌓이면 랭킹이 생성됩니다</div>';return;}
-  const rows=[...names].map(name=>{
-    const s=calcStats(name);
-    const sc=calcScore(name);
-    return{name,...s,tier:calcTierFromScore(name),score:sc.score,raw:sc.raw};
-  }).sort((a,b)=>{
-    if(a.total===0&&b.total===0)return 0;
-    if(a.total===0)return 1; if(b.total===0)return -1;
-    return b.score-a.score || b.total-a.total;
+  const list = [];
+  allNames.forEach(other => {
+    if (normName(other) === normName(name)) return;
+    const s = calcPairStats(name, other, 3);
+    if (!s) return;
+    list.push({ other, games: s.together, wins: s.wins, wr: Math.round(s.wr * 100) });
   });
-  el.innerHTML=rows.map((r,i)=>{
-    const t=TIERS[r.tier];
-    const rankEmoji=i<3?['🥇','🥈','🥉'][i]:null;
-    const rankHtml=rankEmoji
-      ?`<span style="font-size:22px">${rankEmoji}</span>`
-      :`<span style="font-size:13px;color:var(--text-dim)">${i+1}</span>`;
-    const fbKey = Object.entries(registeredPlayers).find(([,p])=>p.name===r.name)?.[0] || null;
-    const player = fbKey ? registeredPlayers[fbKey] : null;
-    const tier1 = player?.champTier1 || [];
-    const tier2 = player?.champTier2 || [];
-    const motto = player?.motto || '';
-    const isNewbiePlayer = player?.isNewbie || false;
-    const posIcons = [
-      ...tier1.map(id=>{ const c=CHAMP_CLASSES.find(x=>x.id===id); return c?`<span class="pos-icon tier1">${c.label}</span>`:''; }),
-      ...tier2.map(id=>{ const c=CHAMP_CLASSES.find(x=>x.id===id); return c?`<span class="pos-icon tier2">${c.label}</span>`:''; }),
-    ].join('');
-    return`
-    <div class="lb-row" onclick="openProfileModal('${fbKey}')">
-      <div class="lb-rank">${rankHtml}</div>
-      <div class="lb-main">
-        <div class="lb-name-text">${i===0?`<span class="rank-1-name">${escHtml(r.name)}</span>`:i===1?`<span class="rank-2-name">${escHtml(r.name)}</span>`:escHtml(r.name)}${isNewbiePlayer ? ' <span class="newbie-badge">🌱</span>' : ''}${i<3?' <span class="rank-badge">'+['🥇','🥈','🥉'][i]+'</span>':''}</div>
-        ${motto?`<div class="lb-motto">"${escHtml(motto)}"</div>`:''}
-        ${posIcons?`<div class="lb-pos-icons">${posIcons}</div>`:''}
-      </div>
-      <div class="lb-right">
-        <span class="tier-badge ${t.cls}" style="font-size:10px;padding:2px 7px;">${t.label}</span>
-        ${r.total>=3
-          ?`<div class="lb-score">${r.score}<span style="font-size:10px;color:var(--text-dim);font-family:'Noto Sans KR',sans-serif;font-weight:400;margin-left:2px;">pt</span></div>`
-          :`<div style="font-size:11px;color:var(--text-dim);">-</div>`}
-      </div>
-    </div>`;
+  return {
+    soulmates: list.filter(x => x.wr >= 55).sort((a,b) => b.wr - a.wr),
+    rivals:    list.filter(x => x.wr <= 40).sort((a,b) => a.wr - b.wr),
+  };
+}
+
+// 랭킹 행 1개에 필요한 데이터 한 번에 조립
+function buildRankRow(name, season = CURRENT_SEASON) {
+  const fbKey = findFbKeyByName(name);
+  const player = fbKey ? registeredPlayers[fbKey] : null;
+  const s = calcStats(name, season);
+  const sc = calcScore(name, season);
+  const tier = getEffectiveTier(name, player?.manualTier);
+  return {
+    name,
+    fbKey,
+    tier,
+    score: s.total >= 3 ? sc.score : null,
+    games: s.total,
+    wins: s.wins,
+    losses: s.losses,
+    mvpCount: calcMvpCount(name),
+    streak: calcRecentStreak(name, season),
+    motto: player?.motto || '',
+    statusEmoji: player?.statusEmoji || '',
+    isNewbie: !!player?.isNewbie,
+    champTier1: player?.champTier1 || [],
+    champTier2: player?.champTier2 || [],
+    riotId: player?.riotId || '',
+    puuid: player?.puuid || '',
+    me: !!myName && normName(myName) === normName(name),
+  };
+}
+
+// 랭킹 탭 전용 시즌 상태
+let rankViewSeason = 0; // CURRENT_SEASON 로드 후 동기화
+
+function getRankSeasons() {
+  const set = new Set(Object.values(matches).map(m => m.season ?? 0));
+  set.add(CURRENT_SEASON);
+  return [...set].sort((a,b) => a - b);
+}
+
+// ── 랭킹 v2 렌더 (v2.29.23~) ──────────────────────────────
+function renderRankTierBadge(tier, size /* 'big'|'mid'|'mini' */) {
+  const t = TIERS[tier] || TIERS.unranked;
+  return `<span class="rk-tier ${size||'mid'} rk-tier-${tier}">${t.label}</span>`;
+}
+
+function renderRankClassChips(t1, t2, opts) {
+  const tiny = opts?.tiny ? ' tiny' : '';
+  const max = opts?.max;
+  const items = [
+    ...t1.map(id => ({ id, g: 1 })),
+    ...t2.map(id => ({ id, g: 2 })),
+  ];
+  const list = max ? items.slice(0, max) : items;
+  return list.map(c => {
+    const cls = CHAMP_CLASSES.find(x => x.id === c.id);
+    if (!cls) return '';
+    return `<span class="rk-cls rk-cls-${c.g}${tiny}">${cls.label}</span>`;
   }).join('');
+}
+
+function renderRankStreakDots(streak, opts) {
+  if (!streak) return '';
+  const tiny = opts?.tiny ? ' tiny' : '';
+  const sz = opts?.tiny ? 5 : opts?.small ? 6 : 7;
+  return `<div class="rk-streak${tiny}">${streak.split('').map(r => {
+    const c = r === 'W' ? 'w' : 'l';
+    return `<span class="rk-streak-dot ${c}" style="width:${sz}px;height:${sz}px;"></span>`;
+  }).join('')}</div>`;
+}
+
+function renderRankMeTag(small) {
+  return `<span class="rk-me${small?' small':''}">나</span>`;
+}
+
+function renderRankHeroCard(r, place) {
+  const medal = place === 1 ? '🥇' : place === 2 ? '🥈' : '🥉';
+  const cls = place === 1 ? 'first' : place === 2 ? 'second' : 'third';
+  const nameClass = place === 1 ? 'rk-name-gold' : place === 2 ? 'rk-name-silver' : '';
+  const meCls = r.me ? ' me' : '';
+  const tierBadge = renderRankTierBadge(r.tier, place === 1 ? 'big' : 'mid');
+  const chips = renderRankClassChips(r.champTier1, r.champTier2);
+  const dots = renderRankStreakDots(r.streak, { small: place !== 1 });
+  const scoreNum = r.games >= 3 && r.score != null
+    ? `<span class="num">${r.score.toLocaleString()}</span><span class="pt">pt</span>`
+    : `<span class="num dim">—</span>`;
+  return `<div class="rk-hero ${cls}${meCls}" data-name="${escHtml(r.name)}">
+    <div class="glow"></div>
+    <div class="hatch"></div>
+    <div class="rk-hero-top">
+      <div class="rk-hero-top-left">
+        <span class="rk-medal">${medal}</span>
+        ${r.me ? renderRankMeTag(false) : ''}
+      </div>
+      <div>${tierBadge}</div>
+    </div>
+    <div class="rk-hero-name ${nameClass}">
+      <span>${escHtml(r.name)}</span>
+      ${r.isNewbie ? '<span class="rk-hero-newbie">🌱</span>' : ''}
+    </div>
+    ${r.motto ? `<div class="rk-hero-motto">"${escHtml(r.motto)}"</div>` : ''}
+    ${chips ? `<div class="rk-hero-chips">${chips}</div>` : ''}
+    <div class="rk-hero-bottom">
+      ${dots || '<span></span>'}
+      <div class="rk-hero-score">${scoreNum}</div>
+    </div>
+  </div>`;
+}
+
+function renderRankMiniCard(r, displayRank) {
+  const tierColor = `var(--rk-tier-${r.tier})`;
+  const meCls = r.me ? ' me' : '';
+  const dots = renderRankStreakDots(r.streak, { tiny: true });
+  const chips = renderRankClassChips(r.champTier1, r.champTier2, { max: 3, tiny: true });
+  const scoreNum = r.games >= 3 && r.score != null
+    ? `<span class="num">${r.score.toLocaleString()}</span><span class="pt">pt</span>`
+    : `<span class="num dim">—</span>`;
+  return `<div class="rk-mini${meCls}" data-name="${escHtml(r.name)}">
+    <div class="stripe" style="background:${tierColor};"></div>
+    <div class="rk-mini-rank">${displayRank}</div>
+    <div class="rk-mini-main">
+      <div class="rk-mini-name-row">
+        <span class="rk-mini-name">${escHtml(r.name)}</span>
+        ${r.isNewbie ? '<span class="rk-newbie-emoji">🌱</span>' : ''}
+        ${r.me ? renderRankMeTag(true) : ''}
+      </div>
+      ${r.motto ? `<div class="rk-mini-motto">"${escHtml(r.motto)}"</div>` : ''}
+      <div class="rk-mini-meta">${dots}${chips}</div>
+    </div>
+    <div class="rk-mini-right">
+      ${renderRankTierBadge(r.tier, 'mini')}
+      <div class="rk-mini-score">${scoreNum}</div>
+    </div>
+  </div>`;
+}
+
+function renderRanking() {
+  const el = document.getElementById('rank-list');
+  if (!el) return;
+  const season = rankViewSeason;
+  // 헤더 LIVE 뱃지
+  const liveTag = document.getElementById('rk-live-tag');
+  if (liveTag) liveTag.style.display = liveMode ? '' : 'none';
+  // 시즌 라벨
+  const seasonLabel = document.getElementById('rk-season-label');
+  if (seasonLabel) seasonLabel.textContent = `S${season}`;
+
+  const names = new Set();
+  Object.values(registeredPlayers).forEach(p => names.add(p.name));
+  Object.values(matches).forEach(m => {
+    if ((m.season ?? 0) !== season) return;
+    (m.teamA || []).forEach(n => names.add(n));
+    (m.teamB || []).forEach(n => names.add(n));
+  });
+
+  // 헤더 통계 갱신
+  const totalGames = Object.values(matches).filter(m => (m.season ?? 0) === season).length;
+  const playersEl = document.getElementById('rk-stat-players');
+  const gamesEl = document.getElementById('rk-stat-games');
+  if (gamesEl) gamesEl.textContent = totalGames.toLocaleString();
+  if (playersEl) playersEl.textContent = names.size.toLocaleString();
+
+  if (names.size === 0) {
+    el.innerHTML = '<div class="empty-state" style="margin:20px 14px 0;"><div class="icon">🏆</div>경기 기록이 쌓이면 랭킹이 생성됩니다</div>';
+    return;
+  }
+
+  const rows = [...names].map(n => buildRankRow(n, season))
+    .sort((a, b) => {
+      const aHas = a.score != null, bHas = b.score != null;
+      if (!aHas && !bHas) return b.games - a.games;
+      if (!aHas) return 1;
+      if (!bHas) return -1;
+      return b.score - a.score || b.games - a.games;
+    });
+
+  const top3 = rows.slice(0, 3);
+  const rest = rows.slice(3);
+
+  let html = '';
+  if (top3.length > 0) {
+    html += '<div class="rk-top3">';
+    if (top3[0]) html += renderRankHeroCard(top3[0], 1);
+    if (top3[1] || top3[2]) {
+      html += '<div class="rk-top3-row">';
+      if (top3[1]) html += renderRankHeroCard(top3[1], 2);
+      if (top3[2]) html += renderRankHeroCard(top3[2], 3);
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  if (rest.length > 0) {
+    html += `<div class="rk-section-bar">
+      <span class="lbl">전체 랭킹</span>
+      <span class="meta">4–${rows.length}위</span>
+    </div>`;
+    html += '<div class="rk-list">';
+    rest.forEach((r, i) => { html += renderRankMiniCard(r, i + 4); });
+    html += '</div>';
+  }
+  el.innerHTML = html;
+
+  // 카드 클릭 → 프로필 시트
+  el.querySelectorAll('[data-name]').forEach(card => {
+    card.addEventListener('click', () => openRankProfileSheet(card.dataset.name));
+  });
+}
+
+// ── 랭킹 시즌 셀렉터 ────────────────────────────────────────
+window.toggleRankSeasonDropdown = function(ev) {
+  if (ev) ev.stopPropagation();
+  const btn = document.getElementById('rk-season-btn');
+  const dd = document.getElementById('rk-season-dd');
+  if (!btn || !dd) return;
+  // 드롭다운 내용 갱신
+  const seasons = getRankSeasons();
+  dd.innerHTML = seasons.map(s => {
+    const status = s === CURRENT_SEASON ? 'NOW' : s > CURRENT_SEASON ? 'SOON' : 'PAST';
+    const stClass = status === 'NOW' ? 'st now' : 'st';
+    const active = s === rankViewSeason ? ' active' : '';
+    return `<button class="rk-season-dd-item${active}" onclick="selectRankSeason(${s});event.stopPropagation();">
+      <span class="nm">시즌 ${s}</span><span class="${stClass}">${status}</span>
+    </button>`;
+  }).join('');
+  const open = dd.classList.toggle('show');
+  btn.classList.toggle('open', open);
+  if (open) {
+    setTimeout(() => {
+      document.addEventListener('click', function handler(e) {
+        if (!btn.contains(e.target) && !dd.contains(e.target)) {
+          dd.classList.remove('show');
+          btn.classList.remove('open');
+          document.removeEventListener('click', handler);
+        }
+      });
+    }, 0);
+  }
+};
+
+window.selectRankSeason = function(s) {
+  rankViewSeason = s;
+  document.getElementById('rk-season-dd').classList.remove('show');
+  document.getElementById('rk-season-btn').classList.remove('open');
+  renderRanking();
+};
+
+// ── 랭킹 프로필 시트 (v2.29.23~) ──────────────────────────────
+let _rkSheetState = null;
+
+function _rkComputeRank(name, season) {
+  const names = new Set();
+  Object.values(registeredPlayers).forEach(p => names.add(p.name));
+  Object.values(matches).forEach(m => {
+    if ((m.season ?? 0) !== season) return;
+    (m.teamA || []).forEach(n => names.add(n));
+    (m.teamB || []).forEach(n => names.add(n));
+  });
+  const sorted = [...names].map(n => buildRankRow(n, season))
+    .sort((a, b) => {
+      const aHas = a.score != null, bHas = b.score != null;
+      if (!aHas && !bHas) return b.games - a.games;
+      if (!aHas) return 1;
+      if (!bHas) return -1;
+      return b.score - a.score || b.games - a.games;
+    });
+  const idx = sorted.findIndex(r => normName(r.name) === normName(name));
+  return idx === -1 ? null : idx + 1;
+}
+
+window.openRankProfileSheet = function(name) {
+  const season = rankViewSeason;
+  const p = buildRankRow(name, season);
+  if (!p.fbKey && !p.games) {
+    // 등록도 안되고 경기도 없는 경우 방어
+    return;
+  }
+  const rank = _rkComputeRank(name, season);
+  _rkSheetState = {
+    name: p.name,
+    fbKey: p.fbKey,
+    rank,
+    season,
+    mode: 'view',
+    soulOpen: true,
+    rivalOpen: false,
+    statusEmoji: p.statusEmoji || '',
+    motto: p.motto || '',
+    t1: [...(p.champTier1 || [])],
+    t2: [...(p.champTier2 || [])],
+    isNewbie: !!p.isNewbie,
+    riotId: p.riotId || '',
+    riotStatus: null,
+    saving: false,
+  };
+  let root = document.getElementById('rk-sheet-root');
+  if (!root) {
+    root = document.createElement('div');
+    root.id = 'rk-sheet-root';
+    document.body.appendChild(root);
+  }
+  _renderRankSheet();
+  document.addEventListener('keydown', _rkSheetKeyHandler);
+};
+
+function _rkSheetKeyHandler(e) {
+  if (e.key === 'Escape') window.closeRankSheet();
+}
+
+window.closeRankSheet = function() {
+  const root = document.getElementById('rk-sheet-root');
+  if (root) root.innerHTML = '';
+  document.removeEventListener('keydown', _rkSheetKeyHandler);
+  _rkSheetState = null;
+};
+
+function _rkSheetMedal(rank) {
+  return rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '';
+}
+
+function _renderRankSheet() {
+  const st = _rkSheetState;
+  const root = document.getElementById('rk-sheet-root');
+  if (!st || !root) return;
+  const p = buildRankRow(st.name, st.season);
+  const head = _renderRankSheetHead(p);
+  const body = st.mode === 'view' ? _renderRankSheetView(p) : _renderRankSheetEdit(p);
+  root.innerHTML = `
+    <div class="rk-sheet-overlay" onclick="closeRankSheet()">
+      <div class="rk-sheet" onclick="event.stopPropagation()">
+        ${head}
+        <div class="rk-sheet-body">${body}</div>
+      </div>
+    </div>
+  `;
+  _attachRankSheetListeners();
+}
+
+function _renderRankSheetHead(p) {
+  const st = _rkSheetState;
+  const tierColor = `var(--rk-tier-${p.tier})`;
+  const medal = _rkSheetMedal(st.rank);
+  const nameClass = st.rank === 1 ? 'rk-name-gold' : st.rank === 2 ? 'rk-name-silver' : '';
+  const avatar = st.statusEmoji || (p.name ? p.name[0] : '?');
+  const avatarCls = st.statusEmoji ? 'has-emoji' : 'no-emoji';
+  const chips = [
+    ...(p.champTier1 || []).map(id => ({ id, g: 1 })),
+    ...(p.champTier2 || []).map(id => ({ id, g: 2 })),
+  ].map(c => {
+    const cls = CHAMP_CLASSES.find(x => x.id === c.id);
+    if (!cls) return '';
+    return `<span class="rk-pos-icon g${c.g}" title="${c.g}군 · ${cls.label}">${cls.label[0]}</span>`;
+  }).join('');
+  return `<div class="rk-sheet-head">
+    <div class="rk-sheet-avatar ${avatarCls}" style="border:2px solid ${tierColor};box-shadow:0 0 16px ${tierColor}80;">${escHtml(avatar)}</div>
+    <div class="rk-sheet-info">
+      <div class="rk-sheet-name-row">
+        ${medal ? `<span style="font-size:17px;">${medal}</span>` : ''}
+        <span class="rk-sheet-name ${nameClass}">${escHtml(p.name)}</span>
+        ${p.isNewbie ? '<span style="font-size:12px;">🌱</span>' : ''}
+      </div>
+      <div class="rk-sheet-meta-row">
+        ${renderRankTierBadge(p.tier, 'mid')}
+        ${chips}
+      </div>
+    </div>
+    <div class="rk-sheet-actions">
+      ${st.mode === 'view' ? '<button class="rk-sheet-btn edit" data-rk-action="edit" title="편집">⚙</button>' : ''}
+      <button class="rk-sheet-btn close" data-rk-action="close" title="닫기">✕</button>
+    </div>
+  </div>`;
+}
+
+function _renderRankSheetView(p) {
+  const st = _rkSheetState;
+  const wr = p.games > 0 ? Math.round((p.wins / p.games) * 100) : 0;
+  const wrColor = wr >= 55 ? 'var(--green)' : wr >= 45 ? '#9aa4b0' : 'var(--red)';
+  const { soulmates, rivals } = calcPairStatsForRank(p.name, st.season);
+  const stats = `
+    <div class="rk-sheet-stats">
+      <div class="rk-stat-cell"><div class="k">경기</div><div class="v">${p.games}</div></div>
+      <div class="rk-stat-cell"><div class="k">승</div><div class="v" style="color:var(--green);">${p.wins}</div></div>
+      <div class="rk-stat-cell"><div class="k">패</div><div class="v" style="color:var(--red);">${p.losses}</div></div>
+      <div class="rk-stat-cell"><div class="k">승률</div><div class="v" style="color:${p.games>=3?wrColor:'#6b7280'};">${p.games>=3?wr+'%':'—'}</div></div>
+      <div class="rk-stat-cell"><div class="k">MVP</div><div class="v" style="color:var(--rk-gold);">${p.mvpCount||0}</div></div>
+    </div>
+  `;
+  const scoreCard = (p.games >= 3 && p.score != null) ? `
+    <div class="rk-score-card">
+      <div>
+        <div class="lbl">SEASON SCORE</div>
+        <div class="sub">시즌 ${st.season}</div>
+      </div>
+      <div style="display:flex;align-items:baseline;">
+        <span class="big">${p.score.toLocaleString()}</span><span class="pt">pt</span>
+      </div>
+    </div>
+  ` : '';
+  const motto = p.motto ? `<div class="rk-sheet-motto">"${escHtml(p.motto)}"</div>` : '';
+  const soulBody = soulmates.length === 0
+    ? '<div class="rk-empty">3판 이상 함께한 단짝이 없어요</div>'
+    : soulmates.map(s => `
+      <div class="rk-pair soul">
+        <div class="rk-pair-avatar">${escHtml(s.other[0])}</div>
+        <div class="rk-pair-name">${escHtml(s.other)}</div>
+        <div class="rk-pair-games">${s.games}판</div>
+        <div class="rk-pair-wr">${s.wr}%</div>
+      </div>
+    `).join('');
+  const rivalBody = rivals.length === 0
+    ? '<div class="rk-empty">3판 이상 함께한 웬수가 없어요</div>'
+    : rivals.map(s => `
+      <div class="rk-pair rival">
+        <div class="rk-pair-avatar">${escHtml(s.other[0])}</div>
+        <div class="rk-pair-name">${escHtml(s.other)}</div>
+        <div class="rk-pair-games">${s.games}판</div>
+        <div class="rk-pair-wr">${s.wr}%</div>
+      </div>
+    `).join('');
+  return `
+    ${motto}
+    ${stats}
+    ${scoreCard}
+    <div class="rk-acc${st.soulOpen?' open':''}">
+      <button class="rk-acc-head" data-rk-action="toggle-soul" type="button">
+        <span class="icon">💞</span><span class="title">내 단짝</span>
+        <span class="count">${soulmates.length}</span>
+        <span class="chev">▾</span>
+      </button>
+      <div class="rk-acc-body">${soulBody}</div>
+    </div>
+    <div class="rk-acc rivals${st.rivalOpen?' open':''}">
+      <button class="rk-acc-head" data-rk-action="toggle-rival" type="button">
+        <span class="icon">💢</span><span class="title">내 웬수</span>
+        <span class="count">${rivals.length}</span>
+        <span class="chev">▾</span>
+      </button>
+      <div class="rk-acc-body">${rivalBody}</div>
+    </div>
+  `;
+}
+
+function _renderRankSheetEdit(p) {
+  const st = _rkSheetState;
+  const emptyBtn = `<button class="rk-emoji-btn none${st.statusEmoji===''?' selected':''}" data-rk-emoji="" type="button">∅</button>`;
+  const emojiBtns = STATUS_EMOJIS.map(e => `
+    <button class="rk-emoji-btn${st.statusEmoji===e?' selected':''}" data-rk-emoji="${escHtml(e)}" type="button">${e}</button>
+  `).join('');
+  const classBtns = CHAMP_CLASSES.map(c => {
+    const g = st.t1.includes(c.id) ? 1 : st.t2.includes(c.id) ? 2 : 0;
+    const disabled = g === 0 && st.t1.length >= 1 && st.t2.length >= 1;
+    const cls = g === 1 ? 'g1' : g === 2 ? 'g2' : '';
+    return `<button class="rk-class-btn ${cls}" data-rk-class="${c.id}" ${disabled?'disabled':''} type="button">
+      <span>${c.label}</span>${g>0?`<span class="grp">${g}군</span>`:''}
+    </button>`;
+  }).join('');
+  const hint =
+    st.t1.length === 0 && st.t2.length === 0 ? '클래스를 선택해주세요 (1군 먼저)' :
+    st.t1.length === 1 && st.t2.length === 0 ? '선택한 클래스를 다시 눌러 2군으로 이동' :
+    st.t2.length === 1 ? '선택한 클래스를 다시 눌러 해제' : '';
+  const liveBlock = liveMode ? `
+    <div class="rk-live-block">
+      <div class="rk-live-tag-inline">LIVE · 관리자 전용</div>
+      <div class="rk-edit-section">
+        <div class="lbl">🌱 뉴비 마크</div>
+        <label class="rk-newbie-toggle">
+          <input type="checkbox" data-rk-newbie ${st.isNewbie?'checked':''} />
+          <span class="text">뉴비로 표시</span>
+        </label>
+        <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:6px;line-height:1.5;">
+          승리 시 팀원 +pt/+G · 패배 시 감점 완화 · 뉴비 본인 -2pt
+        </div>
+      </div>
+      <div class="rk-edit-section">
+        <div class="lbl">🎮 Riot ID</div>
+        <div class="rk-riot-row">
+          <input class="rk-riot-input" data-rk-riot placeholder="닉네임#KR1" value="${escHtml(st.riotId)}" />
+          <button class="rk-riot-btn" data-rk-action="lookup-riot" type="button">🔍 조회</button>
+        </div>
+        ${st.riotStatus ? `<div class="rk-riot-status ${st.riotStatus.ok?'ok':'err'}">${escHtml(st.riotStatus.msg)}</div>` : ''}
+      </div>
+      <button class="rk-delete-btn" data-rk-action="delete" type="button">🗑 플레이어 삭제</button>
+    </div>
+  ` : '';
+  return `
+    <div class="rk-edit-section">
+      <div class="lbl">🎨 상태 이모지</div>
+      <div class="rk-emoji-grid">${emptyBtn}${emojiBtns}</div>
+    </div>
+    <div class="rk-edit-section">
+      <div class="lbl">💬 한마디</div>
+      <div class="rk-motto-wrap">
+        <input class="rk-motto-input" data-rk-motto maxlength="20" placeholder="나를 표현하는 한 줄" value="${escHtml(st.motto)}" />
+        <span class="rk-motto-counter" data-rk-motto-count>${st.motto.length}/20</span>
+      </div>
+    </div>
+    <div class="rk-edit-section">
+      <div class="lbl">⚔ 주 포지션</div>
+      <div class="rk-class-grid">${classBtns}</div>
+      ${hint?`<div class="hint">${hint}</div>`:''}
+    </div>
+    ${liveBlock}
+    <div class="rk-edit-actions">
+      <button class="rk-edit-cancel" data-rk-action="cancel" type="button">취소</button>
+      <button class="rk-edit-save" data-rk-action="save" type="button" ${st.saving?'disabled':''}>${st.saving?'저장 중...':'💾 저장'}</button>
+    </div>
+  `;
+}
+
+function _attachRankSheetListeners() {
+  const root = document.getElementById('rk-sheet-root');
+  if (!root) return;
+
+  // 공통 action 버튼
+  root.querySelectorAll('[data-rk-action]').forEach(el => {
+    el.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const a = el.dataset.rkAction;
+      _handleRankSheetAction(a);
+    });
+  });
+
+  // 이모지 선택
+  root.querySelectorAll('[data-rk-emoji]').forEach(el => {
+    el.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      _rkSheetState.statusEmoji = el.dataset.rkEmoji;
+      _renderRankSheet();
+    });
+  });
+
+  // 클래스 토글
+  root.querySelectorAll('[data-rk-class]').forEach(el => {
+    el.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (el.disabled) return;
+      _rkToggleClass(el.dataset.rkClass);
+      _renderRankSheet();
+    });
+  });
+
+  // motto input - 실시간 상태 동기화 (re-render 없이)
+  const mottoEl = root.querySelector('[data-rk-motto]');
+  if (mottoEl) {
+    mottoEl.addEventListener('input', () => {
+      _rkSheetState.motto = mottoEl.value.slice(0, 20);
+      const c = root.querySelector('[data-rk-motto-count]');
+      if (c) c.textContent = `${_rkSheetState.motto.length}/20`;
+    });
+  }
+
+  // newbie 체크박스
+  const newbieEl = root.querySelector('[data-rk-newbie]');
+  if (newbieEl) {
+    newbieEl.addEventListener('change', () => {
+      _rkSheetState.isNewbie = newbieEl.checked;
+    });
+  }
+
+  // riot ID input
+  const riotEl = root.querySelector('[data-rk-riot]');
+  if (riotEl) {
+    riotEl.addEventListener('input', () => {
+      _rkSheetState.riotId = riotEl.value;
+    });
+  }
+}
+
+function _rkToggleClass(id) {
+  const st = _rkSheetState;
+  if (st.t1.includes(id)) {
+    st.t1 = st.t1.filter(x => x !== id);
+    if (st.t2.length < 1) st.t2 = [...st.t2, id];
+  } else if (st.t2.includes(id)) {
+    st.t2 = st.t2.filter(x => x !== id);
+  } else {
+    if (st.t1.length < 1) st.t1 = [...st.t1, id];
+    else if (st.t2.length < 1) st.t2 = [...st.t2, id];
+  }
+}
+
+async function _handleRankSheetAction(action) {
+  const st = _rkSheetState;
+  if (!st) return;
+  if (action === 'close') { window.closeRankSheet(); return; }
+  if (action === 'edit') { st.mode = 'edit'; _renderRankSheet(); return; }
+  if (action === 'cancel') {
+    // 편집 취소 → 시트 최신 값 재로드 후 view 모드
+    const p = buildRankRow(st.name, st.season);
+    st.mode = 'view';
+    st.statusEmoji = p.statusEmoji || '';
+    st.motto = p.motto || '';
+    st.t1 = [...(p.champTier1 || [])];
+    st.t2 = [...(p.champTier2 || [])];
+    st.isNewbie = !!p.isNewbie;
+    st.riotId = p.riotId || '';
+    st.riotStatus = null;
+    _renderRankSheet();
+    return;
+  }
+  if (action === 'toggle-soul') { st.soulOpen = !st.soulOpen; _renderRankSheet(); return; }
+  if (action === 'toggle-rival') { st.rivalOpen = !st.rivalOpen; _renderRankSheet(); return; }
+  if (action === 'delete') {
+    if (!liveMode || !st.fbKey) return;
+    window.closeRankSheet();
+    await window.deletePlayer(st.fbKey, st.name);
+    return;
+  }
+  if (action === 'lookup-riot') {
+    if (!liveMode || !st.fbKey) return;
+    await _rkLookupRiot();
+    return;
+  }
+  if (action === 'save') {
+    await _rkSaveSheet();
+    return;
+  }
+}
+
+async function _rkLookupRiot() {
+  const st = _rkSheetState;
+  const riotId = (st.riotId || '').trim();
+  if (!riotId) { st.riotStatus = { ok: false, msg: '❌ Riot ID를 먼저 입력해주세요' }; _renderRankSheet(); return; }
+  if (!riotApiKey && !riotWorkerUrl) {
+    st.riotStatus = { ok: false, msg: '❌ API Key 또는 Worker URL이 설정되지 않았습니다' };
+    _renderRankSheet(); return;
+  }
+  const parts = riotId.split('#');
+  if (parts.length !== 2) { st.riotStatus = { ok: false, msg: '❌ 형식 오류 (닉네임#태그)' }; _renderRankSheet(); return; }
+  const [gameName, tagLine] = parts;
+  st.riotStatus = { ok: true, msg: '🔍 조회 중...' };
+  _renderRankSheet();
+  try {
+    const res = await riotFetch('asia', `/riot/account/v1/accounts/by-riot-id/${encodeURIComponent(gameName)}/${encodeURIComponent(tagLine)}`);
+    if (!res.ok) {
+      if (res.status === 404) { st.riotStatus = { ok: false, msg: '❌ 소환사를 찾을 수 없습니다' }; _renderRankSheet(); return; }
+      if (res.status === 403) { st.riotStatus = { ok: false, msg: '❌ API Key가 만료됐습니다 (Firebase에서 갱신 필요)' }; _renderRankSheet(); return; }
+      st.riotStatus = { ok: false, msg: `❌ 오류 (${res.status})` }; _renderRankSheet(); return;
+    }
+    const data = await res.json();
+    if (!data.puuid) throw new Error('no puuid');
+    await update(ref(db, 'players/' + st.fbKey), { riotId, puuid: data.puuid });
+    st.riotStatus = { ok: true, msg: '✅ PUUID 저장 완료' };
+  } catch (e) {
+    st.riotStatus = { ok: false, msg: '❌ 네트워크 오류 (CORS 문제일 수 있음)' };
+  }
+  _renderRankSheet();
+}
+
+async function _rkSaveSheet() {
+  const st = _rkSheetState;
+  if (!st.fbKey) {
+    // 경기만 있고 등록 안 된 이름은 저장 대상 아님
+    window.closeRankSheet();
+    return;
+  }
+  const player = registeredPlayers[st.fbKey];
+  if (!player) { window.closeRankSheet(); return; }
+  st.saving = true;
+  _renderRankSheet();
+  const motto = (st.motto || '').trim().slice(0, 20);
+  const patch = {
+    ...player,
+    champTier1: st.t1,
+    champTier2: st.t2,
+    motto,
+    statusEmoji: st.statusEmoji || '',
+  };
+  if (liveMode) {
+    patch.isNewbie = st.isNewbie;
+    patch.newbieSince = st.isNewbie
+      ? (player.newbieSince || Date.now())
+      : (player.newbieSince || null);
+    patch.riotId = (st.riotId || '').trim();
+  }
+  try {
+    await set(ref(db, 'players/' + st.fbKey), patch);
+    st.saving = false;
+    st.mode = 'view';
+    _renderRankSheet();
+  } catch (e) {
+    st.saving = false;
+    alert('저장 실패: ' + (e.message || e));
+    _renderRankSheet();
+  }
 }
 
 // ── 골드 & 상점 시스템 ───────────────────────────────────────
