@@ -2586,14 +2586,7 @@ async function applyEogData(data) {
 
   await loadChampNamesKR();
 
-  // 1. 승팀 자동 선택
-  if (data.winSide && !selectedWinner) {
-    selectWinner(data.winSide);
-    const msg = document.getElementById('winner-selected-msg');
-    if (msg) msg.textContent = (data.winSide === 'blue' ? '🔵 1팀' : '🟡 2팀') + ' 승리 (브릿지 자동 감지)';
-  }
-
-  // 2. 플레이어 통계 매핑 (summonerName ↔ 등록 닉네임)
+  // 1. 플레이어 통계 매핑 (summonerName ↔ 등록 닉네임) — 먼저 매칭 검증
   const allPlayers = [...currentTeamA, ...currentTeamB];
   const pts = {};
   for (const p of data.players) {
@@ -2610,8 +2603,17 @@ async function applyEogData(data) {
       cs:       p.cs      || 0,
     };
   }
-  if (Object.keys(pts).length === 0) return;
+  // 현재 팀에 매칭된 플레이어가 없으면 이전 게임 데이터로 판단 — 전부 무시
+  const matchedCount = allPlayers.filter(p => pts[normName(p.name)]?.champion).length;
+  if (matchedCount === 0) return;
   currentMatchParticipants = pts;
+
+  // 2. 승팀 자동 선택 — 플레이어 매칭 확인 후에만 실행
+  if (data.winSide && !selectedWinner) {
+    selectWinner(data.winSide);
+    const msg = document.getElementById('winner-selected-msg');
+    if (msg) msg.textContent = (data.winSide === 'blue' ? '🔵 1팀' : '🟡 2팀') + ' 승리 (브릿지 자동 감지)';
+  }
 
   // 3. 라이브 계정 → Firebase 동기화 (다른 기기도 받을 수 있게)
   if (liveMode) {
