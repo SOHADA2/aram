@@ -1684,7 +1684,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.35';
+const APP_VERSION = 'v2.29.36';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1693,6 +1693,10 @@ const APP_VERSION = 'v2.29.35';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.36', date: '2026-04-22', changes: [
+    { tag: 'fix', text: 'bridge/matchData 리스너 — 라이브 기기도 eogStats 데이터 없을 때 matchData 수신 (챔피언 초상화 미표시 버그 수정)' },
+    { tag: 'fix', text: 'bridge/matchData 리스너 — 챔피언 한국어 이름 로드 후 렌더링 (loadChampNamesKR 추가)' },
+  ]},
   { ver: 'v2.29.35', date: '2026-04-22', changes: [
     { tag: 'improve', text: 'MVP·매너왕 투표 카드 — 브릿지 EOG 데이터 있을 때 챔피언 초상화 + 한국어 챔피언명 + KDA 표시' },
     { tag: 'remove',  text: '챔피언 선택 실시간 표시 제거 — 상대 픽 노출 우려로 제외' },
@@ -2622,12 +2626,14 @@ onValue(ref(db, 'bridge/eogStats'), (snap) => {
   if (data) applyEogData(data);
 });
 
-// 비라이브 기기: 라이브 계정이 동기화한 데이터 수신
-onValue(ref(db, 'bridge/matchData'), (snap) => {
-  if (liveMode) return;
+// 비라이브 기기 또는 라이브 기기에 eogStats 데이터 없을 때: matchData 수신
+onValue(ref(db, 'bridge/matchData'), async (snap) => {
+  // 라이브 기기는 applyEogData()가 이미 채운 경우 skip (overwrite 방지)
+  if (liveMode && Object.keys(currentMatchParticipants).length > 0) return;
   const data = snap.val();
   if (!data?.participants) return;
   if (data.syncedAt && Date.now() - data.syncedAt > 4 * 3600 * 1000) return;
+  await loadChampNamesKR();
   currentMatchParticipants = data.participants;
   if (data.winSide && !selectedWinner) {
     selectWinner(data.winSide);
