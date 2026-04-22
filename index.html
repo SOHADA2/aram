@@ -672,6 +672,23 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .bridge-dl-link{color:var(--text-dim);text-decoration:none;border-bottom:1px dotted rgba(110,144,184,0.4);font-size:10px;letter-spacing:0.5px;opacity:0.55;transition:opacity 0.2s,color 0.2s;}
 .bridge-dl-link:hover{opacity:1;color:var(--gold);border-color:var(--gold);}
 .bridge-status-wrap{display:flex;align-items:center;gap:5px;margin-left:auto;flex-shrink:0;}
+
+/* ── 챔피언 선택 바 (브릿지) ── */
+.champ-select-bar{margin-bottom:16px;border:1px solid rgba(255,80,80,0.2);border-radius:8px;overflow:hidden;background:var(--rk-card);animation:popIn 0.3s ease both;}
+.cs-header{display:flex;align-items:center;gap:8px;padding:7px 12px;background:rgba(255,50,50,0.07);border-bottom:1px solid var(--rk-border);}
+.cs-phase-badge{font-size:10px;font-weight:700;color:#ff7070;letter-spacing:0.5px;}
+.cs-teams{display:flex;gap:6px;padding:10px 12px;align-items:flex-start;}
+.cs-team-col{flex:1;min-width:0;}
+.cs-team-label{font-size:9px;font-weight:700;color:var(--rk-text-dim);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;font-family:'JetBrains Mono',monospace;}
+.cs-vs{font-size:10px;font-weight:900;color:var(--rk-text-muted);align-self:center;padding:0 3px;flex-shrink:0;}
+.cs-player{display:flex;align-items:center;gap:6px;padding:2px 0;}
+.cs-champ-icon{width:26px;height:26px;border-radius:3px;object-fit:cover;background:var(--rk-sub);flex-shrink:0;border:1px solid var(--rk-border);}
+.cs-champ-empty{width:26px;height:26px;border-radius:3px;background:var(--rk-sub);border:1px solid var(--rk-border);flex-shrink:0;}
+.cs-player-name{font-size:11px;color:var(--rk-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+/* ── 투표 알림 배너 ── */
+.vote-notify-banner{position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,var(--rk-gold-deep),var(--rk-gold));color:#111;font-size:13px;font-weight:700;padding:10px 16px;display:flex;align-items:center;justify-content:center;gap:12px;animation:slideDown 0.3s ease;box-shadow:0 2px 16px rgba(232,208,128,.4);}
+.vote-notify-banner button{background:none;border:none;cursor:pointer;font-size:16px;color:rgba(0,0,0,0.5);line-height:1;padding:0 4px;}
+@keyframes slideDown{from{transform:translateY(-100%)}to{transform:translateY(0)}}
 /* ── 본인 선택 모달 ── */
 .my-modal-overlay{position:fixed;inset:0;z-index:1000;background:rgba(4,11,21,0.92);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 0.2s ease;}
 .quest-overlay{position:fixed;inset:0;z-index:1100;background:rgba(4,11,21,0.93);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 0.25s ease;}
@@ -1406,6 +1423,7 @@ img.emoji{
 
   <div id="result-section" class="card">
     <div class="card-title">팀 결과</div>
+    <div id="champ-select-bar" class="champ-select-bar" style="display:none;"></div>
     <div id="result-header" class="result-header">
       <h2 id="result-title">— VS —</h2>
       <p id="result-mode-label"></p>
@@ -1675,7 +1693,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.33';
+const APP_VERSION = 'v2.29.34';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1684,6 +1702,12 @@ const APP_VERSION = 'v2.29.33';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.34', date: '2026-04-22', changes: [
+    { tag: 'new', text: '브릿지 챔피언 선택 실시간 표시 — 챔피언 선택 단계에서 양팀 챔피언 아이콘+닉네임 라이브 표시 (bridge/champSelect)' },
+    { tag: 'new', text: '브릿지 EOG 자동 결과 — 게임 종료 시 승팀 자동 선택 + KDA/딜량/CS 자동 채움. 라이브 계정→bridge/matchData 동기화로 전체 기기 반영' },
+    { tag: 'new', text: '브릿지 투표 자동 팝업 — voteStarted 감지 시 팀구성 탭 이동 + 골드 배너 표시 + 투표 섹션 스크롤 (30초 이상 지난 신호 무시)' },
+    { tag: 'fix', text: '브릿지 데이터 경로를 session/ → bridge/ 로 분리 — makeTeams set()으로 session 전체 덮어쓸 때 브릿지 데이터 유실 방지' },
+  ]},
   { ver: 'v2.29.33', date: '2026-04-22', changes: [
     { tag: 'fix', text: '브릿지 상태 감지 개선 — bridgeConnected 대신 bridgeHeartbeat(5초 갱신) 기반으로 전환. 브릿지 강제 종료 시 10초 내 "없음"으로 자동 전환' },
   ]},
@@ -2547,13 +2571,175 @@ function _updateBridgeDot() {
 }
 
 // 하트비트 값이 바뀔 때마다 갱신
-onValue(ref(db, 'session/bridgeHeartbeat'), (snap) => {
+onValue(ref(db, 'bridge/heartbeat'), (snap) => {
   _bridgeHeartbeat = snap.val();
   _updateBridgeDot();
 });
 
 // 브릿지가 조용히 죽어도 10초 내 감지
 setInterval(_updateBridgeDot, 5000);
+
+// ── BRIDGE: 챔피언 선택 실시간 표시 ──────────────────────────────
+function isBridgeOn() {
+  return _bridgeHeartbeat && (Date.now() - _bridgeHeartbeat < 10000);
+}
+
+function champImgUrl(champId) {
+  if (!champId || champId === 0) return '';
+  const slug = champIdToSlug[String(champId)];
+  return slug
+    ? `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${slug}.png`
+    : '';
+}
+
+let _bridgeChampSelect = null;
+let _bridgeGamePhase   = null;
+
+async function renderChampSelectBar() {
+  const bar = document.getElementById('champ-select-bar');
+  if (!bar) return;
+  const show = _bridgeGamePhase === 'ChampSelect' && _bridgeChampSelect;
+  if (!show) { bar.style.display = 'none'; return; }
+
+  await loadChampNamesKR();
+  const cs = _bridgeChampSelect;
+
+  function teamHtml(players, label) {
+    return `<div class="cs-team-col">
+      <div class="cs-team-label">${label}</div>
+      ${(players || []).map(p => {
+        const img = champImgUrl(p.champId);
+        return `<div class="cs-player">
+          ${img ? `<img class="cs-champ-icon" src="${img}" onerror="this.style.opacity=0" alt="">` : '<div class="cs-champ-empty"></div>'}
+          <span class="cs-player-name">${escHtml(p.name || '?')}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  bar.style.display = 'block';
+  bar.innerHTML = `
+    <div class="cs-header"><span class="cs-phase-badge">🔴 LIVE · 챔피언 선택 중</span></div>
+    <div class="cs-teams">
+      ${teamHtml(cs.myTeam,    '내 팀')}
+      <div class="cs-vs">VS</div>
+      ${teamHtml(cs.theirTeam, '상대 팀')}
+    </div>`;
+}
+
+onValue(ref(db, 'bridge/champSelect'), (snap) => {
+  _bridgeChampSelect = snap.val();
+  renderChampSelectBar();
+});
+
+onValue(ref(db, 'bridge/gamePhase'), (snap) => {
+  _bridgeGamePhase = snap.val();
+  renderChampSelectBar();
+});
+
+// ── BRIDGE: EOG 자동 결과 입력 ────────────────────────────────────
+async function applyEogData(data) {
+  if (!data?.players) return;
+  if (!currentTeamA.length || !currentTeamB.length) return;
+  // 4시간 이상 지난 데이터는 이전 게임 것으로 간주
+  if (data.savedAt && Date.now() - data.savedAt > 4 * 3600 * 1000) return;
+
+  await loadChampNamesKR();
+
+  // 1. 승팀 자동 선택
+  if (data.winSide && !selectedWinner) {
+    selectWinner(data.winSide);
+    const msg = document.getElementById('winner-selected-msg');
+    if (msg) msg.textContent = (data.winSide === 'blue' ? '🔵 1팀' : '🟡 2팀') + ' 승리 (브릿지 자동 감지)';
+  }
+
+  // 2. 플레이어 통계 매핑 (summonerName ↔ 등록 닉네임)
+  const allPlayers = [...currentTeamA, ...currentTeamB];
+  const pts = {};
+  for (const p of data.players) {
+    const sn = normName(p.summonerName || '');
+    const matched = allPlayers.find(n => normName(n) === sn) || sn;
+    const slug = champIdToSlug[String(p.championId)] || '';
+    pts[normName(matched)] = {
+      champion: slug,
+      kills:    p.kills   || 0,
+      deaths:   p.deaths  || 0,
+      assists:  p.assists  || 0,
+      damage:   p.damage  || 0,
+      gold:     p.gold    || 0,
+      cs:       p.cs      || 0,
+    };
+  }
+  if (Object.keys(pts).length === 0) return;
+  currentMatchParticipants = pts;
+
+  // 3. 라이브 계정 → Firebase 동기화 (다른 기기도 받을 수 있게)
+  if (liveMode) {
+    set(ref(db, 'bridge/matchData'), { participants: pts, winSide: data.winSide, syncedAt: Date.now() });
+  }
+  renderMvpSection();
+}
+
+onValue(ref(db, 'bridge/eogStats'), (snap) => {
+  const data = snap.val();
+  if (data) applyEogData(data);
+});
+
+// 비라이브 기기: 라이브 계정이 동기화한 데이터 수신
+onValue(ref(db, 'bridge/matchData'), (snap) => {
+  if (liveMode) return;
+  const data = snap.val();
+  if (!data?.participants) return;
+  if (data.syncedAt && Date.now() - data.syncedAt > 4 * 3600 * 1000) return;
+  currentMatchParticipants = data.participants;
+  if (data.winSide && !selectedWinner) {
+    selectWinner(data.winSide);
+    const msg = document.getElementById('winner-selected-msg');
+    if (msg) msg.textContent = (data.winSide === 'blue' ? '🔵 1팀' : '🟡 2팀') + ' 승리 (브릿지 자동 감지)';
+  }
+  renderMvpSection();
+});
+
+// ── BRIDGE: 투표 자동 팝업 ────────────────────────────────────────
+let _lastVoteStarted = null;
+
+onValue(ref(db, 'bridge/voteStarted'), (snap) => {
+  const ts = snap.val();
+  // 첫 로드 시 기존 값은 무시 (30초 이상 지난 건 이전 게임 것)
+  if (!ts) { _lastVoteStarted = null; return; }
+  if (_lastVoteStarted === undefined) { _lastVoteStarted = ts; return; } // 초기화
+  if (ts === _lastVoteStarted) return;
+  if (Date.now() - ts > 30000) { _lastVoteStarted = ts; return; } // 오래된 값 무시
+  _lastVoteStarted = ts;
+
+  if (!currentTeamA.length || !currentTeamB.length) return;
+
+  // 팀구성 탭으로 이동
+  const teamTabBtn = document.querySelector('.nav-tab[onclick*="tab-team"]');
+  if (teamTabBtn && !document.getElementById('tab-team').classList.contains('active')) {
+    showTab('tab-team', teamTabBtn);
+  }
+  // 투표 섹션으로 스크롤
+  setTimeout(() => {
+    const el = document.getElementById('mvp-section');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 350);
+  // 배너 표시
+  _showVoteBanner();
+});
+
+// 페이지 로드 시 _lastVoteStarted 초기화 플래그
+_lastVoteStarted = undefined;
+
+function _showVoteBanner() {
+  document.getElementById('vote-notify-banner')?.remove();
+  const banner = document.createElement('div');
+  banner.id = 'vote-notify-banner';
+  banner.className = 'vote-notify-banner';
+  banner.innerHTML = '🏆 게임 종료! MVP · 매너왕 투표가 시작됐어요 <button onclick="this.parentElement.remove()">✕</button>';
+  document.body.prepend(banner);
+  setTimeout(() => banner.remove(), 8000);
+}
 
 // ── SYNC STATUS ───────────────────────────────────────────────
 function setSyncStatus(state, msg) {
@@ -3685,6 +3871,7 @@ async function loadChampNamesKR() {
     const data = await res.json();
     for (const [id, champ] of Object.entries(data.data)) {
       champNamesKR[id] = champ.name;
+      champIdToSlug[champ.key] = id; // champId(숫자) → slug(이미지 파일명)
     }
   } catch(e) {}
 }
