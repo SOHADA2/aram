@@ -896,12 +896,11 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .season-dropdown-item:hover{background:rgba(255,255,255,0.07);}
 .season-dropdown-item.active{color:var(--gold);font-weight:700;}
 /* ── 기록 탭 헤더 (v2.29.28~) */
-.rc-header{padding:14px 16px;border-bottom:1px solid var(--rk-border);position:relative;background:var(--rk-card);}
+.rc-header{padding:14px 16px;border-bottom:1px solid var(--rk-border);position:relative;}
 .rc-header-row{display:flex;justify-content:space-between;align-items:center;}
 .rc-title{font-family:'Black Han Sans',sans-serif;font-size:20px;letter-spacing:.02em;color:var(--rk-text);display:flex;align-items:baseline;gap:8px;}
 .rc-title-dot{color:var(--rk-gold);letter-spacing:0;}
 .rc-header-actions{display:flex;gap:6px;align-items:center;}
-#season-selector .rk-season-dd{right:0;}
 #match-history-list{padding:14px;}
 .match-link-btn{display:flex;align-items:center;justify-content:center;gap:5px;margin-top:4px;padding:6px 0;background:rgba(160,100,255,0.07);border:1px solid rgba(160,100,255,0.2);border-radius:6px;color:rgba(160,100,255,0.85);font-size:12px;cursor:pointer;transition:all 0.15s;width:100%;}
 .match-link-btn:hover{background:rgba(160,100,255,0.15);border-color:rgba(160,100,255,0.4);}
@@ -1442,16 +1441,13 @@ img.emoji{
     <div class="rc-header-row">
       <div class="rc-title">경기<span class="rc-title-dot">·</span>기록</div>
       <div class="rc-header-actions">
-        <div class="season-selector" id="season-selector">
-          <button class="rk-season-btn" id="season-selector-btn" onclick="toggleSeasonDropdown()">
-            <span id="season-selector-label">S0</span>
-            <span class="caret">▾</span>
-          </button>
-          <div class="rk-season-dd" id="season-dropdown"></div>
-        </div>
-        <span id="rc-live-tag" class="rk-live-tag" style="display:none;">LIVE</span>
+        <button class="rk-season-btn" id="season-selector-btn" onclick="toggleSeasonDropdown()">
+          <span id="season-selector-label">S0</span>
+          <span class="caret">▾</span>
+        </button>
       </div>
     </div>
+    <div class="rk-season-dd" id="season-dropdown"></div>
     <div class="rk-stats-strip">
       <div class="rk-stat">
         <span class="rk-stat-label">GAMES</span>
@@ -1474,7 +1470,6 @@ img.emoji{
           <span id="rk-season-label">S0</span>
           <span class="caret">▾</span>
         </button>
-        <span id="rk-live-tag" class="rk-live-tag" style="display:none;">LIVE</span>
       </div>
     </div>
     <div id="rk-season-dd" class="rk-season-dd"></div>
@@ -1660,7 +1655,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.28';
+const APP_VERSION = 'v2.29.29';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1669,6 +1664,10 @@ const APP_VERSION = 'v2.29.28';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.29', date: '2026-04-22', changes: [
+    { tag: 'fix', text: '기록·랭킹 탭 헤더 LIVE 뱃지 제거 — 라이브 모드 표시 불필요' },
+    { tag: 'fix', text: '기록 탭 시즌 드롭다운 — season-selector 래퍼 제거, rc-header 직접 자식으로 이동해 랭킹 탭과 동일한 위치/동작으로 통일' },
+  ]},
   { ver: 'v2.29.28', date: '2026-04-22', changes: [
     { tag: 'improve', text: '기록 탭 디자인 — 랭킹 탭 rk-* 토큰 적용: 딥 네이비 카드 배경, 헤더 리디자인(Black Han Sans + GAMES 스트립 + 시즌 pill 버튼), JetBrains Mono 메타 텍스트, dashed 구분선, 팀 stripe 바, 승리팀 hatch 텍스처, MVP/SVP 이름 gold/silver shimmer' },
   ]},
@@ -4555,7 +4554,7 @@ window.toggleSeasonDropdown = function() {
     // 외부 클릭 시 닫기
     setTimeout(() => {
       document.addEventListener('click', function handler(e) {
-        if (!document.getElementById('season-selector')?.contains(e.target)) {
+        if (!e.target.closest('#season-selector-btn') && !e.target.closest('#season-dropdown')) {
           dropdown.classList.remove('show');
           btn.classList.remove('open');
           document.removeEventListener('click', handler);
@@ -4581,8 +4580,6 @@ function renderMatchHistory() {
     .filter(m => (m.season ?? 0) === viewSeason)
     .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
   document.getElementById('match-count-badge').textContent=matchArr.length;
-  const rcLiveTag = document.getElementById('rc-live-tag');
-  if (rcLiveTag) rcLiveTag.style.display = liveMode ? '' : 'none';
   renderSeasonSelector();
 
 if(matchArr.length===0){el.innerHTML='<div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>';return;}
@@ -5795,9 +5792,6 @@ function renderRanking() {
   const el = document.getElementById('rank-list');
   if (!el) return;
   const season = rankViewSeason;
-  // 헤더 LIVE 뱃지
-  const liveTag = document.getElementById('rk-live-tag');
-  if (liveTag) liveTag.style.display = liveMode ? '' : 'none';
   // 시즌 라벨
   const seasonLabel = document.getElementById('rk-season-label');
   if (seasonLabel) seasonLabel.textContent = `S${season}`;
