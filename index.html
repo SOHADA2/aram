@@ -1675,7 +1675,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.32';
+const APP_VERSION = 'v2.29.33';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1684,6 +1684,9 @@ const APP_VERSION = 'v2.29.32';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.33', date: '2026-04-22', changes: [
+    { tag: 'fix', text: '브릿지 상태 감지 개선 — bridgeConnected 대신 bridgeHeartbeat(5초 갱신) 기반으로 전환. 브릿지 강제 종료 시 10초 내 "없음"으로 자동 전환' },
+  ]},
   { ver: 'v2.29.32', date: '2026-04-22', changes: [
     { tag: 'new', text: 'LCU 브릿지 연결 상태 표시 — 상단 동기화 바에 브릿지 도트 추가 (초록: 연결, 빨강: 없음). session/bridgeConnected Firebase 실시간 구독' },
     { tag: 'new', text: 'LCU 브릿지 다운로드 링크 — 푸터에 브릿지 .exe 다운로드 링크 추가 (GitHub Releases 최신 버전)' },
@@ -2528,14 +2531,25 @@ const BRIDGE_DOWNLOAD_URL = 'https://github.com/SOHADA2/aram-bridge/releases/lat
   if (el) el.href = BRIDGE_DOWNLOAD_URL;
 })();
 
-onValue(ref(db, 'session/bridgeConnected'), (snap) => {
-  const connected = !!snap.val();
+let _bridgeHeartbeat = null;
+
+function _updateBridgeDot() {
   const dot = document.getElementById('bridge-dot');
   const msg = document.getElementById('bridge-msg');
   if (!dot || !msg) return;
+  const connected = _bridgeHeartbeat && (Date.now() - _bridgeHeartbeat < 10000);
   dot.className = 'sync-dot ' + (connected ? 'ok' : 'err');
   msg.textContent = connected ? '브릿지 연결됨' : '브릿지 없음';
+}
+
+// 하트비트 값이 바뀔 때마다 갱신
+onValue(ref(db, 'session/bridgeHeartbeat'), (snap) => {
+  _bridgeHeartbeat = snap.val();
+  _updateBridgeDot();
 });
+
+// 브릿지가 조용히 죽어도 10초 내 감지
+setInterval(_updateBridgeDot, 5000);
 
 // ── SYNC STATUS ───────────────────────────────────────────────
 function setSyncStatus(state, msg) {
