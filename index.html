@@ -669,6 +669,9 @@ select option{background:var(--surface2);}
 .handicap-desc{font-size:11px;color:var(--text-dim);line-height:1.6;}
 .event-no-save{font-size:11px;color:var(--gold);background:rgba(200,155,60,0.08);border:1px solid rgba(200,155,60,0.2);border-radius:4px;padding:6px 10px;text-align:center;margin-bottom:10px;}
 footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;letter-spacing:1px;}
+.bridge-dl-link{color:var(--text-dim);text-decoration:none;border-bottom:1px dotted rgba(110,144,184,0.4);font-size:10px;letter-spacing:0.5px;opacity:0.55;transition:opacity 0.2s,color 0.2s;}
+.bridge-dl-link:hover{opacity:1;color:var(--gold);border-color:var(--gold);}
+.bridge-status-wrap{display:flex;align-items:center;gap:5px;margin-left:auto;flex-shrink:0;}
 /* ── 본인 선택 모달 ── */
 .my-modal-overlay{position:fixed;inset:0;z-index:1000;background:rgba(4,11,21,0.92);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 0.2s ease;}
 .quest-overlay{position:fixed;inset:0;z-index:1100;background:rgba(4,11,21,0.93);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 0.25s ease;}
@@ -1196,6 +1199,10 @@ img.emoji{
   <span id="sync-msg">연결 중...</span>
   <button class="sync-refresh" onclick="manualSync()" title="새로고침">↻</button>
   <button class="account-change-btn" onclick="openMyModal()">계정변경</button>
+  <div class="bridge-status-wrap">
+    <div class="sync-dot err" id="bridge-dot" title="LCU 브릿지 연결 상태"></div>
+    <span id="bridge-msg" style="font-size:10px;">브릿지 없음</span>
+  </div>
 </div>
 
 <!-- 본인 선택 모달 -->
@@ -1592,7 +1599,12 @@ img.emoji{
   </div>
 </div>
 
-<footer>ARAM CUSTOM TEAM BUILDER · 칼바람 아수라장</footer>
+<footer>
+  ARAM CUSTOM TEAM BUILDER · 칼바람 아수라장
+  <div style="margin-top:8px;">
+    <a id="bridge-dl-link" class="bridge-dl-link" href="#" download>LCU 브릿지 다운로드</a>
+  </div>
+</footer>
 </div>
 
 <!-- Firebase SDK -->
@@ -1662,7 +1674,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.31';
+const APP_VERSION = 'v2.29.32';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1671,6 +1683,10 @@ const APP_VERSION = 'v2.29.31';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.32', date: '2026-04-22', changes: [
+    { tag: 'new', text: 'LCU 브릿지 연결 상태 표시 — 상단 동기화 바에 브릿지 도트 추가 (초록: 연결, 빨강: 없음). session/bridgeConnected Firebase 실시간 구독' },
+    { tag: 'new', text: 'LCU 브릿지 다운로드 링크 — 푸터에 브릿지 .exe 다운로드 링크 추가 (GitHub Releases 최신 버전)' },
+  ]},
   { ver: 'v2.29.31', date: '2026-04-22', changes: [
     { tag: 'improve', text: '팀구성 탭 rk 디자인 전체 적용 — 카드 배경(rk-card/rk-border), 타이틀(Black Han Sans + gold 바), 참가자 칩(gold 체크), 리스트(JetBrains Mono), 모드탭, 구분선(dashed), 버튼, 팀 카드(hatch), VS 글로우, 밸런스바·저장패널 토큰 통일' },
   ]},
@@ -2503,6 +2519,22 @@ onValue(ref(db, 'session/manner'), (snapshot) => {
   applyMannerData(data);
 });
 
+
+// ── BRIDGE STATUS ─────────────────────────────────────────────
+const BRIDGE_DOWNLOAD_URL = 'https://github.com/SOHADA2/aram-bridge/releases/latest/download/aram-bridge.exe';
+(function() {
+  const el = document.getElementById('bridge-dl-link');
+  if (el) el.href = BRIDGE_DOWNLOAD_URL;
+})();
+
+onValue(ref(db, 'session/bridgeConnected'), (snap) => {
+  const connected = !!snap.val();
+  const dot = document.getElementById('bridge-dot');
+  const msg = document.getElementById('bridge-msg');
+  if (!dot || !msg) return;
+  dot.className = 'sync-dot ' + (connected ? 'ok' : 'err');
+  msg.textContent = connected ? '브릿지 연결됨' : '브릿지 없음';
+});
 
 // ── SYNC STATUS ───────────────────────────────────────────────
 function setSyncStatus(state, msg) {
