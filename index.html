@@ -1683,7 +1683,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.37';
+const APP_VERSION = 'v2.29.38';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1692,6 +1692,9 @@ const APP_VERSION = 'v2.29.37';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.38', date: '2026-04-22', changes: [
+    { tag: 'fix', text: '브릿지 연결 — session/bridgeConnected 구버전 경로 폴백 추가. 연결 안 됐을 때 raw Firebase 값 표시(디버그)' },
+  ]},
   { ver: 'v2.29.37', date: '2026-04-22', changes: [
     { tag: 'fix', text: '브릿지 하트비트 — seconds 단위 타임스탬프 자동 ms 변환. 연결 허용 시간 10초→30초 완화' },
   ]},
@@ -2561,6 +2564,7 @@ const BRIDGE_DOWNLOAD_URL = 'https://github.com/SOHADA2/aram-bridge/releases/lat
 })();
 
 let _bridgeHeartbeat = null;
+let _bridgeRawDebug = null; // 디버그용: Firebase에 실제로 저장된 raw 값
 
 function _updateBridgeDot() {
   const dot = document.getElementById('bridge-dot');
@@ -2568,15 +2572,32 @@ function _updateBridgeDot() {
   if (!dot || !msg) return;
   const connected = _bridgeHeartbeat && (Date.now() - _bridgeHeartbeat < 30000);
   dot.className = 'sync-dot ' + (connected ? 'ok' : 'err');
-  msg.textContent = connected ? '브릿지 연결됨' : '브릿지 없음';
+  // 디버그: raw 값 표시 (연결 안 됐을 때만)
+  if (!connected && _bridgeRawDebug !== null) {
+    msg.textContent = `브릿지 없음 (raw:${_bridgeRawDebug})`;
+  } else {
+    msg.textContent = connected ? '브릿지 연결됨' : '브릿지 없음';
+  }
 }
 
-// 하트비트 값이 바뀔 때마다 갱신 (초 단위로 저장된 경우도 ms로 변환)
+// 신규 경로: bridge/heartbeat (ms 타임스탬프)
 onValue(ref(db, 'bridge/heartbeat'), (snap) => {
   let v = snap.val();
+  _bridgeRawDebug = v;
   if (v && v < 1e12) v = v * 1000; // seconds → ms 자동 변환
   _bridgeHeartbeat = v;
   _updateBridgeDot();
+});
+
+// 구버전 경로 호환: session/bridgeConnected (boolean 또는 timestamp)
+onValue(ref(db, 'session/bridgeConnected'), (snap) => {
+  const v = snap.val();
+  if (!v) return; // null이면 무시
+  // boolean true이면 현재 시각으로 갱신 (구버전 브릿지 호환)
+  if (typeof v === 'boolean' && v) {
+    _bridgeHeartbeat = Date.now();
+    _updateBridgeDot();
+  }
 });
 
 // 브릿지가 조용히 죽어도 10초 내 감지
