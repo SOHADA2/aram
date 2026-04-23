@@ -299,7 +299,7 @@ select option{background:var(--surface2);}
 .mvp-title{font-family:'Black Han Sans',sans-serif;font-size:14px;letter-spacing:.03em;color:var(--rk-text);margin-bottom:14px;word-break:keep-all;line-height:1.4;white-space:normal;display:flex;align-items:center;gap:8px;}
 .mvp-title::before{content:'';width:3px;height:14px;background:var(--rk-gold-deep);border-radius:2px;flex-shrink:0;}
 .mvp-sub{font-size:11px;color:var(--rk-text-dim);margin-top:12px;margin-bottom:0;line-height:1.8;border-top:1px dashed var(--rk-dash);padding-top:10px;}
-.mvp-candidates{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-bottom:10px;}
+.mvp-candidates{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:12px;}
 .mvp-cand-wrap{border-radius:8px;border:1.5px solid var(--rk-border);background:rgba(255,255,255,.03);overflow:hidden;transition:border-color 0.2s,box-shadow 0.2s,background 0.2s;}
 .mvp-cand-wrap:hover{border-color:var(--rk-border-strong);background:rgba(255,255,255,.06);}
 .mvp-cand-wrap.selected{border-color:var(--rk-gold-deep);box-shadow:0 0 0 2px rgba(200,168,75,0.18);background:rgba(200,168,75,0.08);}
@@ -309,6 +309,19 @@ select option{background:var(--surface2);}
 .mvp-cand-champ-name{font-size:9px;color:var(--rk-gold);font-weight:700;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.5px;text-transform:uppercase;font-family:'JetBrains Mono',monospace;}
 .mvp-cand-player-name{font-size:12px;font-weight:700;line-height:1.3;word-break:break-all;color:var(--rk-text);}
 .mvp-cand-kda{font-size:10px;color:var(--rk-text-dim);font-family:'JetBrains Mono',monospace;margin-top:3px;letter-spacing:.05em;}
+/* ── 투표 카드 (rk 스타일) ── */
+.vote-card{position:relative;border-radius:10px;border:1.5px solid var(--rk-border);background:var(--rk-card);overflow:hidden;transition:border-color 0.2s,box-shadow 0.2s,transform 0.15s;}
+.vote-card:hover{border-color:var(--rk-border-strong);transform:translateY(-1px);}
+.vote-card.selected{border-color:var(--rk-gold-deep);box-shadow:0 0 0 2px rgba(200,168,75,0.18),0 0 16px rgba(200,168,75,0.12);}
+.vote-card-btn{padding:0;background:none;border:none;width:100%;cursor:pointer;display:flex;flex-direction:column;text-align:left;}
+.vote-card-img-wrap{position:relative;width:100%;height:96px;overflow:hidden;background:linear-gradient(160deg,var(--rk-card),var(--rk-sub));flex-shrink:0;}
+.vote-card-img{width:100%;height:100%;object-fit:cover;object-position:center 15%;display:block;}
+.vote-card-img-wrap::before{content:'';position:absolute;inset:0;background-image:repeating-linear-gradient(135deg,transparent 0 12px,rgba(255,255,255,.015) 12px 13px);pointer-events:none;z-index:1;}
+.vote-card-champ{position:absolute;bottom:0;left:0;right:0;padding:4px 8px 5px;background:linear-gradient(to top,rgba(6,13,24,.88),transparent);font-size:9px;font-family:'JetBrains Mono',monospace;color:var(--rk-gold);letter-spacing:.08em;text-transform:uppercase;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;z-index:2;}
+.vote-card-info{padding:9px 10px 10px;}
+.vote-card-name{font-size:12px;font-weight:700;color:var(--rk-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4;font-family:'Noto Sans KR',sans-serif;}
+.vote-card-kda{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--rk-text-dim);letter-spacing:.04em;margin-top:2px;}
+.vote-card-sel-badge{position:absolute;top:6px;right:6px;background:var(--rk-gold-deep);color:#060d18;font-size:8px;font-weight:700;padding:2px 7px;border-radius:3px;letter-spacing:.04em;font-family:'JetBrains Mono',monospace;line-height:1.5;z-index:3;}
 .mvp-my-vote-block{background:rgba(255,255,255,.02);border:1px solid var(--rk-border);border-radius:8px;padding:12px 14px;margin-bottom:12px;}
 .mvp-my-vote-label{font-size:10px;color:var(--rk-text-muted);margin-bottom:8px;letter-spacing:1.5px;word-break:keep-all;text-transform:uppercase;font-family:'JetBrains Mono',monospace;}
 .mvp-voted-indicator{font-size:12px;color:var(--green);margin-top:6px;word-break:break-all;}
@@ -1692,7 +1705,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.43';
+const APP_VERSION = 'v2.29.44';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3879,21 +3892,24 @@ async function loadChampNamesKR() {
 let currentMatchParticipants = {}; // normName → {champion, kills, ...} (경기 기록 연동 시 사용)
 let currentRiotMatchId = null;    // Riot match ID (저장 시 Firebase에 기록)
 function champCardHtml(p, selectedName, onclick) {
-  const sel = selectedName === p.name;
-  const pt  = currentMatchParticipants[normName(p.name)];
+  const sel     = selectedName === p.name;
+  const pt      = currentMatchParticipants[normName(p.name)];
   const slug    = pt?.champion || '';
   const imgSrc  = slug ? `https://ddragon.leagueoflegends.com/cdn/img/champion/tiles/${encodeURIComponent(slug)}_0.jpg` : '';
   const champKR = slug ? (champNamesKR[slug] || slug) : '';
   const kda     = pt ? `${pt.kills}/${pt.deaths}/${pt.assists}` : '';
-  return `<div class="mvp-cand-wrap${sel ? ' selected' : ''}">
-    <button class="mvp-cand-btn" onclick="${onclick}">
-      ${imgSrc ? `<img class="mvp-cand-champ-img" src="${imgSrc}" onerror="this.style.display='none'" alt="">` : ''}
-      <div class="mvp-cand-body">
-        ${champKR ? `<div class="mvp-cand-champ-name">${escHtml(champKR)}</div>` : ''}
-        <div class="mvp-cand-player-name">${escHtml(p.name)}</div>
-        ${kda ? `<div class="mvp-cand-kda">${kda}</div>` : ''}
+  return `<div class="vote-card${sel ? ' selected' : ''}">
+    <button class="vote-card-btn" onclick="${onclick}">
+      <div class="vote-card-img-wrap">
+        ${imgSrc ? `<img class="vote-card-img" src="${imgSrc}" onerror="this.style.display='none'" alt="">` : ''}
+        ${champKR ? `<div class="vote-card-champ">${escHtml(champKR)}</div>` : ''}
+      </div>
+      <div class="vote-card-info">
+        <div class="vote-card-name">${escHtml(p.name)}</div>
+        ${kda ? `<div class="vote-card-kda">${kda}</div>` : ''}
       </div>
     </button>
+    ${sel ? `<div class="vote-card-sel-badge">✓ 선택</div>` : ''}
   </div>`;
 }
 
