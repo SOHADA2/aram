@@ -1694,7 +1694,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.57';
+const APP_VERSION = 'v2.29.58';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1703,6 +1703,10 @@ const APP_VERSION = 'v2.29.57';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.58', date: '2026-04-23', changes: [
+    { tag: 'fix', text: '정산창 아이템 효과 오표시 — itemEffects 수집 시 sField(\'items\') 사용으로 시즌 suffix 불일치 수정' },
+    { tag: 'fix', text: '초기화 시 이전 경기 정산 데이터 잔류 — resetSession에서 postSaveMatchData·savedMatchKey 등 명시적 null 초기화' },
+  ]},
   { ver: 'v2.29.57', date: '2026-04-23', changes: [
     { tag: 'fix', text: '경기 저장 후 정산창 미표시 버그 — session set()이 mvp/confirmed를 지우면서 finalizeVotes 호출 조건이 null이 되는 race condition 수정 (session 초기화 이전으로 호출 순서 조정)' },
   ]},
@@ -4623,7 +4627,7 @@ window.saveMatch = async function() {
     for (const p of allPlayers) {
       const entry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(p.name));
       if (!entry) continue;
-      const activeItems = (entry[1].items||[]).filter(it=>it.active).map(it=>it.id);
+      const activeItems = (entry[1][sField('items')]||[]).filter(it=>it.active).map(it=>it.id);
       if (activeItems.length > 0) itemEffects[normName(p.name)] = activeItems;
     }
 
@@ -7361,9 +7365,16 @@ window.resetSession = function() {
   _pendingRematchTeams = null;
   document.getElementById('rematch-btn').style.display = 'none';
   sessionPlayers=[];
-  teamSize = 3; // 이전 게임 teamSize 초기화 (stale 값 방지)
+  teamSize = 3;
   itemsLocked = false;
-  set(ref(db, 'session'), { active: false }).catch(console.error); // 리셋 → session 종료 동기화
+  // 정산 관련 상태 초기화 (이전 경기 잔여 데이터 방지)
+  postSaveMatchData = null;
+  savedMatchKey = null;
+  savedWinner = null;
+  matchSaved = false;
+  mvpConfirmed = null;
+  mannerConfirmed = null;
+  set(ref(db, 'session'), { active: false }).catch(console.error);
   renderSessionPlayers();
   renderShop();
   document.getElementById('result-section').style.display='none';
