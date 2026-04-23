@@ -1694,7 +1694,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.56';
+const APP_VERSION = 'v2.29.57';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1703,6 +1703,9 @@ const APP_VERSION = 'v2.29.56';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.57', date: '2026-04-23', changes: [
+    { tag: 'fix', text: '경기 저장 후 정산창 미표시 버그 — session set()이 mvp/confirmed를 지우면서 finalizeVotes 호출 조건이 null이 되는 race condition 수정 (session 초기화 이전으로 호출 순서 조정)' },
+  ]},
   { ver: 'v2.29.40', date: '2026-04-22', changes: [
     { tag: 'improve', text: '브릿지 상태 디버그 정리 — 연결 끊김 시 age 숫자 표기 제거, 기본 문구로 복귀' },
   ]},
@@ -4688,6 +4691,14 @@ window.saveMatch = async function() {
 
     btn.disabled=true;
     itemsLocked = false;
+
+    // ── 투표가 이미 완료됐으면 바로 확정 ────────────────────────────
+    // set(session)이 session/mvp/confirmed를 지우면서 onValue로 mvpConfirmed=null 이 되므로
+    // session set() 이전에 먼저 호출해야 race condition 방지
+    if (mvpConfirmed !== null && mannerConfirmed !== null) {
+      finalizeVotes();
+    }
+
     set(ref(db, 'session'), { active: false }).catch(console.error);
     renderShop();
     // 승리 버튼·저장 버튼 숨기기
@@ -4715,11 +4726,6 @@ window.saveMatch = async function() {
 
     matchSaved = true;
     selectedWinner = null;
-
-    // 투표가 이미 완료됐으면 바로 확정, 아니면 투표 UI 유지
-    if (mvpConfirmed !== null && mannerConfirmed !== null) {
-      finalizeVotes();
-    }
   } catch(e) {
     btn.textContent='❌ 저장 실패'; btn.disabled=false;
     setTimeout(()=>{btn.textContent='💾 결과 저장하기';},2000);
