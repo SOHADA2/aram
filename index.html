@@ -1630,7 +1630,7 @@ img.emoji{
 <!-- Firebase SDK -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-import { getDatabase, ref, set, onValue, remove, push, update } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+import { getDatabase, ref, get, set, onValue, remove, push, update } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
 // ── FIREBASE CONFIG ───────────────────────────────────────────
 const firebaseConfig = {
@@ -1694,7 +1694,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.54';
+const APP_VERSION = 'v2.29.55';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2359,6 +2359,46 @@ function riotFetch(region, path) {
   return fetch(`https://${region}.api.riotgames.com${path}`, { headers: { 'X-Riot-Token': riotApiKey } });
 }
 
+// ── 이름 오타 일괄 수정 마이그레이션 (1회성) ──────────────────
+async function migrateNameTypos() {
+  const TYPOS = { '맹독벌꿀오소리': '맹독 벌꿀오소리' };
+  const batch = {};
+  const ms = (await get(ref(db, 'matches'))).val() || {};
+  for (const [key, m] of Object.entries(ms)) {
+    const fixArr = arr => arr ? arr.map(n => TYPOS[n] || n) : arr;
+    const fixStr = s => TYPOS[s] || s;
+    if (m.teamA?.some(n => TYPOS[n])) batch[`matches/${key}/teamA`] = fixArr(m.teamA);
+    if (m.teamB?.some(n => TYPOS[n])) batch[`matches/${key}/teamB`] = fixArr(m.teamB);
+    for (const f of ['mvp','mvpWinner','mvpLoser','mannerKing','mannerWinner','mannerLoser','spectatorName']) {
+      if (TYPOS[m[f]]) batch[`matches/${key}/${f}`] = fixStr(m[f]);
+    }
+    if (m.questEvent?.playerName && TYPOS[m.questEvent.playerName])
+      batch[`matches/${key}/questEvent/playerName`] = fixStr(m.questEvent.playerName);
+    for (const [wrong, correct] of Object.entries(TYPOS)) {
+      if (m.participants?.[wrong]) {
+        batch[`matches/${key}/participants/${correct}`] = m.participants[wrong];
+        batch[`matches/${key}/participants/${wrong}`] = null;
+      }
+      if (m.itemEffects?.[wrong]) {
+        batch[`matches/${key}/itemEffects/${correct}`] = m.itemEffects[wrong];
+        batch[`matches/${key}/itemEffects/${wrong}`] = null;
+      }
+    }
+  }
+  const ps = (await get(ref(db, 'players'))).val() || {};
+  for (const [key, p] of Object.entries(ps)) {
+    if (TYPOS[p.name]) batch[`players/${key}/name`] = TYPOS[p.name];
+  }
+  const gs = (await get(ref(db, 'gold'))).val() || {};
+  for (const [key, g] of Object.entries(gs)) {
+    if (TYPOS[g.name]) batch[`gold/${key}/name`] = TYPOS[g.name];
+  }
+  if (Object.keys(batch).length > 0) {
+    await update(ref(db), batch);
+    console.log('[migration] 이름 오타 수정 완료:', Object.keys(batch).length, '항목');
+  }
+}
+
 // 플레이어 목록 실시간 구독
 onValue(ref(db, 'players'), (snapshot) => {
   registeredPlayers = snapshot.val() || {};
@@ -2367,6 +2407,8 @@ onValue(ref(db, 'players'), (snapshot) => {
   const names = Object.values(registeredPlayers).map(p => p.name);
   const hasSeed = DEFAULT_MEMBERS.some(n => names.includes(n));
   if (!hasSeed) seedDefaultMembers();
+  // 이름 오타 마이그레이션 (liveMode 1회 실행)
+  if (liveMode && !window._typoMigrated) { window._typoMigrated = true; migrateNameTypos(); }
   renderAllWhenReady();
 }, (err) => {
   setSyncStatus('err', '연결 실패');
