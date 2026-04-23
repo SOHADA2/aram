@@ -856,6 +856,8 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .newbie-toggle-btn.active{opacity:1;border-color:var(--green);background:rgba(0,199,122,0.15);}
 .newbie-bonus-bar{background:rgba(0,199,122,0.06);border-top:1px solid rgba(0,199,122,0.2);font-size:10px;color:var(--green);cursor:pointer;user-select:none;transition:background 0.15s;}
 .newbie-bonus-bar:hover{background:rgba(0,199,122,0.11);}
+#newbie-bonus-section{display:flex;flex-direction:column;gap:6px;margin-top:6px;}
+#newbie-bonus-section .newbie-bonus-bar{border:1px solid rgba(0,199,122,0.2);border-radius:8px;}
 .newbie-bonus-summary{display:flex;align-items:center;gap:5px;padding:7px 14px;font-weight:700;font-size:11px;}
 .newbie-bonus-arrow{transition:transform 0.25s;font-size:10px;opacity:0.7;margin-left:auto;}
 .newbie-bonus-bar.open .newbie-bonus-arrow{transform:rotate(180deg);}
@@ -1441,6 +1443,7 @@ img.emoji{
       <p id="result-mode-label"></p>
     </div>
     <div class="teams-grid" id="teams-grid"></div>
+    <div id="newbie-bonus-section"></div>
     <div id="spectator-section"></div>
     <div id="quest-banner-section"></div>
     <div id="chemi-legend-section"></div>
@@ -1705,7 +1708,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.48';
+const APP_VERSION = 'v2.29.49';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4053,6 +4056,32 @@ function renderResult() {
     teamCard('1팀','team-blue',currentTeamA,avg(currentTeamA))+
     teamCard('2팀','team-yellow',currentTeamB,avg(currentTeamB));
 
+  // 뉴비 보너스 섹션 (팀 카드 외부)
+  (function(){
+    const sec = document.getElementById('newbie-bonus-section');
+    if (!sec) return;
+    const makeBar = (label, members) => {
+      const names = members.map(p => escHtml(p.name)).join(', ');
+      return `<div class="newbie-bonus-bar" onclick="this.classList.toggle('open')">
+        <div class="newbie-bonus-summary">🌱 ${label} 뉴비 보너스 적용 중 <span style="opacity:0.65;font-weight:400;">(${names})</span><span class="newbie-bonus-arrow">▾</span></div>
+        <div class="newbie-bonus-detail">
+          <div class="newbie-bonus-row">
+            <div class="newbie-bonus-item"><span class="label">🏆 승리</span><span><strong>+${WIN_PT + NEWBIE_WIN_BONUS_PT}pt</strong> · <strong>+${GOLD_WIN + NEWBIE_WIN_BONUS_GOLD}G</strong></span></div>
+            <div class="newbie-bonus-item"><span class="label">💀 패배</span><span><strong>-${LOSS_PT - NEWBIE_LOSS_REDUCE_PT}pt</strong> · <strong>+${GOLD_LOSE}G</strong></span></div>
+            <div class="newbie-bonus-divider"></div>
+            <div class="newbie-bonus-item" style="opacity:0.8;"><span class="label">🌱 본인 패배</span><span><strong>-2pt</strong></span></div>
+          </div>
+        </div>
+      </div>`;
+    };
+    const aN = currentTeamA.filter(p => isNewbie(p.name));
+    const bN = currentTeamB.filter(p => isNewbie(p.name));
+    sec.innerHTML = [
+      aN.length ? makeBar('1팀', aN) : '',
+      bN.length ? makeBar('2팀', bN) : '',
+    ].join('');
+  })();
+
   // 관전자 표시
   const spectatorEl = document.getElementById('spectator-section');
   if (currentSpectator && !isEventMatch) {
@@ -4148,23 +4177,9 @@ function teamCard(title,cls,members,avg) {
       </div>
     </div>`;
   }).join('');
-  const hasNewbieInTeam = members.some(p => isNewbie(p.name));
-  const newbieNames = members.filter(p => isNewbie(p.name)).map(p => escHtml(p.name)).join(', ');
-  const newbieBar = hasNewbieInTeam ? `<div class="newbie-bonus-bar" onclick="this.classList.toggle('open')">
-    <div class="newbie-bonus-summary">🌱 뉴비 보너스 적용 중 <span style="opacity:0.65;font-weight:400;">(${newbieNames})</span><span class="newbie-bonus-arrow">▾</span></div>
-    <div class="newbie-bonus-detail">
-      <div class="newbie-bonus-row">
-        <div class="newbie-bonus-item"><span class="label">🏆 승리</span><span><strong>+${WIN_PT + NEWBIE_WIN_BONUS_PT}pt</strong> · <strong>+${GOLD_WIN + NEWBIE_WIN_BONUS_GOLD}G</strong></span></div>
-        <div class="newbie-bonus-item"><span class="label">💀 패배</span><span><strong>-${LOSS_PT - NEWBIE_LOSS_REDUCE_PT}pt</strong> · <strong>+${GOLD_LOSE}G</strong></span></div>
-        <div class="newbie-bonus-divider"></div>
-        <div class="newbie-bonus-item" style="opacity:0.8;"><span class="label">🌱 본인 패배</span><span><strong>-2pt</strong></span></div>
-      </div>
-    </div>
-  </div>` : '';
   return`<div class="team-card ${cls}">
     <div class="team-header"><span>${title}</span><span class="team-avg">평균 ${avg}</span></div>
     <div class="team-players">${rows}</div>
-    ${newbieBar}
   </div>`;
 }
 
