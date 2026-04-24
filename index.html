@@ -706,6 +706,10 @@ select option{background:var(--surface2);}
 footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;letter-spacing:1px;}
 .bridge-dl-link{color:var(--text-dim);text-decoration:none;border-bottom:1px dotted rgba(110,144,184,0.4);font-size:10px;letter-spacing:0.5px;opacity:0.55;transition:opacity 0.2s,color 0.2s;}
 .bridge-dl-link:hover{opacity:1;color:var(--gold);border-color:var(--gold);}
+.season-admin{display:inline-flex;align-items:center;gap:0;border-radius:8px;overflow:hidden;border:1px solid rgba(200,168,75,0.3);}
+.season-admin-btn{padding:5px 14px;font-size:10px;font-weight:700;font-family:'JetBrains Mono',monospace;letter-spacing:0.5px;border:none;cursor:pointer;transition:background 0.15s,color 0.15s;background:rgba(255,255,255,0.04);color:var(--text-dim);}
+.season-admin-btn.active{background:rgba(200,168,75,0.18);color:var(--rk-gold);}
+.season-admin-btn:not(.active):hover{background:rgba(255,255,255,0.08);color:var(--text);}
 .bridge-status-wrap{display:flex;align-items:center;gap:5px;margin-left:auto;flex-shrink:0;}
 
 /* ── 투표 알림 배너 ── */
@@ -1661,6 +1665,7 @@ img.emoji{
   <div style="margin-top:8px;">
     <a id="bridge-dl-link" class="bridge-dl-link" href="#" download>LCU 브릿지 다운로드</a>
   </div>
+  <div id="season-admin-wrap" style="display:none;margin-top:14px;"></div>
 </footer>
 </div>
 
@@ -2461,6 +2466,7 @@ onValue(ref(db, 'config/currentSeason'), (snapshot) => {
   viewSeason = CURRENT_SEASON;
   rankViewSeason = CURRENT_SEASON;
   renderSeasonSelector();
+  renderSeasonAdmin();
 });
 
 // 시즌 1 플레이어 LP/티어 데이터 구독
@@ -7614,6 +7620,25 @@ if (liveMode) {
     document.body.appendChild(d);
   }
 })();
+
+// ── 시즌 어드민 (라이브 계정 전용) ───────────────────────────────
+function renderSeasonAdmin() {
+  const wrap = document.getElementById('season-admin-wrap');
+  if (!wrap) return;
+  if (!liveMode) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  wrap.innerHTML = `<div class="season-admin">
+    <button class="season-admin-btn${CURRENT_SEASON===0?' active':''}" onclick="switchSeason(0)">S0</button>
+    <button class="season-admin-btn${CURRENT_SEASON===1?' active':''}" onclick="switchSeason(1)">S1</button>
+  </div>`;
+}
+
+window.switchSeason = async function(s) {
+  if (s === CURRENT_SEASON) return;
+  const label = s === 0 ? '시즌 0 (기존)' : '시즌 1 (신규 LP 시스템)';
+  if (!confirm(`${label}으로 전환할까요?\n\n전환 즉시 모든 디바이스에 반영됩니다.`)) return;
+  await set(ref(db, 'config/currentSeason'), s);
+};
 
 // ═══════════════════════════════════════════════════════════════
 // ████████████  시즌 1 LP 시스템 로직  ████████████████████████████
