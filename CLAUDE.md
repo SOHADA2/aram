@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.29.40
+- 현재 버전: v2.30.1
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -39,13 +39,24 @@
   winner: 'blue' | 'red'
   mode: 'balance' | 'random'
   size: number
+  season: number                // 경기 시즌 (v2.29.x~)
   itemEffects: { [playerNormName]: string[] }  // 사용된 아이템 효과
 
 /gold/{key}
   name: string
-  gold: number                  // 보유 골드
-  items: array                  // 보유 아이템 목록
+  gold: number                  // 보유 골드 (시즌 0)
+  items: array                  // 보유 아이템 (시즌 0)
+  gold_s1, items_s1, goldSpent_s1 ...  // 시즌 N 필드 (sField() 로 접근)
   retroApplied: boolean         // 소급 계산 완료 여부
+
+/config/currentSeason            // 현재 시즌 번호 (0 또는 1)
+/config/riotApiKey               // Riot API Key (24h 갱신)
+
+/season1/players/{normName}      // 시즌 1 전용 LP·티어 상태
+  tier: 'unranked'|'bronze'|...|'challenger'
+  lp: number
+  placementGames, placementWins, placementDone
+  promoActive, promoWins, promoLosses, promoGamesPlayed
 ```
 
 ## 탭 구성 (5탭)
@@ -107,10 +118,13 @@
 - **레거시 호환**: `matches/{key}.mannerKing` (v2.25.1 이하) — `calcGoldFromMatches()`에서 계속 지원
 - **골드**: 선정자 각각 +50G (`GOLD_MANNER`)
 
-| 아이템 | 가격 | 효과 |
-|--------|------|------|
-| ⚡ 승점 2배권 | 80G | 경기 전 활성화 → 승리 시 +20pt |
-| 🛡️ 패배 방어권 | 60G | 경기 전 활성화 → 패배해도 감점 없음 |
+| 아이템 | 가격 | 효과 | 시즌 |
+|--------|------|------|------|
+| ⚡ 승점 2배권 | 80G | 경기 전 활성화 → 승리 시 +20pt | S0 |
+| 🛡️ 패배 방어권 | 60G | 경기 전 활성화 → 패배해도 감점 없음 | S0 |
+| 🛡️ 승급전 방어권 | 100G | 승급전 중 패배 시 해당 판 기록 제외 · 승리 시 정상 기록 | S1 |
+| ⚔️ 승급전 승리권 | 100G | 승급전 중 승리 시 2승 처리(즉시 승급) · 패배 시 1패 정상 | S1 |
+| 🎲 도박권 | 60G | 일반전 전용 · 승리 +40 LP / 패배 −30 LP (승급전 중 사용 불가) | S1 |
 
 - 팀 구성 완료 후 **아이템 잠금** (경기 저장 시 자동 해제)
 - 아이템 사용 통계: `calcItemStats(name)` — `matches[].itemEffects[normName]` 스캔
@@ -133,6 +147,62 @@
 - **골드 계산**: `calcGoldFromMatches()` — questEvent 있으면 일반 골드 대신 bonusGold(승)/0(패)
 - **승점 계산**: `calcScore()` — 해당 플레이어 패배 시 normal loss 후 추가 lossExtraPt 감점
 - **상태 변수**: `questEventState` — 팀 구성~저장 완료 사이에만 유지, 저장 후 null 초기화
+
+## 시즌 시스템 (v2.29.x~, 시즌 1 LP v2.30.0~)
+- **시즌 전환**: Firebase `/config/currentSeason` 값으로 제어 (0 또는 1)
+  - 라이브 계정 푸터의 **시즌 어드민 토글**로 전환 (v2.30.1)
+  - `CURRENT_SEASON` 전역 변수, 앱 기동 시 onValue 실시간 수신
+- **시즌별 Firebase 필드**: `sField(field)` 헬퍼 — 시즌 0은 기존 필드명 유지, 이후 `_s1`, `_s2` suffix
+  - 예: `items` (S0) / `items_s1` (S1), `goldSpent` / `goldSpent_s1`
+- **매치 저장**: `matches/{key}.season` 필드에 해당 경기의 시즌 기록
+- **랭킹/기록 탭 시즌 드롭다운**: 과거 시즌 기록 조회 (`viewSeason` 상태 변수)
+
+## 시즌 1 LP 시스템 (v2.30.0)
+`CURRENT_SEASON >= 1` 일 때 자동 활성화. 기존 MMR 승점 시스템 대체.
+
+### 데이터 경로
+- `/season1/players/{normName}` — 플레이어별 LP/티어 상태
+- 전역 변수: `season1Data` (onValue 실시간 동기화)
+
+### 배치고사 (5판)
+- 모든 신규 플레이어는 배치고사부터 시작 (`tier: 'unranked'`)
+- 5판 완료 시 승수 × **25 LP** 기준으로 티어 배정
+  - 100 LP 이하 → **브론즈**, 100 LP 초과 → **실버** (초과분은 LP로 이월)
+- 상수: `S1_PLACEMENT_GAMES=5`, `S1_PLACEMENT_WIN_LP=25`
+
+### 정규전
+- 승리 **+20 LP**, 패배 **−14 LP** (`S1_LP_WIN`, `S1_LP_LOSS`)
+- LP 상한 **100** (`S1_LP_CAP`) — 도달 시 승급 로직 발동
+- LP 0 미만 강등 시 이전 티어 **75 LP**로 진입 (`S1_DEMOTION_LP`)
+
+### 승급 / 강등
+- **자동 승급** (`S1_AUTO_TIERS`): 브론즈 → 실버 (100 LP 도달 즉시)
+- **승급전** (`S1_PROMO_TIERS`): 골드·플래티넘·다이아·마스터·그마 → 100 LP 도달 시 시작
+  - **3판 2선승**, `promoWins/promoLosses` 추적
+  - 5판 이내 미완료 시 소멸 → 승급 실패, LP **75**로 복귀 (`S1_PROMO_FAIL_LP`, `S1_PROMO_EXPIRY=5`)
+- **챌린저**: LP 상한 없음 (무제한 누적)
+- **강등 제외**: 브론즈·실버 (`S1_AUTO_TIERS`)
+
+### 티어 순서
+`unranked → bronze → silver → gold → platinum → diamond → master → grandmaster → challenger`
+- 메타: `S1_TIER_META` (라벨·색상·CSS 클래스)
+
+### 시즌 1 아이템 상호작용
+- `s1_promo_win` (승급전 승리권): 승리 시 즉시 승급 처리, 패배는 1패로 정상 기록
+- `s1_promo_shield` (승급전 방어권): 승급전 패배 시 해당 판 기록 제외 (승리는 정상)
+- `s1_gamble` (도박권): 정규전 한정, 승 **+40 LP** / 패 **−30 LP** (`S1_GAMBLE_WIN/LOSS`)
+
+### 핵심 함수
+- `s1ApplyMatchResult(name, won, activeS1Item)` — 단일 플레이어 결과 적용
+- `s1ApplyAllMatchResults(winners, losers)` — `saveMatch` 훅, 전체 일괄 적용
+- `s1PromoSuccess(d)` / `s1PromoFail(d)` — 승급전 성공·실패 상태 전이
+- `s1LpBarHtml(d)` — 랭킹 탭 LP 바·승급전 도트·배치 진행 렌더
+
+## EOG 자동 저장 흐름 (v2.29.57~v2.29.64)
+- **경기 종료 시**: `showEogOverlay()` — 승리팀 + MVP/SVP/매너왕 투표 카드가 팝업으로 등장
+- **자동 저장**: 전원 투표 완료 시 `liveMode` 기기에서 `saveMatch` 자동 트리거
+- **정산창**: 저장 직후 `postSaveMatchData` 기반 정산 오버레이 표시 (골드·아이템·LP 변화 요약)
+- **주의**: `finalizeVotes` 는 `session` 초기화 **이전**에 호출되어야 race condition 방지 (v2.29.57)
 
 ## 업적 시스템 (v2.7.0 → v2.8.0)
 - **탭**: 🏅 업적 (5번째 탭) — 라이브용 계정에서는 탭 미표시
