@@ -1145,6 +1145,13 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .ms-gold{font-size:11px;color:var(--gold-light);white-space:nowrap;}
 .ms-footer{padding:10px 16px;border-top:1px solid var(--border);display:flex;justify-content:center;}
 .ms-footer .btn{width:100%;justify-content:center;}
+.eog-overlay{position:fixed;inset:0;z-index:2800;background:rgba(0,0,0,0.88);display:flex;flex-direction:column;align-items:center;overflow-y:auto;padding:20px 16px 40px;animation:taFadeIn 0.3s ease;}
+.eog-win-banner{text-align:center;padding:28px 0 20px;width:100%;max-width:420px;}
+.eog-win-title{font-family:'Black Han Sans',sans-serif;font-size:26px;letter-spacing:2px;margin-bottom:6px;}
+.eog-win-title.blue{color:var(--blue);}
+.eog-win-title.red{color:var(--gold);}
+.eog-win-sub{font-size:12px;color:var(--text-dim);}
+.eog-vote-wrap{width:100%;max-width:420px;}
 .team-player{position:relative;}
 /* ── 연승/연패 뱃지 ── */
 /* ── 연승/연패 인라인 텍스트 ── */
@@ -1696,7 +1703,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.62';
+const APP_VERSION = 'v2.29.63';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1705,6 +1712,9 @@ const APP_VERSION = 'v2.29.62';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.63', date: '2026-04-24', changes: [
+    { tag: 'new', text: '경기 종료 시 EOG 결과 오버레이 표시 — 승리팀 + MVP/MMP 투표창이 팝업으로 등장, 전원 투표 완료 시 liveMode 기기에서 자동 저장 후 정산창 전환' },
+  ]},
   { ver: 'v2.29.62', date: '2026-04-24', changes: [
     { tag: 'new', text: '게임 시작(InProgress) 감지 시 챔프 셀렉 데이터로 투표 카드에 챔피언 이미지 선반영 — KDA는 경기 종료 후 자동 채워짐' },
     { tag: 'fix', text: 'KDA 없는 상태에서 투표 카드에 undefined/undefined/undefined 표시되던 버그 수정' },
@@ -2512,12 +2522,12 @@ function applyMvpData(data) {
     teamB: data.teamBVotes || {}
   };
   mvpConfirmed = data.confirmed || null;
-  // MVP 섹션 렌더링
   if (currentTeamA.length && currentTeamB.length) {
     const sec = document.getElementById('mvp-section');
     if (sec && sec._renderMvp) sec._renderMvp();
     else renderMvpSection();
   }
+  _tryAutoSave();
 }
 
 function applyMannerData(data) {
@@ -2532,6 +2542,7 @@ function applyMannerData(data) {
     if (sec && sec._renderMvp) sec._renderMvp();
     else renderMvpSection();
   }
+  _tryAutoSave();
 }
 
 onValue(ref(db, 'session'), (snapshot) => {
@@ -2550,6 +2561,7 @@ onValue(ref(db, 'session'), (snapshot) => {
   if (!data || !data.active) {
     // 세션 종료: 아이템 잠금 해제 (경기 저장·리셋 후)
     if (itemsLocked) { itemsLocked = false; renderShop(); }
+    closeEogOverlay();
     return;
   }
   if (!playersLoaded || !matchesLoaded) {
@@ -2636,6 +2648,54 @@ onValue(ref(db, 'session/bridgeConnected'), (snap) => {
 // 브릿지가 조용히 죽어도 10초 내 감지
 setInterval(_updateBridgeDot, 5000);
 
+// ── EOG 결과 오버레이 ─────────────────────────────────────────────
+let _mvpSectionOriginalParent = null;
+
+function showEogOverlay(winSide) {
+  if (document.getElementById('eog-overlay')) return;
+  const isBlue = winSide === 'blue';
+  const overlay = document.createElement('div');
+  overlay.id = 'eog-overlay';
+  overlay.className = 'eog-overlay';
+  overlay.innerHTML = `
+    <div class="eog-win-banner">
+      <div class="eog-win-title ${isBlue ? 'blue' : 'red'}">${isBlue ? '🔵 1팀 승리!' : '🟡 2팀 승리!'}</div>
+      <div class="eog-win-sub">MVP · MMP 투표 후 자동 저장됩니다</div>
+    </div>
+    <div class="eog-vote-wrap" id="eog-vote-wrap"></div>
+  `;
+  document.body.appendChild(overlay);
+  const mvpSec = document.getElementById('mvp-section');
+  if (mvpSec) {
+    _mvpSectionOriginalParent = mvpSec.parentNode;
+    mvpSec.style.display = '';
+    document.getElementById('eog-vote-wrap').appendChild(mvpSec);
+  }
+  renderMvpSection();
+}
+
+function closeEogOverlay() {
+  const mvpSec = document.getElementById('mvp-section');
+  if (mvpSec && _mvpSectionOriginalParent) {
+    mvpSec.style.display = 'none';
+    _mvpSectionOriginalParent.appendChild(mvpSec);
+    _mvpSectionOriginalParent = null;
+  }
+  const overlay = document.getElementById('eog-overlay');
+  if (!overlay) return;
+  overlay.style.animation = 'taFadeOut 0.25s ease forwards';
+  setTimeout(() => overlay.remove(), 280);
+}
+
+// ── 투표 완료 시 자동 저장 (liveMode 기기에서만) ─────────────────────
+function _tryAutoSave() {
+  if (!liveMode) return;
+  if (matchSaved || savedMatchKey) return;
+  if (!selectedWinner) return;
+  if (mvpConfirmed === null || mannerConfirmed === null) return;
+  window.saveMatch();
+}
+
 // ── BRIDGE: EOG 자동 결과 입력 ────────────────────────────────────
 async function applyEogData(data) {
   if (!data?.players) return;
@@ -2673,15 +2733,13 @@ async function applyEogData(data) {
   // 2. 승팀 자동 선택 — 플레이어 매칭 확인 후에만 실행
   if (data.winSide && !selectedWinner) {
     selectWinner(data.winSide);
-    const msg = document.getElementById('winner-selected-msg');
-    if (msg) msg.textContent = (data.winSide === 'blue' ? '🔵 1팀' : '🟡 2팀') + ' 승리 (브릿지 자동 감지)';
   }
 
   // 3. 라이브 계정 → Firebase 동기화 (다른 기기도 받을 수 있게)
   if (liveMode) {
     set(ref(db, 'bridge/matchData'), { participants: pts, winSide: data.winSide, syncedAt: Date.now() });
   }
-  renderMvpSection();
+  showEogOverlay(data.winSide);
 }
 
 onValue(ref(db, 'bridge/eogStats'), (snap) => {
@@ -2700,10 +2758,8 @@ onValue(ref(db, 'bridge/matchData'), async (snap) => {
   currentMatchParticipants = data.participants;
   if (data.winSide && !selectedWinner) {
     selectWinner(data.winSide);
-    const msg = document.getElementById('winner-selected-msg');
-    if (msg) msg.textContent = (data.winSide === 'blue' ? '🔵 1팀' : '🟡 2팀') + ' 승리 (브릿지 자동 감지)';
   }
-  renderMvpSection();
+  showEogOverlay(data.winSide);
 });
 
 // ── BRIDGE: 챔프 셀렉 데이터 캐시 (InProgress 직후 사용 대비) ─────────
@@ -4666,6 +4722,7 @@ window._debugScoreCompare = function() {
 window.saveMatch = async function() {
   if (isEventMatch) return;
   if (!selectedWinner) return;
+  if (matchSaved || savedMatchKey) return;
   const btn=document.getElementById('save-btn');
   btn.disabled=true; btn.textContent='저장 중...';
   try {
@@ -4814,6 +4871,7 @@ async function finalizeVotes() {
     await update(ref(db, 'matches/' + savedMatchKey), updateData).catch(console.error);
   }
 
+  closeEogOverlay();
   // 결과 요약 모달 (postSaveMatchData는 이후 null로 초기화되므로 미리 캡처)
   const _summaryData = { ...postSaveMatchData };
   setTimeout(() => showMatchSummary({
@@ -7417,6 +7475,7 @@ window.resetSession = function() {
   itemsLocked = false;
   currentMatchParticipants = {};
   _champSelectCache = null;
+  closeEogOverlay();
   // 정산 관련 상태 초기화 (이전 경기 잔여 데이터 방지)
   postSaveMatchData = null;
   savedMatchKey = null;
