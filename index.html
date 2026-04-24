@@ -1696,7 +1696,7 @@ let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.61';
+const APP_VERSION = 'v2.29.62';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1705,6 +1705,10 @@ const APP_VERSION = 'v2.29.61';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.29.62', date: '2026-04-24', changes: [
+    { tag: 'new', text: '게임 시작(InProgress) 감지 시 챔프 셀렉 데이터로 투표 카드에 챔피언 이미지 선반영 — KDA는 경기 종료 후 자동 채워짐' },
+    { tag: 'fix', text: 'KDA 없는 상태에서 투표 카드에 undefined/undefined/undefined 표시되던 버그 수정' },
+  ]},
   { ver: 'v2.29.61', date: '2026-04-24', changes: [
     { tag: 'improve', text: '기록 탭 승리팀 노란 바를 제목 영역 제외, 팀원 목록 구간만 표시' },
   ]},
@@ -2699,6 +2703,49 @@ onValue(ref(db, 'bridge/matchData'), async (snap) => {
     const msg = document.getElementById('winner-selected-msg');
     if (msg) msg.textContent = (data.winSide === 'blue' ? '🔵 1팀' : '🟡 2팀') + ' 승리 (브릿지 자동 감지)';
   }
+  renderMvpSection();
+});
+
+// ── BRIDGE: 챔프 셀렉 데이터 캐시 (InProgress 직후 사용 대비) ─────────
+let _champSelectCache = null;
+
+onValue(ref(db, 'bridge/champSelect'), (snap) => {
+  const data = snap.val();
+  if (data) _champSelectCache = data; // null 시 캐시 유지
+});
+
+// ── BRIDGE: 게임 시작 감지 → 투표 카드에 챔피언 이미지 선반영 ─────────
+onValue(ref(db, 'bridge/gamePhase'), async (snap) => {
+  const phase = snap.val();
+  if (phase !== 'InProgress') return;
+  if (!_champSelectCache) return;
+  if (!currentTeamA.length || !currentTeamB.length) return;
+  // EOG 데이터가 이미 KDA까지 채워진 경우 덮어쓰지 않음
+  if (Object.values(currentMatchParticipants).some(p => p.kills != null)) return;
+
+  await loadChampNamesKR();
+
+  const allPlayers = [...currentTeamA, ...currentTeamB];
+  const allBridgePlayers = [
+    ...(_champSelectCache.myTeam    || []),
+    ...(_champSelectCache.theirTeam || [])
+  ];
+
+  const pts = {};
+  for (const bp of allBridgePlayers) {
+    if (!bp.champId) continue;
+    const sn        = normName(bp.name || '');
+    const snNoSpace = sn.replace(/\s/g, '');
+    const matched   = allPlayers.find(p => normName(p.name) === sn)
+                   || allPlayers.find(p => normName(p.name).replace(/\s/g, '') === snNoSpace);
+    if (!matched) continue;
+    const slug = champIdToSlug[String(bp.champId)] || '';
+    if (!slug) continue;
+    pts[normName(matched.name)] = { champion: slug };
+  }
+
+  if (!Object.keys(pts).length) return;
+  currentMatchParticipants = pts;
   renderMvpSection();
 });
 
@@ -3905,7 +3952,7 @@ function champCardHtml(p, selectedName, onclick) {
   const slug    = pt?.champion || '';
   const imgSrc  = slug ? `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(slug)}.png` : '';
   const champKR = slug ? (champNamesKR[slug] || slug) : '';
-  const kda     = pt ? `${pt.kills}/${pt.deaths}/${pt.assists}` : '';
+  const kda     = (pt?.kills != null) ? `${pt.kills}/${pt.deaths}/${pt.assists}` : '';
   const iconEl  = imgSrc
     ? `<img class="vote-card-icon" src="${imgSrc}" onerror="this.style.display='none'" alt="">`
     : `<div class="vote-card-icon-empty">?</div>`;
@@ -7368,6 +7415,8 @@ window.resetSession = function() {
   sessionPlayers=[];
   teamSize = 3;
   itemsLocked = false;
+  currentMatchParticipants = {};
+  _champSelectCache = null;
   // 정산 관련 상태 초기화 (이전 경기 잔여 데이터 방지)
   postSaveMatchData = null;
   savedMatchKey = null;
