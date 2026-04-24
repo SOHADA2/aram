@@ -1158,6 +1158,29 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .eog-win-sub{font-size:12px;color:var(--text-dim);}
 .eog-vote-wrap{width:100%;max-width:420px;}
 .team-player{position:relative;}
+/* ── 시즌 1 LP 시스템 ── */
+.s1-tier-badge{display:inline-flex;align-items:center;font-size:9px;font-weight:700;letter-spacing:0.5px;padding:2px 7px;border-radius:4px;font-family:'JetBrains Mono',monospace;white-space:nowrap;}
+.s1t-unranked{background:rgba(100,100,100,0.2);color:#888;}
+.s1t-bronze{background:rgba(205,127,50,0.2);color:#cd7f32;}
+.s1t-silver{background:rgba(180,180,200,0.2);color:#b0b8c8;}
+.s1t-gold{background:rgba(255,215,0,0.18);color:#ffd700;}
+.s1t-platinum{background:rgba(0,184,212,0.18);color:#00b8d4;}
+.s1t-diamond{background:rgba(100,160,240,0.18);color:#64a0f0;}
+.s1t-master{background:rgba(155,89,182,0.2);color:#c39bd3;}
+.s1t-grandmaster{background:rgba(220,60,40,0.2);color:#e74c3c;}
+.s1t-challenger{background:rgba(200,168,75,0.15);color:var(--rk-gold);border:1px solid rgba(200,168,75,0.4);}
+.s1-lp-wrap{display:flex;flex-direction:column;gap:3px;}
+.s1-lp-row{display:flex;align-items:center;gap:4px;}
+.s1-lp-bar-bg{flex:1;min-width:40px;height:3px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;}
+.s1-lp-bar{height:100%;border-radius:2px;transition:width 0.3s ease;}
+.s1-lp-num{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;color:var(--rk-text-dim);min-width:32px;text-align:right;white-space:nowrap;}
+.s1-placement-tag{font-size:9px;color:var(--blue);font-weight:700;letter-spacing:0.3px;}
+.s1-promo-tag{display:flex;align-items:center;gap:2px;}
+.s1-promo-dot{width:7px;height:7px;border-radius:50%;border:1px solid rgba(255,255,255,0.15);}
+.s1-promo-dot.w{background:var(--green);border-color:var(--green);}
+.s1-promo-dot.l{background:var(--red);border-color:var(--red);}
+.s1-promo-dot.p{background:rgba(255,255,255,0.1);}
+.s1-promo-label{font-size:9px;color:var(--rk-gold);font-weight:700;margin-left:3px;}
 /* ── 연승/연패 뱃지 ── */
 /* ── 연승/연패 인라인 텍스트 ── */
 .streak-inline{font-size:9px;font-weight:700;letter-spacing:0.3px;white-space:nowrap;flex-shrink:0;opacity:0.85;}
@@ -1706,9 +1729,11 @@ let itemsLocked = false; // 팀 구성 후 아이템 잠금 여부
 let _pendingRematchTeams = null; // 한 판 더: { teamA, teamB, teamSize, spectator }
 let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
+let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Firebase season1/players)
+let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.29.64';
+const APP_VERSION = 'v2.30.0';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1717,6 +1742,11 @@ const APP_VERSION = 'v2.29.64';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.30.0', date: '2026-04-24', changes: [
+    { tag: 'new', text: '시즌 1 LP 시스템 기반 구현 — 배치고사(5판), 정규전(+20/-14), 승급전(3판2선승), 강등, 챌린저 무제한 LP. Firebase /config/currentSeason=1 시 자동 활성화' },
+    { tag: 'new', text: '시즌 1 전용 아이템 3종 추가 — 승급전 방어권(100G), 승급전 승리권(100G), 도박권(60G)' },
+    { tag: 'new', text: '시즌 1 랭킹 탭 — LP 바·승급전 도트·배치 진행 표시, 티어별 색상 뱃지' },
+  ]},
   { ver: 'v2.29.64', date: '2026-04-24', changes: [
     { tag: 'improve', text: '정산창 디자인을 기록 탭과 통일 — rk 디자인 토큰 적용, 승리팀 골드 바+그라데이션, 패배팀 딤 처리, 구분선 대시 스타일' },
   ]},
@@ -2123,6 +2153,46 @@ const GOLD_SPECTATOR_CORRECT = 50; // 관전자 예측 적중 골드 (v2.25.0~)
 const GOLD_SPECTATOR_CORRECT_LEGACY = 15; // 관전자 예측 적중 골드 (v2.24.x 이하, 소급 방지용)
 const GOLD_MANNER = 50; // 매너왕 골드 (v2.25.0~)
 
+// ─────────────────────────────────────────────────────────────
+// ████  시즌 1 LP 시스템 상수  (CURRENT_SEASON >= 1 시 활성화)  ████
+// ─────────────────────────────────────────────────────────────
+const S1_LP_WIN           = 20;   // 정규전 승리 LP
+const S1_LP_LOSS          = 14;   // 정규전 패배 LP 감소
+const S1_PLACEMENT_WIN_LP = 25;   // 배치고사 승리당 LP
+const S1_PLACEMENT_GAMES  = 5;    // 배치고사 총 판수
+const S1_LP_CAP           = 100;  // 챌린저 외 LP 상한
+const S1_PROMO_FAIL_LP    = 75;   // 승급전 실패 후 LP
+const S1_DEMOTION_LP      = 75;   // 강등 후 진입 LP
+const S1_PROMO_EXPIRY     = 5;    // 승급전 소멸 기준 판수
+const S1_GAMBLE_WIN       = 40;   // 도박권 승리 LP
+const S1_GAMBLE_LOSS      = 30;   // 도박권 패배 LP 감소
+
+const S1_TIER_ORDER = ['bronze','silver','gold','platinum','diamond','master','grandmaster','challenger'];
+const S1_AUTO_TIERS  = new Set(['bronze','silver']);
+const S1_PROMO_TIERS = new Set(['gold','platinum','diamond','master','grandmaster']);
+
+const S1_TIER_META = {
+  unranked:    { label:'언랭',     cls:'s1t-unranked',    color:'#888',    rank:-1 },
+  bronze:      { label:'브론즈',   cls:'s1t-bronze',      color:'#cd7f32', rank:0  },
+  silver:      { label:'실버',     cls:'s1t-silver',      color:'#b0b8c8', rank:1  },
+  gold:        { label:'골드',     cls:'s1t-gold',        color:'#ffd700', rank:2  },
+  platinum:    { label:'플래티넘', cls:'s1t-platinum',    color:'#00b8d4', rank:3  },
+  diamond:     { label:'다이아',   cls:'s1t-diamond',     color:'#64a0f0', rank:4  },
+  master:      { label:'마스터',   cls:'s1t-master',      color:'#c39bd3', rank:5  },
+  grandmaster: { label:'그마',     cls:'s1t-grandmaster', color:'#e74c3c', rank:6  },
+  challenger:  { label:'챌린저',   cls:'s1t-challenger',  color:'#ffd700', rank:7  },
+};
+
+// 시즌 1 전용 아이템
+const S1_SHOP_ITEMS = [
+  { id:'s1_promo_shield', icon:'🛡️', name:'승급전 방어권', color:'#7dd3fc', price:100, type:'oneshot',
+    desc:'승급전 중 패배 시 해당 판 기록 제외 · 승리 시 정상 기록' },
+  { id:'s1_promo_win',    icon:'⚔️', name:'승급전 승리권', color:'#ffd700', price:100, type:'oneshot',
+    desc:'승급전 중 승리 시 2승 처리 → 즉시 승급 · 패배 시 1패 정상 기록' },
+  { id:'s1_gamble',       icon:'🎲', name:'도박권',         color:'#c084fc', price:60,  type:'oneshot',
+    desc:'일반전 전용 · 승리 +40 LP / 패배 −30 LP (승급전 중 사용 불가)' },
+];
+
 // ── 전역 툴팁 시스템 ─────────────────────────────────────────
 const BTN_TIPS = {
   reset: `참가자 명단을 <strong style="color:#e8e8f0">전부 삭제</strong>하고<br>처음부터 다시 시작해요.<br><span style="color:#ff8080;">⚠ 저장 안 된 팀 결과도 사라져요</span>`,
@@ -2329,8 +2399,9 @@ function calcGoldFromMatches(name, season = CURRENT_SEASON) {
 
 // goldSpent = 현재 보유 아이템 가격 합산 (경기 기록 기반 계산과 일치시키기 위함)
 function calcGoldSpentFromItems(items) {
+  const allDefs = [...SHOP_ITEMS, ...S1_SHOP_ITEMS];
   return (items || []).reduce((sum, item) => {
-    const def = SHOP_ITEMS.find(s => s.id === item.id);
+    const def = allDefs.find(s => s.id === item.id);
     return sum + (def?.price || 0);
   }, 0);
 }
@@ -2388,7 +2459,15 @@ onValue(ref(db, 'config/currentSeason'), (snapshot) => {
   const val = snapshot.val();
   CURRENT_SEASON = (val !== null && val !== undefined) ? Number(val) : 0;
   viewSeason = CURRENT_SEASON;
+  rankViewSeason = CURRENT_SEASON;
   renderSeasonSelector();
+});
+
+// 시즌 1 플레이어 LP/티어 데이터 구독
+onValue(ref(db, 'season1/players'), (snapshot) => {
+  season1Data  = snapshot.val() || {};
+  s1DataLoaded = true;
+  if (CURRENT_SEASON >= 1) renderRanking();
 });
 
 // Riot API 호출 헬퍼 — Worker 설정 시 프록시 경유, 없으면 직접 호출(CORS 실패 가능)
@@ -4795,6 +4874,7 @@ window.saveMatch = async function() {
     });
 
     await giveMatchGold(winners, losers, matchTimestamp);
+    await s1ApplyAllMatchResults(winners, losers);
 
     // 관전자 결과, questEvent 보관 (finalizeVotes에서 결과 요약 시 사용)
     const spectatorResult = (currentSpectator && spectatorPick)
@@ -6154,6 +6234,7 @@ function renderRankMiniCard(r, displayRank) {
 }
 
 function renderRanking() {
+  if (rankViewSeason >= 1) { renderS1Ranking(); return; }
   const el = document.getElementById('rank-list');
   if (!el) return;
   const season = rankViewSeason;
@@ -7064,8 +7145,9 @@ function renderShop() {
   const lockBanner = document.getElementById('item-lock-banner');
   if (lockBanner) lockBanner.classList.toggle('show', itemsLocked);
 
-  // 상점 그리드 — 잠금 중엔 구매 불가
-  document.getElementById('shop-grid').innerHTML = SHOP_ITEMS.map(item=>{
+  // 상점 그리드 — 시즌에 따라 아이템 목록 다름
+  const _shopList = CURRENT_SEASON >= 1 ? S1_SHOP_ITEMS : SHOP_ITEMS;
+  document.getElementById('shop-grid').innerHTML = _shopList.map(item=>{
     const owned   = myItems.filter(i=>i.id===item.id).length;
     const canBuy  = myGold >= item.price && !itemsLocked;
     const nameColor = item.color || 'var(--text)';
@@ -7087,7 +7169,7 @@ function renderShop() {
     return;
   }
   myItemsEl.innerHTML = myItems.map((item,idx)=>{
-    const def = SHOP_ITEMS.find(s=>s.id===item.id);
+    const def = [...SHOP_ITEMS, ...S1_SHOP_ITEMS].find(s=>s.id===item.id);
     if (!def) return '';
     const isActive = !!item.active;
     return`<div class="my-item-row" style="${isActive?'border-color:rgba(0,199,122,0.5);background:rgba(0,199,122,0.05);':''}">
@@ -7133,7 +7215,7 @@ window.buyItem = async function(itemId) {
   if (!key) { showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
   const data = goldData[key];
   if (!data) return;
-  const item = SHOP_ITEMS.find(s=>s.id===itemId);
+  const item = [...SHOP_ITEMS, ...S1_SHOP_ITEMS].find(s=>s.id===itemId);
   if (!item) return;
   const currentGold = getMyGold(); // 경기 기록 기반 동적 계산
   if (currentGold < item.price) {
@@ -7532,6 +7614,269 @@ if (liveMode) {
     document.body.appendChild(d);
   }
 })();
+
+// ═══════════════════════════════════════════════════════════════
+// ████████████  시즌 1 LP 시스템 로직  ████████████████████████████
+// ═══════════════════════════════════════════════════════════════
+
+// ── 티어 이동 헬퍼 ────────────────────────────────────────────
+function s1NextTier(tier) {
+  const i = S1_TIER_ORDER.indexOf(tier);
+  return (i >= 0 && i < S1_TIER_ORDER.length - 1) ? S1_TIER_ORDER[i + 1] : null;
+}
+function s1PrevTier(tier) {
+  const i = S1_TIER_ORDER.indexOf(tier);
+  return i > 0 ? S1_TIER_ORDER[i - 1] : null;
+}
+
+// ── 플레이어 데이터 헬퍼 ──────────────────────────────────────
+function s1DefaultPlayer() {
+  return { tier:'unranked', lp:0, placementWins:0, placementGames:0, placementDone:false,
+           promoActive:false, promoWins:0, promoLosses:0, promoGamesPlayed:0 };
+}
+function s1GetPlayer(name) {
+  return season1Data[normName(name)] || null;
+}
+async function s1SavePlayer(name, data) {
+  await set(ref(db, `season1/players/${normName(name)}`), data);
+}
+
+// ── 배치고사 결과 계산 ──────────────────────────────────────────
+function s1CalcPlacementResult(wins) {
+  const lp = wins * S1_PLACEMENT_WIN_LP;
+  return lp >= S1_LP_CAP ? { tier:'silver', lp: lp - S1_LP_CAP } : { tier:'bronze', lp };
+}
+
+// ── 승급전 성공/실패 ────────────────────────────────────────────
+function s1PromoSuccess(d) {
+  const next = s1NextTier(d.tier);
+  return { ...d, tier: next || d.tier, lp:0,
+           promoActive:false, promoWins:0, promoLosses:0, promoGamesPlayed:0 };
+}
+function s1PromoFail(d) {
+  return { ...d, lp: S1_PROMO_FAIL_LP,
+           promoActive:false, promoWins:0, promoLosses:0, promoGamesPlayed:0 };
+}
+
+// ── 단일 플레이어 경기 결과 적용 ─────────────────────────────────
+async function s1ApplyMatchResult(name, won, activeS1Item) {
+  const key = normName(name);
+  let d = season1Data[key] ? { ...season1Data[key] } : s1DefaultPlayer();
+
+  // ── 배치고사 단계 ────────────────────────────────────────────
+  if (!d.placementDone) {
+    d.placementGames = (d.placementGames || 0) + 1;
+    if (won) d.placementWins = (d.placementWins || 0) + 1;
+    if (d.placementGames >= S1_PLACEMENT_GAMES) {
+      const res = s1CalcPlacementResult(d.placementWins);
+      d.tier = res.tier; d.lp = res.lp; d.placementDone = true;
+    }
+    await s1SavePlayer(name, d);
+    return;
+  }
+
+  // ── 승급전 진행 중 ───────────────────────────────────────────
+  if (d.promoActive) {
+    d.promoGamesPlayed = (d.promoGamesPlayed || 0) + 1;
+    // 소멸 체크
+    if (d.promoGamesPlayed > S1_PROMO_EXPIRY) {
+      d = s1PromoFail(d); await s1SavePlayer(name, d); return;
+    }
+    if (activeS1Item === 's1_promo_win') {
+      // 승급전 승리권: 승리=2승(즉시 승급), 패배=1패 정상
+      if (won) { d = s1PromoSuccess(d); }
+      else { d.promoLosses = (d.promoLosses||0)+1; if (d.promoLosses>=2) d = s1PromoFail(d); }
+    } else if (activeS1Item === 's1_promo_shield' && !won) {
+      // 승급전 방어권: 패배 시 해당 판 기록 제외 (아무것도 안 함)
+    } else {
+      if (won) { d.promoWins=(d.promoWins||0)+1; if(d.promoWins>=2) d=s1PromoSuccess(d); }
+      else     { d.promoLosses=(d.promoLosses||0)+1; if(d.promoLosses>=2) d=s1PromoFail(d); }
+    }
+    await s1SavePlayer(name, d);
+    return;
+  }
+
+  // ── 정규전 ──────────────────────────────────────────────────
+  const useGamble = activeS1Item === 's1_gamble';
+  const gain = useGamble ? S1_GAMBLE_WIN  : S1_LP_WIN;
+  const lose = useGamble ? S1_GAMBLE_LOSS : S1_LP_LOSS;
+  const isChallenger = d.tier === 'challenger';
+
+  if (won) {
+    if (isChallenger) {
+      d.lp = (d.lp || 0) + gain; // 챌린저: 상한 없음
+    } else {
+      d.lp = Math.min((d.lp || 0) + gain, S1_LP_CAP);
+      if (d.lp >= S1_LP_CAP) {
+        if (S1_AUTO_TIERS.has(d.tier)) {
+          const next = s1NextTier(d.tier);
+          if (next) { d.tier = next; d.lp = 0; }
+        } else if (S1_PROMO_TIERS.has(d.tier)) {
+          // 100 LP 달성 → 승급전 시작
+          d.promoActive = true; d.promoWins = 0; d.promoLosses = 0; d.promoGamesPlayed = 0;
+        }
+      }
+    }
+  } else {
+    const newLp = (d.lp || 0) - lose;
+    if (newLp < 0 && !S1_AUTO_TIERS.has(d.tier)) {
+      // 강등 (Bronze/Silver 제외)
+      const prev = s1PrevTier(d.tier);
+      if (prev) { d.tier = prev; d.lp = S1_DEMOTION_LP; } else { d.lp = 0; }
+    } else {
+      d.lp = Math.max(0, newLp);
+    }
+  }
+  await s1SavePlayer(name, d);
+}
+
+// ── saveMatch 훅: 전체 플레이어 S1 결과 일괄 적용 ────────────────
+async function s1ApplyAllMatchResults(winners, losers) {
+  if (CURRENT_SEASON < 1) return;
+  const itemsKey = sField('items');
+  for (const p of [...winners, ...losers]) {
+    const isWin = winners.some(w => normName(w.name) === normName(p.name));
+    // 활성화된 S1 아이템 확인
+    const entry = Object.entries(goldData).find(([,g]) => normName(g.name) === normName(p.name));
+    let activeS1Item = null;
+    if (entry) {
+      const items = entry[1][itemsKey] || [];
+      const active = items.find(it => it.active && it.id.startsWith('s1_'));
+      if (active) activeS1Item = active.id;
+    }
+    await s1ApplyMatchResult(p.name, isWin, activeS1Item);
+  }
+}
+
+// ── S1 랭킹 렌더 ─────────────────────────────────────────────
+function s1LpBarHtml(d) {
+  const meta = S1_TIER_META[d.tier] || S1_TIER_META.unranked;
+  if (!d.placementDone) {
+    const done = d.placementGames || 0;
+    return `<span class="s1-placement-tag">배치 ${done}/${S1_PLACEMENT_GAMES}</span>`;
+  }
+  if (d.promoActive) {
+    const w = d.promoWins || 0, l = d.promoLosses || 0;
+    const dots = [0,1,2].map(i => {
+      let cls = 'p';
+      if (i < w) cls = 'w';
+      else if (i - w < l) cls = 'l';
+      return `<span class="s1-promo-dot ${cls}"></span>`;
+    }).join('');
+    return `<div class="s1-promo-tag">${dots}<span class="s1-promo-label">승급전</span></div>`;
+  }
+  const isChallenger = d.tier === 'challenger';
+  const pct = isChallenger
+    ? Math.min(((d.lp || 0) / 200) * 100, 100)
+    : ((d.lp || 0) / S1_LP_CAP) * 100;
+  const lpText = isChallenger ? `${d.lp || 0} LP` : `${d.lp || 0} / 100`;
+  return `<div class="s1-lp-row">
+    <div class="s1-lp-bar-bg"><div class="s1-lp-bar" style="width:${pct.toFixed(1)}%;background:${meta.color};"></div></div>
+    <span class="s1-lp-num">${lpText}</span>
+  </div>`;
+}
+
+function s1TierBadgeHtml(tier, size) {
+  const meta = S1_TIER_META[tier] || S1_TIER_META.unranked;
+  const style = size === 'big'  ? 'font-size:11px;padding:3px 9px;'
+              : size === 'mini' ? 'font-size:8px;padding:1px 5px;' : '';
+  return `<span class="s1-tier-badge ${meta.cls}" style="${style}">${meta.label}</span>`;
+}
+
+function renderS1Ranking() {
+  const el = document.getElementById('rank-list');
+  if (!el) return;
+  const seasonLabel = document.getElementById('rk-season-label');
+  if (seasonLabel) seasonLabel.textContent = 'S1';
+
+  const rows = Object.values(registeredPlayers).map(p => {
+    const d    = season1Data[normName(p.name)] || s1DefaultPlayer();
+    const meta = S1_TIER_META[d.tier] || S1_TIER_META.unranked;
+    return { name:p.name, tier:d.tier, lp:d.lp||0, tierRank:meta.rank, d,
+             me: myName && normName(p.name)===normName(myName),
+             motto:p.motto||'', isNewbie:!!p.isNewbie,
+             champTier1:p.champTier1||[], champTier2:p.champTier2||[] };
+  });
+
+  rows.sort((a,b) => {
+    if (b.tierRank !== a.tierRank) return b.tierRank - a.tierRank;
+    return b.lp - a.lp;
+  });
+
+  const placed   = rows.filter(r => r.d.placementDone);
+  const unplaced = rows.filter(r => !r.d.placementDone);
+  let html = '';
+
+  if (placed.length > 0) {
+    const top3 = placed.slice(0, 3);
+    html += `<div class="rk-heroes">`;
+    top3.forEach((r,i) => html += renderS1HeroCard(r, i+1));
+    html += `</div>`;
+    const rest = placed.slice(3);
+    if (rest.length > 0) {
+      html += `<div class="rk-list">`;
+      rest.forEach((r,i) => html += renderS1MiniCard(r, i+4));
+      html += `</div>`;
+    }
+  }
+  if (unplaced.length > 0) {
+    html += `<div class="rk-list" style="margin-top:12px;opacity:0.7;">`;
+    unplaced.forEach(r => html += renderS1MiniCard(r, '—'));
+    html += `</div>`;
+  }
+  if (!html) {
+    html = `<div style="padding:40px 16px;text-align:center;color:var(--rk-text-dim);font-size:13px;">
+      시즌 1이 시작되면 배치고사 후 랭킹이 표시됩니다</div>`;
+  }
+  el.innerHTML = html;
+  el.querySelectorAll('[data-name]').forEach(card => {
+    card.addEventListener('click', () => {
+      const entry = Object.entries(registeredPlayers).find(([,p]) => normName(p.name)===normName(card.dataset.name));
+      if (entry) openProfileModal(entry[0]);
+    });
+  });
+}
+
+function renderS1HeroCard(r, place) {
+  const medal  = place===1?'🥇':place===2?'🥈':'🥉';
+  const cls    = place===1?'first':place===2?'second':'third';
+  const meCls  = r.me ? ' me' : '';
+  const chips  = renderRankClassChips(r.champTier1, r.champTier2);
+  return `<div class="rk-hero ${cls}${meCls}" data-name="${escHtml(r.name)}" style="cursor:pointer;">
+    <div class="glow"></div><div class="hatch"></div>
+    <div class="rk-hero-top">
+      <div class="rk-hero-top-left"><span class="rk-medal">${medal}</span>${r.me?renderRankMeTag(false):''}</div>
+      <div>${s1TierBadgeHtml(r.tier, place===1?'big':'mid')}</div>
+    </div>
+    <div class="rk-hero-name${place===1?' rk-name-gold':''}">${escHtml(r.name)}</div>
+    ${r.motto?`<div class="rk-hero-motto">"${escHtml(r.motto)}"</div>`:''}
+    ${chips?`<div class="rk-hero-chips">${chips}</div>`:''}
+    <div class="rk-hero-bottom"><span></span>
+      <div class="s1-lp-wrap">${s1LpBarHtml(r.d)}</div>
+    </div>
+  </div>`;
+}
+
+function renderS1MiniCard(r, displayRank) {
+  const meta  = S1_TIER_META[r.tier] || S1_TIER_META.unranked;
+  const meCls = r.me ? ' me' : '';
+  return `<div class="rk-mini${meCls}" data-name="${escHtml(r.name)}" style="cursor:pointer;">
+    <div class="stripe" style="background:${meta.color};"></div>
+    <div class="rk-mini-rank">${displayRank}</div>
+    <div class="rk-mini-main">
+      <div class="rk-mini-name-row">
+        <span class="rk-mini-name">${escHtml(r.name)}</span>
+        ${r.isNewbie?'<span class="rk-newbie-emoji">🌱</span>':''}
+        ${r.me?renderRankMeTag(true):''}
+      </div>
+      ${r.motto?`<div class="rk-mini-motto">"${escHtml(r.motto)}"</div>`:''}
+    </div>
+    <div class="rk-mini-right">
+      ${s1TierBadgeHtml(r.tier,'mini')}
+      <div class="s1-lp-wrap" style="margin-top:3px;">${s1LpBarHtml(r.d)}</div>
+    </div>
+  </div>`;
+}
 
 </script>
 <div id="tip-box" class="tip-box"></div>
