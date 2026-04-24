@@ -1738,7 +1738,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.30.2';
+const APP_VERSION = 'v2.30.3';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1747,6 +1747,9 @@ const APP_VERSION = 'v2.30.2';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.30.3', date: '2026-04-24', changes: [
+    { tag: 'improve', text: '시즌 1 대기 카드(팀 짜기 전 개인 대시보드) S1 LP 기준으로 재구성 — 500pt 대신 티어·LP·배치 진행·승급전 도트·S1 전용 승급/강등 예측·S1 전적만 표시' },
+  ]},
   { ver: 'v2.30.2', date: '2026-04-24', changes: [
     { tag: 'fix', text: '시즌 토글 시 기록·랭킹 탭이 즉시 갱신되지 않던 문제 — config/currentSeason 리스너에서 renderMatchHistory/renderRanking 호출 추가 (이전에는 viewSeason/rankViewSeason만 바뀌고 DOM이 그대로 남아 S0 화면이 보였음)' },
   ]},
@@ -2473,16 +2476,17 @@ onValue(ref(db, 'config/currentSeason'), (snapshot) => {
   rankViewSeason = CURRENT_SEASON;
   renderSeasonSelector();
   renderSeasonAdmin();
-  // 시즌 전환 즉시 기록·랭킹 탭을 현재 시즌으로 다시 그림
+  // 시즌 전환 즉시 기록·랭킹·대기카드를 현재 시즌으로 다시 그림
   renderMatchHistory();
   renderRanking();
+  updateMemberModeDisplay();
 });
 
 // 시즌 1 플레이어 LP/티어 데이터 구독
 onValue(ref(db, 'season1/players'), (snapshot) => {
   season1Data  = snapshot.val() || {};
   s1DataLoaded = true;
-  if (CURRENT_SEASON >= 1) renderRanking();
+  if (CURRENT_SEASON >= 1) { renderRanking(); updateMemberModeDisplay(); }
 });
 
 // Riot API 호출 헬퍼 — Worker 설정 시 프록시 경유, 없으면 직접 호출(CORS 실패 가능)
@@ -6892,6 +6896,7 @@ function tierFromPt(pt) {
 function renderWaitingCard() {
   const el = document.getElementById('member-waiting');
   if (!el || !myName) return;
+  if (CURRENT_SEASON >= 1) { renderS1WaitingCard(el); return; }
 
   const { score: rawScore } = calcScore(myName);
   const score = Math.round(rawScore);
@@ -6957,6 +6962,121 @@ function renderWaitingCard() {
       <div class="wc-prog-bar"><div class="wc-prog-fill" style="width:${pct}%"></div></div>
       ${range.nextLabel?`<span class="wc-prog-label">${range.nextLabel} ${range.next}pt</span>`:'<span class="wc-prog-label" style="color:var(--gold);">최고 티어 🏆</span>'}
     </div>`:''}
+    <div class="wc-stats-row">
+      <div class="wc-stat"><span class="wc-stat-val win">${s.wins}</span><span class="wc-stat-key">승</span></div>
+      <div class="wc-stat"><span class="wc-stat-val loss">${s.losses}</span><span class="wc-stat-key">패</span></div>
+      <div class="wc-stat"><span class="wc-stat-val">${s.total>0?Math.round(s.wr*100)+'%':'—'}</span><span class="wc-stat-key">승률</span></div>
+      <div class="wc-stat"><span class="wc-stat-val">${s.total}</span><span class="wc-stat-key">경기</span></div>
+    </div>
+    ${predHtml}
+    <div class="wc-recent-row">
+      <span class="wc-recent-label">최근 ${recent.length}경기</span>
+      <div class="wc-dots">${recentHtml}</div>
+    </div>
+    <div class="wc-tip">${tip}</div>
+  `;
+}
+
+// ── 시즌 1 대기 카드 (LP / 배치 / 승급전 기반) ─────────────────
+function renderS1WaitingCard(el) {
+  const key  = normName(myName);
+  const d    = s1GetPlayer(myName) || s1DefaultPlayer();
+  const meta = S1_TIER_META[d.tier] || S1_TIER_META.unranked;
+  const s    = calcStats(myName, 1);
+
+  // S1 경기만 필터 (최신순)
+  const s1Sorted = Object.values(matches)
+    .filter(m => (m.season ?? 0) === 1 && ((m.teamA||[]).some(n=>normName(n)===key) || (m.teamB||[]).some(n=>normName(n)===key)))
+    .sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
+
+  const recent = s1Sorted.slice(0,5).map(m => {
+    const inA = (m.teamA||[]).some(n=>normName(n)===key);
+    return ((m.winner==='blue'&&inA) || (m.winner==='red'&&!inA)) ? 'W' : 'L';
+  });
+
+  // S1 연승/연패
+  let streakHtml = '';
+  if (s1Sorted.length > 0) {
+    const firstInA = (s1Sorted[0].teamA||[]).some(n=>normName(n)===key);
+    const firstWin = (s1Sorted[0].winner==='blue'&&firstInA) || (s1Sorted[0].winner==='red'&&!firstInA);
+    let count = 0;
+    for (const m of s1Sorted) {
+      const inA = (m.teamA||[]).some(n=>normName(n)===key);
+      const isWin = (m.winner==='blue'&&inA) || (m.winner==='red'&&!inA);
+      if (firstWin === isWin) count++; else break;
+    }
+    if (count >= 2) {
+      const icon = firstWin ? '🔥' : '😰';
+      const color = firstWin ? 'var(--gold)' : 'rgba(255,110,110,0.9)';
+      streakHtml = `<span class="wc-streak" style="color:${color}">${icon} ${count}${firstWin?'연승':'연패'}</span>`;
+    }
+  }
+
+  // 상태 표기: 배치 / 승급전 / LP
+  let statusHtml;
+  if (!d.placementDone) {
+    const done = d.placementGames || 0;
+    const wins = d.placementWins || 0;
+    statusHtml = `<span class="wc-score" style="color:${meta.color};">배치 ${done}/${S1_PLACEMENT_GAMES} · ${wins}승</span>`;
+  } else if (d.promoActive) {
+    const w = d.promoWins || 0, l = d.promoLosses || 0;
+    const dots = [0,1,2].map(i => {
+      let c = 'p';
+      if (i < w) c = 'w';
+      else if (i - w < l) c = 'l';
+      return `<span class="s1-promo-dot ${c}"></span>`;
+    }).join('');
+    statusHtml = `<span class="wc-score" style="display:inline-flex;align-items:center;gap:6px;">${dots}<span>승급전 ${w}승 ${l}패</span></span>`;
+  } else {
+    const lpText = d.tier === 'challenger' ? `${d.lp || 0} LP` : `${d.lp || 0} / 100 LP`;
+    statusHtml = `<span class="wc-score" style="color:${meta.color};">${lpText}</span>`;
+  }
+
+  // LP 진행 바 (정규전일 때만)
+  let progHtml = '';
+  if (d.placementDone && !d.promoActive && d.tier !== 'challenger') {
+    const pct = Math.min(100, ((d.lp || 0) / S1_LP_CAP) * 100);
+    const nextLabel = S1_AUTO_TIERS.has(d.tier)
+      ? (S1_TIER_META[s1NextTier(d.tier)]?.label || '')
+      : '승급전';
+    progHtml = `<div class="wc-prog-wrap">
+      <div class="wc-prog-bar"><div class="wc-prog-fill" style="width:${pct.toFixed(1)}%;background:${meta.color};"></div></div>
+      <span class="wc-prog-label">${nextLabel} 100 LP</span>
+    </div>`;
+  } else if (d.tier === 'challenger') {
+    progHtml = `<div class="wc-prog-wrap"><span class="wc-prog-label" style="color:var(--gold);">최고 티어 🏆</span></div>`;
+  }
+
+  // 승급/강등 예측 (정규전일 때만)
+  let predHtml = '';
+  if (d.placementDone && !d.promoActive) {
+    const lp = d.lp || 0;
+    if (d.tier !== 'challenger' && lp + S1_LP_WIN >= S1_LP_CAP) {
+      if (S1_AUTO_TIERS.has(d.tier)) {
+        const next = s1NextTier(d.tier);
+        if (next) predHtml = `<div class="wc-pred up">▲ 다음 경기 승리 시 <strong>${S1_TIER_META[next].label}</strong> 승급!</div>`;
+      } else if (S1_PROMO_TIERS.has(d.tier)) {
+        predHtml = `<div class="wc-pred up">▲ 다음 경기 승리 시 <strong>승급전</strong> 진입!</div>`;
+      }
+    } else if (!S1_AUTO_TIERS.has(d.tier) && lp - S1_LP_LOSS < 0) {
+      const prev = s1PrevTier(d.tier);
+      if (prev) predHtml = `<div class="wc-pred down">▽ 다음 경기 패배 시 <strong>${S1_TIER_META[prev].label}</strong> 강등 위기</div>`;
+    }
+  }
+
+  const tip = WAITING_TIPS[Math.floor(Date.now()/60000) % WAITING_TIPS.length];
+  const recentHtml = recent.length
+    ? recent.map(r=>`<span class="wc-dot ${r==='W'?'win':'loss'}">${r}</span>`).join('')
+    : `<span style="color:var(--text-dim);font-size:11px;">기록 없음</span>`;
+
+  el.innerHTML = `
+    <div class="wc-title">대기 중</div>
+    <div class="wc-header">
+      ${s1TierBadgeHtml(d.tier, 'big')}
+      ${statusHtml}
+      ${streakHtml}
+    </div>
+    ${progHtml}
     <div class="wc-stats-row">
       <div class="wc-stat"><span class="wc-stat-val win">${s.wins}</span><span class="wc-stat-key">승</span></div>
       <div class="wc-stat"><span class="wc-stat-val loss">${s.losses}</span><span class="wc-stat-key">패</span></div>
