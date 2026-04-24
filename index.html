@@ -1613,21 +1613,7 @@ img.emoji{
   <div id="rank-list">
     <div class="empty-state"><div class="icon">🏆</div>경기 기록이 쌓이면 랭킹이 생성됩니다</div>
   </div>
-  <div class="card" style="font-size:12px;color:var(--text-dim);line-height:2;margin:12px 14px 0;">
-    <div class="card-title">티어 산정 기준</div>
-    최소 <strong style="color:var(--text)">3판</strong> 이상 참여해야 티어가 부여됩니다. 승리 <strong style="color:var(--green)">+10pt</strong> · 패배 <strong style="color:var(--red)">-7pt</strong> · 시작 500pt · 판수가 쌓일수록 정확해집니다.<br>
-    🌱 뉴비와 같은 팀 승리 시 <strong style="color:var(--green)">+13pt / +20G</strong> · 패배 시 <strong style="color:var(--red)">-4pt</strong> · 뉴비 본인 패배 <strong style="color:var(--red)">-2pt</strong><br>
-    <span style="color:var(--tier-challenger)">챌린저</span> 850↑ &nbsp;
-    <span style="color:var(--tier-grandmaster)">그마</span> 780↑ &nbsp;
-    <span style="color:var(--tier-master)">마스터</span> 720↑ &nbsp;
-    <span style="color:var(--tier-diamond)">다이아</span> 660↑ &nbsp;
-    <span style="color:var(--tier-emerald)">에메</span> 600↑ &nbsp;
-    <span style="color:var(--tier-platinum)">플래</span> 540↑ &nbsp;
-    <span style="color:var(--tier-gold)">골드</span> 480↑ &nbsp;
-    <span style="color:var(--tier-silver)">실버</span> 420↑ &nbsp;
-    <span style="color:var(--tier-bronze)">브론즈</span> 360↑ &nbsp;
-    <span style="color:var(--tier-iron)">아이언</span> 그 외
-  </div>
+  <div class="card" id="tier-criteria-card" style="font-size:12px;color:var(--text-dim);line-height:2;margin:12px 14px 0;"></div>
 </div>
 
 <!-- ===== TAB: 상점 ===== -->
@@ -1788,7 +1774,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.5';
+const APP_VERSION = 'v2.31.6';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1797,6 +1783,11 @@ const APP_VERSION = 'v2.31.5';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.6', date: '2026-04-24', changes: [
+    { tag: 'fix', text: '시즌 1 모드에서 시즌 0 용어·수치가 그대로 노출되던 지점 전수 정리 — 랭킹 탭 "티어 산정 기준" 카드가 정적 HTML이라 S0(500pt/480pt/10pt/-7pt) 기준만 보이던 문제를 rankViewSeason 기준 동적 렌더로 교체(S1은 LP·배치·승급전·뉴비 LP 기준 안내). 과거 시즌 드롭다운 조회 시 그 시즌 기준 카드 표시' },
+    { tag: 'fix', text: '매치 기록 탭에서 S1 아이템 효과 태그(s1_gamble/s1_promo_shield/s1_promo_win)가 아예 표시되지 않던 버그 수정 — gamble/score2x/insurance만 체크하던 기록 렌더 로직에 S1 아이템 3종 분기 추가. 도박권 승/패, 승급전 방어권 발동(패배 시), 승급전 승리권 발동(승리 시) 태그 각각 노출' },
+    { tag: 'new', text: 'S1 전용 BTN_TIPS 7종 추가 — item_s1_gamble/item_s1_promo_shield/item_s1_promo_win(상점 헬프), s1_gamble_win/s1_gamble_lose/s1_promo_shield_used/s1_promo_win_used(기록 태그). LP 수치와 발동 조건 모두 정확히 안내' },
+  ]},
   { ver: 'v2.31.5', date: '2026-04-24', changes: [
     { tag: 'new', text: '시즌 1 뉴비 시스템 적용 — 정규전에서 뉴비 팀원과 승리 시 +3 LP 추가(+20→+23), 패배 시 -3 LP 완화(-14→-11), 뉴비 본인 패배 시 -5 LP로 대폭 완화(기본 -14). 배치고사 뉴비 본인은 승수 +1 보정(실질 1패 무시 효과)으로 브론즈/실버 경계 완화. 승급전·도박권 사용 시엔 미적용(도박 리스크 보장). 뉴비 뱃지 툴팁도 시즌 1 전용 안내로 분기' },
   ]},
@@ -2343,6 +2334,14 @@ const BTN_TIPS = {
   item_score2x: `<strong style="color:#ffd700">⚡ 승점 2배권</strong><br>경기 전 활성화 시 승리하면<br><strong style="color:#e8e8f0">+20pt</strong> 획득<br><span style="color:#a0b0c8;">미활성 승리 +10pt · 패배 시 소모</span>`,
   item_insurance:`<strong style="color:#7dd3fc">🛡️ 패배 방어권</strong><br>경기 전 활성화 시 패배해도<br><strong style="color:#e8e8f0">승점 차감 없음</strong><br><span style="color:#a0b0c8;">미활성 패배 -7pt · 승리 시 소모</span>`,
   item_gamble:   `<strong style="color:#c084fc">🎲 도박 주사위</strong><br>경기 전 활성화 시 결과에 배팅<br>승리 <strong style="color:#4ade80">+25pt</strong> · 패배 <strong style="color:#ff8080">-15pt</strong> 고정<br><span style="color:#a0b0c8;">일반: 승 +10pt · 패 -7pt</span><br><span style="color:#ff8080;">⚠ 2배권·방어권·새싹 보정 모두 무시</span>`,
+  // ── 시즌 1 전용 아이템 툴팁 (상점 헬프 + 매치 기록 효과 태그 공용)
+  item_s1_promo_shield: `<strong style="color:#7dd3fc">🛡️ 승급전 방어권</strong><br>승급전 진행 중 활성화 시<br>패배해도 <strong style="color:#e8e8f0">해당 판 기록 제외</strong><br>승리는 정상 1승으로 카운트<br><span style="color:#a0b0c8;font-size:9px;">정규전에서는 효과 없음</span>`,
+  item_s1_promo_win:    `<strong style="color:#ffd700">⚔️ 승급전 승리권</strong><br>승급전 진행 중 활성화 시<br>승리 시 <strong style="color:#e8e8f0">2승 처리 → 즉시 승급</strong><br>패배 시 1패로 정상 기록<br><span style="color:#a0b0c8;font-size:9px;">정규전에서는 효과 없음</span>`,
+  item_s1_gamble:       `<strong style="color:#c084fc">🎲 도박권</strong><br>정규전 전 활성화 시 결과에 배팅<br>승리 <strong style="color:#4ade80">+40 LP</strong> · 패배 <strong style="color:#ff8080">-30 LP</strong> 고정<br><span style="color:#a0b0c8;">일반: 승 +20 LP · 패 -14 LP</span><br><span style="color:#ff8080;">⚠ 승급전 중 사용 불가 · 뉴비 보정 무시</span>`,
+  s1_gamble_win:        `<strong style="color:#4ade80">🎲 도박 성공!</strong><br>정규전 승리로 <strong style="color:#e8e8f0">+40 LP</strong> 획득<br><span style="color:#a0b0c8;">일반 승리는 +20 LP</span>`,
+  s1_gamble_lose:       `<strong style="color:#ff8080">🎲 도박 실패...</strong><br>정규전 패배로 <strong style="color:#e8e8f0">-30 LP</strong> 감점<br><span style="color:#a0b0c8;">일반 패배는 -14 LP</span>`,
+  s1_promo_shield_used: `<strong style="color:#7dd3fc">🛡️ 승급전 방어권 발동</strong><br>패배했지만 <strong style="color:#e8e8f0">해당 판 기록 제외</strong><br><span style="color:#a0b0c8;">승급전 진행에 영향 없음</span>`,
+  s1_promo_win_used:    `<strong style="color:#ffd700">⚔️ 승급전 승리권 발동</strong><br>승리로 <strong style="color:#e8e8f0">2승 처리 → 즉시 승급</strong><br><span style="color:#a0b0c8;">패배 시엔 1패로만 기록됨</span>`,
   newbie_bonus:  `🌱 <strong style="color:#00c77a">뉴비 보너스</strong> 적용 중<br><span style="color:#a0b0c8;font-size:9px;">팀원 중 뉴비가 있는 경우</span><br><br>🏆 승리 <strong style="color:#e8e8f0">+13pt · +20G</strong><br>💀 패배 <strong style="color:#e8e8f0">−4pt · +5G</strong><br>🌱 뉴비 본인 패배 <strong style="color:#e8e8f0">−2pt</strong>`,
   newbie_bonus_s1: `🌱 <strong style="color:#00c77a">뉴비 보너스 (시즌 1)</strong><br><span style="color:#a0b0c8;font-size:9px;">팀원 중 뉴비가 있는 경우 · 정규전 한정</span><br><br>🏆 승리 <strong style="color:#e8e8f0">+23 LP · +20G</strong><br>💀 패배 <strong style="color:#e8e8f0">−11 LP · +5G</strong><br>🌱 뉴비 본인 패배 <strong style="color:#e8e8f0">−5 LP</strong><br>🧪 배치고사 1패 무시 보정<br><span style="color:#ff8080;font-size:9px;">⚠ 승급전·도박권 사용 시 미적용</span>`,
 };
@@ -2600,9 +2599,10 @@ onValue(ref(db, 'config/currentSeason'), (snapshot) => {
   rankViewSeason = CURRENT_SEASON;
   renderSeasonSelector();
   renderSeasonAdmin();
-  // 시즌 전환 즉시 기록·랭킹·대기카드·업적/시즌패스를 현재 시즌으로 다시 그림
+  // 시즌 전환 즉시 기록·랭킹·대기카드·업적/시즌패스·티어 기준 카드를 현재 시즌으로 다시 그림
   renderMatchHistory();
   renderRanking();
+  if (typeof renderTierCriteriaCard === 'function') renderTierCriteriaCard();
   updateMemberModeDisplay();
   if (typeof renderAchievementsOrPass === 'function') renderAchievementsOrPass();
   updateMyInfoBar();
@@ -5230,6 +5230,18 @@ if(matchArr.length===0){el.innerHTML='<div class="empty-state"><div class="icon"
           const ok = !isWinTeam;
           itemTags.push(`<span class="item-effect-tag ${ok?'success':'fail'}" data-tip="${ok?'insurance':'insurance_fail'}">🛡️</span>`);
         }
+        // ── 시즌 1 전용 아이템 효과 태그 ─────────────────────────
+        if (effects.includes('s1_gamble')) {
+          itemTags.push(`<span class="item-effect-tag ${isWinTeam?'success':'fail'}" data-tip="${isWinTeam ? 's1_gamble_win' : 's1_gamble_lose'}">🎲</span>`);
+        }
+        if (effects.includes('s1_promo_shield')) {
+          // 승급전 방어권: 패배 시 효과 발동, 승리 시 단순 소모 (효과 없음이므로 태그 노출 생략)
+          if (!isWinTeam) itemTags.push(`<span class="item-effect-tag success" data-tip="s1_promo_shield_used">🛡️</span>`);
+        }
+        if (effects.includes('s1_promo_win')) {
+          // 승급전 승리권: 승리 시 효과 발동
+          if (isWinTeam) itemTags.push(`<span class="item-effect-tag success" data-tip="s1_promo_win_used">⚔️</span>`);
+        }
         const itemTag = itemTags.join('');
         const pt = m.participants && m.participants[nNorm];
         const iconHtml = pt ? `<img class="match-member-icon" src="https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(pt.champion)}.png" onerror="this.style.display='none'" alt="">` : '';
@@ -6689,7 +6701,47 @@ function renderRankMiniCard(r, displayRank) {
   </div>`;
 }
 
+// 랭킹 탭 하단 "티어 산정 기준" 카드 — 시즌별 동적 콘텐츠
+function renderTierCriteriaCard() {
+  const el = document.getElementById('tier-criteria-card');
+  if (!el) return;
+  const season = (typeof rankViewSeason === 'number') ? rankViewSeason : CURRENT_SEASON;
+  if (season >= 1) {
+    el.innerHTML = `
+      <div class="card-title">시즌 1 티어 · LP 산정</div>
+      <strong style="color:var(--text)">배치고사 5판</strong> 완료 시 승수 × <strong style="color:var(--green)">25 LP</strong> 로 티어 배정 (브론즈/실버). 이후 정규전 승리 <strong style="color:var(--green)">+20 LP</strong> · 패배 <strong style="color:var(--red)">−14 LP</strong>.<br>
+      100 LP 도달 시 브론즈·실버는 <strong>자동 승급</strong>, 골드 이상은 <strong>승급전 3판 2선승</strong> (5판 내 미완료 시 소멸·LP 75로 복귀).<br>
+      🌱 뉴비와 같은 팀 승리 <strong style="color:var(--green)">+23 LP / +20G</strong> · 패배 <strong style="color:var(--red)">−11 LP</strong> · 뉴비 본인 패배 <strong style="color:var(--red)">−5 LP</strong> · 배치 1패 무시 <span style="color:#ff8080;">(승급전·도박권 미적용)</span><br>
+      <span style="color:var(--tier-challenger)">챌린저</span> (무제한) &nbsp;
+      <span style="color:var(--tier-grandmaster)">그마</span> &nbsp;
+      <span style="color:var(--tier-master)">마스터</span> &nbsp;
+      <span style="color:var(--tier-diamond)">다이아</span> &nbsp;
+      <span style="color:var(--tier-platinum)">플래티넘</span> &nbsp;
+      <span style="color:var(--tier-gold)">골드</span> &nbsp;
+      <span style="color:var(--tier-silver)">실버</span> &nbsp;
+      <span style="color:var(--tier-bronze)">브론즈</span>
+    `;
+  } else {
+    el.innerHTML = `
+      <div class="card-title">티어 산정 기준</div>
+      최소 <strong style="color:var(--text)">3판</strong> 이상 참여해야 티어가 부여됩니다. 승리 <strong style="color:var(--green)">+10pt</strong> · 패배 <strong style="color:var(--red)">-7pt</strong> · 시작 500pt · 판수가 쌓일수록 정확해집니다.<br>
+      🌱 뉴비와 같은 팀 승리 시 <strong style="color:var(--green)">+13pt / +20G</strong> · 패배 시 <strong style="color:var(--red)">-4pt</strong> · 뉴비 본인 패배 <strong style="color:var(--red)">-2pt</strong><br>
+      <span style="color:var(--tier-challenger)">챌린저</span> 850↑ &nbsp;
+      <span style="color:var(--tier-grandmaster)">그마</span> 780↑ &nbsp;
+      <span style="color:var(--tier-master)">마스터</span> 720↑ &nbsp;
+      <span style="color:var(--tier-diamond)">다이아</span> 660↑ &nbsp;
+      <span style="color:var(--tier-emerald)">에메</span> 600↑ &nbsp;
+      <span style="color:var(--tier-platinum)">플래</span> 540↑ &nbsp;
+      <span style="color:var(--tier-gold)">골드</span> 480↑ &nbsp;
+      <span style="color:var(--tier-silver)">실버</span> 420↑ &nbsp;
+      <span style="color:var(--tier-bronze)">브론즈</span> 360↑ &nbsp;
+      <span style="color:var(--tier-iron)">아이언</span> 그 외
+    `;
+  }
+}
+
 function renderRanking() {
+  renderTierCriteriaCard();
   if (rankViewSeason >= 1) { renderS1Ranking(); return; }
   const el = document.getElementById('rank-list');
   if (!el) return;
