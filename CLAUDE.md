@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.31.1
+- 현재 버전: v2.31.2
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -204,7 +204,7 @@
 - **정산창**: 저장 직후 `postSaveMatchData` 기반 정산 오버레이 표시 (골드·아이템·LP 변화 요약)
 - **주의**: `finalizeVotes` 는 `session` 초기화 **이전**에 호출되어야 race condition 방지 (v2.29.57)
 
-## 시즌 1 패스 시스템 (v2.31.0, 퀘스트 기반 v2.31.1~)
+## 시즌 1 패스 시스템 (v2.31.0, 퀘스트 기반 v2.31.1, 1개월 타겟 v2.31.2~)
 `CURRENT_SEASON >= 1` 일 때 **업적 탭 자리에 "🎫 시즌 패스"로 전환**. S1 고유 업적 부재와 기존 티어·아이템 업적이 S0 MMR에 묶인 문제를 해결하려는 대체 진행·보상 시스템.
 
 ### 구조: 퀘스트 기반 순차 언락
@@ -212,38 +212,47 @@
 - 직전 레벨까지 전부 클레임 완료 + 현재 레벨 퀘스트 조건 충족 시 수령 가능
 - 상수: `S1_PASS_MAX_LEVEL=20`, `S1_PASS_QUESTS[]`, `s1PassRewardForLevel(level)`
 
+### 난이도 철학 (v2.31.2~)
+- **목표**: 주 10~15판 기준 **~1개월(~40판)** 에 20레벨 완주, 하드 플레이어는 조기 완주 가능
+- 각 퀘스트가 평균 **1~3판**에 달성될 수 있도록 임계치 설정
+- 단일 경기 최대치형 퀘스트(킬·어시·딜·KDA)가 벽이 되지 않도록 ARAM 평균값 고려
+  - 평균 딜량 25~40k → 임계치 40k/60k (50k/80k에서 하향)
+  - 평균 KDA 2~4 → 임계치 3.0/4.0 (3.0/5.0에서 하향)
+- RNG 의존도 높은 조건 제거 (퍼펙트 게임 = 데스 0 + 승 삭제)
+
 ### 퀘스트 카탈로그 (LV 1~20, ⭐=마일스톤)
 | LV | 퀘스트 | 조건 | 보상 |
 |----|--------|------|------|
 | 1 | 첫 걸음 | S1 경기 1회 | 15G |
 | 2 | 첫 승리 | 승리 1회 | 15G |
-| 3 | 5경기 참전 | 경기 5회 | 15G |
-| 4 | 명사수 | 한 판 킬 10+ | 15G |
-| 5 ⭐ | 신뢰의 동료 | 한 판 어시 15+ | 40G |
-| 6 | 굳건한 벽 | 데스 3 이하 + 승리 | 15G |
-| 7 | 3연승 | 3연승 | 15G |
-| 8 | 10경기 참전 | 경기 10회 | 15G |
-| 9 | KDA 3.0 | 한 판 KDA 3.0+ | 15G |
-| 10 ⭐ | 폭딜러 입문 | 한 판 딜량 50,000+ | 80G |
-| 11 | 매너왕 | 매너왕 1회 | 15G |
-| 12 | MVP 등극 | MVP/SVP 1회 | 15G |
-| 13 | 관전의 눈 | 관전 예측 1회 적중 | 15G |
+| 3 | 관찰 시작 | 관전자 1회 참여 | 15G |
+| 4 | 3경기 참전 | 경기 3회 | 15G |
+| 5 ⭐ | 킬 사냥꾼 | 한 판 킬 8+ | 40G |
+| 6 | 2연승 | 2연승 | 15G |
+| 7 | 신뢰의 동료 | 한 판 어시 10+ | 15G |
+| 8 | 살아남기 | 데스 5 이하 + 승 | 15G |
+| 9 | MVP/SVP 등극 | MVP/SVP 1회 | 15G |
+| 10 ⭐ | 폭딜러 입문 | 한 판 딜량 40,000+ | 80G |
+| 11 | 성실한 참전 | 경기 10회 | 15G |
+| 12 | KDA 3.0 | 한 판 KDA 3.0+ | 15G |
+| 13 | 매너왕 | 매너왕 1회 | 15G |
 | 14 | 5승 | 누적 5승 | 15G |
-| 15 ⭐ | 폭딜러 | 한 판 딜량 80,000+ | 150G |
-| 16 | 퍼펙트 게임 | 데스 0 + 승리 | 15G |
-| 17 | 꾸준한 참여 | 출석 10회 | 15G |
-| 18 | KDA 5.0 클럽 | 한 판 KDA 5.0+ | 15G |
+| 15 ⭐ | 대폭딜러 | 한 판 딜량 60,000+ | 150G |
+| 16 | 족집게 관전 | 관전 예측 1회 적중 | 15G |
+| 17 | 개근상 | 출석 7회 | 15G |
+| 18 | KDA 4.0 클럽 | 한 판 KDA 4.0+ | 15G |
 | 19 | 10승 | 누적 10승 | 15G |
-| 20 ⭐ | 시즌의 정점 | 누적 20승 | 300G |
+| 20 ⭐ | 시즌 마스터 | 누적 15승 | 300G |
 
 ### 통계 소스
 - **`calcS1PassStats(name)`** — S1 매치 순회하며 집계:
-  - 누적: `games / wins / losses / mvpCount / mannerCount / specCorrect / attendance`
+  - 누적: `games / wins / losses / mvpCount / mannerCount / specTotal / specCorrect / attendance`
   - 단일 경기 최대치: `maxKills / maxDeaths / maxAssists / maxDamage / maxCs / maxKda`
-  - 플래그: `lowDeathWin` (데스≤3 + 승), `perfectWin` (데스=0 + 승)
+  - 플래그: `lowDeathWin` (데스≤3 + 승), `lowDeathWin5` (데스≤5 + 승), `perfectWin` (데스=0 + 승, v2.31.2에서 퀘스트 사용 중단)
   - 연속: `maxWinStreak`
-- KDA·딜량·CS 는 `matches.participants[normName(name)]` 의 `kills/deaths/assists/damage/cs` 를 참조 (Riot Match-v5 연동 데이터)
+- KDA·딜량·CS 는 `matches.participants[normName(name)]` 의 `kills/deaths/assists/damage/cs` 를 참조 (**내전 브릿지 프로그램** 자동 수집)
 - 매너왕은 레거시 `mannerKing` 포함, MVP/SVP 는 `mvpWinner/mvpLoser` 양쪽 합산
+- 관전자: `specTotal` 은 `m.spectatorName===key` 전체 카운트, `specCorrect` 는 적중분만
 
 ### Firebase 저장
 - `/gold/{key}.seasonPassClaimed_s1/{level}: true` — 클레임 완료 레벨 플래그

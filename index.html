@@ -1774,7 +1774,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.1';
+const APP_VERSION = 'v2.31.2';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1783,6 +1783,9 @@ const APP_VERSION = 'v2.31.1';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.2', date: '2026-04-24', changes: [
+    { tag: 'improve', text: '시즌 1 패스 난이도 재조정 — 1개월(~40판) 완주 타겟. LV16 퍼펙트 게임 제거(데스0+승, RNG 벽), LV20 20승→15승, 한 판 딜량 50k/80k→40k/60k, KDA 5.0→4.0, 데스 3 이하→5 이하, 3연승→2연승, 출석 10→7회. 초반 LV3에 "관전자 1회 참여"(적중 아닌 단순 참여) 추가로 온보딩 완화. 브릿지 프로그램으로 자동 수집된 participants 기반 KDA/딜량 유지' },
+  ]},
   { ver: 'v2.31.1', date: '2026-04-24', changes: [
     { tag: 'improve', text: '시즌 1 패스를 XP 누적 → 퀘스트 기반으로 전면 개편. LV 1~20 각각 고유 퀘스트(첫 승리, 한 판 킬 10·어시 15, 3연승, 한 판 딜량 50k/80k, KDA 3.0/5.0, 데스 0 퍼펙트 승, MVP·매너왕·관전 적중 등) 완료 시 순차 언락. 매치 participants의 KDA·딜량·CS 활용 + "내 시즌 1 기록" 요약 노출' },
   ]},
@@ -2265,27 +2268,29 @@ function s1PassRewardForLevel(level) {
   return 15;
 }
 
+// 1개월(~40판) 타겟으로 난이도 조정 — 평균 1~3판에 달성 가능한 수준.
+// 브릿지 연동으로 participants(KDA/딜량/CS) 자동 수집 기반.
 const S1_PASS_QUESTS = [
   { lv:1,  icon:'🎯',  name:'첫 걸음',         desc:'시즌 1 경기 1회 참여',              check:s=>s.games>=1,             prog:s=>[Math.min(s.games,1),1] },
   { lv:2,  icon:'🏆',  name:'첫 승리',         desc:'시즌 1 첫 승리',                   check:s=>s.wins>=1,              prog:s=>[Math.min(s.wins,1),1] },
-  { lv:3,  icon:'⚔️',  name:'5경기 참전',      desc:'시즌 1 경기 5회 참여',              check:s=>s.games>=5,             prog:s=>[Math.min(s.games,5),5] },
-  { lv:4,  icon:'🔥',  name:'명사수',          desc:'한 경기에서 킬 10 이상 달성',        check:s=>s.maxKills>=10,          prog:s=>[Math.min(s.maxKills,10),10] },
-  { lv:5,  icon:'⭐',  name:'신뢰의 동료',     desc:'한 경기에서 어시스트 15 이상',       check:s=>s.maxAssists>=15,        prog:s=>[Math.min(s.maxAssists,15),15], milestone:true },
-  { lv:6,  icon:'🛡️',  name:'굳건한 벽',       desc:'한 경기 데스 3 이하로 승리',        check:s=>s.lowDeathWin,           prog:null },
-  { lv:7,  icon:'🎲',  name:'3연승',           desc:'시즌 1 3연승 달성',                check:s=>s.maxWinStreak>=3,       prog:s=>[Math.min(s.maxWinStreak,3),3] },
-  { lv:8,  icon:'💨',  name:'10경기 참전',     desc:'시즌 1 경기 10회 참여',             check:s=>s.games>=10,             prog:s=>[Math.min(s.games,10),10] },
-  { lv:9,  icon:'💪',  name:'KDA 3.0',        desc:'한 경기 KDA 3.0 이상',              check:s=>s.maxKda>=3,             prog:s=>[Math.min(s.maxKda,3).toFixed(1),'3.0'] },
-  { lv:10, icon:'⭐',  name:'폭딜러 입문',     desc:'한 경기 딜량 50,000 이상',          check:s=>s.maxDamage>=50000,      prog:s=>[Math.min(s.maxDamage,50000).toLocaleString(),'50,000'], milestone:true },
-  { lv:11, icon:'🤝',  name:'매너왕',          desc:'시즌 1 매너왕 1회 선정',            check:s=>s.mannerCount>=1,        prog:s=>[Math.min(s.mannerCount,1),1] },
-  { lv:12, icon:'🏅',  name:'MVP 등극',       desc:'시즌 1 MVP/SVP 1회 선정',          check:s=>s.mvpCount>=1,           prog:s=>[Math.min(s.mvpCount,1),1] },
-  { lv:13, icon:'🔭',  name:'관전의 눈',      desc:'관전자 예측 1회 적중',              check:s=>s.specCorrect>=1,        prog:s=>[Math.min(s.specCorrect,1),1] },
+  { lv:3,  icon:'👁️',  name:'관찰 시작',       desc:'관전자로 1경기 참여',               check:s=>s.specTotal>=1,         prog:s=>[Math.min(s.specTotal,1),1] },
+  { lv:4,  icon:'⚔️',  name:'3경기 참전',      desc:'시즌 1 경기 3회 참여',              check:s=>s.games>=3,             prog:s=>[Math.min(s.games,3),3] },
+  { lv:5,  icon:'⭐',  name:'킬 사냥꾼',       desc:'한 경기에서 킬 8 이상',              check:s=>s.maxKills>=8,           prog:s=>[Math.min(s.maxKills,8),8], milestone:true },
+  { lv:6,  icon:'🎲',  name:'2연승',           desc:'시즌 1 2연승 달성',                 check:s=>s.maxWinStreak>=2,       prog:s=>[Math.min(s.maxWinStreak,2),2] },
+  { lv:7,  icon:'💪',  name:'신뢰의 동료',     desc:'한 경기에서 어시스트 10 이상',       check:s=>s.maxAssists>=10,        prog:s=>[Math.min(s.maxAssists,10),10] },
+  { lv:8,  icon:'🛡️',  name:'살아남기',        desc:'데스 5 이하로 승리',               check:s=>s.lowDeathWin5,          prog:null },
+  { lv:9,  icon:'🏅',  name:'MVP/SVP 등극',   desc:'시즌 1 MVP/SVP 1회 선정',          check:s=>s.mvpCount>=1,           prog:s=>[Math.min(s.mvpCount,1),1] },
+  { lv:10, icon:'⭐',  name:'폭딜러 입문',     desc:'한 경기 딜량 40,000 이상',          check:s=>s.maxDamage>=40000,      prog:s=>[Math.min(s.maxDamage,40000).toLocaleString(),'40,000'], milestone:true },
+  { lv:11, icon:'💎',  name:'성실한 참전',     desc:'시즌 1 경기 10회 참여',             check:s=>s.games>=10,             prog:s=>[Math.min(s.games,10),10] },
+  { lv:12, icon:'🎯',  name:'KDA 3.0',        desc:'한 경기 KDA 3.0 이상',              check:s=>s.maxKda>=3,             prog:s=>[Math.min(s.maxKda,3).toFixed(1),'3.0'] },
+  { lv:13, icon:'🤝',  name:'매너왕',          desc:'시즌 1 매너왕 1회 선정',            check:s=>s.mannerCount>=1,        prog:s=>[Math.min(s.mannerCount,1),1] },
   { lv:14, icon:'⚡',  name:'5승 달성',        desc:'시즌 1 누적 5승',                   check:s=>s.wins>=5,               prog:s=>[Math.min(s.wins,5),5] },
-  { lv:15, icon:'⭐',  name:'폭딜러',          desc:'한 경기 딜량 80,000 이상',          check:s=>s.maxDamage>=80000,      prog:s=>[Math.min(s.maxDamage,80000).toLocaleString(),'80,000'], milestone:true },
-  { lv:16, icon:'👑',  name:'퍼펙트 게임',     desc:'데스 0으로 승리',                   check:s=>s.perfectWin,            prog:null },
-  { lv:17, icon:'📅',  name:'꾸준한 참여',     desc:'출석 체크 10회',                    check:s=>s.attendance>=10,        prog:s=>[Math.min(s.attendance,10),10] },
-  { lv:18, icon:'🎯',  name:'KDA 5.0 클럽',   desc:'한 경기 KDA 5.0 이상',              check:s=>s.maxKda>=5,             prog:s=>[Math.min(s.maxKda,5).toFixed(1),'5.0'] },
+  { lv:15, icon:'⭐',  name:'대폭딜러',        desc:'한 경기 딜량 60,000 이상',          check:s=>s.maxDamage>=60000,      prog:s=>[Math.min(s.maxDamage,60000).toLocaleString(),'60,000'], milestone:true },
+  { lv:16, icon:'🔮',  name:'족집게 관전',     desc:'관전자 예측 1회 적중',              check:s=>s.specCorrect>=1,        prog:s=>[Math.min(s.specCorrect,1),1] },
+  { lv:17, icon:'📅',  name:'개근상',          desc:'출석 체크 7회',                     check:s=>s.attendance>=7,         prog:s=>[Math.min(s.attendance,7),7] },
+  { lv:18, icon:'🌟',  name:'KDA 4.0 클럽',   desc:'한 경기 KDA 4.0 이상',              check:s=>s.maxKda>=4,             prog:s=>[Math.min(s.maxKda,4).toFixed(1),'4.0'] },
   { lv:19, icon:'🏆',  name:'10승 달성',       desc:'시즌 1 누적 10승',                  check:s=>s.wins>=10,              prog:s=>[Math.min(s.wins,10),10] },
-  { lv:20, icon:'⭐',  name:'시즌의 정점',     desc:'시즌 1 누적 20승',                  check:s=>s.wins>=20,              prog:s=>[Math.min(s.wins,20),20], milestone:true },
+  { lv:20, icon:'⭐',  name:'시즌 마스터',     desc:'시즌 1 누적 15승',                  check:s=>s.wins>=15,              prog:s=>[Math.min(s.wins,15),15], milestone:true },
 ];
 
 // ── 전역 툴팁 시스템 ─────────────────────────────────────────
@@ -6169,8 +6174,8 @@ function calcS1PassStats(name) {
 
   let games=0, wins=0, losses=0;
   let maxKills=0, maxDeaths=0, maxAssists=0, maxDamage=0, maxCs=0, maxKda=0;
-  let lowDeathWin=false, perfectWin=false;
-  let mvpCount=0, mannerCount=0, specCorrect=0;
+  let lowDeathWin=false, lowDeathWin5=false, perfectWin=false;
+  let mvpCount=0, mannerCount=0, specTotal=0, specCorrect=0;
 
   // 최대 연승
   let curStreak=0, maxWinStreak=0;
@@ -6195,19 +6200,24 @@ function calcS1PassStats(name) {
       if (kda>maxKda) maxKda=kda;
       if (won && d===0) perfectWin=true;
       if (won && d<=3)  lowDeathWin=true;
+      if (won && d<=5)  lowDeathWin5=true;
     }
 
     // MVP/매너/관전
     if (normName(m.mvpWinner||'')===key || normName(m.mvpLoser||'')===key) mvpCount++;
     if (normName(m.mannerWinner||'')===key || normName(m.mannerLoser||'')===key || normName(m.mannerKing||'')===key) mannerCount++;
-    if (m.spectatorName===key && m.spectatorCorrect) specCorrect++;
+    if (m.spectatorName===key) {
+      specTotal++;
+      if (m.spectatorCorrect) specCorrect++;
+    }
   }
 
   const myEntry = Object.entries(goldData).find(([,g])=>normName(g.name)===key);
   const attendance = myEntry?.[1]?.attendanceCount || 0;
 
   return { games, wins, losses, maxKills, maxDeaths, maxAssists, maxDamage, maxCs, maxKda,
-           lowDeathWin, perfectWin, maxWinStreak, mvpCount, mannerCount, specCorrect, attendance };
+           lowDeathWin, lowDeathWin5, perfectWin, maxWinStreak, mvpCount, mannerCount,
+           specTotal, specCorrect, attendance };
 }
 
 // 현재 달성 레벨 = 클레임 완료한 가장 큰 연속 레벨
@@ -6303,7 +6313,8 @@ window.renderS1Pass = function renderS1Pass() {
     { k:`🌱 한 판 최대 CS`,    v:`${stats.maxCs}` },
     { k:`🎯 최고 KDA`,         v:`${stats.maxKda.toFixed(2)}` },
     { k:`🏅 MVP/SVP · 매너왕`, v:`${stats.mvpCount} / ${stats.mannerCount}` },
-    { k:`🔭 관전 적중 · 출석`, v:`${stats.specCorrect} / ${stats.attendance}` },
+    { k:`🔭 관전 참여 · 적중`, v:`${stats.specTotal} / ${stats.specCorrect}` },
+    { k:`📅 출석`,             v:`${stats.attendance}회` },
   ];
   const statHtml = statLines.map(x => `<div class="s1p-src-row"><span>${x.k}</span><span class="s1p-src-xp">${x.v}</span></div>`).join('');
 
@@ -6319,7 +6330,7 @@ window.renderS1Pass = function renderS1Pass() {
       <summary>📊 내 시즌 1 기록 ▾</summary>
       <div class="s1p-src-body">
         <div class="s1p-src-guide">
-          KDA·딜량·CS는 경기 기록의 <strong>participants</strong> 데이터(Riot Match-v5 연동)를 기반으로 계산돼요.
+          KDA·딜량·CS는 내전 브릿지 프로그램이 자동 수집한 경기 기록(<strong>participants</strong>) 기반이에요. 브릿지 없이 저장된 경기는 KDA 집계에서 제외됩니다.
         </div>
         ${statHtml}
       </div>
