@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.31.4
+- 현재 버전: v2.31.5
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -327,16 +327,29 @@
 - 표시 위치: 참가자 선택 칩, 참가자 목록, 팀 카드, 프로필 모달, 랭킹 리스트 이름 옆
 - 랭킹 리스트에서는 `i` 인덱스 직접 사용 (중복 계산 없음)
 
-## 뉴비 시스템 (v2.3.0)
+## 뉴비 시스템 (v2.3.0, 시즌 1 이식 v2.31.5~)
 - `/players/{key}.isNewbie: boolean` — 뉴비 마크 여부
 - **부여/해제**: 라이브용 계정에서만 가능
   - 랭킹 탭 → 각 행 우측 🌱 버튼 (즉시 적용)
   - 랭킹 탭 → 프로필 편집 → 뉴비 마크 체크박스 (저장 시 반영)
+- 팀 결과 카드 하단에 뉴비 보너스 안내 표시, `isNewbie()` 헬퍼로 현재 여부 조회
+
+### 시즌 0 (MMR 승점)
 - **뉴비 팀원과 승리 시** (뉴비 본인 제외): +3pt 추가, +5G 추가
 - **뉴비 팀원과 패배 시** (뉴비 본인 제외): -4pt (기존 -7pt)
 - **뉴비 본인 패배 시**: -2pt (기존 -7pt → 대폭 완화, 0pt는 랭킹 인플레 유발)
-- 팀 결과 카드 하단에 뉴비 보너스 안내 표시
-- `isNewbie()` 헬퍼 함수로 뉴비 여부 조회
+- `calcScore()` / `calcGoldFromMatches()` 에서 `matchTime >= getNewbieSince(name)` 로 뉴비 ON 이후 경기만 보너스
+
+### 시즌 1 (LP 시스템, v2.31.5~)
+- **정규전 승리**: 뉴비 팀원 있으면 **+3 LP 추가** (+20 → +23), +5G 유지
+- **정규전 패배 (본인 뉴비 아님)**: 뉴비 팀원 있으면 **-3 LP 완화** (-14 → -11)
+- **정규전 패배 (본인 뉴비)**: **-5 LP** (기본 -14 → -5, ~64% 완화)
+- **배치고사 뉴비 본인**: 5판 완료 시 `effectiveWins = min(5, wins + 1)` — 실질 1패 무시 효과 (0승 → 1승=25LP 브론즈, 3승 2패 → 4승=100LP 실버 0LP)
+- **승급전·강등 구간**: 뉴비 보너스 **미적용** (공정 경쟁 유지)
+- **`s1_gamble` 활성 시**: 뉴비 보너스 전부 **무시** — 도박권은 순수 리스크 보장 (S0 `gamble` 도박 주사위와 동일 철학)
+- 상수: `S1_NEWBIE_WIN_BONUS_LP=3`, `S1_NEWBIE_LOSS_REDUCE_LP=3`, `S1_NEWBIE_SELF_LOSS_LP=5`
+- 함수: `s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate, iAmNewbie)` — 뉴비 파라미터 수신. `s1ApplyAllMatchResults` 에서 팀 기반으로 계산 후 전달
+- UI: 뉴비 뱃지 🌱 툴팁이 시즌에 따라 `newbie_bonus` / `newbie_bonus_s1` 로 자동 전환 (LP 수치·배치 보정·승급전 미적용 안내 포함)
 
 ## 부가 기능
 - **연승/연패 표시**: 2연속 이상 시 랭킹/팀카드에 표시

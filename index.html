@@ -1788,7 +1788,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.4';
+const APP_VERSION = 'v2.31.5';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1797,6 +1797,9 @@ const APP_VERSION = 'v2.31.4';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.5', date: '2026-04-24', changes: [
+    { tag: 'new', text: '시즌 1 뉴비 시스템 적용 — 정규전에서 뉴비 팀원과 승리 시 +3 LP 추가(+20→+23), 패배 시 -3 LP 완화(-14→-11), 뉴비 본인 패배 시 -5 LP로 대폭 완화(기본 -14). 배치고사 뉴비 본인은 승수 +1 보정(실질 1패 무시 효과)으로 브론즈/실버 경계 완화. 승급전·도박권 사용 시엔 미적용(도박 리스크 보장). 뉴비 뱃지 툴팁도 시즌 1 전용 안내로 분기' },
+  ]},
   { ver: 'v2.31.4', date: '2026-04-24', changes: [
     { tag: 'fix', text: 'S1 아이템 효과 전혀 반영되지 않던 치명 버그 수정 — saveMatch에서 giveMatchGold가 s1ApplyAllMatchResults보다 먼저 호출되어 s1_gamble/s1_promo_shield/s1_promo_win이 fallback 필터에서 소모·비활성화된 후 S1 로직이 실행되던 순서 문제. 호출 순서 교체로 S1 효과(도박권 +40/-30 LP, 승급전 방어권, 승급전 승리권 즉시 승급) 정상 적용. 브릿지 자동 저장에서도 동일하게 수정됨 (매치 저장 경로는 동일)' },
   ]},
@@ -2248,6 +2251,10 @@ const S1_DEMOTION_LP      = 75;   // 강등 후 진입 LP
 const S1_PROMO_EXPIRY     = 5;    // 승급전 소멸 기준 판수
 const S1_GAMBLE_WIN       = 40;   // 도박권 승리 LP
 const S1_GAMBLE_LOSS      = 30;   // 도박권 패배 LP 감소
+// 뉴비 보너스 (S0 철학 이식: 승리 +3pt/+5G / 팀원 패배 -4pt / 본인 패배 -2pt → S1 LP로 매핑)
+const S1_NEWBIE_WIN_BONUS_LP   = 3;   // 뉴비 팀원과 승리 시 +3 LP 추가 (+20 → +23)
+const S1_NEWBIE_LOSS_REDUCE_LP = 3;   // 뉴비 팀원과 패배 시 감점 완화 (-14 → -11)
+const S1_NEWBIE_SELF_LOSS_LP   = 5;   // 뉴비 본인 패배 시 감점 축소 (기본 -14 → -5)
 
 const S1_TIER_ORDER = ['bronze','silver','gold','platinum','diamond','master','grandmaster','challenger'];
 const S1_AUTO_TIERS  = new Set(['bronze','silver']);
@@ -2337,6 +2344,7 @@ const BTN_TIPS = {
   item_insurance:`<strong style="color:#7dd3fc">🛡️ 패배 방어권</strong><br>경기 전 활성화 시 패배해도<br><strong style="color:#e8e8f0">승점 차감 없음</strong><br><span style="color:#a0b0c8;">미활성 패배 -7pt · 승리 시 소모</span>`,
   item_gamble:   `<strong style="color:#c084fc">🎲 도박 주사위</strong><br>경기 전 활성화 시 결과에 배팅<br>승리 <strong style="color:#4ade80">+25pt</strong> · 패배 <strong style="color:#ff8080">-15pt</strong> 고정<br><span style="color:#a0b0c8;">일반: 승 +10pt · 패 -7pt</span><br><span style="color:#ff8080;">⚠ 2배권·방어권·새싹 보정 모두 무시</span>`,
   newbie_bonus:  `🌱 <strong style="color:#00c77a">뉴비 보너스</strong> 적용 중<br><span style="color:#a0b0c8;font-size:9px;">팀원 중 뉴비가 있는 경우</span><br><br>🏆 승리 <strong style="color:#e8e8f0">+13pt · +20G</strong><br>💀 패배 <strong style="color:#e8e8f0">−4pt · +5G</strong><br>🌱 뉴비 본인 패배 <strong style="color:#e8e8f0">−2pt</strong>`,
+  newbie_bonus_s1: `🌱 <strong style="color:#00c77a">뉴비 보너스 (시즌 1)</strong><br><span style="color:#a0b0c8;font-size:9px;">팀원 중 뉴비가 있는 경우 · 정규전 한정</span><br><br>🏆 승리 <strong style="color:#e8e8f0">+23 LP · +20G</strong><br>💀 패배 <strong style="color:#e8e8f0">−11 LP · +5G</strong><br>🌱 뉴비 본인 패배 <strong style="color:#e8e8f0">−5 LP</strong><br>🧪 배치고사 1패 무시 보정<br><span style="color:#ff8080;font-size:9px;">⚠ 승급전·도박권 사용 시 미적용</span>`,
 };
 function _positionTip(box, cx, cy) {
   box.style.visibility = 'hidden';
@@ -4497,7 +4505,8 @@ function teamCard(title,cls,members,avg) {
         : `<span class="streak-inline loss">${streak.count}연패↓</span>`
       : '';
     const isMe = myName && normName(p.name)===normName(myName);
-    const nBadge = isNewbie(p.name) ? ' <span class="newbie-badge" data-tip="newbie_bonus">🌱</span>' : '';
+    const nTipKey = CURRENT_SEASON >= 1 ? 'newbie_bonus_s1' : 'newbie_bonus';
+    const nBadge = isNewbie(p.name) ? ` <span class="newbie-badge" data-tip="${nTipKey}">🌱</span>` : '';
     const rBadge = getRankBadge(p.name);
     return`<div class="team-player${isMe?' is-me':''}">
       <div class="team-player-name">${nameHtml(p.name)}${nBadge}${rBadge}${isMe?'&nbsp;<span class="me-badge">나</span>':''}</div>
@@ -8242,7 +8251,8 @@ function s1PromoFail(d) {
 }
 
 // ── 단일 플레이어 경기 결과 적용 ─────────────────────────────────
-async function s1ApplyMatchResult(name, won, activeS1Item) {
+// hasNewbieTeammate/iAmNewbie 는 뉴비 보너스 적용 여부 (v2.31.5~)
+async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = false, iAmNewbie = false) {
   const key = normName(name);
   let d = season1Data[key] ? { ...season1Data[key] } : s1DefaultPlayer();
 
@@ -8251,14 +8261,18 @@ async function s1ApplyMatchResult(name, won, activeS1Item) {
     d.placementGames = (d.placementGames || 0) + 1;
     if (won) d.placementWins = (d.placementWins || 0) + 1;
     if (d.placementGames >= S1_PLACEMENT_GAMES) {
-      const res = s1CalcPlacementResult(d.placementWins);
+      // 뉴비 본인 배치 완화: 승수에 +1 보너스 (5 상한) → 실질적으로 1패 무시 효과
+      const effectiveWins = iAmNewbie
+        ? Math.min(S1_PLACEMENT_GAMES, (d.placementWins || 0) + 1)
+        : (d.placementWins || 0);
+      const res = s1CalcPlacementResult(effectiveWins);
       d.tier = res.tier; d.lp = res.lp; d.placementDone = true;
     }
     await s1SavePlayer(name, d);
     return;
   }
 
-  // ── 승급전 진행 중 ───────────────────────────────────────────
+  // ── 승급전 진행 중 (뉴비 보너스 미적용) ───────────────────────
   if (d.promoActive) {
     d.promoGamesPlayed = (d.promoGamesPlayed || 0) + 1;
     // 소멸 체크
@@ -8281,8 +8295,16 @@ async function s1ApplyMatchResult(name, won, activeS1Item) {
 
   // ── 정규전 ──────────────────────────────────────────────────
   const useGamble = activeS1Item === 's1_gamble';
-  const gain = useGamble ? S1_GAMBLE_WIN  : S1_LP_WIN;
-  const lose = useGamble ? S1_GAMBLE_LOSS : S1_LP_LOSS;
+  let gain = useGamble ? S1_GAMBLE_WIN  : S1_LP_WIN;
+  let lose = useGamble ? S1_GAMBLE_LOSS : S1_LP_LOSS;
+
+  // 뉴비 보너스 (도박권 사용 시 미적용 — 도박의 순수 리스크 보장)
+  if (!useGamble) {
+    if (won && hasNewbieTeammate) gain += S1_NEWBIE_WIN_BONUS_LP;   // +20 → +23
+    if (!won && iAmNewbie)        lose = S1_NEWBIE_SELF_LOSS_LP;    // -14 → -5
+    else if (!won && hasNewbieTeammate) lose = Math.max(0, lose - S1_NEWBIE_LOSS_REDUCE_LP); // -14 → -11
+  }
+
   const isChallenger = d.tier === 'challenger';
 
   if (won) {
@@ -8319,6 +8341,11 @@ async function s1ApplyAllMatchResults(winners, losers) {
   const itemsKey = sField('items');
   for (const p of [...winners, ...losers]) {
     const isWin = winners.some(w => normName(w.name) === normName(p.name));
+    const myTeam = isWin ? winners : losers;
+    // 뉴비 판정 (본인 제외 팀원 중 뉴비 여부 + 본인 뉴비 여부)
+    const iAmNewbie = isNewbie(p.name);
+    const hasNewbieTeammate = myTeam.some(t =>
+      normName(t.name) !== normName(p.name) && isNewbie(t.name));
     // 활성화된 S1 아이템 확인
     const entry = Object.entries(goldData).find(([,g]) => normName(g.name) === normName(p.name));
     let activeS1Item = null;
@@ -8327,7 +8354,7 @@ async function s1ApplyAllMatchResults(winners, losers) {
       const active = items.find(it => it.active && it.id.startsWith('s1_'));
       if (active) activeS1Item = active.id;
     }
-    await s1ApplyMatchResult(p.name, isWin, activeS1Item);
+    await s1ApplyMatchResult(p.name, isWin, activeS1Item, hasNewbieTeammate, iAmNewbie);
   }
 }
 
