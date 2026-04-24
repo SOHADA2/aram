@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.31.0
+- 현재 버전: v2.31.1
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -204,37 +204,60 @@
 - **정산창**: 저장 직후 `postSaveMatchData` 기반 정산 오버레이 표시 (골드·아이템·LP 변화 요약)
 - **주의**: `finalizeVotes` 는 `session` 초기화 **이전**에 호출되어야 race condition 방지 (v2.29.57)
 
-## 시즌 1 패스 시스템 (v2.31.0)
+## 시즌 1 패스 시스템 (v2.31.0, 퀘스트 기반 v2.31.1~)
 `CURRENT_SEASON >= 1` 일 때 **업적 탭 자리에 "🎫 시즌 패스"로 전환**. S1 고유 업적 부재와 기존 티어·아이템 업적이 S0 MMR에 묶인 문제를 해결하려는 대체 진행·보상 시스템.
 
-### XP 소스 (S1 시즌 매치·기록 기반 동적 계산)
-| 액션 | XP |
-|------|-----|
-| 경기 참여 | +10 |
-| 승리 | +20 (참여와 별도 누적) |
-| MVP·SVP 선정 | +15 |
-| 매너왕 선정 | +10 |
-| 관전자 예측 적중 | +10 |
-| 출석 1일 | +5 |
+### 구조: 퀘스트 기반 순차 언락
+- **각 레벨마다 고유 퀘스트 1개** (v2.31.0의 XP 누적은 폐기)
+- 직전 레벨까지 전부 클레임 완료 + 현재 레벨 퀘스트 조건 충족 시 수령 가능
+- 상수: `S1_PASS_MAX_LEVEL=20`, `S1_PASS_QUESTS[]`, `s1PassRewardForLevel(level)`
 
-- 함수: `calcS1PassXp(name)` — `calcStats(name,1)` · `calcMvpMmpStats(name,1)` · `calcSpectatorStats(name,1)` · `goldData[key].attendanceCount` 합산
+### 퀘스트 카탈로그 (LV 1~20, ⭐=마일스톤)
+| LV | 퀘스트 | 조건 | 보상 |
+|----|--------|------|------|
+| 1 | 첫 걸음 | S1 경기 1회 | 15G |
+| 2 | 첫 승리 | 승리 1회 | 15G |
+| 3 | 5경기 참전 | 경기 5회 | 15G |
+| 4 | 명사수 | 한 판 킬 10+ | 15G |
+| 5 ⭐ | 신뢰의 동료 | 한 판 어시 15+ | 40G |
+| 6 | 굳건한 벽 | 데스 3 이하 + 승리 | 15G |
+| 7 | 3연승 | 3연승 | 15G |
+| 8 | 10경기 참전 | 경기 10회 | 15G |
+| 9 | KDA 3.0 | 한 판 KDA 3.0+ | 15G |
+| 10 ⭐ | 폭딜러 입문 | 한 판 딜량 50,000+ | 80G |
+| 11 | 매너왕 | 매너왕 1회 | 15G |
+| 12 | MVP 등극 | MVP/SVP 1회 | 15G |
+| 13 | 관전의 눈 | 관전 예측 1회 적중 | 15G |
+| 14 | 5승 | 누적 5승 | 15G |
+| 15 ⭐ | 폭딜러 | 한 판 딜량 80,000+ | 150G |
+| 16 | 퍼펙트 게임 | 데스 0 + 승리 | 15G |
+| 17 | 꾸준한 참여 | 출석 10회 | 15G |
+| 18 | KDA 5.0 클럽 | 한 판 KDA 5.0+ | 15G |
+| 19 | 10승 | 누적 10승 | 15G |
+| 20 ⭐ | 시즌의 정점 | 누적 20승 | 300G |
 
-### 레벨 & 보상
-- 레벨 1~20, 각 **100 XP** (총 2000 XP), 상한 도달 시 MAX
-- 일반 레벨 **15G**, 마일스톤 LV5 **40G** / LV10 **80G** / LV15 **150G** / LV20 **300G** (총 약 810G)
-- 상수: `S1_PASS_XP_PER_LEVEL=100`, `S1_PASS_MAX_LEVEL=20`, `S1_PASS_XP`, `s1PassRewardForLevel(level)`
+### 통계 소스
+- **`calcS1PassStats(name)`** — S1 매치 순회하며 집계:
+  - 누적: `games / wins / losses / mvpCount / mannerCount / specCorrect / attendance`
+  - 단일 경기 최대치: `maxKills / maxDeaths / maxAssists / maxDamage / maxCs / maxKda`
+  - 플래그: `lowDeathWin` (데스≤3 + 승), `perfectWin` (데스=0 + 승)
+  - 연속: `maxWinStreak`
+- KDA·딜량·CS 는 `matches.participants[normName(name)]` 의 `kills/deaths/assists/damage/cs` 를 참조 (Riot Match-v5 연동 데이터)
+- 매너왕은 레거시 `mannerKing` 포함, MVP/SVP 는 `mvpWinner/mvpLoser` 양쪽 합산
 
 ### Firebase 저장
-- `/gold/{key}.seasonPassClaimed_s1/{level}: true` — 수령 완료 레벨 플래그만 기록 (XP는 저장 안 함, 매번 동적 계산)
+- `/gold/{key}.seasonPassClaimed_s1/{level}: true` — 클레임 완료 레벨 플래그
+- 퀘스트 조건 판정은 매번 `calcS1PassStats` 로 동적 계산 (별도 저장 없음)
 
 ### 골드 통합
 - `getMyGold()` 에 `calcS1PassGold(data.seasonPassClaimed_s1)` 합산 — S1 모드일 때만
-- 보상은 가산식(`goldBonus` 직접 증가 아님), 따라서 보상값 조정 시 과거 수령자도 소급 반영
+- 보상값 조정 시 과거 수령자에게도 소급 반영 (가산식)
 
 ### 핵심 함수 & UI
-- `renderS1Pass()` — 헤더(레벨·XP 진행바) + XP 내역 `<details>` + 레벨 리스트
-- `claimS1PassLevel(level)` — 현재 레벨 이하만 수령 가능, 이미 수령 시 무시
-- `renderAchievementsOrPass()` — 탭 라우터 (S0→`renderAchievements`, S1→`renderS1Pass`). 탭 버튼 라벨도 동기화
+- `renderS1Pass()` — 헤더(LV N/20 + 다음 퀘스트 예고) + "📊 내 시즌 1 기록" `<details>` (KDA·딜량·CS 요약) + 퀘스트 리스트
+- `claimS1PassLevel(level)` — 순차 클레임 가드 (직전 레벨 미수령 or 조건 미충족 시 거부)
+- `calcS1PassCurrentLevel(claimed)` — 연속으로 클레임된 가장 높은 레벨
+- `renderAchievementsOrPass()` — 탭 라우터 (S0→업적 / S1→시즌 패스). 탭 버튼 라벨도 `🎫<br>패스` 로 동기화
 - 탭 버튼: `.nav-tab-achievement` (라이브 계정에선 미표시), `#achievement-card-title` 동적 갱신
 
 ## 업적 시스템 (v2.7.0 → v2.8.0)
