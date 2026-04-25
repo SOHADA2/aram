@@ -1824,7 +1824,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.12';
+const APP_VERSION = 'v2.31.11';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3306,16 +3306,6 @@ function calcStats(name, season = CURRENT_SEASON) {
 // ── 승률 기반 팀짜기 점수 ─────────────────────────────────────
 // 판수 적을수록 50%에 수렴 (신뢰도 가중치 적용)
 function getWinRateScore(name) {
-  if (CURRENT_SEASON >= 1) {
-    // S1: LP 기반 강도 점수 (0~1 정규화)
-    // bronze 0LP=0, silver 0LP≈0.14, ..., grandmaster 100LP=1.0, challenger=1.0
-    const d = s1GetPlayer(name) || s1DefaultPlayer();
-    if (!d.placementDone) return 0.3; // 배치 중 → 중립보다 약간 낮게
-    const meta = S1_TIER_META[d.tier] || S1_TIER_META.unranked;
-    const rankVal = Math.max(0, meta.rank); // bronze=0 ... challenger=7
-    return Math.min(1.0, (rankVal * 100 + (d.lp || 0)) / 700);
-  }
-  // S0: 시즌0 승률 방식 (신뢰도 가중치)
   const s = calcStats(name);
   if (s.total === 0) return 0.5;
   const trust = s.total / (s.total + 10);
@@ -3466,15 +3456,11 @@ function calcPromoStatus(name) {
 }
 
 function getEffectiveTier(name, manualTier) {
-  if (CURRENT_SEASON >= 1) {
-    // S1: season1Data의 LP 티어 사용 (배치 미완료 → unranked)
-    const d = s1GetPlayer(name);
-    return (d?.placementDone ? d.tier : null) || 'unranked';
-  }
-  // S0: manualTier 우선, 없으면 MMR 승점 기반 계산
+  // 이름 정규화 후 registeredPlayers에서 최신 manualTier 재탐색
   const key = normName(name);
   const found = Object.values(registeredPlayers).find(p => normName(p.name) === key);
   const mt = found?.manualTier ?? manualTier;
+  // null, undefined, 'auto', 'unranked' 는 모두 승률 기반으로 계산
   if (mt && mt !== 'auto' && mt !== 'unranked') return mt;
   return calcTierFromStats(name);
 }
@@ -4560,9 +4546,7 @@ function renderResult() {
     document.getElementById('save-btn').title='';
   }
   const sc=arr=>arr.reduce((s,p)=>s+getWinRateScore(p.name),0);
-  const avg=CURRENT_SEASON>=1
-    ? arr=>'LP강도 '+(sc(arr)/arr.length*100).toFixed(0)+'%'
-    : arr=>(sc(arr)/arr.length*100).toFixed(1)+'%';
+  const avg=arr=>(sc(arr)/arr.length*100).toFixed(1)+'%';
   const sA=sc(currentTeamA),sB=sc(currentTeamB),tot=sA+sB||1;
 
   document.getElementById('teams-grid').innerHTML=
