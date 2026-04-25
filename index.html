@@ -1824,7 +1824,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.14';
+const APP_VERSION = 'v2.31.15';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1833,6 +1833,9 @@ const APP_VERSION = 'v2.31.14';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.15', date: '2026-04-25', changes: [
+    { tag: 'fix', text: '페이지 열 때마다 이전 게임 승리 팝업 반복 등장 버그 수정 — saveMatch 시 처리된 eogStats savedAt을 localStorage에 기록, 다음 로드 시 동일 eogStats면 팝업 차단 + liveMode에서 Firebase stale 데이터 즉시 정리. bridge/eogStats null 수신 시 모든 기기 closeEogOverlay 실행 추가' },
+  ] },
   { ver: 'v2.31.14', date: '2026-04-25', changes: [
     { tag: 'fix', text: '다음 게임 팀짜기 시 이전 게임 승리 팝업 재등장 버그 수정 — 저장 후 bridge/eogStats를 null로 정리하지 않아 재연결/Firebase 재동기화 시 이전 게임 EOG 데이터가 새 팀에 적용되던 문제. saveMatch 후 eogStats 정리 추가 및 makeTeams 시 currentMatchParticipants 초기화' },
   ] },
@@ -3011,11 +3014,20 @@ function _tryAutoSave() {
 }
 
 // ── BRIDGE: EOG 자동 결과 입력 ────────────────────────────────────
+let _currentEogSavedAt = 0; // 현재 처리 중인 eogStats의 savedAt
+
 async function applyEogData(data) {
   if (!data?.players) return;
   if (!currentTeamA.length || !currentTeamB.length) return;
   // 4시간 이상 지난 데이터는 이전 게임 것으로 간주
   if (data.savedAt && Date.now() - data.savedAt > 4 * 3600 * 1000) return;
+  // 이미 저장 처리된 eogStats → 팝업 재등장 방지
+  const _lastSavedEog = Number(localStorage.getItem('aram_eogSavedAt') || '0');
+  if (data.savedAt && data.savedAt <= _lastSavedEog) {
+    if (liveMode) set(ref(db, 'bridge/eogStats'), null).catch(() => {}); // Firebase stale 정리
+    return;
+  }
+  _currentEogSavedAt = data.savedAt || 0;
 
   await loadChampNamesKR();
 
@@ -3058,7 +3070,8 @@ async function applyEogData(data) {
 
 onValue(ref(db, 'bridge/eogStats'), (snap) => {
   const data = snap.val();
-  if (data) applyEogData(data);
+  if (!data) { closeEogOverlay(); return; } // 저장 후 정리 시 모든 기기 팝업 닫기
+  applyEogData(data);
 });
 
 // 비라이브 기기 또는 라이브 기기에 eogStats 데이터 없을 때: matchData 수신
@@ -5197,12 +5210,15 @@ window.saveMatch = async function() {
       finalizeVotes();
     }
 
+    // 저장 완료된 eogStats savedAt 기록 → 다음 로드 시 stale 팝업 방지
+    if (_currentEogSavedAt) localStorage.setItem('aram_eogSavedAt', String(_currentEogSavedAt));
+
     set(ref(db, 'session'), { active: false }).catch(console.error);
     // 경기 저장 완료 후 bridge 데이터 전체 정리 — 재연결/새 팀 구성 시 stale EOG 팝업 방지
     if (liveMode) {
       set(ref(db, 'bridge/matchData'), null).catch(() => {});
       set(ref(db, 'bridge/voteStarted'), null).catch(() => {});
-      set(ref(db, 'bridge/eogStats'), null).catch(() => {}); // 재연결 시 이전 게임 팝업 재트리거 방지
+      set(ref(db, 'bridge/eogStats'), null).catch(() => {}); // 모든 기기 eogStats null → closeEogOverlay 트리거
     }
     renderShop();
     // 승리 버튼·저장 버튼 숨기기
