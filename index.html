@@ -1824,7 +1824,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.17';
+const APP_VERSION = 'v2.31.18';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1833,6 +1833,9 @@ const APP_VERSION = 'v2.31.17';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.18', date: '2026-04-25', changes: [
+    { tag: 'fix', text: 'cross-device 매치 중복 저장 버그 수정 — 다중 liveMode 기기에서 자동 저장이 동시에 트리거되어 같은 경기가 2~3번 push되던 문제(v2.31.16의 _saveInProgress 동기 잠금은 단일 기기 내 race만 차단). saveMatch에서 push 직전 직전 2분 윈도우 내 같은 팀·승자 매치가 있으면 기존 키 재사용 + 골드/LP 후속 처리 건너뜀(다른 기기가 이미 처리). finalizeVotes는 정상 진행되어 MVP/매너 정보는 기존 매치에 update' },
+  ] },
   { ver: 'v2.31.17', date: '2026-04-25', changes: [
     { tag: 'fix', text: 'bridge/voteStarted 첫 로드 무시 로직 수정 — _lastVoteStarted를 undefined로 초기화해 첫 Firebase 콜백 시 기존 값 skip 보장 (null 초기화로 dead code였던 문제 수정)' },
   ] },
@@ -5171,6 +5174,41 @@ window.saveMatch = async function() {
     if (Object.keys(currentMatchParticipants).length > 0)
       matchData.participants = currentMatchParticipants;
     if (currentRiotMatchId) matchData.riotMatchId = currentRiotMatchId;
+
+    // ── Cross-device 중복 저장 가드 (v2.31.18~) ─────────────────
+    // 다중 liveMode 기기에서 동시 자동 저장 시 같은 매치가 여러 번 push 되던
+    // 문제. push 직전 직전 2분 윈도우 내 동일 팀·승자 매치가 이미 있으면
+    // 해당 키를 재사용하고 골드/LP 적용 등 후속 처리는 건너뜀 (다른 기기가 처리)
+    const _teamASorted = (matchData.teamA || []).slice().sort().join('|');
+    const _teamBSorted = (matchData.teamB || []).slice().sort().join('|');
+    const _dupWindowMs = 120000; // 2분
+    const _existingDup = Object.entries(matches).find(([, m]) => {
+      if (!m || !m.timestamp) return false;
+      if (matchTimestamp - m.timestamp > _dupWindowMs) return false;
+      if (m.winner !== matchData.winner) return false;
+      const tA = (m.teamA || []).slice().sort().join('|');
+      const tB = (m.teamB || []).slice().sort().join('|');
+      return tA === _teamASorted && tB === _teamBSorted;
+    });
+    if (_existingDup) {
+      console.warn('[saveMatch] cross-device 중복 감지 — 기존 키 재사용:', _existingDup[0]);
+      savedMatchKey = _existingDup[0];
+      savedWinner = selectedWinner;
+      matchSaved = true;
+      // 다른 기기가 이미 골드/LP/itemEffects 처리 완료. 본 기기는 UI 후속만:
+      const tcRow = document.getElementById('tier-changes-row');
+      if (tcRow) tcRow.innerHTML = '';
+      btn.textContent='✅ 저장 완료 (중복)'; btn.disabled=true;
+      // postSaveMatchData 는 finalizeVotes 가 사용. 최소 정보만 채움 (다른 기기가 골드/LP는 이미 처리)
+      postSaveMatchData = {
+        winners, losers, itemEffects, tierChanges: [],
+        questEvent: questEventState ? { ...questEventState } : null,
+        spectatorResult: (currentSpectator && spectatorPick)
+          ? { name: currentSpectator.name, correct: spectatorPick === selectedWinner }
+          : null,
+      };
+      return; // saveMatch 본체 종료
+    }
 
     // ── Firebase 저장 (MVP/매너 없이 먼저) ──────────────────────
     const pushRef = await push(ref(db, 'matches'), matchData);
