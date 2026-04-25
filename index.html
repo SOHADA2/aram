@@ -1824,7 +1824,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.11';
+const APP_VERSION = 'v2.31.12';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3059,6 +3059,12 @@ onValue(ref(db, 'bridge/matchData'), async (snap) => {
   const data = snap.val();
   if (!data?.participants) return;
   if (data.syncedAt && Date.now() - data.syncedAt > 4 * 3600 * 1000) return;
+  // 현재 팀이 없으면 이전 게임 데이터 — 무시
+  if (!currentTeamA.length || !currentTeamB.length) return;
+  // 현재 팀원과 매칭되는 플레이어가 없으면 이전 게임 데이터 — 무시
+  const allPlayers = [...currentTeamA, ...currentTeamB];
+  const matchedCount = allPlayers.filter(p => data.participants[normName(p.name)]?.champion).length;
+  if (matchedCount === 0) return;
   await loadChampNamesKR();
   currentMatchParticipants = data.participants;
   if (data.winSide && !selectedWinner) {
@@ -5182,6 +5188,8 @@ window.saveMatch = async function() {
     }
 
     set(ref(db, 'session'), { active: false }).catch(console.error);
+    // 경기 저장 완료 후 bridge/matchData 정리 — 다음 진입 시 stale EOG 팝업 방지
+    if (liveMode) set(ref(db, 'bridge/matchData'), null).catch(() => {});
     renderShop();
     // 승리 버튼·저장 버튼 숨기기
     document.querySelector('.winner-btns').style.display='none';
