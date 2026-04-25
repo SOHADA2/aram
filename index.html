@@ -1824,7 +1824,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.15';
+const APP_VERSION = 'v2.31.16';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1833,6 +1833,9 @@ const APP_VERSION = 'v2.31.15';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.16', date: '2026-04-25', changes: [
+    { tag: 'fix', text: '자동 저장 시 6경기 중복 저장 버그 수정 — saveMatch()가 async여서 savedMatchKey 설정 전에 _tryAutoSave()가 여러 번 가드를 통과하는 레이스 컨디션. _saveInProgress 동기 잠금 플래그를 진입 즉시 세팅해 중복 진입 차단. 실패 시 잠금 해제, 다음 팀 구성/초기화 시 플래그 리셋' },
+  ] },
   { ver: 'v2.31.15', date: '2026-04-25', changes: [
     { tag: 'fix', text: '페이지 열 때마다 이전 게임 승리 팝업 반복 등장 버그 수정 — saveMatch 시 처리된 eogStats savedAt을 localStorage에 기록, 다음 로드 시 동일 eogStats면 팝업 차단 + liveMode에서 Firebase stale 데이터 즉시 정리. bridge/eogStats null 수신 시 모든 기기 closeEogOverlay 실행 추가' },
   ] },
@@ -4445,6 +4448,7 @@ function champCardHtml(p, selectedName, onclick) {
 
 
 let matchSaved = false; // 현재 팀 결과 저장 여부
+let _saveInProgress = false; // saveMatch 진행 중 동기 잠금 (중복 저장 방지)
 
 let _initialSessionLoaded = false;
 let _justMadeTeams = false;
@@ -4543,6 +4547,7 @@ function renderResult() {
   document.getElementById('rematch-btn').style.display = 'none';
   document.getElementById('tier-changes-row').innerHTML = '';
   matchSaved = false;
+  _saveInProgress = false;
 
   // 상단 헤더("1팀 N:N 2팀") 숨김
   document.getElementById('result-header').style.display='none';
@@ -5110,7 +5115,8 @@ window._debugScoreCompare = function() {
 window.saveMatch = async function() {
   if (isEventMatch) return;
   if (!selectedWinner) return;
-  if (matchSaved || savedMatchKey) return;
+  if (matchSaved || savedMatchKey || _saveInProgress) return;
+  _saveInProgress = true; // 동기 잠금 — async push 완료 전 중복 진입 차단
   const btn=document.getElementById('save-btn');
   btn.disabled=true; btn.textContent='저장 중...';
   try {
@@ -5247,6 +5253,7 @@ window.saveMatch = async function() {
     matchSaved = true;
     selectedWinner = null;
   } catch(e) {
+    _saveInProgress = false; // 실패 시 잠금 해제 (재시도 가능하도록)
     btn.textContent='❌ 저장 실패'; btn.disabled=false;
     setTimeout(()=>{btn.textContent='💾 결과 저장하기';},2000);
   }
@@ -8360,6 +8367,7 @@ window.resetSession = function() {
   savedMatchKey = null;
   savedWinner = null;
   matchSaved = false;
+  _saveInProgress = false;
   mvpConfirmed = null;
   mannerConfirmed = null;
   set(ref(db, 'session'), { active: false }).catch(console.error);
