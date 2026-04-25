@@ -1824,7 +1824,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.13';
+const APP_VERSION = 'v2.31.14';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1833,6 +1833,9 @@ const APP_VERSION = 'v2.31.13';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.14', date: '2026-04-25', changes: [
+    { tag: 'fix', text: '다음 게임 팀짜기 시 이전 게임 승리 팝업 재등장 버그 수정 — 저장 후 bridge/eogStats를 null로 정리하지 않아 재연결/Firebase 재동기화 시 이전 게임 EOG 데이터가 새 팀에 적용되던 문제. saveMatch 후 eogStats 정리 추가 및 makeTeams 시 currentMatchParticipants 초기화' },
+  ] },
   { ver: 'v2.31.13', date: '2026-04-25', changes: [
     { tag: 'fix', text: '자동 저장 후 팀원 기기에 투표 UI가 그대로 남는 버그 수정 — 게임 중 늦게 접속한 기기는 showEogOverlay 없이 renderMvpSection이 display:block으로 투표 섹션을 표시하는데, closeEogOverlay가 _mvpSectionOriginalParent=null일 때 숨기기를 건너뛰던 문제. closeEogOverlay에서 항상 mvp-section을 hide하도록 수정. 저장 후 bridge/voteStarted도 정리해 재접속 시 재팝업 방지' },
   ] },
@@ -4352,6 +4355,7 @@ window.makeTeams = function() {
   mvpConfirmed = null;
   mannerVotes = { teamA: {}, teamB: {} };
   mannerConfirmed = null;
+  currentMatchParticipants = {}; // 이전 게임 참가자 데이터 초기화
   // 팀 구성 완료 → 아이템 잠금
   itemsLocked = true;
   renderShop();
@@ -5194,10 +5198,11 @@ window.saveMatch = async function() {
     }
 
     set(ref(db, 'session'), { active: false }).catch(console.error);
-    // 경기 저장 완료 후 bridge 데이터 정리 — 다음 진입 시 stale EOG 팝업 방지
+    // 경기 저장 완료 후 bridge 데이터 전체 정리 — 재연결/새 팀 구성 시 stale EOG 팝업 방지
     if (liveMode) {
       set(ref(db, 'bridge/matchData'), null).catch(() => {});
       set(ref(db, 'bridge/voteStarted'), null).catch(() => {});
+      set(ref(db, 'bridge/eogStats'), null).catch(() => {}); // 재연결 시 이전 게임 팝업 재트리거 방지
     }
     renderShop();
     // 승리 버튼·저장 버튼 숨기기
