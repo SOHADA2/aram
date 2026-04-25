@@ -1323,7 +1323,7 @@ img.emoji{
 <header>
   <div class="logo-badge">ARAM Custom</div>
   <h1>무작위 총력전 아수라장 내전</h1>
-  <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:var(--text-dim);margin-top:2px;">⚙️ SEASON 0</div>
+  <div id="header-season-label" style="font-size:11px;font-weight:700;letter-spacing:2px;color:var(--text-dim);margin-top:2px;">⚙️ SEASON 0</div>
 </header>
 
 <!-- 동기화 상태 -->
@@ -1790,6 +1790,11 @@ let viewSeason = 0;     // 현재 경기 기록 탭에서 보고 있는 시즌
 // 시즌별 Firebase 필드명 (season 0은 기존 필드명 유지, 이후부터 _s1, _s2 ...)
 function seasonSuffix(s) { return s === 0 ? '' : '_s' + s; }
 function sField(field) { return field + seasonSuffix(CURRENT_SEASON); }
+// 헤더 부제 "⚙️ SEASON N" — 시즌 전환 시 갱신
+function renderHeaderSeasonLabel() {
+  const el = document.getElementById('header-season-label');
+  if (el) el.textContent = `⚙️ SEASON ${CURRENT_SEASON}`;
+}
 
 // ── STATE ─────────────────────────────────────────────────────
 let registeredPlayers = {};  // Firebase key → {name, manualTier}
@@ -1818,7 +1823,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.7';
+const APP_VERSION = 'v2.31.8';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1827,6 +1832,9 @@ const APP_VERSION = 'v2.31.7';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.8', date: '2026-04-24', changes: [
+    { tag: 'fix', text: '헤더 부제 "⚙️ SEASON 0" 이 정적 HTML이라 시즌 전환 시 갱신되지 않던 문제 수정 — id 부여 + renderHeaderSeasonLabel() 헬퍼 추가, config/currentSeason 리스너에서 호출. S0↔S1 전환 즉시 헤더 라벨도 동기화' },
+  ]},
   { ver: 'v2.31.7', date: '2026-04-24', changes: [
     { tag: 'improve', text: '팀구성 탭 상단 매치 설정 영역을 컴팩트 드롭다운으로 재설계 — 일반 매치/이벤트 매치 + 밸런스/랜덤/고정 5개 버튼이 항상 펼쳐진 형태에서 두 개의 셀렉터(매치 타입 · 구성 방식)로 압축. 기본 선택(일반 매치 + 밸런스) 라벨이 노출되고 클릭 시 드롭다운으로 다른 옵션 선택. 이벤트 매치 선택 시 모드 셀렉터 자동 비활성화. 외부 클릭으로 드롭다운 자동 닫힘' },
   ]},
@@ -2646,6 +2654,7 @@ onValue(ref(db, 'config/currentSeason'), (snapshot) => {
   rankViewSeason = CURRENT_SEASON;
   renderSeasonSelector();
   renderSeasonAdmin();
+  renderHeaderSeasonLabel();
   // 시즌 전환 즉시 기록·랭킹·대기카드·업적/시즌패스·티어 기준 카드를 현재 시즌으로 다시 그림
   renderMatchHistory();
   renderRanking();
