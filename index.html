@@ -1809,6 +1809,7 @@ let mode = 'balance';
 let matchType = 'normal'; // 'normal' | 'event'
 let isEventMatch = false;
 let currentTeamA = [], currentTeamB = [];
+let _currentTeamsFormedAt = 0; // 현재 팀 형성 시각 — 다중 브릿지에서 stale eogStats/matchData 차단용 (v2.31.21~)
 let currentSpectator = null; // 홀수 인원 시 랜덤 제외된 관전자
 let spectatorPick = null;          // 관전자 예측: 'blue' | 'red'
 let spectatorPickTimer = null;     // 카운트다운 인터벌
@@ -1824,7 +1825,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.20';
+const APP_VERSION = 'v2.31.21';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1833,6 +1834,9 @@ const APP_VERSION = 'v2.31.20';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.21', date: '2026-04-26', changes: [
+    { tag: 'fix', text: '다중 브릿지 실행 시 stale·다른 게임 데이터 차단 강화 — 1) 팀 형성 시각(_currentTeamsFormedAt) 도입, eogStats/matchData 의 savedAt/syncedAt 가 팀 형성보다 10초 이상 이전이면 무시(다른 브릿지가 보낸 이전 게임 잔여 데이터 차단). session.teamsFormedAt 으로 다른 기기와 동기화. 2) 매칭 임계 강화 — 기존 "1명만 매치돼도 통과"에서 "팀 인원의 75% 이상 매치 필요"로 변경(다른 브릿지가 솔랭 등에서 그룹원 1~2명 포함된 데이터를 보내도 차단)' },
+  ] },
   { ver: 'v2.31.20', date: '2026-04-26', changes: [
     { tag: 'new', text: '단일 라이브 소유권 시스템 — 한 시점에 정확히 1대만 라이브 모드 가능. Firebase /config/liveOwner 에 점유자 deviceId·label·startedAt·heartbeatAt 기록, 점유자는 20초마다 heartbeat 갱신. 새 기기 진입 시 활성 점유자 있으면 "다른 기기에서 라이브 모드 사용 중 (Chrome · Windows, 3분 전 시작)" 확인 다이얼로그로 가져오기 선택. 기존 점유 기기는 listener 로 자동 종료 + 토스트 "다른 기기에서 라이브 모드를 가져갔습니다". 60초 이상 heartbeat 없으면 stale 판정 → 새 기기가 무프롬프트 회수. beforeunload 시 best-effort 정리, 실패해도 stale 감지로 회수' },
   ] },
@@ -2757,6 +2761,8 @@ function applySessionData(data) {
   mode          = data.mode      || mode;
   isEventMatch  = !!data.isEventMatch;
   currentSpectator = data.spectator ? { name: data.spectator } : null;
+  // session 에 teamsFormedAt 가 있으면 우선 사용, 없으면 현재 시각 (다른 기기와 동기화 위해)
+  _currentTeamsFormedAt = data.teamsFormedAt || _currentTeamsFormedAt || Date.now();
 
   // ── 관전자 예측 상태 복원 ─────────────────────────────────────
   if (data.spectatorPick && !_spectatorPickAnnounced) {
@@ -3042,6 +3048,11 @@ async function applyEogData(data) {
     if (liveMode) set(ref(db, 'bridge/eogStats'), null).catch(() => {}); // Firebase stale 정리
     return;
   }
+  // 다중 브릿지 가드: 현재 팀 형성 이전의 eogStats 거부 (v2.31.21~)
+  if (data.savedAt && _currentTeamsFormedAt && data.savedAt < _currentTeamsFormedAt - 10000) {
+    console.warn('[applyEogData] 팀 형성 이전 데이터 — 다른 브릿지/이전 게임으로 추정, 무시');
+    return;
+  }
   _currentEogSavedAt = data.savedAt || 0;
 
   await loadChampNamesKR();
@@ -3066,9 +3077,15 @@ async function applyEogData(data) {
       cs:       p.cs      || 0,
     };
   }
-  // 현재 팀에 매칭된 플레이어가 없으면 이전 게임 데이터로 판단 — 전부 무시
+  // 다중 브릿지 가드: 75% 미만 매치면 다른 게임 데이터로 추정 (v2.31.21~).
+  // 기존: matchedCount === 0 만 거부 (1명만 매치돼도 통과 → 솔랭에 그룹원 1~2명 있는
+  // 다른 브릿지 데이터가 적용되는 위험). 75% 임계로 강화.
   const matchedCount = allPlayers.filter(p => pts[normName(p.name)]?.champion).length;
-  if (matchedCount === 0) return;
+  const minMatch = Math.max(1, Math.ceil(allPlayers.length * 0.75));
+  if (matchedCount < minMatch) {
+    console.warn(`[applyEogData] 매칭 ${matchedCount}/${allPlayers.length} — 다른 게임 데이터 추정, 무시`);
+    return;
+  }
   currentMatchParticipants = pts;
 
   // 2. 승팀 자동 선택 — 플레이어 매칭 확인 후에만 실행
@@ -3096,12 +3113,15 @@ onValue(ref(db, 'bridge/matchData'), async (snap) => {
   const data = snap.val();
   if (!data?.participants) return;
   if (data.syncedAt && Date.now() - data.syncedAt > 4 * 3600 * 1000) return;
+  // 다중 브릿지 가드: 팀 형성 이전 syncedAt 거부 (v2.31.21~)
+  if (data.syncedAt && _currentTeamsFormedAt && data.syncedAt < _currentTeamsFormedAt - 10000) return;
   // 현재 팀이 없으면 이전 게임 데이터 — 무시
   if (!currentTeamA.length || !currentTeamB.length) return;
-  // 현재 팀원과 매칭되는 플레이어가 없으면 이전 게임 데이터 — 무시
+  // 75% 미만 매치면 다른 게임 데이터로 추정 (v2.31.21~ 강화)
   const allPlayers = [...currentTeamA, ...currentTeamB];
   const matchedCount = allPlayers.filter(p => data.participants[normName(p.name)]?.champion).length;
-  if (matchedCount === 0) return;
+  const minMatch = Math.max(1, Math.ceil(allPlayers.length * 0.75));
+  if (matchedCount < minMatch) return;
   await loadChampNamesKR();
   currentMatchParticipants = data.participants;
   if (data.winSide && !selectedWinner) {
@@ -4402,6 +4422,7 @@ window.makeTeams = function() {
   // 관전자 예측은 팀 발표(7초) 종료 후 시작 → spectatorPickStartAt도 그 시점 기준
   const ANNOUNCE_DURATION = 7400; // showTeamAnnounce DURATION(7000) + fadeOut(400)
   const spectatorPickStartAt = currentSpectator ? Date.now() + ANNOUNCE_DURATION : null;
+  _currentTeamsFormedAt = Date.now(); // 다중 브릿지 stale 데이터 차단용
   set(ref(db, 'session'), {
     active: true,
     teamA: currentTeamA.map(p => p.name),
@@ -4410,6 +4431,7 @@ window.makeTeams = function() {
     spectator: currentSpectator ? currentSpectator.name : null,
     spectatorPickStartAt,
     spectatorPick: null,
+    teamsFormedAt: _currentTeamsFormedAt,
     mvp: { active: true },    // MVP 초기화 통합 → onValue 이중 발화 방지
     manner: { active: true }, // 매너왕 초기화
   }).catch(console.error);
@@ -8618,6 +8640,7 @@ window.resetSession = function() {
   _saveInProgress = false;
   mvpConfirmed = null;
   mannerConfirmed = null;
+  _currentTeamsFormedAt = 0;
   set(ref(db, 'session'), { active: false }).catch(console.error);
   renderSessionPlayers();
   renderShop();
