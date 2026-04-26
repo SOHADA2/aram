@@ -1824,7 +1824,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.18';
+const APP_VERSION = 'v2.31.19';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1833,6 +1833,9 @@ const APP_VERSION = 'v2.31.18';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.19', date: '2026-04-26', changes: [
+    { tag: 'fix', text: '다중 라이브 계정 + 브릿지 연동 시 매치 중복 저장이 끝까지 차단되도록 강화 — v2.31.18 의 pre-push dup 체크가 race 로 통과하면 여전히 중복이 발생하던 문제. saveMatch 의 push 직후 400ms 동기화 대기 → 동일 그룹 매치를 Firebase push key 순(=실제 push 순서)으로 정렬 → 가장 빠른 매치를 canonical 로 결정. 우리가 후행 중복이면 우리 매치 자가 삭제 + 골드/LP 후속 처리 건너뜀 (canonical 기기가 모두 처리). canonical 이면 다른 후행 중복도 정리해 race-safe 보강. S0/S1 모두 동일 경로라 양 시즌 모두 적용됨' },
+  ] },
   { ver: 'v2.31.18', date: '2026-04-25', changes: [
     { tag: 'fix', text: 'cross-device 매치 중복 저장 버그 수정 — 다중 liveMode 기기에서 자동 저장이 동시에 트리거되어 같은 경기가 2~3번 push되던 문제(v2.31.16의 _saveInProgress 동기 잠금은 단일 기기 내 race만 차단). saveMatch에서 push 직전 직전 2분 윈도우 내 같은 팀·승자 매치가 있으면 기존 키 재사용 + 골드/LP 후속 처리 건너뜀(다른 기기가 이미 처리). finalizeVotes는 정상 진행되어 MVP/매너 정보는 기존 매치에 update' },
   ] },
@@ -5215,6 +5218,55 @@ window.saveMatch = async function() {
     savedMatchKey = pushRef.key;
     savedWinner = selectedWinner;
     // onValue 리스너가 matches 즉시 업데이트 → 새 티어 계산 가능
+
+    // ── Post-push canonical 검증 (v2.31.19~) ─────────────────────
+    // pre-push dup 체크가 race로 통과한 경우의 안전망. 400ms 동기화 대기 후
+    // 동일 그룹의 매치들 중 push key 가 가장 빠른(=lex 최소) 것을 canonical로 결정.
+    // 우리가 canonical 이 아니면 우리 매치를 삭제하고 골드/LP 처리는 건너뜀
+    // (canonical 기기가 처리). canonical 이면 후행 중복도 정리.
+    await new Promise(r => setTimeout(r, 400));
+    const _dupGroup = Object.entries(matches).filter(([, m]) => {
+      if (!m || !m.timestamp) return false;
+      if (Math.abs(matchTimestamp - m.timestamp) > _dupWindowMs) return false;
+      if (m.winner !== matchData.winner) return false;
+      const tA = (m.teamA || []).slice().sort().join('|');
+      const tB = (m.teamB || []).slice().sort().join('|');
+      return tA === _teamASorted && tB === _teamBSorted;
+    });
+    if (_dupGroup.length > 1) {
+      // Firebase push key 는 chronological — lex 정렬 = push 순서
+      _dupGroup.sort((a, b) => a[0].localeCompare(b[0]));
+      const canonicalKey = _dupGroup[0][0];
+      if (canonicalKey !== savedMatchKey) {
+        // 우리는 후행 중복 — 우리 매치 삭제 후 canonical 로 전환, 후속 처리 skip
+        console.warn('[saveMatch] 후행 중복 감지 — 우리 매치 삭제:', savedMatchKey, '→ canonical:', canonicalKey);
+        await remove(ref(db, 'matches/' + savedMatchKey)).catch(e => console.error(e));
+        savedMatchKey = canonicalKey;
+        matchSaved = true;
+        btn.textContent = '✅ 저장 완료 (중복 정리됨)'; btn.disabled = true;
+        postSaveMatchData = {
+          winners, losers, itemEffects, tierChanges: [],
+          questEvent: questEventState ? { ...questEventState } : null,
+          spectatorResult: (currentSpectator && spectatorPick)
+            ? { name: currentSpectator.name, correct: spectatorPick === selectedWinner }
+            : null,
+        };
+        questEventState = null;
+        spectatorPick = null;
+        _spectatorPickAnnounced = false;
+        itemsLocked = false;
+        if (_currentEogSavedAt) localStorage.setItem('aram_eogSavedAt', String(_currentEogSavedAt));
+        // session·eogStats 정리는 canonical 기기가 함. 하지만 우리도 매치는 정리됐으므로
+        // votes confirmed 라면 finalizeVotes 호출(mvp/매너 update는 idempotent)
+        if (mvpConfirmed !== null && mannerConfirmed !== null) finalizeVotes();
+        return; // 골드/LP 처리 건너뜀
+      }
+      // 우리가 canonical — 후행 중복들 정리 (race-safe 보강)
+      for (let i = 1; i < _dupGroup.length; i++) {
+        const [otherKey] = _dupGroup[i];
+        remove(ref(db, 'matches/' + otherKey)).catch(() => {});
+      }
+    }
 
     // ── 티어 변동 계산 ───────────────────────────────────────────
     const tierChanges = [];
