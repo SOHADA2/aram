@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.31.19
+- 현재 버전: v2.31.20
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -51,6 +51,8 @@
 
 /config/currentSeason            // 현재 시즌 번호 (0 또는 1)
 /config/riotApiKey               // Riot API Key (24h 갱신)
+/config/liveOwner                // 라이브 모드 단일 소유권 (v2.31.20~)
+  deviceId, label, startedAt, heartbeatAt
 
 /season1/players/{normName}      // 시즌 1 전용 LP·티어 상태
   tier: 'unranked'|'bronze'|...|'challenger'

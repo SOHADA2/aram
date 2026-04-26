@@ -1824,7 +1824,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.19';
+const APP_VERSION = 'v2.31.20';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1833,6 +1833,9 @@ const APP_VERSION = 'v2.31.19';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.20', date: '2026-04-26', changes: [
+    { tag: 'new', text: '단일 라이브 소유권 시스템 — 한 시점에 정확히 1대만 라이브 모드 가능. Firebase /config/liveOwner 에 점유자 deviceId·label·startedAt·heartbeatAt 기록, 점유자는 20초마다 heartbeat 갱신. 새 기기 진입 시 활성 점유자 있으면 "다른 기기에서 라이브 모드 사용 중 (Chrome · Windows, 3분 전 시작)" 확인 다이얼로그로 가져오기 선택. 기존 점유 기기는 listener 로 자동 종료 + 토스트 "다른 기기에서 라이브 모드를 가져갔습니다". 60초 이상 heartbeat 없으면 stale 판정 → 새 기기가 무프롬프트 회수. beforeunload 시 best-effort 정리, 실패해도 stale 감지로 회수' },
+  ] },
   { ver: 'v2.31.19', date: '2026-04-26', changes: [
     { tag: 'fix', text: '다중 라이브 계정 + 브릿지 연동 시 매치 중복 저장이 끝까지 차단되도록 강화 — v2.31.18 의 pre-push dup 체크가 race 로 통과하면 여전히 중복이 발생하던 문제. saveMatch 의 push 직후 400ms 동기화 대기 → 동일 그룹 매치를 Firebase push key 순(=실제 push 순서)으로 정렬 → 가장 빠른 매치를 canonical 로 결정. 우리가 후행 중복이면 우리 매치 자가 삭제 + 골드/LP 후속 처리 건너뜀 (canonical 기기가 모두 처리). canonical 이면 다른 후행 중복도 정리해 race-safe 보강. S0/S1 모두 동일 경로라 양 시즌 모두 적용됨' },
   ] },
@@ -7862,15 +7865,150 @@ function updateMemberModeDisplay() {
   if (isMember && !resultVisible) renderWaitingCard();
 }
 
+// ═══════════════════════════════════════════════════════════════
+// ████  단일 라이브 소유권 시스템 (v2.31.20~)  ████████████████████
+// ═══════════════════════════════════════════════════════════════
+// 한 시점에 정확히 1대의 기기만 라이브 모드를 가질 수 있도록 Firebase
+// /config/liveOwner 에 점유자 기록. 다른 기기에서 진입 시도 시 확인 후
+// 강제 점유하면 기존 기기는 자동 종료. heartbeat 끊기면 60s 후 stale
+// 처리되어 새 기기가 무프롬프트로 진입 가능.
+const LIVE_HEARTBEAT_MS = 20000; // 20초마다 heartbeat
+const LIVE_STALE_MS     = 60000; // 60초 이상 heartbeat 없으면 stale
+let _liveHeartbeatTimer = null;
+let _liveOwnerData      = null;  // 최신 /config/liveOwner 스냅샷
+let _liveBeingKicked    = false; // 빼앗기는 중 재진입 방지
+
+function getDeviceId() {
+  let id = localStorage.getItem('aram_deviceId');
+  if (!id) {
+    id = 'd_' + Math.random().toString(36).slice(2, 11) + Date.now().toString(36);
+    localStorage.setItem('aram_deviceId', id);
+  }
+  return id;
+}
+function getDeviceLabel() {
+  const ua = navigator.userAgent || '';
+  let browser = '브라우저';
+  if (/Edg\//.test(ua))       browser = 'Edge';
+  else if (/OPR\//.test(ua))  browser = 'Opera';
+  else if (/Chrome\//.test(ua) && !/Chromium/.test(ua)) browser = 'Chrome';
+  else if (/Firefox\//.test(ua)) browser = 'Firefox';
+  else if (/Safari\//.test(ua) && !/Chrome\//.test(ua)) browser = 'Safari';
+  let os = '';
+  if (/iPhone/.test(ua))      os = 'iPhone';
+  else if (/iPad/.test(ua))   os = 'iPad';
+  else if (/Android/.test(ua))os = 'Android';
+  else if (/Mac OS X/.test(ua))os = 'Mac';
+  else if (/Windows/.test(ua))os = 'Windows';
+  else if (/Linux/.test(ua))  os = 'Linux';
+  return os ? `${browser} · ${os}` : browser;
+}
+
+// /config/liveOwner 변경 감지 — 우리가 빼앗겼는지 체크
+onValue(ref(db, 'config/liveOwner'), (snap) => {
+  _liveOwnerData = snap.val();
+  if (liveMode && _liveOwnerData && _liveOwnerData.deviceId !== getDeviceId() && !_liveBeingKicked) {
+    // 상대 owner 가 stale 이면 우리가 회수 시도 (kick 하지 않음)
+    const isStale = !_liveOwnerData.heartbeatAt || (Date.now() - _liveOwnerData.heartbeatAt > LIVE_STALE_MS);
+    if (isStale) { claimLiveOwner(false).catch(() => {}); return; }
+    _liveBeingKicked = true;
+    handleLiveKicked(_liveOwnerData);
+    setTimeout(() => { _liveBeingKicked = false; }, 1500);
+  }
+});
+
+function handleLiveKicked(newOwner) {
+  stopLiveHeartbeat();
+  // 로컬 라이브 모드만 끔 (Firebase liveOwner 는 새 기기 것이라 건드리지 않음)
+  liveMode = false;
+  localStorage.removeItem('liveMode');
+  document.body.classList.toggle('live-mode', false);
+  document.body.classList.toggle('member-mode', !!myName);
+  const bar = document.getElementById('live-mode-bar');
+  if (bar) bar.style.display = 'none';
+  updateMyInfoBar();
+  updateMemberModeDisplay();
+  stopBgm();
+  if (currentTeamA.length || currentTeamB.length) renderResult();
+  const label = newOwner?.label || '다른 기기';
+  if (typeof showGoldToast === 'function') {
+    showGoldToast(`🔄 ${label} 에서 라이브 모드를 가져갔습니다`);
+  }
+}
+
+// 점유 시도. force=true 면 기존 점유자 무시하고 덮어씀
+async function claimLiveOwner(force = false) {
+  const myId = getDeviceId();
+  const myLabel = getDeviceLabel();
+  let cur = null;
+  try {
+    const snap = await get(ref(db, 'config/liveOwner'));
+    cur = snap.val();
+  } catch (e) { console.error('liveOwner read 실패', e); }
+  const isStale = !cur || !cur.heartbeatAt || (Date.now() - cur.heartbeatAt > LIVE_STALE_MS);
+  const isMe = !!(cur && cur.deviceId === myId);
+  if (!isMe && !isStale && !force) {
+    return { success: false, owner: cur };
+  }
+  const now = Date.now();
+  await set(ref(db, 'config/liveOwner'), {
+    deviceId:    myId,
+    label:       myLabel,
+    startedAt:   (cur && isMe && cur.startedAt) ? cur.startedAt : now,
+    heartbeatAt: now,
+  });
+  return { success: true };
+}
+
+async function releaseLiveOwner() {
+  const myId = getDeviceId();
+  if (_liveOwnerData && _liveOwnerData.deviceId === myId) {
+    try { await set(ref(db, 'config/liveOwner'), null); }
+    catch (e) { console.error('liveOwner release 실패', e); }
+  }
+}
+
+function startLiveHeartbeat() {
+  stopLiveHeartbeat();
+  _liveHeartbeatTimer = setInterval(async () => {
+    if (!liveMode) { stopLiveHeartbeat(); return; }
+    const myId = getDeviceId();
+    // 우리 점유가 아니면 heartbeat 중단 (kicked 처리에 맡김)
+    if (_liveOwnerData && _liveOwnerData.deviceId !== myId) { stopLiveHeartbeat(); return; }
+    try { await update(ref(db, 'config/liveOwner'), { heartbeatAt: Date.now() }); }
+    catch (e) { console.error('liveHeartbeat 실패', e); }
+  }, LIVE_HEARTBEAT_MS);
+}
+function stopLiveHeartbeat() {
+  if (_liveHeartbeatTimer) { clearInterval(_liveHeartbeatTimer); _liveHeartbeatTimer = null; }
+}
+
+// 페이지 닫을 때 best-effort 정리 (실패해도 stale 감지가 회수)
+window.addEventListener('beforeunload', () => {
+  if (liveMode) {
+    const myId = getDeviceId();
+    if (_liveOwnerData && _liveOwnerData.deviceId === myId) {
+      try { set(ref(db, 'config/liveOwner'), null); } catch {}
+    }
+  }
+});
+
 function setLiveMode(enabled) {
   liveMode = enabled;
-  if (enabled) localStorage.setItem('liveMode', '1');
-  else localStorage.removeItem('liveMode');
+  if (enabled) {
+    localStorage.setItem('liveMode', '1');
+    // 새로고침·진입 등으로 setLiveMode(true) 호출될 때마다 점유 재확인
+    // (다른 기기가 stale 상태로 남아있으면 우리가 회수, 활성 owner 면 listener가 kick 처리)
+    claimLiveOwner(false).catch(() => {});
+  } else {
+    localStorage.removeItem('liveMode');
+  }
   document.body.classList.toggle('live-mode', enabled);
   document.body.classList.toggle('member-mode', !enabled && !!myName);
   document.getElementById('live-mode-bar').style.display = enabled ? 'flex' : 'none';
   if (enabled) {
     document.getElementById('my-info-bar').style.display = 'none';
+    startLiveHeartbeat();
     // 상점 탭 활성화 상태면 팀구성으로 이동
     if (document.getElementById('tab-shop').classList.contains('active')) {
       const teamBtn = document.querySelector('.nav-tab');
@@ -7878,6 +8016,7 @@ function setLiveMode(enabled) {
       teamBtn.classList.add('active');
     }
   } else {
+    stopLiveHeartbeat();
     updateMyInfoBar();
   }
   updateMemberModeDisplay();
@@ -7928,21 +8067,37 @@ window.setBgmVol = function(val) {
   if (bgm) bgm.volume = val / 100;
 };
 
-window.confirmLiveMode = function() {
+window.confirmLiveMode = async function() {
   if (!confirm('라이브용 계정으로 진입하시겠어요?')) return;
+  // 1차 점유 시도
+  let claim = await claimLiveOwner(false);
+  if (!claim.success) {
+    const o = claim.owner;
+    const minsAgo = Math.max(1, Math.round((Date.now() - (o.startedAt || Date.now())) / 60000));
+    const ok = confirm(
+      `⚠️ 다른 기기에서 라이브 모드 사용 중\n\n` +
+      `• 기기: ${o.label || '미상'}\n` +
+      `• 시작: ${minsAgo}분 전\n\n` +
+      `해당 기기를 종료하고 이 기기로 가져올까요?`
+    );
+    if (!ok) return;
+    claim = await claimLiveOwner(true);
+    if (!claim.success) { alert('라이브 점유에 실패했습니다. 잠시 후 다시 시도해주세요.'); return; }
+  }
   enterLiveMode();
 };
 window.enterLiveMode = function() {
   closeMyModal();
   myName = null;
-  setLiveMode(true);
+  setLiveMode(true); // startLiveHeartbeat 내부 호출됨
   playBgm();
   if (currentTeamA.length || currentTeamB.length) renderResult();
 };
-window.exitLiveMode = function() {
+window.exitLiveMode = async function() {
   myName = localStorage.getItem('myName') || null; // 이전 닉네임 복원
-  setLiveMode(false);
+  setLiveMode(false); // stopLiveHeartbeat 내부 호출됨
   stopBgm();
+  await releaseLiveOwner();
   if (currentTeamA.length || currentTeamB.length) renderResult();
 };
 window.selectMyName = async function(name) {
