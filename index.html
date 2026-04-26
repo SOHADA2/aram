@@ -735,6 +735,16 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .my-modal-overlay{position:fixed;inset:0;z-index:1000;background:rgba(4,11,21,0.92);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 0.2s ease;}
 .quest-overlay{position:fixed;inset:0;z-index:1100;background:rgba(4,11,21,0.93);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 0.25s ease;}
 .quest-modal{background:var(--surface);border:1px solid rgba(255,200,50,0.35);border-radius:16px;width:100%;max-width:360px;padding:26px 22px 22px;animation:popIn 0.35s cubic-bezier(0.175,0.885,0.32,1.275);text-align:center;box-shadow:0 0 40px rgba(255,200,50,0.12);}
+/* ── 시즌말 골드 선물 팝업 ── */
+.s0gift-overlay{position:fixed;inset:0;z-index:9997;background:rgba(0,0,0,0.72);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 0.3s ease;}
+.s0gift-modal{background:var(--surface);border:1px solid rgba(200,168,75,0.45);border-radius:20px;width:100%;max-width:340px;padding:32px 24px 22px;text-align:center;box-shadow:0 0 60px rgba(200,168,75,0.12),0 8px 40px rgba(0,0,0,0.6);animation:popIn 0.35s cubic-bezier(0.175,0.885,0.32,1.275);}
+.s0gift-icon{font-size:50px;display:block;margin-bottom:14px;}
+.s0gift-title{font-family:'Black Han Sans',sans-serif;font-size:21px;color:var(--gold);letter-spacing:1px;margin-bottom:8px;}
+.s0gift-sub{font-size:13px;color:var(--text-dim);line-height:1.7;margin-bottom:20px;}
+.s0gift-amount{font-family:'JetBrains Mono',monospace;font-size:38px;font-weight:900;color:var(--gold-light);text-shadow:0 0 20px rgba(232,208,128,0.35);margin-bottom:4px;}
+.s0gift-amount-label{font-size:11px;color:var(--text-dim);margin-bottom:24px;}
+.s0gift-confirm{width:100%;padding:13px;border-radius:10px;border:none;background:linear-gradient(135deg,#a07828,var(--gold));color:#0a0e1a;font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:14px;cursor:pointer;margin-bottom:10px;}
+.s0gift-dismiss{background:none;border:none;color:var(--text-dim);font-size:12px;cursor:pointer;padding:4px 8px;text-decoration:underline;font-family:'Noto Sans KR',sans-serif;}
 .quest-alert-label{font-size:10px;color:rgba(255,200,50,0.65);letter-spacing:3px;font-weight:700;margin-bottom:10px;text-transform:uppercase;}
 .quest-name{font-family:'Black Han Sans',sans-serif;font-size:24px;letter-spacing:1px;color:var(--gold);margin-bottom:6px;}
 .quest-player-line{font-size:12px;color:var(--text-dim);margin-bottom:18px;line-height:1.6;}
@@ -1825,7 +1835,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.21';
+const APP_VERSION = 'v2.31.22';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1834,6 +1844,9 @@ const APP_VERSION = 'v2.31.21';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.22', date: '2026-04-26', changes: [
+    { tag: 'new', text: '시즌말 골드 선물 팝업 — 시즌 0 종료를 앞두고 전 팀원에게 1,000G 일괄 지급. 접속 시 한 번 팝업으로 안내, "더이상 보지 않기" 버튼으로 재표시 차단' },
+  ] },
   { ver: 'v2.31.21', date: '2026-04-26', changes: [
     { tag: 'fix', text: '다중 브릿지 실행 시 stale·다른 게임 데이터 차단 강화 — 1) 팀 형성 시각(_currentTeamsFormedAt) 도입, eogStats/matchData 의 savedAt/syncedAt 가 팀 형성보다 10초 이상 이전이면 무시(다른 브릿지가 보낸 이전 게임 잔여 데이터 차단). session.teamsFormedAt 으로 다른 기기와 동기화. 2) 매칭 임계 강화 — 기존 "1명만 매치돼도 통과"에서 "팀 인원의 75% 이상 매치 필요"로 변경(다른 브릿지가 솔랭 등에서 그룹원 1~2명 포함된 데이터를 보내도 차단)' },
   ] },
@@ -2691,6 +2704,7 @@ onValue(ref(db, 'config/currentSeason'), (snapshot) => {
   updateMemberModeDisplay();
   if (typeof renderAchievementsOrPass === 'function') renderAchievementsOrPass();
   updateMyInfoBar();
+  showS0EndGiftPopup();
 });
 
 // 시즌 1 플레이어 LP/티어 데이터 구독
@@ -7583,6 +7597,27 @@ async function _rkSaveSheet() {
     alert('저장 실패: ' + (e.message || e));
     _renderRankSheet();
   }
+}
+
+// ── 시즌말 골드 선물 팝업 ────────────────────────────────────
+function showS0EndGiftPopup() {
+  if (CURRENT_SEASON !== 0) return;
+  if (localStorage.getItem('s0EndGiftSeen') === 'true') return;
+  if (document.querySelector('.s0gift-overlay')) return;
+  const overlay = document.createElement('div');
+  overlay.className = 's0gift-overlay';
+  overlay.innerHTML = `
+    <div class="s0gift-modal">
+      <span class="s0gift-icon">🎁</span>
+      <div class="s0gift-title">시즌말 골드 선물</div>
+      <div class="s0gift-sub">시즌 0 마지막 날을 기념하여<br>모든 팀원에게 골드를 드렸어요!<br>상점에서 바로 사용하세요.</div>
+      <div class="s0gift-amount">+1,000G</div>
+      <div class="s0gift-amount-label">이미 지급 완료</div>
+      <button class="s0gift-confirm" onclick="document.querySelector('.s0gift-overlay').remove()">확인</button>
+      <button class="s0gift-dismiss" onclick="localStorage.setItem('s0EndGiftSeen','true');document.querySelector('.s0gift-overlay').remove()">더이상 보지 않기</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
 }
 
 // ── 골드 & 상점 시스템 ───────────────────────────────────────
