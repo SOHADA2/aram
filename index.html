@@ -7774,9 +7774,28 @@ function showS1WelcomePopup() {
   document.body.appendChild(overlay);
 }
 
+function getS0TopThree() {
+  const names = new Set();
+  Object.values(registeredPlayers).forEach(p => names.add(p.name));
+  Object.values(matches).forEach(m => {
+    if ((m.season ?? 0) === 0) {
+      (m.teamA || []).forEach(n => names.add(n));
+      (m.teamB || []).forEach(n => names.add(n));
+    }
+  });
+  return [...names].map(name => {
+    const st = calcStats(name, 0);
+    const sc = calcScore(name, 0);
+    return { name, total: st.total, score: sc.score };
+  }).filter(r => r.total >= 3)
+    .sort((a, b) => b.score - a.score || b.total - a.total)
+    .slice(0, 3);
+}
+
 // ── 시즌 0 명예의 전당 ───────────────────────────────────────
 function showHallOfFame() {
   if (document.querySelector('.hof-overlay')) return;
+  const top = getS0TopThree();
   const overlay = document.createElement('div');
   overlay.className = 'hof-overlay';
   overlay.innerHTML = `
@@ -7791,20 +7810,20 @@ function showHallOfFame() {
       <div class="hof-podium">
         <div class="hof-pod silver">
           <div class="hof-pod-rank">🥈</div>
-          <div class="hof-pod-name">울퉁쓰</div>
-          <div class="hof-pod-score">1,238점</div>
+          <div class="hof-pod-name">${escHtml(top[1]?.name ?? `-`)}</div>
+          <div class="hof-pod-score">${(top[1]?.score ?? 0).toLocaleString()}점</div>
           <div class="hof-pod-base"></div>
         </div>
         <div class="hof-pod gold">
           <div class="hof-pod-rank">🥇</div>
-          <div class="hof-pod-name">애긔반달곰</div>
-          <div class="hof-pod-score">1,315점</div>
+          <div class="hof-pod-name">${escHtml(top[0]?.name ?? `-`)}</div>
+          <div class="hof-pod-score">${(top[0]?.score ?? 0).toLocaleString()}점</div>
           <div class="hof-pod-base"></div>
         </div>
         <div class="hof-pod bronze">
           <div class="hof-pod-rank">🥉</div>
-          <div class="hof-pod-name">조조와빈찬합</div>
-          <div class="hof-pod-score">1,212점</div>
+          <div class="hof-pod-name">${escHtml(top[2]?.name ?? `-`)}</div>
+          <div class="hof-pod-score">${(top[2]?.score ?? 0).toLocaleString()}점</div>
           <div class="hof-pod-base"></div>
         </div>
       </div>
