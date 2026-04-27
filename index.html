@@ -1963,7 +1963,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.51';
+const APP_VERSION = 'v2.31.52';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4706,6 +4706,7 @@ function champCardHtml(p, selectedName, onclick) {
 
 let matchSaved = false; // 현재 팀 결과 저장 여부
 let _saveInProgress = false; // saveMatch 진행 중 동기 잠금 (중복 저장 방지)
+let _s1LpSnapshot = null; // showMatchSummary용 S1 LP 스냅샷 (pre-match)
 
 let _initialSessionLoaded = false;
 let _justMadeTeams = false;
@@ -5267,9 +5268,10 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
     let ptClass = isWin ? 'plus' : (totalPtLoss === 0 ? 'zero' : 'minus');
 
     // S1: pt 표시 대신 LP 표시
-    if (CURRENT_SEASON >= 1 && s1LpBefore) {
+    if (CURRENT_SEASON >= 1) {
+      const _snap = (s1LpBefore && Object.keys(s1LpBefore).length > 0) ? s1LpBefore : _s1LpSnapshot;
       const _k = normName(name);
-      const _b = s1LpBefore[_k];
+      const _b = _snap ? _snap[_k] : null;
       if (_b) {
         let _lpLabel;
         if (!_b.placementDone) {
@@ -5482,7 +5484,7 @@ window.saveMatch = async function() {
       btn.textContent='✅ 저장 완료 (중복)'; btn.disabled=true;
       // postSaveMatchData 는 finalizeVotes 가 사용. 최소 정보만 채움 (다른 기기가 골드/LP는 이미 처리)
       postSaveMatchData = {
-        winners, losers, itemEffects, tierChanges: [],
+        winners, losers, itemEffects, tierChanges: [], s1LpBefore: {},
         questEvent: questEventState ? { ...questEventState } : null,
         spectatorResult: (currentSpectator && spectatorPick)
           ? { name: currentSpectator.name, correct: spectatorPick === selectedWinner }
@@ -5523,7 +5525,7 @@ window.saveMatch = async function() {
         matchSaved = true;
         btn.textContent = '✅ 저장 완료 (중복 정리됨)'; btn.disabled = true;
         postSaveMatchData = {
-          winners, losers, itemEffects, tierChanges: [],
+          winners, losers, itemEffects, tierChanges: [], s1LpBefore: {},
           questEvent: questEventState ? { ...questEventState } : null,
           spectatorResult: (currentSpectator && spectatorPick)
             ? { name: currentSpectator.name, correct: spectatorPick === selectedWinner }
@@ -5568,6 +5570,7 @@ window.saveMatch = async function() {
         const _k = normName(p.name);
         s1LpBefore[_k] = season1Data[_k] ? { ...season1Data[_k] } : s1DefaultPlayer();
       });
+      _s1LpSnapshot = s1LpBefore; // 글로벌 저장
     }
     await s1ApplyAllMatchResults(winners, losers);
     await giveMatchGold(winners, losers, matchTimestamp);
