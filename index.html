@@ -1963,7 +1963,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.50';
+const APP_VERSION = 'v2.31.51';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3575,6 +3575,13 @@ function getWinRateScore(name) {
   const trust = s.total / (s.total + 10);
   return s.wr * trust + 0.5 * (1 - trust);
 }
+function getS1BalanceScore(name) {
+  const d = season1Data[normName(name)];
+  if (!d || !d.placementDone) return 0;
+  const meta = S1_TIER_META[d.tier] || S1_TIER_META.unranked;
+  const tierPts = Math.max(0, meta.rank + 1) * 100; // tier rank * 100
+  return tierPts + (d.lp || 0);
+}
 
 // ── 승점 계산 ──────────────────────────────────────────────────
 // 승: +10, 패: -7 (하한 0, 상한 1500), 아이템·퀘스트 효과 반영
@@ -3943,7 +3950,21 @@ function renderSessionPlayers() {
     li.innerHTML = `
       <span class="player-num">${i+1}</span>
       <span class="player-name">${nameHtml(p.name)}${isNewbieP ? ' <span class="newbie-badge">🌱</span>' : ''}${getRankBadge(p.name)}</span>
-      <span class="tier-badge ${t.cls}">${t.label}</span>
+      ${(()=>{ if(CURRENT_SEASON>=1){
+          const _d=season1Data[normName(p.name)];
+          if(!_d||!_d.placementDone){
+            const _n=(_d?.placementGames)||0;
+            return '<span class="tier-badge s1t-unranked">' + '배치 ' + _n + '/5</span>';
+          }
+          if(_d.promoActive){
+            const _m=S1_TIER_META[_d.tier]||S1_TIER_META.bronze;
+            return '<span class="tier-badge '+_m.cls+'">승급전</span>';
+          }
+          const _m=S1_TIER_META[_d.tier]||S1_TIER_META.unranked;
+          return '<span class="tier-badge '+_m.cls+'">'+_m.label+' '+((_d.lp)||0)+'LP</span>';
+        }
+        return '<span class="tier-badge '+t.cls+'">'+t.label+'</span>';
+      })()}
       ${s.total>0?`<span class="player-stats">${s.wins}승${s.losses}패 ${Math.round(s.wr*100)}%</span>`:''}
       <button class="btn btn-danger" onclick="removeSessionPlayer(${p.id})">✕</button>`;
     ul.appendChild(li);
@@ -4585,10 +4606,11 @@ window.makeTeams = function() {
     if (mode==='random') {
       const s=shuffle(pool); currentTeamA=s.slice(0,teamSize); currentTeamB=s.slice(teamSize);
     } else {
-      const sorted=[...pool].sort((a,b)=>getWinRateScore(b.name)-getWinRateScore(a.name));
+      const _scoreFunc = CURRENT_SEASON >= 1 ? getS1BalanceScore : getWinRateScore;
+      const sorted=[...pool].sort((a,b)=>_scoreFunc(b.name)-_scoreFunc(a.name));
       currentTeamA=[]; currentTeamB=[];
       sorted.forEach((p,i)=>(i%2===0?currentTeamA:currentTeamB).push(p));
-      const sc=arr=>arr.reduce((s,p)=>s+getWinRateScore(p.name),0);
+      const sc=arr=>arr.reduce((s,p)=>s+_scoreFunc(p.name),0);
       for(let i=0;i<300;i++){
         const ia=Math.floor(Math.random()*currentTeamA.length);
         const ib=Math.floor(Math.random()*currentTeamB.length);
@@ -5187,10 +5209,10 @@ function autoConfirmManner() {
 }
 
 // ── 경기 결과 요약 모달 ──────────────────────────────────────
-window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffects, tierChanges, questEvent, spectatorResult, mvpWinner, mvpLoser, mannerWinner, mannerLoser }) {
+window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffects, tierChanges, s1LpBefore, questEvent, spectatorResult, mvpWinner, mvpLoser, mannerWinner, mannerLoser }) {
   document.querySelector('.match-summary-overlay')?.remove();
-  const ITEM_ICONS = { score2x: '⚡', insurance: '🛡️', gamble: '🎲' };
-  const ITEM_NAMES = { score2x: '승점 2배', insurance: '패배 방어', gamble: '도박 주사위' };
+  const ITEM_ICONS = { score2x: '⚡', insurance: '🛡️', gamble: '🎲', s1_gamble: '🎲', s1_promo_win: '⚔️', s1_promo_shield: '🛡️' };
+  const ITEM_NAMES = { score2x: '승점 2배', insurance: '패배 방어', gamble: '도박 주사위', s1_gamble: '도박권', s1_promo_win: '승급전 승리권', s1_promo_shield: '승급전 방어권' };
 
   function playerRow(name, isWin) {
     const effects = itemEffects[normName(name)] || [];
@@ -5242,7 +5264,37 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
     else if (totalPtLoss === 0) ptLabel = `±0pt`;
     else ptLabel = `-${totalPtLoss}pt` + (questExtraPt > 0 ? ` (퀘스트 -${questExtraPt})` : '');
 
-    const ptClass = isWin ? 'plus' : (totalPtLoss === 0 ? 'zero' : 'minus');
+    let ptClass = isWin ? 'plus' : (totalPtLoss === 0 ? 'zero' : 'minus');
+
+    // S1: pt 표시 대신 LP 표시
+    if (CURRENT_SEASON >= 1 && s1LpBefore) {
+      const _k = normName(name);
+      const _b = s1LpBefore[_k];
+      if (_b) {
+        let _lpLabel;
+        if (!_b.placementDone) {
+          const _done = (_b.placementGames || 0) + 1;
+          _lpLabel = '배치 ' + _done + '/' + S1_PLACEMENT_GAMES;
+        } else if (_b.promoActive) {
+          _lpLabel = isWin ? '승급전 승리' : '승급전 패배';
+        } else {
+          const _s1item = effects.find(e => e.startsWith('s1_'));
+          let _lp;
+          if (isWin) {
+            _lp = _s1item === 's1_gamble' ? S1_GAMBLE_WIN
+                : S1_LP_WIN + (!_s1item && hasNewbieTeammate ? S1_NEWBIE_WIN_BONUS_LP : 0);
+          } else {
+            if (_s1item === 's1_promo_shield') _lp = 0;
+            else if (_s1item === 's1_gamble') _lp = -S1_GAMBLE_LOSS;
+            else if (iAmNewbie) _lp = -S1_NEWBIE_SELF_LOSS_LP;
+            else _lp = -(S1_LP_LOSS - (hasNewbieTeammate ? S1_NEWBIE_LOSS_REDUCE_LP : 0));
+          }
+          _lpLabel = (_lp > 0 ? '+' : '') + _lp + ' LP';
+        }
+        ptLabel = _lpLabel;
+        ptClass = isWin ? 'plus' : (ptLabel.includes('+0') || ptLabel.includes('0 LP') ? 'zero' : 'minus');
+      }
+    }
 
     const itemHtml = effects.map(id => `<span class="ms-item-icon" title="${ITEM_NAMES[id]||id}">${ITEM_ICONS[id]||'📦'}</span>`).join('');
     const mvpBadge = (normName(name) === normName(mvpWinner || '')) ? ' 🏆'
@@ -5509,6 +5561,14 @@ window.saveMatch = async function() {
     // 순서 중요: S1 아이템 효과(LP/승급전) 먼저 반영 후 아이템 소모.
     // giveMatchGold의 fallback 필터(processPlayer)가 s1_* active 아이템을
     // 소모·비활성화시켜 버려서, 먼저 처리해야 함 (v2.31.4 수정)
+    // S1 LP 스냅샷 — 결과 화면 LP 변동 표시용
+    const s1LpBefore = {};
+    if (CURRENT_SEASON >= 1) {
+      allMatchPlayers.forEach(p => {
+        const _k = normName(p.name);
+        s1LpBefore[_k] = season1Data[_k] ? { ...season1Data[_k] } : s1DefaultPlayer();
+      });
+    }
     await s1ApplyAllMatchResults(winners, losers);
     await giveMatchGold(winners, losers, matchTimestamp);
 
@@ -5517,7 +5577,7 @@ window.saveMatch = async function() {
       ? { name: currentSpectator.name, correct: spectatorPick === selectedWinner }
       : null;
     postSaveMatchData = {
-      winners, losers, itemEffects, tierChanges,
+      winners, losers, itemEffects, tierChanges, s1LpBefore,
       questEvent: questEventState ? { ...questEventState } : null,
       spectatorResult,
     };
