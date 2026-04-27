@@ -1963,7 +1963,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.48';
+const APP_VERSION = 'v2.31.49';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1972,6 +1972,9 @@ const APP_VERSION = 'v2.31.48';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.49', date: '2026-04-27', changes: [
+    { tag: 'fix', text: '출석 카운트 시즌별 분리 — attendanceCount를 sField 적용(S1: attendanceCount_s1)으로 수정. 출석 업적·패스 진행도 S1 기준으로 초기화' },
+  ]},
   { ver: 'v2.31.48', date: '2026-04-27', changes: [
     { tag: 'new', text: '명예의전당 KDA 3관왕 부문상 추가 — 킬 머신(애긔반달곰 246킬), 불굴의 돌격대장(쭝쭝이주인 216데스), 팀의 심장(쭝쭝이주인 423어시)' },
   ]},
@@ -6622,7 +6625,7 @@ window.renderAchievements = function renderAchievements() {
   const { newbieTeamWins } = calcNewbieWins(myName);
   const myEntry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(myName));
   const claimed = myEntry?.[1]?.[sField('achievements')] || {};
-  const attendanceCount = myEntry?.[1]?.attendanceCount || 0;
+  const attendanceCount = myEntry?.[1]?.[sField('attendanceCount')] || 0;
   const stats = { wins:s.wins, losses:s.losses, total:s.total, score, maxWin, maxLoss,
     score2xWin, insuranceUsed, gambleWin, gambleLoss,
     mvpCount, mmpCount, specCorrect, questWin, questHeroLoss, questTotal,
@@ -6769,7 +6772,7 @@ function calcS1PassStats(name) {
   }
 
   const myEntry = Object.entries(goldData).find(([,g])=>normName(g.name)===key);
-  const attendance = myEntry?.[1]?.attendanceCount || 0;
+  const attendance = myEntry?.[1]?.[sField('attendanceCount')] || 0;
 
   return { games, wins, losses, maxKills, maxDeaths, maxAssists, maxDamage, maxCs, maxKda, maxKa,
            lowDeathWin, lowDeathWin5, perfectWin, maxWinStreak, mvpCount, mannerCount,
@@ -8551,7 +8554,7 @@ window.doAttendance = async function() {
   }
   const bonusKey = sField('goldBonus');
   const newGoldBonus = (data[bonusKey] ?? 0) + GOLD_ATTEND;
-  await set(ref(db, 'gold/' + key), { ...data, [bonusKey]: newGoldBonus, lastAttendance: todayKey, attendanceCount: (data.attendanceCount ?? 0) + 1 });
+  await set(ref(db, 'gold/' + key), { ...data, [bonusKey]: newGoldBonus, lastAttendance: todayKey, [sField('attendanceCount')]: (data[sField('attendanceCount')] ?? 0) + 1 });
   showGoldToast(`🪙 +${GOLD_ATTEND} 출석 보너스!`);
 };
 
