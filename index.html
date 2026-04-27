@@ -1963,7 +1963,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.53';
+const APP_VERSION = 'v2.31.54';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3751,6 +3751,7 @@ function renderMemberGrid() {
   const actions = document.getElementById('member-actions');
   const firstBtn = document.getElementById('first-add-btn');
   const playerArr = Object.values(registeredPlayers).sort((a,b)=>{
+    if (CURRENT_SEASON >= 1) return getS1BalanceScore(b.name) - getS1BalanceScore(a.name);
     const tierA = TIERS[getEffectiveTier(a.name, a.manualTier)]?.score ?? 0;
     const tierB = TIERS[getEffectiveTier(b.name, b.manualTier)]?.score ?? 0;
     return tierB - tierA; // 티어 높은 순
@@ -3778,7 +3779,22 @@ function renderMemberGrid() {
       <span class="member-chip-name">${nameHtml(p.name)}</span>
       ${p.isNewbie ? '<span class="newbie-badge" style="flex-shrink:0;">🌱</span>' : ''}
       ${getRankBadge(p.name)}
-      <span class="tier-badge member-chip-tier ${t.cls}">${t.label}</span>
+      ${(()=>{
+        if(CURRENT_SEASON>=1){
+          const _d=season1Data[normName(p.name)];
+          if(!_d||!_d.placementDone){
+            const _n=(_d?.placementGames)||0;
+            return '<span class="tier-badge s1t-unranked member-chip-tier">'+'배치 '+_n+'/5</span>';
+          }
+          if(_d.promoActive){
+            const _m=S1_TIER_META[_d.tier]||S1_TIER_META.bronze;
+            return '<span class="tier-badge '+_m.cls+' member-chip-tier">승급전</span>';
+          }
+          const _m=S1_TIER_META[_d.tier]||S1_TIER_META.unranked;
+          return '<span class="tier-badge '+_m.cls+' member-chip-tier">'+_m.label+' '+(_d.lp||0)+'LP</span>';
+        }
+        return '<span class="tier-badge member-chip-tier '+t.cls+'">'+t.label+'</span>';
+      })()}
     </div>`;
   }).join('');
   updateCheckedLabel();
@@ -4937,7 +4953,19 @@ function teamCard(title,cls,members,avg) {
       <div class="team-player-name">${nameHtml(p.name)}${nBadge}${rBadge}${isMe?'&nbsp;<span class="me-badge">나</span>':''}</div>
       <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
         ${streakHtml}
-        <span class="tier-badge ${t.cls}">${t.label}</span>
+        ${(()=>{
+          if(CURRENT_SEASON>=1){
+            const _d=season1Data[normName(p.name)];
+            if(!_d||!_d.placementDone) return '<span class="tier-badge s1t-unranked">'+'배치</span>';
+            if(_d.promoActive){
+              const _m=S1_TIER_META[_d.tier]||S1_TIER_META.bronze;
+              return '<span class="tier-badge '+_m.cls+'">승급전</span>';
+            }
+            const _m=S1_TIER_META[_d.tier]||S1_TIER_META.unranked;
+            return '<span class="tier-badge '+_m.cls+'">'+_m.label+'</span>';
+          }
+          return '<span class="tier-badge '+t.cls+'">'+t.label+'</span>';
+        })()}
       </div>
     </div>`;
   }).join('');
