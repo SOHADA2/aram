@@ -1963,7 +1963,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.54';
+const APP_VERSION = 'v2.31.55';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -9438,6 +9438,35 @@ function renderS1MiniCard(r, displayRank) {
     </div>
   </div>`;
 }
+
+// ── 정산창 미리보기 (콘솔용) ─────────────────────────────────
+window.previewMatch = function(opts = {}) {
+  const allNames = Object.values(registeredPlayers).map(p => p.name);
+  const half = Math.ceil(allNames.length / 2);
+  const w = opts.winners || allNames.slice(0, half);
+  const l = opts.losers  || allNames.slice(half);
+  // before 스냅샷: 현재 season1Data 기반, LP를 승리 1회분 전으로
+  const before = {};
+  [...w, ...l].forEach(name => {
+    const k = normName(name);
+    const d = season1Data[k] ? { ...season1Data[k] } : s1DefaultPlayer();
+    if (d.placementDone && !d.promoActive) {
+      d.lp = Math.max(0, (d.lp || 0) - S1_LP_WIN);
+    }
+    before[k] = d;
+  });
+  showMatchSummary({
+    winners: w, losers: l,
+    itemEffects: opts.itemEffects || {},
+    tierChanges: [],
+    s1LpBefore: before,
+    questEvent: null, spectatorResult: null,
+    mvpWinner: opts.mvpWinner || w[0] || null,
+    mvpLoser:  opts.mvpLoser  || l[0] || null,
+    mannerWinner: opts.mannerWinner || null,
+    mannerLoser:  opts.mannerLoser  || null,
+  });
+};
 
 </script>
 <div id="tip-box" class="tip-box"></div>
