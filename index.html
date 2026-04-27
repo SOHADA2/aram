@@ -7724,11 +7724,22 @@ async function _rkSaveSheet() {
 
 
 // ── 시즌 1 웰컴 팝업 ────────────────────────────────────────
+// 동작 규칙:
+//   - S1 전환 후 7일간만 표시 (s1WelcomeStart 기준)
+//   - 오늘 하루 보지 않기: 24시간 스누즈 (s1WelcomeSnooze24h)
+//   - 확인: 그냥 닫기 (영구 숨김 없음, 다음 방문 재등장)
 function showS1WelcomePopup() {
   if (CURRENT_SEASON < 1) return;
-  if (localStorage.getItem('s1WelcomeSeen') === 'true') return;
-  const snoozeUntil = parseInt(localStorage.getItem('s1WelcomeSnoozeUntil') || '0');
-  if (snoozeUntil && Date.now() < snoozeUntil) return;
+  // 최초 표시 시각 기록 (한 번만)
+  if (!localStorage.getItem('s1WelcomeStart')) {
+    localStorage.setItem('s1WelcomeStart', String(Date.now()));
+  }
+  // 7일 수명 — 최초 표시로부터 7일 경과 시 영구 소멸
+  const start = parseInt(localStorage.getItem('s1WelcomeStart'));
+  if (Date.now() - start > 7 * 24 * 60 * 60 * 1000) return;
+  // 24시간 스누즈 체크
+  const snooze = parseInt(localStorage.getItem('s1WelcomeSnooze24h') || '0');
+  if (snooze && Date.now() < snooze) return;
   if (document.querySelector('.s1welcome-overlay')) return;
   const overlay = document.createElement('div');
   overlay.className = 's1welcome-overlay';
@@ -7745,9 +7756,9 @@ function showS1WelcomePopup() {
         <li><span class="s1w-icon">🎫</span><span>시즌 패스 보상 총 1,000G</span></li>
       </ul>
       <div class="s1welcome-btn-group">
-        <button class="s1welcome-btn" onclick="localStorage.setItem('s1WelcomeSeen','true');document.querySelector('.s1welcome-overlay').remove()">⚔ 확인</button>
+        <button class="s1welcome-btn" onclick="document.querySelector('.s1welcome-overlay').remove()">⚔ 확인</button>
         <button class="s1welcome-btn-hof" onclick="document.querySelector('.s1welcome-overlay').remove();showHallOfFame()">🏛️ 시즌 0 명예의 전당 보기</button>
-        <button class="s1welcome-btn-snooze" onclick="localStorage.setItem('s1WelcomeSnoozeUntil',Date.now()+7*24*60*60*1000);document.querySelector('.s1welcome-overlay').remove()">오늘 하루 보지 않기</button>
+        <button class="s1welcome-btn-snooze" onclick="localStorage.setItem('s1WelcomeSnooze24h',Date.now()+24*60*60*1000);document.querySelector('.s1welcome-overlay').remove()">오늘 하루 보지 않기</button>
       </div>
     </div>
   `;
