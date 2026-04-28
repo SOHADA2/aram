@@ -1162,6 +1162,11 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .pm-s1-placement-info{font-size:10px;color:var(--blue);font-weight:600;font-family:'JetBrains Mono',monospace;margin-top:6px;}
 .pm-s1-stat-box{background:var(--rk-sub) !important;border-color:var(--rk-border) !important;}
 .pm-s1-stat-box .profile-stat-label{color:var(--rk-text-dim) !important;}
+.pm-s1-award-row{display:flex;gap:8px;margin-bottom:10px;}
+.pm-s1-award-box{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:var(--rk-sub);border:1px solid var(--rk-border);border-radius:8px;padding:8px 4px;}
+.pm-s1-award-icon{font-size:16px;line-height:1;}
+.pm-s1-award-val{font-family:'Black Han Sans',sans-serif;font-size:18px;line-height:1;}
+.pm-s1-award-label{font-size:9px;color:var(--rk-text-muted);letter-spacing:1px;font-family:'JetBrains Mono',monospace;}
 .pm-s1-bottom-row{display:flex;align-items:center;justify-content:space-between;margin-top:4px;}
 .pm-s1-pass-badge{display:inline-flex;align-items:center;gap:5px;background:var(--rk-sub);border:1px solid var(--rk-border);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--rk-text-dim);}
 .pm-s1-pass-badge .lv{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--rk-gold);}
@@ -2012,7 +2017,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.64';
+const APP_VERSION = 'v2.31.65';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2021,6 +2026,9 @@ const APP_VERSION = 'v2.31.64';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.65', date: '2026-04-28', changes: [
+    { tag: 'fix', text: 'S1 프로필 어워드 — MVP(🏆 승리팀)/SVP(🥈 패배팀)/MMP(🎖️ 매너왕) S1 시즌 기준으로 분리 표시. 기존 calcMvpCount(시즌 구분 없이 MVP+SVP 합산) 대신 calcS1AwardStats 사용. 통계 행 4칸(경기/승/패/승률) + 어워드 행 3칸 레이아웃으로 재구성' },
+  ]},
   { ver: 'v2.31.64', date: '2026-04-28', changes: [
     { tag: 'fix', text: '시즌 패스 순차 시간 잠금 구현 — claimed[LV]에 true 대신 수령 timestamp 저장. LV N+1 퀘스트는 LV N 수령 시각 이후 경기만 집계하여 판정. calcS1PassStats(name, afterTs), s1PassAfterTs(claimed, level) 헬퍼 추가. 기존 기록으로 즉시 클리어 불가. 수령 중 발생한 3명(애긢반달곰·맹독 벌꿀오소리·쭝쭝이주인) 추가 회수' },
   ]},
@@ -6300,6 +6308,22 @@ function calcMvpCount(name) {
   return count;
 }
 
+// S1 전용: MVP(🏆 승리팀) / SVP(🥈 패배팀) / MMP(🎖️ 매너왕) 분리 집계
+function calcS1AwardStats(name) {
+  const key = normName(name);
+  let mvp = 0, svp = 0, mmp = 0;
+  Object.values(matches).forEach(m => {
+    if ((m.season ?? 0) !== 1) return;
+    if (normName(m.mvpWinner || '') === key) mvp++;
+    if (normName(m.mvpLoser  || '') === key) svp++;
+    if (normName(m.mvp       || '') === key) mvp++; // legacy
+    if (normName(m.mannerWinner || '') === key ||
+        normName(m.mannerLoser  || '') === key ||
+        normName(m.mannerKing   || '') === key) mmp++;
+  });
+  return { mvp, svp, mmp };
+}
+
 window.openProfileModal = function(fbKey) {
   const player = fbKey ? registeredPlayers[fbKey] : null;
   if (!player) return;
@@ -6373,7 +6397,7 @@ function _openS1ProfileModal(fbKey, player) {
                 : wr >= 55   ? 'var(--green)'
                 : wr >= 45   ? 'var(--rk-text-dim)'
                 : 'var(--red)';
-  const mvpCount = calcMvpCount(name);
+  const awards = calcS1AwardStats(name);
 
   // 아바타
   const avatarContent = player.statusEmoji || escHtml(name.trim().charAt(0));
@@ -6448,17 +6472,35 @@ function _openS1ProfileModal(fbKey, player) {
     }
   }
 
-  // 통계 박스
+  // 통계 박스 (4종: 경기/승/패/승률)
   const statBoxes = [
-    { val: s.total,                           label: '경기',  color: 'var(--rk-text)' },
-    { val: s.wins,                            label: '승',    color: 'var(--green)' },
-    { val: s.losses,                          label: '패',    color: 'var(--red)' },
-    { val: wr !== null ? wr + '%' : '—',      label: '승률',  color: wrColor },
-    { val: mvpCount || '-',                   label: 'MVP',   color: 'var(--rk-gold)' },
+    { val: s.total,                       label: '경기', color: 'var(--rk-text)' },
+    { val: s.wins,                        label: '승',   color: 'var(--green)' },
+    { val: s.losses,                      label: '패',   color: 'var(--red)' },
+    { val: wr !== null ? wr + '%' : '—',  label: '승률', color: wrColor },
   ].map(b => `<div class="profile-stat-box pm-s1-stat-box">
     <div class="profile-stat-val" style="color:${b.color};">${b.val}</div>
     <div class="profile-stat-label">${b.label}</div>
   </div>`).join('');
+
+  // 어워드 row: MVP / SVP / MMP
+  const awardRow = `<div class="pm-s1-award-row">
+    <div class="pm-s1-award-box">
+      <span class="pm-s1-award-icon">🏆</span>
+      <span class="pm-s1-award-val" style="color:var(--rk-gold);">${awards.mvp || 0}</span>
+      <span class="pm-s1-award-label">MVP</span>
+    </div>
+    <div class="pm-s1-award-box">
+      <span class="pm-s1-award-icon">🥈</span>
+      <span class="pm-s1-award-val" style="color:#b0b8c8;">${awards.svp || 0}</span>
+      <span class="pm-s1-award-label">SVP</span>
+    </div>
+    <div class="pm-s1-award-box">
+      <span class="pm-s1-award-icon">🎖️</span>
+      <span class="pm-s1-award-val" style="color:#c084fc;">${awards.mmp || 0}</span>
+      <span class="pm-s1-award-label">MMP</span>
+    </div>
+  </div>`;
 
   const overlay = document.createElement('div');
   overlay.className = 'profile-modal-overlay';
@@ -6481,6 +6523,7 @@ function _openS1ProfileModal(fbKey, player) {
         ${player.motto ? `<div class="pm-s1-motto">"${escHtml(player.motto)}"</div>` : ''}
         ${lpCardHtml}
         <div class="profile-stat-row">${statBoxes}</div>
+        ${awardRow}
         <div class="pm-s1-bottom-row">
           <div class="pm-s1-pass-badge">🎫 패스 <span class="lv">LV ${passLv}</span><span style="color:var(--rk-text-muted);"> / ${S1_PASS_MAX_LEVEL}</span></div>
           ${streakHtml}
