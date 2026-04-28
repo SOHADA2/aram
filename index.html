@@ -2012,7 +2012,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.63';
+const APP_VERSION = 'v2.31.64';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2021,6 +2021,9 @@ const APP_VERSION = 'v2.31.63';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.64', date: '2026-04-28', changes: [
+    { tag: 'fix', text: '시즌 패스 순차 시간 잠금 구현 — claimed[LV]에 true 대신 수령 timestamp 저장. LV N+1 퀘스트는 LV N 수령 시각 이후 경기만 집계하여 판정. calcS1PassStats(name, afterTs), s1PassAfterTs(claimed, level) 헬퍼 추가. 기존 기록으로 즉시 클리어 불가. 수령 중 발생한 3명(애긢반달곰·맹독 벌꿀오소리·쭝쭝이주인) 추가 회수' },
+  ]},
   { ver: 'v2.31.63', date: '2026-04-28', changes: [
     { tag: 'fix', text: '시즌 패스 과거 경기 소급 적용 차단 — calcS1PassStats에 S1_PASS_START_TS(2026-04-28 12:00 KST) 필터 추가. v2.31.57 배포 이전 경기는 퀘스트 집계에서 제외되어 기존 기록으로 즉시 수령 불가. 기존 수령자 7명 gold 회수 완료' },
   ]},
@@ -6993,11 +6996,11 @@ window.claimAchievement = async function(id) {
 // 시즌 1 퀘스트 판정용 통계 집계
 // - matches.participants[normName].{kills,deaths,assists,damage,cs} 를 포함한 한 경기 최대치
 // - 연승/누적 승·경기수·매너왕·MVP·관전·출석
-function calcS1PassStats(name) {
+function calcS1PassStats(name, afterTs = S1_PASS_START_TS) {
   const key = normName(name);
   const myMatches = Object.values(matches)
     .filter(m => (m.season ?? 0) === 1
-              && (m.timestamp || 0) >= S1_PASS_START_TS          // 패스 도입(v2.31.57) 이후 경기만
+              && (m.timestamp || 0) >= afterTs
               && ((m.teamA||[]).some(n=>normName(n)===key) || (m.teamB||[]).some(n=>normName(n)===key)))
     .sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
 
@@ -7058,6 +7061,19 @@ function calcS1PassStats(name) {
            gambleWinS1, promoShieldUsed, promoWinUsed };
 }
 
+// claimed[level] = 수령 timestamp(number) 또는 레거시 true
+function s1PassClaimTs(claimed, level) {
+  const v = claimed?.[level];
+  if (!v) return null;
+  return (typeof v === 'number' && v > 1e12) ? v : S1_PASS_START_TS;
+}
+// LV N 퀘스트를 검사할 때 사용할 afterTs (= LV N-1 수령 시각)
+function s1PassAfterTs(claimed, level) {
+  if (level <= 1) return S1_PASS_START_TS;
+  const ts = s1PassClaimTs(claimed, level - 1);
+  return ts !== null ? ts : S1_PASS_START_TS;
+}
+
 // 현재 달성 레벨 = 클레임 완료한 가장 큰 연속 레벨
 function calcS1PassCurrentLevel(claimed) {
   if (!claimed) return 0;
@@ -7084,10 +7100,17 @@ window.renderS1Pass = function renderS1Pass() {
     el.innerHTML = '<div class="empty-state"><div class="icon">🎫</div>닉네임을 먼저 선택해주세요</div>';
     return;
   }
-  const stats = calcS1PassStats(myName);
   const myEntry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(myName));
   const claimed = myEntry?.[1]?.seasonPassClaimed_s1 || {};
   const currentLv = calcS1PassCurrentLevel(claimed);
+
+  // 요약 통계: 패스 오픈 이후 전체 (표시용)
+  const summaryStats = calcS1PassStats(myName, S1_PASS_START_TS);
+  // 현재 퀘스트 통계: 직전 레벨 수령 시각 이후 경기만 (퀘스트 판정용)
+  const activeLv     = currentLv + 1;
+  const activeStats  = currentLv < S1_PASS_MAX_LEVEL
+    ? calcS1PassStats(myName, s1PassAfterTs(claimed, activeLv))
+    : summaryStats;
 
   // 다음 퀘스트 = 현재 레벨 다음
   const nextQuest = S1_PASS_QUESTS.find(q => q.lv === currentLv + 1);
@@ -7104,8 +7127,9 @@ window.renderS1Pass = function renderS1Pass() {
     const isClaimed = !!claimed[q.lv];
     const isCurrent = q.lv === currentLv + 1;
     const isLocked  = q.lv > currentLv + 1;
-    const done = q.check(stats);
-    const p = q.prog ? q.prog(stats) : null;
+    const qStats = isCurrent ? activeStats : summaryStats;
+    const done = q.check(qStats);
+    const p = q.prog ? q.prog(qStats) : null;
     const progText = p ? `${p[0]} / ${p[1]}` : '';
 
     let rightHtml;
@@ -7141,20 +7165,20 @@ window.renderS1Pass = function renderS1Pass() {
     </div>`;
   }).join('');
 
-  // 현재 진행 상황 요약 (기록 기반 KDA·딜량 포인트 노출)
+  // 현재 진행 상황 요약 (패스 오픈 이후 전체 기록)
   const statLines = [
-    { k:`🎮 S1 경기`,    v:`${stats.games}전 ${stats.wins}승 ${stats.losses}패` },
-    { k:`🔥 최대 연승`,  v:`${stats.maxWinStreak}연승` },
-    { k:`⚔️ 한 판 최다 킬`,    v:`${stats.maxKills}` },
-    { k:`🤝 한 판 최다 어시`,  v:`${stats.maxAssists}` },
-    { k:`💎 한 판 킬+어시 합`, v:`${stats.maxKa}` },
-    { k:`💥 한 판 최대 딜량`,  v:`${stats.maxDamage.toLocaleString()}` },
-    { k:`🌱 한 판 최대 CS`,    v:`${stats.maxCs}` },
-    { k:`🎯 최고 KDA`,         v:`${stats.maxKda.toFixed(2)}` },
-    { k:`🏅 MVP/SVP · 매너왕`, v:`${stats.mvpCount} / ${stats.mannerCount}` },
-    { k:`🔭 관전 참여 · 적중`, v:`${stats.specTotal} / ${stats.specCorrect}` },
-    { k:`🎲 도박권 성공`,      v:`${stats.gambleWinS1}회` },
-    { k:`📅 출석`,             v:`${stats.attendance}회` },
+    { k:`🎮 S1 경기`,    v:`${summaryStats.games}전 ${summaryStats.wins}승 ${summaryStats.losses}패` },
+    { k:`🔥 최대 연승`,  v:`${summaryStats.maxWinStreak}연승` },
+    { k:`⚔️ 한 판 최다 킬`,    v:`${summaryStats.maxKills}` },
+    { k:`🤝 한 판 최다 어시`,  v:`${summaryStats.maxAssists}` },
+    { k:`💎 한 판 킬+어시 합`, v:`${summaryStats.maxKa}` },
+    { k:`💥 한 판 최대 딜량`,  v:`${summaryStats.maxDamage.toLocaleString()}` },
+    { k:`🌱 한 판 최대 CS`,    v:`${summaryStats.maxCs}` },
+    { k:`🎯 최고 KDA`,         v:`${summaryStats.maxKda.toFixed(2)}` },
+    { k:`🏅 MVP/SVP · 매너왕`, v:`${summaryStats.mvpCount} / ${summaryStats.mannerCount}` },
+    { k:`🔭 관전 참여 · 적중`, v:`${summaryStats.specTotal} / ${summaryStats.specCorrect}` },
+    { k:`🎲 도박권 성공`,      v:`${summaryStats.gambleWinS1}회` },
+    { k:`📅 출석`,             v:`${summaryStats.attendance}회` },
   ];
   const statHtml = statLines.map(x => `<div class="s1p-src-row"><span>${x.k}</span><span class="s1p-src-xp">${x.v}</span></div>`).join('');
 
@@ -7198,11 +7222,13 @@ window.claimS1PassLevel = async function(level) {
   }
   const quest = S1_PASS_QUESTS.find(q => q.lv === level);
   if (!quest) return;
-  const stats = calcS1PassStats(myName);
+  // 직전 레벨 수령 시각 이후 경기만 집계하여 퀘스트 조건 검증
+  const afterTs = s1PassAfterTs(claimed, level);
+  const stats = calcS1PassStats(myName, afterTs);
   if (!quest.check(stats)) return;
   const reward = s1PassRewardForLevel(level);
   await update(ref(db, 'gold/' + key), {
-    [`seasonPassClaimed_s1/${level}`]: true,
+    [`seasonPassClaimed_s1/${level}`]: Date.now(), // true 대신 수령 시각 저장
   });
   showGoldToast(`🎫 [${quest.name}] 완료! +${reward}G`);
   renderS1Pass();
@@ -7234,7 +7260,8 @@ function updateS1PassTabBadge() {
   const currentLv = calcS1PassCurrentLevel(claimed);
   if (currentLv >= S1_PASS_MAX_LEVEL) { removeDot(); return; }
   const quest = S1_PASS_QUESTS.find(q => q.lv === currentLv + 1);
-  const stats = calcS1PassStats(myName);
+  const afterTs = s1PassAfterTs(claimed, currentLv + 1);
+  const stats = calcS1PassStats(myName, afterTs);
   if (quest && quest.check(stats)) {
     if (!tabBtn.querySelector('.s1p-tab-dot')) {
       const dot = document.createElement('span');
