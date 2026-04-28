@@ -2001,7 +2001,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.71';
+const APP_VERSION = 'v2.31.73';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2010,6 +2010,12 @@ const APP_VERSION = 'v2.31.71';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.73', date: '2026-04-29', changes: [
+    { tag: 'fix', text: '아이템 활성화 가드 강화 — 승급전 방어권·승급전 승리권을 승급전 진행 중이 아닐 때 활성화하면 차단 메시지 표시 (아이템 낭비 방지). 도박권도 승급전 중 활성화 차단. S1 아이템 활성화/비활성화 토스트 메시지에서 아이템 이름이 undefined로 나오던 버그 수정 (S0 SHOP_ITEMS만 탐색하던 문제 → S1_SHOP_ITEMS까지 포함)' },
+  ]},
+  { ver: 'v2.31.72', date: '2026-04-29', changes: [
+    { tag: 'fix', text: '새로고침 시 S0 콘텐츠 깜박임 수정 — S1 모드에서 season1 데이터 로드 전에 랭킹·대기카드가 렌더되던 타이밍 문제 해결. s1DataLoaded 완료 후에만 S1 랭킹·대기카드 표시' },
+  ]},
   { ver: 'v2.31.71', date: '2026-04-29', changes: [
     { tag: 'improve', text: '랭킹 탭 — 챌린저 등장 전까지 1등/2등/3등 메달·순위 숫자 숨기고 티어만 표시. 챌린저 플레이어 등장 시 자동으로 🥇🥈🥉 메달 및 순위 번호 활성화 (S0·S1 공통 적용)' },
   ]},
@@ -7579,7 +7585,10 @@ window.showSeasonInfoModal = function() {
 
 function renderRanking() {
   renderTierCriteriaCard();
-  if (rankViewSeason >= 1) { renderS1Ranking(); return; }
+  if (rankViewSeason >= 1) {
+    if (!s1DataLoaded) return; // S1 데이터 로드 완료 전까지 대기 (깜박 방지)
+    renderS1Ranking(); return;
+  }
   const el = document.getElementById('rank-list');
   if (!el) return;
   const season = rankViewSeason;
@@ -8583,8 +8592,11 @@ function updateMemberModeDisplay() {
   if (!waiting) return;
   const isMember = !liveMode && !!myName;
   const resultVisible = document.getElementById('result-section').style.display === 'block';
-  waiting.style.display = (isMember && !resultVisible) ? 'block' : 'none';
-  if (isMember && !resultVisible) renderWaitingCard();
+  // S1 모드에서 season1 데이터 미로드 시 대기카드 숨김 (S0 콘텐츠 깜박 방지)
+  const s1Ready = CURRENT_SEASON < 1 || s1DataLoaded;
+  const shouldShow = isMember && !resultVisible && s1Ready;
+  waiting.style.display = shouldShow ? 'block' : 'none';
+  if (shouldShow) renderWaitingCard();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -9010,28 +9022,37 @@ window.toggleItemActive = async function(idx) {
   const itemsKey = sField('items');
   const items = [...(data[itemsKey]||[])];
   if (!items[idx]) return;
-  const def = SHOP_ITEMS.find(s=>s.id===items[idx].id);
+  const def = [...SHOP_ITEMS, ...S1_SHOP_ITEMS].find(s=>s.id===items[idx].id);
   const isActive = !!items[idx].active;
   // 같은 종류 아이템은 1개만 활성화 가능
   if (!isActive) {
     items.forEach((it,i) => { if (it.id===items[idx].id) items[i] = {...it, active:false}; });
   }
-  // 도박 주사위 ↔ 승점 2배권 / 방어권 동시 활성화 방지 (Firebase 쓰기 전에 체크)
+  // 활성화 시 충돌·조건 검사
   if (!isActive) {
-    const tryId   = items[idx].id;
-    const gambleOn = items.some((it,i) => i!==idx && it.id==='gamble'                         && it.active);
+    const tryId  = items[idx].id;
+    const myS1   = season1Data[normName(myName)];
+    // S0 도박 주사위 ↔ 승점 2배권/방어권 동시 활성화 방지
+    const gambleOn = items.some((it,i) => i!==idx && it.id==='gamble' && it.active);
     const otherOn  = items.some((it,i) => i!==idx && (it.id==='score2x'||it.id==='insurance') && it.active);
     if ((tryId === 'gamble' && otherOn) || (tryId !== 'gamble' && gambleOn)) {
       showGoldToast(`⚠ 도박 주사위는 다른 아이템과 함께 사용할 수 없어요`);
       return;
     }
-    // 승급전 승리권: 이미 1승이 있으면 활성화 불가 (1승만으로 충분, 아이템 낭비 방지)
-    if (tryId === 's1_promo_win') {
-      const myS1 = season1Data[normName(myName)];
-      if (myS1?.promoActive && (myS1.promoWins || 0) >= 1) {
-        showGoldToast(`⚠ 이미 1승이 있어요 — 승리권 없이도 1승이면 승급 가능해요`);
-        return;
-      }
+    // 승급전 전용 아이템: 승급전 진행 중에만 사용 가능
+    if ((tryId === 's1_promo_shield' || tryId === 's1_promo_win') && !myS1?.promoActive) {
+      showGoldToast(`⚠ 승급전 진행 중에만 사용할 수 있어요`);
+      return;
+    }
+    // 승급전 승리권: 이미 1승이 있으면 활성화 불가
+    if (tryId === 's1_promo_win' && myS1?.promoActive && (myS1.promoWins || 0) >= 1) {
+      showGoldToast(`⚠ 이미 1승이 있어요 — 승리권 없이도 1승이면 승급 가능해요`);
+      return;
+    }
+    // 도박권: 승급전 중 사용 불가
+    if (tryId === 's1_gamble' && myS1?.promoActive) {
+      showGoldToast(`⚠ 도박권은 승급전 중 사용할 수 없어요`);
+      return;
     }
   }
   items[idx] = {...items[idx], active: !isActive};
