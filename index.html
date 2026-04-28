@@ -1979,7 +1979,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.59';
+const APP_VERSION = 'v2.31.60';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1988,6 +1988,9 @@ const APP_VERSION = 'v2.31.59';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.60', date: '2026-04-28', changes: [
+    { tag: 'fix', text: '승급전 5판 소멸 로직 완전 제거 — 설계 의도대로 순수 3판 2선승제로 정정. 아이템(방어권·승리권) 사용 시 판수가 자연스럽게 늘어나는 것은 정상 동작. S1_PROMO_EXPIRY 상수·promoGamesPlayed 필드 삭제' },
+  ]},
   { ver: 'v2.31.49', date: '2026-04-27', changes: [
     { tag: 'fix', text: '출석 카운트 시즌별 분리 — attendanceCount를 sField 적용(S1: attendanceCount_s1)으로 수정. 출석 업적·패스 진행도 S1 기준으로 초기화' },
   ]},
@@ -2536,7 +2539,6 @@ const S1_PLACEMENT_GAMES  = 5;    // 배치고사 총 판수
 const S1_LP_CAP           = 100;  // 챌린저 외 LP 상한
 const S1_PROMO_FAIL_LP    = 75;   // 승급전 실패 후 LP
 const S1_DEMOTION_LP      = 75;   // 강등 후 진입 LP
-const S1_PROMO_EXPIRY     = 5;    // 승급전 소멸 기준 판수
 const S1_GAMBLE_WIN       = 40;   // 도박권 승리 LP
 const S1_GAMBLE_LOSS      = 30;   // 도박권 패배 LP 감소
 // 뉴비 보너스 (S0 철학 이식: 승리 +3pt/+5G / 팀원 패배 -4pt / 본인 패배 -2pt → S1 LP로 매핑)
@@ -7342,7 +7344,6 @@ window.showSeasonInfoModal = function() {
         <div class="s1-info-sec-title">승급 · 강등</div>
         <div class="s1-info-row"><span class="s1-info-label">브론즈 · 실버 100 LP</span><span class="s1-info-val">즉시 자동 승급</span></div>
         <div class="s1-info-row"><span class="s1-info-label">골드 이상 100 LP</span><span class="s1-info-val">승급전 시작 (3판 2선승)</span></div>
-        <div class="s1-info-row"><span class="s1-info-label">승급전 5판 내 미완료</span><span class="s1-info-val" style="color:var(--red);">소멸 → LP 75로 복귀</span></div>
         <div class="s1-info-row"><span class="s1-info-label">강등 (LP 0 미만)</span><span class="s1-info-val" style="color:var(--red);">이전 티어 75 LP</span></div>
         <div class="s1-info-row"><span class="s1-info-label">브론즈 · 실버 강등</span><span class="s1-info-val">없음</span></div>
         <div class="s1-info-row"><span class="s1-info-label">챌린저 LP</span><span class="s1-info-val">무제한 (승급전 없음)</span></div>
@@ -9226,7 +9227,7 @@ function s1PrevTier(tier) {
 // ── 플레이어 데이터 헬퍼 ──────────────────────────────────────
 function s1DefaultPlayer() {
   return { tier:'unranked', lp:0, placementWins:0, placementGames:0, placementDone:false,
-           promoActive:false, promoWins:0, promoLosses:0, promoGamesPlayed:0 };
+           promoActive:false, promoWins:0, promoLosses:0 };
 }
 function s1GetPlayer(name) {
   return season1Data[normName(name)] || null;
@@ -9245,11 +9246,11 @@ function s1CalcPlacementResult(wins) {
 function s1PromoSuccess(d) {
   const next = s1NextTier(d.tier);
   return { ...d, tier: next || d.tier, lp:0,
-           promoActive:false, promoWins:0, promoLosses:0, promoGamesPlayed:0 };
+           promoActive:false, promoWins:0, promoLosses:0 };
 }
 function s1PromoFail(d) {
   return { ...d, lp: S1_PROMO_FAIL_LP,
-           promoActive:false, promoWins:0, promoLosses:0, promoGamesPlayed:0 };
+           promoActive:false, promoWins:0, promoLosses:0 };
 }
 
 // ── 단일 플레이어 경기 결과 적용 ─────────────────────────────────
@@ -9276,11 +9277,6 @@ async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = f
 
   // ── 승급전 진행 중 (뉴비 보너스 미적용) ───────────────────────
   if (d.promoActive) {
-    d.promoGamesPlayed = (d.promoGamesPlayed || 0) + 1;
-    // 소멸 체크
-    if (d.promoGamesPlayed > S1_PROMO_EXPIRY) {
-      d = s1PromoFail(d); await s1SavePlayer(name, d); return;
-    }
     if (activeS1Item === 's1_promo_win') {
       // 승급전 승리권: 승리=2승(즉시 승급), 패배=1패 정상
       if (won) { d = s1PromoSuccess(d); }
@@ -9320,7 +9316,7 @@ async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = f
           if (next) { d.tier = next; d.lp = 0; }
         } else if (S1_PROMO_TIERS.has(d.tier)) {
           // 100 LP 달성 → 승급전 시작
-          d.promoActive = true; d.promoWins = 0; d.promoLosses = 0; d.promoGamesPlayed = 0;
+          d.promoActive = true; d.promoWins = 0; d.promoLosses = 0;
         }
       }
     }
