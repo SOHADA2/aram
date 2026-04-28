@@ -1300,6 +1300,9 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .s1p-prog{font-size:10px;color:rgba(120,160,220,0.9);font-family:'JetBrains Mono',monospace;letter-spacing:0.05em;}
 .s1p-done{font-size:11px;color:var(--green);}
 .s1p-claim-btn{font-size:11px!important;padding:5px 10px!important;white-space:nowrap;}
+.s1p-tab-dot{position:absolute;top:3px;right:8px;width:8px;height:8px;background:#ffd700;border-radius:50%;animation:s1pDotBlink 1.1s ease-in-out infinite;pointer-events:none;box-shadow:0 0 6px rgba(255,215,0,0.7);}
+@keyframes s1pDotBlink{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.25;transform:scale(0.6);}}
+.s1p-unlock-hint{display:flex;align-items:flex-start;gap:8px;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.18);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.55;}
 .s1p-claim-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;animation:taFadeIn 0.2s ease;}
 .s1p-claim-box{background:var(--surface);border:1px solid rgba(200,168,75,0.4);border-radius:14px;padding:20px;max-width:420px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,0.6);}
 .s1p-claim-header{text-align:center;margin-bottom:14px;padding-bottom:12px;border-bottom:1px dashed rgba(255,255,255,0.1);}
@@ -1960,7 +1963,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.57';
+const APP_VERSION = 'v2.31.58';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6982,6 +6985,10 @@ window.renderS1Pass = function renderS1Pass() {
         <div class="s1p-prog-label">${headerSub}</div>
       </div>
     </div>
+    <div class="s1p-unlock-hint">
+      <span>🔓</span>
+      <span>퀘스트 조건을 달성하면 보상을 수령할 수 있어요. <strong style="color:var(--gold-light,#ffd700);">보상을 수령해야 다음 레벨이 열립니다.</strong> 조건을 먼저 충족했더라도 이전 레벨 보상을 받지 않으면 다음 퀘스트 진행이 불가합니다.</span>
+    </div>
     <details class="s1p-src">
       <summary>📊 내 시즌 1 기록 ▾</summary>
       <div class="s1p-src-body">
@@ -7032,7 +7039,31 @@ window.renderAchievementsOrPass = function renderAchievementsOrPass() {
   // 탭 버튼 라벨도 동기화
   const tabBtn = document.querySelector('.nav-tab-achievement');
   if (tabBtn) tabBtn.innerHTML = CURRENT_SEASON >= 1 ? '🎫<br>패스' : '🏅<br>업적';
+  updateS1PassTabBadge();
 };
+
+// 시즌패스 탭 배지 (수령 가능한 퀘스트 있을 때 반짝이는 점 표시)
+function updateS1PassTabBadge() {
+  const tabBtn = document.querySelector('.nav-tab-achievement');
+  if (!tabBtn) return;
+  const removeDot = () => tabBtn.querySelector('.s1p-tab-dot')?.remove();
+  if (CURRENT_SEASON < 1 || !myName) { removeDot(); return; }
+  const myEntry = Object.entries(goldData).find(([,g]) => normName(g.name) === normName(myName));
+  const claimed = myEntry?.[1]?.seasonPassClaimed_s1 || {};
+  const currentLv = calcS1PassCurrentLevel(claimed);
+  if (currentLv >= S1_PASS_MAX_LEVEL) { removeDot(); return; }
+  const quest = S1_PASS_QUESTS.find(q => q.lv === currentLv + 1);
+  const stats = calcS1PassStats(myName);
+  if (quest && quest.check(stats)) {
+    if (!tabBtn.querySelector('.s1p-tab-dot')) {
+      const dot = document.createElement('span');
+      dot.className = 's1p-tab-dot';
+      tabBtn.appendChild(dot);
+    }
+  } else {
+    removeDot();
+  }
+}
 
 // ── 랭킹 v2 헬퍼 (v2.29.23~) ──────────────────────────────
 // 이름으로 Firebase key 찾기
@@ -8004,6 +8035,7 @@ function updateMyInfoBar() {
   avatar.textContent = myPlayerData?.statusEmoji || myName.trim().charAt(0);
   nameEl.textContent = myName;
   goldEl.textContent = getMyGold().toLocaleString();
+  updateS1PassTabBadge();
 }
 
 // 내 정보 바 클릭 → 내 프로필 모달 오픈
