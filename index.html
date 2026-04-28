@@ -1300,9 +1300,6 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .s1p-prog{font-size:10px;color:rgba(120,160,220,0.9);font-family:'JetBrains Mono',monospace;letter-spacing:0.05em;}
 .s1p-done{font-size:11px;color:var(--green);}
 .s1p-claim-btn{font-size:11px!important;padding:5px 10px!important;white-space:nowrap;}
-.s1p-claimall-wrap{margin-bottom:12px;}
-.s1p-claimall-btn{width:100%;justify-content:center;font-size:13px;padding:11px 14px;font-weight:700;}
-.s1p-claimall-btn.disabled{background:var(--surface2);color:var(--text-dim);cursor:not-allowed;border:1px solid var(--border);opacity:0.65;}
 .s1p-claim-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;animation:taFadeIn 0.2s ease;}
 .s1p-claim-box{background:var(--surface);border:1px solid rgba(200,168,75,0.4);border-radius:14px;padding:20px;max-width:420px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,0.6);}
 .s1p-claim-header{text-align:center;margin-bottom:14px;padding-bottom:12px;border-bottom:1px dashed rgba(255,255,255,0.1);}
@@ -1963,7 +1960,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.56';
+const APP_VERSION = 'v2.31.57';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2560,11 +2557,12 @@ const S1_SHOP_ITEMS = [
 // 각 레벨마다 고유 퀘스트 — 해당 퀘스트를 완료해야 다음 레벨로 진행.
 // stats 객체 기반으로 check(stats) / prog(stats) 평가.
 // - stats는 calcS1PassStats(name) 결과: S1 매치·출석·MVP·관전 집계 + participants(KDA/딜량/CS) 최댓값
-const S1_PASS_MAX_LEVEL = 20;
-// 총 보상 1000G (일반 20G × 16 + 마일스톤 LV5 50 + LV10 80 + LV15 150 + LV20 400)
+const S1_PASS_MAX_LEVEL = 25;
+// 총 보상 1000G (일반 20G × 20 + 마일스톤 LV5 50 + LV10 80 + LV15 120 + LV20 150 + LV25 200)
 function s1PassRewardForLevel(level) {
-  if (level === 20) return 400;
-  if (level === 15) return 150;
+  if (level === 25) return 200;
+  if (level === 20) return 150;
+  if (level === 15) return 120;
   if (level === 10) return 80;
   if (level === 5)  return 50;
   return 20;
@@ -2573,33 +2571,38 @@ function s1PassRewardForLevel(level) {
 // 퀘스트 설계 원칙:
 // - 누적 승/경기 기반 자동완수를 줄이고 '단일 경기 도전형' 퀘스트 위주로 구성
 // - KDA·딜량·CS·어시·S1 아이템 등 participants/itemEffects 데이터를 활용
-// - 1개월(~40판) 타겟, 각 퀘스트 평균 1~3판에 달성 가능한 수준으로 튜닝
+// - 25레벨, 총 1000G, 조건 완화 및 단계적 난이도 상승
 const S1_PASS_QUESTS = [
-  // ── 온보딩 (LV 1-4) ────────────────────────────────────────────
-  { lv:1,  icon:'🎯',  name:'첫 걸음',         desc:'시즌 1 경기 1회 참여',                 check:s=>s.games>=1,             prog:s=>[Math.min(s.games,1),1] },
-  { lv:2,  icon:'🏆',  name:'첫 승리',         desc:'시즌 1 첫 승리',                      check:s=>s.wins>=1,              prog:s=>[Math.min(s.wins,1),1] },
-  { lv:3,  icon:'🗡️',  name:'딜러 입문',       desc:'한 경기에서 딜량 10,000 이상',              check:s=>s.maxDamage>=10000,      prog:s=>[Math.min(s.maxDamage,10000).toLocaleString(),'10,000'] },
-  { lv:4,  icon:'⚔️',  name:'3경기 참전',      desc:'시즌 1 경기 3회 참여',                 check:s=>s.games>=3,             prog:s=>[Math.min(s.games,3),3] },
-  // ── 한 판의 활약 (LV 5-9) ─────────────────────────────────────
-  { lv:5,  icon:'⭐',  name:'킬 사냥꾼',       desc:'한 경기에서 킬 8 이상',                 check:s=>s.maxKills>=8,           prog:s=>[Math.min(s.maxKills,8),8], milestone:true },
-  { lv:6,  icon:'💪',  name:'신뢰의 동료',     desc:'한 경기에서 어시스트 10 이상',          check:s=>s.maxAssists>=10,        prog:s=>[Math.min(s.maxAssists,10),10] },
-  { lv:7,  icon:'🛡️',  name:'살아남기',        desc:'한 경기 데스 5 이하로 승리',           check:s=>s.lowDeathWin5,          prog:null },
-  { lv:8,  icon:'💥',  name:'딜 견습생',       desc:'한 경기 딜량 30,000 이상',             check:s=>s.maxDamage>=30000,      prog:s=>[Math.min(s.maxDamage,30000).toLocaleString(),'30,000'] },
-  { lv:9,  icon:'🎯',  name:'KDA 3.0',        desc:'한 경기 KDA 3.0 이상',                 check:s=>s.maxKda>=3,             prog:s=>[Math.min(s.maxKda,3).toFixed(1),'3.0'] },
-  // ── 사교·아이템 (LV 10-14) ────────────────────────────────────
-  { lv:10, icon:'⭐',  name:'도박 성공',       desc:'도박권 사용 후 승리 1회',              check:s=>s.gambleWinS1>=1,        prog:s=>[Math.min(s.gambleWinS1,1),1], milestone:true },
-  { lv:11, icon:'🏅',  name:'MVP/SVP 등극',   desc:'시즌 1 MVP/SVP 1회 선정',             check:s=>s.mvpCount>=1,           prog:s=>[Math.min(s.mvpCount,1),1] },
-  { lv:12, icon:'🤝',  name:'매너왕',          desc:'시즌 1 매너왕 1회 선정',               check:s=>s.mannerCount>=1,        prog:s=>[Math.min(s.mannerCount,1),1] },
-  { lv:13, icon:'💀',  name:'불사조',         desc:'한 경기 데스 없이 승리',                 check:s=>s.perfectWin,            prog:null },
-  { lv:14, icon:'🎲',  name:'2연승',           desc:'시즌 1 2연승 달성',                    check:s=>s.maxWinStreak>=2,       prog:s=>[Math.min(s.maxWinStreak,2),2] },
-  // ── 고수의 영역 (LV 15-19) ────────────────────────────────────
-  { lv:15, icon:'⭐',  name:'대폭딜러',        desc:'한 경기 딜량 50,000 이상',             check:s=>s.maxDamage>=50000,      prog:s=>[Math.min(s.maxDamage,50000).toLocaleString(),'50,000'], milestone:true },
-  { lv:16, icon:'🌈',  name:'어시 마스터',     desc:'한 경기 어시스트 15 이상',             check:s=>s.maxAssists>=15,        prog:s=>[Math.min(s.maxAssists,15),15] },
-  { lv:17, icon:'🌟',  name:'KDA 4.0 클럽',   desc:'한 경기 KDA 4.0 이상',                 check:s=>s.maxKda>=4,             prog:s=>[Math.min(s.maxKda,4).toFixed(1),'4.0'] },
-  { lv:18, icon:'🔥',  name:'3연승',           desc:'시즌 1 3연승 달성',                    check:s=>s.maxWinStreak>=3,       prog:s=>[Math.min(s.maxWinStreak,3),3] },
-  { lv:19, icon:'🌱',  name:'CS 장인',         desc:'한 경기 CS 50 이상',                   check:s=>s.maxCs>=50,             prog:s=>[Math.min(s.maxCs,50),50] },
-  // ── 시즌의 정점 (LV 20) ──────────────────────────────────────
-  { lv:20, icon:'👑',  name:'시즌의 정점',     desc:'한 경기 킬 + 어시스트 합 25 이상',      check:s=>s.maxKa>=25,             prog:s=>[Math.min(s.maxKa,25),25], milestone:true },
+  // ── 온보딩 (LV 1-5) ─────────────────────────────────────────────
+  { lv:1,  icon:'🎯',  name:'첫 걸음',         desc:'시즌 1 경기 1회 참여',                  check:s=>s.games>=1,              prog:s=>[Math.min(s.games,1),1] },
+  { lv:2,  icon:'🏆',  name:'첫 승리',         desc:'시즌 1 첫 승리',                       check:s=>s.wins>=1,               prog:s=>[Math.min(s.wins,1),1] },
+  { lv:3,  icon:'🗡️',  name:'딜러 입문',       desc:'한 경기 딜량 10,000 이상',              check:s=>s.maxDamage>=10000,       prog:s=>[Math.min(s.maxDamage,10000).toLocaleString(),'10,000'] },
+  { lv:4,  icon:'⚔️',  name:'3경기 참전',      desc:'시즌 1 경기 3회 참여',                  check:s=>s.games>=3,              prog:s=>[Math.min(s.games,3),3] },
+  { lv:5,  icon:'⭐',  name:'킬 사냥꾼',       desc:'한 경기 킬 6 이상',                     check:s=>s.maxKills>=6,            prog:s=>[Math.min(s.maxKills,6),6], milestone:true },
+  // ── 한 판의 활약 (LV 6-10) ─────────────────────────────────────
+  { lv:6,  icon:'💪',  name:'신뢰의 동료',     desc:'한 경기 어시스트 8 이상',               check:s=>s.maxAssists>=8,          prog:s=>[Math.min(s.maxAssists,8),8] },
+  { lv:7,  icon:'🛡️',  name:'살아남기',        desc:'한 경기 데스 5 이하로 승리',            check:s=>s.lowDeathWin5,           prog:null },
+  { lv:8,  icon:'💥',  name:'딜 견습생',       desc:'한 경기 딜량 25,000 이상',              check:s=>s.maxDamage>=25000,       prog:s=>[Math.min(s.maxDamage,25000).toLocaleString(),'25,000'] },
+  { lv:9,  icon:'🎯',  name:'KDA 3.0',        desc:'한 경기 KDA 3.0 이상',                  check:s=>s.maxKda>=3,              prog:s=>[Math.min(s.maxKda,3).toFixed(1),'3.0'] },
+  { lv:10, icon:'⭐',  name:'도박 성공',       desc:'도박권 사용 후 승리 1회',               check:s=>s.gambleWinS1>=1,         prog:s=>[Math.min(s.gambleWinS1,1),1], milestone:true },
+  // ── 사교·연속 (LV 11-15) ──────────────────────────────────────
+  { lv:11, icon:'🏅',  name:'MVP/SVP 등극',   desc:'시즌 1 MVP/SVP 1회 선정',              check:s=>s.mvpCount>=1,            prog:s=>[Math.min(s.mvpCount,1),1] },
+  { lv:12, icon:'🤝',  name:'매너왕',          desc:'시즌 1 매너왕 1회 선정',                check:s=>s.mannerCount>=1,         prog:s=>[Math.min(s.mannerCount,1),1] },
+  { lv:13, icon:'🔗',  name:'2연승',           desc:'시즌 1 2연승 달성',                     check:s=>s.maxWinStreak>=2,        prog:s=>[Math.min(s.maxWinStreak,2),2] },
+  { lv:14, icon:'💣',  name:'킬 폭발',         desc:'한 경기 킬 10 이상',                    check:s=>s.maxKills>=10,           prog:s=>[Math.min(s.maxKills,10),10] },
+  { lv:15, icon:'⭐',  name:'대폭딜러',        desc:'한 경기 딜량 40,000 이상',              check:s=>s.maxDamage>=40000,       prog:s=>[Math.min(s.maxDamage,40000).toLocaleString(),'40,000'], milestone:true },
+  // ── 고수의 영역 (LV 16-20) ────────────────────────────────────
+  { lv:16, icon:'🌈',  name:'어시 마스터',     desc:'한 경기 어시스트 13 이상',              check:s=>s.maxAssists>=13,         prog:s=>[Math.min(s.maxAssists,13),13] },
+  { lv:17, icon:'🌟',  name:'KDA 4.0 클럽',   desc:'한 경기 KDA 4.0 이상',                  check:s=>s.maxKda>=4,              prog:s=>[Math.min(s.maxKda,4).toFixed(1),'4.0'] },
+  { lv:18, icon:'🌱',  name:'CS 장인',         desc:'한 경기 CS 50 이상',                    check:s=>s.maxCs>=50,              prog:s=>[Math.min(s.maxCs,50),50] },
+  { lv:19, icon:'🔥',  name:'3연승',           desc:'시즌 1 3연승 달성',                     check:s=>s.maxWinStreak>=3,        prog:s=>[Math.min(s.maxWinStreak,3),3] },
+  { lv:20, icon:'⭐',  name:'딜량 폭격기',     desc:'한 경기 딜량 60,000 이상',              check:s=>s.maxDamage>=60000,       prog:s=>[Math.min(s.maxDamage,60000).toLocaleString(),'60,000'], milestone:true },
+  // ── 챌린저 (LV 21-25) ────────────────────────────────────────
+  { lv:21, icon:'🌊',  name:'어시 폭발',       desc:'한 경기 어시스트 18 이상',              check:s=>s.maxAssists>=18,         prog:s=>[Math.min(s.maxAssists,18),18] },
+  { lv:22, icon:'⚡',  name:'킬 머신',         desc:'한 경기 킬 12 이상',                    check:s=>s.maxKills>=12,           prog:s=>[Math.min(s.maxKills,12),12] },
+  { lv:23, icon:'💎',  name:'KDA 5.0 클럽',   desc:'한 경기 KDA 5.0 이상',                  check:s=>s.maxKda>=5,              prog:s=>[Math.min(s.maxKda,5).toFixed(1),'5.0'] },
+  { lv:24, icon:'🎖️',  name:'콤보 마스터',     desc:'한 경기 킬 + 어시스트 합 20 이상',      check:s=>s.maxKa>=20,              prog:s=>[Math.min(s.maxKa,20),20] },
+  { lv:25, icon:'👑',  name:'시즌의 정점',     desc:'한 경기 킬 + 어시스트 합 25 이상',      check:s=>s.maxKa>=25,              prog:s=>[Math.min(s.maxKa,25),25], milestone:true },
 ];
 
 // ── 전역 툴팁 시스템 ─────────────────────────────────────────
@@ -6971,23 +6974,6 @@ window.renderS1Pass = function renderS1Pass() {
   ];
   const statHtml = statLines.map(x => `<div class="s1p-src-row"><span>${x.k}</span><span class="s1p-src-xp">${x.v}</span></div>`).join('');
 
-  // 한 번에 수령 가능한 퀘스트 수 프리뷰
-  let claimableCount = 0, claimableGold = 0;
-  {
-    let lvCursor = currentLv;
-    while (lvCursor < S1_PASS_MAX_LEVEL) {
-      const nxt = lvCursor + 1;
-      const q = S1_PASS_QUESTS.find(x => x.lv === nxt);
-      if (!q || claimed[nxt] || !q.check(stats)) break;
-      claimableCount++;
-      claimableGold += s1PassRewardForLevel(nxt);
-      lvCursor = nxt;
-    }
-  }
-  const claimAllBtn = claimableCount > 0
-    ? `<button class="btn btn-gold s1p-claimall-btn" onclick="claimS1PassAll()">🎁 한 번에 수령 (${claimableCount}개 · +${claimableGold}G)</button>`
-    : `<button class="btn s1p-claimall-btn disabled" disabled>🎁 수령 가능한 퀘스트 없음</button>`;
-
   el.innerHTML = `
     <div class="s1p-header">
       <div class="s1p-lvbig">${headerTitle}</div>
@@ -6996,7 +6982,6 @@ window.renderS1Pass = function renderS1Pass() {
         <div class="s1p-prog-label">${headerSub}</div>
       </div>
     </div>
-    <div class="s1p-claimall-wrap">${claimAllBtn}</div>
     <details class="s1p-src">
       <summary>📊 내 시즌 1 기록 ▾</summary>
       <div class="s1p-src-body">
@@ -7009,65 +6994,6 @@ window.renderS1Pass = function renderS1Pass() {
     <div class="s1p-levels">${questsHtml}</div>
   `;
 };
-
-// 한 번에 수령: 현재 레벨 이후로 순차적으로 조건 충족하는 레벨을 모두 클레임
-window.claimS1PassAll = async function() {
-  if (!myName) return;
-  const myEntry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(myName));
-  if (!myEntry) return;
-  const [key, data] = myEntry;
-  const claimedNow = { ...(data.seasonPassClaimed_s1 || {}) };
-  const stats = calcS1PassStats(myName);
-  const claimedList = [];
-  const updates = {};
-  // 직전 레벨이 클레임된 상태에서부터 연속적으로 체크
-  let prevClaimed = true;
-  for (let lv = 1; lv <= S1_PASS_MAX_LEVEL; lv++) {
-    if (claimedNow[lv]) { prevClaimed = true; continue; }
-    if (!prevClaimed) break;
-    const quest = S1_PASS_QUESTS.find(q => q.lv === lv);
-    if (!quest || !quest.check(stats)) { prevClaimed = false; break; }
-    updates[`seasonPassClaimed_s1/${lv}`] = true;
-    claimedNow[lv] = true;
-    claimedList.push({ lv, name: quest.name, icon: quest.icon, reward: s1PassRewardForLevel(lv) });
-  }
-  if (claimedList.length === 0) {
-    showGoldToast('🎫 수령 가능한 퀘스트가 없어요');
-    return;
-  }
-  await update(ref(db, 'gold/' + key), updates);
-  const totalGold = claimedList.reduce((s,c)=>s+c.reward,0);
-  showS1PassClaimResult(claimedList, totalGold);
-  renderS1Pass();
-  updateMyInfoBar();
-};
-
-// 한 번에 수령 결과 팝업
-function showS1PassClaimResult(claimedList, totalGold) {
-  const old = document.querySelector('.s1p-claim-overlay');
-  if (old) old.remove();
-  const overlay = document.createElement('div');
-  overlay.className = 's1p-claim-overlay';
-  const rows = claimedList.map(c =>
-    `<div class="s1p-claim-row">
-      <div class="s1p-claim-lv">LV ${c.lv}</div>
-      <div class="s1p-claim-name">${c.icon} ${c.name}</div>
-      <div class="s1p-claim-reward">🪙 +${c.reward}G</div>
-    </div>`
-  ).join('');
-  overlay.innerHTML = `
-    <div class="s1p-claim-box">
-      <div class="s1p-claim-header">
-        <div class="s1p-claim-title">🎁 수령 완료!</div>
-        <div class="s1p-claim-sub">${claimedList.length}개 퀘스트 · 총 <strong>${totalGold}G</strong> 획득</div>
-      </div>
-      <div class="s1p-claim-list">${rows}</div>
-      <button class="btn btn-gold" style="width:100%;margin-top:14px;justify-content:center;" onclick="this.closest('.s1p-claim-overlay').remove();">확인</button>
-    </div>
-  `;
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-  document.body.appendChild(overlay);
-}
 
 // 퀘스트 클레임 — 순차 언락 (직전 레벨까지 모두 클레임 완료 + 현재 레벨 퀘스트 조건 충족)
 window.claimS1PassLevel = async function(level) {
