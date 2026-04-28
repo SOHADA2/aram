@@ -2001,7 +2001,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.70';
+const APP_VERSION = 'v2.31.71';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2010,6 +2010,9 @@ const APP_VERSION = 'v2.31.70';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.71', date: '2026-04-29', changes: [
+    { tag: 'improve', text: '랭킹 탭 — 챌린저 등장 전까지 1등/2등/3등 메달·순위 숫자 숨기고 티어만 표시. 챌린저 플레이어 등장 시 자동으로 🥇🥈🥉 메달 및 순위 번호 활성화 (S0·S1 공통 적용)' },
+  ]},
   { ver: 'v2.31.70', date: '2026-04-29', changes: [
     { tag: 'fix', text: 'MVP/SVP/MMP 레거시 골드 소급 적용 — gv<2 구버전 매치도 10G→50G 통일 (총 8,080G 소급 지급). 퀘스트 추가 LP 감점 제거 (울퉁쓰 -30pt, 애긢반달곰 -50pt, 조조와빈찬합 -15pt, ap렉사이서폿 -10pt 복구)' },
   ]},
@@ -7397,10 +7400,10 @@ function renderRankMeTag(small) {
   return `<span class="rk-me${small?' small':''}">나</span>`;
 }
 
-function renderRankHeroCard(r, place) {
-  const medal = place === 1 ? '🥇' : place === 2 ? '🥈' : '🥉';
+function renderRankHeroCard(r, place, hasChallenger) {
+  const medal = hasChallenger ? (place === 1 ? '🥇' : place === 2 ? '🥈' : '🥉') : '';
   const cls = place === 1 ? 'first' : place === 2 ? 'second' : 'third';
-  const nameClass = place === 1 ? 'rk-name-gold' : place === 2 ? 'rk-name-silver' : '';
+  const nameClass = hasChallenger ? (place === 1 ? 'rk-name-gold' : place === 2 ? 'rk-name-silver' : '') : '';
   const meCls = r.me ? ' me' : '';
   const tierBadge = renderRankTierBadge(r.tier, place === 1 ? 'big' : 'mid');
   const chips = renderRankClassChips(r.champTier1, r.champTier2);
@@ -7413,7 +7416,7 @@ function renderRankHeroCard(r, place) {
     <div class="hatch"></div>
     <div class="rk-hero-top">
       <div class="rk-hero-top-left">
-        <span class="rk-medal">${medal}</span>
+        ${medal ? '<span class="rk-medal">'+medal+'</span>' : ''}
         ${r.me ? renderRankMeTag(false) : ''}
       </div>
       <div>${tierBadge}</div>
@@ -7431,7 +7434,7 @@ function renderRankHeroCard(r, place) {
   </div>`;
 }
 
-function renderRankMiniCard(r, displayRank) {
+function renderRankMiniCard(r, displayRank, hasChallenger) {
   const tierColor = `var(--rk-tier-${r.tier})`;
   const meCls = r.me ? ' me' : '';
   const dots = renderRankStreakDots(r.streak, { tiny: true });
@@ -7439,9 +7442,10 @@ function renderRankMiniCard(r, displayRank) {
   const scoreNum = r.games >= 3 && r.score != null
     ? `<span class="num">${r.score.toLocaleString()}</span><span class="pt">pt</span>`
     : `<span class="num dim">—</span>`;
+  const rankStr = hasChallenger ? displayRank : '';
   return `<div class="rk-mini${meCls}" data-name="${escHtml(r.name)}">
     <div class="stripe" style="background:${tierColor};"></div>
-    <div class="rk-mini-rank">${displayRank}</div>
+    <div class="rk-mini-rank">${rankStr}</div>
     <div class="rk-mini-main">
       <div class="rk-mini-name-row">
         <span class="rk-mini-name">${escHtml(r.name)}</span>
@@ -7614,15 +7618,16 @@ function renderRanking() {
 
   const top3 = rows.slice(0, 3);
   const rest = rows.slice(3);
+  const hasChallenger = rows.some(r => r.tier === 'challenger');
 
   let html = '';
   if (top3.length > 0) {
     html += '<div class="rk-top3">';
-    if (top3[0]) html += renderRankHeroCard(top3[0], 1);
+    if (top3[0]) html += renderRankHeroCard(top3[0], 1, hasChallenger);
     if (top3[1] || top3[2]) {
       html += '<div class="rk-top3-row">';
-      if (top3[1]) html += renderRankHeroCard(top3[1], 2);
-      if (top3[2]) html += renderRankHeroCard(top3[2], 3);
+      if (top3[1]) html += renderRankHeroCard(top3[1], 2, hasChallenger);
+      if (top3[2]) html += renderRankHeroCard(top3[2], 3, hasChallenger);
       html += '</div>';
     }
     html += '</div>';
@@ -7633,7 +7638,7 @@ function renderRanking() {
       <span class="meta">4–${rows.length}위</span>
     </div>`;
     html += '<div class="rk-list">';
-    rest.forEach((r, i) => { html += renderRankMiniCard(r, i + 4); });
+    rest.forEach((r, i) => { html += renderRankMiniCard(r, i + 4, hasChallenger); });
     html += '</div>';
   }
   el.innerHTML = html;
@@ -9624,21 +9629,23 @@ function renderS1Ranking() {
   const unplaced = rows.filter(r => !r.d.placementDone);
   let html = '';
 
+  const hasChallenger = placed.some(r => r.tier === 'challenger');
+
   if (placed.length > 0) {
     const top3 = placed.slice(0, 3);
     html += `<div class="rk-heroes">`;
-    top3.forEach((r,i) => html += renderS1HeroCard(r, i+1));
+    top3.forEach((r,i) => html += renderS1HeroCard(r, i+1, hasChallenger));
     html += `</div>`;
     const rest = placed.slice(3);
     if (rest.length > 0) {
       html += `<div class="rk-list">`;
-      rest.forEach((r,i) => html += renderS1MiniCard(r, i+4));
+      rest.forEach((r,i) => html += renderS1MiniCard(r, i+4, hasChallenger));
       html += `</div>`;
     }
   }
   if (unplaced.length > 0) {
     html += `<div class="rk-list" style="margin-top:12px;opacity:0.7;">`;
-    unplaced.forEach(r => html += renderS1MiniCard(r, '—'));
+    unplaced.forEach(r => html += renderS1MiniCard(r, hasChallenger ? '—' : '', hasChallenger));
     html += `</div>`;
   }
   if (!html) {
@@ -9654,18 +9661,18 @@ function renderS1Ranking() {
   });
 }
 
-function renderS1HeroCard(r, place) {
-  const medal  = place===1?'🥇':place===2?'🥈':'🥉';
+function renderS1HeroCard(r, place, hasChallenger) {
+  const medal  = hasChallenger ? (place===1?'🥇':place===2?'🥈':'🥉') : '';
   const cls    = place===1?'first':place===2?'second':'third';
   const meCls  = r.me ? ' me' : '';
   const chips  = renderRankClassChips(r.champTier1, r.champTier2);
   return `<div class="rk-hero ${cls}${meCls}" data-name="${escHtml(r.name)}" style="cursor:pointer;">
     <div class="glow"></div><div class="hatch"></div>
     <div class="rk-hero-top">
-      <div class="rk-hero-top-left"><span class="rk-medal">${medal}</span>${r.me?renderRankMeTag(false):''}</div>
+      <div class="rk-hero-top-left">${medal?'<span class="rk-medal">'+medal+'</span>':''}${r.me?renderRankMeTag(false):''}</div>
       <div>${s1TierBadgeHtml(r.tier, place===1?'big':'mid')}</div>
     </div>
-    <div class="rk-hero-name${place===1?' rk-name-gold':''}">${escHtml(r.name)}</div>
+    <div class="rk-hero-name${hasChallenger&&place===1?' rk-name-gold':''}">${escHtml(r.name)}</div>
     ${r.motto?`<div class="rk-hero-motto">"${escHtml(r.motto)}"</div>`:''}
     ${chips?`<div class="rk-hero-chips">${chips}</div>`:''}
     <div class="rk-hero-bottom"><span></span>
@@ -9674,12 +9681,13 @@ function renderS1HeroCard(r, place) {
   </div>`;
 }
 
-function renderS1MiniCard(r, displayRank) {
+function renderS1MiniCard(r, displayRank, hasChallenger) {
   const meta  = S1_TIER_META[r.tier] || S1_TIER_META.unranked;
   const meCls = r.me ? ' me' : '';
+  const rankStr = hasChallenger ? displayRank : '';
   return `<div class="rk-mini${meCls}" data-name="${escHtml(r.name)}" style="cursor:pointer;">
     <div class="stripe" style="background:${meta.color};"></div>
-    <div class="rk-mini-rank">${displayRank}</div>
+    <div class="rk-mini-rank">${rankStr}</div>
     <div class="rk-mini-main">
       <div class="rk-mini-name-row">
         <span class="rk-mini-name">${escHtml(r.name)}</span>
