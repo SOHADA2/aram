@@ -2012,7 +2012,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.62';
+const APP_VERSION = 'v2.31.63';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2021,6 +2021,9 @@ const APP_VERSION = 'v2.31.62';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.63', date: '2026-04-28', changes: [
+    { tag: 'fix', text: '시즌 패스 과거 경기 소급 적용 차단 — calcS1PassStats에 S1_PASS_START_TS(2026-04-28 12:00 KST) 필터 추가. v2.31.57 배포 이전 경기는 퀘스트 집계에서 제외되어 기존 기록으로 즉시 수령 불가. 기존 수령자 7명 gold 회수 완료' },
+  ]},
   { ver: 'v2.31.62', date: '2026-04-28', changes: [
     { tag: 'improve', text: 'S1 프로필 모달 전면 재설계 — S1 톤앤매너(어두운 배경·JetBrains Mono·티어 컬러 링·글로우) 적용. 티어 컬러 LP 카드(승급전 도트·배치 진행 바 포함), S1 경기 기준 5종 통계(경기/승/패/승률/MVP), 시즌 패스 레벨, 연승/연패 뱃지 표시. 단짝/웬수·S0 승점·S0 티어 배지 완전 제거. S0 모드는 기존 디자인 유지' },
   ]},
@@ -2584,6 +2587,8 @@ const S1_GAMBLE_LOSS      = 30;   // 도박권 패배 LP 감소
 const S1_NEWBIE_WIN_BONUS_LP   = 3;   // 뉴비 팀원과 승리 시 +3 LP 추가 (+20 → +23)
 const S1_NEWBIE_LOSS_REDUCE_LP = 3;   // 뉴비 팀원과 패배 시 감점 완화 (-14 → -11)
 const S1_NEWBIE_SELF_LOSS_LP   = 5;   // 뉴비 본인 패배 시 감점 축소 (기본 -14 → -5)
+// 시즌 1 패스 기준 시작 시각 (v2.31.57 배포 시각 — 이전 경기는 퀘스트 집계 제외)
+const S1_PASS_START_TS = 1777345200000; // 2026-04-28 12:00 KST
 
 const S1_TIER_ORDER = ['bronze','silver','gold','platinum','diamond','master','grandmaster','challenger'];
 const S1_AUTO_TIERS  = new Set(['bronze','silver']);
@@ -6991,7 +6996,9 @@ window.claimAchievement = async function(id) {
 function calcS1PassStats(name) {
   const key = normName(name);
   const myMatches = Object.values(matches)
-    .filter(m => (m.season ?? 0) === 1 && ((m.teamA||[]).some(n=>normName(n)===key) || (m.teamB||[]).some(n=>normName(n)===key)))
+    .filter(m => (m.season ?? 0) === 1
+              && (m.timestamp || 0) >= S1_PASS_START_TS          // 패스 도입(v2.31.57) 이후 경기만
+              && ((m.teamA||[]).some(n=>normName(n)===key) || (m.teamB||[]).some(n=>normName(n)===key)))
     .sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
 
   let games=0, wins=0, losses=0;
