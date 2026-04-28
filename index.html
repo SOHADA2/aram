@@ -1979,7 +1979,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.60';
+const APP_VERSION = 'v2.31.61';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -1988,6 +1988,9 @@ const APP_VERSION = 'v2.31.60';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.61', date: '2026-04-28', changes: [
+    { tag: 'fix', text: '승급전 승리권 — 이미 1승인 상태에서 활성화 차단. 1승 있으면 1승만 더 해도 승급 가능하므로 아이템 낭비 방지. 토스트 안내 메시지 추가' },
+  ]},
   { ver: 'v2.31.60', date: '2026-04-28', changes: [
     { tag: 'fix', text: '승급전 5판 소멸 로직 완전 제거 — 설계 의도대로 순수 3판 2선승제로 정정. 아이템(방어권·승리권) 사용 시 판수가 자연스럽게 늘어나는 것은 정상 동작. S1_PROMO_EXPIRY 상수·promoGamesPlayed 필드 삭제' },
   ]},
@@ -8828,6 +8831,14 @@ window.toggleItemActive = async function(idx) {
       showGoldToast(`⚠ 도박 주사위는 다른 아이템과 함께 사용할 수 없어요`);
       return;
     }
+    // 승급전 승리권: 이미 1승이 있으면 활성화 불가 (1승만으로 충분, 아이템 낭비 방지)
+    if (tryId === 's1_promo_win') {
+      const myS1 = season1Data[normName(myName)];
+      if (myS1?.promoActive && (myS1.promoWins || 0) >= 1) {
+        showGoldToast(`⚠ 이미 1승이 있어요 — 승리권 없이도 1승이면 승급 가능해요`);
+        return;
+      }
+    }
   }
   items[idx] = {...items[idx], active: !isActive};
   await set(ref(db,'gold/'+key), {...data, [itemsKey]: items});
@@ -9278,11 +9289,20 @@ async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = f
   // ── 승급전 진행 중 (뉴비 보너스 미적용) ───────────────────────
   if (d.promoActive) {
     if (activeS1Item === 's1_promo_win') {
-      // 승급전 승리권: 승리=2승(즉시 승급), 패배=1패 정상
-      if (won) { d = s1PromoSuccess(d); }
-      else { d.promoLosses = (d.promoLosses||0)+1; if (d.promoLosses>=2) d = s1PromoFail(d); }
+      // 승급전 승리권: 패배=1패 정상 / 승리=2승(즉시 승급)
+      // 단, 이미 1승 있으면 1승만으로 충분 → 아이템 효과 미적용, 정상 승리 처리
+      if (won) {
+        if ((d.promoWins || 0) >= 1) {
+          d.promoWins = (d.promoWins || 0) + 1;
+          if (d.promoWins >= 2) d = s1PromoSuccess(d);
+        } else {
+          d = s1PromoSuccess(d); // 2승 처리 → 즉시 승급
+        }
+      } else {
+        d.promoLosses = (d.promoLosses||0)+1; if (d.promoLosses>=2) d = s1PromoFail(d);
+      }
     } else if (activeS1Item === 's1_promo_shield' && !won) {
-      // 승급전 방어권: 패배 시 해당 판 기록 제외 (아무것도 안 함)
+      // 승급전 방어권: 패배 시 해당 판 기록 제외 (승리 시 자연 소멸 → else 정상 처리)
     } else {
       if (won) { d.promoWins=(d.promoWins||0)+1; if(d.promoWins>=2) d=s1PromoSuccess(d); }
       else     { d.promoLosses=(d.promoLosses||0)+1; if(d.promoLosses>=2) d=s1PromoFail(d); }
