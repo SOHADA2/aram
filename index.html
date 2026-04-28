@@ -597,6 +597,8 @@ select option{background:var(--surface2);}
 .rk-medal{line-height:1;filter:drop-shadow(0 0 8px rgba(255,255,255,.15));}
 .rk-hero.first .rk-medal{font-size:32px;}
 .rk-hero.second .rk-medal,.rk-hero.third .rk-medal{font-size:22px;}
+.rk-place-num{font-family:'Gmarket Sans',sans-serif;font-size:13px;font-weight:700;color:rgba(200,168,75,.6);letter-spacing:.02em;line-height:1;}
+.rk-hero.first .rk-place-num{font-size:18px;color:rgba(200,168,75,.75);}
 .rk-hero-name{font-weight:800;margin-top:4px;display:flex;align-items:center;gap:4px;z-index:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--rk-text);position:relative;}
 .rk-hero.first .rk-hero-name{font-size:22px;}
 .rk-hero.second .rk-hero-name,.rk-hero.third .rk-hero-name{font-size:15px;}
@@ -2001,7 +2003,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.74';
+const APP_VERSION = 'v2.31.75';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2010,6 +2012,9 @@ const APP_VERSION = 'v2.31.74';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.75', date: '2026-04-29', changes: [
+    { tag: 'improve', text: '랭킹 탭 S1 레이아웃 개선 — 상위 3명 카드를 1+2 구조(1위 전체폭, 2·3위 나란히)로 변경. 챌린저 등장 전 메달 대신 순위 번호(1·2·3) 표시로 상위권 구분 강화. GAMES·PLAYERS 통계가 S1 모드에서도 실제 값으로 표시되도록 수정' },
+  ]},
   { ver: 'v2.31.74', date: '2026-04-29', changes: [
     { tag: 'fix', text: '도박권 배치고사 중 활성화 차단 추가 — 배치고사 완료 전 도박권 사용 시 s1ApplyMatchResult early return으로 LP 효과가 전혀 없던 문제. 빛나는언즈 배치고사 중 도박권(60G) 낭비분 환불 처리' },
   ]},
@@ -9655,13 +9660,26 @@ function renderS1Ranking() {
   const unplaced = rows.filter(r => !r.d.placementDone);
   let html = '';
 
+  // 헤더 통계 갱신
+  const totalGames = Object.values(matches).filter(m => (m.season ?? 0) === 1).length;
+  const gamesEl = document.getElementById('rk-stat-games');
+  const playersEl = document.getElementById('rk-stat-players');
+  if (gamesEl) gamesEl.textContent = totalGames.toLocaleString();
+  if (playersEl) playersEl.textContent = Object.keys(registeredPlayers).length.toLocaleString();
+
   const hasChallenger = placed.some(r => r.tier === 'challenger');
 
   if (placed.length > 0) {
     const top3 = placed.slice(0, 3);
-    html += `<div class="rk-heroes">`;
-    top3.forEach((r,i) => html += renderS1HeroCard(r, i+1, hasChallenger));
-    html += `</div>`;
+    html += '<div class="rk-top3">';
+    if (top3[0]) html += renderS1HeroCard(top3[0], 1, hasChallenger);
+    if (top3[1] || top3[2]) {
+      html += '<div class="rk-top3-row">';
+      if (top3[1]) html += renderS1HeroCard(top3[1], 2, hasChallenger);
+      if (top3[2]) html += renderS1HeroCard(top3[2], 3, hasChallenger);
+      html += '</div>';
+    }
+    html += '</div>';
     const rest = placed.slice(3);
     if (rest.length > 0) {
       html += `<div class="rk-list">`;
@@ -9688,14 +9706,15 @@ function renderS1Ranking() {
 }
 
 function renderS1HeroCard(r, place, hasChallenger) {
-  const medal  = hasChallenger ? (place===1?'🥇':place===2?'🥈':'🥉') : '';
-  const cls    = place===1?'first':place===2?'second':'third';
-  const meCls  = r.me ? ' me' : '';
-  const chips  = renderRankClassChips(r.champTier1, r.champTier2);
+  const medal    = hasChallenger ? (place===1?'🥇':place===2?'🥈':'🥉') : '';
+  const placeTag = !hasChallenger ? `<span class="rk-place-num">${place}</span>` : '';
+  const cls      = place===1?'first':place===2?'second':'third';
+  const meCls    = r.me ? ' me' : '';
+  const chips    = renderRankClassChips(r.champTier1, r.champTier2);
   return `<div class="rk-hero ${cls}${meCls}" data-name="${escHtml(r.name)}" style="cursor:pointer;">
     <div class="glow"></div><div class="hatch"></div>
     <div class="rk-hero-top">
-      <div class="rk-hero-top-left">${medal?'<span class="rk-medal">'+medal+'</span>':''}${r.me?renderRankMeTag(false):''}</div>
+      <div class="rk-hero-top-left">${medal?'<span class="rk-medal">'+medal+'</span>':placeTag}${r.me?renderRankMeTag(false):''}</div>
       <div>${s1TierBadgeHtml(r.tier, place===1?'big':'mid')}</div>
     </div>
     <div class="rk-hero-name${hasChallenger&&place===1?' rk-name-gold':''}">${escHtml(r.name)}</div>
