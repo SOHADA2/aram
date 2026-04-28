@@ -2001,7 +2001,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.73';
+const APP_VERSION = 'v2.31.74';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2010,8 +2010,11 @@ const APP_VERSION = 'v2.31.73';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.74', date: '2026-04-29', changes: [
+    { tag: 'fix', text: '도박권 배치고사 중 활성화 차단 추가 — 배치고사 완료 전 도박권 사용 시 s1ApplyMatchResult early return으로 LP 효과가 전혀 없던 문제. 빛나는언즈 배치고사 중 도박권(60G) 낭비분 환불 처리' },
+  ]},
   { ver: 'v2.31.73', date: '2026-04-29', changes: [
-    { tag: 'fix', text: '아이템 활성화 가드 강화 — 승급전 방어권·승급전 승리권을 승급전 진행 중이 아닐 때 활성화하면 차단 메시지 표시 (아이템 낭비 방지). 도박권도 승급전 중 활성화 차단. S1 아이템 활성화/비활성화 토스트 메시지에서 아이템 이름이 undefined로 나오던 버그 수정 (S0 SHOP_ITEMS만 탐색하던 문제 → S1_SHOP_ITEMS까지 포함)' },
+    { tag: 'fix', text: '아이템 활성화 가드 강화 — 승급전 방어권·승급전 승리권을 승급전 진행 중이 아닐 때 활성화하면 차단 메시지 표시 (아이템 낭비 방지). 도박권도 승급전 중 활성화 차단. S1 아이템 활성화/비활성화 토스트 메시지에서 아이템 이름이 undefined로 나오던 버그 수정 (S0 SHOP_ITEMS만 탐색하던 문제 → S1_SHOP_ITEMS까지 포함). 빛나는언즈 배치고사 중 승급전 방어권(100G) 낭비분 환불 처리' },
   ]},
   { ver: 'v2.31.72', date: '2026-04-29', changes: [
     { tag: 'fix', text: '새로고침 시 S0 콘텐츠 깜박임 수정 — S1 모드에서 season1 데이터 로드 전에 랭킹·대기카드가 렌더되던 타이밍 문제 해결. s1DataLoaded 완료 후에만 S1 랭킹·대기카드 표시' },
@@ -9049,9 +9052,11 @@ window.toggleItemActive = async function(idx) {
       showGoldToast(`⚠ 이미 1승이 있어요 — 승리권 없이도 1승이면 승급 가능해요`);
       return;
     }
-    // 도박권: 승급전 중 사용 불가
-    if (tryId === 's1_gamble' && myS1?.promoActive) {
-      showGoldToast(`⚠ 도박권은 승급전 중 사용할 수 없어요`);
+    // 도박권: 배치고사·승급전 중 사용 불가 (두 경우 모두 s1ApplyMatchResult에서 gamble LP 미처리)
+    if (tryId === 's1_gamble' && (!myS1?.placementDone || myS1?.promoActive)) {
+      showGoldToast(!myS1?.placementDone
+        ? `⚠ 도박권은 배치고사 완료 후 사용할 수 있어요`
+        : `⚠ 도박권은 승급전 중 사용할 수 없어요`);
       return;
     }
   }
