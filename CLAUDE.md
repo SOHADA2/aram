@@ -408,3 +408,26 @@
 - 이벤트 매치 결과는 Firebase에 저장하지 않음
 - CSS 변수는 `:root`에서 관리 (`--gold`, `--blue`, `--red`, `--tier-*` 등)
 - CSS 중복 선언 금지 (과거 버그 — 같은 클래스 두 번 정의된 적 있음)
+
+## LCU 브릿지 (aram-bridge)
+- 리포: https://github.com/SOHADA2/aram-bridge (로컬: `C:\Users\so\aram-bridge`)
+- 현재 버전: v1.1.25
+- 배포 형태: GitHub Releases에 ZIP (exe + `이 파일을 실행해 주세요.vbs`) 업로드
+- 웹사이트 다운로드 링크: GitHub API로 최신 릴리즈 .zip 에셋 자동 감지 (`index.html` line ~3510)
+
+### 빌드
+```
+cd C:\Users\so\aram-bridge
+node node_modules\pkg\lib-es5\bin.js . --targets node18-win-x64 --output dist/aram-bridge-vX.X.X.exe
+```
+
+### 릴리즈
+```
+Compress-Archive -Path dist/aram-bridge-vX.X.X.exe, "이 파일을 실행해 주세요.vbs" -DestinationPath dist/aram-bridge-vX.X.X.zip
+gh release create vX.X.X dist/aram-bridge-vX.X.X.zip dist/aram-bridge-vX.X.X.exe --repo SOHADA2/aram-bridge
+```
+
+### 주요 구조
+- `index.js` — LCU 폴링 + Firebase 전송 + HTTP 상태 페이지(7654포트)
+- `이 파일을 실행해 주세요.vbs` — 런처 (CP949 인코딩, Zone.Identifier 자동 해제 후 exe 숨김 실행)
+- 상태 페이지: `/api/status` (JSON), `/api/shutdown` (POST → 종료)
