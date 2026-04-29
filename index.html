@@ -1216,6 +1216,14 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .pm-s1-award-val{font-family:'Black Han Sans',sans-serif;font-size:18px;line-height:1;}
 .pm-s1-award-label{font-size:9px;color:var(--rk-text-muted);letter-spacing:1px;font-family:'JetBrains Mono',monospace;}
 .pm-s1-bottom-row{display:flex;align-items:center;justify-content:space-between;margin-top:4px;}
+.pm-s1-bottom-right{display:flex;align-items:center;gap:6px;}
+.pm-s1-gold-badge{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;font-family:'JetBrains Mono',monospace;color:var(--rk-gold);background:rgba(200,168,75,0.1);border:1px solid rgba(200,168,75,0.3);border-radius:6px;padding:4px 8px;}
+.pm-s1-form-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.pm-s1-form-label{font-size:10px;color:var(--rk-text-dim);font-family:'JetBrains Mono',monospace;letter-spacing:0.3px;}
+.pm-s1-form-dots{display:flex;gap:5px;}
+.pm-s1-form-dot{width:26px;height:26px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);font-size:9px;font-weight:700;font-family:'JetBrains Mono',monospace;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.2);}
+.pm-s1-form-dot.w{background:rgba(0,199,122,0.15);border-color:rgba(0,199,122,0.45);color:var(--green);}
+.pm-s1-form-dot.l{background:rgba(232,64,87,0.12);border-color:rgba(232,64,87,0.4);color:var(--red);}
 .pm-s1-pass-badge{display:inline-flex;align-items:center;gap:5px;background:var(--rk-sub);border:1px solid var(--rk-border);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--rk-text-dim);}
 .pm-s1-pass-badge .lv{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--rk-gold);}
 .pm-s1-streak{font-size:11px;font-weight:700;font-family:'JetBrains Mono',monospace;padding:4px 8px;border-radius:6px;}
@@ -2106,7 +2114,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.94';
+const APP_VERSION = 'v2.31.95';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2115,6 +2123,10 @@ const APP_VERSION = 'v2.31.94';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.95', date: '2026-04-29', changes: [
+    { tag: 'new', text: '프로필 모달에 최근 5경기 폼(W/L 도트) 추가 — LP 카드 아래 표시' },
+    { tag: 'new', text: '프로필 모달 하단에 보유 골드 뱃지 추가' },
+  ]},
   { ver: 'v2.31.94', date: '2026-04-29', changes: [
     { tag: 'improve', text: '프로필 모달 LP 카드 티어 폰트 크기·굵기 개선, LP 바 두께 6→8px' },
   ]},
@@ -6601,11 +6613,19 @@ function _openS1ProfileModal(fbKey, player) {
     </div>`;
   }
 
-  // 시즌 패스 레벨
+  // 시즌 패스 레벨 + 보유 골드
   const myGoldEntry = Object.values(goldData).find(g => normName(g.name) === normName(name));
   const passLv = calcS1PassCurrentLevel(myGoldEntry?.seasonPassClaimed_s1 || {});
+  let playerGold = 0;
+  if (myGoldEntry) {
+    const _bonus   = myGoldEntry[sField('goldBonus')] ?? 0;
+    const _spent   = myGoldEntry[sField('goldSpent')] ?? 0;
+    const _achieve = myGoldEntry[sField('achievements')];
+    const _pass    = CURRENT_SEASON >= 1 ? calcS1PassGold(myGoldEntry.seasonPassClaimed_s1) : 0;
+    playerGold = Math.max(0, calcGoldFromMatches(name) + _bonus + calcAchievementGold(_achieve) + _pass - _spent);
+  }
 
-  // 연승/연패
+  // 연승/연패 + 최근 5경기 폼
   const streak = calcRecentStreak(name, 1);
   let streakHtml = '';
   if (streak.length >= 2) {
@@ -6617,6 +6637,13 @@ function _openS1ProfileModal(fbKey, player) {
       streakHtml = `<span class="pm-s1-streak ${isWin ? 'win' : 'loss'}">${isWin ? '🔥' : '❄️'} ${cur}연${isWin ? '승' : '패'}</span>`;
     }
   }
+  const formHtml = streak.length > 0 ? `<div class="pm-s1-form-row">
+    <span class="pm-s1-form-label">최근 폼</span>
+    <div class="pm-s1-form-dots">${Array.from({length:5}, (_,i) => {
+      const c = streak[i];
+      return `<span class="pm-s1-form-dot${c ? (c==='W'?' w':' l') : ''}">${c||'·'}</span>`;
+    }).join('')}</div>
+  </div>` : '';
 
   // 통계 박스 (4종: 경기/승/패/승률)
   const statBoxes = [
@@ -6668,11 +6695,15 @@ function _openS1ProfileModal(fbKey, player) {
       <div class="pm-s1-body">
         ${player.motto ? `<div class="pm-s1-motto">"${escHtml(player.motto)}"</div>` : ''}
         ${lpCardHtml}
+        ${formHtml}
         <div class="profile-stat-row">${statBoxes}</div>
         ${awardRow}
         <div class="pm-s1-bottom-row">
           <div class="pm-s1-pass-badge">🎫 패스 <span class="lv">LV ${passLv}</span><span style="color:var(--rk-text-muted);"> / ${S1_PASS_MAX_LEVEL}</span></div>
-          ${streakHtml}
+          <div class="pm-s1-bottom-right">
+            <div class="pm-s1-gold-badge">🪙 ${playerGold}G</div>
+            ${streakHtml}
+          </div>
         </div>
       </div>
     </div>`;
