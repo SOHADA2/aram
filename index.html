@@ -2113,8 +2113,10 @@ let matchType = 'normal'; // 'normal' | 'event'
 let isEventMatch = false;
 let currentTeamA = [], currentTeamB = [];
 let _currentTeamsFormedAt = 0; // 현재 팀 형성 시각 — 다중 브릿지에서 stale eogStats/matchData 차단용 (v2.31.21~)
-let currentSpectator = null; // 홀수 인원 시 랜덤 제외된 관전자
-let spectatorPick = null;          // 관전자 예측: 'blue' | 'red'
+let currentSpectator  = null;      // 관전자[0] — 하위 호환
+let currentSpectators = [];        // 전체 관전자 목록 (다수 가능, 11명 이상 시)
+let spectatorPick     = null;      // 내 예측 (관전자 본인 / 첫 관전자 compat)
+let allSpectatorPicks = {};        // normName → 'blue'|'red' (다중 관전자)
 let spectatorPickTimer = null;     // 카운트다운 인터벌
 let _spectatorPickAnnounced = false; // 중복 발표 방지 플래그
 let selectedWinner = null;
@@ -2130,7 +2132,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.32.1';
+const APP_VERSION = 'v2.32.2';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2139,6 +2141,9 @@ const APP_VERSION = 'v2.32.1';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.32.2', date: '2026-04-29', changes: [
+    { tag: 'new', text: '11명 이상 자동 5v5 — 10명 초과 인원은 자동으로 관전자 배정, 다중 관전자 각자 독립 승리팀 예측 지원 (적중 시 각자 +50G)' },
+  ] },
   { ver: 'v2.32.1', date: '2026-04-29', changes: [
     { tag: 'new', text: '브릿지 v1.1.6 연동 — 아이템·ARAM증강·멀티킬·퍼스트블러드·게임시간 데이터를 matches에 저장 (시즌 패스 퀘스트 및 향후 통계 활용)' },
   ] },
@@ -3110,7 +3115,11 @@ function calcGoldFromMatches(name, season = CURRENT_SEASON) {
     const mvpGold  = goldVer >= 2 ? GOLD_MVP  : GOLD_MVP_LEGACY;
     const specGold = goldVer >= 2 ? GOLD_SPECTATOR_CORRECT : GOLD_SPECTATOR_CORRECT_LEGACY;
     // 관전자 예측 적중 골드 (팀에 속하지 않으므로 별도 처리)
-    if (m.spectatorName === key && m.spectatorCorrect) gold += specGold;
+    if (m.spectatorPicks) {
+      if (m.spectatorPicks[key]?.correct) gold += specGold;
+    } else {
+      if (m.spectatorName === key && m.spectatorCorrect) gold += specGold;
+    }
     if (!inA && !inB) return;
     const won = (m.winner==='blue'&&inA)||(m.winner==='red'&&inB);
     // 퀘스트 이벤트 매치: 상금만 적용, MVP/뉴비/매너 보너스 없음
@@ -3288,23 +3297,38 @@ function applySessionData(data) {
   teamSize      = data.teamSize  || teamSize;
   mode          = data.mode      || mode;
   isEventMatch  = !!data.isEventMatch;
-  currentSpectator = data.spectator ? { name: data.spectator } : null;
+  currentSpectator  = data.spectator ? { name: data.spectator } : null;
+  currentSpectators = (data.spectators || (data.spectator ? [data.spectator] : [])).map(n => ({ name: n }));
+  allSpectatorPicks = data.spectatorPicks || {};
   // session 에 teamsFormedAt 가 있으면 우선 사용, 없으면 현재 시각 (다른 기기와 동기화 위해)
   _currentTeamsFormedAt = data.teamsFormedAt || _currentTeamsFormedAt || Date.now();
 
   // ── 관전자 예측 상태 복원 ─────────────────────────────────────
-  if (data.spectatorPick && !_spectatorPickAnnounced) {
-    // 이미 예측 완료 → 다른 기기에서 발표 표시
-    _spectatorPickAnnounced = true;
-    spectatorPick = data.spectatorPick;
-    const existingOverlay = document.getElementById('sp-overlay');
-    if (existingOverlay) {
-      clearInterval(spectatorPickTimer);
-      setTimeout(() => applySpectatorPickResult(data.spectatorPick, existingOverlay), 0);
-    } else if (!_justMadeTeams) {
-      applySpectatorPickResult(data.spectatorPick, null);
+  if (!_spectatorPickAnnounced) {
+    if (currentSpectators.length <= 1 && data.spectatorPick) {
+      // 단일 관전자: 기존 발표 로직
+      _spectatorPickAnnounced = true;
+      spectatorPick = data.spectatorPick;
+      const existingOverlay = document.getElementById('sp-overlay');
+      if (existingOverlay) {
+        clearInterval(spectatorPickTimer);
+        setTimeout(() => applySpectatorPickResult(data.spectatorPick, existingOverlay), 0);
+      } else if (!_justMadeTeams) {
+        applySpectatorPickResult(data.spectatorPick, null);
+      }
+    } else if (currentSpectators.length > 1) {
+      // 다중 관전자: 모두 예측 완료 시 오버레이 닫기
+      if (data.spectatorPick) spectatorPick = data.spectatorPick;
+      const allPicked = currentSpectators.every(s => allSpectatorPicks[normName(s.name)]);
+      if (allPicked) {
+        _spectatorPickAnnounced = true;
+        clearInterval(spectatorPickTimer);
+        const overlay = document.getElementById('sp-overlay');
+        if (overlay) { overlay.remove(); renderResult(); }
+      }
     }
-  } else if (!data.spectatorPick && currentSpectator && data.spectatorPickStartAt && !_justMadeTeams) {
+  }
+  if (!data.spectatorPick && currentSpectators.length > 0 && data.spectatorPickStartAt && !_justMadeTeams) {
     // 예측 미완료 + 다른 기기에서 팀 구성받음 → 남은 시간으로 배너 표시
     // spectatorPickStartAt은 팀 발표 종료 시점(미래)을 가리킴
     spectatorPick = null;
@@ -3329,7 +3353,7 @@ function applySessionData(data) {
         }, 300);
       }
     }
-  } else if (!currentSpectator) {
+  } else if (!currentSpectators.length) {
     spectatorPick = null;
     _spectatorPickAnnounced = false;
   }
@@ -3340,7 +3364,7 @@ function applySessionData(data) {
   // 새로고침 후 참가자 선택 목록 복원 (sessionPlayers가 비어있을 때만)
   if (sessionPlayers.length === 0 && (data.teamA?.length || data.teamB?.length)) {
     const allNames = [...(data.teamA || []), ...(data.teamB || [])];
-    if (data.spectator) allNames.push(data.spectator);
+    (data.spectators || (data.spectator ? [data.spectator] : [])).forEach(n => allNames.push(n));
     sessionPlayers = allNames.map(name => {
       const p = Object.values(registeredPlayers).find(r => normName(r.name) === normName(name)) || {name, manualTier: null};
       return { id: Math.random(), name, tier: getEffectiveTier(name, p.manualTier), manualTier: p.manualTier };
@@ -4404,12 +4428,12 @@ function getEnemyFor(name, enemyPairs) {
 
 // ── 관전자 예측 시스템 ─────────────────────────────────────────
 function showSpectatorPickModal(seconds = 15) {
-  if (!currentSpectator || isEventMatch) return;
+  if (!currentSpectators.length || isEventMatch) return;
   document.getElementById('sp-overlay')?.remove();
   clearInterval(spectatorPickTimer);
 
-  const specName = currentSpectator.name;
-  const isMe = !!(myName && normName(myName) === normName(specName));
+  const myNorm = normName(myName || '');
+  const isMe   = !!(myNorm && currentSpectators.some(s => normName(s.name) === myNorm));
 
   const overlay = document.createElement('div');
   overlay.id = 'sp-overlay';
@@ -4429,12 +4453,15 @@ function showSpectatorPickModal(seconds = 15) {
       <div class="sp-hint">미선택 시 자동으로 랜덤 선택됩니다</div>
     </div>`;
   } else {
-    // 팀원 → 중앙 오버레이 (명확하게 예측 진행 중 알림)
+    // 팀원 → 중앙 오버레이
+    const specLabel = currentSpectators.length === 1
+      ? `<strong style="color:var(--text)">${escHtml(currentSpectators[0].name)}</strong>이(가)`
+      : `<strong style="color:var(--text)">관전자 ${currentSpectators.length}명</strong>이`;
     overlay.className = 'sp-overlay sp-center';
     overlay.innerHTML = `<div class="sp-sheet" onclick="event.stopPropagation()">
       <div class="sp-emoji">👀</div>
       <div class="sp-title">관전자 예측 진행 중</div>
-      <div class="sp-sub"><strong style="color:var(--text)">${escHtml(specName)}</strong>이(가)<br>승리팀을 선택하고 있어요</div>
+      <div class="sp-sub">${specLabel}<br>승리팀을 선택하고 있어요</div>
       <div class="sp-timer" id="sp-timer">${seconds}</div>
       <div class="sp-hint">잠시만 기다려주세요...</div>
     </div>`;
@@ -4448,33 +4475,59 @@ function showSpectatorPickModal(seconds = 15) {
     if (timerEl) { timerEl.textContent = timeLeft; if (timeLeft <= 5) timerEl.classList.add('urgent'); }
     if (timeLeft <= 0) {
       clearInterval(spectatorPickTimer);
-      if (!spectatorPick && (isMe || liveMode)) {
+      // 타이머 만료: 내 예측이 없으면 본인이 랜덤 선택
+      if (isMe && !allSpectatorPicks[myNorm]) {
         spectatorPickTeam(Math.random() < 0.5 ? 'blue' : 'red');
+      } else if (liveMode) {
+        // liveMode 기기가 미선택 관전자를 대신 랜덤 선택
+        for (const s of currentSpectators) {
+          const sNorm = normName(s.name);
+          if (!allSpectatorPicks[sNorm]) spectatorPickTeam(Math.random() < 0.5 ? 'blue' : 'red', s.name);
+        }
       }
     }
   }, 1000);
 }
 
-window.spectatorPickTeam = function(pick) {
-  if (spectatorPick) return;
+window.spectatorPickTeam = function(pick, overrideName) {
+  // overrideName: liveMode가 특정 관전자를 대신 선택할 때 사용
+  const myNorm = normName(overrideName || myName || '');
+  if (!myNorm) return;
+  if (allSpectatorPicks[myNorm]) return; // 이미 선택됨
+
   clearInterval(spectatorPickTimer);
-  spectatorPick = pick;
-  _spectatorPickAnnounced = true;
-  // 선택 버튼 하이라이트
-  const pickCls = pick === 'blue' ? 'team1' : 'team2';
-  document.querySelectorAll('.sp-pick-btn').forEach(btn =>
-    btn.classList.toggle('picked', btn.classList.contains(pickCls))
-  );
-  // Firebase 저장 → 다른 기기 동기화
-  set(ref(db, 'session/spectatorPick'), pick).catch(console.error);
-  // 0.6초 뒤 발표 전환
+  allSpectatorPicks[myNorm] = pick;
+
+  const isFirst = normName(currentSpectators[0]?.name || '') === myNorm;
+  if (isFirst || !spectatorPick) spectatorPick = pick; // compat
+
+  // 선택 버튼 하이라이트 (내가 선택한 경우에만)
+  if (!overrideName) {
+    const pickCls = pick === 'blue' ? 'team1' : 'team2';
+    document.querySelectorAll('.sp-pick-btn').forEach(btn =>
+      btn.classList.toggle('picked', btn.classList.contains(pickCls))
+    );
+  }
+
+  // Firebase 저장
+  const updates = {};
+  updates[`session/spectatorPicks/${myNorm}`] = pick;
+  if (isFirst) updates['session/spectatorPick'] = pick; // 하위 호환
+  update(ref(db), updates).catch(console.error);
+
+  // 단일 관전자: 기존 발표 오버레이 / 다중 관전자: 내 오버레이만 닫기
   const overlay = document.getElementById('sp-overlay');
-  setTimeout(() => applySpectatorPickResult(pick, overlay), 600);
+  if (currentSpectators.length <= 1) {
+    _spectatorPickAnnounced = true;
+    setTimeout(() => applySpectatorPickResult(pick, overlay), 600);
+  } else {
+    setTimeout(() => { overlay?.remove(); renderResult(); }, 600);
+  }
 };
 
 function applySpectatorPickResult(pick, existingOverlay) {
-  if (!currentSpectator) return;
-  const specName = currentSpectator.name;
+  if (!currentSpectators.length) return;
+  const specName = currentSpectators[0]?.name || '';
   const teamLabel = pick === 'blue' ? '1팀' : '2팀';
   // 이/가 조사
   const lastChar = specName[specName.length - 1];
@@ -4922,7 +4975,8 @@ window.makeTeams = function() {
     currentTeamA = _pendingRematchTeams.teamA;
     currentTeamB = _pendingRematchTeams.teamB;
     teamSize = _pendingRematchTeams.teamSize;
-    currentSpectator = _pendingRematchTeams.spectator;
+    currentSpectators = _pendingRematchTeams.spectators || (_pendingRematchTeams.spectator ? [_pendingRematchTeams.spectator] : []);
+    currentSpectator  = currentSpectators[0] || null;
     _pendingRematchTeams = null;
   } else {
     // 인원수에 따라 teamSize 자동 결정
@@ -4931,13 +4985,18 @@ window.makeTeams = function() {
       return;
     }
     let pool = sessionPlayers.map(p=>({...p, tier: getEffectiveTier(p.name, p.manualTier)}));
-    // 홀수 인원이면 랜덤으로 1명 관전자 제외
-    currentSpectator = null;
+    // 5v5 최대 — 10명 초과 인원은 관전자로, 그 후 홀수이면 1명 추가 관전자
+    currentSpectators = [];
+    while (pool.length > 10) {
+      const idx = Math.floor(Math.random() * pool.length);
+      currentSpectators.push(pool.splice(idx, 1)[0]);
+    }
     if (pool.length % 2 !== 0) {
       const idx = Math.floor(Math.random() * pool.length);
-      currentSpectator = pool.splice(idx, 1)[0];
+      currentSpectators.push(pool.splice(idx, 1)[0]);
     }
-    teamSize = pool.length / 2;
+    currentSpectator = currentSpectators[0] || null;
+    teamSize = pool.length / 2; // 최대 5
     const needed = teamSize * 2;
     if (pool.length > needed) {
       warn.innerHTML = `<div class="warning">👥 ${pool.length}명 중 ${needed}명 선발!</div>`;
@@ -4968,6 +5027,7 @@ window.makeTeams = function() {
   mannerConfirmed = null;
   currentMatchParticipants = {}; // 이전 게임 참가자 데이터 초기화
   currentMatchGameTime = 0;
+  allSpectatorPicks = {};
   // 팀 구성 완료 → 아이템 잠금
   itemsLocked = true;
   renderShop();
@@ -4979,28 +5039,31 @@ window.makeTeams = function() {
   // Firebase에 팀 결과 기록 → 다른 기기에 실시간 동기화
   // 관전자 예측 상태 초기화
   spectatorPick = null;
+  allSpectatorPicks = {};
   _spectatorPickAnnounced = false;
   clearInterval(spectatorPickTimer);
   document.getElementById('sp-overlay')?.remove();
 
   // 관전자 예측은 팀 발표(7초) 종료 후 시작 → spectatorPickStartAt도 그 시점 기준
   const ANNOUNCE_DURATION = 7400; // showTeamAnnounce DURATION(7000) + fadeOut(400)
-  const spectatorPickStartAt = currentSpectator ? Date.now() + ANNOUNCE_DURATION : null;
+  const spectatorPickStartAt = currentSpectators.length > 0 ? Date.now() + ANNOUNCE_DURATION : null;
   _currentTeamsFormedAt = Date.now(); // 다중 브릿지 stale 데이터 차단용
   set(ref(db, 'session'), {
     active: true,
     teamA: currentTeamA.map(p => p.name),
     teamB: currentTeamB.map(p => p.name),
     teamSize, mode, isEventMatch: false,
-    spectator: currentSpectator ? currentSpectator.name : null,
+    spectator:  currentSpectator  ? currentSpectator.name : null,
+    spectators: currentSpectators.length > 0 ? currentSpectators.map(s => s.name) : null,
     spectatorPickStartAt,
-    spectatorPick: null,
+    spectatorPick:  null,
+    spectatorPicks: null,
     teamsFormedAt: _currentTeamsFormedAt,
     mvp: { active: true },    // MVP 초기화 통합 → onValue 이중 발화 방지
     manner: { active: true }, // 매너왕 초기화
   }).catch(console.error);
   // 관전자 예측 배너 표시 (팀 발표 종료 후)
-  if (currentSpectator) setTimeout(() => showSpectatorPickModal(25), ANNOUNCE_DURATION);
+  if (currentSpectators.length > 0) setTimeout(() => showSpectatorPickModal(25), ANNOUNCE_DURATION);
 };
 
 // ── 챔피언 한국어 이름 로더 ────────────────────────────────────
@@ -5176,19 +5239,22 @@ function renderResult() {
 
   // 관전자 표시
   const spectatorEl = document.getElementById('spectator-section');
-  if (currentSpectator && !isEventMatch) {
-    const pickLabel = spectatorPick === 'blue' ? '1팀 승리'
-                    : spectatorPick === 'red'  ? '2팀 승리' : null;
-    spectatorEl.innerHTML = `<div class="spectator-box">
-      <span style="font-size:16px;">👀</span>
-      <span class="spectator-label">이번 게임 관전자</span>
-      <span class="spectator-name">${escHtml(currentSpectator.name)}</span>
-    </div>
-    ${pickLabel ? `<div class="spectator-pick-banner">
-      <span>🔮</span>
-      <span><strong style="color:var(--gold)">${pickLabel}</strong> 예측</span>
-      <span style="margin-left:auto;font-size:11px;white-space:nowrap;">적중 시 🪙+${GOLD_SPECTATOR_CORRECT}G</span>
-    </div>` : ''}`;
+  if (currentSpectators.length > 0 && !isEventMatch) {
+    const boxes = currentSpectators.map(s => {
+      const sNorm    = normName(s.name);
+      const myPick   = allSpectatorPicks[sNorm];
+      const pickLabel = myPick === 'blue' ? '1팀 승리' : myPick === 'red' ? '2팀 승리' : null;
+      return `<div class="spectator-box">
+        <span style="font-size:16px;">👀</span>
+        <span class="spectator-label">${currentSpectators.length > 1 ? '관전자' : '이번 게임 관전자'}</span>
+        <span class="spectator-name">${escHtml(s.name)}</span>
+        ${pickLabel ? `<span style="font-size:12px;color:var(--gold);margin-left:4px;">🔮 ${pickLabel}</span>` : ''}
+      </div>`;
+    }).join('');
+    const anyPicked = Object.keys(allSpectatorPicks).length > 0;
+    spectatorEl.innerHTML = boxes + (anyPicked
+      ? `<div class="spectator-pick-banner"><span style="margin-left:auto;font-size:11px;white-space:nowrap;">적중 시 🪙+${GOLD_SPECTATOR_CORRECT}G</span></div>`
+      : '');
   } else {
     spectatorEl.innerHTML = '';
   }
@@ -5647,15 +5713,19 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
 
 
 
-  // 관전자 예측 결과
+  // 관전자 예측 결과 (단일 객체 또는 배열 모두 지원)
   let specHtml = '';
-  if (spectatorResult) {
+  const _specArr = Array.isArray(spectatorResult) ? spectatorResult : (spectatorResult ? [spectatorResult] : []);
+  if (_specArr.length > 0) {
+    const rows = _specArr.map(sr =>
+      `<div class="ms-player-row" style="justify-content:center;gap:8px;">
+        <span>${escHtml(sr.name)}</span>
+        <span style="color:${sr.correct ? 'var(--green)' : 'var(--red)'}">${sr.correct ? `🎯 적중! +${GOLD_SPECTATOR_CORRECT}G` : '❌ 빗나감'}</span>
+      </div>`
+    ).join('');
     specHtml = `<div class="ms-section">
       <div class="ms-section-title">🔮 관전자 예측</div>
-      <div class="ms-player-row" style="justify-content:center;gap:8px;">
-        <span>${escHtml(spectatorResult.name)}</span>
-        <span style="color:${spectatorResult.correct ? 'var(--green)' : 'var(--red)'}">${spectatorResult.correct ? `🎯 적중! +${GOLD_SPECTATOR_CORRECT}G` : '❌ 빗나감'}</span>
-      </div>
+      ${rows}
     </div>`;
   }
 
@@ -5760,12 +5830,23 @@ window.saveMatch = async function() {
       season: CURRENT_SEASON,
     };
     if (currentMatchGameTime > 0) matchData.gameTime = currentMatchGameTime;
-    // 관전자 예측 데이터
-    if (currentSpectator && spectatorPick) {
-      const spectatorCorrect = spectatorPick === selectedWinner;
-      matchData.spectatorName    = normName(currentSpectator.name);
-      matchData.spectatorPick    = spectatorPick;
-      matchData.spectatorCorrect = spectatorCorrect;
+    // 관전자 예측 데이터 (다중 관전자 지원)
+    if (currentSpectators.length > 0) {
+      const picks = {};
+      for (const s of currentSpectators) {
+        const k = normName(s.name);
+        if (allSpectatorPicks[k]) picks[k] = { pick: allSpectatorPicks[k], correct: allSpectatorPicks[k] === selectedWinner };
+      }
+      if (Object.keys(picks).length > 0) matchData.spectatorPicks = picks;
+      // 하위 호환: 첫 번째 관전자 단일 필드 유지
+      if (currentSpectator) {
+        const fp = allSpectatorPicks[normName(currentSpectator.name)] || spectatorPick;
+        if (fp) {
+          matchData.spectatorName    = normName(currentSpectator.name);
+          matchData.spectatorPick    = fp;
+          matchData.spectatorCorrect = fp === selectedWinner;
+        }
+      }
     }
     if (questEventState) matchData.questEvent = {
       playerName: normName(questEventState.playerName),
@@ -5776,6 +5857,15 @@ window.saveMatch = async function() {
     if (Object.keys(currentMatchParticipants).length > 0)
       matchData.participants = currentMatchParticipants;
     if (currentRiotMatchId) matchData.riotMatchId = currentRiotMatchId;
+
+    // ── 관전자 결과 헬퍼 (다중 관전자 지원) ─────────────────────
+    const _buildSpecResults = () => {
+      if (!currentSpectators.length) return null;
+      const results = currentSpectators
+        .filter(s => allSpectatorPicks[normName(s.name)])
+        .map(s => ({ name: s.name, correct: allSpectatorPicks[normName(s.name)] === selectedWinner }));
+      return results.length > 0 ? results : null;
+    };
 
     // ── Cross-device 중복 저장 가드 (v2.31.18~) ─────────────────
     // 다중 liveMode 기기에서 동시 자동 저장 시 같은 매치가 여러 번 push 되던
@@ -5805,9 +5895,7 @@ window.saveMatch = async function() {
       postSaveMatchData = {
         winners, losers, itemEffects, tierChanges: [], s1LpBefore: {},
         questEvent: questEventState ? { ...questEventState } : null,
-        spectatorResult: (currentSpectator && spectatorPick)
-          ? { name: currentSpectator.name, correct: spectatorPick === selectedWinner }
-          : null,
+        spectatorResult: _buildSpecResults(),
       };
       return; // saveMatch 본체 종료
     }
@@ -5846,9 +5934,7 @@ window.saveMatch = async function() {
         postSaveMatchData = {
           winners, losers, itemEffects, tierChanges: [], s1LpBefore: {},
           questEvent: questEventState ? { ...questEventState } : null,
-          spectatorResult: (currentSpectator && spectatorPick)
-            ? { name: currentSpectator.name, correct: spectatorPick === selectedWinner }
-            : null,
+          spectatorResult: _buildSpecResults(),
         };
         questEventState = null;
         spectatorPick = null;
@@ -5895,9 +5981,7 @@ window.saveMatch = async function() {
     await giveMatchGold(winners, losers, matchTimestamp);
 
     // 관전자 결과, questEvent 보관 (finalizeVotes에서 결과 요약 시 사용)
-    const spectatorResult = (currentSpectator && spectatorPick)
-      ? { name: currentSpectator.name, correct: spectatorPick === selectedWinner }
-      : null;
+    const spectatorResult = _buildSpecResults();
     postSaveMatchData = {
       winners, losers, itemEffects, tierChanges, s1LpBefore,
       questEvent: questEventState ? { ...questEventState } : null,
@@ -7122,7 +7206,7 @@ function calcSpectatorStats(name, season = CURRENT_SEASON) {
   let specCorrect = 0;
   Object.values(matches).forEach(m => {
     if ((m.season ?? 0) !== season) return;
-    if (m.spectatorName === key && m.spectatorCorrect) specCorrect++;
+    if (m.spectatorPicks ? m.spectatorPicks[key]?.correct : (m.spectatorName === key && m.spectatorCorrect)) specCorrect++;
   });
   return { specCorrect };
 }
@@ -7321,7 +7405,9 @@ function calcS1PassStats(name, afterTs = S1_PASS_START_TS) {
     // MVP/매너/관전
     if (normName(m.mvpWinner||'')===key || normName(m.mvpLoser||'')===key) mvpCount++;
     if (normName(m.mannerWinner||'')===key || normName(m.mannerLoser||'')===key || normName(m.mannerKing||'')===key) mannerCount++;
-    if (m.spectatorName===key) {
+    if (m.spectatorPicks) {
+      if (m.spectatorPicks[key]) { specTotal++; if (m.spectatorPicks[key].correct) specCorrect++; }
+    } else if (m.spectatorName===key) {
       specTotal++;
       if (m.spectatorCorrect) specCorrect++;
     }
@@ -9779,12 +9865,13 @@ window.confirmFixedTeams = function() {
   const pool = _ftzPool();
   const teamA    = pool.filter(p => _fixedAssign[normName(p.name)] === 'a');
   const teamB    = pool.filter(p => _fixedAssign[normName(p.name)] === 'b');
-  const spectator = pool.find(p => _fixedAssign[normName(p.name)] == null) || null;
+  const _spectators = pool.filter(p => _fixedAssign[normName(p.name)] == null);
   _pendingRematchTeams = {
     teamA: teamA.map(p => ({...p, tier: getEffectiveTier(p.name, p.manualTier)})),
     teamB: teamB.map(p => ({...p, tier: getEffectiveTier(p.name, p.manualTier)})),
     teamSize: teamA.length,
-    spectator: spectator ? {...spectator} : null,
+    spectators: _spectators.map(s => ({...s})),
+    spectator: _spectators[0] ? {..._spectators[0]} : null,
   };
   closeFixedTeamBuilder();
   document.getElementById('make-teams-btn').disabled = true;
@@ -9800,6 +9887,8 @@ window.resetSession = function() {
   itemsLocked = false;
   currentMatchParticipants = {};
   currentMatchGameTime = 0;
+  currentSpectators = [];
+  allSpectatorPicks = {};
   _champSelectCache = null;
   closeEogOverlay();
   // 정산 관련 상태 초기화 (이전 경기 잔여 데이터 방지)
