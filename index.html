@@ -2114,7 +2114,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.96';
+const APP_VERSION = 'v2.31.98';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2123,6 +2123,11 @@ const APP_VERSION = 'v2.31.96';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.98', date: '2026-04-29', changes: [
+    { tag: 'new',  text: '복권 당첨금을 lotteryHistory 이력 기반으로 계산 — goldBonus 직접 수정 방식 폐기' },
+    { tag: 'new',  text: '복권 구매마다 {ts, date, tier, name, gold} 영구 기록' },
+    { tag: 'fix',  text: '이력 기반으로 소급·재계산 가능한 구조로 변경' },
+  ]},
   { ver: 'v2.31.96', date: '2026-04-29', changes: [
     { tag: 'fix', text: '복권 당첨금이 시즌1 goldBonus_s1이 아닌 S0 필드에 저장되던 치명적 버그 수정 — 당첨금 미지급 문제 해결' },
   ]},
@@ -6625,7 +6630,8 @@ function _openS1ProfileModal(fbKey, player) {
     const _spent   = myGoldEntry[sField('goldSpent')] ?? 0;
     const _achieve = myGoldEntry[sField('achievements')];
     const _pass    = CURRENT_SEASON >= 1 ? calcS1PassGold(myGoldEntry.seasonPassClaimed_s1) : 0;
-    playerGold = Math.max(0, calcGoldFromMatches(name) + _bonus + calcAchievementGold(_achieve) + _pass - _spent);
+    const _lottery = CURRENT_SEASON >= 1 ? calcLotteryGold(myGoldEntry) : 0;
+    playerGold = Math.max(0, calcGoldFromMatches(name) + _bonus + calcAchievementGold(_achieve) + _pass + _lottery - _spent);
   }
 
   // 연승/연패 + 최근 5경기 폼
@@ -8523,6 +8529,10 @@ function calcAchievementGold(claimed) {
     return sum + (a ? a.reward : 0);
   }, 0);
 }
+function calcLotteryGold(data) {
+  if (!data?.lotteryHistory) return 0;
+  return data.lotteryHistory.reduce((sum, h) => sum + (h.gold || 0), 0);
+}
 function getMyGold() {
   const data = getMyGoldData();
   if (!data || !myName) return 0;
@@ -8530,7 +8540,8 @@ function getMyGold() {
   const spentKey = sField('goldSpent');
   const achieveKey = sField('achievements');
   const passGold = CURRENT_SEASON >= 1 ? calcS1PassGold(data.seasonPassClaimed_s1) : 0;
-  const earned = calcGoldFromMatches(myName) + (data[bonusKey] ?? 0) + calcAchievementGold(data[achieveKey]) + passGold;
+  const lotteryGold = CURRENT_SEASON >= 1 ? calcLotteryGold(data) : 0;
+  const earned = calcGoldFromMatches(myName) + (data[bonusKey] ?? 0) + calcAchievementGold(data[achieveKey]) + passGold + lotteryGold;
   const spent = data[spentKey] ?? 0;
   return Math.max(0, earned - spent);
 }
@@ -9312,15 +9323,20 @@ window.buyItem = async function(itemId) {
       return;
     }
     const result = rollLottery();
-    const bonusKey = sField('goldBonus');
     const newGoldSpent = (data[spentKey] ?? 0) + item.price;
-    const newGoldBonus = (data[bonusKey] || 0) + result.gold;
+    const lotteryHistory = [...(data.lotteryHistory || []), {
+      ts: Date.now(),
+      date: today,
+      tier: result.tier,
+      name: result.name,
+      gold: result.gold,
+    }];
     await set(ref(db,'gold/'+key), {
       ...data,
       [spentKey]: newGoldSpent,
-      [bonusKey]: newGoldBonus,
       lotteryDate: today,
       lotteryCount: lotteryCount + 1,
+      lotteryHistory,
     });
     const remainingGold = currentGold - item.price + result.gold;
     showLotteryResult(result, remainingGold);
