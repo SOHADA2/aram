@@ -1030,6 +1030,19 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .inv-slot-icon{font-size:24px;line-height:1;}
 .inv-slot-name{font-size:8px;color:var(--text-dim);text-align:center;line-height:1.2;word-break:keep-all;}
 .inv-slot-dot{position:absolute;top:4px;right:4px;width:5px;height:5px;border-radius:50%;background:var(--green);}
+/* ── 복권 결과 모달 ── */
+.lottery-overlay{position:fixed;inset:0;z-index:3000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.7);backdrop-filter:blur(3px);animation:toastIn 0.2s ease;}
+.lottery-modal{background:linear-gradient(160deg,#0d1829,#112040);border-radius:18px;padding:32px 28px 24px;width:min(320px,90vw);text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.7);display:flex;flex-direction:column;align-items:center;gap:10px;position:relative;overflow:hidden;}
+.lottery-modal.jackpot{border:2px solid #e879f9;box-shadow:0 0 40px rgba(232,121,249,0.3),0 20px 60px rgba(0,0,0,0.7);}
+.lottery-modal.big{border:2px solid var(--gold);box-shadow:0 0 30px rgba(200,168,75,0.25),0 20px 60px rgba(0,0,0,0.7);}
+.lottery-burst{font-size:52px;line-height:1;filter:drop-shadow(0 0 12px currentColor);animation:lotteryBounce 0.5s cubic-bezier(.2,.8,.2,1.4) forwards;}
+@keyframes lotteryBounce{from{transform:scale(0.3);opacity:0;}to{transform:scale(1);opacity:1;}}
+.lottery-tier{font-family:'Black Han Sans',sans-serif;font-size:22px;letter-spacing:1px;margin-top:4px;}
+.lottery-gold-amount{font-family:'Black Han Sans',sans-serif;font-size:38px;letter-spacing:-1px;margin:4px 0;}
+.lottery-remain{font-size:11px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;}
+.lottery-confirm{margin-top:8px;padding:10px 32px;border-radius:8px;border:none;font-family:'Black Han Sans',sans-serif;font-size:14px;cursor:pointer;transition:all 0.15s;}
+@keyframes jackpotShine{0%,100%{opacity:0.4;}50%{opacity:0.9;}}
+.lottery-modal.jackpot::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 40%,rgba(232,121,249,0.06) 60%,transparent 80%);animation:jackpotShine 1.5s ease infinite;}
 .gold-toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:linear-gradient(135deg,rgba(13,24,41,0.97),rgba(17,32,64,0.97));border:1px solid var(--gold);border-radius:10px;padding:12px 24px;font-family:'Black Han Sans',sans-serif;font-size:15px;color:var(--gold);z-index:2000;pointer-events:none;box-shadow:0 4px 24px rgba(0,0,0,0.5),0 0 12px rgba(200,168,75,0.2);white-space:nowrap;animation:toastIn 0.3s ease forwards;}
 .gold-toast.fade-out{animation:toastOut 0.4s ease forwards;}
 @keyframes toastIn{from{opacity:0;transform:translate(-50%,-60%)}to{opacity:1;transform:translate(-50%,-50%)}}
@@ -2055,7 +2068,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.85';
+const APP_VERSION = 'v2.31.86';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2064,6 +2077,9 @@ const APP_VERSION = 'v2.31.85';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.86', date: '2026-04-29', changes: [
+    { tag: 'new', text: '골드 복권 아이템 추가 — 30G·즉시 긁기·1일 3장. 꽝(30%) 5등10G(32%) 4등30G(20%) 3등80G(13%) 2등200G(4%) 잭팟500G(1%). 꽝/5등 토스트·4등↑ 모달·잭팟 특수 연출. 팀잠금 무관' },
+  ]},
   { ver: 'v2.31.85', date: '2026-04-29', changes: [
     { tag: 'remove', text: 'S1 랭킹 티어 구역 구분선 제거' },
   ]},
@@ -2672,6 +2688,7 @@ const ITEM_SVG_ICONS = {
   score2x:        _si('<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'),
   insurance:      _si('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/>'),
   gamble:         _si('<rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="8.5" cy="8.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="15.5" cy="8.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="8.5" cy="15.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="15.5" cy="15.5" r="1.3" fill="currentColor" stroke="none"/>'),
+  lottery:         _si('<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>'),
   // S1
   s1_promo_shield: _si('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 14 12 10 15 14"/>'),
   s1_promo_win:   _si('<polyline points="2 18 5 5 9 13 12 5 15 13 19 5 22 18"/><rect x="2" y="18" width="20" height="3" rx="1"/>'),
@@ -2730,6 +2747,8 @@ const S1_TIER_META = {
 
 // 시즌 1 전용 아이템
 const S1_SHOP_ITEMS = [
+  { id:'lottery', icon:ITEM_SVG_ICONS.lottery, name:'골드 복권', color:'#f59e0b', price:30, type:'lottery',
+    desc:'구매 즉시 결과 · 꽝(30%)~잭팟 500G(1%) · 1일 3장 한도' },
   { id:'s1_promo_shield', icon:ITEM_SVG_ICONS.s1_promo_shield, name:'승급전 방어권', color:'#7dd3fc', price:100, type:'oneshot',
     desc:'승급전 중 패배 시 해당 판 기록 제외 · 승리 시 정상 기록' },
   { id:'s1_promo_win',    icon:ITEM_SVG_ICONS.s1_promo_win,    name:'승급전 승리권', color:'#ffd700', price:100, type:'oneshot',
@@ -9025,8 +9044,8 @@ function renderShop() {
   // ── 상점 리스트 ─────────────────────────────────────────
   const _shopList = CURRENT_SEASON >= 1 ? S1_SHOP_ITEMS : SHOP_ITEMS;
   document.getElementById('shop-list').innerHTML = _shopList.map(item => {
-    const owned    = myItems.filter(i=>i.id===item.id).length;
-    const canBuy   = myGold >= item.price && !itemsLocked;
+    const owned    = item.type === 'lottery' ? 0 : myItems.filter(i=>i.id===item.id).length;
+    const canBuy   = myGold >= item.price && (item.type === 'lottery' || !itemsLocked);
     const nameColor = item.color || 'var(--text)';
     return `<div class="sli">
       <div class="sli-icon" style="color:${nameColor};">${item.icon}</div>
@@ -9036,7 +9055,7 @@ function renderShop() {
       </div>
       <div class="sli-right">
         <button class="sli-price" ${!canBuy?'disabled':''} onclick="buyItem('${item.id}')">
-          ${itemsLocked?'🔒':'🪙'+item.price+'G'}
+          ${(itemsLocked && item.type !== 'lottery')?'🔒':'🪙'+item.price+'G'}
         </button>
         ${owned>0?`<div class="sli-owned">보유 ${owned}개</div>`:''}
         <button class="shop-item-help-btn" data-tip="item_${item.id}">?</button>
@@ -9086,6 +9105,45 @@ window.toggleItemHelp = function(btn) {
   }
 };
 
+function rollLottery() {
+  const r = Math.random() * 100;
+  if (r < 30)  return { tier:0, name:'꽝!',        gold:0,   emoji:'😭', color:'#f87171' };
+  if (r < 62)  return { tier:5, name:'5등 당첨',   gold:10,  emoji:'🎟️', color:'#94a3b8' };
+  if (r < 82)  return { tier:4, name:'4등 당첨',   gold:30,  emoji:'✨', color:'#60a5fa' };
+  if (r < 95)  return { tier:3, name:'3등 당첨',   gold:80,  emoji:'🎉', color:'var(--green)' };
+  if (r < 99)  return { tier:2, name:'2등 대당첨', gold:200, emoji:'🎊', color:'var(--gold)' };
+  return         { tier:1, name:'잭팟!!!',          gold:500, emoji:'💎', color:'#e879f9' };
+}
+
+function showLotteryResult(result, remainingGold) {
+  // tier 0,5 → 토스트, tier 4 → 파란 토스트, tier 3↑ → 모달
+  if (result.tier === 0) {
+    showGoldToast(`😭 꽝! 다음 기회에... (🪙${remainingGold}G 남음)`);
+    return;
+  }
+  if (result.tier === 5) {
+    showGoldToast(`🎟️ 5등 당첨 +${result.gold}G! (🪙${remainingGold}G 남음)`);
+    return;
+  }
+  // tier 3 이상 → 모달
+  const isJackpot = result.tier === 1;
+  const isBig     = result.tier === 2;
+  const modalCls  = isJackpot ? 'jackpot' : isBig ? 'big' : '';
+  const btnColor  = isJackpot ? '#e879f9' : isBig ? 'var(--gold)' : 'var(--green)';
+  const el = document.createElement('div');
+  el.className = 'lottery-overlay';
+  el.innerHTML = `<div class="lottery-modal ${modalCls}">
+    <div class="lottery-burst" style="color:${result.color};">${result.emoji}</div>
+    <div class="lottery-tier" style="color:${result.color};">${result.name}</div>
+    <div class="lottery-gold-amount" style="color:${result.color};">+${result.gold}G</div>
+    <div class="lottery-remain">🪙 현재 보유 ${remainingGold}G</div>
+    <button class="lottery-confirm" style="background:${btnColor};color:#0a0e1a;"
+      onclick="this.closest('.lottery-overlay').remove()">확인</button>
+  </div>`;
+  el.addEventListener('click', e => { if (e.target === el) el.remove(); });
+  document.body.appendChild(el);
+}
+
 window.buyItem = async function(itemId) {
   if (itemsLocked) { showGoldToast('🔒 팀 구성 후에는 구매할 수 없어요!'); return; }
   const key = getMyGoldKey();
@@ -9101,6 +9159,31 @@ window.buyItem = async function(itemId) {
   }
   const spentKey = sField('goldSpent');
   const itemsKey = sField('items');
+
+  // 복권 전용 처리
+  if (item.type === 'lottery') {
+    const today = getLocalDateKey();
+    const lotteryDate  = data.lotteryDate || '';
+    const lotteryCount = lotteryDate === today ? (data.lotteryCount || 0) : 0;
+    if (lotteryCount >= 3) {
+      showGoldToast('🎰 오늘 복권은 모두 사용했어요! (1일 3장 한도)');
+      return;
+    }
+    const result = rollLottery();
+    const newGoldSpent = (data[spentKey] ?? 0) + item.price;
+    const newGoldBonus = (data.goldBonus || 0) + result.gold;
+    await set(ref(db,'gold/'+key), {
+      ...data,
+      [spentKey]: newGoldSpent,
+      goldBonus: newGoldBonus,
+      lotteryDate: today,
+      lotteryCount: lotteryCount + 1,
+    });
+    const remainingGold = currentGold - item.price + result.gold;
+    showLotteryResult(result, remainingGold);
+    return;
+  }
+
   const newGoldSpent = (data[spentKey] ?? 0) + item.price;
   const newItems = [...(data[itemsKey]||[]), {id:itemId, boughtAt:Date.now(), active:false}];
   await set(ref(db,'gold/'+key), {...data, [spentKey]:newGoldSpent, [itemsKey]:newItems});
