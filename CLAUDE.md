@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.31.79
+- 현재 버전: v2.32.3
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -29,6 +29,11 @@
   teamSize: number
   mode: 'balance' | 'random'
   isEventMatch: boolean
+  spectator: string | null      // 관전자 이름 (단일, 하위 호환)
+  spectators: string[] | null   // 전체 관전자 목록 (v2.32.2~, 11명 이상 시 다수)
+  spectatorPick: string | null  // 첫 번째 관전자 예측 (하위 호환)
+  spectatorPicks: { [normName]: string } | null  // 다중 관전자 각자 예측
+  spectatorPickStartAt: number  // 예측 모달 시작 시각
   // onValue로 모든 기기에 실시간 동기화됨 (일반 매치만, 이벤트 매치는 제외)
 
 /matches/{key}
@@ -41,6 +46,16 @@
   size: number
   season: number                // 경기 시즌 (v2.29.x~)
   itemEffects: { [playerNormName]: string[] }  // 사용된 아이템 효과
+  gameTime: number              // 게임 시간(초) — 브릿지 v1.1.6 자동 수집
+  participants: { [normName]: {  // 브릿지 자동 수집 플레이어 상세
+    champion, kills, deaths, assists, damage, gold, cs,
+    items: number[],            // 아이템 ID 배열 (0 제외)
+    augments: number[],         // ARAM 증강 ID 배열
+    doubleKills, tripleKills, quadraKills, pentaKills: number,
+    firstBlood: boolean
+  } }
+  spectatorPicks: { [normName]: { pick: 'blue'|'red', correct: boolean } }  // 다중 관전자 예측 (v2.32.2~)
+  // 하위 호환: spectatorName, spectatorPick, spectatorCorrect (단일 관전자 레거시)
 
 /gold/{key}
   name: string
@@ -48,6 +63,11 @@
   items: array                  // 보유 아이템 (시즌 0)
   gold_s1, items_s1, goldSpent_s1 ...  // 시즌 N 필드 (sField() 로 접근)
   retroApplied: boolean         // 소급 계산 완료 여부
+  goldMigV2: boolean            // S0 마이그레이션 재실행 방지 가드 (v2.32.0~)
+  lotteryHistory: array         // 복권 구매·당첨 이력 (v2.31.98~)
+  lotteryCount: number          // 오늘 복권 구매 횟수 (lotteryDate 날짜 기준 리셋)
+  lotteryDate: string           // lotteryCount 기준 날짜 (YYYY-MM-DD)
+  lotteryRefundApplied: boolean // 구버전 복권 환불 완료 플래그 (v2.31.99~)
 
 /config/currentSeason            // 현재 시즌 번호 (0 또는 1)
 /config/riotApiKey               // Riot API Key (24h 갱신)
