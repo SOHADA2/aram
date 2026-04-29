@@ -2132,7 +2132,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.32.2';
+const APP_VERSION = 'v2.32.4';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2141,6 +2141,9 @@ const APP_VERSION = 'v2.32.2';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.32.4', date: '2026-04-29', changes: [
+    { tag: 'improve', text: '브릿지 다운로드 링크 개선 — GitHub API에서 실제 asset URL 동적으로 가져옴 (버전명 포함 파일명 정확히 연결). 브릿지 v1.1.7 릴리즈 (cleanup 버그 수정, 빌드 파일명에 버전 자동 포함)' },
+  ]},
   { ver: 'v2.32.2', date: '2026-04-29', changes: [
     { tag: 'new', text: '11명 이상 자동 5v5 — 10명 초과 인원은 자동으로 관전자 배정, 다중 관전자 각자 독립 승리팀 예측 지원 (적중 시 각자 +50G)' },
   ] },
@@ -3489,13 +3492,18 @@ onValue(ref(db, 'session/manner'), (snapshot) => {
 
 
 // ── BRIDGE STATUS ─────────────────────────────────────────────
-const BRIDGE_DOWNLOAD_URL = 'https://github.com/SOHADA2/aram-bridge/releases/latest/download/aram-bridge.exe';
+const BRIDGE_DOWNLOAD_URL = 'https://github.com/SOHADA2/aram-bridge/releases/latest';
 (function() {
   const el = document.getElementById('bridge-dl-link');
   if (el) el.href = BRIDGE_DOWNLOAD_URL;
   fetch('https://api.github.com/repos/SOHADA2/aram-bridge/releases/latest')
     .then(r => r.json())
-    .then(d => { if (el && d.tag_name) el.textContent = `LCU 브릿지 다운로드 ${d.tag_name}`; })
+    .then(d => {
+      if (!el) return;
+      if (d.tag_name) el.textContent = `LCU 브릿지 다운로드 ${d.tag_name}`;
+      const asset = d.assets?.find(a => a.name.endsWith('.exe'));
+      if (asset?.browser_download_url) el.href = asset.browser_download_url;
+    })
     .catch(() => {});
 })();
 
