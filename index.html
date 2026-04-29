@@ -983,6 +983,15 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .shop-owned-badge{position:absolute;top:7px;left:7px;font-size:8px;background:rgba(0,199,122,0.15);border:1px solid rgba(0,199,122,0.4);color:var(--green);border-radius:8px;padding:1px 6px;}
 .shop-item-help-btn{position:absolute;top:7px;right:7px;width:15px;height:15px;border-radius:50%;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.2);font-size:8px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.2s;padding:0;font-family:'Noto Sans KR',sans-serif;line-height:1;}
 .shop-item-help-btn:hover{border-color:rgba(255,255,255,0.35);color:rgba(255,255,255,0.6);background:rgba(255,255,255,0.14);}
+.shop-item-tooltip{display:none;position:absolute;right:0;bottom:calc(100% + 6px);z-index:200;background:#0d1829;border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:10px 12px;min-width:190px;box-shadow:0 8px 24px rgba(0,0,0,0.6);pointer-events:auto;}
+.shop-item-tooltip.open,.shop-item-help-btn:hover+.shop-item-tooltip{display:block;}
+.ltt-title{font-size:10px;font-weight:700;color:var(--gold);margin-bottom:7px;letter-spacing:0.5px;}
+.ltt-row{display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:10px;padding:2.5px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+.ltt-row:last-of-type{border-bottom:none;}
+.ltt-row span:first-child{flex:1;}
+.ltt-row span:nth-child(2){font-weight:700;min-width:34px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:9.5px;}
+.ltt-row span:last-child{color:var(--text-dim);min-width:26px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:9px;}
+.ltt-note{margin-top:7px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08);font-size:9px;color:var(--text-dim);text-align:center;}
 /* ── 내 아이템 ── */
 .my-item-row{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;}
 .my-item-icon{font-size:22px;flex-shrink:0;}
@@ -1009,7 +1018,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 }
 .sp-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;flex:1;min-width:0;}
 .sp-header{font-family:'Black Han Sans',sans-serif;font-size:13px;letter-spacing:1px;color:var(--gold);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(200,155,60,0.2);}
-.sli{display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:7px;transition:border-color 0.15s;}
+.sli{display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:7px;transition:border-color 0.15s;position:relative;}
 .sli:last-child{margin-bottom:0;}
 .sli:hover{border-color:rgba(200,155,60,0.35);}
 .sli-icon{width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-size:26px;border-radius:8px;background:rgba(255,255,255,0.04);flex-shrink:0;}
@@ -2068,7 +2077,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.86';
+const APP_VERSION = 'v2.31.87';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2077,6 +2086,9 @@ const APP_VERSION = 'v2.31.86';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.87', date: '2026-04-29', changes: [
+    { tag: 'improve', text: '복권 ? 확률표 툴팁 추가 — 호버 또는 클릭 시 잭팟~꽝 6등급 당첨금·확률 표시. 기댓값·1일 3장 안내 포함' },
+  ]},
   { ver: 'v2.31.86', date: '2026-04-29', changes: [
     { tag: 'new', text: '골드 복권 아이템 추가 — 30G·즉시 긁기·1일 3장. 꽝(30%) 5등10G(32%) 4등30G(20%) 3등80G(13%) 2등200G(4%) 잭팟500G(1%). 꽝/5등 토스트·4등↑ 모달·잭팟 특수 연출. 팀잠금 무관' },
   ]},
@@ -9058,7 +9070,18 @@ function renderShop() {
           ${(itemsLocked && item.type !== 'lottery')?'🔒':'🪙'+item.price+'G'}
         </button>
         ${owned>0?`<div class="sli-owned">보유 ${owned}개</div>`:''}
-        <button class="shop-item-help-btn" data-tip="item_${item.id}">?</button>
+        ${item.type === 'lottery' ? `
+        <button class="shop-item-help-btn" onclick="toggleItemHelp(this)">?</button>
+        <div class="shop-item-tooltip">
+          <div class="ltt-title">📊 당첨 확률표</div>
+          <div class="ltt-row"><span>💎 잭팟</span><span style="color:#e879f9">500G</span><span>1%</span></div>
+          <div class="ltt-row"><span>🎊 2등</span><span style="color:var(--gold)">200G</span><span>4%</span></div>
+          <div class="ltt-row"><span>🎉 3등</span><span style="color:var(--green)">80G</span><span>13%</span></div>
+          <div class="ltt-row"><span>✨ 4등</span><span style="color:#60a5fa">30G</span><span>20%</span></div>
+          <div class="ltt-row"><span>🎟️ 5등</span><span style="color:#94a3b8">10G</span><span>32%</span></div>
+          <div class="ltt-row"><span>😭 꽝</span><span style="color:#f87171">0G</span><span>30%</span></div>
+          <div class="ltt-note">1일 3장 한도 · 기댓값 약 27G</div>
+        </div>` : `<button class="shop-item-help-btn" data-tip="item_${item.id}">?</button>`}
       </div>
     </div>`;
   }).join('');
