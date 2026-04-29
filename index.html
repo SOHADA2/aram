@@ -1425,6 +1425,11 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .s1p-tab-dot{position:absolute;top:3px;right:8px;width:8px;height:8px;background:#ffd700;border-radius:50%;animation:s1pDotBlink 1.1s ease-in-out infinite;pointer-events:none;box-shadow:0 0 6px rgba(255,215,0,0.7);}
 @keyframes s1pDotBlink{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.25;transform:scale(0.6);}}
 .s1p-unlock-hint{display:flex;align-items:flex-start;gap:8px;background:rgba(255,215,0,0.06);border:1px solid rgba(255,215,0,0.18);border-radius:8px;padding:9px 12px;font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.55;}
+.s1p-claimed-section{border:1px solid var(--border);border-radius:8px;margin-bottom:5px;overflow:hidden;}
+.s1p-claimed-summary{display:flex;align-items:center;padding:9px 13px;font-size:11px;font-weight:700;cursor:pointer;user-select:none;list-style:none;color:var(--text-dim);background:var(--surface2);}
+.s1p-claimed-summary::-webkit-details-marker{display:none;}
+.s1p-claimed-section[open]>.s1p-claimed-summary{border-bottom:1px solid var(--border);}
+.s1p-claimed-body{display:flex;flex-direction:column;gap:5px;padding:8px;background:var(--surface2);}
 .s1p-claim-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;animation:taFadeIn 0.2s ease;}
 .s1p-claim-box{background:var(--surface);border:1px solid rgba(200,168,75,0.4);border-radius:14px;padding:20px;max-width:420px;width:100%;max-height:80vh;overflow-y:auto;box-shadow:0 16px 48px rgba(0,0,0,0.6);}
 .s1p-claim-header{text-align:center;margin-bottom:14px;padding-bottom:12px;border-bottom:1px dashed rgba(255,255,255,0.1);}
@@ -2132,7 +2137,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.32.5';
+const APP_VERSION = 'v2.32.6';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2141,6 +2146,9 @@ const APP_VERSION = 'v2.32.5';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.32.6', date: '2026-04-29', changes: [
+    { tag: 'improve', text: '시즌 패스 완료 퀘스트 접기 — 이미 보상을 받은 퀘스트는 "완료 N개 — 펼쳐보기" 섹션으로 접어서 진행 중인 퀘스트가 바로 보이도록 개선' },
+  ]},
   { ver: 'v2.32.5', date: '2026-04-29', changes: [
     { tag: 'fix', text: '모바일 상점 내 아이템 패널 너비 버그 수정 — #shop-panels의 align-items:flex-start가 column 전환 시에도 유지되어 인벤토리 패널이 콘텐츠 너비만큼만 렌더되던 문제. align-items:stretch 추가 + 모바일에서 인벤 슬롯 4열→3열 전환으로 아이콘·텍스트 크기 개선' },
   ]},
@@ -7494,7 +7502,8 @@ window.renderS1Pass = function renderS1Pass() {
     ? `모든 ${S1_PASS_MAX_LEVEL}개 퀘스트를 완료했어요`
     : nextQuest ? `다음: ${nextQuest.icon} ${nextQuest.name} — ${nextQuest.desc}` : '';
 
-  const questsHtml = S1_PASS_QUESTS.map(q => {
+  const claimedRows = [], activeRows = [], lockedRows = [];
+  S1_PASS_QUESTS.forEach(q => {
     const reward = s1PassRewardForLevel(q.lv);
     const isClaimed = !!claimed[q.lv];
     const isCurrent = q.lv === currentLv + 1;
@@ -7526,7 +7535,7 @@ window.renderS1Pass = function renderS1Pass() {
       isLocked && 'locked',
     ].filter(Boolean).join(' ');
 
-    return `<div class="${rowCls}">
+    const rowHtml = `<div class="${rowCls}">
       <div class="s1p-lv-badge">${q.milestone?'⭐':''} LV ${q.lv}</div>
       <div class="s1p-lv-quest">
         <div class="s1p-lv-qname">${q.icon} ${q.name}</div>
@@ -7535,7 +7544,21 @@ window.renderS1Pass = function renderS1Pass() {
       <div class="s1p-lv-reward">🪙 ${reward}G${q.milestone?'<span class="s1p-lv-milestone">마일</span>':''}</div>
       <div class="s1p-lv-right">${rightHtml}</div>
     </div>`;
-  }).join('');
+
+    if (isClaimed) claimedRows.push(rowHtml);
+    else if (isCurrent) activeRows.push(rowHtml);
+    else lockedRows.push(rowHtml);
+  });
+
+  let questsHtml = '';
+  if (claimedRows.length > 0) {
+    questsHtml += `<details class="s1p-claimed-section">
+      <summary class="s1p-claimed-summary">✅ 완료 ${claimedRows.length}개 — 펼쳐보기</summary>
+      <div class="s1p-claimed-body">${claimedRows.join('')}</div>
+    </details>`;
+  }
+  questsHtml += activeRows.join('');
+  questsHtml += lockedRows.join('');
 
   // 현재 진행 상황 요약 (패스 오픈 이후 전체 기록)
   const statLines = [
