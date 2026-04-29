@@ -2130,7 +2130,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.99';
+const APP_VERSION = 'v2.32.0';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2139,6 +2139,10 @@ const APP_VERSION = 'v2.31.99';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.32.0', date: '2026-04-29', changes: [
+    { tag: 'fix', text: '신규 플레이어 S1 골드 데이터 초기화 버그 수정 — S1 중 등록 시 S0 마이그레이션이 goldSpent_s1·items_s1·lotteryHistory를 덮어쓰는 문제' },
+    { tag: 'fix', text: 'selectMyName push · seedGoldForAllPlayers push · S1 데이터 있는 경우 마이그레이션 스킵 가드 추가' },
+  ]},
   { ver: 'v2.31.99', date: '2026-04-29', changes: [
     { tag: 'new', text: '복권 환불 팝업 — 버그 수정 전 구매자에게 구매비(30G×장수) 자동 환불 안내' },
     { tag: 'new', text: '확인 버튼 클릭 시 즉시 lotteryHistory에 환불 기록 및 S1 골드 반영' },
@@ -3144,25 +3148,32 @@ async function seedGoldForAllPlayers() {
   for (const name of allNames) {
     const entry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(name));
     if (!entry) {
-      // 신규: goldSpent=0으로 등록
+      // 신규: goldSpent=0으로 등록 (goldMigV2:true로 S0 마이그레이션 스킵)
       await push(ref(db,'gold'), {
         name,
         [sField('goldSpent')]: 0,
         [sField('items')]: [],
         retroApplied: true,
+        goldMigV2: true,
       });
     } else {
       const [k, d] = entry;
       // 마이그레이션 필요: gold 필드 있거나(구버전), goldMigV2 플래그 없으면 재계산
+      // S1 필드가 있으면 스킵 (S1 중 등록된 플레이어가 S0 마이그레이션에 덮어쓰이지 않도록 보호)
       if (!d.goldMigV2) {
-        const goldSpent = calcGoldSpentFromItems(d.items);
-        await set(ref(db,'gold/'+k), {
-          name: d.name,
-          goldSpent,
-          items: d.items || [],
-          retroApplied: true,
-          goldMigV2: true,
-        });
+        const hasS1Data = d[sField('goldSpent')] !== undefined || d[sField('items')];
+        if (CURRENT_SEASON >= 1 && hasS1Data) {
+          await update(ref(db,'gold/'+k), { goldMigV2: true });
+        } else {
+          const goldSpent = calcGoldSpentFromItems(d.items);
+          await set(ref(db,'gold/'+k), {
+            name: d.name,
+            goldSpent,
+            items: d.items || [],
+            retroApplied: true,
+            goldMigV2: true,
+          });
+        }
       }
       // 업적 골드 동적 계산 방식 마이그레이션 (achieveMigV1 플래그 없으면 실행)
       if (!d.achieveMigV1 && d.achievements) {
@@ -9144,12 +9155,13 @@ window.selectMyName = async function(name) {
   localStorage.setItem('myName', name);
   const existEntry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(name));
   if (!existEntry) {
-    // Firebase에 없음 → 최초 등록 (골드는 경기 기록 기반 동적 계산)
+    // Firebase에 없음 → 최초 등록 (goldMigV2:true로 S0 마이그레이션 스킵)
     await push(ref(db,'gold'), {
       name,
       [sField('goldSpent')]: 0,
       [sField('items')]: [],
       retroApplied: true,
+      goldMigV2: true,
     });
     const earned = calcGoldFromMatches(name);
     showGoldToast(`✅ ${name} 등록! 기존 전적 기반 🪙${earned} 보유!`);
