@@ -1018,7 +1018,12 @@ body.member-mode #event-no-save-notice{display:none!important;}
   .inv-slot-name{font-size:9.5px;}
 }
 .sp-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;flex:1;min-width:0;}
-.sp-header{font-family:'Black Han Sans',sans-serif;font-size:13px;letter-spacing:1px;color:var(--gold);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(200,155,60,0.2);}
+.sp-header{font-family:'Black Han Sans',sans-serif;font-size:13px;letter-spacing:1px;color:var(--gold);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(200,155,60,0.2);}
+.sp-cat-tabs{display:flex;gap:6px;margin-bottom:12px;}
+.sp-cat-tab{flex:1;padding:5px 0;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--text-dim);font-family:'Noto Sans KR',sans-serif;font-size:10.5px;font-weight:700;cursor:pointer;transition:all 0.15s;}
+.sp-cat-tab.active{background:rgba(200,155,60,0.15);border-color:rgba(200,155,60,0.5);color:var(--gold);}
+.sp-cat-tab:hover:not(.active){border-color:rgba(255,255,255,0.2);color:var(--text);}
+.sp-cat-empty{text-align:center;padding:24px 16px;color:var(--text-dim);font-size:12px;line-height:1.7;}
 .sli{display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:7px;transition:border-color 0.15s;position:relative;}
 .sli:last-child{margin-bottom:0;}
 .sli:hover{border-color:rgba(200,155,60,0.35);}
@@ -1933,10 +1938,18 @@ img.emoji{
   <div id="shop-panels" style="display:none;">
     <div class="sp-panel">
       <div class="sp-header">아이템 상점</div>
+      <div class="sp-cat-tabs">
+        <button class="sp-cat-tab active" id="shop-cat-consume" onclick="switchShopCat('consume')">소비 아이템</button>
+        <button class="sp-cat-tab" id="shop-cat-equip" onclick="switchShopCat('equip')">장비 아이템</button>
+      </div>
       <div id="shop-list"></div>
     </div>
     <div class="sp-panel">
-      <div class="sp-header">인벤토리</div>
+      <div class="sp-header">내 아이템</div>
+      <div class="sp-cat-tabs">
+        <button class="sp-cat-tab active" id="inv-cat-consume" onclick="switchInvCat('consume')">소비 아이템</button>
+        <button class="sp-cat-tab" id="inv-cat-equip" onclick="switchInvCat('equip')">장비 아이템</button>
+      </div>
       <div class="item-lock-banner" id="item-lock-banner">
         <div class="item-lock-icon">🔒</div>
         <div class="item-lock-text">
@@ -2071,6 +2084,8 @@ let selectedWinner = null;
 let myName = localStorage.getItem('myName') || null; // 본인 닉네임
 let liveMode = !!localStorage.getItem('liveMode');   // 라이브 모드
 let itemsLocked = false; // 팀 구성 후 아이템 잠금 여부
+let shopCatTab = 'consume';
+let invCatTab  = 'consume';
 let _pendingRematchTeams = null; // 한 판 더: { teamA, teamB, teamSize, spectator }
 let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
@@ -2078,7 +2093,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.89';
+const APP_VERSION = 'v2.31.90';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2087,6 +2102,11 @@ const APP_VERSION = 'v2.31.89';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.90', date: '2026-04-29', changes: [
+    { tag: 'new',     text: '상점·내 아이템 소비/장비 카테고리 탭 추가' },
+    { tag: 'improve', text: '인벤토리 패널 이름 "내 아이템"으로 변경' },
+    { tag: 'fix',     text: '아이템 구매 토스트에 SVG 코드 노출 버그 수정 (innerHTML 처리)' },
+  ]},
   { ver: 'v2.31.89', date: '2026-04-29', changes: [
     { tag: 'fix', text: '복권 ? 버튼 겹침 완전 수정 — position:absolute 제거, sli-right 내 정상 흐름 배치. 툴팁 기준점 sli-right로 변경' },
   ]},
@@ -5432,7 +5452,7 @@ function autoConfirmManner() {
 window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffects, tierChanges, s1LpBefore, questEvent, spectatorResult, mvpWinner, mvpLoser, mannerWinner, mannerLoser }) {
   document.querySelector('.match-summary-overlay')?.remove();
   const ITEM_ICONS = ITEM_SVG_ICONS;
-  const ITEM_NAMES = { score2x: '승점 2배', insurance: '패배 방어', gamble: '도박 주사위', s1_gamble: '도박권', s1_promo_win: '승급전 승리권', s1_promo_shield: '승급전 방어권' };
+  const ITEM_NAMES = { score2x: '승점 2배', insurance: '패배 방어', gamble: '도박 주사위', lottery: '골드 복권', s1_gamble: '도박권', s1_promo_win: '승급전 승리권', s1_promo_shield: '승급전 방어권' };
 
   function playerRow(name, isWin) {
     const effects = itemEffects[normName(name)] || [];
@@ -9045,6 +9065,20 @@ window.doAttendance = async function() {
   showGoldToast(`🪙 +${GOLD_ATTEND} 출석 보너스!`);
 };
 
+// 상점/인벤토리 카테고리 탭 전환
+window.switchShopCat = function(cat) {
+  shopCatTab = cat;
+  document.getElementById('shop-cat-consume')?.classList.toggle('active', cat==='consume');
+  document.getElementById('shop-cat-equip')?.classList.toggle('active', cat==='equip');
+  renderShop();
+};
+window.switchInvCat = function(cat) {
+  invCatTab = cat;
+  document.getElementById('inv-cat-consume')?.classList.toggle('active', cat==='consume');
+  document.getElementById('inv-cat-equip')?.classList.toggle('active', cat==='equip');
+  renderShop();
+};
+
 // 상점 렌더링
 function renderShop() {
   const noUser  = document.getElementById('shop-no-user');
@@ -9062,7 +9096,11 @@ function renderShop() {
 
   // ── 상점 리스트 ─────────────────────────────────────────
   const _shopList = CURRENT_SEASON >= 1 ? S1_SHOP_ITEMS : SHOP_ITEMS;
-  document.getElementById('shop-list').innerHTML = _shopList.map(item => {
+  const isConsumeType = t => t === 'oneshot' || t === 'lottery';
+  const shopFiltered = _shopList.filter(item => shopCatTab === 'equip' ? !isConsumeType(item.type) : isConsumeType(item.type));
+  document.getElementById('shop-list').innerHTML = shopFiltered.length === 0
+    ? `<div class="sp-cat-empty">🔧 준비 중인 아이템이에요.<br>곧 장비 아이템이 추가될 예정이에요!</div>`
+    : shopFiltered.map(item => {
     const owned    = item.type === 'lottery' ? 0 : myItems.filter(i=>i.id===item.id).length;
     const canBuy   = myGold >= item.price && (item.type === 'lottery' || !itemsLocked);
     const nameColor = item.color || 'var(--text)';
@@ -9094,25 +9132,39 @@ function renderShop() {
   }).join('');
 
   // ── 인벤토리 그리드 ──────────────────────────────────────
-  const SLOT_CNT = Math.max(myItems.length + 4, 8);
   const allDefs  = [...SHOP_ITEMS, ...S1_SHOP_ITEMS];
-  const slots = [];
-  for (let i = 0; i < SLOT_CNT; i++) {
-    const item = myItems[i];
-    if (!item) { slots.push('<div class="inv-slot inv-slot-empty"></div>'); continue; }
+  // 카테고리 필터링: consume = oneshot/lottery, equip = 그 외
+  const filteredItems = myItems.filter((item, _i) => {
     const def = allDefs.find(s=>s.id===item.id);
-    if (!def)  { slots.push('<div class="inv-slot inv-slot-empty"></div>'); continue; }
-    const isActive   = !!item.active;
-    const nameColor  = def.color || 'var(--text)';
-    const lockedCls  = itemsLocked ? ' inv-locked' : '';
-    const clickAttr  = itemsLocked ? '' : `onclick="toggleItemActive(${i})"`;
-    slots.push(`<div class="inv-slot${isActive?' inv-active':''}${lockedCls}" ${clickAttr} title="${def.name}">
-      ${isActive?'<div class="inv-slot-dot"></div>':''}
-      <div class="inv-slot-icon" style="color:${nameColor};">${def.icon}</div>
-      <div class="inv-slot-name">${def.name}</div>
-    </div>`);
+    if (!def) return false;
+    const isCon = isConsumeType(def.type);
+    return invCatTab === 'equip' ? !isCon : isCon;
+  });
+  const invEl = document.getElementById('inv-grid');
+  if (filteredItems.length === 0 && invCatTab === 'equip') {
+    invEl.innerHTML = '<div class="sp-cat-empty" style="grid-column:1/-1">🔧 보유한 장비 아이템이 없어요.</div>';
+  } else {
+    const SLOT_CNT = Math.max(filteredItems.length + 4, 8);
+    const slots = [];
+    for (let i = 0; i < SLOT_CNT; i++) {
+      const item = filteredItems[i];
+      if (!item) { slots.push('<div class="inv-slot inv-slot-empty"></div>'); continue; }
+      const def = allDefs.find(s=>s.id===item.id);
+      if (!def)  { slots.push('<div class="inv-slot inv-slot-empty"></div>'); continue; }
+      // 실제 myItems 인덱스를 찾아야 toggleItemActive가 올바르게 동작함
+      const realIdx = myItems.indexOf(item);
+      const isActive   = !!item.active;
+      const nameColor  = def.color || 'var(--text)';
+      const lockedCls  = itemsLocked ? ' inv-locked' : '';
+      const clickAttr  = itemsLocked ? '' : `onclick="toggleItemActive(${realIdx})"`;
+      slots.push(`<div class="inv-slot${isActive?' inv-active':''}${lockedCls}" ${clickAttr} title="${def.name}">
+        ${isActive?'<div class="inv-slot-dot"></div>':''}
+        <div class="inv-slot-icon" style="color:${nameColor};">${def.icon}</div>
+        <div class="inv-slot-name">${def.name}</div>
+      </div>`);
+    }
+    invEl.innerHTML = slots.join('');
   }
-  document.getElementById('inv-grid').innerHTML = slots.join('');
 }
 // 아이템 구매
 // 아이템 상점 ? 툴팁 토글 (모바일: 탭, PC: hover는 CSS로 처리)
@@ -9335,7 +9387,7 @@ function showGoldToast(msg) {
   const old = document.getElementById('gold-toast');
   if (old) old.remove();
   const el = document.createElement('div');
-  el.id='gold-toast'; el.className='gold-toast'; el.textContent=msg;
+  el.id='gold-toast'; el.className='gold-toast'; el.innerHTML=msg;
   document.body.appendChild(el);
   setTimeout(()=>{
     el.classList.add('fade-out');
