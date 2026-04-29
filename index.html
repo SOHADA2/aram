@@ -1455,6 +1455,23 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .s1-promo-dot.l{background:var(--red);border-color:var(--red);}
 .s1-promo-dot.p{background:rgba(255,255,255,0.1);}
 .s1-promo-label{font-size:9px;color:var(--rk-gold);font-weight:700;margin-left:3px;}
+/* ── 승률 바 (S0 랭킹) ── */
+.rk-winrate-strip{display:flex;align-items:center;gap:5px;margin-top:7px;padding-top:6px;border-top:1px dashed var(--rk-dash);}
+.rk-winrate-bg{flex:1;min-width:30px;height:4px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;}
+.rk-winrate-fill{height:100%;border-radius:2px;transition:width 0.3s ease;}
+.rk-winrate-lbl{font-size:9px;font-family:'JetBrains Mono',monospace;font-weight:600;color:var(--rk-text-dim);white-space:nowrap;}
+.rk-mini-wr{display:flex;align-items:center;gap:4px;margin-top:4px;}
+.rk-mini-wr .rk-winrate-bg{height:3px;}
+.rk-mini-wr .rk-winrate-lbl{font-size:8px;}
+/* ── S1 히어로 LP 바 강화 ── */
+.s1-lp-wrap.hero-lp{margin-top:auto;padding-top:7px;border-top:1px dashed var(--rk-dash);}
+.rk-hero .s1-lp-bar-bg{height:5px;border-radius:3px;}
+.rk-hero .s1-lp-num{font-size:10px;min-width:38px;}
+.rk-hero .s1-promo-dot{width:9px;height:9px;}
+.rk-hero .s1-promo-label{font-size:11px;}
+.rk-hero .s1-placement-tag{font-size:11px;}
+/* ── S1 미니카드 LP 바 ── */
+.rk-mini-lp{margin-top:4px;}
 /* ── 연승/연패 뱃지 ── */
 /* ── 연승/연패 인라인 텍스트 ── */
 .streak-inline{font-size:9px;font-weight:700;letter-spacing:0.3px;white-space:nowrap;flex-shrink:0;opacity:0.85;}
@@ -2014,7 +2031,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.81';
+const APP_VERSION = 'v2.31.82';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2023,6 +2040,9 @@ const APP_VERSION = 'v2.31.81';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.82', date: '2026-04-29', changes: [
+    { tag: 'improve', text: '랭킹 승률 바 + S1 LP 바 강화 — S0 히어로/미니 카드에 승률 바(W/L·% + 60%↑녹/50%↑금/이하적) 추가. S1 히어로 LP 바 전체폭·5px로 확대. S1 미니 LP 바를 right→main 컬럼으로 이동해 넓게 표시' },
+  ]},
   { ver: 'v2.31.81', date: '2026-04-29', changes: [
     { tag: 'improve', text: '상점 모바일 반응형 개선 — 540px 이하에서 상점/인벤토리 세로 배치. 아이템 아이콘 52px·이름 14px·설명 11.5px·구매 버튼 13px·인벤 슬롯 28px 등 전반적 크기 확대' },
   ]},
@@ -7458,6 +7478,9 @@ function renderRankHeroCard(r, place, hasChallenger) {
   const scoreNum = r.games >= 3 && r.score != null
     ? `<span class="num">${r.score.toLocaleString()}</span><span class="pt">pt</span>`
     : `<span class="num dim">—</span>`;
+  const wr = r.games > 0 ? Math.round(r.wins / r.games * 100) : null;
+  const wrColor = wr === null ? '' : wr >= 60 ? 'var(--green)' : wr >= 50 ? 'var(--rk-gold)' : '#f87171';
+  const wrBar = wr !== null ? `<div class="rk-winrate-strip"><div class="rk-winrate-bg"><div class="rk-winrate-fill" style="width:${wr}%;background:${wrColor};"></div></div><span class="rk-winrate-lbl">${r.wins}W ${r.losses}L · ${wr}%</span></div>` : '';
   return `<div class="rk-hero ${cls}${meCls}" data-name="${escHtml(r.name)}">
     <div class="glow"></div>
     <div class="hatch"></div>
@@ -7478,6 +7501,7 @@ function renderRankHeroCard(r, place, hasChallenger) {
       ${dots || '<span></span>'}
       <div class="rk-hero-score">${scoreNum}</div>
     </div>
+    ${wrBar}
   </div>`;
 }
 
@@ -7490,6 +7514,9 @@ function renderRankMiniCard(r, displayRank, hasChallenger) {
     ? `<span class="num">${r.score.toLocaleString()}</span><span class="pt">pt</span>`
     : `<span class="num dim">—</span>`;
   const rankStr = hasChallenger ? displayRank : '';
+  const wr = r.games > 0 ? Math.round(r.wins / r.games * 100) : null;
+  const wrColor = wr === null ? '' : wr >= 60 ? 'var(--green)' : wr >= 50 ? 'var(--rk-gold)' : '#f87171';
+  const wrMini = wr !== null ? `<div class="rk-mini-wr"><div class="rk-winrate-bg"><div class="rk-winrate-fill" style="width:${wr}%;background:${wrColor};"></div></div><span class="rk-winrate-lbl">${wr}%</span></div>` : '';
   return `<div class="rk-mini${meCls}" data-name="${escHtml(r.name)}">
     <div class="stripe" style="background:${tierColor};"></div>
     <div class="rk-mini-rank">${rankStr}</div>
@@ -7501,6 +7528,7 @@ function renderRankMiniCard(r, displayRank, hasChallenger) {
       </div>
       ${r.motto ? `<div class="rk-mini-motto">"${escHtml(r.motto)}"</div>` : ''}
       <div class="rk-mini-meta">${dots}${chips}</div>
+      ${wrMini}
     </div>
     <div class="rk-mini-right">
       ${renderRankTierBadge(r.tier, 'mini')}
@@ -9753,9 +9781,8 @@ function renderS1HeroCard(r, place, hasChallenger) {
     <div class="rk-hero-name${hasChallenger&&place===1?' rk-name-gold':''}">${escHtml(r.name)}</div>
     ${r.motto?`<div class="rk-hero-motto">"${escHtml(r.motto)}"</div>`:''}
     ${chips?`<div class="rk-hero-chips">${chips}</div>`:''}
-    <div class="rk-hero-bottom"><span></span>
-      <div class="s1-lp-wrap">${s1LpBarHtml(r.d)}</div>
-    </div>
+    <div class="rk-hero-bottom"><span></span></div>
+    <div class="s1-lp-wrap hero-lp">${s1LpBarHtml(r.d)}</div>
   </div>`;
 }
 
@@ -9773,10 +9800,10 @@ function renderS1MiniCard(r, displayRank, hasChallenger) {
         ${r.me?renderRankMeTag(true):''}
       </div>
       ${r.motto?`<div class="rk-mini-motto">"${escHtml(r.motto)}"</div>`:''}
+      <div class="rk-mini-lp">${s1LpBarHtml(r.d)}</div>
     </div>
     <div class="rk-mini-right">
       ${s1TierBadgeHtml(r.tier,'mini')}
-      <div class="s1-lp-wrap" style="margin-top:3px;">${s1LpBarHtml(r.d)}</div>
     </div>
   </div>`;
 }
