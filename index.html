@@ -1472,6 +1472,30 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .rk-hero .s1-placement-tag{font-size:11px;}
 /* ── S1 미니카드 LP 바 ── */
 .rk-mini-lp{margin-top:4px;}
+/* ── 티어 구역 구분선 ── */
+.rk-tier-divider{display:flex;align-items:center;gap:8px;padding:10px 2px 4px;}
+.rk-tier-divider-line{flex:1;height:1px;background:currentColor;opacity:0.2;}
+.rk-tier-divider-label{font-size:10px;font-family:'Black Han Sans',sans-serif;letter-spacing:1px;white-space:nowrap;}
+/* ── 승급전 패널 ── */
+.rk-promo-panel{display:flex;align-items:center;gap:6px;margin-top:5px;padding:5px 8px;background:rgba(255,200,0,0.07);border:1px solid rgba(255,200,0,0.22);border-radius:6px;}
+.rk-promo-panel-title{font-size:9px;font-weight:700;color:var(--rk-gold);white-space:nowrap;}
+.rk-promo-dots-lg{display:flex;align-items:center;gap:4px;}
+.rk-promo-dot-lg{width:11px;height:11px;border-radius:50%;border:1.5px solid rgba(255,255,255,0.15);flex-shrink:0;}
+.rk-promo-dot-lg.w{background:var(--green);border-color:var(--green);box-shadow:0 0 4px rgba(0,199,122,0.5);}
+.rk-promo-dot-lg.l{background:#f87171;border-color:#f87171;box-shadow:0 0 4px rgba(248,113,113,0.4);}
+.rk-promo-dot-lg.p{background:rgba(255,255,255,0.07);}
+.rk-promo-score{font-size:9px;color:var(--rk-text-dim);font-family:'JetBrains Mono',monospace;margin-left:auto;white-space:nowrap;}
+/* ── 히어로 승급전 패널 ── */
+.rk-hero-promo-wrap{margin-top:auto;padding-top:7px;border-top:1px dashed var(--rk-dash);}
+.rk-hero-promo-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.rk-hero-promo-title{font-size:10px;font-weight:700;color:var(--rk-gold);}
+.rk-hero-promo-score{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--rk-text-dim);}
+.rk-hero-promo-wrap .rk-promo-dots-lg{gap:7px;}
+.rk-hero-promo-wrap .rk-promo-dot-lg{width:14px;height:14px;}
+/* ── 승급전 중인 미니카드 강조 ── */
+.rk-mini.in-promo{border-color:rgba(255,200,0,0.3);box-shadow:0 0 10px rgba(255,200,0,0.08);}
+@keyframes promoStripe{from{opacity:0.55;}to{opacity:1;}}
+.rk-mini.in-promo .stripe{animation:promoStripe 1.4s ease-in-out infinite alternate;}
 /* ── 연승/연패 뱃지 ── */
 /* ── 연승/연패 인라인 텍스트 ── */
 .streak-inline{font-size:9px;font-weight:700;letter-spacing:0.3px;white-space:nowrap;flex-shrink:0;opacity:0.85;}
@@ -2031,7 +2055,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.31.83';
+const APP_VERSION = 'v2.31.84';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2040,6 +2064,9 @@ const APP_VERSION = 'v2.31.83';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.31.84', date: '2026-04-29', changes: [
+    { tag: 'improve', text: 'S1 랭킹 티어 구역 분리 + 승급전 강조 — 4위↓ 리스트에 정상권/상위권/중위권/하위권/배치중 구분선. 승급전 중 카드: 골드 테두리+stripe 점멸, 미니카드 승급전 패널(도트+W/L), 히어로카드 전체폭 승급전 패널' },
+  ]},
   { ver: 'v2.31.83', date: '2026-04-29', changes: [
     { tag: 'fix', text: 'S0 랭킹 승률 바 제거 — S1 전용 업데이트만 유지. S1 히어로 LP 바 전체폭·5px 강화 + S1 미니 LP 바 main 컬럼 이동 유지' },
   ]},
@@ -9692,6 +9719,31 @@ function s1TierBadgeHtml(tier, size) {
   return `<span class="s1-tier-badge ${meta.cls}" style="${style}">${meta.label}</span>`;
 }
 
+function getS1TierGroup(tier) {
+  if (['challenger','grandmaster','master'].includes(tier)) return { label:'정상권', color:'#e84057' };
+  if (['diamond','platinum'].includes(tier))               return { label:'상위권', color:'#64a0f0' };
+  if (['gold','silver'].includes(tier))                    return { label:'중위권', color:'#ffd700' };
+  return { label:'하위권', color:'#cd7f32' };
+}
+
+function renderS1PromoPanelHtml(d) {
+  const w = d.promoWins || 0, l = d.promoLosses || 0;
+  const dots = [0,1,2].map(i => {
+    const cls = i < w ? 'w' : (i - w < l ? 'l' : 'p');
+    return `<span class="rk-promo-dot-lg ${cls}"></span>`;
+  }).join('');
+  return `<div class="rk-promo-panel"><span class="rk-promo-panel-title">승급전</span><div class="rk-promo-dots-lg">${dots}</div><span class="rk-promo-score">${w}승 ${l}패</span></div>`;
+}
+
+function renderS1HeroPromoHtml(d) {
+  const w = d.promoWins || 0, l = d.promoLosses || 0;
+  const dots = [0,1,2].map(i => {
+    const cls = i < w ? 'w' : (i - w < l ? 'l' : 'p');
+    return `<span class="rk-promo-dot-lg ${cls}"></span>`;
+  }).join('');
+  return `<div class="rk-hero-promo-wrap"><div class="rk-hero-promo-head"><span class="rk-hero-promo-title">🔥 승급전 진행 중</span><span class="rk-hero-promo-score">${w}승 ${l}패</span></div><div class="rk-promo-dots-lg">${dots}</div></div>`;
+}
+
 function renderS1Ranking() {
   const el = document.getElementById('rank-list');
   if (!el) return;
@@ -9739,12 +9791,21 @@ function renderS1Ranking() {
     const rest = placed.slice(3);
     if (rest.length > 0) {
       html += `<div class="rk-list">`;
-      rest.forEach((r,i) => html += renderS1MiniCard(r, i+4, hasChallenger));
+      let lastGroupLabel = null;
+      rest.forEach((r, i) => {
+        const grp = getS1TierGroup(r.tier);
+        if (grp.label !== lastGroupLabel) {
+          html += `<div class="rk-tier-divider" style="color:${grp.color};"><div class="rk-tier-divider-line"></div><span class="rk-tier-divider-label">${grp.label}</span><div class="rk-tier-divider-line"></div></div>`;
+          lastGroupLabel = grp.label;
+        }
+        html += renderS1MiniCard(r, i+4, hasChallenger);
+      });
       html += `</div>`;
     }
   }
   if (unplaced.length > 0) {
-    html += `<div class="rk-list" style="margin-top:12px;opacity:0.7;">`;
+    html += `<div class="rk-list" style="margin-top:4px;opacity:0.7;">`;
+    html += `<div class="rk-tier-divider" style="color:#666;"><div class="rk-tier-divider-line"></div><span class="rk-tier-divider-label">배치 중</span><div class="rk-tier-divider-line"></div></div>`;
     unplaced.forEach(r => html += renderS1MiniCard(r, hasChallenger ? '—' : '', hasChallenger));
     html += `</div>`;
   }
@@ -9777,15 +9838,19 @@ function renderS1HeroCard(r, place, hasChallenger) {
     ${r.motto?`<div class="rk-hero-motto">"${escHtml(r.motto)}"</div>`:''}
     ${chips?`<div class="rk-hero-chips">${chips}</div>`:''}
     <div class="rk-hero-bottom"><span></span></div>
-    <div class="s1-lp-wrap hero-lp">${s1LpBarHtml(r.d)}</div>
+    ${r.d.promoActive ? renderS1HeroPromoHtml(r.d) : `<div class="s1-lp-wrap hero-lp">${s1LpBarHtml(r.d)}</div>`}
   </div>`;
 }
 
 function renderS1MiniCard(r, displayRank, hasChallenger) {
-  const meta  = S1_TIER_META[r.tier] || S1_TIER_META.unranked;
-  const meCls = r.me ? ' me' : '';
+  const meta    = S1_TIER_META[r.tier] || S1_TIER_META.unranked;
+  const meCls   = r.me ? ' me' : '';
+  const promoCls = r.d.promoActive ? ' in-promo' : '';
   const rankStr = hasChallenger ? displayRank : '';
-  return `<div class="rk-mini${meCls}" data-name="${escHtml(r.name)}" style="cursor:pointer;">
+  const lpSection = r.d.promoActive
+    ? renderS1PromoPanelHtml(r.d)
+    : `<div class="rk-mini-lp">${s1LpBarHtml(r.d)}</div>`;
+  return `<div class="rk-mini${meCls}${promoCls}" data-name="${escHtml(r.name)}" style="cursor:pointer;">
     <div class="stripe" style="background:${meta.color};"></div>
     <div class="rk-mini-rank">${rankStr}</div>
     <div class="rk-mini-main">
@@ -9795,7 +9860,7 @@ function renderS1MiniCard(r, displayRank, hasChallenger) {
         ${r.me?renderRankMeTag(true):''}
       </div>
       ${r.motto?`<div class="rk-mini-motto">"${escHtml(r.motto)}"</div>`:''}
-      <div class="rk-mini-lp">${s1LpBarHtml(r.d)}</div>
+      ${lpSection}
     </div>
     <div class="rk-mini-right">
       ${s1TierBadgeHtml(r.tier,'mini')}
