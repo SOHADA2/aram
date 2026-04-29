@@ -8721,6 +8721,43 @@ window.applyLotteryRefund = async function(key) {
   if (overlay) overlay.remove();
   showGoldToast(`🎟️ 복권 ${count}장 구매비 <b>+${refundGold}G</b> 환불 완료!`);
 };
+
+// ── 복권 환불자 감사 (콘솔에서 auditLotteryRefund() 호출) ───────
+window.auditLotteryRefund = function() {
+  const today = getLocalDateKey();
+  const rows = [];
+  for (const [key, d] of Object.entries(goldData)) {
+    if (!d.lotteryRefundApplied) continue;
+    const count  = d.lotteryCount || 0;
+    const date   = d.lotteryDate  || '(없음)';
+    const active = date === today && count > 0; // 오늘 슬롯 차감 중인지
+    rows.push({ key, name: d.name, count, date, active });
+  }
+  if (!rows.length) { console.log('[복권] lotteryRefundApplied 대상 없음'); return []; }
+  console.group(`[복권 환불자 목록] 총 ${rows.length}명`);
+  rows.forEach(r => console.log(
+    `${r.name.padEnd(14)} | 횟수: ${r.count} | 구매일: ${r.date}${r.active ? '  ⚠️ 오늘 슬롯 소모됨' : ''}`
+  ));
+  console.groupEnd();
+  return rows;
+};
+
+// ── 복권 환불자 횟수 초기화 (콘솔에서 fixLotteryRefundCounts() 호출) ─
+window.fixLotteryRefundCounts = async function() {
+  const rows = window.auditLotteryRefund();
+  if (!rows.length) return;
+  let fixed = 0;
+  for (const r of rows) {
+    if (r.count === 0) { console.log(`${r.name} — 이미 0, 건너뜀`); continue; }
+    const d = goldData[r.key];
+    if (!d) continue;
+    await update(ref(db, 'gold/' + r.key), { lotteryCount: 0, lotteryDate: '' });
+    console.log(`✅ ${r.name} — lotteryCount ${r.count} → 0 초기화`);
+    fixed++;
+  }
+  console.log(`[완료] ${fixed}명 횟수 초기화`);
+  if (fixed > 0) showGoldToast(`🎟️ 복권 환불자 ${fixed}명 구매 슬롯 초기화 완료`);
+};
 function getMyGold() {
   const data = getMyGoldData();
   if (!data || !myName) return 0;
