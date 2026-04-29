@@ -2130,7 +2130,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.32.0';
+const APP_VERSION = 'v2.32.1';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2139,6 +2139,9 @@ const APP_VERSION = 'v2.32.0';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.32.1', date: '2026-04-29', changes: [
+    { tag: 'new', text: '브릿지 v1.1.6 연동 — 아이템·ARAM증강·멀티킬·퍼스트블러드·게임시간 데이터를 matches에 저장 (시즌 패스 퀘스트 및 향후 통계 활용)' },
+  ] },
   { ver: 'v2.32.0', date: '2026-04-29', changes: [
     { tag: 'fix', text: '신규 플레이어 S1 골드 데이터 초기화 버그 수정 — S1 중 등록 시 S0 마이그레이션이 goldSpent_s1·items_s1·lotteryHistory를 덮어쓰는 문제' },
     { tag: 'fix', text: 'selectMyName push · seedGoldForAllPlayers push · S1 데이터 있는 경우 마이그레이션 스킵 가드 추가' },
@@ -3593,13 +3596,20 @@ async function applyEogData(data) {
     const key = matchedPlayer ? normName(matchedPlayer.name) : sn;
     const slug = champIdToSlug[String(p.championId)] || '';
     pts[key] = {
-      champion: slug,
-      kills:    p.kills   || 0,
-      deaths:   p.deaths  || 0,
-      assists:  p.assists  || 0,
-      damage:   p.damage  || 0,
-      gold:     p.gold    || 0,
-      cs:       p.cs      || 0,
+      champion:    slug,
+      kills:       p.kills   || 0,
+      deaths:      p.deaths  || 0,
+      assists:     p.assists  || 0,
+      damage:      p.damage  || 0,
+      gold:        p.gold    || 0,
+      cs:          p.cs      || 0,
+      items:       p.items      || [],
+      augments:    p.augments   || [],
+      doubleKills: p.doubleKills || 0,
+      tripleKills: p.tripleKills || 0,
+      quadraKills: p.quadraKills || 0,
+      pentaKills:  p.pentaKills  || 0,
+      firstBlood:  p.firstBlood  || false,
     };
   }
   // 다중 브릿지 가드: 75% 미만 매치면 다른 게임 데이터로 추정 (v2.31.21~).
@@ -3612,6 +3622,7 @@ async function applyEogData(data) {
     return;
   }
   currentMatchParticipants = pts;
+  currentMatchGameTime = data.gameTime || 0;
 
   // 2. 승팀 자동 선택 — 플레이어 매칭 확인 후에만 실행
   if (data.winSide && !selectedWinner) {
@@ -3620,7 +3631,7 @@ async function applyEogData(data) {
 
   // 3. 라이브 계정 → Firebase 동기화 (다른 기기도 받을 수 있게)
   if (liveMode) {
-    set(ref(db, 'bridge/matchData'), { participants: pts, winSide: data.winSide, syncedAt: Date.now() });
+    set(ref(db, 'bridge/matchData'), { participants: pts, winSide: data.winSide, gameTime: data.gameTime || 0, syncedAt: Date.now() });
   }
   showEogOverlay(data.winSide);
 }
@@ -3649,6 +3660,7 @@ onValue(ref(db, 'bridge/matchData'), async (snap) => {
   if (matchedCount < minMatch) return;
   await loadChampNamesKR();
   currentMatchParticipants = data.participants;
+  if (data.gameTime) currentMatchGameTime = data.gameTime;
   if (data.winSide && !selectedWinner) {
     selectWinner(data.winSide);
   }
@@ -4955,6 +4967,7 @@ window.makeTeams = function() {
   mannerVotes = { teamA: {}, teamB: {} };
   mannerConfirmed = null;
   currentMatchParticipants = {}; // 이전 게임 참가자 데이터 초기화
+  currentMatchGameTime = 0;
   // 팀 구성 완료 → 아이템 잠금
   itemsLocked = true;
   renderShop();
@@ -5007,6 +5020,7 @@ async function loadChampNamesKR() {
 }
 
 let currentMatchParticipants = {}; // normName → {champion, kills, ...} (경기 기록 연동 시 사용)
+let currentMatchGameTime    = 0;   // 게임 시간(초) — 브릿지에서 수신
 let currentRiotMatchId = null;    // Riot match ID (저장 시 Firebase에 기록)
 function champCardHtml(p, selectedName, onclick) {
   const sel     = selectedName === p.name;
@@ -5745,6 +5759,7 @@ window.saveMatch = async function() {
       goldVersion: 2,
       season: CURRENT_SEASON,
     };
+    if (currentMatchGameTime > 0) matchData.gameTime = currentMatchGameTime;
     // 관전자 예측 데이터
     if (currentSpectator && spectatorPick) {
       const spectatorCorrect = spectatorPick === selectedWinner;
@@ -9784,6 +9799,7 @@ window.resetSession = function() {
   teamSize = 3;
   itemsLocked = false;
   currentMatchParticipants = {};
+  currentMatchGameTime = 0;
   _champSelectCache = null;
   closeEogOverlay();
   // 정산 관련 상태 초기화 (이전 경기 잔여 데이터 방지)
