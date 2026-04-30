@@ -2142,7 +2142,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.33.0';
+const APP_VERSION = 'v2.33.1';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2151,6 +2151,9 @@ const APP_VERSION = 'v2.33.0';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.33.1', date: '2026-04-30', changes: [
+    { tag: 'fix', text: '증강 데이터 소스 교체 — cdragon/arena(ID 최대 405)에서 rcp-be-lol-game-data cherry-augments(567종, ID 1000대 포함)로 변경. 한국어 로케일(ko_kr) 이름 표시' },
+  ]},
   { ver: 'v2.33.0', date: '2026-04-30', changes: [
     { tag: 'improve', text: '경기 상세 — 증강 아이콘 표시: Community Dragon에서 증강 데이터 로드 후 아이콘+이름(hover) 표시. 매핑 실패 시 ID 폴백' },
   ]},
@@ -5138,19 +5141,19 @@ async function loadChampNamesKR() {
   } catch(e) {}
 }
 
-// 증강 데이터 (Community Dragon — Arena/ARAM 증강)
+// 증강 데이터 (Community Dragon cherry-augments — Arena/ARAM 칼바람 증강)
 let augmentMap = {}; // id → {name, icon}
 async function loadAugmentData() {
   if (Object.keys(augmentMap).length > 0) return;
   try {
-    const res = await fetch('https://raw.communitydragon.org/latest/cdragon/arena/en_us.json');
-    const data = await res.json();
-    const base = 'https://raw.communitydragon.org/latest/game/';
-    for (const aug of (data.augments || [])) {
-      augmentMap[aug.id] = {
-        name: aug.name || `증강 #${aug.id}`,
-        icon: aug.iconSmall ? base + aug.iconSmall.toLowerCase() : '',
-      };
+    const res = await fetch('https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/ko_kr/v1/cherry-augments.json');
+    const list = await res.json();
+    const iconBase = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default';
+    for (const aug of list) {
+      const iconPath = aug.augmentSmallIconPath
+        ? iconBase + aug.augmentSmallIconPath.replace('/lol-game-data/assets', '').toLowerCase()
+        : '';
+      augmentMap[aug.id] = { name: aug.nameTRA || `#${aug.id}`, icon: iconPath };
     }
   } catch(e) {}
 }
