@@ -1498,6 +1498,20 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .ms-footer{padding:10px 14px;border-top:1px solid var(--rk-border);display:flex;justify-content:center;}
 .ms-footer .btn{width:100%;justify-content:center;}
 .eog-overlay{position:fixed;inset:0;z-index:2800;background:rgba(10,14,26,0.97);display:flex;flex-direction:column;align-items:center;overflow-y:auto;padding:20px 16px 40px;animation:taFadeIn 0.3s ease;}
+.promo-notif-backdrop{position:fixed;inset:0;z-index:3100;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;animation:taFadeIn 0.25s ease;}
+.promo-notif-card{background:#161b22;border:1px solid #30363d;border-radius:16px;padding:32px 28px 24px;width:min(340px,90vw);text-align:center;animation:promoCardIn 0.3s cubic-bezier(.34,1.56,.64,1);}
+@keyframes promoCardIn{from{opacity:0;transform:scale(.85) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.promo-notif-icon{font-size:42px;margin-bottom:12px;}
+.promo-notif-title{font-family:'Black Han Sans',sans-serif;font-size:22px;letter-spacing:1px;margin-bottom:6px;}
+.promo-notif-sub{font-size:13px;color:#8b949e;margin-bottom:20px;}
+.promo-tier-row{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:20px;}
+.promo-tier-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;font-size:14px;font-weight:700;background:#0d1117;}
+.promo-arrow{font-size:18px;color:#484f58;}
+.promo-dots{display:flex;gap:8px;justify-content:center;margin-bottom:8px;}
+.promo-dot{width:14px;height:14px;border-radius:50%;background:#30363d;}
+.promo-dots-label{font-size:11px;color:#484f58;margin-bottom:20px;}
+.promo-notif-btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;transition:opacity .15s;}
+.promo-notif-btn:hover{opacity:.85;}
 .eog-win-banner{text-align:center;padding:28px 0 20px;width:100%;max-width:420px;}
 .eog-win-title{font-family:'Black Han Sans',sans-serif;font-size:26px;letter-spacing:2px;margin-bottom:6px;}
 .eog-win-title.blue{color:var(--blue);}
@@ -5560,6 +5574,7 @@ function champCardHtml(p, selectedName, onclick) {
 let matchSaved = false; // 현재 팀 결과 저장 여부
 let _saveInProgress = false; // saveMatch 진행 중 동기 잠금 (중복 저장 방지)
 let _s1LpSnapshot = null; // showMatchSummary용 S1 LP 스냅샷 (pre-match)
+let _pendingPromoNotif = null; // 정산 닫힌 후 표시할 승급전 알림 { type:'start'|'success'|'fail', tier, fromTier, toTier }
 
 let _initialSessionLoaded = false;
 let _justMadeTeams = false;
@@ -6222,8 +6237,96 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
 
 window.closeMatchSummary = function() {
   const overlay = document.querySelector('.match-summary-overlay');
-  if (overlay) { overlay.style.animation = 'taFadeOut 0.25s ease forwards'; setTimeout(() => overlay.remove(), 280); }
+  if (overlay) {
+    overlay.style.animation = 'taFadeOut 0.25s ease forwards';
+    setTimeout(() => { overlay.remove(); _showPendingPromoNotif(); }, 280);
+  } else {
+    _showPendingPromoNotif();
+  }
 };
+
+function _closePromoNotif() {
+  const el = document.getElementById('promo-notif-backdrop');
+  if (!el) return;
+  el.style.animation = 'taFadeOut 0.2s ease forwards';
+  setTimeout(() => el.remove(), 220);
+}
+
+function _showPendingPromoNotif() {
+  const notif = _pendingPromoNotif;
+  if (!notif) return;
+  _pendingPromoNotif = null;
+  if (CURRENT_SEASON < 1) return;
+
+  const m = S1_TIER_META;
+
+  if (notif.type === 'start') {
+    const meta = m[notif.tier] || m.bronze;
+    const nextMeta = m[s1NextTier(notif.tier)] || meta;
+    document.getElementById('promo-notif-backdrop')?.remove();
+    const el = document.createElement('div');
+    el.id = 'promo-notif-backdrop';
+    el.className = 'promo-notif-backdrop';
+    el.innerHTML = `
+      <div class="promo-notif-card">
+        <div class="promo-notif-icon">⚔️</div>
+        <div class="promo-notif-title" style="color:${meta.color}">승급전 돌입!</div>
+        <div class="promo-notif-sub">${nextMeta.label} 승급까지 2승이 필요해요</div>
+        <div class="promo-tier-row">
+          <span class="promo-tier-badge" style="border:1.5px solid ${meta.color};color:${meta.color}">${meta.label}</span>
+          <span class="promo-arrow">→</span>
+          <span class="promo-tier-badge" style="border:1.5px solid ${nextMeta.color};color:${nextMeta.color}">${nextMeta.label}</span>
+        </div>
+        <div class="promo-dots">
+          <div class="promo-dot" style="background:#30363d"></div>
+          <div class="promo-dot" style="background:#30363d"></div>
+          <div class="promo-dot" style="background:#30363d"></div>
+        </div>
+        <div class="promo-dots-label">3판 2선승제</div>
+        <button class="promo-notif-btn" style="background:${meta.color};color:#0d1117" onclick="_closePromoNotif()">파이팅!</button>
+      </div>`;
+    document.body.appendChild(el);
+
+  } else if (notif.type === 'success') {
+    const fromMeta = m[notif.fromTier] || m.bronze;
+    const toMeta   = m[notif.toTier]   || m.bronze;
+    document.getElementById('promo-notif-backdrop')?.remove();
+    const el = document.createElement('div');
+    el.id = 'promo-notif-backdrop';
+    el.className = 'promo-notif-backdrop';
+    el.innerHTML = `
+      <div class="promo-notif-card">
+        <div class="promo-notif-icon">🎉</div>
+        <div class="promo-notif-title" style="color:${toMeta.color}">승급!</div>
+        <div class="promo-notif-sub">승급전을 통과했어요</div>
+        <div class="promo-tier-row">
+          <span class="promo-tier-badge" style="border:1.5px solid ${fromMeta.color};color:${fromMeta.color};opacity:.6">${fromMeta.label}</span>
+          <span class="promo-arrow">→</span>
+          <span class="promo-tier-badge" style="border:1.5px solid ${toMeta.color};color:${toMeta.color}">${toMeta.label}</span>
+        </div>
+        <button class="promo-notif-btn" style="background:${toMeta.color};color:#0d1117" onclick="_closePromoNotif()">확인</button>
+      </div>`;
+    document.body.appendChild(el);
+
+  } else if (notif.type === 'fail') {
+    const meta = m[notif.tier] || m.bronze;
+    document.getElementById('promo-notif-backdrop')?.remove();
+    const el = document.createElement('div');
+    el.id = 'promo-notif-backdrop';
+    el.className = 'promo-notif-backdrop';
+    el.innerHTML = `
+      <div class="promo-notif-card">
+        <div class="promo-notif-icon">😔</div>
+        <div class="promo-notif-title" style="color:#8b949e">승급전 실패</div>
+        <div class="promo-notif-sub">다음에 다시 도전해요</div>
+        <div class="promo-tier-row">
+          <span class="promo-tier-badge" style="border:1.5px solid ${meta.color};color:${meta.color}">${meta.label} · 75 LP</span>
+        </div>
+        <button class="promo-notif-btn" style="background:#21262d;color:#e6edf3;border:1px solid #30363d" onclick="_closePromoNotif()">확인</button>
+      </div>`;
+    document.body.appendChild(el);
+  }
+}
 
 // 개발용: 콘솔에서 승점 비교 (임시)
 window._debugScoreCompare = function() {
@@ -10624,6 +10727,9 @@ function s1PromoFail(d) {
 async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = false, iAmNewbie = false) {
   const key = normName(name);
   let d = season1Data[key] ? { ...season1Data[key] } : s1DefaultPlayer();
+  const isMe = myName && normName(name) === normName(myName);
+  const _prePromoActive = d.promoActive;
+  const _preTier = d.tier;
 
   // 승급 직후 1판 보호 플래그 소모 (이번 게임에서 사용하고 초기화)
   const wasNewlyPromoted = !!(d.newlyPromoted);
@@ -10665,6 +10771,10 @@ async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = f
     } else {
       if (won) { d.promoWins=(d.promoWins||0)+1; if(d.promoWins>=2) d=s1PromoSuccess(d); }
       else     { d.promoLosses=(d.promoLosses||0)+1; if(d.promoLosses>=2) d=s1PromoFail(d); }
+    }
+    if (isMe) {
+      if (_prePromoActive && !d.promoActive && d.tier !== _preTier) _pendingPromoNotif = { type:'success', fromTier:_preTier, toTier:d.tier };
+      else if (_prePromoActive && !d.promoActive) _pendingPromoNotif = { type:'fail', tier:d.tier };
     }
     await s1SavePlayer(name, d);
     return;
@@ -10714,6 +10824,7 @@ async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = f
       d.lp = Math.max(0, newLp);
     }
   }
+  if (isMe && !_prePromoActive && d.promoActive) _pendingPromoNotif = { type:'start', tier:d.tier };
   await s1SavePlayer(name, d);
 }
 
