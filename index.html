@@ -2137,7 +2137,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.32.7';
+const APP_VERSION = 'v2.32.8';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2146,6 +2146,9 @@ const APP_VERSION = 'v2.32.7';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.32.8', date: '2026-04-30', changes: [
+    { tag: 'improve', text: '관전자 투표창 즉시 표시 — 관전자 본인 기기는 팀 발표 오버레이와 하단 배너가 공존 가능해 팀 구성 직후(0.5초) 즉시 투표 배너 표시. 투표 버튼에 팀원 이름 표시 추가로 누가 1팀·2팀인지 바로 확인 가능' },
+  ]},
   { ver: 'v2.32.7', date: '2026-04-30', changes: [
     { tag: 'fix', text: '프로필 ⚙️ 편집 버튼 먹통 수정 — S1 프로필 모달 본문이 .pm-s1-body 클래스를 사용하는데 openEditInModal이 .profile-modal-body만 탐색해 null 리턴되던 버그. 두 선택자 모두 폴백 탐색하도록 수정' },
   ]},
@@ -3347,13 +3350,23 @@ function applySessionData(data) {
   }
   if (!data.spectatorPick && currentSpectators.length > 0 && data.spectatorPickStartAt && !_justMadeTeams) {
     // 예측 미완료 + 다른 기기에서 팀 구성받음 → 남은 시간으로 배너 표시
-    // spectatorPickStartAt은 팀 발표 종료 시점(미래)을 가리킴
     spectatorPick = null;
     _spectatorPickAnnounced = false;
     const now = Date.now();
-    const pickStartAt = data.spectatorPickStartAt;
-    if (now < pickStartAt) {
-      // 아직 팀 발표 진행 중 → 팀 발표 종료 후 모달 표시
+    const pickStartAt = data.spectatorPickStartAt; // 팀 발표 종료 시점
+    const myNorm = normName(myName || '');
+    const amSpectator = !!(myNorm && currentSpectators.some(s => normName(s.name) === myNorm));
+    if (amSpectator) {
+      // 관전자 본인: 팀 발표 오버레이와 겹쳐도 하단 배너라 OK → 즉시 표시
+      if (!document.getElementById('sp-overlay') && !spectatorPickTimer) {
+        const elapsed = now > pickStartAt ? Math.floor((now - pickStartAt) / 1000) : 0;
+        const remaining = Math.max(5, 25 - elapsed);
+        setTimeout(() => {
+          if (!document.getElementById('sp-overlay') && !spectatorPickTimer) showSpectatorPickModal(remaining);
+        }, 500);
+      }
+    } else if (now < pickStartAt) {
+      // 팀 발표 진행 중 → 중앙 오버레이 충돌 방지 위해 발표 종료 후 표시
       const delayMs = pickStartAt - now;
       if (!document.getElementById('sp-overlay') && !spectatorPickTimer) {
         setTimeout(() => {
@@ -4462,6 +4475,8 @@ function showSpectatorPickModal(seconds = 15) {
 
   if (isMe) {
     // 관전자 본인 → 하단 배너 (팀 구성 확인하면서 투표)
+    const t1Names = currentTeamA.map(p => escHtml(p.name)).join(', ');
+    const t2Names = currentTeamB.map(p => escHtml(p.name)).join(', ');
     overlay.className = 'sp-overlay';
     overlay.innerHTML = `<div class="sp-sheet" onclick="event.stopPropagation()">
       <div class="sp-emoji">🎲</div>
@@ -4469,8 +4484,14 @@ function showSpectatorPickModal(seconds = 15) {
       <div class="sp-sub">어느 팀이 이길 것 같나요?<br>적중 시 🪙<strong>+${GOLD_SPECTATOR_CORRECT}G</strong> 지급</div>
       <div class="sp-timer" id="sp-timer">${seconds}</div>
       <div class="sp-btns">
-        <button class="sp-pick-btn team1" onclick="spectatorPickTeam('blue')">1팀 승리</button>
-        <button class="sp-pick-btn team2" onclick="spectatorPickTeam('red')">2팀 승리</button>
+        <button class="sp-pick-btn team1" onclick="spectatorPickTeam('blue')">
+          <span style="font-size:11px;opacity:0.8;display:block;margin-bottom:2px;">${t1Names}</span>
+          1팀 승리
+        </button>
+        <button class="sp-pick-btn team2" onclick="spectatorPickTeam('red')">
+          <span style="font-size:11px;opacity:0.8;display:block;margin-bottom:2px;">${t2Names}</span>
+          2팀 승리
+        </button>
       </div>
       <div class="sp-hint">미선택 시 자동으로 랜덤 선택됩니다</div>
     </div>`;
