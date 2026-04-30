@@ -1151,6 +1151,11 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .match-detail-stat-val{font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;}
 .match-detail-stat-lbl{font-size:9px;color:var(--text-dim);}
 .match-detail-no-data{font-size:11px;color:var(--text-dim);text-align:center;padding:8px 0;}
+.match-detail-fb{font-size:9px;font-weight:700;color:#f87171;background:rgba(248,113,113,0.15);border:1px solid rgba(248,113,113,0.3);border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle;}
+.match-detail-gametime{font-size:11px;color:var(--text-dim);margin-left:6px;}
+.match-detail-items{display:flex;flex-wrap:wrap;gap:4px;padding:6px 6px 2px;}
+.match-detail-item-img{width:26px;height:26px;border-radius:4px;border:1px solid var(--border);object-fit:cover;}
+.match-detail-item-empty{width:26px;height:26px;border-radius:4px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);}
 .match-member-icon{width:18px;height:18px;border-radius:3px;object-fit:cover;vertical-align:middle;margin-right:4px;border:1px solid rgba(255,255,255,0.1);}
 .match-item{transition:border-color 0.15s,box-shadow 0.15s;cursor:pointer;}
 .match-item:hover{border-color:var(--rk-border-strong);box-shadow:0 2px 12px rgba(0,0,0,0.25);}
@@ -2137,7 +2142,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.32.8';
+const APP_VERSION = 'v2.32.9';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2146,6 +2151,9 @@ const APP_VERSION = 'v2.32.8';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.32.9', date: '2026-04-30', changes: [
+    { tag: 'improve', text: '경기 상세 — 브릿지 추가 데이터 표시: 게임 시간(헤더 ⏱), 퍼스트블러드 배지, 멀티킬 배지(더블/트리플/쿼드라/펜타), 아이템 6칸 아이콘, 증강 ID (증강 이름 매핑 추후 예정)' },
+  ]},
   { ver: 'v2.32.8', date: '2026-04-30', changes: [
     { tag: 'improve', text: '관전자 투표창 즉시 표시 — 관전자 본인 기기는 팀 발표 오버레이와 하단 배너가 공존 가능해 팀 구성 직후(0.5초) 즉시 투표 배너 표시. 투표 버튼에 팀원 이름 표시 추가로 누가 1팀·2팀인지 바로 확인 가능' },
   ]},
@@ -6514,6 +6522,8 @@ window.openMatchDetail = async function(key) {
 
   const isBlueWin = m.winner === 'blue';
   const pts = m.participants || {};
+  const fmtTime = s => s > 0 ? `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}` : '';
+  const gameTimeStr = fmtTime(m.gameTime || 0);
 
   const expandId = () => 'mdx-' + Math.random().toString(36).slice(2,7);
   function teamRows(names) {
@@ -6525,24 +6535,53 @@ window.openMatchDetail = async function(key) {
         ? `<img class="match-detail-champ-img" src="https://ddragon.leagueoflegends.com/cdn/img/champion/tiles/${encodeURIComponent(pt.champion)}_0.jpg" onerror="this.style.display='none'" alt="">`
         : `<div class="match-detail-champ-placeholder"></div>`;
 
+      // 멀티킬 배지
+      let mkBadge = '';
+      if (pt) {
+        if (pt.pentaKills  > 0) mkBadge = `<span class="match-detail-mk-badge mk-penta">펜타킬</span>`;
+        else if (pt.quadraKills > 0) mkBadge = `<span class="match-detail-mk-badge mk-quadra">쿼드라킬</span>`;
+        else if (pt.tripleKills > 0) mkBadge = `<span class="match-detail-mk-badge mk-triple">트리플킬</span>`;
+        else if (pt.doubleKills > 0) mkBadge = `<span class="match-detail-mk-badge mk-double">더블킬</span>`;
+      }
+      const fbBadge = pt?.firstBlood ? `<span class="match-detail-fb">퍼블</span>` : '';
+
       const fmt = v => v >= 1000 ? (v/1000).toFixed(1)+'k' : String(v||0);
+
+      // 아이템 6칸 (빈 슬롯 포함)
+      let itemsHtml = '';
+      if (pt?.items?.length > 0) {
+        const slots = [...pt.items];
+        while (slots.length < 6) slots.push(0);
+        itemsHtml = `<div class="match-detail-items">${slots.slice(0,6).map(id =>
+          id > 0
+            ? `<img class="match-detail-item-img" src="https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/item/${id}.png" onerror="this.style.display='none'" title="${id}">`
+            : `<div class="match-detail-item-empty"></div>`
+        ).join('')}</div>`;
+      }
+
+      // 증강 (ID → 이름은 추후 매핑, 현재는 ID 표시)
+      let augHtml = '';
+      if (pt?.augments?.length > 0) {
+        augHtml = `<div style="font-size:10px;color:var(--text-dim);padding:4px 6px 2px;">✨ 증강: ${pt.augments.join(', ')}</div>`;
+      }
+
       const statsHtml = pt
-        ? `<div class="match-detail-stats">
+        ? `<div class="match-detail-stats" style="grid-template-columns:repeat(4,1fr);">
             <div class="match-detail-stat"><div class="match-detail-stat-val">${pt.kills}/${pt.deaths}/${pt.assists}</div><div class="match-detail-stat-lbl">KDA</div></div>
             <div class="match-detail-stat"><div class="match-detail-stat-val">${pt.cs}</div><div class="match-detail-stat-lbl">CS</div></div>
             <div class="match-detail-stat"><div class="match-detail-stat-val" style="color:#f87171;">${fmt(pt.damage)}</div><div class="match-detail-stat-lbl">딜량</div></div>
             <div class="match-detail-stat"><div class="match-detail-stat-val" style="color:#f5c842;">${fmt(pt.gold)}</div><div class="match-detail-stat-lbl">골드</div></div>
-          </div>`
+          </div>${itemsHtml}${augHtml}`
         : `<div class="match-detail-no-data">상세 데이터 없음</div>`;
 
       return `<div>
         <div class="match-detail-player-row" onclick="(function(el){const ex=document.getElementById('${eid}');const open=ex.classList.toggle('show');el.classList.toggle('open',open);})(this)">
           ${champImg}
           <div class="match-detail-player-info">
-            <div class="match-detail-name">${escHtml(n)}</div>
+            <div class="match-detail-name">${escHtml(n)}${fbBadge}</div>
             <div class="match-detail-champ">${champKR ? escHtml(champKR) : '<span style="color:var(--text-dim);">챔피언 정보 없음</span>'}</div>
           </div>
-          <span class="match-detail-chevron">▼</span>
+          <div class="match-detail-row-right">${mkBadge}<span class="match-detail-chevron">▼</span></div>
         </div>
         <div id="${eid}" class="match-detail-expand">${statsHtml}</div>
       </div>`;
@@ -6556,7 +6595,7 @@ window.openMatchDetail = async function(key) {
   overlay.innerHTML = `
     <div class="match-detail-modal" onclick="event.stopPropagation()">
       <div class="match-detail-header">
-        <div class="match-detail-title">📊 경기 상세 — ${m.date||''}</div>
+        <div class="match-detail-title">📊 경기 상세 — ${m.date||''}${gameTimeStr ? `<span class="match-detail-gametime">⏱ ${gameTimeStr}</span>` : ''}</div>
         <div style="display:flex;align-items:center;gap:8px;">
           ${liveMode && key !== '__preview__' ? `<button class="match-del" onclick="deleteMatch('${key}')" title="삭제">🗑</button>` : ''}
           <button class="match-detail-close" onclick="closeMatchDetail()">✕</button>
