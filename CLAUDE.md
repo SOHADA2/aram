@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.32.6
+- 현재 버전: v2.34.0
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -195,7 +195,7 @@
 ### 정규전
 - 승리 **+20 LP**, 패배 **−14 LP** (`S1_LP_WIN`, `S1_LP_LOSS`)
 - LP 상한 **100** (`S1_LP_CAP`) — 도달 시 승급 로직 발동
-- LP 0 미만 강등 시 이전 티어 **75 LP**로 진입 (`S1_DEMOTION_LP`)
+- LP 0 미만 시: Bronze·Silver·Gold는 강등 없음(0LP 바닥). Platinum 이상만 강등 → 이전 티어 75LP (`S1_NO_DEMOTE`)
 
 ### 승급 / 강등
 - **자동 승급** (`S1_AUTO_TIERS`): 브론즈 → 실버 (100 LP 도달 즉시)
