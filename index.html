@@ -1156,10 +1156,9 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .match-detail-items{display:flex;flex-wrap:wrap;gap:4px;padding:6px 6px 2px;}
 .match-detail-item-img{width:26px;height:26px;border-radius:4px;border:1px solid var(--border);object-fit:cover;}
 .match-detail-item-empty{width:26px;height:26px;border-radius:4px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);}
-.aug-wrap{position:relative;display:inline-block;}
-.aug-wrap:hover .aug-tip{display:block;}
-.aug-tip{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;min-width:160px;max-width:220px;z-index:9999;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,0.5);}
-.aug-tip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--border);}
+.aug-wrap{display:inline-block;cursor:default;}
+#aug-global-tip{display:none;position:fixed;z-index:10000;pointer-events:none;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;min-width:160px;max-width:220px;box-shadow:0 4px 16px rgba(0,0,0,0.5);}
+#aug-global-tip::after{content:'';position:absolute;top:100%;left:var(--arrow-left,50%);transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--border);}
 .aug-tip-name{font-size:11px;font-weight:700;color:var(--text);margin-bottom:4px;white-space:nowrap;}
 .aug-tip-rarity{font-size:9px;padding:1px 5px;border-radius:3px;display:inline-block;margin-bottom:5px;font-weight:700;}
 .aug-tip-rarity.silver{background:rgba(180,180,200,0.2);color:#b4b4c8;}
@@ -1598,6 +1597,7 @@ img.emoji{
 <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
+<div id="aug-global-tip"></div>
 <script>(function(){var s=parseInt(localStorage.getItem('aram_season')||'0',10);if(s>=1)document.body.classList.add('s1-active');})();</script>
 <script>
 /* Twemoji 자동 적용 — DOM 변경 감지 후 SVG 이모지로 치환 (모든 플랫폼 동일 렌더) */
@@ -2152,7 +2152,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.33.2';
+const APP_VERSION = 'v2.33.3';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2161,8 +2161,11 @@ const APP_VERSION = 'v2.33.2';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.33.3', date: '2026-04-30', changes: [
+    { tag: 'fix', text: '증강 툴팁 클리핑 수정 — CSS position:absolute → position:fixed + JS 좌표 계산으로 overflow:auto 모달에서 잘리던 문제 해결. 뷰포트 경계 자동 보정' },
+  ]},
   { ver: 'v2.33.2', date: '2026-04-30', changes: [
-    { tag: 'improve', text: '증강 호버 툴팁 — 아이콘에 마우스 올리면 이름·등급(실버/골드/프리즈매틱)·설명 표시. 설명은 ID ≤ 405 범위(arena 데이터 보유분)에서 표시, 이외는 이름+등급만' },
+    { tag: 'improve', text: '증강 호버 툴팁 — 아이콘에 마우스 올리면 이름·등급(실버/골드/프리즈매틱)·설명 표시' },
   ]},
   { ver: 'v2.33.1', date: '2026-04-30', changes: [
     { tag: 'fix', text: '증강 데이터 소스 교체 — cdragon/arena(ID 최대 405)에서 rcp-be-lol-game-data cherry-augments(567종, ID 1000대 포함)로 변경. 한국어 로케일(ko_kr) 이름 표시' },
@@ -6609,21 +6612,14 @@ window.openMatchDetail = async function(key) {
         ).join('')}</div>`;
       }
 
-      // 증강 아이콘 + 호버 툴팁 (Community Dragon 매핑)
+      // 증강 아이콘 + 글로벌 fixed 툴팁 (overflow 클리핑 방지)
       let augHtml = '';
       if (pt?.augments?.length > 0) {
-        const rarityLabel = r => r === 'kPrismatic' ? ['prismatic','프리즈매틱'] : r === 'kGold' ? ['gold','골드'] : ['silver','실버'];
         const augIcons = pt.augments.map(id => {
           const a = augmentMap[id];
           if (!a) return `<span style="font-size:10px;color:var(--text-dim);padding:2px 5px;background:rgba(255,255,255,0.05);border-radius:4px;">#${id}</span>`;
-          const [rCls, rLabel] = rarityLabel(a.rarity || '');
-          const tip = `<div class="aug-tip">
-            <div class="aug-tip-name">${escHtml(a.name)}</div>
-            ${rCls ? `<span class="aug-tip-rarity ${rCls}">${rLabel}</span>` : ''}
-            ${a.desc ? `<div class="aug-tip-desc">${escHtml(a.desc)}</div>` : ''}
-          </div>`;
-          if (a.icon) return `<div class="aug-wrap"><img src="${a.icon}" style="width:26px;height:26px;border-radius:4px;border:1px solid var(--border);display:block;" onerror="this.style.display='none'">${tip}</div>`;
-          return `<div class="aug-wrap"><span style="font-size:10px;color:var(--text-dim);padding:2px 5px;background:rgba(255,255,255,0.05);border-radius:4px;">${escHtml(a.name)}</span>${tip}</div>`;
+          if (a.icon) return `<div class="aug-wrap" onmouseenter="showAugTip(this,${id})" onmouseleave="hideAugTip()"><img src="${a.icon}" style="width:26px;height:26px;border-radius:4px;border:1px solid var(--border);display:block;" onerror="this.style.display='none'"></div>`;
+          return `<div class="aug-wrap" onmouseenter="showAugTip(this,${id})" onmouseleave="hideAugTip()"><span style="font-size:10px;color:var(--text-dim);padding:2px 5px;background:rgba(255,255,255,0.05);border-radius:4px;">${escHtml(a.name)}</span></div>`;
         }).join('');
         augHtml = `<div style="display:flex;flex-wrap:wrap;gap:6px;padding:6px 6px 2px;align-items:center;"><span style="font-size:10px;color:var(--text-dim);margin-right:2px;">✨</span>${augIcons}</div>`;
       }
@@ -6695,6 +6691,44 @@ window.closeMatchDetail = function() {
   const el = document.getElementById('match-detail-root');
   if (el) el.remove();
   document.body.style.overflow = '';
+  hideAugTip();
+};
+
+window.showAugTip = function(el, id) {
+  const a = augmentMap[id];
+  const tip = document.getElementById('aug-global-tip');
+  if (!a || !tip) return;
+  const rMap = { kPrismatic: ['prismatic','프리즈매틱'], kGold: ['gold','골드'], kSilver: ['silver','실버'] };
+  const [rCls, rLabel] = rMap[a.rarity] || ['silver','실버'];
+  tip.innerHTML = `
+    <div class="aug-tip-name">${escHtml(a.name)}</div>
+    <span class="aug-tip-rarity ${rCls}">${rLabel}</span>
+    ${a.desc ? `<div class="aug-tip-desc">${escHtml(a.desc)}</div>` : ''}`;
+  tip.style.display = 'block';
+  // 아이콘 위치 기준으로 fixed 좌표 계산
+  const rect = el.getBoundingClientRect();
+  const tipW = tip.offsetWidth;
+  const tipH = tip.offsetHeight;
+  const margin = 6;
+  // 기본: 아이콘 중앙 위 (위로 올려 표시)
+  let top = rect.top - tipH - margin;
+  let left = rect.left + rect.width / 2 - tipW / 2;
+  // 뷰포트 왼쪽 넘침 방지
+  if (left < margin) left = margin;
+  // 뷰포트 오른쪽 넘침 방지
+  if (left + tipW > window.innerWidth - margin) left = window.innerWidth - tipW - margin;
+  // 위가 잘릴 경우 아이콘 아래로
+  if (top < margin) top = rect.bottom + margin;
+  tip.style.top  = top  + 'px';
+  tip.style.left = left + 'px';
+  // 화살표 위치 아이콘 중앙에 맞춤
+  const arrowLeft = rect.left + rect.width / 2 - left;
+  tip.style.setProperty('--arrow-left', arrowLeft + 'px');
+};
+
+window.hideAugTip = function() {
+  const tip = document.getElementById('aug-global-tip');
+  if (tip) tip.style.display = 'none';
 };
 
 window.deleteMatch = async function(key) {
