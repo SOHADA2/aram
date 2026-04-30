@@ -59,13 +59,18 @@
 
 /gold/{key}
   name: string
-  gold: number                  // 보유 골드 (시즌 0)
+  gold: number                  // 보유 골드 (시즌 0 레거시)
   items: array                  // 보유 아이템 (시즌 0)
   gold_s1, items_s1, goldSpent_s1 ...  // 시즌 N 필드 (sField() 로 접근)
   retroApplied: boolean         // 소급 계산 완료 여부
   goldMigV2: boolean            // S0 마이그레이션 재실행 방지 가드 (v2.32.0~)
+  goldBonusLegacy: number       // 구버전 goldBonus 리네임 (v2.34.x~, migrateGoldBonusToLegacy() 자동 실행)
+  goldBonusLegacy_s1: number    // S1용 구버전 goldBonus_s1 리네임
+  attendanceHistory: array      // 출석 이벤트 배열 { date, gold, ts } (v2.34.x~, 기존 goldBonus 대체)
+  lastAttendance: string        // 마지막 출석 날짜 (YYYY-MM-DD)
+  attendanceCount: number       // 누적 출석 횟수
   lotteryHistory: array         // 복권 구매·당첨 이력 (v2.31.98~)
-  lotteryCount: number          // 오늘 복권 구매 횟수 (lotteryDate 날짜 기준 리셋)
+  lotteryCount: number          // 오늘 복권 구매 횟수 (lotteryDate 날짜 기준 리셋, 1일 3장 한도)
   lotteryDate: string           // lotteryCount 기준 날짜 (YYYY-MM-DD)
   lotteryRefundApplied: boolean // 구버전 복권 환불 완료 플래그 (v2.31.99~)
 
@@ -116,10 +121,14 @@
 
 ## 골드 & 아이템 시스템
 - 경기 결과에 따라 골드 자동 지급: 승리 **+15G**, 패배 **+5G**
-- **출석 체크**: 하루 1회, **+30G** 지급 (상점 탭 최상단 카드)
-  - Firebase `/gold/{key}.goldBonus` 에 누적, `/gold/{key}.lastAttendance` (YYYY-MM-DD) 로 중복 방지
-  - 날짜 기준: **로컬 시간** (`getLocalDateKey()`) — UTC 기준 버그 수정 (v2.8.0)
-  - `getMyGold()` = `calcGoldFromMatches() + goldBonus - goldSpent`
+- **출석 체크**: 하루 1회, **+30G** 지급 (패스/업적 탭 상단 카드 — 완료 시 카드 자동 숨김, 다음 날 재표시)
+  - Firebase `/gold/{key}.attendanceHistory` 배열에 `{ date, gold, ts }` 이벤트 기록 (v2.34.x~)
+    - 구버전 `goldBonus` → `goldBonusLegacy` 로 마이그레이션됨 (`migrateGoldBonusToLegacy()` 앱 로드 시 자동 실행)
+  - `/gold/{key}.lastAttendance` (YYYY-MM-DD) 로 당일 중복 방지
+  - 날짜 기준: **로컬 시간** (`getLocalDateKey()`)
+- **골드 계산 통합 함수**: `calcPlayerGoldEarned(name, data)` — 경기 + goldBonusLegacy + 출석(attendanceHistory) + 업적 + 패스 + 복권 합산
+  - `getMyGold()` = `calcPlayerGoldEarned(myName, myData) - goldSpent`
+  - **주의**: `calcGoldFromMatches(name)` 만 쓰면 출석·업적·패스·복권 누락 → 반드시 `calcPlayerGoldEarned` 사용
 - 기존 경기 기록 기반 소급 계산 자동 적용 (`retroApplied`)
 
 ## 골드 상수 버전 관리 (v2.25.0~)
@@ -152,6 +161,13 @@
 - 아이템 사용 통계: `calcItemStats(name)` — `matches[].itemEffects[normName]` 스캔
   - `score2xWin`: 2배권 사용 후 승리 횟수
   - `insuranceUsed`: 방어권 사용 후 패배(감점 막기) 횟수
+
+### 상점 UI 패턴 (v2.34.1~)
+- **보유 개수 배지**: 상점 목록(좌)에서 제거 → 내 아이템 슬롯(우) 좌상단에 황금빛 배지 `.inv-count-badge` 로 표시 ("N개")
+  - 동일 아이템 타입의 총 보유 개수를 모든 슬롯에 표시
+- **복권 한도 소진**: `lotteryCount >= 3` 이면 구매 버튼 → "한도 소진" 비활성 표시 (`.sli-price.sli-limit-hit`)
+  - `renderShop()` 에서 `todayLotteryCount` 계산 후 버튼 분기 처리
+- **계정 전환 토스트**: `selectMyName()` 에서 `calcPlayerGoldEarned(name, existData)` 사용 (구버전은 `calcGoldFromMatches`만 써서 출석·업적·패스·복권 누락됐었음)
 
 ## 매칭 퀘스트 시스템 (v2.5.0)
 - **발동 조건**: 팀 구성에 TOP3 플레이어(3판 이상) 포함 시 15% 확률 (`QUEST_TRIGGER_RATE`)
@@ -218,7 +234,19 @@
 - `s1ApplyMatchResult(name, won, activeS1Item)` — 단일 플레이어 결과 적용
 - `s1ApplyAllMatchResults(winners, losers)` — `saveMatch` 훅, 전체 일괄 적용
 - `s1PromoSuccess(d)` / `s1PromoFail(d)` — 승급전 성공·실패 상태 전이
-- `s1LpBarHtml(d)` — 랭킹 탭 LP 바·승급전 도트·배치 진행 렌더
+- `s1LpBarHtml(d)` — LP 바 HTML (미니카드 내부용, 바 + 수치 한 줄)
+- `s1TierBadgeHtml(tier, size)` — 티어 배지 HTML, size: `'big'|'mid'|'mini'`
+- `renderS1HeroCard(r, place, hasChallenger)` — 1~3위 히어로 카드
+- `renderS1MiniCard(r, displayRank, hasChallenger)` — 4위~ 미니 카드
+
+### S1 랭킹 CSS 클래스 (v2.34.3~)
+- `.rk-mini-right-s1` — 미니카드 우측 영역 (min-width:84px)
+- `.rk-s1-tier-lp` — 티어 배지 + LP 수치 + LP 바 세로 스택 컨테이너
+- `.rk-s1-lp-big` — LP 수치 텍스트 (14px, JetBrains Mono, 티어 컬러)
+- `.rk-mini-lp-bar` — LP 바 (우측 전체 너비)
+- `.rk-hero-s1-lp` — 히어로카드 하단 LP 영역 (border-top 구분선)
+- `.rk-hero-s1-lp-head` — 티어명(좌) + LP 수치(우) 가로 배치
+- `.rk-hero-s1-lp-num` — 히어로 LP 수치 (1위 26px, 2·3위 20px, Gmarket Sans)
 
 ## EOG 자동 저장 흐름 (v2.29.57~v2.29.64)
 - **경기 종료 시**: `showEogOverlay()` — 승리팀 + MVP/SVP/매너왕 투표 카드가 팝업으로 등장
