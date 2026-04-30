@@ -2142,7 +2142,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.32.9';
+const APP_VERSION = 'v2.33.0';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2151,8 +2151,11 @@ const APP_VERSION = 'v2.32.9';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.33.0', date: '2026-04-30', changes: [
+    { tag: 'improve', text: '경기 상세 — 증강 아이콘 표시: Community Dragon에서 증강 데이터 로드 후 아이콘+이름(hover) 표시. 매핑 실패 시 ID 폴백' },
+  ]},
   { ver: 'v2.32.9', date: '2026-04-30', changes: [
-    { tag: 'improve', text: '경기 상세 — 브릿지 추가 데이터 표시: 게임 시간(헤더 ⏱), 퍼스트블러드 배지, 멀티킬 배지(더블/트리플/쿼드라/펜타), 아이템 6칸 아이콘, 증강 ID (증강 이름 매핑 추후 예정)' },
+    { tag: 'improve', text: '경기 상세 — 브릿지 추가 데이터 표시: 게임 시간(헤더 ⏱), 퍼스트블러드 배지, 멀티킬 배지(더블/트리플/쿼드라/펜타), 아이템 6칸 아이콘' },
   ]},
   { ver: 'v2.32.8', date: '2026-04-30', changes: [
     { tag: 'improve', text: '관전자 투표창 즉시 표시 — 관전자 본인 기기는 팀 발표 오버레이와 하단 배너가 공존 가능해 팀 구성 직후(0.5초) 즉시 투표 배너 표시. 투표 버튼에 팀원 이름 표시 추가로 누가 1팀·2팀인지 바로 확인 가능' },
@@ -5135,6 +5138,23 @@ async function loadChampNamesKR() {
   } catch(e) {}
 }
 
+// 증강 데이터 (Community Dragon — Arena/ARAM 증강)
+let augmentMap = {}; // id → {name, icon}
+async function loadAugmentData() {
+  if (Object.keys(augmentMap).length > 0) return;
+  try {
+    const res = await fetch('https://raw.communitydragon.org/latest/cdragon/arena/en_us.json');
+    const data = await res.json();
+    const base = 'https://raw.communitydragon.org/latest/game/';
+    for (const aug of (data.augments || [])) {
+      augmentMap[aug.id] = {
+        name: aug.name || `증강 #${aug.id}`,
+        icon: aug.iconSmall ? base + aug.iconSmall.toLowerCase() : '',
+      };
+    }
+  } catch(e) {}
+}
+
 let currentMatchParticipants = {}; // normName → {champion, kills, ...} (경기 기록 연동 시 사용)
 let currentMatchGameTime    = 0;   // 게임 시간(초) — 브릿지에서 수신
 let currentRiotMatchId = null;    // Riot match ID (저장 시 Firebase에 기록)
@@ -6516,7 +6536,7 @@ window.showDetailPreview = function() {
 window.openMatchDetail = async function(key) {
   const m = matches[key];
   if (!m) return;
-  await loadChampNamesKR(); // 한국어 챔피언명 로드 완료 후 렌더
+  await Promise.all([loadChampNamesKR(), loadAugmentData()]);
   const old = document.getElementById('match-detail-root');
   if (old) old.remove();
 
@@ -6559,10 +6579,15 @@ window.openMatchDetail = async function(key) {
         ).join('')}</div>`;
       }
 
-      // 증강 (ID → 이름은 추후 매핑, 현재는 ID 표시)
+      // 증강 아이콘 (Community Dragon 매핑)
       let augHtml = '';
       if (pt?.augments?.length > 0) {
-        augHtml = `<div style="font-size:10px;color:var(--text-dim);padding:4px 6px 2px;">✨ 증강: ${pt.augments.join(', ')}</div>`;
+        const augIcons = pt.augments.map(id => {
+          const a = augmentMap[id];
+          if (a?.icon) return `<img src="${a.icon}" title="${escHtml(a.name)}" style="width:26px;height:26px;border-radius:4px;border:1px solid var(--border);" onerror="this.outerHTML='<span style=\'font-size:10px;color:var(--text-dim);\'>${escHtml(a.name)}</span>'">`;
+          return `<span style="font-size:10px;color:var(--text-dim);padding:2px 5px;background:rgba(255,255,255,0.05);border-radius:4px;">#${id}</span>`;
+        }).join('');
+        augHtml = `<div style="display:flex;flex-wrap:wrap;gap:4px;padding:6px 6px 2px;align-items:center;"><span style="font-size:10px;color:var(--text-dim);margin-right:2px;">✨</span>${augIcons}</div>`;
       }
 
       const statsHtml = pt
