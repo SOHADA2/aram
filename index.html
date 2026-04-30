@@ -1156,6 +1156,16 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .match-detail-items{display:flex;flex-wrap:wrap;gap:4px;padding:6px 6px 2px;}
 .match-detail-item-img{width:26px;height:26px;border-radius:4px;border:1px solid var(--border);object-fit:cover;}
 .match-detail-item-empty{width:26px;height:26px;border-radius:4px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);}
+.aug-wrap{position:relative;display:inline-block;}
+.aug-wrap:hover .aug-tip{display:block;}
+.aug-tip{display:none;position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;min-width:160px;max-width:220px;z-index:9999;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,0.5);}
+.aug-tip::after{content:'';position:absolute;top:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:var(--border);}
+.aug-tip-name{font-size:11px;font-weight:700;color:var(--text);margin-bottom:4px;white-space:nowrap;}
+.aug-tip-rarity{font-size:9px;padding:1px 5px;border-radius:3px;display:inline-block;margin-bottom:5px;font-weight:700;}
+.aug-tip-rarity.silver{background:rgba(180,180,200,0.2);color:#b4b4c8;}
+.aug-tip-rarity.gold{background:rgba(200,168,75,0.2);color:var(--gold);}
+.aug-tip-rarity.prismatic{background:rgba(180,100,255,0.2);color:#c084fc;}
+.aug-tip-desc{font-size:10px;color:var(--text-dim);line-height:1.5;white-space:normal;}
 .match-member-icon{width:18px;height:18px;border-radius:3px;object-fit:cover;vertical-align:middle;margin-right:4px;border:1px solid rgba(255,255,255,0.1);}
 .match-item{transition:border-color 0.15s,box-shadow 0.15s;cursor:pointer;}
 .match-item:hover{border-color:var(--rk-border-strong);box-shadow:0 2px 12px rgba(0,0,0,0.25);}
@@ -2142,7 +2152,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.33.1';
+const APP_VERSION = 'v2.33.2';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2151,6 +2161,9 @@ const APP_VERSION = 'v2.33.1';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.33.2', date: '2026-04-30', changes: [
+    { tag: 'improve', text: '증강 호버 툴팁 — 아이콘에 마우스 올리면 이름·등급(실버/골드/프리즈매틱)·설명 표시. 설명은 ID ≤ 405 범위(arena 데이터 보유분)에서 표시, 이외는 이름+등급만' },
+  ]},
   { ver: 'v2.33.1', date: '2026-04-30', changes: [
     { tag: 'fix', text: '증강 데이터 소스 교체 — cdragon/arena(ID 최대 405)에서 rcp-be-lol-game-data cherry-augments(567종, ID 1000대 포함)로 변경. 한국어 로케일(ko_kr) 이름 표시' },
   ]},
@@ -5141,19 +5154,33 @@ async function loadChampNamesKR() {
   } catch(e) {}
 }
 
-// 증강 데이터 (Community Dragon cherry-augments — Arena/ARAM 칼바람 증강)
-let augmentMap = {}; // id → {name, icon}
+// 증강 데이터 (Community Dragon — cherry-augments 아이콘/이름 + arena 설명 병합)
+let augmentMap = {}; // id → {name, icon, desc}
 async function loadAugmentData() {
   if (Object.keys(augmentMap).length > 0) return;
   try {
-    const res = await fetch('https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/ko_kr/v1/cherry-augments.json');
-    const list = await res.json();
     const iconBase = 'https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/default';
-    for (const aug of list) {
+    const [cherryList, arenaData] = await Promise.all([
+      fetch('https://raw.communitydragon.org/latest/plugins/rcp-be-lol-game-data/global/ko_kr/v1/cherry-augments.json').then(r => r.json()),
+      fetch('https://raw.communitydragon.org/latest/cdragon/arena/ko_kr.json').then(r => r.json()),
+    ]);
+    // arena desc 맵 (ID → stripped 설명)
+    const stripTags = s => (s || '').replace(/<[^>]+>/g, '').replace(/@\w+@/g, '').trim();
+    const arenaDesc = {};
+    for (const aug of (arenaData.augments || [])) {
+      arenaDesc[aug.id] = stripTags(aug.desc || aug.tooltip || '');
+    }
+    // cherry 기준으로 아이콘+이름 구성, arena 설명 병합
+    for (const aug of cherryList) {
       const iconPath = aug.augmentSmallIconPath
         ? iconBase + aug.augmentSmallIconPath.replace('/lol-game-data/assets', '').toLowerCase()
         : '';
-      augmentMap[aug.id] = { name: aug.nameTRA || `#${aug.id}`, icon: iconPath };
+      augmentMap[aug.id] = {
+        name: aug.nameTRA || `#${aug.id}`,
+        icon: iconPath,
+        desc: arenaDesc[aug.id] || '',
+        rarity: aug.rarity || '',
+      };
     }
   } catch(e) {}
 }
@@ -6582,15 +6609,23 @@ window.openMatchDetail = async function(key) {
         ).join('')}</div>`;
       }
 
-      // 증강 아이콘 (Community Dragon 매핑)
+      // 증강 아이콘 + 호버 툴팁 (Community Dragon 매핑)
       let augHtml = '';
       if (pt?.augments?.length > 0) {
+        const rarityLabel = r => r === 'kPrismatic' ? ['prismatic','프리즈매틱'] : r === 'kGold' ? ['gold','골드'] : ['silver','실버'];
         const augIcons = pt.augments.map(id => {
           const a = augmentMap[id];
-          if (a?.icon) return `<img src="${a.icon}" title="${escHtml(a.name)}" style="width:26px;height:26px;border-radius:4px;border:1px solid var(--border);" onerror="this.outerHTML='<span style=\'font-size:10px;color:var(--text-dim);\'>${escHtml(a.name)}</span>'">`;
-          return `<span style="font-size:10px;color:var(--text-dim);padding:2px 5px;background:rgba(255,255,255,0.05);border-radius:4px;">#${id}</span>`;
+          if (!a) return `<span style="font-size:10px;color:var(--text-dim);padding:2px 5px;background:rgba(255,255,255,0.05);border-radius:4px;">#${id}</span>`;
+          const [rCls, rLabel] = rarityLabel(a.rarity || '');
+          const tip = `<div class="aug-tip">
+            <div class="aug-tip-name">${escHtml(a.name)}</div>
+            ${rCls ? `<span class="aug-tip-rarity ${rCls}">${rLabel}</span>` : ''}
+            ${a.desc ? `<div class="aug-tip-desc">${escHtml(a.desc)}</div>` : ''}
+          </div>`;
+          if (a.icon) return `<div class="aug-wrap"><img src="${a.icon}" style="width:26px;height:26px;border-radius:4px;border:1px solid var(--border);display:block;" onerror="this.style.display='none'">${tip}</div>`;
+          return `<div class="aug-wrap"><span style="font-size:10px;color:var(--text-dim);padding:2px 5px;background:rgba(255,255,255,0.05);border-radius:4px;">${escHtml(a.name)}</span>${tip}</div>`;
         }).join('');
-        augHtml = `<div style="display:flex;flex-wrap:wrap;gap:4px;padding:6px 6px 2px;align-items:center;"><span style="font-size:10px;color:var(--text-dim);margin-right:2px;">✨</span>${augIcons}</div>`;
+        augHtml = `<div style="display:flex;flex-wrap:wrap;gap:6px;padding:6px 6px 2px;align-items:center;"><span style="font-size:10px;color:var(--text-dim);margin-right:2px;">✨</span>${augIcons}</div>`;
       }
 
       const statsHtml = pt
