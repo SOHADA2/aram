@@ -1536,6 +1536,11 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .s1-lp-bar-bg{flex:1;min-width:40px;height:3px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;}
 .s1-lp-bar{height:100%;border-radius:2px;transition:width 0.3s ease;}
 .s1-lp-num{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;color:var(--rk-text-dim);min-width:32px;text-align:right;white-space:nowrap;}
+.champ-stats-row{display:flex;gap:5px;align-items:flex-end;flex-shrink:0;}
+.champ-stat-item{display:flex;flex-direction:column;align-items:center;gap:1px;}
+.champ-stat-lbl{font-size:7px;font-weight:700;color:#484f58;letter-spacing:.3px;line-height:1;}
+.champ-stat-ico{border-radius:3px;object-fit:cover;flex-shrink:0;}
+.rk-hero-champ-stats{padding:6px 12px 0;}
 /* S1 미니카드 우측 티어+LP 통합 블록 */
 .rk-mini-right-s1{min-width:84px;align-items:flex-end;gap:4px;}
 .rk-s1-tier-lp{display:flex;flex-direction:column;align-items:flex-end;gap:4px;width:100%;}
@@ -7980,6 +7985,36 @@ window.claimAchievement = async function(id) {
 // ═══════════════════════════════════════════════════════════════
 
 // 시즌 1 퀘스트 판정용 통계 집계
+// ── MOST/BEST 챔피언 통계 ─────────────────────────────────────────
+function calcChampStats(name) {
+  const key = normName(name);
+  const map = {};
+  Object.values(matches).forEach(m => {
+    const p = m.participants?.[key];
+    if (!p?.champion) return;
+    const s = p.champion;
+    if (!map[s]) map[s] = { g: 0, w: 0 };
+    map[s].g++;
+    const onBlue = (m.teamA || []).some(n => normName(n) === key);
+    if ((onBlue && m.winner === 'blue') || (!onBlue && m.winner === 'red')) map[s].w++;
+  });
+  const entries = Object.entries(map);
+  if (!entries.length) return null;
+  const [mostSlug] = entries.reduce((a, b) => b[1].g > a[1].g ? b : a);
+  const elig = entries.filter(([, v]) => v.g >= 2);
+  const bestEntry = elig.length ? elig.reduce((a, b) => b[1].w / b[1].g > a[1].w / a[1].g ? b : a) : null;
+  const bestSlug = bestEntry ? bestEntry[0] : null;
+  return { most: mostSlug, best: bestSlug !== mostSlug ? bestSlug : null };
+}
+
+function champIconsHtml(name, sz) {
+  const st = calcChampStats(name);
+  if (!st) return '';
+  const url = s => `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(s)}.png`;
+  const item = (slug, lbl) => `<div class="champ-stat-item"><span class="champ-stat-lbl">${lbl}</span><img class="champ-stat-ico" style="width:${sz}px;height:${sz}px" src="${url(slug)}" onerror="this.style.display='none'" title="${slug}"></div>`;
+  return `<div class="champ-stats-row">${item(st.most, 'MOST')}${st.best ? item(st.best, 'BEST') : ''}</div>`;
+}
+
 // - matches.participants[normName].{kills,deaths,assists,damage,cs} 를 포함한 한 경기 최대치
 // - 연승/누적 승·경기수·매너왕·MVP·관전·출석
 function calcS1PassStats(name, afterTs = S1_PASS_START_TS) {
@@ -10990,6 +11025,7 @@ function renderS1HeroCard(r, place, hasChallenger) {
   const meCls    = r.me ? ' me' : '';
   const chips    = renderRankClassChips(r.champTier1, r.champTier2);
   const meta     = S1_TIER_META[r.tier] || S1_TIER_META.unranked;
+  const champIcons = champIconsHtml(r.name, 24);
 
   let bottomSection;
   if (r.d.promoActive) {
@@ -11025,6 +11061,7 @@ function renderS1HeroCard(r, place, hasChallenger) {
     <div class="rk-hero-name${hasChallenger&&place===1?' rk-name-gold':''}">${escHtml(r.name)}</div>
     ${r.motto?`<div class="rk-hero-motto">"${escHtml(r.motto)}"</div>`:''}
     ${chips?`<div class="rk-hero-chips">${chips}</div>`:''}
+    ${champIcons?`<div class="rk-hero-champ-stats">${champIcons}</div>`:''}
     <div class="rk-hero-bottom"><span></span></div>
     ${bottomSection}
   </div>`;
@@ -11037,6 +11074,7 @@ function renderS1MiniCard(r, displayRank, hasChallenger) {
   const rankStr = hasChallenger ? displayRank : '';
   const chips   = renderRankClassChips(r.champTier1, r.champTier2, { max: 3, tiny: true });
   const dots    = renderRankStreakDots(r.streak, { tiny: true });
+  const champIcons = champIconsHtml(r.name, 20);
 
   let rightInner;
   if (!r.d.placementDone) {
@@ -11071,7 +11109,7 @@ function renderS1MiniCard(r, displayRank, hasChallenger) {
         ${r.me?renderRankMeTag(true):''}
       </div>
       ${r.motto?`<div class="rk-mini-motto">"${escHtml(r.motto)}"</div>`:''}
-      <div class="rk-mini-meta">${dots}${chips}</div>
+      <div class="rk-mini-meta">${dots}${chips}${champIcons}</div>
     </div>
     <div class="rk-mini-right rk-mini-right-s1">
       <div class="rk-s1-tier-lp">${rightInner}</div>
