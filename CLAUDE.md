@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.35.2
+- 현재 버전: v2.36.0
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -69,9 +69,11 @@
   attendanceHistory: array      // 출석 이벤트 배열 { date, gold, ts } (v2.34.x~, 기존 goldBonus 대체)
   lastAttendance: string        // 마지막 출석 날짜 (YYYY-MM-DD)
   attendanceCount: number       // 누적 출석 횟수
-  lotteryHistory: array         // 복권 구매·당첨 이력 (v2.31.98~)
+  lotteryHistory: array         // 복권 구매·당첨 이력 (v2.31.98~) — 프리미엄은 premium:true 플래그
   lotteryCount: number          // 오늘 복권 구매 횟수 (lotteryDate 날짜 기준 리셋, 1일 3장 한도)
   lotteryDate: string           // lotteryCount 기준 날짜 (YYYY-MM-DD)
+  lotteryPremiumCount: number   // 오늘 프리미엄 복권 구매 횟수 (v2.36.0~, 1일 1장 한도)
+  lotteryPremiumDate: string    // lotteryPremiumCount 기준 날짜
   lotteryRefundApplied: boolean // 구버전 복권 환불 완료 플래그 (v2.31.99~)
 
 /config/currentSeason            // 현재 시즌 번호 (0 또는 1)
@@ -156,6 +158,8 @@
 | 🛡️ 승급전 방어권 | 100G | 승급전 중 패배 시 해당 판 기록 제외 · 승리 시 정상 기록 | S1 |
 | ⚔️ 승급전 승리권 | 100G | 승급전 중 승리 시 2승 처리(즉시 승급) · 패배 시 1패 정상 | S1 |
 | 🎲 도박권 | 60G | 일반전 전용 · 승리 +40 LP / 패배 −30 LP (승급전 중 사용 불가) | S1 |
+| 🎟️ 골드 복권 | 30G | 즉시 결과 · 1일 3장 한도 · 꽝 30%~잭팟 500G 1% (EV ≈ 32G) | S1 |
+| 💎 프리미엄 복권 | 200G | 즉시 결과 · **1일 1장** 한도 · 꽝 40%~메가잭팟 5000G 1% (EV ≈ 196G, 상위권 골드 흡수용) | S1 |
 
 - 팀 구성 완료 후 **아이템 잠금** (경기 저장 시 자동 해제)
 - 아이템 사용 통계: `calcItemStats(name)` — `matches[].itemEffects[normName]` 스캔
