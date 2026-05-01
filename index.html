@@ -1198,11 +1198,6 @@ body.member-mode #event-no-save-notice{display:none!important;}
 /* ── 기록 탭 헤더 (v2.29.28~) */
 .rc-header{padding:14px 16px;border-bottom:1px solid var(--rk-border);position:relative;}
 .rc-header-row{display:flex;justify-content:space-between;align-items:center;}
-.auto-link-row{margin-top:10px;display:flex;flex-direction:column;gap:6px;}
-.auto-link-btn{padding:8px 12px;border-radius:8px;border:1px solid rgba(125,211,252,0.35);background:linear-gradient(135deg,rgba(125,211,252,0.10),rgba(125,211,252,0.02));color:#7dd3fc;font-size:12px;font-weight:700;letter-spacing:0.3px;cursor:pointer;transition:all 0.15s;font-family:'Noto Sans KR',sans-serif;}
-.auto-link-btn:hover{background:linear-gradient(135deg,rgba(125,211,252,0.18),rgba(125,211,252,0.05));border-color:rgba(125,211,252,0.55);}
-.auto-link-btn:disabled{opacity:0.55;cursor:default;}
-.auto-link-progress{padding:6px 10px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid var(--rk-border);font-size:11px;color:var(--rk-text-dim);font-family:'JetBrains Mono',monospace;letter-spacing:0.2px;}
 .rc-title{font-family:'Black Han Sans',sans-serif;font-size:20px;letter-spacing:.02em;color:var(--rk-text);display:flex;align-items:baseline;gap:8px;}
 .rc-title-dot{color:var(--rk-gold);letter-spacing:0;}
 .rc-header-actions{display:flex;gap:6px;align-items:center;}
@@ -1998,10 +1993,6 @@ img.emoji{
         <span id="match-count-badge" class="rk-stat-val" style="color:var(--rk-gold);">0</span>
       </div>
     </div>
-    <div id="auto-link-row" class="auto-link-row" style="display:none;">
-      <button id="auto-link-btn" class="auto-link-btn" onclick="autoLinkAllMatches()">🔗 누락 챔프 데이터 자동 연동</button>
-      <div id="auto-link-progress" class="auto-link-progress" style="display:none;"></div>
-    </div>
   </div>
   <div id="match-history-list">
     <div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>
@@ -2237,7 +2228,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.6';
+const APP_VERSION = 'v2.36.7';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2246,6 +2237,10 @@ const APP_VERSION = 'v2.36.6';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.7', date: '2026-05-01', changes: [
+    { tag: 'fix', text: 'v2.36.6 자동 연동 버튼 철회 — 내전(커스텀 게임)은 Riot Match-v5 API에 잡히지 않아 무용. 브릿지가 이미 participants를 저장 중이므로 진짜 문제는 ddragon에 없는 슬러그(예: 신챔/alias 차이). 대신 콘솔 진단 함수 checkMissingChamps() 추가 — F12 콘솔에서 실행 시 alias 보정 가능 슬러그와 ddragon 미등록 슬러그를 표 형태로 리스트업, 결과를 보고 CHAMP_SLUG_ALIASES 맵을 코드에 추가하는 방식' },
+    { tag: 'new', text: 'CHAMP_SLUG_ALIASES — 흔한 LCU↔ddragon ID 차이 매핑 (Wukong↔MonkeyKing, Bel\\'Veth↔Belveth, K\\'Sante↔KSante 등 20여 종). normalizeChampSlug() 헬퍼로 향후 신챔 출시 시 alias만 추가하면 즉시 표시됨' },
+  ]},
   { ver: 'v2.36.6', date: '2026-05-01', changes: [
     { tag: 'new', text: '기록 탭에 "🔗 누락 챔프 데이터 자동 연동" 버튼 추가 (라이브 모드 + Riot API 키 보유 시 표시) — 기존 autoLinkAllMatches() 함수가 콘솔 전용이라 UI 부재였던 문제 해결. 클릭 시 participants 누락된 과거 매치들을 PUUID 기반으로 Riot Match-v5에서 조회·소급 적용. 진행 상태가 버튼 아래에 실시간 표시됨' },
   ]},
@@ -3408,18 +3403,12 @@ async function seedGoldForAllPlayers() {
 }
 
 // Riot API 키 구독 (Firebase /config/riotApiKey)
-function _refreshAutoLinkRow() {
-  const row = document.getElementById('auto-link-row');
-  if (row) row.style.display = (liveMode && (riotWorkerUrl || riotApiKey)) ? '' : 'none';
-}
 onValue(ref(db, 'config/riotApiKey'), (snapshot) => {
   riotApiKey = (snapshot.val() || '').trim();
-  _refreshAutoLinkRow();
 });
 onValue(ref(db, 'config/riotWorkerUrl'), (snapshot) => {
   const val = (snapshot.val() || '').trim().replace(/\/$/, '');
   if (val) riotWorkerUrl = val; // Firebase 미설정 시 하드코딩 기본값 유지
-  _refreshAutoLinkRow();
 });
 onValue(ref(db, 'config/currentSeason'), (snapshot) => {
   const val = snapshot.val();
@@ -7007,121 +6996,121 @@ window.submitMatchLink = async function(key) {
   }
 };
 
-window.autoLinkAllMatches = async function() {
-  if (!liveMode || (!riotWorkerUrl && !riotApiKey)) return;
+// 흔히 보고된 LCU/Riot Match-v5 ↔ DDragon ID alias 매핑
+// (LCU 일부 필드가 displayName을 보내거나, 신챔 출시 직후 ddragon 갱신 지연 시 사용)
+const CHAMP_SLUG_ALIASES = {
+  'Wukong':       'MonkeyKing',
+  'Nunu & Willump': 'Nunu',
+  "Bel'Veth":     'Belveth',
+  "Cho'Gath":     'Chogath',
+  'Dr. Mundo':    'DrMundo',
+  "K'Sante":      'KSante',
+  "Kai'Sa":       'Kaisa',
+  "Kha'Zix":      'Khazix',
+  "Kog'Maw":      'KogMaw',
+  'Lee Sin':      'LeeSin',
+  'Master Yi':    'MasterYi',
+  'Miss Fortune': 'MissFortune',
+  "Rek'Sai":      'RekSai',
+  'Renata Glasc': 'Renata',
+  'Twisted Fate': 'TwistedFate',
+  "Vel'Koz":      'Velkoz',
+  'Xin Zhao':     'XinZhao',
+  'Aurelion Sol': 'AurelionSol',
+  'Tahm Kench':   'TahmKench',
+  'Jarvan IV':    'JarvanIV',
+};
+
+// 챔프 슬러그를 ddragon ID로 정규화 (champNamesKR 매핑에 존재하는지 확인)
+function normalizeChampSlug(slug) {
+  if (!slug) return null;
+  if (champNamesKR[slug]) return slug;                   // 이미 정상
+  if (CHAMP_SLUG_ALIASES[slug] && champNamesKR[CHAMP_SLUG_ALIASES[slug]]) {
+    return CHAMP_SLUG_ALIASES[slug];                     // alias 보정
+  }
+  // 케이스/공백 제거 폴백
+  const compact = slug.replace(/[\s'.&]/g, '');
+  if (champNamesKR[compact]) return compact;
+  // ddragon이 아직 갱신 안 된 신챔이면 매핑 못 찾음
+  return null;
+}
+
+// 콘솔 진단 — F12 콘솔에서 checkMissingChamps() 실행 시 누락 슬러그를 리스트업.
+// (커스텀 게임은 Riot Match-v5 에 잡히지 않아 API 보강 불가. ddragon 매핑/alias 만으로 점검)
+// 자동 update는 하지 않음. 결과 리스트를 보고 CHAMP_SLUG_ALIASES 코드에 직접 추가.
+window.checkMissingChamps = async function() {
   await loadChampNamesKR();
 
-  const progressEl = document.getElementById('auto-link-progress');
-  const autoBtn = document.getElementById('auto-link-btn');
-  if (progressEl) { progressEl.style.display = 'block'; progressEl.textContent = '⏳ 자동 연동 준비 중...'; }
-  if (autoBtn) autoBtn.disabled = true;
+  const totalDdragonChamps = Object.keys(champNamesKR).length;
+  console.group(`🔎 챔프 슬러그 점검 (ddragon ${DDRAGON_VERSION} · ${totalDdragonChamps}종 로드됨)`);
 
-  // PUUID 보유 플레이어 목록
-  const puuidPlayers = Object.values(registeredPlayers).filter(p => p.puuid);
-  if (puuidPlayers.length === 0) {
-    if (progressEl) { progressEl.textContent = '⚠️ PUUID가 등록된 플레이어가 없어요. 플레이어 프로필에서 Riot ID를 등록해주세요.'; }
-    if (autoBtn) autoBtn.disabled = false;
-    return;
-  }
+  let scanned = 0;
+  let withParticipants = 0;
+  let aliasable = 0;            // alias로 보정 가능
+  let unknown = 0;              // ddragon에도 alias에도 없음
+  const unknownMap   = new Map(); // 슬러그 → { count, samples:[{matchKey, date, player}] }
+  const aliasableMap = new Map(); // 슬러그 → { count, target }
 
-  // 미연동 경기 목록 (timestamp 있는 것만)
-  const unlinked = Object.entries(matches)
-    .map(([key, m]) => ({ key, ...m }))
-    .filter(m => !m.participants && m.timestamp)
-    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-
-  if (unlinked.length === 0) {
-    if (progressEl) { progressEl.textContent = '✅ 모든 경기가 이미 연동되어 있어요.'; setTimeout(() => { if(progressEl) progressEl.style.display='none'; }, 3000); }
-    if (autoBtn) { autoBtn.disabled = false; autoBtn.style.display = 'none'; }
-    return;
-  }
-
-  let linked = 0, failed = 0, total = unlinked.length;
-
-  for (let i = 0; i < unlinked.length; i++) {
-    const m = unlinked[i];
-    if (progressEl) progressEl.textContent = `🔄 자동 연동 중... (${i+1}/${total}) — 연동 ${linked}건 / 실패 ${failed}건`;
-
-    // 이 경기에 참여한 PUUID 등록 플레이어 찾기
-    const allNames = [...(m.teamA || []), ...(m.teamB || [])].map(normName);
-    const matchPlayers = puuidPlayers.filter(p => allNames.includes(normName(p.name)));
-    if (matchPlayers.length === 0) { failed++; await new Promise(r => setTimeout(r, 100)); continue; }
-
-    // 타임스탬프 기준 ±2시간 범위로 매치 목록 조회
-    const ts = Math.floor(m.timestamp / 1000);
-    const startTime = ts - 7200;
-    const endTime = ts + 3600;
-
-    let foundMatch = null;
-
-    // 첫 번째 매치 플레이어 기준 by-puuid 조회
-    const queryPlayer = matchPlayers[0];
-    try {
-      const idsRes = await riotFetch('asia',
-        `/lol/match/v5/matches/by-puuid/${queryPlayer.puuid}/ids?queue=450&start=0&count=20&startTime=${startTime}&endTime=${endTime}`
-      );
-      if (idsRes.ok) {
-        const ids = await idsRes.json();
-        for (const matchId of ids) {
-          await new Promise(r => setTimeout(r, 200));
-          try {
-            const detailRes = await riotFetch('asia', `/lol/match/v5/matches/${matchId}`);
-            if (!detailRes.ok) continue;
-            const detail = await detailRes.json();
-
-            // 참여자 PUUID와 우리 플레이어 PUUID 겹치는 수 확인
-            const matchPuuids = detail.info.participants.map(p => p.puuid);
-            const ourPuuids = matchPlayers.map(p => p.puuid);
-            const overlap = ourPuuids.filter(pu => matchPuuids.includes(pu)).length;
-            const threshold = Math.max(1, Math.floor(allNames.length * 0.4));
-            if (overlap >= threshold) {
-              foundMatch = { id: matchId, detail };
-              break;
-            }
-          } catch(e) { /* 다음 시도 */ }
-        }
-      }
-    } catch(e) { /* 다음 경기로 */ }
-
-    if (foundMatch) {
-      const participants = {};
-      for (const pt of foundMatch.detail.info.participants) {
-        const fbPlayer = Object.values(registeredPlayers).find(r => r.puuid === pt.puuid);
-        if (fbPlayer) {
-          participants[normName(fbPlayer.name)] = {
-            champion: pt.championName,
-            kills: pt.kills,
-            deaths: pt.deaths,
-            assists: pt.assists,
-            cs: pt.totalMinionsKilled + (pt.neutralMinionsKilled || 0),
-            damage: pt.totalDamageDealtToChampions,
-          };
-        }
-      }
-      if (Object.keys(participants).length > 0) {
-        try {
-          await update(ref(db, 'matches/' + m.key), { participants, riotMatchId: foundMatch.id });
-          linked++;
-        } catch(e) { failed++; }
+  for (const [key, m] of Object.entries(matches || {})) {
+    scanned++;
+    if (!m.participants) continue;
+    withParticipants++;
+    for (const [pkey, pdata] of Object.entries(m.participants)) {
+      const orig = pdata?.champion;
+      if (!orig) continue;
+      if (champNamesKR[orig]) continue; // 정상
+      const norm = normalizeChampSlug(orig);
+      if (norm && norm !== orig) {
+        aliasable++;
+        const e = aliasableMap.get(orig) || { count: 0, target: norm };
+        e.count++;
+        aliasableMap.set(orig, e);
       } else {
-        failed++;
+        unknown++;
+        const e = unknownMap.get(orig) || { count: 0, samples: [] };
+        e.count++;
+        if (e.samples.length < 3) {
+          e.samples.push({ matchKey: key, date: m.date || '?', player: pkey });
+        }
+        unknownMap.set(orig, e);
       }
-    } else {
-      failed++;
     }
-
-    await new Promise(r => setTimeout(r, 300));
   }
 
-  if (progressEl) {
-    progressEl.style.color = linked > 0 ? 'var(--green)' : 'var(--text-dim)';
-    progressEl.textContent = `✅ 자동 연동 완료 — ${linked}건 성공 / ${failed}건 미연동 (수동 입력 필요)`;
-    setTimeout(() => {
-      if (progressEl) { progressEl.style.display = 'none'; progressEl.style.color = ''; }
-    }, 6000);
+  console.log(`총 ${scanned}경기 중 participants 보유 ${withParticipants}경기 점검 완료`);
+  console.log(`✅ 정상 슬러그: ${withParticipants ? '문제없음' : '점검 대상 없음'}`);
+
+  if (aliasableMap.size > 0) {
+    console.group(`🟡 alias로 즉시 보정 가능 — ${aliasable}건 (${aliasableMap.size}종)`);
+    console.table([...aliasableMap.entries()].map(([slug, e]) => ({
+      '저장된 슬러그': slug,
+      '보정 대상': e.target,
+      '발견 횟수': e.count,
+    })));
+    console.groupEnd();
+  } else {
+    console.log('🟡 alias 보정 대상: 없음');
   }
-  if (autoBtn) { autoBtn.disabled = false; }
-  renderMatchHistory();
+
+  if (unknownMap.size > 0) {
+    console.group(`🔴 ddragon · alias 모두 매칭 안 됨 — ${unknown}건 (${unknownMap.size}종)`);
+    console.warn('아래 슬러그를 캡처해서 보내주시면 CHAMP_SLUG_ALIASES 에 추가해 드립니다.');
+    console.table([...unknownMap.entries()].map(([slug, e]) => ({
+      '슬러그': slug,
+      '발견 횟수': e.count,
+      '예시 매치': e.samples.map(s => `${s.date}/${s.player}`).join(' | '),
+    })));
+    console.groupEnd();
+  } else {
+    console.log('🔴 미지 슬러그: 없음 — 모두 매핑 가능');
+  }
+
+  console.groupEnd();
+  return {
+    scanned, withParticipants, aliasable, unknown,
+    aliasable_list: Object.fromEntries(aliasableMap),
+    unknown_list:   Object.fromEntries(unknownMap),
+  };
 };
 
 window.showDetailPreview = function() {
@@ -10059,9 +10048,6 @@ function setLiveMode(enabled) {
   document.body.classList.toggle('live-mode', enabled);
   document.body.classList.toggle('member-mode', !enabled && !!myName);
   document.getElementById('live-mode-bar').style.display = enabled ? 'flex' : 'none';
-  // 기록 탭 자동 연동 버튼: 라이브 모드 + Riot API 키 보유 시에만 표시
-  const _autoLinkRow = document.getElementById('auto-link-row');
-  if (_autoLinkRow) _autoLinkRow.style.display = (enabled && (riotWorkerUrl || riotApiKey)) ? '' : 'none';
   if (enabled) {
     document.getElementById('my-info-bar').style.display = 'none';
     startLiveHeartbeat();
