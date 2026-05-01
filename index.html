@@ -606,6 +606,14 @@ select option{background:var(--surface2);}
 .rk-hero.first .rk-hero-motto{font-size:11px;}
 .rk-hero.second .rk-hero-motto,.rk-hero.third .rk-hero-motto{font-size:9px;}
 .rk-hero-chips{display:flex;gap:3px;margin-top:5px;flex-wrap:wrap;z-index:1;position:relative;}
+/* 1~3등 hero card — 챔프(좌) + 이름·칩(우) 가로 레이아웃 + 하단 한마디 말풍선 */
+.rk-hero-body{display:flex;align-items:center;gap:10px;z-index:1;position:relative;margin-top:4px;}
+.rk-hero-champ-col{flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.rk-hero-name-block{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;}
+.rk-hero-name-block .rk-hero-name{margin-top:0;}
+.rk-hero-name-block .rk-hero-chips{margin-top:0;}
+.rk-hero-motto-bubble{margin-top:7px;font-size:11px;font-style:italic;color:var(--rk-text-dim);background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:4px 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;z-index:1;position:relative;max-width:100%;box-sizing:border-box;}
+.rk-hero.second .rk-hero-motto-bubble,.rk-hero.third .rk-hero-motto-bubble{font-size:9.5px;padding:3px 8px;margin-top:5px;}
 .rk-hero-bottom{margin-top:auto;padding-top:7px;z-index:1;border-top:1px dashed var(--rk-dash);display:flex;align-items:baseline;justify-content:space-between;gap:6px;position:relative;}
 .rk-hero-score{display:flex;align-items:baseline;gap:3px;}
 .rk-hero-score .num{font-family:'Gmarket Sans',sans-serif;font-weight:700;color:var(--rk-gold);letter-spacing:-.02em;line-height:1;text-shadow:0 0 16px var(--rk-gold-glow);}
@@ -1564,7 +1572,8 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .s1-lp-bar{height:100%;border-radius:2px;transition:width 0.3s ease;}
 .s1-lp-num{font-family:'JetBrains Mono',monospace;font-size:9px;font-weight:600;color:var(--rk-text-dim);min-width:32px;text-align:right;white-space:nowrap;}
 .champ-stats-row{display:flex;gap:5px;align-items:flex-end;flex-shrink:0;}
-.rk-mini-champ-col .champ-stats-row{flex-direction:column;align-items:center;gap:3px;}
+.rk-mini-champ-col .champ-stats-row,
+.rk-hero-champ-col .champ-stats-row{flex-direction:column;align-items:center;gap:4px;}
 .champ-stat-item{display:flex;flex-direction:column;align-items:center;gap:1px;}
 .champ-stat-lbl{font-size:7px;font-weight:700;color:#484f58;letter-spacing:.3px;line-height:1;}
 .champ-stat-ico{border-radius:3px;object-fit:cover;flex-shrink:0;}
@@ -2219,7 +2228,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.0';
+const APP_VERSION = 'v2.36.1';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2228,6 +2237,9 @@ const APP_VERSION = 'v2.36.0';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.1', date: '2026-05-01', changes: [
+    { tag: 'improve', text: 'S1 랭킹 1~3등 hero 카드 레이아웃 재구성 — MOST/BEST 챔피언을 닉네임 좌측에 세로(MOST 위 / BEST 아래)로 배치, 닉네임 옆 클래스 칩(전사·탱커·원딜 등) 묶음, 한마디는 카드 하단에 말풍선(.rk-hero-motto-bubble) 형태로 분리. 미니카드와 톤 통일' },
+  ]},
   { ver: 'v2.36.0', date: '2026-05-01', changes: [
     { tag: 'new', text: '💎 프리미엄 복권 추가 — 200G / 1일 1장 한도. 꽝(40%) · 5등 70G(30%) · 4등 220G(18%) · 3등 500G(8%) · 2등 1500G(3%) · 메가잭팟 5000G(1%). 기댓값 약 196G로 살짝 음수, 상위권 골드 흡수가 목적. 모든 등급에서 모달 결과(프리미엄 보라 톤 + PREMIUM 배지). lotteryPremiumDate/Count 별도 한도 카운터. lotteryHistory에 premium:true 플래그로 기록되며 calcLotteryGold는 자동 합산' },
     { tag: 'improve', text: '복권 확률표 툴팁 — 일반 / 프리미엄 두 표를 디바이더로 분리해 한 번에 표시. 프리미엄은 보라 그라데이션 디바이더 + 핑크 헤더로 구분' },
@@ -11214,10 +11226,14 @@ function renderS1HeroCard(r, place, hasChallenger) {
       <div class="rk-hero-top-left">${medal?'<span class="rk-medal">'+medal+'</span>':placeTag}${r.me?renderRankMeTag(false):''}</div>
       <div>${s1TierBadgeHtml(r.tier, place===1?'big':'mid')}</div>
     </div>
-    <div class="rk-hero-name${hasChallenger&&place===1?' rk-name-gold':''}">${escHtml(r.name)}</div>
-    ${champIcons?`<div class="rk-hero-champ-stats">${champIcons}</div>`:''}
-    ${r.motto?`<div class="rk-hero-motto">"${escHtml(r.motto)}"</div>`:''}
-    ${chips?`<div class="rk-hero-chips">${chips}</div>`:''}
+    <div class="rk-hero-body">
+      ${champIcons?`<div class="rk-hero-champ-col">${champIcons}</div>`:''}
+      <div class="rk-hero-name-block">
+        <div class="rk-hero-name${hasChallenger&&place===1?' rk-name-gold':''}">${escHtml(r.name)}</div>
+        ${chips?`<div class="rk-hero-chips">${chips}</div>`:''}
+      </div>
+    </div>
+    ${r.motto?`<div class="rk-hero-motto-bubble">"${escHtml(r.motto)}"</div>`:''}
     <div class="rk-hero-bottom"><span></span></div>
     ${bottomSection}
   </div>`;
