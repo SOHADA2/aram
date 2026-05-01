@@ -2151,7 +2151,7 @@ img.emoji{
 <!-- Firebase SDK -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-import { getDatabase, ref, get, set, onValue, remove, push, update } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+import { getDatabase, ref, get, set, onValue, remove, push, update, runTransaction } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
 // ── FIREBASE CONFIG ───────────────────────────────────────────
 const firebaseConfig = {
@@ -2228,7 +2228,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.8';
+const APP_VERSION = 'v2.36.9';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2237,6 +2237,11 @@ const APP_VERSION = 'v2.36.8';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.9', date: '2026-05-01', changes: [
+    { tag: 'fix', text: '브릿지 양도(여러 사람 PC에서 동시 가동) 직후 매치가 2~3번 push되던 race 차단 — 웹 측 saveMatch 진입 시 session/saveLock 에 Firebase runTransaction 으로 atomic 잠금. 다른 기기가 30초 이내 보유 중이면 우리는 push 하지 않고 canonical 매치 도착(3초 폴링) 대기 후 키 재사용. 기존 pre-push 2분 dup 체크가 race로 통과해도 여기서 100% 차단됨' },
+    { tag: 'fix', text: '브릿지 동시 가동 시 EOG 데이터 이중 쓰기 차단 (aram-bridge v1.1.26 필요) — 시간 윈도우 30초 비교 → ETag If-Match 조건부 PUT 으로 atomic CAS. 다른 브릿지가 우리 GET 이후 먼저 쓰면 412 Precondition Failed 로 우리는 skip. 동일 gameId 재발견 시 시간 무관 무조건 건너뜀(둘 다 진행 중이어도 한쪽만 통과)' },
+    { tag: 'fix', text: '2026-05-01 22:57 중복 매치 1건 직접 정리 — 22:50 canonical 유지, 22:57 dup(-OrYpCE61ZuYoOpx6afM) 삭제. itemEffects 기록된 도박권 5장(IfCES·나랑듀오해듀오·맹독 벌꿀오소리·울퉁쓰·쭝쭝이주인) 환급, dup 매치 참가 10명 LP 직접 역산(승자 -23~-40, 패자 +5~+30, promo 활성 3명 promo 취소)' },
+  ]},
   { ver: 'v2.36.8', date: '2026-05-01', changes: [
     { tag: 'fix', text: '브릿지 EOG 데이터에서 일부 플레이어의 챔프 슬러그가 빈 값으로 저장되던 문제 — applyEogData가 champIdToSlug[championId] 매핑 시 ddragon 캐시가 비어있거나 신챔이면 ""로 떨어지던 게 원인. (1) 매핑 안 되는 championId 발견 시 ddragon 강제 재로드 → 재시도, (2) 항상 raw championId를 함께 저장(향후 ddragon 갱신 후 재매핑 가능), (3) 매치 카드 렌더와 calcChampDetail에 슬러그 폴백 추가 — champion 빈 값이어도 championId가 있으면 자동으로 이미지·통계에 복구 표시' },
   ]},
@@ -5033,6 +5038,7 @@ window.s1Resimulate = async function(dryRun = false) {
   return state;
 };
 
+
 window.previewSpectatorPick = function(asSpectator = true) {
   currentTeamA = [{name:'쭝쭝이주인'},{name:'조조와빈찬합'},{name:'애블린'},{name:'럼블홀릭'},{name:'빛나는언즈'}];
   currentTeamB = [{name:'신규회원임'},{name:'쭝쭝이'},{name:'뚱주'},{name:'올리브'},{name:'까까'}];
@@ -6602,6 +6608,60 @@ window.saveMatch = async function() {
         spectatorResult: _buildSpecResults(),
       };
       return; // saveMatch 본체 종료
+    }
+
+    // ── Atomic 저장 잠금 (v2.36.9~) ──────────────────────────────
+    // session/saveLock 에 transaction 으로 deviceId·시각 기록. 다른 기기가
+    // 30초 이내 점유 중이면 우리는 push 하지 않고 canonical 매치 도착 대기.
+    // pre-push dup 체크가 race로 통과해도 여기서 cross-device 차단됨.
+    const _myDeviceId = (typeof getDeviceId === 'function') ? getDeviceId() : 'unknown';
+    const _lockResult = await runTransaction(ref(db, 'session/saveLock'), (current) => {
+      const now = Date.now();
+      if (current && current.deviceId !== _myDeviceId && (now - (current.at || 0)) < 30000) {
+        return; // abort: 다른 기기가 잠금 보유
+      }
+      return { deviceId: _myDeviceId, at: now };
+    });
+    if (!_lockResult.committed) {
+      console.warn('[saveMatch] session/saveLock 점유 중 — 다른 기기 저장 대기');
+      // 최대 3초 대기하며 canonical 매치 도착 폴링
+      let _foundCanonical = null;
+      for (let i = 0; i < 6; i++) {
+        await new Promise(r => setTimeout(r, 500));
+        _foundCanonical = Object.entries(matches).find(([, m]) => {
+          if (!m || !m.timestamp) return false;
+          if (Math.abs(matchTimestamp - m.timestamp) > 300000) return false;
+          if (m.winner !== matchData.winner) return false;
+          const tA = (m.teamA || []).slice().sort().join('|');
+          const tB = (m.teamB || []).slice().sort().join('|');
+          return tA === _teamASorted && tB === _teamBSorted;
+        });
+        if (_foundCanonical) break;
+      }
+      if (_foundCanonical) {
+        console.warn('[saveMatch] 잠금 보유 기기 매치 확인 — 키 재사용:', _foundCanonical[0]);
+        savedMatchKey = _foundCanonical[0];
+        savedWinner = selectedWinner;
+        matchSaved = true;
+        const tcRow = document.getElementById('tier-changes-row');
+        if (tcRow) tcRow.innerHTML = '';
+        btn.textContent = '✅ 저장 완료 (다른 기기)'; btn.disabled = true;
+        postSaveMatchData = {
+          winners, losers, itemEffects, tierChanges: [], s1LpBefore: {},
+          questEvent: questEventState ? { ...questEventState } : null,
+          spectatorResult: _buildSpecResults(),
+        };
+        questEventState = null;
+        spectatorPick = null;
+        _spectatorPickAnnounced = false;
+        itemsLocked = false;
+        if (_currentEogSavedAt) localStorage.setItem('aram_eogSavedAt', String(_currentEogSavedAt));
+        if (mvpConfirmed !== null && mannerConfirmed !== null) finalizeVotes();
+        return;
+      }
+      // canonical 매치 도착 안 함 → 잠금 보유 기기가 실패한 듯, 우리가 진행
+      console.warn('[saveMatch] 잠금 대기 타임아웃 — 우리가 강제 진행');
+      await set(ref(db, 'session/saveLock'), { deviceId: _myDeviceId, at: Date.now() }).catch(() => {});
     }
 
     // ── Firebase 저장 (MVP/매너 없이 먼저) ──────────────────────
