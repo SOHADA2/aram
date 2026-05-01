@@ -2228,7 +2228,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.9';
+const APP_VERSION = 'v2.36.10';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2237,6 +2237,9 @@ const APP_VERSION = 'v2.36.9';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.10', date: '2026-05-01', changes: [
+    { tag: 'fix', text: '출석 체크 버튼 즉시 반응 — 클릭 시 Firebase 라운드트립 대기 중에도 버튼이 즉시 disabled + "✅ 출석 완료" 로 전환. 기존엔 클릭 후 Firebase onValue 도착 전까지 "출석 체크" 그대로라 더블클릭/혼동 가능했음. 실패 시 버튼 복구 + 오류 토스트' },
+  ]},
   { ver: 'v2.36.9', date: '2026-05-01', changes: [
     { tag: 'fix', text: '브릿지 양도(여러 사람 PC에서 동시 가동) 직후 매치가 2~3번 push되던 race 차단 — 웹 측 saveMatch 진입 시 session/saveLock 에 Firebase runTransaction 으로 atomic 잠금. 다른 기기가 30초 이내 보유 중이면 우리는 push 하지 않고 canonical 매치 도착(3초 폴링) 대기 후 키 재사용. 기존 pre-push 2분 dup 체크가 race로 통과해도 여기서 100% 차단됨' },
     { tag: 'fix', text: '브릿지 동시 가동 시 EOG 데이터 이중 쓰기 차단 (aram-bridge v1.1.26 필요) — 시간 윈도우 30초 비교 → ETag If-Match 조건부 PUT 으로 atomic CAS. 다른 브릿지가 우리 GET 이후 먼저 쓰면 412 Precondition Failed 로 우리는 skip. 동일 gameId 재발견 시 시간 무관 무조건 건너뜀(둘 다 진행 중이어도 한쪽만 통과)' },
@@ -10287,12 +10290,12 @@ function renderAttendance() {
         <div class="attend-date">📆 오늘 ${today}</div>
         <div class="attend-reward">🪙 +${GOLD_ATTEND} 골드 지급</div>
       </div>
-      <button class="attend-btn" onclick="doAttendance()">출석 체크</button>
+      <button class="attend-btn" onclick="doAttendance(event)">출석 체크</button>
     </div>`;
 }
 
 // 출석 체크 실행
-window.doAttendance = async function() {
+window.doAttendance = async function(ev) {
   const key = getMyGoldKey();
   if (!key) return;
   const data = goldData[key];
@@ -10300,15 +10303,33 @@ window.doAttendance = async function() {
   if (data?.lastAttendance === todayKey) {
     showGoldToast('오늘 이미 출석 완료!'); return;
   }
+  // 즉시 버튼 상태 갱신 (Firebase 라운드트립 대기 중에도 더블클릭/혼동 방지)
+  const btn = ev?.currentTarget || document.querySelector('#attend-content .attend-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = '✅ 출석 완료';
+    btn.style.cursor = 'default';
+  }
   const histKey = sField('attendanceHistory');
   const newHistory = [...(data[histKey] || []), { date: todayKey, gold: GOLD_ATTEND, ts: Date.now() }];
-  await set(ref(db, 'gold/' + key), {
-    ...data,
-    [histKey]: newHistory,
-    lastAttendance: todayKey,
-    [sField('attendanceCount')]: (data[sField('attendanceCount')] ?? 0) + 1,
-  });
-  showGoldToast(`🪙 +${GOLD_ATTEND} 출석 보너스!`);
+  try {
+    await set(ref(db, 'gold/' + key), {
+      ...data,
+      [histKey]: newHistory,
+      lastAttendance: todayKey,
+      [sField('attendanceCount')]: (data[sField('attendanceCount')] ?? 0) + 1,
+    });
+    showGoldToast(`🪙 +${GOLD_ATTEND} 출석 보너스!`);
+  } catch (e) {
+    // 실패 시 버튼 복구
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '출석 체크';
+      btn.style.cursor = '';
+    }
+    showGoldToast('❌ 출석 체크 실패 — 다시 시도해주세요');
+    throw e;
+  }
 };
 
 // 상점/인벤토리 카테고리 탭 전환
