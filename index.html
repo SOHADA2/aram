@@ -2228,7 +2228,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.2';
+const APP_VERSION = 'v2.36.3';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2237,6 +2237,9 @@ const APP_VERSION = 'v2.36.2';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.3', date: '2026-05-01', changes: [
+    { tag: 'improve', text: '팀 구성 완료 시 일반 팀원 기기 자동 스크롤 — 호스트가 makeTeams 호출 후 session onValue가 전파되면, 다른 탭에 있던 팀원 기기는 0.8초 후 팀구성 탭으로 자동 이동 + 120ms 뒤 #result-section 으로 scrollIntoView. 이미 팀구성 탭에 있는 경우도 80ms 뒤 결과 카드 위치 재정렬. 랭킹 탭 .me 자동 스크롤과 동일 패턴' },
+  ]},
   { ver: 'v2.36.2', date: '2026-05-01', changes: [
     { tag: 'fix', text: '승급전 방어권 + 승리권 동시 활성화 차단 — 둘 다 켜져 있어도 s1ApplyMatchResult가 items.find()로 1개만 잡아 한 효과만 발동되는 반면 두 아이템 모두 소모되던 문제(200G 증발 위험). toggleItemActive에 isPromoItem 충돌 가드 추가, 한 종류만 활성화하도록 토스트 안내' },
   ]},
@@ -3571,12 +3574,24 @@ function applySessionData(data) {
     // 팀 멤버가 바뀐 경우에만 결과 DOM 재생성 (MVP·매너 투표로 인한 불필요한 재렌더 방지)
     if (teamsChanged) {
       renderResult();
-      // 팀 구성 완료 시 팀구성 탭이 아닌 화면에 있으면 자동 이동
+      // 팀 구성 완료 시 팀구성 탭이 아닌 화면에 있으면 자동 이동 + 결과 카드로 스크롤
       const teamTabEl  = document.getElementById('tab-team');
       const teamTabBtn = document.querySelector('.nav-tab[onclick*="tab-team"]');
+      const scrollToResult = () => {
+        const sec = document.getElementById('result-section');
+        if (sec && sec.style.display !== 'none') {
+          sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      };
       if (teamTabBtn && teamTabEl && !teamTabEl.classList.contains('active')) {
         showGoldToast('⚔️ 팀 구성 완료! 결과창으로 이동합니다');
-        setTimeout(() => showTab('tab-team', teamTabBtn), 800);
+        setTimeout(() => {
+          showTab('tab-team', teamTabBtn);
+          setTimeout(scrollToResult, 120); // 탭 전환 후 DOM 안정화 대기
+        }, 800);
+      } else {
+        // 이미 팀구성 탭에 있는 경우에도 결과 카드 위치로 한 번 더 정렬
+        setTimeout(scrollToResult, 80);
       }
     }
     // 새 팀 구성 시 발표 오버레이 (팀 멤버가 실제로 바뀐 경우만)
