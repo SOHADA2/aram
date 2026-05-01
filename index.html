@@ -1198,6 +1198,11 @@ body.member-mode #event-no-save-notice{display:none!important;}
 /* ── 기록 탭 헤더 (v2.29.28~) */
 .rc-header{padding:14px 16px;border-bottom:1px solid var(--rk-border);position:relative;}
 .rc-header-row{display:flex;justify-content:space-between;align-items:center;}
+.auto-link-row{margin-top:10px;display:flex;flex-direction:column;gap:6px;}
+.auto-link-btn{padding:8px 12px;border-radius:8px;border:1px solid rgba(125,211,252,0.35);background:linear-gradient(135deg,rgba(125,211,252,0.10),rgba(125,211,252,0.02));color:#7dd3fc;font-size:12px;font-weight:700;letter-spacing:0.3px;cursor:pointer;transition:all 0.15s;font-family:'Noto Sans KR',sans-serif;}
+.auto-link-btn:hover{background:linear-gradient(135deg,rgba(125,211,252,0.18),rgba(125,211,252,0.05));border-color:rgba(125,211,252,0.55);}
+.auto-link-btn:disabled{opacity:0.55;cursor:default;}
+.auto-link-progress{padding:6px 10px;border-radius:6px;background:rgba(255,255,255,0.04);border:1px solid var(--rk-border);font-size:11px;color:var(--rk-text-dim);font-family:'JetBrains Mono',monospace;letter-spacing:0.2px;}
 .rc-title{font-family:'Black Han Sans',sans-serif;font-size:20px;letter-spacing:.02em;color:var(--rk-text);display:flex;align-items:baseline;gap:8px;}
 .rc-title-dot{color:var(--rk-gold);letter-spacing:0;}
 .rc-header-actions{display:flex;gap:6px;align-items:center;}
@@ -1993,6 +1998,10 @@ img.emoji{
         <span id="match-count-badge" class="rk-stat-val" style="color:var(--rk-gold);">0</span>
       </div>
     </div>
+    <div id="auto-link-row" class="auto-link-row" style="display:none;">
+      <button id="auto-link-btn" class="auto-link-btn" onclick="autoLinkAllMatches()">🔗 누락 챔프 데이터 자동 연동</button>
+      <div id="auto-link-progress" class="auto-link-progress" style="display:none;"></div>
+    </div>
   </div>
   <div id="match-history-list">
     <div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>
@@ -2228,7 +2237,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.5';
+const APP_VERSION = 'v2.36.6';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2237,6 +2246,9 @@ const APP_VERSION = 'v2.36.5';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.6', date: '2026-05-01', changes: [
+    { tag: 'new', text: '기록 탭에 "🔗 누락 챔프 데이터 자동 연동" 버튼 추가 (라이브 모드 + Riot API 키 보유 시 표시) — 기존 autoLinkAllMatches() 함수가 콘솔 전용이라 UI 부재였던 문제 해결. 클릭 시 participants 누락된 과거 매치들을 PUUID 기반으로 Riot Match-v5에서 조회·소급 적용. 진행 상태가 버튼 아래에 실시간 표시됨' },
+  ]},
   { ver: 'v2.36.5', date: '2026-05-01', changes: [
     { tag: 'fix', text: '최신 챔피언 이미지/한글명이 매치 기록·프로필 카드 등에서 누락되던 문제 — DDRAGON_VERSION이 15.8.1로 하드코딩되어 그 이후 출시된 챔프 데이터를 못 가져오던 게 원인. loadDdragonVersion() 신설해 ddragon /api/versions.json에서 최신 버전을 동적으로 가져오도록 변경(failed 시 15.8.1 fallback). loadChampNamesKR() 진입 시 자동 호출, 부팅 시점에도 fire-and-forget prefetch로 첫 렌더 캐시 적중률 향상' },
   ]},
@@ -3396,12 +3408,18 @@ async function seedGoldForAllPlayers() {
 }
 
 // Riot API 키 구독 (Firebase /config/riotApiKey)
+function _refreshAutoLinkRow() {
+  const row = document.getElementById('auto-link-row');
+  if (row) row.style.display = (liveMode && (riotWorkerUrl || riotApiKey)) ? '' : 'none';
+}
 onValue(ref(db, 'config/riotApiKey'), (snapshot) => {
   riotApiKey = (snapshot.val() || '').trim();
+  _refreshAutoLinkRow();
 });
 onValue(ref(db, 'config/riotWorkerUrl'), (snapshot) => {
   const val = (snapshot.val() || '').trim().replace(/\/$/, '');
   if (val) riotWorkerUrl = val; // Firebase 미설정 시 하드코딩 기본값 유지
+  _refreshAutoLinkRow();
 });
 onValue(ref(db, 'config/currentSeason'), (snapshot) => {
   const val = snapshot.val();
@@ -10041,6 +10059,9 @@ function setLiveMode(enabled) {
   document.body.classList.toggle('live-mode', enabled);
   document.body.classList.toggle('member-mode', !enabled && !!myName);
   document.getElementById('live-mode-bar').style.display = enabled ? 'flex' : 'none';
+  // 기록 탭 자동 연동 버튼: 라이브 모드 + Riot API 키 보유 시에만 표시
+  const _autoLinkRow = document.getElementById('auto-link-row');
+  if (_autoLinkRow) _autoLinkRow.style.display = (enabled && (riotWorkerUrl || riotApiKey)) ? '' : 'none';
   if (enabled) {
     document.getElementById('my-info-bar').style.display = 'none';
     startLiveHeartbeat();
