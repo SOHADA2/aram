@@ -2228,7 +2228,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.1';
+const APP_VERSION = 'v2.36.2';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2237,6 +2237,9 @@ const APP_VERSION = 'v2.36.1';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.2', date: '2026-05-01', changes: [
+    { tag: 'fix', text: '승급전 방어권 + 승리권 동시 활성화 차단 — 둘 다 켜져 있어도 s1ApplyMatchResult가 items.find()로 1개만 잡아 한 효과만 발동되는 반면 두 아이템 모두 소모되던 문제(200G 증발 위험). toggleItemActive에 isPromoItem 충돌 가드 추가, 한 종류만 활성화하도록 토스트 안내' },
+  ]},
   { ver: 'v2.36.1', date: '2026-05-01', changes: [
     { tag: 'improve', text: 'S1 랭킹 1~3등 hero 카드 레이아웃 재구성 — MOST/BEST 챔피언을 닉네임 좌측에 세로(MOST 위 / BEST 아래)로 배치, 닉네임 옆 클래스 칩(전사·탱커·원딜 등) 묶음, 한마디는 카드 하단에 말풍선(.rk-hero-motto-bubble) 형태로 분리. 미니카드와 톤 통일' },
   ]},
@@ -10481,6 +10484,13 @@ window.toggleItemActive = async function(idx) {
     // 승급전 전용 아이템: 승급전 진행 중에만 사용 가능
     if ((tryId === 's1_promo_shield' || tryId === 's1_promo_win') && !myS1?.promoActive) {
       showGoldToast(`⚠ 승급전 진행 중에만 사용할 수 있어요`);
+      return;
+    }
+    // 승급전 방어권 ↔ 승리권 동시 활성화 방지 (둘 다 켜져 있으면 한 효과만 발동되고 둘 다 소모됨)
+    const isPromoItem = id => id === 's1_promo_shield' || id === 's1_promo_win';
+    const otherPromoOn = items.some((it, i) => i !== idx && it.active && isPromoItem(it.id));
+    if (isPromoItem(tryId) && otherPromoOn) {
+      showGoldToast(`⚠ 승급전 방어권과 승리권은 함께 활성화할 수 없어요`);
       return;
     }
     // 승급전 승리권: 이미 1승이 있으면 활성화 불가
