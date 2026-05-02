@@ -1147,6 +1147,13 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .match-detail-overlay{position:fixed;inset:0;z-index:950;background:rgba(4,11,21,0.9);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center;padding:0;animation:fadeIn 0.2s ease;}
 @media(min-width:540px){.match-detail-overlay{align-items:center;padding:20px;}}
 .match-detail-modal{background:var(--surface);border:1px solid var(--border);border-radius:16px 16px 0 0;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;animation:slideUp 0.25s cubic-bezier(0.25,1,0.5,1);}
+/* ── 매치 상세 모달 — 관전자 베팅 섹션 (v2.36.13~) ── */
+.match-detail-spec-section{margin-top:10px;padding:10px 12px;background:rgba(120,60,220,0.06);border:1px solid rgba(160,100,255,0.22);border-radius:8px;}
+.match-detail-spec-title{font-size:11px;font-weight:700;color:#c084fc;margin-bottom:6px;letter-spacing:0.4px;}
+.match-detail-spec-row{display:flex;align-items:center;gap:8px;font-size:11.5px;padding:4px 0;border-bottom:1px dashed rgba(255,255,255,0.04);flex-wrap:wrap;}
+.match-detail-spec-row:last-child{border-bottom:none;}
+.match-detail-spec-name{flex:1;min-width:80px;color:var(--text);font-weight:600;}
+.match-detail-spec-pick,.match-detail-spec-bet,.match-detail-spec-res,.match-detail-spec-pay{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.2px;flex-shrink:0;}
 @media(min-width:540px){.match-detail-modal{border-radius:16px;}}
 .match-detail-header{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid var(--border);}
 .match-detail-title{font-family:'Black Han Sans',sans-serif;font-size:15px;letter-spacing:1px;}
@@ -2241,7 +2248,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.12';
+const APP_VERSION = 'v2.36.13';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2250,6 +2257,9 @@ const APP_VERSION = 'v2.36.12';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.13', date: '2026-05-02', changes: [
+    { tag: 'new', text: '경기 상세 모달에 관전자 베팅 섹션 추가 — 매치 기록 → 상세보기에 관전자 이름 / 픽(1팀·2팀) / 베팅(30~100G·🎁자동·레거시) / 결과(✅적중·❌실패) / 변동(+/-G) 한 줄 표시. 다중 관전자 모두 표시. 단일 관전자 레거시(spectatorName/spectatorPick) 도 호환' },
+  ]},
   { ver: 'v2.36.12', date: '2026-05-02', changes: [
     { tag: 'improve', text: '관전자 자동 픽(0G 베팅) 적중 보너스 추가 — 골드 부족·미선택으로 자동 랜덤된 경우 적중 시 +30G 보너스(SPECTATOR_FREEPICK_BONUS) 지급, 실패 시 0. 기존엔 변동 0이라 의미가 없었음. 모달 안내·발표 메시지에도 보너스 표기' },
     { tag: 'new', text: '진단 — calcSpectatorFreepickBonus(name) 헬퍼 + recalcAllGold() 결과 표에 "자동픽보너스" 컬럼 분리 추가. showBetHistory() 도 0G 베팅 행 포함 표시 + 자동픽 보너스 합 별도 요약' },
@@ -7499,6 +7509,62 @@ window.openMatchDetail = async function(key) {
           if (mvpL) badges.push(`<span style="color:var(--text-dim);">🏅 SVP</span> ${escHtml(mvpL)}`);
           if (mmpW || mmpL) badges.push(`<span style="color:var(--green);">🤝 MMP</span> ${[mmpW,mmpL].filter(Boolean).map(escHtml).join(' · ')}`);
           return badges.length ? `<div style="margin-top:10px;padding:8px 10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:12px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">${badges.join('<span style="color:var(--border);">│</span>')}</div>` : '';
+        })()}
+        ${(() => {
+          // 관전자 베팅 섹션 (v2.36.13~)
+          const rows = [];
+          if (m.spectatorPicks && Object.keys(m.spectatorPicks).length > 0) {
+            // v2.32.2+ 다중 관전자
+            for (const [k, sp] of Object.entries(m.spectatorPicks)) {
+              if (!sp) continue;
+              rows.push({
+                name: k,
+                pick: sp.pick,
+                correct: !!sp.correct,
+                betAmount: sp.betAmount, // undefined = 구버전(베팅 시스템 이전)
+                payout: sp.payout,
+              });
+            }
+          } else if (m.spectatorName && m.spectatorPick) {
+            // 단일 관전자 레거시
+            rows.push({
+              name: m.spectatorName,
+              pick: m.spectatorPick,
+              correct: !!m.spectatorCorrect,
+              betAmount: undefined,
+              payout: undefined,
+            });
+          }
+          if (rows.length === 0) return '';
+          const items = rows.map(r => {
+            const teamLabel = r.pick === 'blue' ? '<span style="color:var(--blue);">1팀</span>' : '<span style="color:var(--gold);">2팀</span>';
+            const resultIco = r.correct ? '<span style="color:var(--green);">✅ 적중</span>' : '<span style="color:var(--red);">❌ 실패</span>';
+            let betLine;
+            if (r.betAmount === undefined) {
+              betLine = '<span style="color:var(--text-dim);">레거시</span>'; // 베팅 시스템 이전
+            } else if (r.betAmount === 0) {
+              betLine = '🎁 자동';
+            } else {
+              betLine = `🪙${r.betAmount}G`;
+            }
+            let payoutLine = '';
+            if (r.payout != null) {
+              const sign = r.payout > 0 ? '+' : '';
+              const color = r.payout > 0 ? 'var(--green)' : (r.payout < 0 ? 'var(--red)' : 'var(--text-dim)');
+              payoutLine = `<span style="color:${color};font-weight:700;">${sign}${r.payout}G</span>`;
+            }
+            return `<div class="match-detail-spec-row">
+              <span class="match-detail-spec-name">👀 ${escHtml(r.name)}</span>
+              <span class="match-detail-spec-pick">${teamLabel}</span>
+              <span class="match-detail-spec-bet">${betLine}</span>
+              <span class="match-detail-spec-res">${resultIco}</span>
+              ${payoutLine ? `<span class="match-detail-spec-pay">${payoutLine}</span>` : ''}
+            </div>`;
+          }).join('');
+          return `<div class="match-detail-spec-section">
+            <div class="match-detail-spec-title">🔮 관전자 베팅</div>
+            ${items}
+          </div>`;
         })()}
       </div>
     </div>`;
