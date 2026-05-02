@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.36.10
+- 현재 버전: v2.36.11
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -33,6 +33,7 @@
   spectators: string[] | null   // 전체 관전자 목록 (v2.32.2~, 11명 이상 시 다수)
   spectatorPick: string | null  // 첫 번째 관전자 예측 (하위 호환)
   spectatorPicks: { [normName]: string } | null  // 다중 관전자 각자 예측
+  spectatorBets:  { [normName]: number } | null  // 관전자 베팅 금액 (v2.36.11~, 30/50/80/100)
   spectatorPickStartAt: number  // 예측 모달 시작 시각
   // onValue로 모든 기기에 실시간 동기화됨 (일반 매치만, 이벤트 매치는 제외)
 
@@ -54,7 +55,9 @@
     doubleKills, tripleKills, quadraKills, pentaKills: number,
     firstBlood: boolean
   } }
-  spectatorPicks: { [normName]: { pick: 'blue'|'red', correct: boolean } }  // 다중 관전자 예측 (v2.32.2~)
+  spectatorPicks: { [normName]: { pick: 'blue'|'red', correct: boolean, betAmount?: number, payout?: number } }
+                                  // 다중 관전자 예측 (v2.32.2~), 베팅 시스템 (v2.36.11~ — betAmount/payout 추가)
+                                  // payout: 적중 시 +betAmount, 실패 시 -betAmount, 자동랜덤(베팅 0)이면 0
   // 하위 호환: spectatorName, spectatorPick, spectatorCorrect (단일 관전자 레거시)
 
 /gold/{key}

@@ -389,8 +389,19 @@ select option{background:var(--surface2);}
 .sp-timer.urgent{color:var(--red);}
 .sp-btns{display:flex;gap:8px;margin-bottom:8px;}
 .sp-pick-btn{flex:1;padding:12px 10px;border-radius:10px;border:2px solid var(--border);background:var(--surface2);color:var(--text);font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:14px;cursor:pointer;transition:all 0.2s;}
-.sp-pick-btn.team1:hover,.sp-pick-btn.team1.picked{border-color:var(--gold);background:rgba(255,200,60,0.1);color:var(--gold-light);}
-.sp-pick-btn.team2:hover,.sp-pick-btn.team2.picked{border-color:var(--gold);background:rgba(255,200,60,0.1);color:var(--gold-light);}
+.sp-pick-btn:disabled{opacity:0.4;cursor:not-allowed;filter:grayscale(0.5);}
+.sp-pick-btn.team1:hover:not(:disabled),.sp-pick-btn.team1.picked{border-color:var(--gold);background:rgba(255,200,60,0.1);color:var(--gold-light);}
+.sp-pick-btn.team2:hover:not(:disabled),.sp-pick-btn.team2.picked{border-color:var(--gold);background:rgba(255,200,60,0.1);color:var(--gold-light);}
+/* ── 관전자 베팅 칩 (v2.36.11~) ── */
+.sp-bet-section{margin:10px 0 4px;padding:10px;border-radius:10px;background:rgba(255,200,60,0.05);border:1px solid rgba(255,200,60,0.18);}
+.sp-bet-label{font-size:11px;color:var(--text-dim);text-align:center;margin-bottom:7px;letter-spacing:0.3px;}
+.sp-bet-label .sp-bet-gold{color:var(--gold);font-weight:700;margin-left:6px;}
+.sp-bet-chips{display:flex;gap:5px;justify-content:center;}
+.sp-bet-chip{flex:1;padding:7px 4px;border-radius:7px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text);font-family:'JetBrains Mono',monospace;font-weight:700;font-size:12px;cursor:pointer;transition:all 0.15s;}
+.sp-bet-chip:hover:not(:disabled){border-color:var(--gold);transform:translateY(-1px);}
+.sp-bet-chip.selected{border-color:var(--gold);background:rgba(255,200,60,0.15);color:var(--gold-light);box-shadow:0 0 0 1px var(--gold);}
+.sp-bet-chip:disabled{opacity:0.35;cursor:not-allowed;}
+.sp-bet-warn{font-size:10.5px;color:var(--red);text-align:center;margin-top:6px;}
 .sp-hint{font-size:11px;color:var(--text-dim);}
 .sp-announce-icon{font-size:36px;margin-bottom:8px;line-height:1;}
 .sp-announce-text{font-size:14px;color:var(--text);line-height:2.1;}
@@ -2213,6 +2224,8 @@ let currentSpectator  = null;      // 관전자[0] — 하위 호환
 let currentSpectators = [];        // 전체 관전자 목록 (다수 가능, 11명 이상 시)
 let spectatorPick     = null;      // 내 예측 (관전자 본인 / 첫 관전자 compat)
 let allSpectatorPicks = {};        // normName → 'blue'|'red' (다중 관전자)
+let allSpectatorBets  = {};        // normName → 30|50|80|100 (베팅 금액, v2.36.11~)
+let spectatorBetAmount = null;     // 현재 모달 세션에서 내가 선택한 베팅 금액
 let spectatorPickTimer = null;     // 카운트다운 인터벌
 let _spectatorPickAnnounced = false; // 중복 발표 방지 플래그
 let selectedWinner = null;
@@ -2228,7 +2241,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.10';
+const APP_VERSION = 'v2.36.11';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2237,6 +2250,11 @@ const APP_VERSION = 'v2.36.10';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.11', date: '2026-05-02', changes: [
+    { tag: 'new', text: '관전자 베팅 시스템으로 전환 — 기존 적중 시 정액 +50G 보상에서 30/50/80/100G 베팅 → 적중 시 +베팅금액 / 실패 시 -베팅금액 형식으로 변경. 베팅 모달은 베팅 금액을 먼저 골라야 1팀/2팀 픽 버튼이 활성화. 보유 골드 미만의 베팅 칩은 자동 비활성. 미선택 자동 랜덤은 베팅 0G(골드 변동 없음)으로 처리' },
+    { tag: 'new', text: '베팅 결과 영구 저장으로 역산 가능 — matches/{key}/spectatorPicks/{name}에 {pick, correct, betAmount, payout} 모두 저장. payout 음수도 허용해 net 변동 명확. calcGoldFromMatches는 betAmount 있으면 payout 합산, 없으면 구버전 정액 보상 폴백' },
+    { tag: 'new', text: '진단 도구 — 콘솔에서 showBetHistory("닉네임") 실행 시 그 사람의 모든 베팅 이력(날짜·픽·적중·베팅·변동) 표 출력 + 총 베팅·순이익·적중률 요약. recalcAllGold() 결과에 베팅 합계 컬럼 추가' },
+  ]},
   { ver: 'v2.36.10', date: '2026-05-01', changes: [
     { tag: 'fix', text: '출석 체크 버튼 즉시 반응 — 클릭 시 Firebase 라운드트립 대기 중에도 버튼이 즉시 disabled + "✅ 출석 완료" 로 전환. 기존엔 클릭 후 Firebase onValue 도착 전까지 "출석 체크" 그대로라 더블클릭/혼동 가능했음. 실패 시 버튼 복구 + 오류 토스트' },
   ]},
@@ -3031,8 +3049,10 @@ const GOLD_LOSE   = 5;
 const GOLD_MVP    = 50; // MVP 추가 골드 (v2.25.0~)
 const GOLD_MVP_LEGACY = 50; // MVP 추가 골드 — 소급 적용으로 GOLD_MVP와 통일 (v2.31.70)
 const GOLD_ATTEND = 30; // 출석 체크 보너스
-const GOLD_SPECTATOR_CORRECT = 50; // 관전자 예측 적중 골드 (v2.25.0~)
+const GOLD_SPECTATOR_CORRECT = 50; // 관전자 예측 적중 골드 (v2.25.0 ~ v2.36.10, 정액 보상. v2.36.11+에서 베팅 시스템으로 대체)
 const GOLD_SPECTATOR_CORRECT_LEGACY = 15; // 관전자 예측 적중 골드 (v2.24.x 이하, 소급 방지용)
+// 관전자 베팅 시스템 (v2.36.11~) — 적중 시 +betAmount, 미적중 시 -betAmount (net 변동)
+const SPECTATOR_BET_AMOUNTS = [30, 50, 80, 100];
 const GOLD_MANNER = 50; // 매너왕 골드 (v2.25.0~)
 
 // ─────────────────────────────────────────────────────────────
@@ -3325,11 +3345,18 @@ function calcGoldFromMatches(name, season = CURRENT_SEASON) {
     const goldVer  = m.goldVersion || 1;
     const mvpGold  = goldVer >= 2 ? GOLD_MVP  : GOLD_MVP_LEGACY;
     const specGold = goldVer >= 2 ? GOLD_SPECTATOR_CORRECT : GOLD_SPECTATOR_CORRECT_LEGACY;
-    // 관전자 예측 적중 골드 (팀에 속하지 않으므로 별도 처리)
-    if (m.spectatorPicks) {
-      if (m.spectatorPicks[key]?.correct) gold += specGold;
-    } else {
-      if (m.spectatorName === key && m.spectatorCorrect) gold += specGold;
+    // 관전자 예측 골드 (팀에 속하지 않으므로 별도 처리)
+    // v2.36.11~ 베팅 시스템: payout 필드(net 변동, 음수 가능) 우선 적용
+    // 구버전: correct 시 specGold (50G 또는 15G) 정액
+    if (m.spectatorPicks?.[key]) {
+      const sp = m.spectatorPicks[key];
+      if (sp.betAmount != null) {
+        gold += sp.payout || 0; // 베팅 시스템 (음수면 차감)
+      } else if (sp.correct) {
+        gold += specGold; // 구버전 정액
+      }
+    } else if (m.spectatorName === key && m.spectatorCorrect) {
+      gold += specGold; // 더 옛날 단일 관전자 호환
     }
     if (!inA && !inB) return;
     const won = (m.winner==='blue'&&inA)||(m.winner==='red'&&inB);
@@ -3511,6 +3538,7 @@ function applySessionData(data) {
   currentSpectator  = data.spectator ? { name: data.spectator } : null;
   currentSpectators = (data.spectators || (data.spectator ? [data.spectator] : [])).map(n => ({ name: n }));
   allSpectatorPicks = data.spectatorPicks || {};
+  allSpectatorBets  = data.spectatorBets  || {};
   // session 에 teamsFormedAt 가 있으면 우선 사용, 없으면 현재 시각 (다른 기기와 동기화 위해)
   _currentTeamsFormedAt = data.teamsFormedAt || _currentTeamsFormedAt || Date.now();
 
@@ -4692,6 +4720,7 @@ window.showSpectatorPickModal = function showSpectatorPickModal(seconds = 15) {
   if (!currentSpectators.length || isEventMatch) return;
   document.getElementById('sp-overlay')?.remove();
   clearInterval(spectatorPickTimer);
+  spectatorBetAmount = null; // 새 모달마다 베팅 초기화
 
   const myNorm = normName(myName || '');
   const isMe   = !!(myNorm && currentSpectators.some(s => normName(s.name) === myNorm));
@@ -4701,17 +4730,30 @@ window.showSpectatorPickModal = function showSpectatorPickModal(seconds = 15) {
 
   if (isMe) {
     // 관전자 본인 → 하단 배너 (팀 구성 확인하면서 투표)
+    const myGold = getMyGold();
+    const minBet = SPECTATOR_BET_AMOUNTS[0];
+    const chips = SPECTATOR_BET_AMOUNTS.map(a => {
+      const dis = myGold < a ? 'disabled' : '';
+      return `<button class="sp-bet-chip" data-amount="${a}" onclick="selectSpectatorBet(${a})" ${dis}>${a}G</button>`;
+    }).join('');
+    const warn = myGold < minBet
+      ? `<div class="sp-bet-warn">🪙 보유 ${myGold}G — 베팅 불가 (최소 ${minBet}G)</div>` : '';
     overlay.className = 'sp-overlay';
     overlay.innerHTML = `<div class="sp-sheet" onclick="event.stopPropagation()">
       <div class="sp-emoji">🎲</div>
-      <div class="sp-title">관전자 예측!</div>
-      <div class="sp-sub">어느 팀이 이길 것 같나요?<br>적중 시 🪙<strong>+${GOLD_SPECTATOR_CORRECT}G</strong> 지급</div>
+      <div class="sp-title">관전자 베팅!</div>
+      <div class="sp-sub">베팅 금액을 먼저 고르고 팀을 선택하세요<br>적중 시 <strong style="color:var(--gold)">+베팅금액</strong> · 실패 시 <strong style="color:var(--red)">-베팅금액</strong></div>
+      <div class="sp-bet-section">
+        <div class="sp-bet-label">🪙 베팅 금액 <span class="sp-bet-gold">보유 ${myGold}G</span></div>
+        <div class="sp-bet-chips">${chips}</div>
+        ${warn}
+      </div>
       <div class="sp-timer" id="sp-timer">${seconds}</div>
       <div class="sp-btns">
-        <button class="sp-pick-btn team1" onclick="spectatorPickTeam('blue')">1팀 승리</button>
-        <button class="sp-pick-btn team2" onclick="spectatorPickTeam('red')">2팀 승리</button>
+        <button class="sp-pick-btn team1" disabled onclick="spectatorPickTeam('blue')">1팀 승리</button>
+        <button class="sp-pick-btn team2" disabled onclick="spectatorPickTeam('red')">2팀 승리</button>
       </div>
-      <div class="sp-hint">미선택 시 자동으로 랜덤 선택됩니다</div>
+      <div class="sp-hint">미선택 시 자동 랜덤 선택 (베팅 없음, 골드 변동 0)</div>
     </div>`;
   } else {
     // 팀원 → 중앙 오버레이
@@ -4736,14 +4778,15 @@ window.showSpectatorPickModal = function showSpectatorPickModal(seconds = 15) {
     if (timerEl) { timerEl.textContent = timeLeft; if (timeLeft <= 5) timerEl.classList.add('urgent'); }
     if (timeLeft <= 0) {
       clearInterval(spectatorPickTimer);
-      // 타이머 만료: 내 예측이 없으면 본인이 랜덤 선택
+      // 타이머 만료: 내 예측이 없으면 본인이 랜덤 선택 (베팅 안 했으면 0G)
       if (isMe && !allSpectatorPicks[myNorm]) {
-        spectatorPickTeam(Math.random() < 0.5 ? 'blue' : 'red');
+        // 본인 자동 랜덤: 골드 변동 없는 0G 베팅으로 처리 (overrideName=myName 으로 자동 분기 진입)
+        spectatorPickTeam(Math.random() < 0.5 ? 'blue' : 'red', myName, 0);
       } else if (liveMode) {
-        // liveMode 기기가 미선택 관전자를 대신 랜덤 선택
+        // liveMode 기기가 미선택 관전자를 대신 랜덤 선택 (0G 베팅)
         for (const s of currentSpectators) {
           const sNorm = normName(s.name);
-          if (!allSpectatorPicks[sNorm]) spectatorPickTeam(Math.random() < 0.5 ? 'blue' : 'red', s.name);
+          if (!allSpectatorPicks[sNorm]) spectatorPickTeam(Math.random() < 0.5 ? 'blue' : 'red', s.name, 0);
         }
       }
     }
@@ -4772,6 +4815,46 @@ async function migrateGoldBonusToLegacy() {
   }
 }
 
+// 관전자 베팅 골드 합산 (v2.36.11~) — net 변동 (양수/음수 가능)
+// matchGold에 이미 포함되지만 진단·역산용 분리 함수
+function calcSpectatorBetGold(name, season = CURRENT_SEASON) {
+  const key = normName(name);
+  let sum = 0;
+  for (const m of Object.values(matches)) {
+    if ((m.season ?? 0) !== season) continue;
+    const sp = m.spectatorPicks?.[key];
+    if (sp?.betAmount != null) sum += sp.payout || 0;
+  }
+  return sum;
+}
+
+// 관전자 베팅 이력 콘솔 출력 (콘솔: showBetHistory("닉네임"))
+window.showBetHistory = function(name) {
+  if (!name) { console.log('❗ 사용법: showBetHistory("닉네임")'); return; }
+  const key = normName(name);
+  const rows = [];
+  for (const m of Object.values(matches)) {
+    const sp = m.spectatorPicks?.[key];
+    if (!sp?.betAmount) continue;
+    rows.push({
+      날짜: m.date || '?',
+      시즌: m.season ?? 0,
+      픽: sp.pick === 'blue' ? '1팀' : '2팀',
+      결과: sp.correct ? '✅ 적중' : '❌ 실패',
+      베팅: sp.betAmount + 'G',
+      변동: (sp.payout > 0 ? '+' : '') + sp.payout + 'G',
+    });
+  }
+  if (rows.length === 0) { console.log(`📭 "${name}" 베팅 이력 없음`); return; }
+  console.log(`📊 ${name} 베팅 이력 (${rows.length}건)`);
+  console.table(rows);
+  const totalBet = rows.reduce((s,r) => s + parseInt(r.베팅), 0);
+  const totalPayout = rows.reduce((s,r) => s + parseInt(r.변동), 0);
+  const wins = rows.filter(r => r.결과.includes('적중')).length;
+  console.log(`💰 총 베팅 ${totalBet}G · 순이익 ${totalPayout > 0 ? '+' : ''}${totalPayout}G · 적중률 ${wins}/${rows.length} (${Math.round(wins/rows.length*100)}%)`);
+  return rows;
+};
+
 // ── 골드 전체 재계산 진단 (콘솔: recalcAllGold()) ────────────────
 // 각 플레이어의 현재 골드와 소스별 내역을 출력 (Firebase 변경 없음)
 window.recalcAllGold = function() {
@@ -4786,9 +4869,10 @@ window.recalcAllGold = function() {
     const achieveGold = calcAchievementGold(data[sField('achievements')]);
     const passGold    = CURRENT_SEASON >= 1 ? calcS1PassGold(data.seasonPassClaimed_s1) : 0;
     const lotteryGold = CURRENT_SEASON >= 1 ? calcLotteryGold(data) : 0;
+    const betGold     = calcSpectatorBetGold(name); // matchGold에 이미 포함됨, 분리 표시용
     const spent       = data[sField('goldSpent')] ?? 0;
     const total       = Math.max(0, matchGold + legacy + attendGold + achieveGold + passGold + lotteryGold - spent);
-    rows.push({ 이름:name, 매치:matchGold, 출석구형:legacy, 출석신형:attendGold, 업적:achieveGold, 패스:passGold, 복권:lotteryGold, 지출:spent, 잔액:total });
+    rows.push({ 이름:name, 매치:matchGold, 베팅:betGold, 출석구형:legacy, 출석신형:attendGold, 업적:achieveGold, 패스:passGold, 복권:lotteryGold, 지출:spent, 잔액:total });
   }
   rows.sort((a,b) => b.잔액 - a.잔액);
   console.table(rows);
@@ -5051,14 +5135,36 @@ window.previewSpectatorPick = function(asSpectator = true) {
   showSpectatorPickModal(25);
 };
 
-window.spectatorPickTeam = function(pick, overrideName) {
-  // overrideName: liveMode가 특정 관전자를 대신 선택할 때 사용
+// 베팅 금액 선택 — 픽 버튼 활성화 트리거 (v2.36.11~)
+window.selectSpectatorBet = function(amount) {
+  if (!SPECTATOR_BET_AMOUNTS.includes(amount)) return;
+  if (getMyGold() < amount) return;
+  spectatorBetAmount = amount;
+  document.querySelectorAll('.sp-bet-chip').forEach(c => {
+    c.classList.toggle('selected', Number(c.dataset.amount) === amount);
+  });
+  // 베팅 선택되면 픽 버튼 활성화
+  document.querySelectorAll('#sp-overlay .sp-pick-btn').forEach(b => b.disabled = false);
+};
+
+window.spectatorPickTeam = function(pick, overrideName, betOverride) {
+  // overrideName: liveMode가 특정 관전자를 대신 선택할 때 사용 (자동 랜덤 — 베팅 없음)
   const myNorm = normName(overrideName || myName || '');
   if (!myNorm) return;
   if (allSpectatorPicks[myNorm]) return; // 이미 선택됨
 
+  // 본인 픽: 베팅 금액 미선택 차단 (자동 랜덤은 betOverride=0 또는 overrideName 사용)
+  let betAmount = 0;
+  if (overrideName) {
+    betAmount = betOverride != null ? betOverride : 0; // 자동 랜덤 = 0G 베팅 (골드 변동 없음)
+  } else {
+    if (!spectatorBetAmount) return; // 베팅 안 했으면 차단
+    betAmount = spectatorBetAmount;
+  }
+
   clearInterval(spectatorPickTimer);
   allSpectatorPicks[myNorm] = pick;
+  if (betAmount > 0) allSpectatorBets[myNorm] = betAmount;
 
   const isFirst = normName(currentSpectators[0]?.name || '') === myNorm;
   if (isFirst || !spectatorPick) spectatorPick = pick; // compat
@@ -5074,6 +5180,7 @@ window.spectatorPickTeam = function(pick, overrideName) {
   // Firebase 저장
   const updates = {};
   updates[`session/spectatorPicks/${myNorm}`] = pick;
+  if (betAmount > 0) updates[`session/spectatorBets/${myNorm}`] = betAmount;
   if (isFirst) updates['session/spectatorPick'] = pick; // 하위 호환
   update(ref(db), updates).catch(console.error);
 
@@ -5097,13 +5204,18 @@ function applySpectatorPickResult(pick, existingOverlay) {
   const hasJongseong = code >= 0xAC00 && code <= 0xD7A3 && (code - 0xAC00) % 28 !== 0;
   const particle = hasJongseong ? '이' : '가';
 
+  const specNorm = normName(specName);
+  const bet = allSpectatorBets[specNorm] || 0;
+  const betLine = bet > 0
+    ? `🪙 베팅 <strong style="color:var(--gold)">${bet}G</strong> · 적중 +${bet}G / 실패 -${bet}G`
+    : '베팅 없음 (자동 랜덤)';
   const html = `<div class="sp-sheet" onclick="event.stopPropagation()">
     <div class="sp-announce-icon">🔮</div>
-    <div class="sp-title">관전자의 예측!</div>
+    <div class="sp-title">관전자의 베팅!</div>
     <div class="sp-announce-text">
       <strong style="color:var(--text)">${escHtml(specName)}</strong>${particle} <strong style="color:var(--gold);font-size:17px;">${teamLabel} 승리</strong>를 점쳤습니다!
     </div>
-    <div class="sp-hint" style="margin-top:10px;">적중 시 🪙+${GOLD_SPECTATOR_CORRECT}G</div>
+    <div class="sp-hint" style="margin-top:10px;">${betLine}</div>
   </div>`;
 
   let overlay;
@@ -5590,6 +5702,8 @@ window.makeTeams = function() {
   currentMatchParticipants = {}; // 이전 게임 참가자 데이터 초기화
   currentMatchGameTime = 0;
   allSpectatorPicks = {};
+  allSpectatorBets  = {};
+  spectatorBetAmount = null;
   // 팀 구성 완료 → 아이템 잠금
   itemsLocked = true;
   renderShop();
@@ -5602,6 +5716,8 @@ window.makeTeams = function() {
   // 관전자 예측 상태 초기화
   spectatorPick = null;
   allSpectatorPicks = {};
+  allSpectatorBets  = {};
+  spectatorBetAmount = null;
   _spectatorPickAnnounced = false;
   clearInterval(spectatorPickTimer);
   document.getElementById('sp-overlay')?.remove();
@@ -5620,6 +5736,7 @@ window.makeTeams = function() {
     spectatorPickStartAt,
     spectatorPick:  null,
     spectatorPicks: null,
+    spectatorBets:  null,
     teamsFormedAt: _currentTeamsFormedAt,
     mvp: { active: true },    // MVP 초기화 통합 → onValue 이중 발화 방지
     manner: { active: true }, // 매너왕 초기화
@@ -6543,12 +6660,19 @@ window.saveMatch = async function() {
       season: CURRENT_SEASON,
     };
     if (currentMatchGameTime > 0) matchData.gameTime = currentMatchGameTime;
-    // 관전자 예측 데이터 (다중 관전자 지원)
+    // 관전자 예측 데이터 (다중 관전자 지원, v2.36.11~ 베팅 시스템 포함)
     if (currentSpectators.length > 0) {
       const picks = {};
       for (const s of currentSpectators) {
         const k = normName(s.name);
-        if (allSpectatorPicks[k]) picks[k] = { pick: allSpectatorPicks[k], correct: allSpectatorPicks[k] === selectedWinner };
+        if (allSpectatorPicks[k]) {
+          const pick    = allSpectatorPicks[k];
+          const correct = pick === selectedWinner;
+          const betAmount = allSpectatorBets[k] || 0;
+          // payout: 적중 시 +betAmount, 미적중 시 -betAmount, 베팅 0이면 0 (자동 랜덤 등)
+          const payout = betAmount > 0 ? (correct ? betAmount : -betAmount) : 0;
+          picks[k] = { pick, correct, betAmount, payout };
+        }
       }
       if (Object.keys(picks).length > 0) matchData.spectatorPicks = picks;
       // 하위 호환: 첫 번째 관전자 단일 필드 유지
@@ -10974,6 +11098,8 @@ window.resetSession = function() {
   currentMatchGameTime = 0;
   currentSpectators = [];
   allSpectatorPicks = {};
+  allSpectatorBets  = {};
+  spectatorBetAmount = null;
   _champSelectCache = null;
   closeEogOverlay();
   // 정산 관련 상태 초기화 (이전 경기 잔여 데이터 방지)
