@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.36.11
+- 현재 버전: v2.36.12
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -57,7 +57,8 @@
   } }
   spectatorPicks: { [normName]: { pick: 'blue'|'red', correct: boolean, betAmount?: number, payout?: number } }
                                   // 다중 관전자 예측 (v2.32.2~), 베팅 시스템 (v2.36.11~ — betAmount/payout 추가)
-                                  // payout: 적중 시 +betAmount, 실패 시 -betAmount, 자동랜덤(베팅 0)이면 0
+                                  // payout: 적중 시 +betAmount / 실패 시 -betAmount
+                                  // 자동 픽(betAmount=0): 적중 시 +30G 보너스 / 실패 0 (v2.36.12~)
   // 하위 호환: spectatorName, spectatorPick, spectatorCorrect (단일 관전자 레거시)
 
 /gold/{key}

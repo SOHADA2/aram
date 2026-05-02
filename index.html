@@ -2241,7 +2241,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.11';
+const APP_VERSION = 'v2.36.12';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2250,6 +2250,10 @@ const APP_VERSION = 'v2.36.11';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.12', date: '2026-05-02', changes: [
+    { tag: 'improve', text: '관전자 자동 픽(0G 베팅) 적중 보너스 추가 — 골드 부족·미선택으로 자동 랜덤된 경우 적중 시 +30G 보너스(SPECTATOR_FREEPICK_BONUS) 지급, 실패 시 0. 기존엔 변동 0이라 의미가 없었음. 모달 안내·발표 메시지에도 보너스 표기' },
+    { tag: 'new', text: '진단 — calcSpectatorFreepickBonus(name) 헬퍼 + recalcAllGold() 결과 표에 "자동픽보너스" 컬럼 분리 추가. showBetHistory() 도 0G 베팅 행 포함 표시 + 자동픽 보너스 합 별도 요약' },
+  ]},
   { ver: 'v2.36.11', date: '2026-05-02', changes: [
     { tag: 'new', text: '관전자 베팅 시스템으로 전환 — 기존 적중 시 정액 +50G 보상에서 30/50/80/100G 베팅 → 적중 시 +베팅금액 / 실패 시 -베팅금액 형식으로 변경. 베팅 모달은 베팅 금액을 먼저 골라야 1팀/2팀 픽 버튼이 활성화. 보유 골드 미만의 베팅 칩은 자동 비활성. 미선택 자동 랜덤은 베팅 0G(골드 변동 없음)으로 처리' },
     { tag: 'new', text: '베팅 결과 영구 저장으로 역산 가능 — matches/{key}/spectatorPicks/{name}에 {pick, correct, betAmount, payout} 모두 저장. payout 음수도 허용해 net 변동 명확. calcGoldFromMatches는 betAmount 있으면 payout 합산, 없으면 구버전 정액 보상 폴백' },
@@ -3053,6 +3057,8 @@ const GOLD_SPECTATOR_CORRECT = 50; // 관전자 예측 적중 골드 (v2.25.0 ~ 
 const GOLD_SPECTATOR_CORRECT_LEGACY = 15; // 관전자 예측 적중 골드 (v2.24.x 이하, 소급 방지용)
 // 관전자 베팅 시스템 (v2.36.11~) — 적중 시 +betAmount, 미적중 시 -betAmount (net 변동)
 const SPECTATOR_BET_AMOUNTS = [30, 50, 80, 100];
+// 자동 랜덤(베팅 0G) 적중 시 보너스 — 골드 부족·미선택 위로금 (v2.36.12~)
+const SPECTATOR_FREEPICK_BONUS = 30;
 const GOLD_MANNER = 50; // 매너왕 골드 (v2.25.0~)
 
 // ─────────────────────────────────────────────────────────────
@@ -4753,7 +4759,7 @@ window.showSpectatorPickModal = function showSpectatorPickModal(seconds = 15) {
         <button class="sp-pick-btn team1" disabled onclick="spectatorPickTeam('blue')">1팀 승리</button>
         <button class="sp-pick-btn team2" disabled onclick="spectatorPickTeam('red')">2팀 승리</button>
       </div>
-      <div class="sp-hint">미선택 시 자동 랜덤 선택 (베팅 없음, 골드 변동 0)</div>
+      <div class="sp-hint">미선택 시 자동 랜덤 (적중 시 +${SPECTATOR_FREEPICK_BONUS}G 보너스 · 실패 시 변동 없음)</div>
     </div>`;
   } else {
     // 팀원 → 중앙 오버레이
@@ -4815,7 +4821,9 @@ async function migrateGoldBonusToLegacy() {
   }
 }
 
-// 관전자 베팅 골드 합산 (v2.36.11~) — net 변동 (양수/음수 가능)
+// 관전자 베팅 net 골드 합산 (v2.36.11~)
+// 베팅(betAmount > 0): 적중 +betAmount / 실패 -betAmount
+// 자동 픽(betAmount = 0): 적중 +30G 보너스 / 실패 0 (v2.36.12~)
 // matchGold에 이미 포함되지만 진단·역산용 분리 함수
 function calcSpectatorBetGold(name, season = CURRENT_SEASON) {
   const key = normName(name);
@@ -4828,6 +4836,18 @@ function calcSpectatorBetGold(name, season = CURRENT_SEASON) {
   return sum;
 }
 
+// 자동 픽(0G) 보너스만 별도 합산 (v2.36.12~) — 진단·역산용
+function calcSpectatorFreepickBonus(name, season = CURRENT_SEASON) {
+  const key = normName(name);
+  let sum = 0;
+  for (const m of Object.values(matches)) {
+    if ((m.season ?? 0) !== season) continue;
+    const sp = m.spectatorPicks?.[key];
+    if (sp?.betAmount === 0 && sp.correct) sum += sp.payout || 0;
+  }
+  return sum;
+}
+
 // 관전자 베팅 이력 콘솔 출력 (콘솔: showBetHistory("닉네임"))
 window.showBetHistory = function(name) {
   if (!name) { console.log('❗ 사용법: showBetHistory("닉네임")'); return; }
@@ -4835,23 +4855,29 @@ window.showBetHistory = function(name) {
   const rows = [];
   for (const m of Object.values(matches)) {
     const sp = m.spectatorPicks?.[key];
-    if (!sp?.betAmount) continue;
+    if (!sp || sp.betAmount == null) continue; // 베팅 시스템 진입 이후 매치만
+    const isFree = sp.betAmount === 0;
     rows.push({
       날짜: m.date || '?',
       시즌: m.season ?? 0,
       픽: sp.pick === 'blue' ? '1팀' : '2팀',
       결과: sp.correct ? '✅ 적중' : '❌ 실패',
-      베팅: sp.betAmount + 'G',
+      베팅: isFree ? '🎁 자동' : (sp.betAmount + 'G'),
       변동: (sp.payout > 0 ? '+' : '') + sp.payout + 'G',
     });
   }
   if (rows.length === 0) { console.log(`📭 "${name}" 베팅 이력 없음`); return; }
   console.log(`📊 ${name} 베팅 이력 (${rows.length}건)`);
   console.table(rows);
-  const totalBet = rows.reduce((s,r) => s + parseInt(r.베팅), 0);
+  const realBetRows = rows.filter(r => r.베팅.endsWith('G'));
+  const freeRows    = rows.filter(r => r.베팅.includes('자동'));
+  const totalBet    = realBetRows.reduce((s,r) => s + parseInt(r.베팅), 0);
   const totalPayout = rows.reduce((s,r) => s + parseInt(r.변동), 0);
+  const freeBonus   = freeRows.reduce((s,r) => s + parseInt(r.변동), 0);
   const wins = rows.filter(r => r.결과.includes('적중')).length;
-  console.log(`💰 총 베팅 ${totalBet}G · 순이익 ${totalPayout > 0 ? '+' : ''}${totalPayout}G · 적중률 ${wins}/${rows.length} (${Math.round(wins/rows.length*100)}%)`);
+  console.log(`💰 실제 베팅 ${realBetRows.length}건 · 베팅금액 합 ${totalBet}G`);
+  console.log(`🎁 자동 픽 ${freeRows.length}건 · 보너스 합 +${freeBonus}G`);
+  console.log(`📈 순이익 ${totalPayout > 0 ? '+' : ''}${totalPayout}G · 적중률 ${wins}/${rows.length} (${Math.round(wins/rows.length*100)}%)`);
   return rows;
 };
 
@@ -4869,10 +4895,11 @@ window.recalcAllGold = function() {
     const achieveGold = calcAchievementGold(data[sField('achievements')]);
     const passGold    = CURRENT_SEASON >= 1 ? calcS1PassGold(data.seasonPassClaimed_s1) : 0;
     const lotteryGold = CURRENT_SEASON >= 1 ? calcLotteryGold(data) : 0;
-    const betGold     = calcSpectatorBetGold(name); // matchGold에 이미 포함됨, 분리 표시용
+    const betGold     = calcSpectatorBetGold(name);       // 실제 베팅 + 자동픽 보너스 net (matchGold 포함, 분리 표시용)
+    const freeBonus   = calcSpectatorFreepickBonus(name); // 자동 픽(0G) 적중 보너스만 별도 (matchGold 포함)
     const spent       = data[sField('goldSpent')] ?? 0;
     const total       = Math.max(0, matchGold + legacy + attendGold + achieveGold + passGold + lotteryGold - spent);
-    rows.push({ 이름:name, 매치:matchGold, 베팅:betGold, 출석구형:legacy, 출석신형:attendGold, 업적:achieveGold, 패스:passGold, 복권:lotteryGold, 지출:spent, 잔액:total });
+    rows.push({ 이름:name, 매치:matchGold, 베팅:betGold, 자동픽보너스:freeBonus, 출석구형:legacy, 출석신형:attendGold, 업적:achieveGold, 패스:passGold, 복권:lotteryGold, 지출:spent, 잔액:total });
   }
   rows.sort((a,b) => b.잔액 - a.잔액);
   console.table(rows);
@@ -5208,7 +5235,7 @@ function applySpectatorPickResult(pick, existingOverlay) {
   const bet = allSpectatorBets[specNorm] || 0;
   const betLine = bet > 0
     ? `🪙 베팅 <strong style="color:var(--gold)">${bet}G</strong> · 적중 +${bet}G / 실패 -${bet}G`
-    : '베팅 없음 (자동 랜덤)';
+    : `🎁 자동 픽 · 적중 시 <strong style="color:var(--gold)">+${SPECTATOR_FREEPICK_BONUS}G</strong> 보너스`;
   const html = `<div class="sp-sheet" onclick="event.stopPropagation()">
     <div class="sp-announce-icon">🔮</div>
     <div class="sp-title">관전자의 베팅!</div>
@@ -6669,8 +6696,12 @@ window.saveMatch = async function() {
           const pick    = allSpectatorPicks[k];
           const correct = pick === selectedWinner;
           const betAmount = allSpectatorBets[k] || 0;
-          // payout: 적중 시 +betAmount, 미적중 시 -betAmount, 베팅 0이면 0 (자동 랜덤 등)
-          const payout = betAmount > 0 ? (correct ? betAmount : -betAmount) : 0;
+          // payout (v2.36.12~):
+          //   - betAmount > 0 (실제 베팅): 적중 +betAmount / 실패 -betAmount
+          //   - betAmount = 0 (자동 랜덤·골드 부족 등): 적중 시 +30G 보너스 / 실패 0
+          const payout = betAmount > 0
+            ? (correct ? betAmount : -betAmount)
+            : (correct ? SPECTATOR_FREEPICK_BONUS : 0);
           picks[k] = { pick, correct, betAmount, payout };
         }
       }
