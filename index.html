@@ -2326,7 +2326,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.23';
+const APP_VERSION = 'v2.36.24';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2335,6 +2335,11 @@ const APP_VERSION = 'v2.36.23';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.24', date: '2026-05-03', changes: [
+    { tag: 'improve', text: '승급 배너 큐 시스템 — 동시 다수 호출 시 0.7초 간격으로 순차 등장 (이전엔 한 번에 모두 페이드인). _promoQueue + _processPromoQueue 처리, _showPromoBanner는 큐 wrapper로 변경' },
+    { tag: 'new', text: '정산창+배너 동시 시연 미리보기 — previewPromoWithSummary() / 어드민 "🎬 정산+배너" 버튼. 가짜 정산창(previewMatch)을 띄운 후 600ms 시점에 배너 4건이 0.7초 간격 순차 등장. 실제 매치 종료 시점의 화면 구성 그대로 확인 가능' },
+    { tag: 'new', text: '어드민 시연 버튼 추가 — "📚 시나리오(4건 순차)" / "🎬 정산+배너". 기존 "🎉 승급"은 단건 시연 유지' },
+  ]},
   { ver: 'v2.36.23', date: '2026-05-03', changes: [
     { tag: 'new', text: '승급/실패/강등 알림 — 본인 + 다른 팀원 모두 표기. 전체 season1Data 변화 감지(_detectAllS1Changes)로 누구든 티어 변동 발생 시 모든 기기에 가로 배너로 알림. 한 매치에서 동시 다수 발생하면 상단 스택으로 쌓임' },
     { tag: 'new', text: '배너 종류 — 🎉 승급(컨페티+티어 컬러 글로우, 7초) / 😔 승급전 실패(회색, 5초) / ⬇️ 강등(빨강, 5초). 본인 항목엔 "나" 골드 태그 표시, 닉네임은 모든 항목에 표시' },
@@ -3650,8 +3655,24 @@ function _detectAllS1Changes() {
   }
 }
 
-// 가로 배너 한 건 추가 (스택형) — type: success | fail | demote
-window._showPromoBanner = function _showPromoBanner({ name, type, fromTier, toTier, isMe }) {
+// 가로 배너 큐 — 동시 다수 호출 시 순차로 0.7초 간격 등장 (v2.36.24~)
+const _promoQueue = [];
+let _promoQueueRunning = false;
+const PROMO_QUEUE_GAP_MS = 700;
+function _processPromoQueue() {
+  if (_promoQueue.length === 0) { _promoQueueRunning = false; return; }
+  _promoQueueRunning = true;
+  const opts = _promoQueue.shift();
+  _renderPromoBanner(opts);
+  setTimeout(_processPromoQueue, PROMO_QUEUE_GAP_MS);
+}
+window._showPromoBanner = function(opts) {
+  _promoQueue.push(opts);
+  if (!_promoQueueRunning) _processPromoQueue();
+};
+
+// 실제 배너 DOM 생성 (큐에서 호출됨) — type: success | fail | demote
+function _renderPromoBanner({ name, type, fromTier, toTier, isMe }) {
   if (CURRENT_SEASON < 1) return;
   const m = S1_TIER_META;
   const fromMeta = m[fromTier] || m.bronze;
@@ -6851,12 +6872,21 @@ window.previewPromoNotif = function(toTier, fromTier, opts = {}) {
   _showPromoBanner({ name, type, fromTier, toTier, isMe });
   console.log(`🎉 승급 배너 미리보기: ${type} · ${name} · ${fromTier} → ${toTier} · isMe=${isMe}`);
 };
-// 다양한 시나리오 한 번에 시연
+// 다양한 시나리오 한 번에 시연 (큐가 자동 0.7초 간격으로 분산)
 window.previewPromoBatch = function() {
-  previewPromoNotif('gold',     null, { name: '쭝쭝이주인',   type:'success', isMe: true  });
-  setTimeout(() => previewPromoNotif('platinum', null, { name: '애블린',     type:'success', isMe: false }), 600);
-  setTimeout(() => previewPromoNotif(null, 'gold',     { name: '럼블홀릭',   type:'fail',    isMe: false }), 1200);
-  setTimeout(() => previewPromoNotif('gold','platinum',{ name: '브랜딩프로', type:'demote',  isMe: false }), 1800);
+  previewPromoNotif('gold',     null, { name: myName || '쭝쭝이주인', type:'success', isMe: true  });
+  previewPromoNotif('platinum', null, { name: '애블린',     type:'success', isMe: false });
+  previewPromoNotif(null, 'gold',     { name: '럼블홀릭',   type:'fail',    isMe: false });
+  previewPromoNotif('gold','platinum',{ name: '브랜딩프로', type:'demote',  isMe: false });
+};
+
+// 정산창 + 승급 배너 동시 시연 (실제 매치 종료 시점 재현)
+window.previewPromoWithSummary = function() {
+  if (typeof previewMatch === 'function') {
+    try { previewMatch(); } catch(e) { console.warn('previewMatch 실패:', e); }
+  }
+  // 정산창이 화면에 떠 있는 상태에서 승급 배너 시연
+  setTimeout(() => previewPromoBatch(), 600);
 };
 
 function _showPendingPromoNotif() {
@@ -11680,9 +11710,11 @@ function renderSeasonAdmin() {
   wrap.innerHTML = `<div class="season-admin">
     <button class="season-admin-btn${CURRENT_SEASON===0?' active':''}" onclick="switchSeason(0)">S0</button>
     <button class="season-admin-btn${CURRENT_SEASON===1?' active':''}" onclick="switchSeason(1)">S1</button>
-    <span style="margin-left:10px;display:inline-flex;align-items:center;gap:4px;">
+    <span style="margin-left:10px;display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;">
       <select id="promo-preview-select" class="season-admin-btn" style="padding:4px 6px;cursor:pointer;">${tierOpts}</select>
-      <button class="season-admin-btn" onclick="(function(){const s=document.getElementById('promo-preview-select');previewPromoNotif(s.value);})()">🎉 승급 미리보기</button>
+      <button class="season-admin-btn" onclick="(function(){const s=document.getElementById('promo-preview-select');previewPromoNotif(s.value);})()">🎉 승급</button>
+      <button class="season-admin-btn" onclick="previewPromoBatch()">📚 시나리오(4건 순차)</button>
+      <button class="season-admin-btn" onclick="previewPromoWithSummary()">🎬 정산+배너</button>
     </span>
   </div>`;
 }
