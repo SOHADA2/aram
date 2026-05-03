@@ -2330,7 +2330,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.28';
+const APP_VERSION = 'v2.36.29';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2339,6 +2339,9 @@ const APP_VERSION = 'v2.36.28';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.29', date: '2026-05-03', changes: [
+    { tag: 'new', text: '복권 진단 콘솔 함수 — showLotteryHistory("닉네임") 으로 그 사람의 모든 복권 이력(날짜·종류·등급·보상) 표 + 종합 요약(일반/프리미엄/환불 분리, 지출·보상·순이익·적중률) 출력. update 없는 read-only 진단. 베팅 진단(showBetHistory)과 동일한 톤' },
+  ]},
   { ver: 'v2.36.28', date: '2026-05-03', changes: [
     { tag: 'improve', text: '시즌 어드민에서 승급 미리보기 UI 제거 — 티어 셀렉트, "🎉 승급" / "📚 시나리오" / "🎬 정산+배너" 버튼 모두 삭제. S0/S1 토글만 남김. 콘솔 함수(previewPromoNotif/previewPromoBatch/previewPromoWithSummary)는 디버깅용으로 유지' },
   ]},
@@ -10258,6 +10261,40 @@ function calcLotteryGold(data) {
   if (!data?.lotteryHistory) return 0;
   return data.lotteryHistory.reduce((sum, h) => sum + (h.gold || 0), 0);
 }
+
+// 콘솔 진단 — showLotteryHistory("닉네임") (v2.36.29~)
+// 그 사람의 모든 복권 이력 표 + 종합(지출/적중률/순이익) 출력. update 없음
+window.showLotteryHistory = function(name) {
+  if (!name) { console.log('❗ 사용법: showLotteryHistory("닉네임")'); return; }
+  const target = normName(name);
+  const entry = Object.values(goldData).find(g => normName(g.name) === target);
+  if (!entry?.lotteryHistory?.length) { console.log(`📭 "${name}" 복권 이력 없음`); return; }
+  const rows = entry.lotteryHistory.map(h => ({
+    날짜: h.date || '?',
+    종류: h.refund ? '🔄 환불' : (h.premium ? '💎 프리미엄' : '🎟️ 일반'),
+    등급: h.name || `tier${h.tier}`,
+    보상: (h.gold || 0) + 'G',
+    ts: h.ts || 0,
+  })).sort((a,b)=>(b.ts||0)-(a.ts||0));
+  console.log(`📊 ${entry.name} 복권 이력 (${rows.length}건)`);
+  console.table(rows.map(({ts, ...r}) => r));
+  const normal  = entry.lotteryHistory.filter(h => !h.premium && !h.refund);
+  const premium = entry.lotteryHistory.filter(h => h.premium);
+  const refund  = entry.lotteryHistory.filter(h => h.refund);
+  const sumGold = arr => arr.reduce((s,h)=>s+(h.gold||0), 0);
+  const wins    = arr => arr.filter(h => (h.gold||0) > 0).length;
+  const fmt = (label, arr, price) => {
+    if (arr.length === 0) return;
+    const got = sumGold(arr); const w = wins(arr); const spent = arr.length * price;
+    console.log(`${label} ${arr.length}건 · 지출 ${spent}G · 보상 ${got}G · 순이익 ${got-spent>=0?'+':''}${got-spent}G · 적중 ${w}/${arr.length} (${Math.round(w/arr.length*100)}%)`);
+  };
+  fmt('🎟️ 일반(30G):  ', normal,  30);
+  fmt('💎 프리미엄(200G):', premium, 200);
+  if (refund.length) console.log(`🔄 환불 보너스: ${refund.length}건 · ${sumGold(refund)}G`);
+  console.log(`💰 calcLotteryGold 합산: ${calcLotteryGold(entry)}G`);
+  return rows;
+};
+
 // 복권 환불 팝업 — 버그 수정 전 구매자 대상 구매비 환불
 function checkLotteryRefund() {
   if (!myName || CURRENT_SEASON < 1) return;
