@@ -2295,7 +2295,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.17';
+const APP_VERSION = 'v2.36.18';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2304,6 +2304,9 @@ const APP_VERSION = 'v2.36.17';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.18', date: '2026-05-03', changes: [
+    { tag: 'fix', text: '승급 축하 팝업 누락 수정 — _pendingPromoNotif가 saveMatch 호출 기기(라이브 호스트)에서만 세팅되어 일반 팀원 기기엔 팝업이 안 뜨던 문제. season1Data onValue 리스너에 _detectMyS1Promotion() 추가, 본인 티어 변화 감지 시 자동으로 팝업 트리거 (S1_TIER_META.rank 비교). 정산창이 떠 있으면 닫힐 때 표시, 아니면 250ms 후 즉시 표시. 같은 승급 키(예: bronze→silver) 중복 표시 방지. 계정 전환 시 스냅샷 리셋' },
+  ]},
   { ver: 'v2.36.17', date: '2026-05-03', changes: [
     { tag: 'improve', text: '시즌 1 웰컴 팝업 영구 비활성 — 시즌 1이 충분히 정착되어 더 이상 안내 불필요. showS1WelcomePopup() 함수 진입 즉시 return으로 차단(호출 자체는 유지). 기존 로직은 주석으로 보존, 다음 시즌 도입 시 재활용 가능' },
   ]},
@@ -3545,10 +3548,39 @@ onValue(ref(db, 'config/currentSeason'), (snapshot) => {
 });
 
 // 시즌 1 플레이어 LP/티어 데이터 구독
+// 본인 티어 변화 감지용 스냅샷 (v2.36.18~) — 라이브 호스트가 아닌 팀원 기기에서도 승급 팝업 보장
+let _lastMyS1Tier = null;
+let _shownPromoKey = null; // 같은 승급 중복 표시 방지 (예: "bronze→silver")
+function _detectMyS1Promotion() {
+  if (CURRENT_SEASON < 1 || !myName) return;
+  const mine = season1Data[normName(myName)];
+  if (!mine || !mine.tier) return;
+  const prev = _lastMyS1Tier;
+  const curr = mine.tier;
+  // 첫 진입(prev=null)은 스냅샷만 저장 — 매번 신규 진입을 승급으로 오인 방지
+  if (prev === null) { _lastMyS1Tier = curr; return; }
+  if (prev !== curr) {
+    const prevRank = S1_TIER_META[prev]?.rank ?? -1;
+    const currRank = S1_TIER_META[curr]?.rank ?? -1;
+    if (currRank > prevRank) {
+      const promoKey = `${prev}→${curr}`;
+      if (_shownPromoKey !== promoKey) {
+        _shownPromoKey = promoKey;
+        _pendingPromoNotif = { type:'success', fromTier: prev, toTier: curr };
+        // 정산창이 떠 있으면 정산창 닫힐 때 표시 / 떠 있지 않으면 즉시
+        if (!document.querySelector('.match-summary-overlay')) {
+          setTimeout(() => _showPendingPromoNotif(), 250);
+        }
+      }
+    }
+    _lastMyS1Tier = curr;
+  }
+}
 onValue(ref(db, 'season1/players'), (snapshot) => {
   season1Data  = snapshot.val() || {};
   s1DataLoaded = true;
   if (CURRENT_SEASON >= 1) { renderRanking(); updateMemberModeDisplay(); }
+  _detectMyS1Promotion();
 });
 
 // Riot API 호출 헬퍼 — Worker 설정 시 프록시 경유, 없으면 직접 호출(CORS 실패 가능)
@@ -10666,6 +10698,9 @@ window.selectMyName = async function(name) {
   }
   myName = name;
   localStorage.setItem('myName', name);
+  // 계정 전환 시 승급 감지 스냅샷 리셋 (다른 사람의 티어를 본인 승급으로 오인 방지)
+  _lastMyS1Tier = null;
+  _shownPromoKey = null;
   const existEntry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(name));
   if (!existEntry) {
     // Firebase에 없음 → 최초 등록 (goldMigV2:true로 S0 마이그레이션 스킵)
