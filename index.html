@@ -2343,7 +2343,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.34';
+const APP_VERSION = 'v2.36.35';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2352,8 +2352,11 @@ const APP_VERSION = 'v2.36.34';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.35', date: '2026-05-03', changes: [
+    { tag: 'fix', text: 'S0→S1 골드 깜빡임 완전 제거 — gold onValue·config/currentSeason 핸들러에서 matchesLoaded 미완료 시 updateMyInfoBar 호출 차단. 앱 초기화 시 데이터 없이 골드=0 표시하던 즉시호출 제거. 이제 gold+matches 둘 다 로드 완료 후에만 골드 바 표시' },
+  ]},
   { ver: 'v2.36.34', date: '2026-05-03', changes: [
-    { tag: 'fix', text: '새로고침 시 S0→S1 화면 깜빡임 제거 — CURRENT_SEASON 초기값을 0 대신 localStorage 캐시값으로 설정. 이전엔 Firebase 응답 전까지 항상 S0로 렌더링돼 팀구성 대기화면·골드 등이 잠깐 S0로 보이던 문제 해결' },
+    { tag: 'fix', text: '새로고침 시 S0→S1 화면 깜빡임 1차 수정 — CURRENT_SEASON 초기값을 0 대신 localStorage 캐시값으로 설정. 이전엔 Firebase 응답 전까지 항상 S0로 렌더링돼 팀구성 대기화면·골드 등이 잠깐 S0로 보이던 문제 해결' },
   ]},
   { ver: 'v2.36.33', date: '2026-05-03', changes: [
     { tag: 'improve', text: '랭킹 히어로 카드(1~3위) MOST/BEST 챔피언 아이콘을 순위 번호 오른쪽에 가로 1열로 배치 — 이전에는 카드 본문 하단에 세로로 있었음. S0·S1 히어로 카드 모두 적용' },
@@ -3644,7 +3647,7 @@ onValue(ref(db, 'config/currentSeason'), (snapshot) => {
   if (typeof renderTierCriteriaCard === 'function') renderTierCriteriaCard();
   updateMemberModeDisplay();
   if (typeof renderAchievementsOrPass === 'function') renderAchievementsOrPass();
-  updateMyInfoBar();
+  if (goldLoaded && matchesLoaded) updateMyInfoBar();
   showS1WelcomePopup();
 });
 
@@ -3815,7 +3818,7 @@ onValue(ref(db, 'players'), (snapshot) => {
 onValue(ref(db, 'gold'), (snapshot) => {
   goldData = snapshot.val() || {};
   goldLoaded = true;
-  updateMyInfoBar();
+  if (matchesLoaded) updateMyInfoBar();
   renderShop();
   if (playersLoaded && matchesLoaded) seedGoldForAllPlayers();
   checkLotteryRefund();
@@ -11724,7 +11727,7 @@ if (liveMode) {
   setLiveMode(true);
 } else if (myName) {
   document.body.classList.add('member-mode');
-  updateMyInfoBar();
+  // 데이터 로드 전에 호출하면 gold=0 깜박임 발생 — Firebase onValue에서 데이터 준비 후 호출
   updateMemberModeDisplay();
 } else {
   // 로드 완료 후 모달 자동 표시
