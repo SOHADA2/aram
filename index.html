@@ -2320,7 +2320,17 @@ let _spectatorPickAnnounced = false; // 중복 발표 방지 플래그
 let selectedWinner = null;
 let myName = localStorage.getItem('myName') || null; // 본인 닉네임
 let liveMode = !!localStorage.getItem('liveMode');   // 라이브 모드
-let itemsLocked = false; // 팀 구성 후 아이템 잠금 여부
+let itemsLocked = false; // 팀 구성 후 아이템 잠금 여부 (전역 플래그)
+// v2.36.30~ 미참여자는 잠금 무시 — 본인이 currentTeamA/B 에 들어있을 때만 실효 잠금
+function isMyselfInCurrentMatch() {
+  if (!myName) return false;
+  const myNorm = normName(myName);
+  return currentTeamA.some(p => normName(p.name) === myNorm)
+      || currentTeamB.some(p => normName(p.name) === myNorm);
+}
+function isItemsEffectivelyLocked() {
+  return itemsLocked && isMyselfInCurrentMatch();
+}
 let shopCatTab = 'consume';
 let invCatTab  = 'consume';
 let _pendingRematchTeams = null; // 한 판 더: { teamA, teamB, teamSize, spectator }
@@ -2330,7 +2340,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.29';
+const APP_VERSION = 'v2.36.30';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2339,6 +2349,11 @@ const APP_VERSION = 'v2.36.29';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.30', date: '2026-05-03', changes: [
+    { tag: 'improve', text: '미참여 인원 아이템 잠금 해제 — 매치 진행 중이라도 본인이 currentTeamA/B에 들어있지 않으면 모든 아이템 구매·활성화 가능. isMyselfInCurrentMatch() / isItemsEffectivelyLocked() 헬퍼 추가, 잠금 배너·구매 버튼·인벤토리 toggle UI 모두 분기. 참여자만 잠금 유지' },
+    { tag: 'fix', text: '복권/프리미엄 복권은 본인 참여 매치에서도 항상 구매 가능하도록 buyItem 진입 가드 분리 — 이전엔 itemsLocked 가드가 복권까지 차단했지만 UI는 활성화 상태라 클릭 시 무반응이던 불일치 해결' },
+    { tag: 'verify', text: '미참여자 아이템 소모 검증 — giveMatchGold 와 s1ApplyAllMatchResults 모두 winners+losers 만 순회. 미참여자의 활성화된 승급전 아이템·도박권 등은 절대 소모되지 않음 (안전 확인됨)' },
+  ]},
   { ver: 'v2.36.29', date: '2026-05-03', changes: [
     { tag: 'new', text: '복권 진단 콘솔 함수 — showLotteryHistory("닉네임") 으로 그 사람의 모든 복권 이력(날짜·종류·등급·보상) 표 + 종합 요약(일반/프리미엄/환불 분리, 지출·보상·순이익·적중률) 출력. update 없는 read-only 진단. 베팅 진단(showBetHistory)과 동일한 톤' },
   ]},
@@ -11044,7 +11059,7 @@ function renderShop() {
 
   // 잠금 배너
   const lockBanner = document.getElementById('item-lock-banner');
-  if (lockBanner) lockBanner.classList.toggle('show', itemsLocked);
+  if (lockBanner) lockBanner.classList.toggle('show', isItemsEffectivelyLocked());
 
   // ── 상점 리스트 ─────────────────────────────────────────
   const _shopList = CURRENT_SEASON >= 1 ? S1_SHOP_ITEMS : SHOP_ITEMS;
@@ -11061,9 +11076,9 @@ function renderShop() {
     : shopFiltered.map(item => {
     const isLotteryLimitHit = (item.type === 'lottery' && todayLotteryCount >= 3)
                            || (item.type === 'lottery_premium' && todayPremiumCount >= 1);
-    const canBuy   = myGold >= item.price && !isLotteryLimitHit && (isLotteryType(item.type) || !itemsLocked);
+    const canBuy   = myGold >= item.price && !isLotteryLimitHit && (isLotteryType(item.type) || !isItemsEffectivelyLocked());
     const nameColor = item.color || 'var(--text)';
-    const btnText = isLotteryLimitHit ? '한도 소진' : (itemsLocked && !isLotteryType(item.type)) ? '🔒' : '🪙' + item.price + 'G';
+    const btnText = isLotteryLimitHit ? '한도 소진' : (isItemsEffectivelyLocked() && !isLotteryType(item.type)) ? '🔒' : '🪙' + item.price + 'G';
     const btnClass = isLotteryLimitHit ? 'sli-price sli-limit-hit' : 'sli-price';
     const btnClick = isLotteryLimitHit ? '' : `onclick="buyItem('${item.id}')"`;
     return `<div class="sli">
@@ -11107,8 +11122,8 @@ function renderShop() {
       const realIdx = myItems.indexOf(item);
       const isActive   = !!item.active;
       const nameColor  = def.color || 'var(--text)';
-      const lockedCls  = itemsLocked ? ' inv-locked' : '';
-      const clickAttr  = itemsLocked ? '' : `onclick="toggleItemActive(${realIdx})"`;
+      const lockedCls  = isItemsEffectivelyLocked() ? ' inv-locked' : '';
+      const clickAttr  = isItemsEffectivelyLocked() ? '' : `onclick="toggleItemActive(${realIdx})"`;
       const ownedCount = invCounts[def.id] || 1;
       slots.push(`<div class="inv-slot${isActive?' inv-active':''}${lockedCls}" ${clickAttr} title="${def.name}">
         <div class="inv-count-badge">${ownedCount}개</div>
@@ -11220,13 +11235,17 @@ function showLotteryResult(result, remainingGold) {
 }
 
 window.buyItem = async function(itemId) {
-  if (itemsLocked) { showGoldToast('🔒 팀 구성 후에는 구매할 수 없어요!'); return; }
   const key = getMyGoldKey();
   if (!key) { showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
   const data = goldData[key];
   if (!data) return;
   const item = [...SHOP_ITEMS, ...S1_SHOP_ITEMS].find(s=>s.id===itemId);
   if (!item) return;
+  // v2.36.30~ 잠금 가드 — 복권은 매치 중에도 항상 허용, 그 외는 본인 참여 매치일 때만 차단
+  const _isLottery = item.type === 'lottery' || item.type === 'lottery_premium';
+  if (!_isLottery && isItemsEffectivelyLocked()) {
+    showGoldToast('🔒 팀 구성 후에는 구매할 수 없어요!'); return;
+  }
   const currentGold = getMyGold(); // 경기 기록 기반 동적 계산
   if (currentGold < item.price) {
     showGoldToast(`🪙 골드가 부족해요! (보유: ${currentGold} / 필요: ${item.price})`);
@@ -11304,7 +11323,7 @@ window.buyItem = async function(itemId) {
 
 // 아이템 활성화/해제 토글 (경기 전 미리 ON/OFF)
 window.toggleItemActive = async function(idx) {
-  if (itemsLocked) { showGoldToast('🔒 팀 구성 후에는 변경할 수 없어요!'); return; }
+  if (isItemsEffectivelyLocked()) { showGoldToast('🔒 팀 구성 후에는 변경할 수 없어요!'); return; }
   const key = getMyGoldKey();
   if (!key) return;
   const data = goldData[key];
