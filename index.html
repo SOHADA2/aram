@@ -2295,7 +2295,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.20';
+const APP_VERSION = 'v2.36.21';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2304,6 +2304,9 @@ const APP_VERSION = 'v2.36.20';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.21', date: '2026-05-03', changes: [
+    { tag: 'fix', text: '승급 팝업 "확인" 버튼이 안 먹던 문제 — 모듈 스크립트라 _closePromoNotif가 window에 노출되지 않아 inline onclick="_closePromoNotif()"가 호출되지 않던 게 원인. window._closePromoNotif 로 명시 노출 + 백드롭 클릭/ESC 키로도 닫히는 안전망 추가' },
+  ]},
   { ver: 'v2.36.20', date: '2026-05-03', changes: [
     { tag: 'new', text: '시즌 어드민 영역(라이브 계정 전용)에 승급 팝업 미리보기 UI 추가 — 티어 셀렉트(실버~챌린저) + "🎉 승급 미리보기" 버튼. 콘솔 접근이 어려운 태블릿/모바일 환경에서도 즉시 시연 가능' },
   ]},
@@ -6655,12 +6658,13 @@ window.closeMatchSummary = function() {
   }
 };
 
-function _closePromoNotif() {
+// 모듈 스크립트라 함수 선언만으로는 inline onclick="" 에서 못 찾음 → window 노출 (v2.36.21~)
+window._closePromoNotif = function _closePromoNotif() {
   const el = document.getElementById('promo-notif-backdrop');
   if (!el) return;
   el.style.animation = 'taFadeOut 0.2s ease forwards';
   setTimeout(() => el.remove(), 220);
-}
+};
 
 // 콘솔 미리보기 — previewPromoNotif() / previewPromoNotif('gold') / previewPromoNotif('challenger','grandmaster')
 // type='success' 만 지원 (승급 축하 모달). 'start'/'fail'은 사용처 적어 미노출.
@@ -6769,6 +6773,13 @@ function _showPendingPromoNotif() {
         <button class="promo-notif-btn" style="background:#21262d;color:#e6edf3;border:1px solid #30363d" onclick="_closePromoNotif()">확인</button>
       </div>`;
     document.body.appendChild(el);
+  }
+  // 공통: 백드롭 클릭·ESC 로도 닫힘 (확인 버튼이 막혀도 안전망)
+  const root = document.getElementById('promo-notif-backdrop');
+  if (root) {
+    root.addEventListener('click', e => { if (e.target === root) window._closePromoNotif(); });
+    const escClose = e => { if (e.key === 'Escape') { window._closePromoNotif(); document.removeEventListener('keydown', escClose, true); } };
+    document.addEventListener('keydown', escClose, true);
   }
 }
 
