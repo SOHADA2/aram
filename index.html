@@ -1606,6 +1606,28 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .promo-notif-btn:hover{opacity:.9;transform:translateY(-1px);}
 /* 컨페티 (v2.36.14~) */
 .promo-confetti{position:absolute;width:9px;height:14px;top:-20px;border-radius:2px;opacity:0;pointer-events:none;animation:confettiFall 2.6s linear infinite;}
+/* ── 승급 가로 배너 (v2.36.22~) — 정산창과 동시 노출 OK ── */
+.promo-banner-wrap{position:fixed;inset:0;z-index:3100;pointer-events:none;}
+.promo-banner-wrap.hide{animation:promoBannerWrapOut 0.32s ease forwards;}
+@keyframes promoBannerWrapOut{from{opacity:1}to{opacity:0}}
+.promo-banner{position:absolute;top:14px;left:50%;transform:translateX(-50%);width:min(440px,calc(100vw - 24px));display:flex;align-items:center;gap:12px;padding:12px 14px;background:linear-gradient(135deg,#161b22 0%,#0d1117 100%);border:2px solid currentColor;border-radius:14px;box-shadow:0 0 30px currentColor,0 0 70px rgba(255,255,255,0.06),0 12px 36px rgba(0,0,0,.55);pointer-events:auto;cursor:pointer;overflow:hidden;animation:promoBannerIn 0.45s cubic-bezier(.34,1.56,.64,1);box-sizing:border-box;}
+@keyframes promoBannerIn{from{opacity:0;transform:translateX(-50%) translateY(-30px) scale(.92)}to{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}}
+.promo-banner::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 30%,currentColor 50%,transparent 70%);opacity:.16;animation:promoShine 2.4s linear infinite;pointer-events:none;}
+.promo-banner-icon{font-size:30px;line-height:1;flex-shrink:0;animation:promoIconBounce 1.2s ease-in-out infinite;filter:drop-shadow(0 0 10px currentColor);}
+.promo-banner-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.promo-banner-title{font-family:'Black Han Sans',sans-serif;font-size:17px;letter-spacing:0.6px;text-shadow:0 0 12px currentColor;animation:promoTitlePulse 1.6s ease-in-out infinite;line-height:1.2;}
+.promo-banner-tier{display:flex;align-items:center;gap:6px;font-size:11px;font-family:'JetBrains Mono',monospace;letter-spacing:0.3px;}
+.promo-banner-tier .from{opacity:.55;}
+.promo-banner-tier .arrow{color:#8b949e;}
+.promo-banner-tier .to{font-weight:700;}
+.promo-banner-sub{font-size:10.5px;color:#8b949e;letter-spacing:0.2px;margin-top:1px;}
+.promo-banner-close{background:none;border:none;color:#8b949e;font-size:16px;cursor:pointer;padding:4px 6px;flex-shrink:0;line-height:1;align-self:flex-start;}
+.promo-banner-close:hover{color:#fff;}
+@media(max-width:380px){
+  .promo-banner{padding:10px 12px;gap:9px;}
+  .promo-banner-icon{font-size:26px;}
+  .promo-banner-title{font-size:15px;}
+}
 @keyframes confettiFall{
   0%{opacity:0;transform:translateY(0) rotate(0deg)}
   10%{opacity:1}
@@ -2295,7 +2317,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.21';
+const APP_VERSION = 'v2.36.22';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2304,6 +2326,9 @@ const APP_VERSION = 'v2.36.21';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.22', date: '2026-05-03', changes: [
+    { tag: 'improve', text: '승급(success) 팝업을 풀스크린 모달 → 상단 가로 배너로 변경 — 화면 중앙을 가리지 않아 정산창과 동시 노출 가능. 백드롭 없음(다른 UI 조작 가능), 컨페티 24개·티어 컬러 글로우·아이콘 bounce·타이틀 펄스 효과 유지. 7초 자동 종료, 클릭/✕/ESC로도 즉시 닫힘. _detectMyS1Promotion의 정산창 가드 제거(동시 노출 OK). 승급전 시작/실패는 정보량·임팩트 측면에서 풀스크린 그대로 유지' },
+  ]},
   { ver: 'v2.36.21', date: '2026-05-03', changes: [
     { tag: 'fix', text: '승급 팝업 "확인" 버튼이 안 먹던 문제 — 모듈 스크립트라 _closePromoNotif가 window에 노출되지 않아 inline onclick="_closePromoNotif()"가 호출되지 않던 게 원인. window._closePromoNotif 로 명시 노출 + 백드롭 클릭/ESC 키로도 닫히는 안전망 추가' },
   ]},
@@ -3576,10 +3601,8 @@ function _detectMyS1Promotion() {
       if (_shownPromoKey !== promoKey) {
         _shownPromoKey = promoKey;
         _pendingPromoNotif = { type:'success', fromTier: prev, toTier: curr };
-        // 정산창이 떠 있으면 정산창 닫힐 때 표시 / 떠 있지 않으면 즉시
-        if (!document.querySelector('.match-summary-overlay')) {
-          setTimeout(() => _showPendingPromoNotif(), 250);
-        }
+        // v2.36.22~ 가로 배너 형태라 정산창과 동시 노출 OK → 즉시 표시
+        setTimeout(() => _showPendingPromoNotif(), 250);
       }
     }
     _lastMyS1Tier = curr;
@@ -6659,11 +6682,18 @@ window.closeMatchSummary = function() {
 };
 
 // 모듈 스크립트라 함수 선언만으로는 inline onclick="" 에서 못 찾음 → window 노출 (v2.36.21~)
+// v2.36.22~ 가로 배너(.promo-banner-wrap)도 처리
 window._closePromoNotif = function _closePromoNotif() {
   const el = document.getElementById('promo-notif-backdrop');
   if (!el) return;
-  el.style.animation = 'taFadeOut 0.2s ease forwards';
-  setTimeout(() => el.remove(), 220);
+  if (el._autoCloseTimer) { clearTimeout(el._autoCloseTimer); el._autoCloseTimer = null; }
+  if (el.classList.contains('promo-banner-wrap')) {
+    el.classList.add('hide');
+    setTimeout(() => el.remove(), 320);
+  } else {
+    el.style.animation = 'taFadeOut 0.2s ease forwards';
+    setTimeout(() => el.remove(), 220);
+  }
 };
 
 // 콘솔 미리보기 — previewPromoNotif() / previewPromoNotif('gold') / previewPromoNotif('challenger','grandmaster')
@@ -6724,37 +6754,40 @@ function _showPendingPromoNotif() {
     const fromMeta = m[notif.fromTier] || m.bronze;
     const toMeta   = m[notif.toTier]   || m.bronze;
     // 자동 승급(브론즈→실버 등)인지 / 승급전 성공인지 판별
-    // (s1ApplyMatchResult에서 promoActive 분기는 승급전, AUTO_TIERS 분기는 자동 승급)
     const isAuto = S1_AUTO_TIERS.has(notif.fromTier);
-    const subText = isAuto ? '100 LP 도달 — 다음 티어로 자동 승급!' : '승급전을 통과했어요';
+    const subText = isAuto ? '100 LP 도달 — 자동 승급!' : '승급전 통과';
     document.getElementById('promo-notif-backdrop')?.remove();
     const el = document.createElement('div');
     el.id = 'promo-notif-backdrop';
-    el.className = 'promo-notif-backdrop';
-    // 컨페티 30개 (티어 컬러 + 골드/실버 믹스)
+    el.className = 'promo-banner-wrap'; // 가로 배너 (정산창과 동시 노출 가능)
+    // 컨페티 24개 (좁은 가로 배너에 맞춰 줄임)
     const palette = [toMeta.color, '#ffd700', '#fff8dc', '#ff8b3d', '#7dd3fc', '#c084fc'];
-    const confetti = Array.from({length:30}, (_,i) => {
+    const confetti = Array.from({length:24}, (_,i) => {
       const left = Math.random()*100;
       const delay = Math.random()*2.4;
       const dur = 2.2 + Math.random()*1.6;
       const color = palette[i % palette.length];
-      const size = 6 + Math.random()*8;
+      const size = 6 + Math.random()*7;
       return `<span class="promo-confetti" style="left:${left}%;animation-delay:${delay}s;animation-duration:${dur}s;background:${color};width:${size}px;height:${size*1.5}px;"></span>`;
     }).join('');
     el.innerHTML = `
       ${confetti}
-      <div class="promo-notif-card celebrate" style="color:${toMeta.color};">
-        <div class="promo-notif-icon">🎉</div>
-        <div class="promo-notif-title" style="color:${toMeta.color}">승급!</div>
-        <div class="promo-notif-sub">${subText}</div>
-        <div class="promo-tier-row">
-          <span class="promo-tier-badge from" style="border:1.5px solid ${fromMeta.color};color:${fromMeta.color};opacity:.55">${fromMeta.label}</span>
-          <span class="promo-arrow">→</span>
-          <span class="promo-tier-badge to" style="border:2px solid ${toMeta.color};color:${toMeta.color};background:rgba(255,255,255,.04);">${toMeta.label}</span>
+      <div class="promo-banner" style="color:${toMeta.color};" onclick="window._closePromoNotif()">
+        <div class="promo-banner-icon">🎉</div>
+        <div class="promo-banner-text">
+          <div class="promo-banner-title" style="color:${toMeta.color};">${toMeta.label} 승급!</div>
+          <div class="promo-banner-tier">
+            <span class="from" style="color:${fromMeta.color};">${fromMeta.label}</span>
+            <span class="arrow">→</span>
+            <span class="to" style="color:${toMeta.color};">${toMeta.label}</span>
+          </div>
+          <div class="promo-banner-sub">${subText}</div>
         </div>
-        <button class="promo-notif-btn" style="background:${toMeta.color};color:#0d1117" onclick="_closePromoNotif()">🚀 확인</button>
+        <button class="promo-banner-close" onclick="event.stopPropagation();window._closePromoNotif();" aria-label="닫기">✕</button>
       </div>`;
     document.body.appendChild(el);
+    // 자동 닫힘 7초
+    el._autoCloseTimer = setTimeout(() => window._closePromoNotif(), 7000);
 
   } else if (notif.type === 'fail') {
     const meta = m[notif.tier] || m.bronze;
