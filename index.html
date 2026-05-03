@@ -2330,7 +2330,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.26';
+const APP_VERSION = 'v2.36.27';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2339,6 +2339,9 @@ const APP_VERSION = 'v2.36.26';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.27', date: '2026-05-03', changes: [
+    { tag: 'improve', text: '승급 알림 정책 변경 — 승급(success) 알림만 유지, 승급전 실패(fail)·강등(demote) 배너 제거. _detectAllS1Changes 에서 rank 상승 케이스만 처리, _renderPromoBanner 진입 시 type !== success 면 즉시 return. 미리보기(previewPromoNotif/previewPromoBatch) 도 모두 success 시연으로 통일' },
+  ]},
   { ver: 'v2.36.26', date: '2026-05-03', changes: [
     { tag: 'fix', text: '정산창 위치 — justify-content:safe center 추가. 콘텐츠가 짧으면 가운데 정렬, 길어서 viewport 초과하면 자동으로 위에서부터(스크롤). 이전엔 항상 위쪽 정렬이라 짧은 정산창이 어색했음' },
     { tag: 'improve', text: '컨페티 최적화 — (1) GPU 가속: translate3d + will-change:transform,opacity (2) animation infinite → forwards 1회 (3) 24개 → 16개 축소 (4) DocumentFragment로 한 번의 reflow에 일괄 추가 (5) shine 애니메이션도 translate3d 적용. 모바일/태블릿 렉 완화' },
@@ -3635,7 +3638,7 @@ function _detectAllS1Changes() {
     const player = Object.values(registeredPlayers).find(p => normName(p.name) === key);
     const displayName = player?.name || key;
     if (prev) {
-      // 1) 승급 — tier rank 상승
+      // 승급(rank 상승)만 알림 — fail/demote는 v2.36.27에서 제거
       if (d.tier !== prev.tier) {
         const prevRank = S1_TIER_META[prev.tier]?.rank ?? -1;
         const currRank = S1_TIER_META[d.tier]?.rank ?? -1;
@@ -3645,21 +3648,6 @@ function _detectAllS1Changes() {
             _shownPromoKeys.add(k);
             _showPromoBanner({ name: displayName, type:'success', fromTier: prev.tier, toTier: d.tier, isMe });
           }
-        } else if (currRank < prevRank) {
-          // 2) 강등
-          const k = `${key}:demote:${prev.tier}→${d.tier}`;
-          if (!_shownPromoKeys.has(k)) {
-            _shownPromoKeys.add(k);
-            _showPromoBanner({ name: displayName, type:'demote', fromTier: prev.tier, toTier: d.tier, isMe });
-          }
-        }
-      }
-      // 3) 승급전 실패 — promoActive true→false + tier 그대로
-      if (prev.promoActive && !d.promoActive && d.tier === prev.tier) {
-        const k = `${key}:fail:${prev.tier}@${Date.now()>>16}`;
-        if (!_shownPromoKeys.has(k)) {
-          _shownPromoKeys.add(k);
-          _showPromoBanner({ name: displayName, type:'fail', fromTier: prev.tier, toTier: prev.tier, isMe });
         }
       }
     }
@@ -3683,32 +3671,18 @@ window._showPromoBanner = function(opts) {
   if (!_promoQueueRunning) _processPromoQueue();
 };
 
-// 실제 배너 DOM 생성 (큐에서 호출됨) — type: success | fail | demote
+// 실제 배너 DOM 생성 (큐에서 호출됨) — v2.36.27부터 success(승급)만 지원
 function _renderPromoBanner({ name, type, fromTier, toTier, isMe }) {
   if (CURRENT_SEASON < 1) return;
+  if (type !== 'success') return; // fail/demote 는 알림 비활성
   const m = S1_TIER_META;
   const fromMeta = m[fromTier] || m.bronze;
   const toMeta   = m[toTier]   || fromMeta;
 
-  let icon, titleText, subText, themeColor;
-  if (type === 'success') {
-    icon = '🎉';
-    titleText = `${name} ${toMeta.label} 승급!`;
-    subText = S1_AUTO_TIERS.has(fromTier) ? '100 LP 도달 — 자동 승급' : '승급전 통과';
-    themeColor = toMeta.color;
-  } else if (type === 'fail') {
-    icon = '😔';
-    titleText = `${name} 승급전 실패`;
-    subText = `${fromMeta.label} 75 LP 복귀`;
-    themeColor = '#8b949e';
-  } else if (type === 'demote') {
-    icon = '⬇️';
-    titleText = `${name} ${toMeta.label} 강등`;
-    subText = `${fromMeta.label} → ${toMeta.label}`;
-    themeColor = '#f87171';
-  } else {
-    return;
-  }
+  const icon       = '🎉';
+  const titleText  = `${name} ${toMeta.label} 승급!`;
+  const subText    = S1_AUTO_TIERS.has(fromTier) ? '100 LP 도달 — 자동 승급' : '승급전 통과';
+  const themeColor = toMeta.color;
 
   // stack 컨테이너 확보
   let stack = document.getElementById('promo-banner-stack');
@@ -3736,8 +3710,8 @@ function _renderPromoBanner({ name, type, fromTier, toTier, isMe }) {
     </div>`;
   stack.appendChild(item);
 
-  // 자동 닫힘 — success 7초, fail/demote 5초
-  const ttl = type === 'success' ? 7000 : 5000;
+  // 자동 닫힘 — 7초
+  const ttl = 7000;
   setTimeout(() => {
     if (!item.parentNode) return;
     item.classList.add('hide');
@@ -6866,17 +6840,15 @@ window._closePromoNotif = function _closePromoNotif() {
 
 // 콘솔 미리보기 — previewPromoNotif(toTier?, fromTier?, opts?)
 //   opts.name: 닉네임 (기본 myName 또는 '플레이어')
-//   opts.type: 'success'|'fail'|'demote' (기본 success)
 //   opts.isMe: 본인 표시 (기본 false)
-// 예: previewPromoNotif('diamond') / previewPromoNotif('silver','gold',{type:'demote'})
+// v2.36.27부터 승급(success)만 지원 — fail/demote 제거됨
 window.previewPromoNotif = function(toTier, fromTier, opts = {}) {
   const order = ['unranked','bronze','silver','gold','platinum','diamond','master','grandmaster','challenger'];
-  const type = opts.type || 'success';
+  const type = 'success';
   if (!toTier) toTier = 'gold';
   if (!fromTier) {
     const idx = order.indexOf(toTier);
-    fromTier = type === 'demote' ? (idx >= 0 && idx < order.length-1 ? order[idx+1] : 'platinum')
-                                  : (idx > 0 ? order[idx-1] : 'silver');
+    fromTier = idx > 0 ? order[idx-1] : 'silver';
   }
   if (!S1_TIER_META[toTier] || !S1_TIER_META[fromTier]) {
     console.warn(`❗ 알 수 없는 티어. 사용 가능: ${order.slice(1).join(', ')}`);
@@ -6887,12 +6859,12 @@ window.previewPromoNotif = function(toTier, fromTier, opts = {}) {
   _showPromoBanner({ name, type, fromTier, toTier, isMe });
   console.log(`🎉 승급 배너 미리보기: ${type} · ${name} · ${fromTier} → ${toTier} · isMe=${isMe}`);
 };
-// 다양한 시나리오 한 번에 시연 (큐가 자동 0.7초 간격으로 분산)
+// 다양한 시나리오 한 번에 시연 (큐가 자동 0.7초 간격으로 분산) — v2.36.27 success만
 window.previewPromoBatch = function() {
   previewPromoNotif('gold',     null, { name: myName || '쭝쭝이주인', type:'success', isMe: true  });
   previewPromoNotif('platinum', null, { name: '애블린',     type:'success', isMe: false });
-  previewPromoNotif(null, 'gold',     { name: '럼블홀릭',   type:'fail',    isMe: false });
-  previewPromoNotif('gold','platinum',{ name: '브랜딩프로', type:'demote',  isMe: false });
+  previewPromoNotif('diamond',  null, { name: '럼블홀릭',   type:'success', isMe: false });
+  previewPromoNotif('master',   null, { name: '브랜딩프로', type:'success', isMe: false });
 };
 
 // 정산창 + 승급 배너 동시 시연 (실제 매치 종료 시점 재현)
@@ -6949,11 +6921,7 @@ function _showPendingPromoNotif() {
     return;
 
   } else if (notif.type === 'fail') {
-    // v2.36.23~ — 가로 배너로 위임 (본인+남 모두 동일 형태)
-    const k = `${normName(myName||'')}:fail:${notif.tier}@${Date.now()>>16}`;
-    if (_shownPromoKeys.has(k)) return;
-    _shownPromoKeys.add(k);
-    _showPromoBanner({ name: myName || '나', type:'fail', fromTier: notif.tier, toTier: notif.tier, isMe: true });
+    // v2.36.27~ 승급 실패 알림은 비활성 (조용히 무시)
     return;
   }
   // 공통: 백드롭 클릭·ESC 로도 닫힘 (확인 버튼이 막혀도 안전망)
