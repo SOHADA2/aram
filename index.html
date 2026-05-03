@@ -1109,6 +1109,8 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .lottery-premium-badge{position:absolute;top:10px;right:10px;font-size:9px;font-weight:700;letter-spacing:1px;padding:3px 7px;border-radius:4px;background:rgba(232,121,249,0.15);color:#e879f9;border:1px solid rgba(232,121,249,0.35);font-family:'JetBrains Mono',monospace;}
 .gold-toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:linear-gradient(135deg,rgba(13,24,41,0.97),rgba(17,32,64,0.97));border:1px solid var(--gold);border-radius:10px;padding:12px 24px;font-family:'Black Han Sans',sans-serif;font-size:15px;color:var(--gold);z-index:2000;pointer-events:none;box-shadow:0 4px 24px rgba(0,0,0,0.5),0 0 12px rgba(200,168,75,0.2);white-space:nowrap;animation:toastIn 0.3s ease forwards;}
 .gold-toast.fade-out{animation:toastOut 0.4s ease forwards;}
+.s1-toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:linear-gradient(135deg,rgba(20,10,40,0.97),rgba(32,16,64,0.97));border:1px solid rgba(155,109,255,0.6);border-radius:10px;padding:12px 24px;font-family:'Black Han Sans',sans-serif;font-size:15px;color:#c0a0ff;z-index:2000;pointer-events:none;box-shadow:0 4px 24px rgba(0,0,0,0.5),0 0 14px rgba(140,80,255,0.3);white-space:nowrap;animation:toastIn 0.3s ease forwards;}
+.s1-toast.fade-out{animation:toastOut 0.4s ease forwards;}
 @keyframes toastIn{from{opacity:0;transform:translate(-50%,-60%)}to{opacity:1;transform:translate(-50%,-50%)}}
 @keyframes toastOut{from{opacity:1;transform:translate(-50%,-50%)}to{opacity:0;transform:translate(-50%,-42%)}}
 /* ── 뉴비 마크 ── */
@@ -2347,7 +2349,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.37';
+const APP_VERSION = 'v2.36.38';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2356,6 +2358,9 @@ const APP_VERSION = 'v2.36.37';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.38', date: '2026-05-04', changes: [
+    { tag: 'improve', text: 'S1 전용 토스트 디자인 분리 — 복권·도박권·승급전 아이템·시즌패스 완료 등 S1 알림을 골드 테마 대신 퍼플 테마(showS1Toast)로 표시' },
+  ]},
   { ver: 'v2.36.37', date: '2026-05-03', changes: [
     { tag: 'fix', text: '히어로카드 LP 섹션 티어명 폰트 통일 — JetBrains Mono → Noto Sans KR (배지 박스와 동일한 폰트)' },
   ]},
@@ -9208,7 +9213,7 @@ window.claimS1PassLevel = async function(level) {
   await update(ref(db, 'gold/' + key), {
     [`seasonPassClaimed_s1/${level}`]: Date.now(), // true 대신 수령 시각 저장
   });
-  showGoldToast(`🎫 [${quest.name}] 완료! +${reward}G`);
+  showS1Toast(`🎫 [${quest.name}] 완료! +${reward}G`);
   renderS1Pass();
   updateMyInfoBar();
 };
@@ -10391,7 +10396,7 @@ window.applyLotteryRefund = async function(key) {
   });
   const overlay = document.getElementById('lottery-refund-overlay');
   if (overlay) overlay.remove();
-  showGoldToast(`🎟️ 복권 ${count}장 구매비 <b>+${refundGold}G</b> 환불 완료!`);
+  showS1Toast(`🎟️ 복권 ${count}장 구매비 <b>+${refundGold}G</b> 환불 완료!`);
 };
 
 // ── 복권 환불자 감사 (콘솔에서 auditLotteryRefund() 호출) ───────
@@ -10428,7 +10433,7 @@ window.fixLotteryRefundCounts = async function() {
     fixed++;
   }
   console.log(`[완료] ${fixed}명 횟수 초기화`);
-  if (fixed > 0) showGoldToast(`🎟️ 복권 환불자 ${fixed}명 구매 슬롯 초기화 완료`);
+  if (fixed > 0) showS1Toast(`🎟️ 복권 환불자 ${fixed}명 구매 슬롯 초기화 완료`);
 };
 function calcPlayerGoldEarned(name, data) {
   if (!data) return 0;
@@ -11232,11 +11237,11 @@ function showLotteryResult(result, remainingGold) {
   // 일반: tier 0,5 → 토스트, tier 4 → 파란 토스트, tier 3↑ → 모달
   if (!isPremium) {
     if (result.tier === 0) {
-      showGoldToast(`😭 꽝! 다음 기회에... (🪙${remainingGold}G 남음)`);
+      showS1Toast(`😭 꽝! 다음 기회에... (🪙${remainingGold}G 남음)`);
       return;
     }
     if (result.tier === 5) {
-      showGoldToast(`🎟️ 5등 당첨 +${result.gold}G! (🪙${remainingGold}G 남음)`);
+      showS1Toast(`🎟️ 5등 당첨 +${result.gold}G! (🪙${remainingGold}G 남음)`);
       return;
     }
   }
@@ -11287,7 +11292,7 @@ window.buyItem = async function(itemId) {
     const lotteryDate  = data.lotteryDate || '';
     const lotteryCount = lotteryDate === today ? (data.lotteryCount || 0) : 0;
     if (lotteryCount >= 3) {
-      showGoldToast('🎰 오늘 복권은 모두 사용했어요! (1일 3장 한도)');
+      showS1Toast('🎰 오늘 복권은 모두 사용했어요! (1일 3장 한도)');
       return;
     }
     const result = rollLottery();
@@ -11317,7 +11322,7 @@ window.buyItem = async function(itemId) {
     const premDate  = data.lotteryPremiumDate || '';
     const premCount = premDate === today ? (data.lotteryPremiumCount || 0) : 0;
     if (premCount >= 1) {
-      showGoldToast('💎 오늘 프리미엄 복권은 사용했어요! (1일 1장 한도)');
+      showS1Toast('💎 오늘 프리미엄 복권은 사용했어요! (1일 1장 한도)');
       return;
     }
     const result = rollLotteryPremium();
@@ -11376,24 +11381,24 @@ window.toggleItemActive = async function(idx) {
     }
     // 승급전 전용 아이템: 승급전 진행 중에만 사용 가능
     if ((tryId === 's1_promo_shield' || tryId === 's1_promo_win') && !myS1?.promoActive) {
-      showGoldToast(`⚠ 승급전 진행 중에만 사용할 수 있어요`);
+      showS1Toast(`⚠ 승급전 진행 중에만 사용할 수 있어요`);
       return;
     }
     // 승급전 방어권 ↔ 승리권 동시 활성화 방지 (둘 다 켜져 있으면 한 효과만 발동되고 둘 다 소모됨)
     const isPromoItem = id => id === 's1_promo_shield' || id === 's1_promo_win';
     const otherPromoOn = items.some((it, i) => i !== idx && it.active && isPromoItem(it.id));
     if (isPromoItem(tryId) && otherPromoOn) {
-      showGoldToast(`⚠ 승급전 방어권과 승리권은 함께 활성화할 수 없어요`);
+      showS1Toast(`⚠ 승급전 방어권과 승리권은 함께 활성화할 수 없어요`);
       return;
     }
     // 승급전 승리권: 이미 1승이 있으면 활성화 불가
     if (tryId === 's1_promo_win' && myS1?.promoActive && (myS1.promoWins || 0) >= 1) {
-      showGoldToast(`⚠ 이미 1승이 있어요 — 승리권 없이도 1승이면 승급 가능해요`);
+      showS1Toast(`⚠ 이미 1승이 있어요 — 승리권 없이도 1승이면 승급 가능해요`);
       return;
     }
     // 도박권: 배치고사·승급전 중 사용 불가 (두 경우 모두 s1ApplyMatchResult에서 gamble LP 미처리)
     if (tryId === 's1_gamble' && (!myS1?.placementDone || myS1?.promoActive)) {
-      showGoldToast(!myS1?.placementDone
+      showS1Toast(!myS1?.placementDone
         ? `⚠ 도박권은 배치고사 완료 후 사용할 수 있어요`
         : `⚠ 도박권은 승급전 중 사용할 수 없어요`);
       return;
@@ -11471,6 +11476,18 @@ function showGoldToast(msg) {
   if (old) old.remove();
   const el = document.createElement('div');
   el.id='gold-toast'; el.className='gold-toast'; el.innerHTML=msg;
+  document.body.appendChild(el);
+  setTimeout(()=>{
+    el.classList.add('fade-out');
+    setTimeout(()=>el.remove(), 400);
+  }, 2500);
+}
+// 시즌 1 전용 퍼플 토스트
+function showS1Toast(msg) {
+  const old = document.getElementById('gold-toast');
+  if (old) old.remove();
+  const el = document.createElement('div');
+  el.id='gold-toast'; el.className='s1-toast'; el.innerHTML=msg;
   document.body.appendChild(el);
   setTimeout(()=>{
     el.classList.add('fade-out');
