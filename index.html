@@ -2295,7 +2295,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.36.18';
+const APP_VERSION = 'v2.36.19';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2304,6 +2304,9 @@ const APP_VERSION = 'v2.36.18';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.36.19', date: '2026-05-03', changes: [
+    { tag: 'new', text: '승급 팝업 콘솔 미리보기 — F12 콘솔에서 previewPromoNotif() 실행 시 silver→gold 기본 시연. previewPromoNotif("diamond") / previewPromoNotif("challenger","grandmaster") 처럼 인자로 to/from 티어 지정 가능. 컨페티·글로우·펄스 모두 실제와 동일' },
+  ]},
   { ver: 'v2.36.18', date: '2026-05-03', changes: [
     { tag: 'fix', text: '승급 축하 팝업 누락 수정 — _pendingPromoNotif가 saveMatch 호출 기기(라이브 호스트)에서만 세팅되어 일반 팀원 기기엔 팝업이 안 뜨던 문제. season1Data onValue 리스너에 _detectMyS1Promotion() 추가, 본인 티어 변화 감지 시 자동으로 팝업 트리거 (S1_TIER_META.rank 비교). 정산창이 떠 있으면 닫힐 때 표시, 아니면 250ms 후 즉시 표시. 같은 승급 키(예: bronze→silver) 중복 표시 방지. 계정 전환 시 스냅샷 리셋' },
   ]},
@@ -6655,6 +6658,25 @@ function _closePromoNotif() {
   el.style.animation = 'taFadeOut 0.2s ease forwards';
   setTimeout(() => el.remove(), 220);
 }
+
+// 콘솔 미리보기 — previewPromoNotif() / previewPromoNotif('gold') / previewPromoNotif('challenger','grandmaster')
+// type='success' 만 지원 (승급 축하 모달). 'start'/'fail'은 사용처 적어 미노출.
+window.previewPromoNotif = function(toTier, fromTier) {
+  const order = ['unranked','bronze','silver','gold','platinum','diamond','master','grandmaster','challenger'];
+  if (!toTier) toTier = 'gold';
+  if (!fromTier) {
+    const idx = order.indexOf(toTier);
+    fromTier = idx > 0 ? order[idx - 1] : 'silver';
+  }
+  if (!S1_TIER_META[toTier] || !S1_TIER_META[fromTier]) {
+    console.warn(`❗ 알 수 없는 티어. 사용 가능: ${order.slice(1).join(', ')}`);
+    return;
+  }
+  _pendingPromoNotif = { type:'success', fromTier, toTier };
+  _shownPromoKey = null; // 미리보기 중복 표시 가드 풀기
+  _showPendingPromoNotif();
+  console.log(`🎉 승급 팝업 미리보기: ${fromTier} → ${toTier}`);
+};
 
 function _showPendingPromoNotif() {
   const notif = _pendingPromoNotif;
