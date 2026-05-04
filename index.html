@@ -257,7 +257,7 @@ header p{color:var(--text-dim);font-size:12px;letter-spacing:1px;}
 .card{background:var(--rk-card);border:1px solid var(--rk-border);border-radius:10px;padding:18px 20px;margin-bottom:14px;position:relative;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.4);}
 .card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(200,168,75,0.35),transparent);}
 .card-title{font-family:'Black Han Sans',sans-serif;font-size:16px;letter-spacing:.03em;color:var(--rk-text);margin-bottom:16px;display:flex;align-items:center;gap:8px;}
-.result-timer{margin-left:auto;display:inline-block;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;color:rgba(220,228,245,0.85);letter-spacing:2px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:3px 11px;flex-shrink:0;}
+
 .card-title::before{content:'';width:3px;height:16px;background:var(--rk-gold-deep);border-radius:2px;flex-shrink:0;}
 .card-title .badge{font-family:'JetBrains Mono',monospace;background:rgba(200,168,75,0.15);color:var(--rk-gold);border:1px solid rgba(200,168,75,0.3);border-radius:10px;padding:1px 8px;font-size:11px;letter-spacing:.08em;font-weight:700;}
 .add-row{display:flex;gap:10px;flex-wrap:wrap;}
@@ -2176,7 +2176,7 @@ img.emoji{
   </div>
 
   <div id="result-section" class="card">
-    <div class="card-title" style="display:flex;align-items:center;">팀 결과<span class="result-timer" id="result-timer" style="margin-left:auto;">00:00</span></div>
+    <div class="card-title">팀 결과</div>
     <div id="result-header" class="result-header">
       <h2 id="result-title">— VS —</h2>
       <p id="result-mode-label"></p>
@@ -2485,7 +2485,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.5';
+const APP_VERSION = 'v2.37.6';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2494,6 +2494,9 @@ const APP_VERSION = 'v2.37.5';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.37.6', date: '2026-05-04', changes: [
+    { tag: 'fix', text: '팀 결과 카드 경과 타이머 제거 — 요청 없이 추가된 기능 롤백' },
+  ]},
   { ver: 'v2.37.5', date: '2026-05-04', changes: [
     { tag: 'improve', text: '팀 발표 오버레이 목업 완전 일치 — 2열 그리드(1fr 1fr), 플레이어 행에 번호·이름·티어배지·연승/연패·LP 바 포함, 대각선 텍스처, 카드 글로우. 럼블→카드슬램(200/400ms)→플레이어 교차 캐스케이드→shimmer 타이밍 목업 기준 정렬' },
   ]},
@@ -6680,26 +6683,6 @@ function _tcShimmer(t) {
   om.start(t); om.stop(t+0.95);
 }
 
-let _resultTimerInterval = null;
-function startResultTimer() {
-  const el = document.getElementById('result-timer');
-  if (!el) return;
-  if (_resultTimerInterval) clearInterval(_resultTimerInterval);
-  const base = _currentTeamsFormedAt || Date.now();
-  const tick = () => {
-    const s = Math.floor((Date.now() - base) / 1000);
-    const mm = String(Math.floor(s / 60)).padStart(2, '0');
-    const ss = String(s % 60).padStart(2, '0');
-    el.textContent = mm + ':' + ss;
-  };
-  tick();
-  _resultTimerInterval = setInterval(tick, 1000);
-}
-function stopResultTimer() {
-  if (_resultTimerInterval) { clearInterval(_resultTimerInterval); _resultTimerInterval = null; }
-  const el = document.getElementById('result-timer');
-  if (el) el.textContent = '00:00';
-}
 
 function _tcFlash(type) {
   let el = document.getElementById('tc-flash-el');
@@ -6868,7 +6851,6 @@ function renderResult() {
     teamCard('🔥 2팀','team-b',currentTeamB);
   // 슬램 등장 애니메이션 + 사운드
   setTimeout(()=>playTeamCardEntrance(), 60);
-  startResultTimer();
 
   // 관전자 표시
   const spectatorEl = document.getElementById('spectator-section');
@@ -12526,7 +12508,6 @@ window.resetSession = function() {
   renderSessionPlayers();
   renderShop();
   document.getElementById('result-section').style.display='none';
-  stopResultTimer();
   document.getElementById('warn-box').innerHTML='';
   updateMemberModeDisplay();
 };
