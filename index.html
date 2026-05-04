@@ -2485,7 +2485,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.7';
+const APP_VERSION = 'v2.37.8';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2494,6 +2494,9 @@ const APP_VERSION = 'v2.37.7';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.37.8', date: '2026-05-04', changes: [
+    { tag: 'fix', text: '투표창 챔피언 카드 깜빡임 완전 수정 — 카드 클릭 시 전체 innerHTML 교체 대신 .selected/.has-sel 클래스만 토글, 도트·완료 버튼만 in-place 업데이트. DOM 유지로 등장 애니메이션 재실행 원천 차단' },
+  ]},
   { ver: 'v2.37.7', date: '2026-05-04', changes: [
     { tag: 'fix', text: '투표창 캐릭터 깜빡임 수정 — 다른 팀원 투표 시 진행 현황 칩만 in-place 업데이트(카드 DOM 유지). 완료 버튼 시인성 개선: 녹색·대형·선택 상황 안내 문구 표시, 양쪽 선택 완료 시 버튼으로 자동 스크롤' },
   ]},
@@ -6487,14 +6490,56 @@ function _eogBurst(el, type) {
 }
 window._eogPickMvp = function(el, name) {
   _eogBurst(el,'mvp'); _eogPlaySound('mvp');
-  const sec=document.getElementById('mvp-section'); if(!sec) return;
-  sec._pendingMvp=name; if(sec._renderMvp) sec._renderMvp();
+  const sec = document.getElementById('mvp-section'); if (!sec) return;
+  sec._pendingMvp = name;
+  const group = el.closest('.eog-cg.mvp-type');
+  if (group) {
+    group.querySelectorAll('.eog-cc').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    group.classList.add('has-sel');
+  }
+  _eogUpdateDots(sec);
+  _eogUpdateConfirmBtn(sec);
 };
 window._eogPickManner = function(el, name) {
   _eogBurst(el,'manner'); _eogPlaySound('manner');
-  const sec=document.getElementById('mvp-section'); if(!sec) return;
-  sec._pendingManner=name; if(sec._renderMvp) sec._renderMvp();
+  const sec = document.getElementById('mvp-section'); if (!sec) return;
+  sec._pendingManner = name;
+  const group = el.closest('.eog-cg.manner-type');
+  if (group) {
+    group.querySelectorAll('.eog-cc').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    group.classList.add('has-sel');
+  }
+  _eogUpdateDots(sec);
+  _eogUpdateConfirmBtn(sec);
 };
+function _eogUpdateDots(sec) {
+  const mvpDot = sec.querySelector('.eog-dot-item.mvp-d');
+  const manDot = sec.querySelector('.eog-dot-item.man-d');
+  if (mvpDot) mvpDot.classList.toggle('done', !!sec._pendingMvp);
+  if (manDot) manDot.classList.toggle('done', !!sec._pendingManner);
+}
+function _eogUpdateConfirmBtn(sec) {
+  const btn = sec.querySelector('.eog-cf-btn');
+  if (!btn) return;
+  const p = sec._pendingMvp, m = sec._pendingManner, myTeam = sec._myTeam;
+  if (!myTeam) return;
+  if (p && m) {
+    btn.id = 'eog-confirm-btn';
+    btn.className = 'eog-cf-btn ready';
+    btn.disabled = false;
+    btn.onclick = () => castCombinedVote(myTeam, myName, p, m);
+    btn.innerHTML = `✓ 투표 완료<span style="display:block;font-size:10px;font-family:'Noto Sans KR',sans-serif;font-weight:400;letter-spacing:0;margin-top:3px;opacity:0.75;">MVP: ${escHtml(p)} &nbsp;·&nbsp; 매너왕: ${escHtml(m)}</span>`;
+    requestAnimationFrame(() => btn.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  } else {
+    btn.id = '';
+    btn.className = 'eog-cf-btn';
+    btn.disabled = true;
+    btn.onclick = null;
+    btn.textContent = p ? '✓ MVP 선택됨 — 매너왕을 선택해 주세요' : m ? '✓ 매너왕 선택됨 — MVP를 선택해 주세요' : 'MVP · 매너왕을 각각 선택해 주세요';
+  }
+}
 
 let matchSaved = false; // 현재 팀 결과 저장 여부
 let _saveInProgress = false; // saveMatch 진행 중 동기 잠금 (중복 저장 방지)
@@ -7129,12 +7174,10 @@ function renderMvpSection() {
       ${progressHtml}
       ${liveMode ? `<button class="mvp-skip-btn" style="margin-top:6px;" onclick="skipAll()">건너뛰기</button>` : ''}`;
 
-    requestAnimationFrame(() => {
-      window.scrollTo(0, savedScrollY);
-      // 완료 버튼 활성화 시 자동 스크롤
-      const cfBtn = document.getElementById('eog-confirm-btn');
-      if (cfBtn) cfBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    });
+    // 내 팀 정보 저장 (in-place 업데이트용)
+    sec._myTeam = amITeamA ? 'teamA' : amITeamB ? 'teamB' : null;
+
+    requestAnimationFrame(() => window.scrollTo(0, savedScrollY));
     if (allVoted) autoConfirmMvp();
   }
 
