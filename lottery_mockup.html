@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>복권 긁기 목업</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Black+Han+Sans&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#07040f;
+  --surface:#100c1e;
+  --border:#2e1f52;
+  --gold:#c8a84b;
+  --gold-light:#edd97a;
+  --gold-glow:rgba(200,168,75,0.65);
+  --purple:#9b5cff;
+  --purple-dim:rgba(124,58,237,0.35);
+  --text:rgba(220,228,245,0.92);
+  --text-dim:rgba(150,165,190,0.5);
+}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Noto Sans KR',sans-serif;
+  min-height:100vh;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:20px 16px 40px;overflow-x:hidden;
+}
+body::before{
+  content:'';position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%,rgba(124,58,237,0.08) 0%,transparent 60%),
+    radial-gradient(ellipse 60% 50% at 50% 110%,rgba(200,168,75,0.06) 0%,transparent 60%),
+    radial-gradient(ellipse 40% 30% at 90% 20%,rgba(155,92,255,0.04) 0%,transparent 60%);
+  pointer-events:none;z-index:0;
+}
+.particles{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;}
+.particle{position:absolute;border-radius:50%;animation:float linear infinite;}
+@keyframes float{
+  0%{transform:translateY(100vh) scale(0);opacity:0;}
+  10%{opacity:1;transform:translateY(85vh) scale(1);}
+  90%{opacity:0.5;}
+  100%{transform:translateY(-10px) scale(0.4);opacity:0;}
+}
+
+/* ── 타입 선택 탭 ── */
+.type-wrap{
+  position:relative;z-index:1;
+  display:flex;gap:0;margin-bottom:18px;
+}
+.type-btn{
+  padding:9px 26px;
+  font-family:'Black Han Sans',sans-serif;font-size:13px;letter-spacing:1px;
+  background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);
+  color:var(--text-dim);cursor:pointer;transition:all 0.2s;
+}
+.type-btn:first-child{border-radius:8px 0 0 8px;}
+.type-btn:last-child{border-radius:0 8px 8px 0;border-left:none;}
+.type-btn:hover{color:var(--text);background:rgba(255,255,255,0.08);}
+.type-btn.active{
+  background:rgba(200,168,75,0.15);border-color:rgba(200,168,75,0.45);
+  color:var(--gold-light);
+}
+
+/* ── 복권 카드 ── */
+.ticket-wrap{position:relative;z-index:1;width:100%;max-width:380px;}
+.ticket{
+  position:relative;
+  background:linear-gradient(160deg,rgba(16,12,30,0.98) 0%,rgba(7,4,15,0.99) 100%);
+  border-radius:16px;
+  border:1px solid rgba(46,31,82,0.8);
+  box-shadow:
+    0 0 0 1px rgba(124,58,237,0.06) inset,
+    0 20px 60px rgba(0,0,0,0.9),
+    0 0 60px rgba(124,58,237,0.05);
+  overflow:hidden;
+  animation:ticketIn 0.5s cubic-bezier(0.16,1,0.3,1);
+}
+@keyframes ticketIn{
+  from{opacity:0;transform:translateY(20px) scale(0.95);}
+  to{opacity:1;transform:none;}
+}
+
+/* 상단 티켓 헤더 */
+.ticket-head{
+  padding:14px 18px 12px;
+  background:linear-gradient(90deg,rgba(124,58,237,0.1),rgba(124,58,237,0.03));
+  border-bottom:1px solid rgba(46,31,82,0.8);
+  display:flex;align-items:center;gap:10px;
+}
+.ticket-type-icon{font-size:20px;line-height:1;}
+.ticket-type-info{flex:1;min-width:0;}
+.ticket-type-name{
+  font-family:'Black Han Sans',sans-serif;font-size:15px;letter-spacing:1.5px;
+  color:var(--gold-light);text-shadow:0 0 16px rgba(200,168,75,0.5);
+}
+.ticket-type-sub{font-size:10px;color:var(--text-dim);margin-top:1px;}
+.ticket-price-badge{
+  font-family:'Noto Sans KR',sans-serif;font-size:13px;font-weight:700;
+  letter-spacing:0.5px;
+  color:var(--gold-light);
+  background:linear-gradient(135deg,rgba(200,168,75,0.18),rgba(200,168,75,0.08));
+  border:1px solid rgba(200,168,75,0.5);
+  padding:5px 12px;border-radius:8px;
+  box-shadow:0 0 14px rgba(200,168,75,0.25), inset 0 1px 0 rgba(255,255,255,0.06);
+  white-space:nowrap;text-shadow:0 0 10px rgba(200,168,75,0.5);
+}
+
+/* 긁기 영역 */
+.ticket-scratch-zone{
+  position:relative;margin:16px;border-radius:10px;overflow:hidden;
+  height:130px;
+  background:rgba(124,58,237,0.04);
+  border:1px solid rgba(46,31,82,0.6);
+}
+.prize-area{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+  pointer-events:none;
+}
+.prize-emoji{font-size:28px;line-height:1;opacity:0;transform:scale(0.5);transition:all 0.5s cubic-bezier(0.34,1.56,0.64,1);}
+.prize-emoji.show{opacity:1;transform:scale(1);}
+.prize-amount{
+  font-family:'Black Han Sans',sans-serif;font-size:28px;letter-spacing:1px;
+  opacity:0;transform:translateY(8px);transition:all 0.45s ease 0.1s;
+}
+.prize-amount.show{opacity:1;transform:none;}
+.prize-label{
+  font-size:11px;letter-spacing:2px;color:var(--text-dim);
+  opacity:0;transition:opacity 0.3s ease 0.25s;
+}
+.prize-label.show{opacity:1;}
+
+#scratch-canvas{
+  position:absolute;inset:0;
+  width:100%;height:100%;
+  cursor:crosshair;touch-action:none;
+}
+.scratch-hint{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;color:rgba(155,92,255,0.55);letter-spacing:0.5px;
+  pointer-events:none;z-index:2;
+  animation:hintPulse 2s ease infinite;transition:opacity 0.3s;
+}
+@keyframes hintPulse{
+  0%,100%{color:rgba(155,92,255,0.35);}
+  50%{color:rgba(155,92,255,0.75);}
+}
+
+/* 하단 */
+.ticket-foot{
+  padding:10px 18px 14px;
+  border-top:1px solid rgba(255,255,255,0.05);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.ticket-note{font-size:9.5px;color:var(--text-dim);letter-spacing:0.3px;}
+.scratch-progress-wrap{display:flex;align-items:center;gap:6px;}
+.scratch-progress-bar{
+  width:60px;height:4px;background:rgba(255,255,255,0.08);
+  border-radius:2px;overflow:hidden;
+}
+.scratch-progress-fill{
+  height:100%;background:linear-gradient(90deg,#7c3aed,var(--gold));border-radius:2px;
+  transition:width 0.1s;width:0%;
+}
+.scratch-pct{font-size:9px;color:var(--text-dim);}
+
+/* ── 결과 버튼 (완료 후) ── */
+.result-actions{
+  padding:0 16px 16px;display:flex;gap:8px;
+  opacity:0;transform:translateY(8px);
+  transition:all 0.4s ease;pointer-events:none;
+}
+.result-actions.show{opacity:1;transform:none;pointer-events:auto;}
+.btn-retry{
+  flex:1;padding:12px;border-radius:9px;
+  border:1px solid rgba(200,168,75,0.3);
+  background:linear-gradient(135deg,rgba(200,168,75,0.12),rgba(200,168,75,0.05));
+  color:var(--gold-light);font-family:'Black Han Sans',sans-serif;
+  font-size:12px;letter-spacing:1px;cursor:pointer;transition:all 0.2s;
+}
+.btn-retry:hover{background:linear-gradient(135deg,rgba(200,168,75,0.2),rgba(200,168,75,0.1));transform:translateY(-1px);}
+
+/* ── 시뮬레이션 버튼 (목업) ── */
+.sim-wrap{
+  position:relative;z-index:1;margin-top:20px;
+  background:rgba(16,12,30,0.8);border:1px solid rgba(46,31,82,0.7);
+  border-radius:12px;padding:12px 14px;width:100%;max-width:380px;
+}
+.sim-title{font-size:10px;color:var(--text-dim);letter-spacing:1.5px;margin-bottom:10px;text-transform:uppercase;}
+.sim-btns{display:flex;flex-wrap:wrap;gap:6px;}
+.sim-btn{
+  padding:5px 10px;font-size:11px;border-radius:6px;cursor:pointer;
+  border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);
+  color:var(--text-dim);transition:all 0.2s;font-family:'Noto Sans KR',sans-serif;
+}
+.sim-btn:hover{color:var(--text);border-color:rgba(255,255,255,0.25);background:rgba(255,255,255,0.07);}
+.sim-btn.tier-none{border-color:rgba(100,100,120,0.3);color:#888;}
+.sim-btn.tier-low{border-color:rgba(200,168,75,0.35);color:var(--gold);}
+.sim-btn.tier-mid{border-color:rgba(237,217,122,0.4);color:var(--gold-light);}
+.sim-btn.tier-high{border-color:rgba(255,215,0,0.5);color:#ffd700;}
+.sim-btn.tier-mega{border-color:rgba(255,180,50,0.6);color:#ffb032;animation:megaPulse 1.5s ease infinite;}
+@keyframes megaPulse{50%{box-shadow:0 0 12px rgba(255,180,50,0.4);}}
+
+/* ── 글로우 오버레이 (대박/잭팟) ── */
+.glow-overlay{
+  position:fixed;inset:0;z-index:999;pointer-events:none;
+  opacity:0;transition:opacity 0.15s;
+}
+.glow-overlay.flash{opacity:1;}
+
+/* ── 레이 이펙트 ── */
+.ray{
+  position:fixed;z-index:998;pointer-events:none;
+  width:3px;border-radius:2px;
+  transform-origin:bottom center;
+  opacity:0;
+}
+
+/* ── 파티클 ── */
+.lottery-sparkle{position:fixed;border-radius:50%;pointer-events:none;z-index:9999;}
+
+/* ── 잭팟 오라 (티켓 주변) ── */
+.ticket.jackpot-aura{
+  animation:jackpotAura 0.8s ease infinite alternate;
+}
+@keyframes jackpotAura{
+  from{box-shadow:0 0 0 1px rgba(200,168,75,0.1) inset,0 0 40px rgba(200,168,75,0.3),0 0 80px rgba(200,168,75,0.15);}
+  to{box-shadow:0 0 0 1px rgba(255,200,50,0.3) inset,0 0 60px rgba(255,180,50,0.6),0 0 120px rgba(200,168,75,0.4);}
+}
+
+/* ── 화면 흔들림 ── */
+@keyframes shake{
+  0%,100%{transform:translate(0,0);}
+  20%{transform:translate(-5px,3px);}
+  40%{transform:translate(5px,-3px);}
+  60%{transform:translate(-4px,2px);}
+  80%{transform:translate(4px,-2px);}
+}
+.shaking{animation:shake 0.35s ease;}
+
+/* ── 목업 안내 ── */
+.mockup-note{
+  position:fixed;bottom:14px;left:50%;transform:translateX(-50%);
+  background:rgba(5,10,20,0.85);border:1px solid rgba(255,255,255,0.08);
+  border-radius:8px;padding:7px 16px;font-size:10px;color:var(--text-dim);
+  white-space:nowrap;z-index:10;backdrop-filter:blur(8px);
+}
+</style>
+</head>
+<body>
+
+<div class="particles" id="particles"></div>
+<div class="glow-overlay" id="glow-overlay"></div>
+
+<!-- 타입 선택 -->
+<div class="type-wrap">
+  <button class="type-btn active" onclick="setType('gold')">🪙 골드 복권</button>
+  <button class="type-btn"        onclick="setType('premium')">💎 프리미엄 복권</button>
+</div>
+
+<!-- 복권 카드 -->
+<div class="ticket-wrap">
+  <div class="ticket" id="ticket">
+    <div class="ticket-head">
+      <div class="ticket-type-icon" id="ticket-icon">🪙</div>
+      <div class="ticket-type-info">
+        <div class="ticket-type-name" id="ticket-name">골드 복권</div>
+        <div class="ticket-type-sub" id="ticket-sub">1일 3장 한도 · 꽝 30% · 최대 500G</div>
+      </div>
+      <div class="ticket-price-badge" id="ticket-price">30G</div>
+    </div>
+
+    <div class="ticket-scratch-zone" id="scratch-zone">
+      <!-- 당첨 결과 (캔버스 아래) -->
+      <div class="prize-area" id="prize-area">
+        <div class="prize-emoji" id="prize-emoji">🪙</div>
+        <div class="prize-amount" id="prize-amount" style="color:#c8a84b;">+0G</div>
+        <div class="prize-label" id="prize-label">당첨</div>
+      </div>
+      <!-- 긁기 캔버스 -->
+      <canvas id="scratch-canvas"></canvas>
+      <!-- 힌트 -->
+      <div class="scratch-hint" id="scratch-hint">🖱 드래그하여 긁어보세요</div>
+    </div>
+
+    <div class="ticket-foot">
+      <span class="ticket-note">유효기간 없음 · 즉시 결과</span>
+      <div class="scratch-progress-wrap">
+        <div class="scratch-progress-bar">
+          <div class="scratch-progress-fill" id="progress-fill"></div>
+        </div>
+        <span class="scratch-pct" id="progress-pct">0%</span>
+      </div>
+    </div>
+
+    <div class="result-actions" id="result-actions">
+      <button class="btn-retry" onclick="resetTicket()">↩ 다시 긁기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 시뮬레이션 버튼 (목업 전용) -->
+<div class="sim-wrap">
+  <div class="sim-title">📐 결과 시뮬레이션 (목업 전용)</div>
+  <div class="sim-btns" id="sim-btns"></div>
+</div>
+
+<div class="mockup-note">📐 목업 파일 — 실제 앱 적용 전 확인용</div>
+
+<script>
+/* ── 데이터 ── */
+const TIERS = {
+  gold: [
+    { prize:    0, emoji:'💀', label:'꽝',      tier:'none',  sound:'lose'  },
+    { prize:   10, emoji:'🪙', label:'소액',    tier:'low',   sound:'coin'  },
+    { prize:   30, emoji:'🪙', label:'본전',    tier:'low',   sound:'coin'  },
+    { prize:   50, emoji:'✨', label:'소당첨',  tier:'mid',   sound:'doong' },
+    { prize:  100, emoji:'✨', label:'당첨',    tier:'mid',   sound:'doong' },
+    { prize:  200, emoji:'⭐', label:'대당첨',  tier:'high',  sound:'big'   },
+    { prize:  500, emoji:'👑', label:'잭팟!',   tier:'mega',  sound:'epic'  },
+  ],
+  premium: [
+    { prize:    0, emoji:'💀', label:'꽝',        tier:'none',  sound:'lose'  },
+    { prize:   50, emoji:'🪙', label:'소액',      tier:'low',   sound:'coin'  },
+    { prize:  100, emoji:'🪙', label:'소당첨',    tier:'low',   sound:'coin'  },
+    { prize:  200, emoji:'✨', label:'본전',      tier:'mid',   sound:'doong' },
+    { prize:  500, emoji:'⭐', label:'당첨',      tier:'high',  sound:'big'   },
+    { prize: 1000, emoji:'⭐', label:'대당첨',    tier:'high',  sound:'big'   },
+    { prize: 5000, emoji:'👑', label:'메가잭팟!', tier:'mega',  sound:'epic'  },
+  ],
+};
+const TYPE_META = {
+  gold:    { icon:'🪙', name:'골드 복권',    sub:'1일 3장 한도 · 꽝 30% · 최대 500G',    price:'30G'  },
+  premium: { icon:'💎', name:'프리미엄 복권', sub:'1일 1장 한도 · 꽝 40% · 최대 5000G',  price:'200G' },
+};
+const TIER_COLORS = {
+  none: '#666',
+  low:  '#c8a84b',
+  mid:  '#edd97a',
+  high: '#ffd700',
+  mega: '#ffb032',
+};
+
+let currentType = 'gold';
+let currentPrize = null;
+let revealed = false;
+let scratchCtx = null;
+let isScratching = false;
+let scratchCount = 0;
+
+/* ── 파티클 배경 ── */
+const pc = document.getElementById('particles');
+for(let i=0;i<18;i++){
+  const p=document.createElement('div');p.className='particle';
+  const sz=1.5+Math.random()*2.5;
+  const isGold=Math.random()>0.4;
+  p.style.cssText=`left:${Math.random()*100}%;width:${sz}px;height:${sz}px;`+
+    `background:${isGold?'rgba(200,168,75,0.6)':'rgba(11,196,227,0.5)'};`+
+    `box-shadow:0 0 ${sz*2}px ${isGold?'rgba(200,168,75,0.4)':'rgba(11,196,227,0.4)'};`+
+    `animation-duration:${8+Math.random()*14}s;animation-delay:${-Math.random()*12}s;`;
+  pc.appendChild(p);
+}
+
+/* ── 타입 전환 ── */
+function setType(type) {
+  currentType = type;
+  document.querySelectorAll('.type-btn').forEach((b,i)=>
+    b.classList.toggle('active', (i===0&&type==='gold')||(i===1&&type==='premium'))
+  );
+  const m = TYPE_META[type];
+  document.getElementById('ticket-icon').textContent  = m.icon;
+  document.getElementById('ticket-name').textContent  = m.name;
+  document.getElementById('ticket-sub').textContent   = m.sub;
+  document.getElementById('ticket-price').textContent = m.price;
+  resetTicket();
+  renderSimBtns();
+}
+
+/* ── 시뮬레이션 버튼 ── */
+function renderSimBtns() {
+  const wrap = document.getElementById('sim-btns');
+  wrap.innerHTML = '';
+  TIERS[currentType].forEach(t => {
+    const btn = document.createElement('button');
+    btn.className = `sim-btn tier-${t.tier}`;
+    btn.textContent = t.prize === 0 ? '꽝' : `+${t.prize}G`;
+    btn.onclick = () => forceResult(t);
+    wrap.appendChild(btn);
+  });
+}
+
+/* ── 초기화 ── */
+function resetTicket() {
+  revealed = false;
+  scratchCount = 0;
+  currentPrize = pickRandom();
+  setCount = 0;
+
+  // 프라이즈 숨기기
+  ['prize-emoji','prize-amount','prize-label'].forEach(id=>{
+    document.getElementById(id).classList.remove('show');
+  });
+  document.getElementById('result-actions').classList.remove('show');
+  document.getElementById('ticket').classList.remove('jackpot-aura');
+
+  // 진행바 초기화
+  document.getElementById('progress-fill').style.width = '0%';
+  document.getElementById('progress-pct').textContent = '0%';
+  document.getElementById('scratch-hint').style.opacity = '1';
+
+  // 캔버스 재초기화
+  initCanvas();
+}
+
+function forceResult(prizeObj) {
+  currentPrize = prizeObj;
+  if (!revealed) {
+    // 캔버스를 모두 긁은 것처럼
+    revealPrize();
+  } else {
+    resetTicket();
+    currentPrize = prizeObj;
+    setTimeout(()=>revealPrize(), 100);
+  }
+}
+
+function pickRandom() {
+  const tiers = TIERS[currentType];
+  const r = Math.random();
+  // 균등 분포 (목업용)
+  return tiers[Math.floor(r * tiers.length)];
+}
+
+/* ── 캔버스 초기화 ── */
+function initCanvas() {
+  const zone = document.getElementById('scratch-zone');
+  const canvas = document.getElementById('scratch-canvas');
+  canvas.width  = zone.offsetWidth;
+  canvas.height = zone.offsetHeight;
+  scratchCtx = canvas.getContext('2d');
+  drawScratchLayer();
+
+  canvas.onmousedown  = (e)=>{ isScratching=true; doScratch(e); };
+  canvas.onmousemove  = (e)=>{ if(isScratching) doScratch(e); };
+  canvas.onmouseup    = ()=>{ isScratching=false; checkAutoReveal(); };
+  canvas.onmouseleave = ()=>{ isScratching=false; };
+  canvas.ontouchstart = (e)=>{ e.preventDefault(); isScratching=true; doScratch(e.touches[0]); };
+  canvas.ontouchmove  = (e)=>{ e.preventDefault(); if(isScratching) doScratch(e.touches[0]); };
+  canvas.ontouchend   = ()=>{ isScratching=false; checkAutoReveal(); };
+}
+
+function drawScratchLayer() {
+  const c = scratchCtx;
+  const w = c.canvas.width, h = c.canvas.height;
+  // 베이스 색 (S1 퍼플 톤)
+  c.fillStyle = '#1a1630';
+  c.fillRect(0, 0, w, h);
+  // 격자 텍스처
+  c.strokeStyle = 'rgba(255,255,255,0.04)';
+  c.lineWidth = 1;
+  for(let x=0;x<w;x+=10){c.beginPath();c.moveTo(x,0);c.lineTo(x,h);c.stroke();}
+  for(let y=0;y<h;y+=10){c.beginPath();c.moveTo(0,y);c.lineTo(w,y);c.stroke();}
+  // 대각선 패턴 (퍼플)
+  c.strokeStyle = 'rgba(124,58,237,0.08)';
+  for(let i=-h;i<w+h;i+=20){c.beginPath();c.moveTo(i,0);c.lineTo(i+h,h);c.stroke();}
+  // 중앙 힌트 아이콘
+  c.fillStyle = 'rgba(124,58,237,0.15)';
+  c.font = '28px serif'; c.textAlign='center'; c.textBaseline='middle';
+  c.fillText('✦', w/2, h/2);
+}
+
+function getCoords(e) {
+  const rect = scratchCtx.canvas.getBoundingClientRect();
+  const scaleX = scratchCtx.canvas.width  / rect.width;
+  const scaleY = scratchCtx.canvas.height / rect.height;
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top)  * scaleY,
+  };
+}
+
+let setCount = 0;
+function doScratch(e) {
+  if(revealed) return;
+  document.getElementById('scratch-hint').style.opacity = '0';
+  const {x,y} = getCoords(e);
+  scratchCtx.globalCompositeOperation = 'destination-out';
+  scratchCtx.beginPath();
+  scratchCtx.arc(x, y, 38, 0, Math.PI*2);
+  scratchCtx.fill();
+  scratchCtx.globalCompositeOperation = 'source-over';
+  setCount++;
+  if(setCount % 4 === 0) updateProgress();
+}
+
+function updateProgress() {
+  const data = scratchCtx.getImageData(0,0,scratchCtx.canvas.width,scratchCtx.canvas.height).data;
+  let cleared = 0;
+  for(let i=3;i<data.length;i+=4) { if(data[i]<128) cleared++; }
+  const pct = Math.round(cleared/(scratchCtx.canvas.width*scratchCtx.canvas.height)*100);
+  document.getElementById('progress-fill').style.width = pct+'%';
+  document.getElementById('progress-pct').textContent = pct+'%';
+  if(pct >= 40 && !revealed) revealPrize();
+}
+
+function checkAutoReveal() { if(!revealed) updateProgress(); }
+
+/* ── 결과 공개 ── */
+function revealPrize() {
+  if(revealed) return;
+  revealed = true;
+
+  const canvas = document.getElementById('scratch-canvas');
+  canvas.style.transition = 'opacity 0.4s ease';
+  canvas.style.opacity = '0';
+  document.getElementById('progress-fill').style.width = '100%';
+  document.getElementById('progress-pct').textContent = '100%';
+
+  setTimeout(()=>{
+    canvas.style.display = 'none';
+    showPrizeAnim();
+  }, 420);
+}
+
+function showPrizeAnim() {
+  const p = currentPrize;
+  const color = TIER_COLORS[p.tier];
+
+  // 색상 세팅
+  document.getElementById('prize-emoji').textContent   = p.emoji;
+  document.getElementById('prize-amount').style.color  = color;
+  document.getElementById('prize-label').textContent   = p.label;
+  document.getElementById('prize-label').style.color   = color;
+
+  // 금액 표시
+  const amountEl = document.getElementById('prize-amount');
+  if(p.prize > 0) {
+    amountEl.textContent = '+0G';
+    ['prize-emoji','prize-amount','prize-label'].forEach(id=>
+      document.getElementById(id).classList.add('show')
+    );
+    countUp(amountEl, 0, p.prize, p.tier === 'mega' ? 1200 : 600, color);
+  } else {
+    amountEl.textContent = '꽝';
+    ['prize-emoji','prize-amount','prize-label'].forEach(id=>
+      document.getElementById(id).classList.add('show')
+    );
+  }
+
+  // 효과 실행
+  setTimeout(()=>{
+    playLotterySound(p.sound);
+    doTierEffect(p.tier);
+  }, p.tier === 'none' ? 300 : 200);
+
+  // 다시 긁기 버튼
+  setTimeout(()=>{
+    document.getElementById('result-actions').classList.add('show');
+  }, 600);
+}
+
+function countUp(el, from, to, duration, color) {
+  const start = performance.now();
+  function step(now) {
+    const t = Math.min((now-start)/duration, 1);
+    const ease = 1-Math.pow(1-t, 3);
+    const val = Math.round(from + (to-from)*ease);
+    el.textContent = '+'+val+'G';
+    el.style.color = color;
+    if(t < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+/* ── 티어별 이펙트 ── */
+function doTierEffect(tier) {
+  if(tier === 'none') return;
+  if(tier === 'low')  { burst(6,  TIER_COLORS.low,  'rgba(200,168,75,0.6)'); }
+  if(tier === 'mid')  { burst(14, TIER_COLORS.mid,  'rgba(237,217,122,0.7)'); }
+  if(tier === 'high') {
+    burst(26, TIER_COLORS.high, 'rgba(255,215,0,0.7)');
+    burst(16, '#fff',           'rgba(255,255,255,0.4)');
+    shakeScreen();
+    rays(8, '#ffd700');
+  }
+  if(tier === 'mega') {
+    flashScreen('#ffcc44');
+    setTimeout(()=>{
+      burst(40, TIER_COLORS.mega, 'rgba(255,176,50,0.8)');
+      burst(24, '#fff',           'rgba(255,255,255,0.5)');
+      burst(20, '#ffeeaa',        'rgba(255,238,170,0.6)');
+      rays(16, '#ffd700');
+      shakeScreen();
+      document.getElementById('ticket').classList.add('jackpot-aura');
+    }, 150);
+  }
+}
+
+/* ── 스파클 버스트 ── */
+function burst(count, color, glow) {
+  const zone = document.getElementById('scratch-zone');
+  const r = zone.getBoundingClientRect();
+  const cx = r.left+r.width/2, cy = r.top+r.height/2;
+  for(let i=0;i<count;i++){
+    const s = document.createElement('div');
+    s.className = 'lottery-sparkle';
+    const sz = 3+Math.random()*5;
+    s.style.cssText = `width:${sz}px;height:${sz}px;left:${cx}px;top:${cy}px;`+
+      `background:${color};box-shadow:0 0 ${sz*2}px ${glow};`;
+    document.body.appendChild(s);
+    const angle = (i/count)*Math.PI*2 + Math.random()*0.6;
+    const dist  = 50+Math.random()*100;
+    s.animate([
+      {transform:`translate(-50%,-50%) scale(1)`,opacity:1},
+      {transform:`translate(calc(-50% + ${Math.cos(angle)*dist}px),calc(-50% + ${Math.sin(angle)*dist}px)) scale(0)`,opacity:0}
+    ],{duration:600+Math.random()*300,easing:'cubic-bezier(0,0.9,0.57,1)',fill:'forwards'})
+    .onfinish = ()=>s.remove();
+  }
+}
+
+/* ── 광선 효과 ── */
+function rays(count, color) {
+  const zone = document.getElementById('scratch-zone');
+  const r = zone.getBoundingClientRect();
+  const cx = r.left+r.width/2, cy = r.top+r.height/2;
+  for(let i=0;i<count;i++){
+    const ray = document.createElement('div');
+    ray.className = 'ray';
+    const len = 80+Math.random()*160;
+    const angle = (i/count)*360;
+    ray.style.cssText = `width:2px;height:${len}px;`+
+      `left:${cx}px;top:${cy-len}px;`+
+      `background:linear-gradient(to top,${color},transparent);`+
+      `transform:rotate(${angle}deg);transform-origin:bottom center;`;
+    document.body.appendChild(ray);
+    ray.animate([
+      {opacity:0.8,transform:`rotate(${angle}deg) scaleY(0)`},
+      {opacity:0.6,transform:`rotate(${angle}deg) scaleY(1)`},
+      {opacity:0,  transform:`rotate(${angle}deg) scaleY(1.2)`}
+    ],{duration:700+Math.random()*300,easing:'ease-out',fill:'forwards'})
+    .onfinish = ()=>ray.remove();
+  }
+}
+
+/* ── 화면 흔들림 ── */
+function shakeScreen() {
+  const wrap = document.querySelector('.ticket-wrap');
+  wrap.classList.add('shaking');
+  setTimeout(()=>wrap.classList.remove('shaking'), 360);
+}
+
+/* ── 화면 플래시 ── */
+function flashScreen(color) {
+  const overlay = document.getElementById('glow-overlay');
+  overlay.style.background = color;
+  overlay.classList.add('flash');
+  setTimeout(()=>overlay.classList.remove('flash'), 180);
+}
+
+/* ── 사운드 ── */
+let _audioCtx = null;
+function getAudio() {
+  if(!_audioCtx) _audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  return _audioCtx;
+}
+
+function playLotterySound(type) {
+  try {
+    const ctx = getAudio(), now = ctx.currentTime;
+    const master = ctx.createGain(); master.gain.value = 0.4; master.connect(ctx.destination);
+
+    if(type === 'lose') {
+      // 슬픈 하강 음
+      const osc = ctx.createOscillator(), g = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(250, now);
+      osc.frequency.linearRampToValueAtTime(100, now+0.55);
+      g.gain.setValueAtTime(0.25, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now+0.65);
+      osc.connect(g); g.connect(master);
+      osc.start(now); osc.stop(now+0.7);
+
+    } else if(type === 'coin') {
+      // 밝은 코인 소리 (3음 체인)
+      [784, 1047, 1319].forEach((f,i)=>{
+        const osc=ctx.createOscillator(), g=ctx.createGain();
+        osc.type='sine'; osc.frequency.value=f;
+        g.gain.setValueAtTime(0,now+i*0.09);
+        g.gain.linearRampToValueAtTime(0.3,now+i*0.09+0.01);
+        g.gain.exponentialRampToValueAtTime(0.001,now+i*0.09+0.3);
+        osc.connect(g);g.connect(master);
+        osc.start(now+i*0.09);osc.stop(now+i*0.09+0.35);
+      });
+
+    } else if(type === 'doong') {
+      doong(ctx, master, now, 88, 0.85);
+      doong(ctx, master, now+0.26, 63, 1.0);
+
+    } else if(type === 'big') {
+      doong(ctx, master, now, 100, 1.0);
+      doong(ctx, master, now+0.24, 72, 1.0);
+      // 상승 글리스
+      const osc=ctx.createOscillator(), g=ctx.createGain();
+      osc.type='sine';
+      osc.frequency.setValueAtTime(220,now+0.5);
+      osc.frequency.exponentialRampToValueAtTime(880,now+0.9);
+      g.gain.setValueAtTime(0.35,now+0.5);
+      g.gain.exponentialRampToValueAtTime(0.001,now+1.0);
+      osc.connect(g);g.connect(master);
+      osc.start(now+0.5);osc.stop(now+1.05);
+
+    } else if(type === 'epic') {
+      // 잭팟 팡파레 — 상승 아르페지오
+      [294, 370, 440, 523, 659, 784, 1047, 1319].forEach((f,i)=>{
+        const osc=ctx.createOscillator(), g=ctx.createGain();
+        const rev=ctx.createDelay(0.4), revG=ctx.createGain();
+        rev.delayTime.value=0.3; revG.gain.value=0.18;
+        rev.connect(revG); revG.connect(master);
+        osc.type='sine'; osc.frequency.value=f;
+        g.gain.setValueAtTime(0,now+i*0.1);
+        g.gain.linearRampToValueAtTime(0.45,now+i*0.1+0.02);
+        g.gain.exponentialRampToValueAtTime(0.001,now+i*0.1+0.5);
+        osc.connect(g);g.connect(master);g.connect(rev);
+        osc.start(now+i*0.1);osc.stop(now+i*0.1+0.6);
+      });
+    }
+  } catch(e){}
+}
+
+function doong(ctx, master, t0, baseFreq, vol) {
+  const now = t0;
+  const revDelay=ctx.createDelay(0.5), revG=ctx.createGain(), revF=ctx.createBiquadFilter();
+  revDelay.delayTime.value=0.28;revG.gain.value=0.16;revF.type='lowpass';revF.frequency.value=400;
+  revDelay.connect(revG);revG.connect(revF);revF.connect(master);
+  const osc=ctx.createOscillator(),oscG=ctx.createGain(),oscF=ctx.createBiquadFilter();
+  oscF.type='lowpass';oscF.frequency.value=650;osc.type='sine';
+  osc.frequency.setValueAtTime(baseFreq*2,now);
+  osc.frequency.exponentialRampToValueAtTime(baseFreq*0.5,now+0.12);
+  oscG.gain.setValueAtTime(0,now);oscG.gain.linearRampToValueAtTime(vol,now+0.007);
+  oscG.gain.exponentialRampToValueAtTime(0.001,now+0.28);
+  osc.connect(oscF);oscF.connect(oscG);oscG.connect(master);oscG.connect(revDelay);
+  osc.start(now);osc.stop(now+0.32);
+  const sub=ctx.createOscillator(),subG=ctx.createGain();
+  sub.type='sine';sub.frequency.setValueAtTime(baseFreq,now);
+  sub.frequency.exponentialRampToValueAtTime(baseFreq*0.38,now+0.22);
+  subG.gain.setValueAtTime(0,now);subG.gain.linearRampToValueAtTime(vol*0.75,now+0.005);
+  subG.gain.exponentialRampToValueAtTime(0.001,now+0.25);
+  sub.connect(subG);subG.connect(master);sub.start(now);sub.stop(now+0.28);
+  const bufLen=Math.floor(ctx.sampleRate*0.04),buf=ctx.createBuffer(1,bufLen,ctx.sampleRate);
+  const d=buf.getChannelData(0);
+  for(let i=0;i<bufLen;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/bufLen,3);
+  const ns=ctx.createBufferSource(),nsG=ctx.createGain(),nsF=ctx.createBiquadFilter();
+  nsF.type='bandpass';nsF.frequency.value=baseFreq*2;nsF.Q.value=1.0;ns.buffer=buf;
+  nsG.gain.setValueAtTime(vol*0.3,now);nsG.gain.exponentialRampToValueAtTime(0.001,now+0.05);
+  ns.connect(nsF);nsF.connect(nsG);nsG.connect(master);ns.start(now);ns.stop(now+0.06);
+}
+
+/* ── 초기화 ── */
+renderSimBtns();
+resetTicket();
+</script>
+</body>
+</html>

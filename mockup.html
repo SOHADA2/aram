@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MVP · 매너왕 투표 목업</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Black+Han+Sans&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #030810;
+  --surface: #090f1c;
+  --border: rgba(255,255,255,0.07);
+  --gold: #c8a84b;
+  --gold-light: #edd97a;
+  --gold-glow: rgba(200,168,75,0.65);
+  --teal: #0bc4e3;
+  --teal-glow: rgba(11,196,227,0.55);
+  --text: rgba(220,228,245,0.92);
+  --text-dim: rgba(150,165,190,0.55);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Noto Sans KR', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow-x: hidden;
+  position: relative;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(200,168,75,0.07) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 10% 100%, rgba(11,196,227,0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 90% 80%, rgba(155,89,182,0.04) 0%, transparent 60%);
+  pointer-events: none; z-index: 0;
+}
+
+/* 파티클 */
+.particles { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.particle  { position: absolute; border-radius: 50%; animation: float linear infinite; }
+@keyframes float {
+  0%   { transform: translateY(100vh) scale(0); opacity: 0; }
+  10%  { opacity: 1; transform: translateY(85vh) scale(1); }
+  90%  { opacity: 0.5; }
+  100% { transform: translateY(-10px) translateX(15px) scale(0.4); opacity: 0; }
+}
+
+/* ── 컨트롤 바 ── */
+.controls-wrap {
+  position: relative; z-index: 10;
+  display: flex; flex-direction: column;
+  align-items: center; gap: 10px; margin-bottom: 16px;
+}
+.switcher-wrap {
+  display: flex; justify-content: center; gap: 0;
+}
+.sw-btn {
+  padding: 8px 22px;
+  font-family: 'Black Han Sans', sans-serif;
+  font-size: 13px; letter-spacing: 1px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text-dim);
+  cursor: pointer; transition: all 0.2s ease;
+}
+.sw-btn:first-child { border-radius: 8px 0 0 8px; }
+.sw-btn:last-child  { border-radius: 0 8px 8px 0; border-left: none; }
+.sw-btn:not(:first-child):not(:last-child) { border-left: none; }
+.sw-btn:hover { color: var(--text); background: rgba(255,255,255,0.08); }
+.sw-btn.active { background: rgba(200,168,75,0.15); border-color: rgba(200,168,75,0.45); color: var(--gold-light); }
+
+/* 모바일/PC 토글 */
+.view-toggle {
+  display: flex; gap: 0;
+}
+.vt-btn {
+  padding: 5px 14px; font-size: 11px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text-dim); cursor: pointer;
+  transition: all 0.2s ease;
+}
+.vt-btn:first-child { border-radius: 6px 0 0 6px; }
+.vt-btn:last-child  { border-radius: 0 6px 6px 0; border-left: none; }
+.vt-btn.active { background: rgba(11,196,227,0.12); border-color: rgba(11,196,227,0.4); color: var(--teal); }
+
+/* ── 모바일 시뮬레이션 래퍼 ── */
+.preview-wrap { position: relative; z-index: 1; width: 100%; max-width: 460px; transition: max-width 0.3s ease; }
+.preview-wrap.is-mobile { max-width: 375px; }
+
+/* 모바일 전용 CSS */
+@media (max-width: 400px), .preview-wrap.is-mobile {
+  /* 4v4: 한 줄 4장 → 2×2 그리드 */
+  .cards-grid[data-count="4"] .champ-card { width: calc(50% - 5px) !important; max-height: 130px !important; }
+}
+/* JS로 클래스 붙일 때도 동작하게 (media query 대신 직접 적용) */
+.preview-wrap.is-mobile .cards-grid[data-count="4"] .champ-card { width: calc(50% - 5px) !important; max-height: 130px !important; }
+.preview-wrap.is-mobile .panel-header { padding: 14px 16px 12px; }
+.preview-wrap.is-mobile .header-title { font-size: 15px; letter-spacing: 1.5px; }
+.preview-wrap.is-mobile .vote-section { padding: 12px 10px 10px; }
+.preview-wrap.is-mobile .vote-label-desc { display: none; }
+.preview-wrap.is-mobile .card-name { font-size: 10px; }
+.preview-wrap.is-mobile .cards-grid[data-count="3"] .champ-card { max-height: 145px !important; }
+.preview-wrap.is-mobile .cards-grid[data-count="5"] .champ-card { max-height: 130px !important; }
+.preview-wrap.is-mobile .confirm-btn { font-size: 12px; padding: 12px; }
+
+/* 모바일 폰 프레임 */
+.phone-frame {
+  display: none;
+  position: absolute; inset: -12px -8px;
+  border: 2px solid rgba(255,255,255,0.12);
+  border-radius: 28px;
+  pointer-events: none; z-index: 2;
+  box-shadow: 0 0 0 6px rgba(255,255,255,0.03), 0 20px 60px rgba(0,0,0,0.5);
+}
+.phone-frame::before {
+  content: '';
+  position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+  width: 60px; height: 5px; border-radius: 3px;
+  background: rgba(255,255,255,0.15);
+}
+.preview-wrap.is-mobile .phone-frame { display: block; }
+
+/* ── 메인 패널 ── */
+.panel {
+  position: relative; z-index: 1;
+  background: linear-gradient(160deg, rgba(12,20,38,0.98) 0%, rgba(5,10,20,0.99) 100%);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 20px;
+  width: 100%; max-width: 460px;
+  box-shadow:
+    0 30px 80px rgba(0,0,0,0.8),
+    0 0 0 1px rgba(255,255,255,0.04) inset,
+    0 0 80px rgba(200,168,75,0.04);
+}
+
+/* ── 헤더 ── */
+.panel-header {
+  padding: 20px 22px 16px;
+  text-align: center; position: relative; overflow: hidden;
+}
+.panel-header::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(200,168,75,0.07) 0%, transparent 100%);
+  pointer-events: none;
+}
+.panel-header::after {
+  content: ''; position: absolute;
+  bottom: 0; left: 10%; right: 10%; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(200,168,75,0.4), transparent);
+}
+.header-icon { font-size: 20px; margin-bottom: 5px; animation: iconPulse 2.5s ease infinite; }
+@keyframes iconPulse {
+  0%,100% { filter: drop-shadow(0 0 6px rgba(200,168,75,0.4)); }
+  50%      { filter: drop-shadow(0 0 14px rgba(200,168,75,0.8)); }
+}
+.header-title {
+  font-family: 'Black Han Sans', sans-serif;
+  font-size: 17px; letter-spacing: 2.5px; color: var(--gold-light);
+  text-shadow: 0 0 24px rgba(200,168,75,0.45);
+}
+.header-sub { font-size: 11px; color: var(--text-dim); margin-top: 4px; letter-spacing: 0.3px; }
+
+/* ── 투표 섹션 ── */
+.vote-section { padding: 16px 14px 12px; position: relative; }
+.vote-section + .vote-section::before {
+  content: ''; position: absolute; top: 0; left: 14px; right: 14px; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+}
+.vote-label { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.vote-label-text {
+  font-family: 'Black Han Sans', sans-serif;
+  font-size: 13px; letter-spacing: 1px;
+}
+.vote-label-text.mvp    { color: var(--gold-light); text-shadow: 0 0 12px rgba(200,168,75,0.4); }
+.vote-label-text.manner { color: var(--teal);       text-shadow: 0 0 12px rgba(11,196,227,0.35); }
+.vote-label-desc { margin-left: auto; font-size: 10px; color: var(--text-dim); }
+.vote-check {
+  font-size: 12px; opacity: 0;
+  transform: scale(0) rotate(-20deg);
+  transition: all 0.35s cubic-bezier(0.34,1.56,0.64,1);
+  display: inline-block;
+}
+.vote-check.show { opacity: 1; transform: scale(1) rotate(0deg); }
+
+/* ── 카드 그리드 ── */
+.cards-grid {
+  display: flex; flex-wrap: wrap;
+  justify-content: center; gap: 8px;
+}
+
+/* 인원수별 카드 너비 */
+.cards-grid[data-count="3"] .champ-card { width: calc(33.333% - 6px); max-height: 168px; }
+.cards-grid[data-count="4"] .champ-card { width: calc(25%     - 7px); max-height: 148px; }
+.cards-grid[data-count="5"] .champ-card { width: calc(33.333% - 6px); max-height: 148px; }
+
+/* ── 챔피언 카드 ── */
+.champ-card {
+  position: relative;
+  flex-shrink: 0;
+  aspect-ratio: 3/4;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid rgba(255,255,255,0.09);
+  transition:
+    transform   0.35s cubic-bezier(0.2,0.8,0.2,1),
+    box-shadow  0.35s ease,
+    border-color 0.3s ease,
+    opacity      0.35s ease,
+    filter       0.35s ease;
+  user-select: none;
+  animation: cardIn 0.45s cubic-bezier(0.16,1,0.3,1) backwards;
+}
+@keyframes cardIn {
+  from { opacity:0; transform:translateY(22px) scale(0.88); }
+  to   { opacity:1; transform:translateY(0)    scale(1); }
+}
+.champ-card img {
+  width: 100%; height: 100%;
+  object-fit: cover; object-position: center 15%;
+  transition: transform 0.4s ease; display: block;
+}
+.champ-card::before {
+  content: ''; position: absolute; inset: 0;
+  background: rgba(0,0,0,0.22);
+  transition: background 0.3s ease; z-index: 1;
+}
+.card-name {
+  position: absolute; bottom:0; left:0; right:0;
+  padding: 24px 7px 8px;
+  background: linear-gradient(transparent, rgba(0,0,0,0.88));
+  font-size: 10.5px; font-weight: 700;
+  text-align: center; letter-spacing: 0.3px;
+  z-index: 2; transition: color 0.3s ease;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.card-badge {
+  position: absolute; top:6px; right:6px;
+  width:22px; height:22px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:10px; z-index:3;
+  opacity:0; transform:scale(0) rotate(-30deg);
+  transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  border: 1.5px solid rgba(255,255,255,0.3);
+}
+.champ-card.selected .card-badge { opacity:1; transform:scale(1) rotate(0); }
+.mvp-grid    .card-badge { background:var(--gold); color:#1a0e00; }
+.manner-grid .card-badge { background:var(--teal); color:#001a20; }
+
+/* 선택 shimmer */
+.champ-card.selected::after {
+  content: ''; position:absolute; inset:0; z-index:2; pointer-events:none;
+  background: linear-gradient(125deg, transparent 20%, rgba(255,255,255,0.08) 45%, rgba(255,255,255,0.13) 50%, rgba(255,255,255,0.08) 55%, transparent 80%);
+  background-size:200% 200%;
+  animation: shimmer 2.2s ease infinite;
+}
+@keyframes shimmer {
+  0%   { background-position:200% 200%; }
+  100% { background-position:-200% -200%; }
+}
+
+/* hover */
+.champ-card:hover { transform: translateY(-5px) scale(1.035); }
+.champ-card:hover::before { background: rgba(0,0,0,0.05); }
+.champ-card:hover img { transform: scale(1.06); }
+
+/* 선택 후 나머지 흐리기 */
+.cards-grid.has-selection .champ-card:not(.selected) {
+  transform: scale(0.93); opacity:0.35;
+  filter: brightness(0.42) saturate(0.35);
+}
+.cards-grid.has-selection .champ-card:not(.selected):hover {
+  transform: scale(0.97); opacity:0.62;
+  filter: brightness(0.7) saturate(0.7);
+}
+
+/* MVP 선택 글로우 */
+.mvp-grid.has-selection .champ-card.selected {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 1px rgba(200,168,75,0.6), 0 0 28px var(--gold-glow), 0 0 60px rgba(200,168,75,0.2), 0 10px 30px rgba(0,0,0,0.7);
+  transform: translateY(-7px) scale(1.06);
+}
+.mvp-grid.has-selection .champ-card.selected::before { background: rgba(200,168,75,0.07); }
+.mvp-grid.has-selection .champ-card.selected .card-name { color: var(--gold-light); }
+
+/* 매너왕 선택 글로우 */
+.manner-grid.has-selection .champ-card.selected {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 1px rgba(11,196,227,0.6), 0 0 28px var(--teal-glow), 0 0 60px rgba(11,196,227,0.18), 0 10px 30px rgba(0,0,0,0.7);
+  transform: translateY(-7px) scale(1.06);
+}
+.manner-grid.has-selection .champ-card.selected::before { background: rgba(11,196,227,0.06); }
+.manner-grid.has-selection .champ-card.selected .card-name { color: var(--teal); }
+
+/* ── 상태 도트 ── */
+.vote-status {
+  display:flex; justify-content:center; gap:20px;
+  padding: 10px 16px 12px;
+}
+.status-item { display:flex; align-items:center; gap:6px; font-size:10.5px; color:var(--text-dim); transition:color 0.3s; }
+.status-item.done { color:var(--text); }
+.status-dot {
+  width:7px; height:7px; border-radius:50%;
+  background:rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.15);
+  transition: all 0.35s ease; flex-shrink:0;
+}
+.status-item.mvp.done .status-dot { background:var(--gold); border-color:var(--gold); box-shadow:0 0 8px var(--gold-glow); }
+.status-item.man.done .status-dot { background:var(--teal); border-color:var(--teal); box-shadow:0 0 8px var(--teal-glow); }
+
+/* ── 완료 버튼 ── */
+.panel-footer { padding: 0 14px 18px; }
+.confirm-btn {
+  width:100%; padding:14px; border-radius:11px;
+  border:1px solid rgba(200,168,75,0.25);
+  background: linear-gradient(135deg, rgba(200,168,75,0.1), rgba(200,168,75,0.05));
+  color: rgba(200,168,75,0.4);
+  font-family:'Black Han Sans',sans-serif;
+  font-size:13px; letter-spacing:1.2px;
+  cursor:not-allowed; transition:all 0.35s ease;
+  position:relative; overflow:hidden;
+}
+.confirm-btn.ready {
+  cursor:pointer; color:var(--gold-light);
+  border-color:rgba(200,168,75,0.5);
+  background:linear-gradient(135deg,rgba(200,168,75,0.18),rgba(200,168,75,0.08));
+  box-shadow:0 0 24px rgba(200,168,75,0.18), inset 0 1px 0 rgba(255,255,255,0.06);
+  animation:btnPulse 2s ease infinite;
+}
+@keyframes btnPulse {
+  0%,100% { box-shadow:0 0 24px rgba(200,168,75,0.18); }
+  50%     { box-shadow:0 0 36px rgba(200,168,75,0.32); }
+}
+.confirm-btn.ready:hover {
+  transform:translateY(-2px);
+  box-shadow:0 6px 30px rgba(200,168,75,0.28);
+  background:linear-gradient(135deg,rgba(200,168,75,0.26),rgba(200,168,75,0.12));
+}
+.confirm-btn.ready:active { transform:translateY(0); }
+.confirm-btn.ready::before {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent);
+  transform:translateX(-100%);
+  animation:btnShimmer 2.5s ease infinite;
+}
+@keyframes btnShimmer {
+  0%  { transform:translateX(-100%); }
+  60% { transform:translateX(100%); }
+  100%{ transform:translateX(100%); }
+}
+
+/* ── 스파클 ── */
+.sparkle { position:fixed; border-radius:50%; pointer-events:none; z-index:9999; }
+
+/* ── 목업 안내 ── */
+.mockup-note {
+  position:fixed; bottom:14px; left:50%; transform:translateX(-50%);
+  background:rgba(5,10,20,0.85); border:1px solid rgba(255,255,255,0.08);
+  border-radius:8px; padding:7px 16px;
+  font-size:10px; color:var(--text-dim); white-space:nowrap;
+  z-index:10; backdrop-filter:blur(8px);
+}
+</style>
+</head>
+<body>
+
+<div class="particles" id="particles"></div>
+
+<!-- 컨트롤 바 -->
+<div class="controls-wrap">
+  <div class="switcher-wrap">
+    <button class="sw-btn active" onclick="setCount(3)">3 vs 3</button>
+    <button class="sw-btn"        onclick="setCount(4)">4 vs 4</button>
+    <button class="sw-btn"        onclick="setCount(5)">5 vs 5</button>
+  </div>
+  <div class="view-toggle">
+    <button class="vt-btn active" onclick="toggleView('pc')">🖥 PC</button>
+    <button class="vt-btn"        onclick="toggleView('mobile')">📱 모바일</button>
+  </div>
+</div>
+
+<!-- 미리보기 래퍼 (모바일 시뮬레이션) -->
+<div class="preview-wrap" id="preview-wrap">
+  <div class="phone-frame"></div>
+
+  <!-- 메인 패널 -->
+  <div class="panel" id="panel">
+
+    <div class="panel-header">
+      <div class="header-icon">⚔</div>
+      <div class="header-title">경기 종료 · 투표</div>
+      <div class="header-sub" id="header-sub">상대팀에서 MVP와 매너왕을 선택해주세요</div>
+    </div>
+
+    <!-- MVP -->
+    <div class="vote-section">
+      <div class="vote-label">
+        <span style="font-size:15px">🏆</span>
+        <span class="vote-label-text mvp">MVP</span>
+        <span class="vote-label-desc">이번 판 최고의 활약을 보여준 상대</span>
+      </div>
+      <div class="cards-grid mvp-grid" id="mvp-grid" data-count="3"></div>
+    </div>
+
+    <!-- 매너왕 -->
+    <div class="vote-section">
+      <div class="vote-label">
+        <span style="font-size:15px">💎</span>
+        <span class="vote-label-text manner">매너왕</span>
+        <span class="vote-label-desc">매너와 태도로 경기를 빛낸 상대</span>
+      </div>
+      <div class="cards-grid manner-grid" id="manner-grid" data-count="3"></div>
+    </div>
+
+    <!-- 상태 -->
+    <div class="vote-status">
+      <div class="status-item mvp" id="si-mvp">
+        <div class="status-dot"></div><span>MVP 선택</span>
+      </div>
+      <div class="status-item man" id="si-man">
+        <div class="status-dot"></div><span>매너왕 선택</span>
+      </div>
+    </div>
+
+    <!-- 완료 버튼 -->
+    <div class="panel-footer">
+      <button class="confirm-btn" id="confirm-btn" disabled>MVP · 매너왕 선택 후 완료</button>
+    </div>
+
+  </div>
+</div><!-- .preview-wrap -->
+
+<div class="mockup-note">📐 목업 파일 — 실제 앱 적용 전 확인용</div>
+
+<script>
+/* ── 데이터 ── */
+const ALL_PLAYERS = [
+  { name: 'ap렉사이서폿',    champ: 'Brand'   },
+  { name: '빛나는언즈',      champ: 'Zyra'    },
+  { name: '울퉁쓰',          champ: 'Lux'     },
+  { name: '나랑듀오해듀오',   champ: 'Jinx'   },
+  { name: '맹독 벌꿀오소리', champ: 'Ezreal'  },
+];
+const SPLASH = c => `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${c}_0.jpg`;
+
+/* ── 파티클 ── */
+const pc = document.getElementById('particles');
+for (let i = 0; i < 20; i++) {
+  const p = document.createElement('div');
+  p.className = 'particle';
+  const sz = 1.5 + Math.random() * 2.5;
+  const isGold = Math.random() > 0.4;
+  p.style.cssText = `
+    left:${Math.random()*100}%;
+    width:${sz}px;height:${sz}px;
+    background:${isGold?'rgba(200,168,75,0.6)':'rgba(11,196,227,0.5)'};
+    box-shadow:0 0 ${sz*2}px ${isGold?'rgba(200,168,75,0.4)':'rgba(11,196,227,0.4)'};
+    animation-duration:${8+Math.random()*14}s;
+    animation-delay:${-Math.random()*12}s;
+  `;
+  pc.appendChild(p);
+}
+
+/* ── 사운드 (두둥 — 피치드롭 + 서브베이스 + 타격 노이즈) ── */
+let audioCtx = null;
+function playSound(type) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    const ctx = audioCtx;
+    const now = ctx.currentTime;
+
+    const master = ctx.createGain();
+    master.gain.value = 0.32;
+    master.connect(ctx.destination);
+
+    // 단순 1회 딜레이 (잔향만, 피드백 루프 없음)
+    const revDelay = ctx.createDelay(0.5);
+    const revG = ctx.createGain();
+    const revF = ctx.createBiquadFilter();
+    revDelay.delayTime.value = 0.28;
+    revG.gain.value = 0.18;
+    revF.type = 'lowpass'; revF.frequency.value = 400;
+    revDelay.connect(revG); revG.connect(revF); revF.connect(master); // 루프 없음
+
+    function doong(baseFreq, t, vol) {
+      // ① 피치드롭 (핵심)
+      const osc = ctx.createOscillator();
+      const oscG = ctx.createGain();
+      const oscF = ctx.createBiquadFilter();
+      oscF.type = 'lowpass'; oscF.frequency.value = 650;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(baseFreq * 2.0, now + t);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.5, now + t + 0.12);
+      oscG.gain.setValueAtTime(0,   now + t);
+      oscG.gain.linearRampToValueAtTime(vol, now + t + 0.007);
+      oscG.gain.exponentialRampToValueAtTime(0.001, now + t + 0.28);
+      osc.connect(oscF); oscF.connect(oscG);
+      oscG.connect(master); oscG.connect(revDelay);
+      osc.start(now + t); osc.stop(now + t + 0.32);
+
+      // ② 서브베이스
+      const sub = ctx.createOscillator();
+      const subG = ctx.createGain();
+      sub.type = 'sine';
+      sub.frequency.setValueAtTime(baseFreq, now + t);
+      sub.frequency.exponentialRampToValueAtTime(baseFreq * 0.38, now + t + 0.22);
+      subG.gain.setValueAtTime(0,   now + t);
+      subG.gain.linearRampToValueAtTime(vol * 0.75, now + t + 0.005);
+      subG.gain.exponentialRampToValueAtTime(0.001, now + t + 0.25);
+      sub.connect(subG); subG.connect(master);
+      sub.start(now + t); sub.stop(now + t + 0.28);
+
+      // ③ 타격 노이즈
+      const bufLen = Math.floor(ctx.sampleRate * 0.04);
+      const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < bufLen; i++) data[i] = (Math.random()*2-1) * Math.pow(1-i/bufLen, 3);
+      const ns = ctx.createBufferSource();
+      const nsG = ctx.createGain();
+      const nsF = ctx.createBiquadFilter();
+      nsF.type = 'bandpass'; nsF.frequency.value = baseFreq * 2; nsF.Q.value = 1.0;
+      ns.buffer = buf;
+      nsG.gain.setValueAtTime(vol * 0.3, now + t);
+      nsG.gain.exponentialRampToValueAtTime(0.001, now + t + 0.05);
+      ns.connect(nsF); nsF.connect(nsG); nsG.connect(master);
+      ns.start(now + t); ns.stop(now + t + 0.06);
+    }
+
+    const base = type === 'mvp' ? 88 : 70;
+    doong(base,        0.00, 0.85); // 두
+    doong(base * 0.72, 0.26, 1.00); // 둥
+  } catch(e) {}
+}
+
+/* ── 스파클 ── */
+function burst(card, type) {
+  const r = card.getBoundingClientRect();
+  const cx = r.left+r.width/2, cy = r.top+r.height/2;
+  const color = type==='mvp' ? '#c8a84b' : '#0bc4e3';
+  const glow  = type==='mvp' ? 'rgba(200,168,75,0.7)' : 'rgba(11,196,227,0.7)';
+  for (let i=0; i<12; i++) {
+    const s = document.createElement('div');
+    s.className = 'sparkle';
+    const sz = 3+Math.random()*4;
+    s.style.cssText = `width:${sz}px;height:${sz}px;left:${cx}px;top:${cy}px;background:${color};box-shadow:0 0 ${sz*2}px ${glow};`;
+    document.body.appendChild(s);
+    const angle = (i/12)*Math.PI*2 + Math.random()*0.4;
+    const dist  = 40+Math.random()*55;
+    const dx = Math.cos(angle)*dist, dy = Math.sin(angle)*dist;
+    s.animate([
+      {transform:`translate(-50%,-50%) scale(1)`,opacity:1},
+      {transform:`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px)) scale(0)`,opacity:0}
+    ], {duration:550+Math.random()*200,easing:'cubic-bezier(0,0.9,0.57,1)',fill:'forwards'})
+    .onfinish = ()=>s.remove();
+  }
+}
+
+/* ── 카드 렌더 ── */
+function renderCards(gridEl, type, players, delayOffset) {
+  gridEl.innerHTML = '';
+  players.forEach((p, i) => {
+    const card = document.createElement('div');
+    card.className = 'champ-card';
+    card.style.animationDelay = `${delayOffset + i*0.11}s`;
+    card.onclick = () => selectCard(type, card, p.name);
+    card.innerHTML = `
+      <img src="${SPLASH(p.champ)}" alt="${p.champ}" loading="lazy">
+      <div class="card-badge">${type==='mvp'?'🏆':'💎'}</div>
+      <div class="card-name">${p.name}</div>
+    `;
+    gridEl.appendChild(card);
+  });
+}
+
+/* ── 인원수 전환 ── */
+let currentCount = 3;
+const state = { mvp: null, manner: null };
+
+function setCount(n) {
+  currentCount = n;
+  state.mvp = null; state.manner = null;
+
+  // 탭 버튼
+  document.querySelectorAll('.sw-btn').forEach((b,i) => b.classList.toggle('active', i===n-3));
+
+  const players = ALL_PLAYERS.slice(0, n);
+  const mvpGrid    = document.getElementById('mvp-grid');
+  const mannerGrid = document.getElementById('manner-grid');
+
+  mvpGrid.dataset.count    = n;
+  mannerGrid.dataset.count = n;
+  mvpGrid.classList.remove('has-selection');
+  mannerGrid.classList.remove('has-selection');
+
+  // 패널 재등장 애니메이션
+  const panel = document.getElementById('panel');
+  panel.style.animation = 'none';
+  panel.offsetHeight; // reflow
+  panel.style.animation = 'panelIn 0.4s cubic-bezier(0.16,1,0.3,1) forwards';
+
+  renderCards(mvpGrid,    'mvp',    players, 0.12);
+  renderCards(mannerGrid, 'manner', players, 0.40);
+
+  document.getElementById('header-sub').textContent =
+    `상대팀 ${n}명 중에서 MVP와 매너왕을 선택해주세요`;
+
+  updateUI();
+}
+
+function selectCard(type, card, name) {
+  const grid = document.getElementById(type+'-grid');
+  if (state[type]===name) {
+    card.classList.remove('selected');
+    grid.classList.remove('has-selection');
+    state[type] = null;
+  } else {
+    grid.querySelectorAll('.champ-card').forEach(c=>c.classList.remove('selected'));
+    card.classList.add('selected');
+    grid.classList.add('has-selection');
+    state[type] = name;
+    playSound(type);
+    burst(card, type);
+  }
+  updateUI();
+}
+
+function updateUI() {
+  const hasMvp = !!state.mvp, hasManner = !!state.manner;
+  const ready  = hasMvp && hasManner;
+  document.getElementById('si-mvp').classList.toggle('done', hasMvp);
+  document.getElementById('si-man').classList.toggle('done', hasManner);
+  const btn = document.getElementById('confirm-btn');
+  btn.disabled = !ready;
+  btn.classList.toggle('ready', ready);
+  btn.textContent = ready
+    ? `✓  ${state.mvp} (MVP)  ·  ${state.manner} (매너왕)  —  완료`
+    : 'MVP · 매너왕 선택 후 완료';
+}
+
+/* ── 뷰 토글 (PC / 모바일) ── */
+function toggleView(mode) {
+  const wrap = document.getElementById('preview-wrap');
+  wrap.classList.toggle('is-mobile', mode === 'mobile');
+  document.querySelectorAll('.vt-btn').forEach((b, i) =>
+    b.classList.toggle('active', i === (mode === 'mobile' ? 1 : 0))
+  );
+}
+
+/* ── panel 애니메이션 keyframe 추가 ── */
+const style = document.createElement('style');
+style.textContent = `@keyframes panelIn{from{opacity:0;transform:translateY(22px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}`;
+document.head.appendChild(style);
+
+/* ── 초기 렌더 ── */
+setCount(3);
+</script>
+</body>
+</html>
