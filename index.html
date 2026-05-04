@@ -1793,10 +1793,15 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .eog-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.15);transition:all 0.35s ease;flex-shrink:0;}
 .eog-dot-item.mvp-d.done .eog-dot{background:#c8a84b;border-color:#c8a84b;box-shadow:0 0 8px rgba(200,168,75,0.6);}
 .eog-dot-item.man-d.done .eog-dot{background:#0bc4e3;border-color:#0bc4e3;box-shadow:0 0 8px rgba(11,196,227,0.55);}
-.eog-cf-btn{width:100%;padding:16px;border-radius:12px;border:2px solid rgba(200,168,75,0.2);background:rgba(200,168,75,0.06);color:rgba(200,168,75,0.35);font-family:'Black Han Sans',sans-serif;font-size:13px;letter-spacing:1px;cursor:not-allowed;transition:all 0.3s ease;margin-top:14px;line-height:1.3;}
-.eog-cf-btn.ready{cursor:pointer;color:#4ade80;border-color:rgba(74,222,128,0.55);background:linear-gradient(135deg,rgba(74,222,128,0.18),rgba(74,222,128,0.07));box-shadow:0 0 32px rgba(74,222,128,0.22),0 4px 20px rgba(0,0,0,0.5);animation:eogBtnP 1.6s ease infinite;font-size:16px;}
-@keyframes eogBtnP{0%,100%{box-shadow:0 0 24px rgba(74,222,128,0.18),0 4px 20px rgba(0,0,0,0.5)}50%{box-shadow:0 0 48px rgba(74,222,128,0.38),0 0 80px rgba(74,222,128,0.12),0 4px 20px rgba(0,0,0,0.5)}}
-.eog-cf-btn.ready:hover{transform:translateY(-2px);box-shadow:0 8px 36px rgba(74,222,128,0.38);}
+.eog-selection-summary{margin-top:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.04);padding:10px 14px;display:flex;flex-direction:column;gap:6px;}
+.eog-sel-row{display:flex;align-items:center;gap:8px;font-size:12px;}
+.eog-sel-icon{font-size:14px;flex-shrink:0;}
+.eog-sel-label{color:var(--text-dim);font-size:11px;width:36px;flex-shrink:0;}
+.eog-sel-name{font-weight:700;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.eog-cf-btn{width:100%;padding:15px;border-radius:12px;border:2px solid rgba(200,168,75,0.2);background:rgba(200,168,75,0.06);color:rgba(200,168,75,0.35);font-family:'Black Han Sans',sans-serif;font-size:13px;letter-spacing:1px;cursor:not-allowed;transition:all 0.3s ease;margin-top:8px;line-height:1.3;}
+.eog-cf-btn.ready{cursor:pointer;color:#fff;border-color:rgba(74,222,128,0.7);background:linear-gradient(135deg,rgba(74,222,128,0.32),rgba(74,222,128,0.18));box-shadow:0 0 28px rgba(74,222,128,0.25),0 4px 16px rgba(0,0,0,0.5);animation:eogBtnP 1.6s ease infinite;font-size:16px;letter-spacing:2px;}
+@keyframes eogBtnP{0%,100%{box-shadow:0 0 20px rgba(74,222,128,0.2),0 4px 16px rgba(0,0,0,0.5)}50%{box-shadow:0 0 40px rgba(74,222,128,0.45),0 4px 16px rgba(0,0,0,0.5)}}
+.eog-cf-btn.ready:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(74,222,128,0.45);}
 .eog-sparkle{position:fixed;border-radius:50%;pointer-events:none;z-index:9999;}
 .team-player{position:relative;}
 /* ── 시즌 1 LP 시스템 ── */
@@ -2485,7 +2490,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.8';
+const APP_VERSION = 'v2.37.9';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2494,6 +2499,9 @@ const APP_VERSION = 'v2.37.8';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.37.9', date: '2026-05-05', changes: [
+    { tag: 'improve', text: '투표 확인 버튼 UX 개선 — 선택 요약(MVP·매너왕 이름)을 버튼 위 별도 박스로 분리, 버튼은 "✓ 확인" 단일 텍스트로 명확화. 흰색 텍스트·진한 녹색 배경으로 클릭 가능 버튼임을 명확히 표시' },
+  ]},
   { ver: 'v2.37.8', date: '2026-05-04', changes: [
     { tag: 'fix', text: '투표창 챔피언 카드 깜빡임 완전 수정 — 카드 클릭 시 전체 innerHTML 교체 대신 .selected/.has-sel 클래스만 토글, 도트·완료 버튼만 in-place 업데이트. DOM 유지로 등장 애니메이션 재실행 원천 차단' },
   ]},
@@ -6526,13 +6534,22 @@ function _eogUpdateConfirmBtn(sec) {
   const p = sec._pendingMvp, m = sec._pendingManner, myTeam = sec._myTeam;
   if (!myTeam) return;
   if (p && m) {
+    // 선택 요약 박스가 없으면 버튼 앞에 삽입
+    let summary = sec.querySelector('.eog-selection-summary');
+    if (!summary) {
+      summary = document.createElement('div');
+      summary.className = 'eog-selection-summary';
+      btn.parentNode.insertBefore(summary, btn);
+    }
+    summary.innerHTML = `<div class="eog-sel-row"><span class="eog-sel-icon">🏆</span><span class="eog-sel-label">MVP</span><span class="eog-sel-name">${escHtml(p)}</span></div><div class="eog-sel-row"><span class="eog-sel-icon">💎</span><span class="eog-sel-label">매너왕</span><span class="eog-sel-name">${escHtml(m)}</span></div>`;
     btn.id = 'eog-confirm-btn';
     btn.className = 'eog-cf-btn ready';
     btn.disabled = false;
     btn.onclick = () => castCombinedVote(myTeam, myName, p, m);
-    btn.innerHTML = `✓ 투표 완료<span style="display:block;font-size:10px;font-family:'Noto Sans KR',sans-serif;font-weight:400;letter-spacing:0;margin-top:3px;opacity:0.75;">MVP: ${escHtml(p)} &nbsp;·&nbsp; 매너왕: ${escHtml(m)}</span>`;
+    btn.textContent = '✓ 확인';
     requestAnimationFrame(() => btn.scrollIntoView({ behavior: 'smooth', block: 'center' }));
   } else {
+    sec.querySelector('.eog-selection-summary')?.remove();
     btn.id = '';
     btn.className = 'eog-cf-btn';
     btn.disabled = true;
@@ -7140,7 +7157,11 @@ function renderMvpSection() {
 
         const canCast = pendingMvp && pendingManner;
         const confirmBtn = canCast
-          ? `<button class="eog-cf-btn ready" id="eog-confirm-btn" onclick="castCombinedVote('${myTeam}','${escHtml(myName)}','${escHtml(pendingMvp)}','${escHtml(pendingManner)}')">✓ 투표 완료<span style="display:block;font-size:10px;font-family:'Noto Sans KR',sans-serif;font-weight:400;letter-spacing:0;margin-top:3px;opacity:0.75;">MVP: ${escHtml(pendingMvp)} &nbsp;·&nbsp; 매너왕: ${escHtml(pendingManner)}</span></button>`
+          ? `<div class="eog-selection-summary">
+               <div class="eog-sel-row"><span class="eog-sel-icon">🏆</span><span class="eog-sel-label">MVP</span><span class="eog-sel-name">${escHtml(pendingMvp)}</span></div>
+               <div class="eog-sel-row"><span class="eog-sel-icon">💎</span><span class="eog-sel-label">매너왕</span><span class="eog-sel-name">${escHtml(pendingManner)}</span></div>
+             </div>
+             <button class="eog-cf-btn ready" id="eog-confirm-btn" onclick="castCombinedVote('${myTeam}','${escHtml(myName)}','${escHtml(pendingMvp)}','${escHtml(pendingManner)}')">✓ 확인</button>`
           : `<button class="eog-cf-btn" disabled>${pendingMvp ? '✓ MVP 선택됨 — 매너왕을 선택해 주세요' : pendingManner ? '✓ 매너왕 선택됨 — MVP를 선택해 주세요' : 'MVP · 매너왕을 각각 선택해 주세요'}</button>`;
 
         myVoteHtml = `
