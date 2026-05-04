@@ -2490,7 +2490,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.9';
+const APP_VERSION = 'v2.37.10';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2499,6 +2499,9 @@ const APP_VERSION = 'v2.37.9';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.37.10', date: '2026-05-04', changes: [
+    { tag: 'fix', text: '팀 짜기 1·2·3등 닉네임 뱃지(🥇🥈🥉)·금빛 shimmer 효과를 시즌 1 LP 기준으로 수정 — 기존 S0 MMR 승점 대신 배치 완료 플레이어 중 티어·LP 순으로 TOP3 산정' },
+  ]},
   { ver: 'v2.37.9', date: '2026-05-05', changes: [
     { tag: 'improve', text: '투표 확인 버튼 UX 개선 — 선택 요약(MVP·매너왕 이름)을 버튼 위 별도 박스로 분리, 버튼은 "✓ 확인" 단일 텍스트로 명확화. 흰색 텍스트·진한 녹색 배경으로 클릭 가능 버튼임을 명확히 표시' },
   ]},
@@ -4688,17 +4691,26 @@ function isNewbie(name) {
 }
 
 function getTopThreeMap() {
-  const names = new Set();
-  Object.values(registeredPlayers).forEach(p => names.add(p.name));
-  Object.values(matches).forEach(m => {
-    (m.teamA||[]).forEach(n => names.add(n));
-    (m.teamB||[]).forEach(n => names.add(n));
-  });
-  const rows = [...names].map(name => {
-    const s = calcStats(name);
-    const sc = calcScore(name);
-    return { name, total: s.total, score: sc.score };
-  }).filter(r => r.total >= 3).sort((a, b) => b.score - a.score || b.total - a.total);
+  let rows;
+  if (CURRENT_SEASON >= 1) {
+    rows = Object.values(registeredPlayers).map(p => {
+      const d = season1Data[normName(p.name)] || s1DefaultPlayer();
+      const meta = S1_TIER_META[d.tier] || S1_TIER_META.unranked;
+      return { name: p.name, tierRank: meta.rank, lp: d.lp || 0, placed: !!d.placementDone };
+    }).filter(r => r.placed).sort((a, b) => b.tierRank - a.tierRank || b.lp - a.lp);
+  } else {
+    const names = new Set();
+    Object.values(registeredPlayers).forEach(p => names.add(p.name));
+    Object.values(matches).forEach(m => {
+      (m.teamA||[]).forEach(n => names.add(n));
+      (m.teamB||[]).forEach(n => names.add(n));
+    });
+    rows = [...names].map(name => {
+      const s = calcStats(name);
+      const sc = calcScore(name);
+      return { name, total: s.total, score: sc.score };
+    }).filter(r => r.total >= 3).sort((a, b) => b.score - a.score || b.total - a.total);
+  }
   const map = {};
   rows.slice(0, 3).forEach((r, i) => { map[normName(r.name)] = i + 1; });
   return map;
