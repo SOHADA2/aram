@@ -1793,10 +1793,10 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .eog-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.15);transition:all 0.35s ease;flex-shrink:0;}
 .eog-dot-item.mvp-d.done .eog-dot{background:#c8a84b;border-color:#c8a84b;box-shadow:0 0 8px rgba(200,168,75,0.6);}
 .eog-dot-item.man-d.done .eog-dot{background:#0bc4e3;border-color:#0bc4e3;box-shadow:0 0 8px rgba(11,196,227,0.55);}
-.eog-cf-btn{width:100%;padding:14px;border-radius:11px;border:1px solid rgba(200,168,75,0.25);background:linear-gradient(135deg,rgba(200,168,75,0.1),rgba(200,168,75,0.05));color:rgba(200,168,75,0.4);font-family:'Black Han Sans',sans-serif;font-size:13px;letter-spacing:1.2px;cursor:not-allowed;transition:all 0.35s ease;margin-top:10px;}
-.eog-cf-btn.ready{cursor:pointer;color:#edd97a;border-color:rgba(200,168,75,0.5);background:linear-gradient(135deg,rgba(200,168,75,0.18),rgba(200,168,75,0.08));box-shadow:0 0 24px rgba(200,168,75,0.18);animation:eogBtnP 2s ease infinite;}
-@keyframes eogBtnP{0%,100%{box-shadow:0 0 24px rgba(200,168,75,0.18)}50%{box-shadow:0 0 36px rgba(200,168,75,0.32)}}
-.eog-cf-btn.ready:hover{transform:translateY(-2px);box-shadow:0 6px 30px rgba(200,168,75,0.28);}
+.eog-cf-btn{width:100%;padding:16px;border-radius:12px;border:2px solid rgba(200,168,75,0.2);background:rgba(200,168,75,0.06);color:rgba(200,168,75,0.35);font-family:'Black Han Sans',sans-serif;font-size:13px;letter-spacing:1px;cursor:not-allowed;transition:all 0.3s ease;margin-top:14px;line-height:1.3;}
+.eog-cf-btn.ready{cursor:pointer;color:#4ade80;border-color:rgba(74,222,128,0.55);background:linear-gradient(135deg,rgba(74,222,128,0.18),rgba(74,222,128,0.07));box-shadow:0 0 32px rgba(74,222,128,0.22),0 4px 20px rgba(0,0,0,0.5);animation:eogBtnP 1.6s ease infinite;font-size:16px;}
+@keyframes eogBtnP{0%,100%{box-shadow:0 0 24px rgba(74,222,128,0.18),0 4px 20px rgba(0,0,0,0.5)}50%{box-shadow:0 0 48px rgba(74,222,128,0.38),0 0 80px rgba(74,222,128,0.12),0 4px 20px rgba(0,0,0,0.5)}}
+.eog-cf-btn.ready:hover{transform:translateY(-2px);box-shadow:0 8px 36px rgba(74,222,128,0.38);}
 .eog-sparkle{position:fixed;border-radius:50%;pointer-events:none;z-index:9999;}
 .team-player{position:relative;}
 /* ── 시즌 1 LP 시스템 ── */
@@ -2485,7 +2485,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.6';
+const APP_VERSION = 'v2.37.7';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2494,6 +2494,9 @@ const APP_VERSION = 'v2.37.6';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.37.7', date: '2026-05-04', changes: [
+    { tag: 'fix', text: '투표창 캐릭터 깜빡임 수정 — 다른 팀원 투표 시 진행 현황 칩만 in-place 업데이트(카드 DOM 유지). 완료 버튼 시인성 개선: 녹색·대형·선택 상황 안내 문구 표시, 양쪽 선택 완료 시 버튼으로 자동 스크롤' },
+  ]},
   { ver: 'v2.37.6', date: '2026-05-04', changes: [
     { tag: 'fix', text: '팀 결과 카드 경과 타이머 제거 — 요청 없이 추가된 기능 롤백' },
   ]},
@@ -4200,6 +4203,7 @@ function applySessionData(data) {
 
 function applyMvpData(data) {
   if (!data || !data.active) return;
+  const prevConfirmed = mvpConfirmed;
   mvpVotes = {
     teamA: data.teamAVotes || {},
     teamB: data.teamBVotes || {}
@@ -4207,14 +4211,23 @@ function applyMvpData(data) {
   mvpConfirmed = data.confirmed || null;
   if (currentTeamA.length && currentTeamB.length) {
     const sec = document.getElementById('mvp-section');
-    if (sec && sec._renderMvp) sec._renderMvp();
-    else renderMvpSection();
+    if (mvpConfirmed !== prevConfirmed) {
+      if (sec && sec._renderMvp) sec._renderMvp(); else renderMvpSection();
+    } else if (sec && sec._updateProgress && sec._updateProgress()) {
+      const fk = n => normName(n).replace(/\s+/g,'_');
+      const allVoted = currentTeamA.every(p=>(mvpVotes.teamA||{})[fk(p.name)])
+                    && currentTeamB.every(p=>(mvpVotes.teamB||{})[fk(p.name)]);
+      if (allVoted) autoConfirmMvp();
+    } else {
+      if (sec && sec._renderMvp) sec._renderMvp(); else renderMvpSection();
+    }
   }
   _tryAutoSave();
 }
 
 function applyMannerData(data) {
   if (!data || !data.active) return;
+  const prevConfirmed = mannerConfirmed;
   mannerVotes = {
     teamA: data.teamAVotes || {},
     teamB: data.teamBVotes || {}
@@ -4222,8 +4235,13 @@ function applyMannerData(data) {
   mannerConfirmed = data.confirmed || null;
   if (currentTeamA.length && currentTeamB.length) {
     const sec = document.getElementById('mvp-section');
-    if (sec && sec._renderMvp) sec._renderMvp();
-    else renderMvpSection();
+    if (mannerConfirmed !== prevConfirmed) {
+      if (sec && sec._renderMvp) sec._renderMvp(); else renderMvpSection();
+    } else if (sec && sec._updateProgress && sec._updateProgress()) {
+      // progress-only update, no flicker
+    } else {
+      if (sec && sec._renderMvp) sec._renderMvp(); else renderMvpSection();
+    }
   }
   _tryAutoSave();
 }
@@ -7077,8 +7095,8 @@ function renderMvpSection() {
 
         const canCast = pendingMvp && pendingManner;
         const confirmBtn = canCast
-          ? `<button class="eog-cf-btn ready" onclick="castCombinedVote('${myTeam}','${escHtml(myName)}','${escHtml(pendingMvp)}','${escHtml(pendingManner)}')">✓ ${escHtml(pendingMvp)} (MVP) · ${escHtml(pendingManner)} (매너왕) — 완료</button>`
-          : `<button class="eog-cf-btn" disabled>MVP · 매너왕 선택 후 완료</button>`;
+          ? `<button class="eog-cf-btn ready" id="eog-confirm-btn" onclick="castCombinedVote('${myTeam}','${escHtml(myName)}','${escHtml(pendingMvp)}','${escHtml(pendingManner)}')">✓ 투표 완료<span style="display:block;font-size:10px;font-family:'Noto Sans KR',sans-serif;font-weight:400;letter-spacing:0;margin-top:3px;opacity:0.75;">MVP: ${escHtml(pendingMvp)} &nbsp;·&nbsp; 매너왕: ${escHtml(pendingManner)}</span></button>`
+          : `<button class="eog-cf-btn" disabled>${pendingMvp ? '✓ MVP 선택됨 — 매너왕을 선택해 주세요' : pendingManner ? '✓ 매너왕 선택됨 — MVP를 선택해 주세요' : 'MVP · 매너왕을 각각 선택해 주세요'}</button>`;
 
         myVoteHtml = `
           <div class="eog-vote-section">
@@ -7111,12 +7129,34 @@ function renderMvpSection() {
       ${progressHtml}
       ${liveMode ? `<button class="mvp-skip-btn" style="margin-top:6px;" onclick="skipAll()">건너뛰기</button>` : ''}`;
 
-    requestAnimationFrame(() => window.scrollTo(0, savedScrollY));
+    requestAnimationFrame(() => {
+      window.scrollTo(0, savedScrollY);
+      // 완료 버튼 활성화 시 자동 스크롤
+      const cfBtn = document.getElementById('eog-confirm-btn');
+      if (cfBtn) cfBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
     if (allVoted) autoConfirmMvp();
   }
 
   render();
   sec._renderMvp = render;
+
+  // 진행 현황만 in-place 업데이트 (카드 깜빡임 방지)
+  sec._updateProgress = function() {
+    const el = sec.querySelector('.mvp-progress');
+    if (!el) return false;
+    const fk = n => normName(n).replace(/\s+/g,'_');
+    const aV = new Set(Object.keys(mvpVotes.teamA || {}));
+    const bV = new Set(Object.keys(mvpVotes.teamB || {}));
+    const chips = (players, set) => players.map(p => {
+      const done = set.has(fk(p.name));
+      return `<span class="mvp-chip-v ${done?'voted':'pending'}">${done?'✅':'⏳'} ${escHtml(p.name)}</span>`;
+    }).join('');
+    el.innerHTML = `
+      <div class="mvp-prog-team-row"><span class="mvp-prog-team-lbl" style="color:var(--blue);">🔵 1팀</span><div class="mvp-prog-chips-v2">${chips(currentTeamA,aV)}</div></div>
+      <div class="mvp-prog-team-row"><span class="mvp-prog-team-lbl" style="color:var(--gold);">🟡 2팀</span><div class="mvp-prog-chips-v2">${chips(currentTeamB,bV)}</div></div>`;
+    return true;
+  };
 }
 
 window.setMvpPick = function(name) {
