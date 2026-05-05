@@ -2502,7 +2502,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.16';
+const APP_VERSION = 'v2.37.17';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2511,6 +2511,9 @@ const APP_VERSION = 'v2.37.16';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.37.17', date: '2026-05-05', changes: [
+    { tag: 'fix', text: '관전자 베팅 정산창 표시 버그 수정 — 경기 결과 정산 모달에서 실제 베팅 금액 대신 고정 50G를 표시하던 문제. 이제 베팅금액·적중 시 +betAmount / 실패 시 -betAmount 정확히 표시. 자동 픽은 "🎁 자동" 표시' },
+  ]},
   { ver: 'v2.37.16', date: '2026-05-05', changes: [
     { tag: 'new', text: '관전 제외 설정 — 팀 구성 화면에 "🚫 관전 제외" 칩 섹션 추가. 클릭한 플레이어는 랜덤 관전자 선택에서 제외(불가피할 때만 예외). 설정은 localStorage에 유지' },
   ]},
@@ -7522,12 +7525,20 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
   let specHtml = '';
   const _specArr = Array.isArray(spectatorResult) ? spectatorResult : (spectatorResult ? [spectatorResult] : []);
   if (_specArr.length > 0) {
-    const rows = _specArr.map(sr =>
-      `<div class="ms-player-row" style="justify-content:center;gap:8px;">
+    const rows = _specArr.map(sr => {
+      const paySign = sr.payout > 0 ? '+' : '';
+      const payColor = sr.payout > 0 ? 'var(--green)' : (sr.payout < 0 ? 'var(--red)' : 'var(--text-dim)');
+      const payLabel = sr.correct
+        ? `🎯 적중! <span style="color:var(--green);font-weight:700;">${paySign}${sr.payout}G</span>`
+        : `❌ 빗나감 <span style="color:var(--red);font-weight:700;">${paySign}${sr.payout}G</span>`;
+      const betLabel = sr.betAmount > 0
+        ? `<span style="color:var(--text-dim);font-size:10px;">🪙${sr.betAmount}G 베팅</span> `
+        : `<span style="color:var(--text-dim);font-size:10px;">🎁 자동</span> `;
+      return `<div class="ms-player-row" style="justify-content:center;gap:8px;">
         <span>${escHtml(sr.name)}</span>
-        <span style="color:${sr.correct ? 'var(--green)' : 'var(--red)'}">${sr.correct ? `🎯 적중! +${GOLD_SPECTATOR_CORRECT}G` : '❌ 빗나감'}</span>
-      </div>`
-    ).join('');
+        ${betLabel}${payLabel}
+      </div>`;
+    }).join('');
     specHtml = `<div class="ms-section">
       <div class="ms-section-title">🔮 관전자 예측</div>
       ${rows}
@@ -7798,7 +7809,15 @@ window.saveMatch = async function() {
       if (!currentSpectators.length) return null;
       const results = currentSpectators
         .filter(s => allSpectatorPicks[normName(s.name)])
-        .map(s => ({ name: s.name, correct: allSpectatorPicks[normName(s.name)] === selectedWinner }));
+        .map(s => {
+          const k = normName(s.name);
+          const correct = allSpectatorPicks[k] === selectedWinner;
+          const betAmount = allSpectatorBets[k] || 0;
+          const payout = betAmount > 0
+            ? (correct ? betAmount : -betAmount)
+            : (correct ? SPECTATOR_FREEPICK_BONUS : 0);
+          return { name: s.name, correct, betAmount, payout };
+        });
       return results.length > 0 ? results : null;
     };
 
