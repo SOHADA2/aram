@@ -312,6 +312,11 @@ select option{background:var(--surface2);}
 .member-chip.checked .chip-check-box::after{content:'✓';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:9px;color:#060d18;font-weight:700;}
 .member-chip-name{font-weight:700;font-size:11px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
 .member-chip-tier{font-size:8px;flex-shrink:0;padding:1px 4px;}
+.spec-excl-row{display:flex;align-items:center;flex-wrap:wrap;gap:5px;padding:7px 10px;background:rgba(255,255,255,0.02);border-radius:7px;margin-bottom:8px;border:1px dashed rgba(255,255,255,0.08);}
+.spec-excl-label{font-size:10px;color:var(--text-dim);flex-shrink:0;letter-spacing:0.3px;margin-right:2px;}
+.spec-excl-chip{font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);cursor:pointer;color:var(--text-dim);transition:all 0.15s;user-select:none;white-space:nowrap;}
+.spec-excl-chip:hover{border-color:rgba(248,113,113,0.4);color:var(--text);}
+.spec-excl-chip.active{background:rgba(248,113,113,0.1);border-color:rgba(248,113,113,0.35);color:#f87171;text-decoration:line-through;}
 .member-select-actions{display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap;}
 .member-select-actions span{font-size:11px;color:var(--text-dim);}
 .new-player-toggle{font-size:12px;font-weight:700;color:var(--blue);cursor:pointer;background:rgba(11,196,227,0.06);border:1px dashed rgba(11,196,227,0.45);border-radius:4px;padding:5px 12px;letter-spacing:.5px;font-family:'Noto Sans KR',sans-serif;transition:all 0.2s;margin-left:auto;}
@@ -2178,6 +2183,7 @@ img.emoji{
       <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;" onclick="skipItemPhase()">바로 진행 →</button>
     </div>
     <div id="warn-box"></div>
+    <div id="spec-excl-section" style="display:none;"></div>
     <div class="action-row">
       <button class="btn btn-gold" id="make-teams-btn" onclick="startItemPhase()" style="flex:1;justify-content:center;font-size:15px;padding:13px;">⚔️ 팀 구성</button>
       <button class="btn btn-ghost btn-sm" id="rematch-btn" style="display:none;white-space:nowrap;" onclick="rematchSameTeams()">🔒 팀 고정 재경기</button>
@@ -2476,6 +2482,7 @@ let selectedWinner = null;
 let myName = localStorage.getItem('myName') || null; // 본인 닉네임
 let liveMode = !!localStorage.getItem('liveMode');   // 라이브 모드
 let itemsLocked = false; // 팀 구성 후 아이템 잠금 여부 (전역 플래그)
+let spectatorExcludeSet = new Set(JSON.parse(localStorage.getItem('spectatorExcludeSet') || '[]'));
 // v2.36.30~ 미참여자는 잠금 무시 — 본인이 currentTeamA/B 에 들어있을 때만 실효 잠금
 function isMyselfInCurrentMatch() {
   if (!myName) return false;
@@ -2495,7 +2502,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.15';
+const APP_VERSION = 'v2.37.16';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2504,6 +2511,9 @@ const APP_VERSION = 'v2.37.15';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.37.16', date: '2026-05-05', changes: [
+    { tag: 'new', text: '관전 제외 설정 — 팀 구성 화면에 "🚫 관전 제외" 칩 섹션 추가. 클릭한 플레이어는 랜덤 관전자 선택에서 제외(불가피할 때만 예외). 설정은 localStorage에 유지' },
+  ]},
   { ver: 'v2.37.15', date: '2026-05-05', changes: [
     { tag: 'improve', text: '경기 상세 — MVP/SVP/MMP 표시를 하단 요약 박스에서 각 플레이어 닉네임 옆 인라인 배지로 이동. 시인성 개선' },
   ]},
@@ -5228,8 +5238,28 @@ function renderSessionPlayers() {
       <button class="btn btn-danger" onclick="removeSessionPlayer(${p.id})">✕</button>`;
     ul.appendChild(li);
   });
-
+  renderSpecExclSection();
 }
+
+function renderSpecExclSection() {
+  const sec = document.getElementById('spec-excl-section');
+  if (!sec) return;
+  if (sessionPlayers.length === 0) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  const chips = sessionPlayers.map(p => {
+    const nn = normName(p.name);
+    const excl = spectatorExcludeSet.has(nn);
+    return `<span class="spec-excl-chip${excl?' active':''}" data-n="${escHtml(nn)}" onclick="toggleSpecExcl(this.dataset.n)">${escHtml(p.name)}</span>`;
+  }).join('');
+  sec.innerHTML = `<div class="spec-excl-row"><span class="spec-excl-label">🚫 관전 제외</span>${chips}</div>`;
+}
+
+window.toggleSpecExcl = function(nn) {
+  if (spectatorExcludeSet.has(nn)) spectatorExcludeSet.delete(nn);
+  else spectatorExcludeSet.add(nn);
+  localStorage.setItem('spectatorExcludeSet', JSON.stringify([...spectatorExcludeSet]));
+  renderSpecExclSection();
+};
 
 function updateDatalist() {
   // datalist 제거 (더 이상 사용 안 함)
@@ -6287,15 +6317,17 @@ window.makeTeams = function() {
     }
     let pool = sessionPlayers.map(p=>({...p, tier: getEffectiveTier(p.name, p.manualTier)}));
     // 5v5 최대 — 10명 초과 인원은 관전자로, 그 후 홀수이면 1명 추가 관전자
+    // 관전 제외 설정 플레이어는 마지막으로 선택 (불가피할 때만)
+    const _pickSpectator = pool => {
+      const preferred = pool.filter(p => !spectatorExcludeSet.has(normName(p.name)));
+      const src = preferred.length > 0 ? preferred : pool;
+      const chosen = src[Math.floor(Math.random() * src.length)];
+      pool.splice(pool.indexOf(chosen), 1);
+      return chosen;
+    };
     currentSpectators = [];
-    while (pool.length > 10) {
-      const idx = Math.floor(Math.random() * pool.length);
-      currentSpectators.push(pool.splice(idx, 1)[0]);
-    }
-    if (pool.length % 2 !== 0) {
-      const idx = Math.floor(Math.random() * pool.length);
-      currentSpectators.push(pool.splice(idx, 1)[0]);
-    }
+    while (pool.length > 10) currentSpectators.push(_pickSpectator(pool));
+    if (pool.length % 2 !== 0) currentSpectators.push(_pickSpectator(pool));
     currentSpectator = currentSpectators[0] || null;
     teamSize = pool.length / 2; // 최대 5
     const needed = teamSize * 2;
