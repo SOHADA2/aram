@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.37.14
+- 현재 버전: v2.37.25
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -261,6 +261,42 @@
 - **자동 저장**: 전원 투표 완료 시 `liveMode` 기기에서 `saveMatch` 자동 트리거
 - **정산창**: 저장 직후 `postSaveMatchData` 기반 정산 오버레이 표시 (골드·아이템·LP 변화 요약)
 - **주의**: `finalizeVotes` 는 `session` 초기화 **이전**에 호출되어야 race condition 방지 (v2.29.57)
+
+## 정산창 (v2.37.25~)
+`window.showMatchSummary({ winners, losers, itemEffects, tierChanges, s1LpBefore, questEvent, spectatorResult, mvpWinner, mvpLoser, mannerWinner, mannerLoser })`
+
+### 레이아웃 구조 (ms2-* CSS 클래스)
+- `.match-summary-overlay` (기존 backdrop 클래스 유지) > `.ms2-sheet` (max-width:560px)
+- `.ms2-header` — 승리팀명 금빛 shimmer + "N vs N · 시즌 N" 서브텍스트
+- `.ms2-teams-row` (grid 1fr 1fr) — `.ms2-team-card.win` / `.ms2-team-card.lose`
+- `.ms2-awards-bar` — MVP / SVP / MMP 수평 pill (없으면 숨김)
+- `.ms2-btm` — 관전자 예측 서브카드 + 티어업 카드 + 닫기 버튼
+
+### 플레이어 행 구조
+```
+<div class="ms2-pr [me]">
+  <span class="ms2-pr-name">이름</span>
+  <span class="ms2-me-tag">나</span>  ← myName 일치 시
+  <div class="ms2-pr-items"><span class="ms2-item-chip">SVG</span></div>
+  <div class="ms2-pr-nums">
+    <span class="ms2-pr-lp plus|minus|zero">+20 LP</span>
+    <span class="ms2-pr-gold">+15G</span>
+  </div>
+</div>
+```
+
+### 팀 레이블 결정
+`isWinnersTeamA = winners.some(n => currentTeamA.some(p => normName(p.name)===normName(n)))`
+→ `1팀` / `2팀` 자동 결정 (`currentTeamA`는 경기 저장 후에도 수동 초기화 전까지 유지)
+
+### 티어업 배너 억제
+- `_suppressS1SuccessBanners` 플래그: `s1ApplyAllMatchResults` 직전 `true` 설정
+- `_detectAllS1Changes`에서 success 배너 skip, `_shownPromoKeys`엔 추가 (중복 방지)
+- 정산창 닫기(`closeMatchSummary`) 시 `false` 복원 → `_showPendingPromoNotif()` 호출
+- `_showPendingPromoNotif` success 타입은 early return (정산창에서 이미 표시)
+
+### 목업 파일
+`C:\Users\so\aram\mockup-settlement.html` — 정산창 디자인 레퍼런스
 
 ## 시즌 1 패스 시스템 (v2.31.0, 퀘스트 기반 v2.31.1, 1000G·자동완수 제거 v2.31.3~)
 `CURRENT_SEASON >= 1` 일 때 **업적 탭 자리에 "🎫 시즌 패스"로 전환**. S1 고유 업적 부재와 기존 티어·아이템 업적이 S0 MMR에 묶인 문제를 해결하려는 대체 진행·보상 시스템.
