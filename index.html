@@ -2490,7 +2490,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.11';
+const APP_VERSION = 'v2.37.12';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2499,6 +2499,10 @@ const APP_VERSION = 'v2.37.11';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.37.12', date: '2026-05-05', changes: [
+    { tag: 'improve', text: '복권 긁기 점진 노출 + 시간 연장 — emoji/amount/label에 .show 즉시 부여해 처음부터 캔버스 아래 깔리고 긁히는 자리만 자연스럽게 드러남. 진행률에 따라 amount가 0~50%까지 점진 카운트(부분 노출), 임계 도달 시 끝까지 완주' },
+    { tag: 'improve', text: '복권 긁기 파라미터 조정 — 임계 40%→55%, 긁기 반경 38px→32px, 진행 갱신 4틱→3틱, 페이드아웃 0.4s→0.55s, 카운트업 600/1200ms→900/1600ms. 한 번 긁는 데 살짝 더 시간이 걸리고 결과가 점진적으로 드러나는 형태' },
+  ]},
   { ver: 'v2.37.11', date: '2026-05-05', changes: [
     { tag: 'improve', text: '팀 결성·복권 화면 렉 개선 — renderShop() 50ms 디바운스 + 상점 탭 활성 시에만 무거운 DOM 교체 실행. 다른 탭에 있을 때는 잠금 배너만 갱신(updateLockBanner). gold/matches onValue 폭주 시 246+개 매치를 매번 순회·재렌더하던 이슈 80% 완화. 상점 탭 진입 시 자동 강제 1회 동기화로 표시 누락 없음' },
   ]},
@@ -11979,9 +11983,9 @@ function showLotteryModal(result, remainingGold) {
       </div>
       <div class="lsc-zone" id="lsc-zone">
         <div class="lsc-prize-area">
-          <div class="lsc-prize-emoji" id="lsc-emoji">${result.emoji}</div>
-          <div class="lsc-prize-amount" id="lsc-amount" style="color:${tm.color};">${result.gold > 0 ? '+0G' : '꽝'}</div>
-          <div class="lsc-prize-label" id="lsc-label" style="color:${tm.color};">${result.name}</div>
+          <div class="lsc-prize-emoji show" id="lsc-emoji">${result.emoji}</div>
+          <div class="lsc-prize-amount show" id="lsc-amount" style="color:${tm.color};">${result.gold > 0 ? '???' : '???'}</div>
+          <div class="lsc-prize-label show" id="lsc-label" style="color:${tm.color};">${result.name}</div>
         </div>
         <canvas id="lsc-canvas"></canvas>
         <div class="lsc-hint" id="lsc-hint">🖱 드래그하여 긁어보세요</div>
@@ -12028,9 +12032,9 @@ function showLotteryModal(result, remainingGold) {
     overlay.querySelector('#lsc-hint').style.opacity='0';
     const{x,y}=getPos(e);
     ctx.globalCompositeOperation='destination-out';
-    ctx.beginPath(); ctx.arc(x,y,38,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x,y,32,0,Math.PI*2); ctx.fill(); // 반경 38→32 (정밀하게)
     ctx.globalCompositeOperation='source-over';
-    if(++scratchCount%4===0) checkReveal();
+    if(++scratchCount%3===0) checkReveal(); // 4→3 더 빈번한 진행률 갱신 (부드러운 점진)
   }
   function checkReveal(){
     if(revealed) return;
@@ -12039,28 +12043,40 @@ function showLotteryModal(result, remainingGold) {
     const pct=Math.round(c/(canvas.width*canvas.height)*100);
     overlay.querySelector('#lsc-prog').style.width=pct+'%';
     overlay.querySelector('#lsc-pct').textContent=pct+'%';
-    if(pct>=40) doReveal();
+    // 점진 노출 (v2.37.12~) — 진행률에 따라 amount 카운트업 부분 진행
+    if(result.gold>0){
+      const amtEl=overlay.querySelector('#lsc-amount');
+      // 0~55% 구간 동안 0~target*0.5 까지 점진 표시 (긁을수록 숫자가 점점 보임)
+      const partial = Math.min(pct/55, 1) * 0.5;
+      amtEl.textContent = '+'+Math.round(result.gold*partial)+'G';
+    }
+    if(pct>=55) doReveal(); // 임계 40→55 (조금 더 긁어야 완료)
   }
   function doReveal(){
     if(revealed) return; revealed=true;
     overlay.querySelector('#lsc-prog').style.width='100%';
     overlay.querySelector('#lsc-pct').textContent='100%';
-    canvas.style.transition='opacity 0.4s ease'; canvas.style.opacity='0';
+    canvas.style.transition='opacity 0.55s ease'; canvas.style.opacity='0'; // 0.4→0.55 페이드 좀 더 길게
     setTimeout(()=>{
       canvas.style.display='none';
       ['lsc-emoji','lsc-amount','lsc-label'].forEach(id=>overlay.querySelector('#'+id).classList.add('show'));
       if(result.gold>0){
         const el=overlay.querySelector('#lsc-amount');
-        const dur=result.tier===1?1200:600, start=performance.now();
+        // 점진 노출에서 이미 ~0.5*target 까지 표시되었으니 거기서 이어서 카운트업
+        const cur = parseInt(el.textContent.replace(/[^0-9]/g,'')) || 0;
+        const dur=result.tier===1?1600:900, start=performance.now(); // 1200→1600, 600→900
         (function step(now){
           const t=Math.min((now-start)/dur,1),ease=1-Math.pow(1-t,3);
-          el.textContent='+'+Math.round(result.gold*ease)+'G';
+          const v = Math.round(cur + (result.gold - cur) * ease);
+          el.textContent='+'+v+'G';
           if(t<1) requestAnimationFrame(step);
         })(performance.now());
+      } else {
+        overlay.querySelector('#lsc-amount').textContent='꽝';
       }
-      setTimeout(()=>{ _lscPlaySound(tm.sound); _lscDoEffect(tm, result, overlay); }, 200);
-      setTimeout(()=>overlay.querySelector('#lsc-actions').classList.add('show'), 600);
-    }, 420);
+      setTimeout(()=>{ _lscPlaySound(tm.sound); _lscDoEffect(tm, result, overlay); }, 250);
+      setTimeout(()=>overlay.querySelector('#lsc-actions').classList.add('show'), 700);
+    }, 580);
   }
   canvas.onmousedown =(e)=>{isScratching=true; doScratch(e);};
   canvas.onmousemove =(e)=>{if(isScratching) doScratch(e);};
