@@ -1354,17 +1354,16 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .cp-row.wr-ok::before{background:rgba(255,255,255,0.25);}
 .cp-row.wr-bad::before{background:var(--red);}
 .cp-champ-img{width:46px;height:46px;border-radius:7px;object-fit:cover;flex-shrink:0;border:1px solid rgba(255,255,255,0.1);}
-.cp-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;}
-.cp-name-row{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap;}
-.cp-name{font-family:'Black Han Sans',sans-serif;font-size:15px;letter-spacing:0.3px;color:var(--text);white-space:nowrap;flex-shrink:0;}
-/* 이름 우측 한 줄 스탯 */
-.cp-stats-line{display:flex;align-items:center;flex-wrap:wrap;gap:0;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);flex-shrink:0;}
-.cp-sl-sep{color:rgba(255,255,255,0.18);margin:0 5px;}
-.cp-sl-games{font-size:11px;font-weight:700;color:var(--text);}
-.cp-sl-wl{font-size:10px;}
-/* 승률 배지 */
-.cp-wr{font-family:'Black Han Sans',sans-serif;font-size:18px;font-weight:700;letter-spacing:0.5px;line-height:1;}
-.cp-stat-nodata{color:var(--text-dim);font-style:italic;font-size:10px;margin-top:2px;}
+.cp-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;}
+.cp-top-row{display:flex;align-items:center;justify-content:space-between;gap:6px;}
+.cp-name{font-family:'Black Han Sans',sans-serif;font-size:15px;letter-spacing:0.3px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;}
+.cp-games-wr{display:flex;align-items:center;gap:5px;flex-shrink:0;}
+.cp-games{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:var(--text-dim);background:rgba(255,255,255,0.06);padding:1px 5px;border-radius:4px;}
+.cp-wr{font-family:'Black Han Sans',sans-serif;font-size:16px;font-weight:700;letter-spacing:0.5px;line-height:1;}
+.cp-wl{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);}
+.cp-stat-row{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);display:flex;align-items:center;flex-wrap:wrap;gap:0;line-height:1.5;}
+.cp-sep{color:rgba(255,255,255,0.15);margin:0 4px;}
+.cp-extra-row{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);display:flex;align-items:center;flex-wrap:wrap;gap:0;line-height:1.5;}
 .profile-champ-card:active{transform:scale(0.98);}
 .profile-champ-section{display:flex;gap:8px;margin-bottom:14px;}
 .profile-champ-card{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);}
@@ -2498,7 +2497,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.20';
+const APP_VERSION = 'v2.37.21';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -9582,7 +9581,7 @@ function calcChampPool(name) {
     let s = p.champion;
     if (!s && p.championId) s = champIdToSlug[String(p.championId)] || '';
     if (!s) continue;
-    if (!map[s]) map[s] = { slug: s, games: 0, wins: 0, kills: 0, deaths: 0, assists: 0, damage: 0, cs: 0, hasParticipantStats: 0 };
+    if (!map[s]) map[s] = { slug: s, games: 0, wins: 0, kills: 0, deaths: 0, assists: 0, damage: 0, cs: 0, gold: 0, doubles: 0, triples: 0, quadras: 0, pentas: 0, firstBloods: 0, hasParticipantStats: 0 };
     const e = map[s];
     e.games++;
     const onBlue = (m.teamA || []).some(n => normName(n) === key);
@@ -9594,6 +9593,12 @@ function calcChampPool(name) {
       e.assists += p.assists || 0;
       e.damage  += p.damage  || 0;
       e.cs      += p.cs      || 0;
+      e.gold    += p.gold    || 0;
+      e.doubles += p.doubleKills || 0;
+      e.triples += p.tripleKills || 0;
+      e.quadras += p.quadraKills || 0;
+      e.pentas  += p.pentaKills  || 0;
+      if (p.firstBlood) e.firstBloods++;
       e.hasParticipantStats++;
     }
   }
@@ -9607,10 +9612,13 @@ function calcChampPool(name) {
     const kda     = has ? ((e.kills + e.assists) / Math.max(1, e.deaths)) : 0;
     const avgDmg  = has ? Math.round(e.damage / has) : 0;
     const avgCs   = has ? Math.round(e.cs     / has) : 0;
+    const avgGold = has ? Math.round(e.gold   / has) : 0;
+    const fbPct   = has ? Math.round((e.firstBloods / has) * 100) : 0;
     return {
       slug: e.slug,
       games: e.games, wins: e.wins, losses, winrate,
-      avgK, avgD, avgA, kda, avgDmg, avgCs,
+      avgK, avgD, avgA, kda, avgDmg, avgCs, avgGold, fbPct,
+      doubles: e.doubles, triples: e.triples, quadras: e.quadras, pentas: e.pentas,
       hasStats: has > 0,
     };
   });
@@ -9637,33 +9645,37 @@ window.openChampPoolModal = async function(name) {
         const wrColor = c.winrate >= 60 ? 'var(--green)' : c.winrate >= 50 ? 'var(--gold)' : c.winrate >= 40 ? 'rgba(255,255,255,0.55)' : 'var(--red)';
         const kdaColor = c.kda >= 4 ? 'var(--gold)' : c.kda >= 3 ? 'var(--green)' : c.kda >= 2 ? 'var(--text)' : 'var(--text-dim)';
         const fmtNum = v => v >= 1000 ? (v/1000).toFixed(1) + 'k' : String(v);
-        const statsLine = c.hasStats
-          ? `<span class="cp-stats-line">
-              <span class="cp-sl-games">${c.games}판</span>
-              <span class="cp-sl-sep">·</span>
-              <span class="cp-sl-wl"><span style="color:var(--green);">${c.wins}승</span> <span style="color:rgba(255,255,255,0.25);">·</span> <span style="color:var(--red);">${c.losses}패</span></span>
-              <span class="cp-sl-sep">·</span>
-              <span>${c.avgK.toFixed(1)}/<span style="color:var(--red);">${c.avgD.toFixed(1)}</span>/${c.avgA.toFixed(1)}</span>
-              <span class="cp-sl-sep">·</span>
-              <span style="color:${kdaColor};font-weight:700;">${c.kda.toFixed(2)}</span>
-              <span class="cp-sl-sep">·</span>
-              <span style="color:rgba(200,185,220,0.8);">⚔${fmtNum(c.avgDmg)}</span>
-              <span class="cp-sl-sep">·</span>
-              <span style="color:rgba(180,210,150,0.75);">CS ${c.avgCs}</span>
-            </span>`
-          : `<span class="cp-stats-line">
-              <span class="cp-sl-games">${c.games}판</span>
-              <span class="cp-sl-sep">·</span>
-              <span class="cp-sl-wl"><span style="color:var(--green);">${c.wins}승</span> <span style="color:rgba(255,255,255,0.25);">·</span> <span style="color:var(--red);">${c.losses}패</span></span>
-            </span>`;
+        const sep = '<span class="cp-sep">·</span>';
+        const statRow = c.hasStats ? (() => {
+          const kdaRow = `<div class="cp-stat-row">`
+            + `<span>${c.avgK.toFixed(1)}/<span style="color:var(--red);">${c.avgD.toFixed(1)}</span>/${c.avgA.toFixed(1)}</span>`
+            + sep + `<span style="color:${kdaColor};font-weight:700;">KDA ${c.kda.toFixed(2)}</span>`
+            + sep + `<span style="color:rgba(200,185,220,0.8);">⚔${fmtNum(c.avgDmg)}</span>`
+            + sep + `<span style="color:rgba(180,210,150,0.75);">CS ${c.avgCs}</span>`
+            + sep + `<span style="color:rgba(255,215,128,0.65);">💰${fmtNum(c.avgGold)}</span>`
+            + `</div>`;
+          const extraParts = [];
+          if (c.fbPct > 0) extraParts.push(`<span style="color:rgba(255,150,100,0.85);">🎯퍼블 ${c.fbPct}%</span>`);
+          if (c.doubles > 0) extraParts.push(`<span>더블 ${c.doubles}</span>`);
+          if (c.triples > 0) extraParts.push(`<span>트리플 ${c.triples}</span>`);
+          if (c.quadras > 0) extraParts.push(`<span style="color:rgba(255,200,80,0.9);">쿼드라 ${c.quadras}</span>`);
+          if (c.pentas > 0) extraParts.push(`<span style="color:rgba(255,90,90,1);font-weight:700;">펜타킬 ${c.pentas}</span>`);
+          const extraRow = extraParts.length > 0
+            ? `<div class="cp-extra-row">${extraParts.join(sep)}</div>` : '';
+          return kdaRow + extraRow;
+        })() : '';
         return `<div class="cp-row ${wrCls}">
           <img class="cp-champ-img" src="${url(c.slug)}" onerror="this.style.display='none'" alt="${escHtml(krName(c.slug))}">
           <div class="cp-info">
-            <div class="cp-name-row">
+            <div class="cp-top-row">
               <span class="cp-name">${escHtml(krName(c.slug))}</span>
-              ${statsLine}
+              <div class="cp-games-wr">
+                <span class="cp-games">${c.games}판</span>
+                <span class="cp-wr" style="color:${wrColor};">${c.winrate}%</span>
+              </div>
             </div>
-            <span class="cp-wr" style="color:${wrColor};">${c.winrate}%</span>
+            <div class="cp-wl"><span style="color:var(--green);">${c.wins}승</span><span style="color:rgba(255,255,255,0.18);"> · </span><span style="color:var(--red);">${c.losses}패</span></div>
+            ${statRow}
           </div>
         </div>`;
       }).join('');
