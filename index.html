@@ -2490,7 +2490,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.13';
+const APP_VERSION = 'v2.37.14';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2499,6 +2499,9 @@ const APP_VERSION = 'v2.37.13';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.37.14', date: '2026-05-05', changes: [
+    { tag: 'improve', text: '복권 긁기 초반 긴장감 — .lsc-prize-area에 blur 9px 시작, 진행률 ease-in 곡선(pct²/55²)으로 점차 또렷해짐. 초반엔 거의 흐릿(긴장감), 임계 가까울수록 빠르게 선명. doReveal에서 filter:blur(0) 부드럽게 풀어 마무리' },
+  ]},
   { ver: 'v2.37.13', date: '2026-05-05', changes: [
     { tag: 'improve', text: '복권 한도 상향 — 일반 골드 복권 1일 3장 → 10장, 프리미엄 복권 1일 1장 → 3장. buyItem 가드, 상점 isLotteryLimitHit 분기, 모달 typeSub, 아이템 desc, 확률표 툴팁, CLAUDE.md 데이터 구조·아이템 표 모두 동기화' },
   ]},
@@ -11985,7 +11988,7 @@ function showLotteryModal(result, remainingGold) {
         <div class="lsc-price-badge">${priceText}</div>
       </div>
       <div class="lsc-zone" id="lsc-zone">
-        <div class="lsc-prize-area">
+        <div class="lsc-prize-area" style="filter:blur(9px);">
           <div class="lsc-prize-emoji show" id="lsc-emoji">${result.emoji}</div>
           <div class="lsc-prize-amount show" id="lsc-amount" style="color:${tm.color};">${result.gold > 0 ? '???' : '???'}</div>
           <div class="lsc-prize-label show" id="lsc-label" style="color:${tm.color};">${result.name}</div>
@@ -12046,7 +12049,14 @@ function showLotteryModal(result, remainingGold) {
     const pct=Math.round(c/(canvas.width*canvas.height)*100);
     overlay.querySelector('#lsc-prog').style.width=pct+'%';
     overlay.querySelector('#lsc-pct').textContent=pct+'%';
-    // 점진 노출 (v2.37.12~) — 진행률에 따라 amount 카운트업 부분 진행
+    // 결과 점진 또렷화 (v2.37.14~) — 초반엔 흐릿(긴장감), 후반에 점점 선명
+    // ease-in 곡선 (pct² / 55²) → 초반 천천히 풀리고, 임계 가까울수록 빨리 또렷
+    const pProg = Math.min(pct / 55, 1);
+    const eased = pProg * pProg;
+    const blurPx = (1 - eased) * 9; // 0%→9px 흐림, 55%→0px 또렷
+    const area = overlay.querySelector('.lsc-prize-area');
+    if (area) area.style.filter = `blur(${blurPx.toFixed(2)}px)`;
+    // 점진 노출 — 진행률에 따라 amount 카운트업 부분 진행
     if(result.gold>0){
       const amtEl=overlay.querySelector('#lsc-amount');
       // 0~55% 구간 동안 0~target*0.5 까지 점진 표시 (긁을수록 숫자가 점점 보임)
@@ -12060,6 +12070,12 @@ function showLotteryModal(result, remainingGold) {
     overlay.querySelector('#lsc-prog').style.width='100%';
     overlay.querySelector('#lsc-pct').textContent='100%';
     canvas.style.transition='opacity 0.55s ease'; canvas.style.opacity='0'; // 0.4→0.55 페이드 좀 더 길게
+    // blur 부드럽게 풀기 (v2.37.14~)
+    const area = overlay.querySelector('.lsc-prize-area');
+    if (area) {
+      area.style.transition = 'filter 0.55s ease';
+      area.style.filter = 'blur(0px)';
+    }
     setTimeout(()=>{
       canvas.style.display='none';
       ['lsc-emoji','lsc-amount','lsc-label'].forEach(id=>overlay.querySelector('#'+id).classList.add('show'));
