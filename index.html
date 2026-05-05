@@ -1242,7 +1242,8 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .match-detail-champ-img{width:36px;height:36px;border-radius:6px;object-fit:cover;object-position:center top;flex-shrink:0;border:1px solid var(--border);}
 .match-detail-champ-placeholder{width:36px;height:36px;border-radius:6px;background:var(--surface2);border:1px solid var(--border);flex-shrink:0;}
 .match-detail-player-info{display:flex;flex-direction:column;gap:1px;min-width:0;flex:1;}
-.match-detail-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;font-size:13px;}
+.match-detail-name{display:flex;align-items:center;flex-wrap:wrap;gap:3px;font-weight:700;font-size:13px;}
+.match-detail-name-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
 .match-detail-champ{font-size:10px;color:var(--gold);}
 .match-detail-row-right{display:flex;align-items:center;gap:6px;flex-shrink:0;}
 .match-detail-mk-badge{font-size:10px;font-weight:700;padding:1px 5px;border-radius:4px;white-space:nowrap;}
@@ -1259,7 +1260,11 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .match-detail-stat-val{font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;}
 .match-detail-stat-lbl{font-size:9px;color:var(--text-dim);}
 .match-detail-no-data{font-size:11px;color:var(--text-dim);text-align:center;padding:8px 0;}
-.match-detail-fb{font-size:9px;font-weight:700;color:#f87171;background:rgba(248,113,113,0.15);border:1px solid rgba(248,113,113,0.3);border-radius:3px;padding:1px 4px;margin-left:4px;vertical-align:middle;}
+.match-detail-fb{font-size:9px;font-weight:700;color:#f87171;background:rgba(248,113,113,0.15);border:1px solid rgba(248,113,113,0.3);border-radius:3px;padding:1px 4px;vertical-align:middle;}
+.match-detail-award{font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;vertical-align:middle;white-space:nowrap;}
+.mda-mvp{color:#f5c842;background:rgba(245,200,66,0.15);border:1px solid rgba(245,200,66,0.35);}
+.mda-svp{color:#94a3b8;background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.25);}
+.mda-mmp{color:#4ade80;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.25);}
 .match-detail-gametime{font-size:11px;color:var(--text-dim);margin-left:6px;}
 .match-detail-items{display:flex;flex-wrap:wrap;gap:4px;padding:6px 6px 2px;}
 .match-detail-item-img{width:26px;height:26px;border-radius:4px;border:1px solid var(--border);object-fit:cover;}
@@ -2490,7 +2495,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.14';
+const APP_VERSION = 'v2.37.15';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2499,6 +2504,9 @@ const APP_VERSION = 'v2.37.14';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.37.15', date: '2026-05-05', changes: [
+    { tag: 'improve', text: '경기 상세 — MVP/SVP/MMP 표시를 하단 요약 박스에서 각 플레이어 닉네임 옆 인라인 배지로 이동. 시인성 개선' },
+  ]},
   { ver: 'v2.37.14', date: '2026-05-05', changes: [
     { tag: 'improve', text: '복권 긁기 초반 긴장감 — .lsc-prize-area에 blur 9px 시작, 진행률 ease-in 곡선(pct²/55²)으로 점차 또렷해짐. 초반엔 거의 흐릿(긴장감), 임계 가까울수록 빠르게 선명. doReveal에서 filter:blur(0) 부드럽게 풀어 마무리' },
   ]},
@@ -8424,10 +8432,22 @@ window.openMatchDetail = async function(key) {
   const fmtTime = s => s > 0 ? `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}` : '';
   const gameTimeStr = fmtTime(m.gameTime || 0);
 
+  const mvpW = m.mvpWinner || m.mvp || '';
+  const mvpL = m.mvpLoser || '';
+  const mmpW = m.mannerWinner || m.mannerKing || '';
+  const mmpL = m.mannerLoser || '';
+  const awardMap = {};
+  const addAward = (name, label) => { if (!name) return; const k = normName(name); awardMap[k] = (awardMap[k]||[]).concat(label); };
+  addAward(mvpW, 'MVP'); addAward(mvpL, 'SVP'); addAward(mmpW, 'MMP'); addAward(mmpL, 'MMP');
+
   const expandId = () => 'mdx-' + Math.random().toString(36).slice(2,7);
   function teamRows(names) {
     return names.map(n => {
       const pt = pts[normName(n)];
+      const playerAwards = awardMap[normName(n)] || [];
+      const awardBadges = playerAwards.map(a =>
+        `<span class="match-detail-award mda-${a.toLowerCase()}">${a}</span>`
+      ).join('');
       const eid = expandId();
       const champKR = pt ? (champNamesKR[pt.champion] || pt.champion) : '';
       const champImg = pt?.champion
@@ -8483,7 +8503,7 @@ window.openMatchDetail = async function(key) {
         <div class="match-detail-player-row" onclick="(function(el){const ex=document.getElementById('${eid}');const open=ex.classList.toggle('show');el.classList.toggle('open',open);})(this)">
           ${champImg}
           <div class="match-detail-player-info">
-            <div class="match-detail-name">${escHtml(n)}${fbBadge}</div>
+            <div class="match-detail-name"><span class="match-detail-name-text">${escHtml(n)}</span>${fbBadge}${awardBadges}</div>
             <div class="match-detail-champ">${champKR ? escHtml(champKR) : '<span style="color:var(--text-dim);">챔피언 정보 없음</span>'}</div>
           </div>
           <div class="match-detail-row-right">${mkBadge}<span class="match-detail-chevron">▼</span></div>
@@ -8516,17 +8536,6 @@ window.openMatchDetail = async function(key) {
           ${teamRows(m.teamB||[])}
         </div>
         ${Object.keys(pts).length === 0 ? '<div style="text-align:center;font-size:12px;color:var(--text-dim);padding:8px 0;">📊 상세 데이터 없음<br>자동 감지된 경기에만 표시돼요</div>' : ''}
-        ${(() => {
-          const mvpW = m.mvpWinner || m.mvp || '';
-          const mvpL = m.mvpLoser || '';
-          const mmpW = m.mannerWinner || m.mannerKing || '';
-          const mmpL = m.mannerLoser || '';
-          const badges = [];
-          if (mvpW) badges.push(`<span style="color:var(--gold);">🏅 MVP</span> ${escHtml(mvpW)}`);
-          if (mvpL) badges.push(`<span style="color:var(--text-dim);">🏅 SVP</span> ${escHtml(mvpL)}`);
-          if (mmpW || mmpL) badges.push(`<span style="color:var(--green);">🤝 MMP</span> ${[mmpW,mmpL].filter(Boolean).map(escHtml).join(' · ')}`);
-          return badges.length ? `<div style="margin-top:10px;padding:8px 10px;background:rgba(255,255,255,0.04);border-radius:8px;font-size:12px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">${badges.join('<span style="color:var(--border);">│</span>')}</div>` : '';
-        })()}
         ${(() => {
           // 관전자 베팅 섹션 (v2.36.13~)
           const rows = [];
