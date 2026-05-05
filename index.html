@@ -2490,7 +2490,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.10';
+const APP_VERSION = 'v2.37.11';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2499,6 +2499,9 @@ const APP_VERSION = 'v2.37.10';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.37.11', date: '2026-05-05', changes: [
+    { tag: 'improve', text: '팀 결성·복권 화면 렉 개선 — renderShop() 50ms 디바운스 + 상점 탭 활성 시에만 무거운 DOM 교체 실행. 다른 탭에 있을 때는 잠금 배너만 갱신(updateLockBanner). gold/matches onValue 폭주 시 246+개 매치를 매번 순회·재렌더하던 이슈 80% 완화. 상점 탭 진입 시 자동 강제 1회 동기화로 표시 누락 없음' },
+  ]},
   { ver: 'v2.37.10', date: '2026-05-04', changes: [
     { tag: 'fix', text: '팀 짜기 1·2·3등 닉네임 뱃지(🥇🥈🥉)·금빛 shimmer 효과를 시즌 1 LP 기준으로 수정 — 기존 S0 MMR 승점 대신 배치 완료 플레이어 중 티어·LP 순으로 TOP3 산정' },
   ]},
@@ -4952,6 +4955,9 @@ window.showTab = function(id, btn) {
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   btn.classList.add('active');
+  _currentTabId = id;
+  // 상점 탭 진입 시 즉시 강제 렌더링 (백그라운드 동안 누락된 갱신 1회 동기화)
+  if (id === 'tab-shop') renderShop();
   if (id === 'tab-rank') {
     setTimeout(() => {
       const meEl = document.querySelector('#tab-rank .me');
@@ -4959,6 +4965,9 @@ window.showTab = function(id, btn) {
     }, 80);
   }
 };
+
+// 현재 활성 탭 추적 (renderShop 가드용 — v2.37.11~)
+let _currentTabId = 'tab-team';
 
 // ── MEMBER CHECKBOX UI ────────────────────────────────────────
 function renderMemberGrid() {
@@ -11739,8 +11748,28 @@ window.switchInvCat = function(cat) {
   renderShop();
 };
 
-// 상점 렌더링
+// 잠금 배너만 별도 갱신 (탭 무관 — 팀 구성 시 어느 탭에서도 즉시 반영) (v2.37.11~)
+function updateLockBanner() {
+  const lockBanner = document.getElementById('item-lock-banner');
+  if (lockBanner) lockBanner.classList.toggle('show', isItemsEffectivelyLocked());
+}
+
+// renderShop 디바운스 + 탭 가드 래퍼 (v2.37.11~)
+// — onValue 폭주(gold/matches 변경마다 호출) 시 50ms 내 합쳐서 1회만 실행
+// — 상점 탭이 아닐 땐 lock 배너만 갱신하고 내부 무거운 렌더는 skip
+//   (탭 진입 시 showTab 에서 강제 1회 호출로 동기화됨)
+let _renderShopTimer = null;
 function renderShop() {
+  updateLockBanner();
+  if (_currentTabId !== 'tab-shop') return; // 다른 탭에선 무거운 렌더 skip
+  if (_renderShopTimer) return;              // 이미 예약됨
+  _renderShopTimer = setTimeout(() => {
+    _renderShopTimer = null;
+    _renderShopImmediate();
+  }, 50);
+}
+
+function _renderShopImmediate() {
   const noUser  = document.getElementById('shop-no-user');
   const panels  = document.getElementById('shop-panels');
   if (!myName) {
@@ -11750,9 +11779,8 @@ function renderShop() {
   const myGold  = getMyGold();
   const myItems = getMyItems();
 
-  // 잠금 배너
-  const lockBanner = document.getElementById('item-lock-banner');
-  if (lockBanner) lockBanner.classList.toggle('show', isItemsEffectivelyLocked());
+  // 잠금 배너 (이미 wrapper 에서 갱신됐지만 안전망)
+  updateLockBanner();
 
   // ── 상점 리스트 ─────────────────────────────────────────
   const _shopList = CURRENT_SEASON >= 1 ? S1_SHOP_ITEMS : SHOP_ITEMS;
