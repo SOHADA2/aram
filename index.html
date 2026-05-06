@@ -2723,7 +2723,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.46';
+const APP_VERSION = 'v2.37.47';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -13634,6 +13634,26 @@ function registerMilestoneListener(tier) {
 registerMilestoneListener('master');
 registerMilestoneListener('grandmaster');
 registerMilestoneListener('challenger');
+
+// 콘솔에서 수동 실행용 (type="module" 스코프 우회)
+window.fixMilestone = async function(tier = 'master') {
+  const last = Object.values(matches).sort((a,b)=>b.timestamp-a.timestamp)[0];
+  if (!last) { console.error('경기 데이터 없음'); return; }
+  const specs = last.spectators || (last.spectator ? [last.spectator] : []);
+  const participants = [...(last.teamA||[]), ...(last.teamB||[]), ...specs];
+  const achiever = participants.find(p => season1Data[normName(p)]?.tier === tier);
+  if (!achiever) { console.error('달성자 없음:', participants.map(p=>({name:p,tier:season1Data[normName(p)]?.tier}))); return; }
+  const key = tier.charAt(0).toUpperCase() + tier.slice(1);
+  const snap = await get(ref(db, `season1/milestones/first${key}`));
+  if (!snap.exists()) {
+    await s1TriggerMilestone(tier, participants, achiever);
+    console.log('✅ 골드 지급+기록 완료:', achiever, participants);
+  } else {
+    console.log('이미 기록됨, 팝업만 표시');
+  }
+  const snap2 = await get(ref(db, `season1/milestones/first${key}`));
+  showMilestonePopup(snap2.val(), tier);
+};
 
 function showMilestonePopup(data, tier) {
   const el = document.getElementById('master-popup');
