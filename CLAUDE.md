@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.37.34
+- 현재 버전: v2.37.39
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -297,6 +297,40 @@
 
 ### 목업 파일
 `C:\Users\so\aram\mockup-settlement.html` — 정산창 디자인 레퍼런스
+`C:\Users\so\aram\waiting_mockup.html` — 대기 화면 디자인 레퍼런스
+
+## 대기 화면 (v2.37.28~, wm-* CSS)
+팀 구성 완료 후 경기 시작 대기 중 각 멤버에게 보이는 개인 미니 대시보드.
+`renderMemberWaiting()` → `#member-waiting` div에 렌더링. 팀 구성 완료 시 `my-info-bar` 숨김.
+
+### 표시 항목
+- 티어 배지 + LP 바 + 승급전 상태
+- 최근 10경기 폼 도트 (오른쪽이 최신)
+- 승/패 카운트, 연승/연패
+- 승급 예측 (다음 경기 결과별 티어 시뮬)
+- MVP/SVP/MMP 어워드 스트립 (있는 경우)
+- 랜덤 팁 문구
+
+### 티어 방어막 배지 (v2.37.36~)
+`s1ApplyMatchResult` 반환값에 `newlyPromoted`, `masterShield` 플래그 포함.
+- `newlyPromoted: true` — 승급 직후 다음 1판 LP 보호 (0LP 바닥 + 강등 없음)
+- `masterShield: true` — 마스터/그마/챌린저 첫 진입 시 추가 2판 보호
+- 배지 CSS: `.s1-shield-badge.first-chance` (⏳ 첫판 보호) / `.s1-shield-badge.zero-lp` (🛡️ 0LP 방어막)
+- 두 배지 동시 표시 가능: `newlyPromoted && masterShield` 조건 체크
+
+## 마스터/그마/챌린저 첫 달성 팝업 (v2.37.35~)
+`s1TriggerMilestone(tier, participants, achieverName)` — Firebase `season1/milestones/first{Tier}` 최초 저장.
+`registerMilestoneListener(tier)` — onValue로 감지 → `showMilestonePopup()` 호출 (10분 이내만 표시).
+
+### 설정 (`TIER_POPUP_CFG`)
+| 티어 | 아이콘 | 보상 골드 | 컨페티 수 |
+|------|--------|-----------|-----------|
+| master | 👑 | 50G | 120 |
+| grandmaster | 🩸 | 100G | 150 |
+| challenger | ⚡ | 150G | 200 |
+
+- 보상 골드 필드: `witnessGold_s1_master` / `witnessGold_s1_gm` / `witnessGold_s1_ch` (경기 참가자 전원에게 지급)
+- 팝업 HTML: `#master-popup` (고정 DOM), `#master-popup-title` 동적 갱신
 
 ## 시즌 1 패스 시스템 (v2.31.0, 퀘스트 기반 v2.31.1, 1000G·자동완수 제거 v2.31.3~)
 `CURRENT_SEASON >= 1` 일 때 **업적 탭 자리에 "🎫 시즌 패스"로 전환**. S1 고유 업적 부재와 기존 티어·아이템 업적이 S0 MMR에 묶인 문제를 해결하려는 대체 진행·보상 시스템.
