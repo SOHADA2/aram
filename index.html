@@ -1088,7 +1088,12 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .wm-tip-txt{font-size:11px;line-height:1.55;color:var(--rk-text-dim);}
 @media(max-width:420px){.wm-mid-row{grid-template-columns:1fr 108px;}.wm-fdot{width:22px;height:22px;font-size:9px;}.wm-form-row{gap:4px;}#wm-form-dots{gap:3px;}.wm-lp-big{font-size:22px;}.wm-pass-n{font-size:18px;}.wm-hero{padding:14px 13px;}.wm-lp-card{padding:10px 11px;}.wm-side-card{padding:9px 10px;}.wm-bottom-card{padding:10px 11px;}}
 @media(max-width:340px){.wm-mid-row{grid-template-columns:1fr;}.wm-right-col{flex-direction:row;}}
-.my-info-avatar{width:38px;height:38px;border-radius:50%;background:var(--rk-sub);border:2.5px solid var(--rk-border-strong);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0;transition:border-color .2s;position:relative;z-index:1;}
+.my-info-avatar{width:44px;height:44px;border-radius:50%;position:relative;flex-shrink:0;z-index:1;}
+.my-info-avatar::before{content:'';position:absolute;inset:-3px;border-radius:50%;background:conic-gradient(var(--mib-ring-color,#4fc3f7),rgba(255,255,255,.07),var(--mib-ring-color,#4fc3f7),rgba(255,255,255,.04),var(--mib-ring-color,#4fc3f7));animation:mibSpin 4s linear infinite;}
+.my-info-avatar::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--rk-card);z-index:1;}
+.mib-avatar-face{position:absolute;inset:3px;border-radius:50%;overflow:hidden;z-index:2;display:flex;align-items:center;justify-content:center;font-size:18px;background:var(--rk-sub);}
+.mib-avatar-face img{width:100%;height:100%;object-fit:cover;}
+@keyframes mibSpin{to{transform:rotate(360deg);}}
 .mib-body{flex:1;min-width:0;position:relative;z-index:1;}
 .my-info-name{font-weight:700;font-size:14px;color:var(--rk-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .mib-pills{display:flex;align-items:center;gap:5px;margin-top:3px;flex-wrap:wrap;}
@@ -2189,7 +2194,9 @@ img.emoji{
 
 <!-- 내 정보 바 -->
 <div class="my-info-bar" id="my-info-bar" style="display:none;" onclick="openMyProfile()">
-  <div class="my-info-avatar" id="my-avatar">?</div>
+  <div class="my-info-avatar" id="my-avatar">
+    <div class="mib-avatar-face" id="my-avatar-face">?</div>
+  </div>
   <div class="mib-body">
     <div class="my-info-name" id="my-name-display">나를 선택하세요</div>
     <div class="mib-pills" id="my-info-pills"></div>
@@ -2673,7 +2680,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.32';
+const APP_VERSION = 'v2.37.33';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -11474,15 +11481,30 @@ function updateMyInfoBar() {
   const pillsEl = document.getElementById('my-info-pills');
   if (!myName) { bar.style.display='none'; return; }
   bar.style.display='flex';
-  const plr = Object.values(registeredPlayers).find(p => normName(p.name) === normName(myName));
-  avatarEl.textContent = plr?.statusEmoji || myName.trim().charAt(0);
+  const plr    = Object.values(registeredPlayers).find(p => normName(p.name) === normName(myName));
+  const faceEl = document.getElementById('my-avatar-face');
+  const fallback = plr?.statusEmoji || myName.trim().charAt(0);
   nameEl.textContent = myName;
   goldEl.textContent = getMyGold().toLocaleString();
   if (pillsEl) {
     if (CURRENT_SEASON >= 1) {
       const d    = s1GetPlayer(myName) || s1DefaultPlayer();
       const meta = S1_TIER_META[d.tier] || S1_TIER_META.unranked;
-      avatarEl.style.borderColor = meta.color;
+      avatarEl.style.setProperty('--mib-ring-color', meta.color);
+      // MOST 챔피언 이미지 설정
+      if (faceEl) {
+        const cd = calcChampDetail(myName);
+        if (cd?.most?.slug) {
+          const img = document.createElement('img');
+          img.src = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(cd.most.slug)}.png`;
+          img.alt = '';
+          img.onerror = () => { faceEl.textContent = fallback; img.remove(); };
+          faceEl.innerHTML = '';
+          faceEl.appendChild(img);
+        } else {
+          faceEl.textContent = fallback;
+        }
+      }
       let html = `<span style="font-size:11px;color:${meta.color};background:${meta.color}1a;border:1px solid ${meta.color}4d;border-radius:4px;padding:1px 6px;">${meta.label}</span>`;
       const key = normName(myName);
       const s1Sorted = Object.values(matches)
@@ -11504,7 +11526,8 @@ function updateMyInfoBar() {
       }
       pillsEl.innerHTML = html;
     } else {
-      avatarEl.style.borderColor = '';
+      avatarEl.style.setProperty('--mib-ring-color', '#4fc3f7');
+      if (faceEl) faceEl.textContent = fallback;
       pillsEl.innerHTML = '';
     }
   }
