@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>대기 화면 목업 — ARAM 아수라장</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=JetBrains+Mono:wght@400;600;700&family=Noto+Sans+KR:wght@400;600;700;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07040f;
+      --surface: #100c1e;
+      --surface2: #18122e;
+      --border: #2e1f52;
+      --border-hi: #4a2e8a;
+      --purple: #7c3aed;
+      --purple-dim: rgba(124,58,237,0.15);
+      --gold: #c8a84b;
+      --gold-light: #e8c87a;
+      --green: #00c77a;
+      --red: #e84057;
+      --blue: #60a5fa;
+      --text: #e6ebf2;
+      --text-dim: #8892a4;
+      --text-muted: #4a5568;
+
+      /* tier colors */
+      --tc-platinum: #3fbfcc;
+      --tc-diamond: #a78bfa;
+      --tc-gold-tier: #c8a84b;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Noto Sans KR', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px 16px 60px;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    /* ── 배경 캔버스 ── */
+    #stars-canvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* ── 페이지 레이블 ── */
+    .page-label {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .page-label span {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--purple);
+      background: rgba(124,58,237,0.12);
+      border: 1px solid rgba(124,58,237,0.3);
+      border-radius: 20px;
+      padding: 5px 12px;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 0.3px;
+    }
+    .page-label a {
+      font-size: 11px;
+      color: var(--text-dim);
+      text-decoration: none;
+    }
+    .page-label a:hover { color: var(--text); }
+
+    /* ── 메인 래퍼 ── */
+    .card-wrap {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      max-width: 420px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* ── 공통 섹션 카드 ── */
+    .wm-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      opacity: 0;
+      transform: translateY(18px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+    .wm-card.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ── 1. 히어로 섹션 ── */
+    .wm-hero {
+      background: linear-gradient(135deg, #130d24 0%, #1a0e35 50%, #0f0a1e 100%);
+      border-color: var(--border-hi);
+      padding: 20px 18px;
+      position: relative;
+      overflow: hidden;
+    }
+    .wm-hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 20% 50%, rgba(124,58,237,0.12) 0%, transparent 60%),
+                  radial-gradient(ellipse at 80% 20%, rgba(63,191,204,0.06) 0%, transparent 50%);
+      pointer-events: none;
+    }
+    .wm-hero-inner {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      position: relative;
+    }
+    /* 회전 링 아바타 */
+    .wm-avatar-ring {
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .wm-avatar-ring::before {
+      content: '';
+      position: absolute;
+      inset: -2px;
+      border-radius: 50%;
+      background: conic-gradient(
+        var(--tc-platinum), #7c3aed, var(--tc-platinum), #3fbfcc, var(--tc-platinum)
+      );
+      animation: ringRotate 4s linear infinite;
+    }
+    .wm-avatar-ring::after {
+      content: '';
+      position: absolute;
+      inset: 2px;
+      border-radius: 50%;
+      background: var(--surface);
+    }
+    .wm-avatar-emoji {
+      position: relative;
+      z-index: 1;
+      font-size: 28px;
+      line-height: 1;
+    }
+    @keyframes ringRotate {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    .wm-hero-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .wm-player-name {
+      font-family: 'Black Han Sans', sans-serif;
+      font-size: 20px;
+      letter-spacing: 0.5px;
+      color: var(--text);
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .wm-hero-meta {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-top: 5px;
+      flex-wrap: wrap;
+    }
+    .wm-tier-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-family: 'Black Han Sans', sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.4px;
+      color: var(--tc-platinum);
+      background: rgba(63,191,204,0.1);
+      border: 1px solid rgba(63,191,204,0.3);
+      border-radius: 5px;
+      padding: 3px 8px;
+    }
+    .wm-streak-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: #93c5fd;
+      background: rgba(147,197,253,0.08);
+      border: 1px solid rgba(147,197,253,0.2);
+      border-radius: 5px;
+      padding: 3px 8px;
+      animation: streakPulse 2.5s ease-in-out infinite;
+    }
+    @keyframes streakPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(147,197,253,0); }
+      50%       { box-shadow: 0 0 8px 2px rgba(147,197,253,0.15); }
+    }
+    /* 우측 골드 배지 */
+    .wm-gold-badge {
+      position: absolute;
+      top: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--gold-light);
+      background: rgba(200,168,75,0.1);
+      border: 1px solid rgba(200,168,75,0.25);
+      border-radius: 8px;
+      padding: 5px 10px;
+    }
+
+    /* ── 2. LP 카드 ── */
+    .wm-lp-card {
+      background: linear-gradient(135deg, #11102a 0%, #150e2a 100%);
+      border-color: rgba(63,191,204,0.2);
+    }
+    .wm-lp-top {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .wm-lp-main {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+    .wm-lp-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 36px;
+      font-weight: 700;
+      color: var(--tc-platinum);
+      line-height: 1;
+      text-shadow: 0 0 20px rgba(63,191,204,0.4);
+    }
+    .wm-lp-sub {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-dim);
+    }
+    .wm-lp-tier-label {
+      font-family: 'Black Han Sans', sans-serif;
+      font-size: 15px;
+      letter-spacing: 0.5px;
+      color: var(--tc-platinum);
+    }
+    /* 진행 바 */
+    .wm-bar-wrap {
+      position: relative;
+      height: 8px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    .wm-bar-fill {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 0%;
+      background: linear-gradient(90deg, #3fbfcc, #7c3aed);
+      border-radius: 4px;
+      box-shadow: 0 0 10px rgba(63,191,204,0.5);
+      transition: width 1.2s cubic-bezier(0.25,1,0.5,1);
+    }
+    .wm-bar-fill::after {
+      content: '';
+      position: absolute;
+      right: 0; top: 0; bottom: 0;
+      width: 20px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4));
+      animation: barShimmer 2s ease-in-out infinite 1.4s;
+    }
+    @keyframes barShimmer {
+      0%, 100% { opacity: 0; }
+      50%       { opacity: 1; }
+    }
+    .wm-bar-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+    .wm-bar-label .next { color: var(--tc-platinum); font-weight: 600; }
+    /* 예측 뱃지 */
+    .wm-pred {
+      margin-top: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #7c3aed;
+      background: rgba(124,58,237,0.1);
+      border: 1px solid rgba(124,58,237,0.25);
+      border-radius: 6px;
+      padding: 5px 10px;
+    }
+
+    /* ── 3. 스탯 그리드 ── */
+    .wm-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .wm-stat-cell {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 6px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+    .wm-stat-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 22px;
+      font-weight: 700;
+      line-height: 1;
+      color: var(--text);
+    }
+    .wm-stat-val.win  { color: var(--green); }
+    .wm-stat-val.loss { color: var(--red); }
+    .wm-stat-val.wr   { color: #60a5fa; }
+    .wm-stat-key {
+      font-size: 10px;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── 4. 최근 폼 ── */
+    .wm-form-card {}
+    .wm-form-label {
+      font-size: 10px;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+    }
+    .wm-form-dots {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .wm-dot {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      font-weight: 700;
+      transform: scale(0);
+      transition: transform 0.35s cubic-bezier(0.34,1.56,0.64,1);
+      position: relative;
+    }
+    .wm-dot.visible { transform: scale(1); }
+    .wm-dot.w {
+      background: rgba(0,199,122,0.12);
+      border: 1px solid rgba(0,199,122,0.4);
+      color: var(--green);
+      box-shadow: 0 0 10px rgba(0,199,122,0.15);
+    }
+    .wm-dot.l {
+      background: rgba(232,64,87,0.1);
+      border: 1px solid rgba(232,64,87,0.35);
+      color: var(--red);
+    }
+    /* 폼 화살표 (최신 방향) */
+    .wm-form-arrow {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-left: auto;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ── 5. 인사이트 (챔프 + 패스) ── */
+    .wm-insight-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .wm-insight-cell {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+    }
+    .wm-insight-lbl {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+      margin-bottom: 8px;
+    }
+    /* 챔프 미니 */
+    .wm-champ-pair {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .wm-champ-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .wm-champ-img {
+      width: 32px;
+      height: 32px;
+      border-radius: 5px;
+      object-fit: cover;
+      border: 1px solid rgba(255,255,255,0.08);
+      flex-shrink: 0;
+    }
+    .wm-champ-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .wm-champ-tag {
+      font-size: 8px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .wm-champ-tag.most { color: #ff9b6b; }
+    .wm-champ-tag.best { color: var(--gold); }
+    .wm-champ-name {
+      font-family: 'Black Han Sans', sans-serif;
+      font-size: 13px;
+      letter-spacing: 0.3px;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .wm-champ-stat {
+      font-size: 9px;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    /* 패스 미니 */
+    .wm-pass-lv {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+      margin-bottom: 6px;
+    }
+    .wm-pass-lv-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--gold-light);
+      line-height: 1;
+    }
+    .wm-pass-lv-max {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .wm-pass-bar-bg {
+      width: 100%;
+      height: 5px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 5px;
+    }
+    .wm-pass-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--gold), var(--gold-light));
+      border-radius: 3px;
+      width: 0%;
+      transition: width 1s cubic-bezier(0.25,1,0.5,1) 0.6s;
+    }
+    .wm-pass-next {
+      font-size: 9px;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ── 6. 다음 퀘스트 ── */
+    .wm-quest-card {
+      border-color: rgba(124,58,237,0.3);
+      background: linear-gradient(135deg, rgba(124,58,237,0.06) 0%, transparent 100%);
+    }
+    .wm-quest-inner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .wm-quest-icon {
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .wm-quest-text {
+      flex: 1;
+      min-width: 0;
+    }
+    .wm-quest-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 2px;
+    }
+    .wm-quest-desc {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .wm-quest-reward {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--gold);
+      font-family: 'JetBrains Mono', monospace;
+      flex-shrink: 0;
+    }
+
+    /* ── 7. 팁 ── */
+    .wm-tip-card {
+      border-color: rgba(255,255,255,0.04);
+      background: rgba(255,255,255,0.02);
+      padding: 12px 16px;
+    }
+    .wm-tip-inner {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .wm-tip-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+    .wm-tip-text {
+      font-size: 11px;
+      line-height: 1.6;
+      color: var(--text-dim);
+    }
+
+    /* ── 섹션 헤더 공통 ── */
+    .wm-sec-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .wm-sec-lbl {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ── 버전 배지 (우상단) ── */
+    .ver-badge {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      font-size: 10px;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+      z-index: 20;
+    }
+  </style>
+</head>
+<body>
+
+<!-- 별 배경 캔버스 -->
+<canvas id="stars-canvas"></canvas>
+
+<!-- 페이지 레이블 -->
+<div class="page-label">
+  <span>🎨 대기 화면 리디자인 목업</span>
+  <a href="#">← 닫기</a>
+</div>
+
+<!-- 메인 카드 래퍼 -->
+<div class="card-wrap">
+
+  <!-- 1. 히어로 섹션 -->
+  <div class="wm-card wm-hero">
+    <div class="wm-hero-inner">
+      <div class="wm-avatar-ring">
+        <span class="wm-avatar-emoji">🐻</span>
+      </div>
+      <div class="wm-hero-info">
+        <div class="wm-player-name">애긔반달곰</div>
+        <div class="wm-hero-meta">
+          <span class="wm-tier-badge">🥈 플래티넘</span>
+          <span class="wm-streak-badge">❄️ 4연패</span>
+        </div>
+      </div>
+    </div>
+    <div class="wm-gold-badge">🪙 2,810G</div>
+  </div>
+
+  <!-- 2. LP 카드 -->
+  <div class="wm-card wm-lp-card">
+    <div class="wm-lp-top">
+      <div class="wm-lp-main">
+        <span class="wm-lp-num" id="lp-num">0</span>
+        <span class="wm-lp-sub">/ 100 LP</span>
+      </div>
+      <span class="wm-lp-tier-label">플래티넘</span>
+    </div>
+    <div class="wm-bar-wrap">
+      <div class="wm-bar-fill" id="lp-bar"></div>
+    </div>
+    <div class="wm-bar-label">
+      <span>0 LP</span>
+      <span class="next">승급전 100 LP</span>
+    </div>
+    <div class="wm-pred">▲ 다음 승리 시 <strong style="color:#a78bfa;margin-left:3px;">승급전 진입!</strong></div>
+  </div>
+
+  <!-- 3. 스탯 그리드 -->
+  <div class="wm-card">
+    <div class="wm-stats-grid">
+      <div class="wm-stat-cell">
+        <span class="wm-stat-val win" id="stat-win">0</span>
+        <span class="wm-stat-key">승</span>
+      </div>
+      <div class="wm-stat-cell">
+        <span class="wm-stat-val loss" id="stat-loss">0</span>
+        <span class="wm-stat-key">패</span>
+      </div>
+      <div class="wm-stat-cell">
+        <span class="wm-stat-val wr" id="stat-wr">0%</span>
+        <span class="wm-stat-key">승률</span>
+      </div>
+      <div class="wm-stat-cell">
+        <span class="wm-stat-val" id="stat-games">0</span>
+        <span class="wm-stat-key">경기</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. 최근 폼 -->
+  <div class="wm-card wm-form-card">
+    <div class="wm-sec-head">
+      <span class="wm-sec-lbl">최근 5경기</span>
+      <span class="wm-form-arrow">오래된 순 →</span>
+    </div>
+    <div class="wm-form-dots" id="form-dots">
+      <!-- L L L L W — JS로 팝인 -->
+    </div>
+  </div>
+
+  <!-- 5. 인사이트 (패스 + 챔프) -->
+  <div class="wm-insight-grid">
+    <!-- 시즌 패스 -->
+    <div class="wm-card wm-insight-cell">
+      <div class="wm-insight-lbl">🎫 시즌 패스</div>
+      <div class="wm-pass-lv">
+        <span class="wm-pass-lv-num">19</span>
+        <span class="wm-pass-lv-max">/ 25</span>
+      </div>
+      <div class="wm-pass-bar-bg">
+        <div class="wm-pass-bar-fill" id="pass-bar"></div>
+      </div>
+      <div class="wm-pass-next">다음: LV 20 · +400G</div>
+    </div>
+
+    <!-- 챔피언 인사이트 -->
+    <div class="wm-card wm-insight-cell">
+      <div class="wm-insight-lbl">🎮 챔피언</div>
+      <div class="wm-champ-pair">
+        <div class="wm-champ-row">
+          <img class="wm-champ-img" src="https://ddragon.leagueoflegends.com/cdn/15.1.1/img/champion/Vayne.png" alt="베인">
+          <div class="wm-champ-info">
+            <div class="wm-champ-tag most">🔥 MOST</div>
+            <div class="wm-champ-name">베인</div>
+            <div class="wm-champ-stat">8판 · 4승 4패</div>
+          </div>
+        </div>
+        <div class="wm-champ-row">
+          <img class="wm-champ-img" src="https://ddragon.leagueoflegends.com/cdn/15.1.1/img/champion/Gwen.png" alt="그웬">
+          <div class="wm-champ-info">
+            <div class="wm-champ-tag best">⭐ BEST</div>
+            <div class="wm-champ-name">그웬</div>
+            <div class="wm-champ-stat">2판 · 100%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. 다음 퀘스트 -->
+  <div class="wm-card wm-quest-card">
+    <div class="wm-sec-head">
+      <span class="wm-sec-lbl">🎯 다음 퀘스트</span>
+      <span style="font-size:10px;color:var(--purple);font-family:'JetBrains Mono',monospace;">패스 LV 19 → 20</span>
+    </div>
+    <div class="wm-quest-inner">
+      <span class="wm-quest-icon">⚔️</span>
+      <div class="wm-quest-text">
+        <div class="wm-quest-title">시즌의 정점</div>
+        <div class="wm-quest-desc">한 판 킬+어시 합 25 이상 달성</div>
+      </div>
+      <div class="wm-quest-reward">🪙 400G</div>
+    </div>
+  </div>
+
+  <!-- 7. 팁 -->
+  <div class="wm-card wm-tip-card">
+    <div class="wm-tip-inner">
+      <span class="wm-tip-icon">💡</span>
+      <span class="wm-tip-text">회복 아이템이 없다면 포탑 뒤 자동 회복을 적극 활용하세요. 칼바람에서는 교전보다 HP 관리가 중요해요.</span>
+    </div>
+  </div>
+
+</div><!-- /.card-wrap -->
+
+<div class="ver-badge">waiting_mockup v0.1</div>
+
+<script>
+// ── 별 파티클 배경 ────────────────────────────────────────────────
+(function initStars() {
+  const canvas = document.getElementById('stars-canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H;
+  const STARS = [];
+  const N = 120;
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  class Star {
+    constructor() { this.reset(true); }
+    reset(init) {
+      this.x  = Math.random() * W;
+      this.y  = init ? Math.random() * H : -4;
+      this.r  = Math.random() * 1.4 + 0.3;
+      this.vy = Math.random() * 0.18 + 0.05;
+      this.a  = Math.random() * 0.6 + 0.2;
+      this.twinkleSpeed = Math.random() * 0.02 + 0.005;
+      this.twinklePhase = Math.random() * Math.PI * 2;
+    }
+    update(t) {
+      this.y += this.vy;
+      this.twinklePhase += this.twinkleSpeed;
+      if (this.y > H + 4) this.reset(false);
+    }
+    draw() {
+      const alpha = this.a * (0.6 + 0.4 * Math.sin(this.twinklePhase));
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(200,180,255,${alpha})`;
+      ctx.fill();
+    }
+  }
+
+  for (let i = 0; i < N; i++) STARS.push(new Star());
+
+  let last = 0;
+  function loop(t) {
+    const dt = t - last; last = t;
+    ctx.clearRect(0, 0, W, H);
+    for (const s of STARS) { s.update(dt); s.draw(); }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+})();
+
+// ── 카드 등장 애니메이션 (stagger) ──────────────────────────────
+(function animateCards() {
+  const cards = document.querySelectorAll('.wm-card');
+  cards.forEach((card, i) => {
+    setTimeout(() => card.classList.add('visible'), 80 + i * 80);
+  });
+})();
+
+// ── LP 카운트업 + 바 ─────────────────────────────────────────────
+(function animateLP() {
+  const target = 34;
+  const numEl  = document.getElementById('lp-num');
+  const barEl  = document.getElementById('lp-bar');
+
+  // 딜레이 후 시작
+  setTimeout(() => {
+    // 바 채우기
+    barEl.style.width = target + '%';
+
+    // 숫자 카운트업
+    const duration = 1100;
+    const start    = performance.now();
+    function tick(now) {
+      const progress = Math.min((now - start) / duration, 1);
+      const ease = 1 - Math.pow(1 - progress, 3);
+      numEl.textContent = Math.round(ease * target);
+      if (progress < 1) requestAnimationFrame(tick);
+      else numEl.textContent = target;
+    }
+    requestAnimationFrame(tick);
+  }, 400);
+})();
+
+// ── 스탯 카운트업 ────────────────────────────────────────────────
+(function animateStats() {
+  const STATS = [
+    { id: 'stat-win',   target: 31,    suffix: '',  delay: 500 },
+    { id: 'stat-loss',  target: 29,    suffix: '',  delay: 600 },
+    { id: 'stat-wr',    target: 52,    suffix: '%', delay: 700 },
+    { id: 'stat-games', target: 60,    suffix: '',  delay: 550 },
+  ];
+  STATS.forEach(({ id, target, suffix, delay }) => {
+    const el = document.getElementById(id);
+    setTimeout(() => {
+      const duration = 900;
+      const start = performance.now();
+      function tick(now) {
+        const p = Math.min((now - start) / duration, 1);
+        const ease = 1 - Math.pow(1 - p, 2.5);
+        el.textContent = Math.round(ease * target) + suffix;
+        if (p < 1) requestAnimationFrame(tick);
+        else el.textContent = target + suffix;
+      }
+      requestAnimationFrame(tick);
+    }, delay);
+  });
+})();
+
+// ── 폼 도트 팝인 ─────────────────────────────────────────────────
+(function animateFormDots() {
+  const container = document.getElementById('form-dots');
+  const form = ['L','L','L','L','W']; // 오래된 순
+
+  form.forEach((r, i) => {
+    const dot = document.createElement('span');
+    dot.className = `wm-dot ${r === 'W' ? 'w' : 'l'}`;
+    dot.textContent = r;
+    container.appendChild(dot);
+    setTimeout(() => dot.classList.add('visible'), 700 + i * 100);
+  });
+})();
+
+// ── 패스 바 ──────────────────────────────────────────────────────
+(function animatePassBar() {
+  const bar = document.getElementById('pass-bar');
+  // LV 19/25 → 76%
+  setTimeout(() => { bar.style.width = '76%'; }, 600);
+})();
+</script>
+</body>
+</html>
