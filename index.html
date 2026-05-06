@@ -1365,9 +1365,15 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .cp-sep{color:rgba(255,255,255,0.15);margin:0 5px;}
 .cp-lbl{color:rgba(255,255,255,0.3);font-size:9px;letter-spacing:0.2px;margin-right:2px;}
 .cp-extra-row{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-dim);display:flex;align-items:center;flex-wrap:wrap;gap:0;line-height:1.5;}
+.profile-champ-wrap{margin-bottom:14px;}
+.profile-champ-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+.profile-champ-head-lbl{font-size:10px;font-weight:700;letter-spacing:1px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;}
+.profile-champ-view-btn{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:700;color:var(--gold);background:rgba(200,168,75,0.1);border:1px solid rgba(200,168,75,0.3);border-radius:6px;padding:4px 10px;cursor:pointer;font-family:inherit;line-height:1.4;transition:background 0.15s,border-color 0.15s;}
+.profile-champ-view-btn:hover{background:rgba(200,168,75,0.2);border-color:rgba(200,168,75,0.5);}
+.profile-champ-view-btn:active{transform:scale(0.97);}
 .profile-champ-card:active{transform:scale(0.98);}
-.profile-champ-section{display:flex;gap:8px;margin-bottom:14px;}
-.profile-champ-card{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);}
+.profile-champ-section{display:flex;gap:8px;}
+.profile-champ-card{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);cursor:pointer;}
 .profile-champ-card.most{border-color:rgba(255,140,80,0.35);background:linear-gradient(135deg,rgba(255,140,80,0.08),rgba(255,140,80,0.02));}
 .profile-champ-card.best{border-color:rgba(255,215,128,0.35);background:linear-gradient(135deg,rgba(255,215,128,0.10),rgba(255,215,128,0.02));}
 .profile-champ-img{width:44px;height:44px;border-radius:6px;object-fit:cover;flex-shrink:0;border:1px solid rgba(255,255,255,0.08);}
@@ -2580,7 +2586,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.25';
+const APP_VERSION = 'v2.37.26';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2589,6 +2595,9 @@ const APP_VERSION = 'v2.37.25';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.37.26', date: '2026-05-06', changes: [
+    { tag: 'improve', text: '프로필 챔피언 섹션 레이아웃 개선 — MOST/BEST 카드 위에 "🎮 챔피언" 헤더 + "전체 보기 ›" 버튼 추가. 기존에는 카드 전체 클릭이 진입점이라 직관성이 낮았음. 카드 클릭도 동일 동작 유지' },
+  ]},
   { ver: 'v2.37.25', date: '2026-05-06', changes: [
     { tag: 'improve', text: '정산창 전면 개편 — 목업 디자인 완전 적용. 좌우 팀 그리드 카드, 어워드 바(MVP/SVP/MMP), 관전자 예측 서브카드, 골드 닫기 버튼, "나" 강조 스타일 등 새 레이아웃으로 전환' },
   ]},
@@ -9697,13 +9706,14 @@ function profileChampSectionHtml(name) {
   if (!d) return '';
   const url = s => `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(s)}.png`;
   const krName = s => champNamesKR[s] || s;
+  const safeName = escHtml(name).replace(/'/g, "\\'");
   const card = (data, kind) => {
     const isMost = kind === 'most';
-    const lbl = isMost ? '🔥 MOST'  : '⭐ BEST';
+    const lbl = isMost ? '🔥 MOST' : '⭐ BEST';
     const stat = isMost
       ? `${data.games}판 · ${data.wins}승 ${data.losses}패`
       : `${data.wins}승 ${data.losses}패 · ${data.winrate}%`;
-    return `<div class="profile-champ-card ${kind}" onclick="event.stopPropagation();openChampPoolModal('${escHtml(name).replace(/'/g, "\\'")}');" title="클릭 — 전체 챔피언 풀 보기" style="cursor:pointer;">
+    return `<div class="profile-champ-card ${kind}" onclick="event.stopPropagation();openChampPoolModal('${safeName}');">
       <img class="profile-champ-img" src="${url(data.slug)}" onerror="this.style.display='none'" alt="${escHtml(krName(data.slug))}">
       <div class="profile-champ-info">
         <div class="profile-champ-lbl">${lbl}</div>
@@ -9712,7 +9722,13 @@ function profileChampSectionHtml(name) {
       </div>
     </div>`;
   };
-  return `<div class="profile-champ-section">${card(d.most, 'most')}${d.best ? card(d.best, 'best') : ''}</div>`;
+  return `<div class="profile-champ-wrap">
+    <div class="profile-champ-head">
+      <span class="profile-champ-head-lbl">🎮 챔피언</span>
+      <button class="profile-champ-view-btn" onclick="event.stopPropagation();openChampPoolModal('${safeName}');">전체 보기 ›</button>
+    </div>
+    <div class="profile-champ-section">${card(d.most, 'most')}${d.best ? card(d.best, 'best') : ''}</div>
+  </div>`;
 }
 
 // 본인 챔프 풀 — 챔프별 판수/승패/승률/평균 KDA 집계
