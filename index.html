@@ -13523,26 +13523,30 @@ async function s1ApplyAllMatchResults(winners, losers, newbiesAtMatch = null) {
 
   function MParticle(palette) {
     this.palette = palette;
-    this.x = Math.random() * (window.innerWidth);
+    this.alpha = 1;
+    this.reset();
+  }
+  MParticle.prototype.reset = function() {
+    this.x = Math.random() * (_cvs ? _cvs.width : window.innerWidth);
     this.y = -20;
     this.w = 6 + Math.random() * 10;
     this.h = 4 + Math.random() * 6;
-    this.color = palette[Math.floor(Math.random() * palette.length)];
+    this.color = this.palette[Math.floor(Math.random() * this.palette.length)];
     this.vx = (Math.random() - 0.5) * 3;
-    this.vy = 2 + Math.random() * 5;
+    this.vy = 2 + Math.random() * 4;
     this.angle = Math.random() * Math.PI * 2;
     this.spin = (Math.random() - 0.5) * 0.2;
     this.shape = Math.random() > 0.5 ? 'rect' : 'circle';
-  }
+  };
 
   function animate() {
     if (!_cvs || !_ctx) return;
     _ctx.clearRect(0, 0, _cvs.width, _cvs.height);
-    let any = false;
     _particles.forEach(p => {
       p.x += p.vx; p.y += p.vy; p.angle += p.spin;
-      if (p.y < _cvs.height + 40) any = true;
+      if (p.y > _cvs.height + 20) p.reset();
       _ctx.save();
+      _ctx.globalAlpha = p.alpha;
       _ctx.translate(p.x, p.y);
       _ctx.rotate(p.angle);
       _ctx.fillStyle = p.color;
@@ -13550,8 +13554,7 @@ async function s1ApplyAllMatchResults(winners, losers, newbiesAtMatch = null) {
       else { _ctx.beginPath(); _ctx.ellipse(0,0,p.w/2,p.h/2,0,0,Math.PI*2); _ctx.fill(); }
       _ctx.restore();
     });
-    if (any && _particles.length > 0) { _animId = requestAnimationFrame(animate); }
-    else { window.stopMilestoneConfetti(); }
+    if (_particles.length > 0) { _animId = requestAnimationFrame(animate); }
   }
 
   window.launchMilestoneConfetti = function(tier, count) {
@@ -13560,7 +13563,7 @@ async function s1ApplyAllMatchResults(winners, losers, newbiesAtMatch = null) {
     const palette = COLORS[tier] || COLORS.master;
     _particles = Array.from({ length: count || 120 }, () => new MParticle(palette));
     animate();
-    setTimeout(() => { _particles = []; }, 6000);
+    setTimeout(() => { _particles = []; }, 5000);
   };
 
   window.stopMilestoneConfetti = function() {
