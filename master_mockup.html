@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>마스터 달성 팝업 목업 (컨페티 효과)</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#04020e;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Segoe UI',sans-serif;overflow:hidden;}
+  canvas{position:fixed;inset:0;pointer-events:none;z-index:9997;}
+  .overlay{position:fixed;inset:0;background:rgba(4,2,14,0.88);backdrop-filter:blur(5px);display:flex;align-items:center;justify-content:center;padding:20px;z-index:9998;}
+  .card{background:linear-gradient(160deg,#0d0520 0%,#1a0935 100%);border:2px solid #e8d080;border-radius:20px;padding:36px 28px;max-width:340px;width:100%;text-align:center;position:relative;overflow:hidden;z-index:9999;}
+  .card::before{content:'';position:absolute;inset:0;pointer-events:none;background-image:repeating-linear-gradient(135deg,transparent 0 12px,rgba(255,255,255,.015) 12px 13px);}
+  .glow{position:absolute;inset:-40px;background:radial-gradient(ellipse at 50% 50%,rgba(232,208,128,0.18),transparent 65%);pointer-events:none;}
+  .crown{font-size:60px;margin-bottom:10px;display:block;animation:bounce 1s ease infinite alternate;}
+  .title{font-size:24px;font-weight:900;color:#e8d080;letter-spacing:2px;margin-bottom:8px;animation:pulse 2s ease infinite;}
+  .achiever{font-size:17px;font-weight:700;color:#e2d4ff;margin-bottom:16px;}
+  .witness-badge{font-size:12px;color:#e8d080;background:rgba(232,208,128,0.12);border:1px solid rgba(232,208,128,0.28);border-radius:8px;padding:8px 16px;margin-bottom:14px;display:inline-block;}
+  .participants{font-size:11px;color:rgba(230,235,242,.55);margin-bottom:24px;line-height:1.8;}
+  .btn{background:linear-gradient(135deg,#e8d080,#c9a42a);color:#0d0a00;font-weight:800;font-size:14px;border:none;border-radius:10px;padding:11px 32px;cursor:pointer;transition:opacity .15s;}
+  .btn:hover{opacity:.85;}
+  .controls{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:flex;gap:10px;z-index:99999;}
+  .ctrl-btn{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;padding:8px 18px;border-radius:8px;cursor:pointer;font-size:13px;}
+  .ctrl-btn:hover{background:rgba(255,255,255,.18);}
+  @keyframes bounce{from{transform:translateY(0) rotate(-6deg);}to{transform:translateY(-10px) rotate(6deg);}}
+  @keyframes pulse{0%,100%{text-shadow:0 0 10px rgba(232,208,128,0.3);}50%{text-shadow:0 0 24px rgba(232,208,128,0.8),0 0 48px rgba(232,208,128,0.3);}}
+  @keyframes confettiFall{0%{transform:translateY(-10px) rotate(0deg);opacity:1;}100%{transform:translateY(110vh) rotate(720deg);opacity:0;}}
+</style>
+</head>
+<body>
+<canvas id="confetti-canvas"></canvas>
+<div class="overlay">
+  <div class="card">
+    <div class="glow"></div>
+    <span class="crown">👑</span>
+    <div class="title">마스터를 뵙습니다</div>
+    <div class="achiever">애블린 — 역대 최초 마스터 달성!</div>
+    <div class="witness-badge">🏅 역사의 증인 · 참가자 전원 <strong>+50G</strong></div>
+    <div class="participants">역사의 증인<br>애블린 · 맹독 벌꿀오소리 · 나랑듀오해듀오<br>IfCES · 애긔반달곰 · ap렉사이서폿</div>
+    <button class="btn" onclick="launchConfetti()">🎉 다시 보기</button>
+  </div>
+</div>
+<div class="controls">
+  <button class="ctrl-btn" onclick="launchConfetti()">🎊 컨페티 발사</button>
+  <button class="ctrl-btn" onclick="launchConfetti(200)">🌟 대폭발</button>
+</div>
+<script>
+const canvas = document.getElementById('confetti-canvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+window.addEventListener('resize', () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; });
+
+const COLORS = ['#e8d080','#c084fc','#60a5fa','#34d399','#f87171','#fbbf24','#a78bfa','#fff'];
+
+class Particle {
+  constructor() { this.reset(true); }
+  reset(init = false) {
+    this.x = Math.random() * canvas.width;
+    this.y = init ? Math.random() * -canvas.height : -20;
+    this.w = 6 + Math.random() * 10;
+    this.h = 4 + Math.random() * 6;
+    this.color = COLORS[Math.floor(Math.random() * COLORS.length)];
+    this.vx = (Math.random() - 0.5) * 3;
+    this.vy = 2 + Math.random() * 4;
+    this.angle = Math.random() * Math.PI * 2;
+    this.spin = (Math.random() - 0.5) * 0.2;
+    this.alpha = 1;
+    this.shape = Math.random() > 0.5 ? 'rect' : 'circle';
+  }
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    this.angle += this.spin;
+    if (this.y > canvas.height + 20) this.reset();
+  }
+  draw() {
+    ctx.save();
+    ctx.globalAlpha = this.alpha;
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.angle);
+    ctx.fillStyle = this.color;
+    if (this.shape === 'rect') {
+      ctx.fillRect(-this.w/2, -this.h/2, this.w, this.h);
+    } else {
+      ctx.beginPath();
+      ctx.ellipse(0, 0, this.w/2, this.h/2, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+let particles = [];
+let animId = null;
+
+function animate() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  particles.forEach(p => { p.update(); p.draw(); });
+  if (particles.length > 0) animId = requestAnimationFrame(animate);
+}
+
+window.launchConfetti = function(count = 100) {
+  if (animId) cancelAnimationFrame(animId);
+  particles = Array.from({ length: count }, () => new Particle());
+  // burst from top
+  particles.forEach(p => { p.y = -20; p.vy = 2 + Math.random() * 6; });
+  animate();
+  // 5초 후 자동 정리
+  setTimeout(() => { particles = []; }, 5000);
+};
+
+// 페이지 로드 시 자동 발사
+setTimeout(() => launchConfetti(120), 400);
+</script>
+</body>
+</html>

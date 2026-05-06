@@ -1088,6 +1088,22 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .wm-tip-txt{font-size:11px;line-height:1.55;color:var(--rk-text-dim);}
 @media(max-width:420px){.wm-mid-row{grid-template-columns:1fr 108px;}.wm-fdot{width:22px;height:22px;font-size:9px;}.wm-form-row{gap:4px;}#wm-form-dots{gap:3px;}.wm-lp-big{font-size:22px;}.wm-pass-n{font-size:18px;}.wm-hero{padding:14px 13px;}.wm-lp-card{padding:10px 11px;}.wm-side-card{padding:9px 10px;}.wm-bottom-card{padding:10px 11px;}}
 @media(max-width:340px){.wm-mid-row{grid-template-columns:1fr;}.wm-right-col{flex-direction:row;}}
+/* ── 티어 방어막 배지 ── */
+.s1-shield-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;color:var(--rk-gold);background:rgba(232,208,128,0.1);border:1px solid rgba(232,208,128,0.28);border-radius:4px;padding:2px 7px;letter-spacing:0.3px;}
+.s1-shield-badge.double{color:#c084fc;background:rgba(192,132,252,0.1);border-color:rgba(192,132,252,0.28);}
+/* ── 마스터 첫 등장 팝업 ── */
+.master-popup-overlay{position:fixed;inset:0;z-index:9998;background:rgba(4,2,14,0.92);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .4s ease;}
+.master-popup-card{background:linear-gradient(160deg,#0d0520 0%,#1a0935 100%);border:2px solid var(--rk-gold);border-radius:20px;padding:32px 24px;max-width:340px;width:100%;text-align:center;position:relative;overflow:hidden;}
+.master-popup-card::before{content:'';position:absolute;inset:0;pointer-events:none;background-image:repeating-linear-gradient(135deg,transparent 0 12px,rgba(255,255,255,.015) 12px 13px);}
+.master-popup-glow{position:absolute;inset:-40px;background:radial-gradient(ellipse at 50% 50%,rgba(232,208,128,0.14),transparent 65%);pointer-events:none;}
+.master-popup-crown{font-size:56px;margin-bottom:8px;display:block;animation:masterCrownBounce 1s ease infinite alternate;}
+.master-popup-title{font-family:'Black Han Sans',sans-serif;font-size:22px;color:var(--rk-gold);letter-spacing:1px;margin-bottom:6px;}
+.master-popup-achiever{font-size:16px;font-weight:700;color:#e2d4ff;margin-bottom:14px;}
+.master-popup-witness{font-size:12px;color:var(--rk-gold);background:rgba(232,208,128,0.12);border:1px solid rgba(232,208,128,0.25);border-radius:8px;padding:7px 14px;margin-bottom:12px;display:inline-block;}
+.master-popup-participants{font-size:11px;color:var(--rk-text-dim);margin-bottom:20px;line-height:1.7;}
+.master-popup-btn{background:linear-gradient(135deg,var(--rk-gold),#c9a42a);color:#0d0a00;font-weight:700;font-size:13px;border:none;border-radius:8px;padding:10px 28px;cursor:pointer;transition:opacity .15s;}
+.master-popup-btn:hover{opacity:.85;}
+@keyframes masterCrownBounce{from{transform:translateY(0) rotate(-6deg);}to{transform:translateY(-8px) rotate(6deg);}}
 .my-info-avatar{width:44px;height:44px;border-radius:50%;position:relative;flex-shrink:0;z-index:1;}
 .my-info-avatar::before{content:'';position:absolute;inset:-3px;border-radius:50%;background:conic-gradient(var(--mib-ring-color,#4fc3f7),rgba(255,255,255,.07),var(--mib-ring-color,#4fc3f7),rgba(255,255,255,.04),var(--mib-ring-color,#4fc3f7));animation:mibSpin 4s linear infinite;}
 .my-info-avatar::after{content:'';position:absolute;inset:3px;border-radius:50%;background:var(--rk-card);z-index:1;}
@@ -2204,6 +2220,19 @@ img.emoji{
   <div class="my-info-gold">🪙 <span id="my-gold-display">0</span></div>
 </div>
 
+<!-- 마스터 첫 등장 팝업 -->
+<div class="master-popup-overlay" id="master-popup" style="display:none;" onclick="if(event.target===this)closeMasterPopup()">
+  <div class="master-popup-card">
+    <div class="master-popup-glow"></div>
+    <span class="master-popup-crown">👑</span>
+    <div class="master-popup-title">마스터를 뵙습니다</div>
+    <div class="master-popup-achiever" id="master-popup-achiever"></div>
+    <div class="master-popup-witness">🏅 역사의 증인 · 참가자 전원 <strong>+50G</strong></div>
+    <div class="master-popup-participants" id="master-popup-participants"></div>
+    <button class="master-popup-btn" onclick="closeMasterPopup()">확인</button>
+  </div>
+</div>
+
 <!-- 탭 -->
 <div class="nav-tabs">
   <button class="nav-tab active" onclick="showTab('tab-team',this)">⚔️<br>팀구성</button>
@@ -2680,7 +2709,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.33';
+const APP_VERSION = 'v2.37.34';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5952,6 +5981,7 @@ window.s1Resimulate = async function(dryRun = false) {
         const newLp = (d.lp||0) - lose;
         if (newLp < 0 && !S1_NO_DEMOTE.has(d.tier)) {
           if (d.lp > 0 || wasNewlyPromoted) { d.lp = 0; }
+          else if (d.masterShield) { d.lp = 0; d.masterShield = false; }
           else { const prev=s1PrevTier(d.tier); if(prev){d.tier=prev;d.lp=S1_PROMO_FAIL_LP;}else d.lp=0; }
         } else { d.lp = Math.max(0,newLp); }
       }
@@ -11462,7 +11492,8 @@ function calcPlayerGoldEarned(name, data) {
   const achieveGold  = calcAchievementGold(data[sField('achievements')]);
   const passGold     = CURRENT_SEASON >= 1 ? calcS1PassGold(data.seasonPassClaimed_s1) : 0;
   const lotteryGold  = CURRENT_SEASON >= 1 ? calcLotteryGold(data) : 0;
-  return calcGoldFromMatches(name) + bonusLegacy + attendGold + achieveGold + passGold + lotteryGold;
+  const witnessGold  = data.witnessGold_s1 || 0;
+  return calcGoldFromMatches(name) + bonusLegacy + attendGold + achieveGold + passGold + lotteryGold + witnessGold;
 }
 function getMyGold() {
   const data = getMyGoldData();
@@ -11782,6 +11813,7 @@ function renderS1WaitingCard(el) {
         <span class="wm-lp-tier" style="color:${meta.color};">${meta.label}</span>
       </div>
       <div class="wm-bar"><div class="wm-bar-fill" id="wm-lp-bar" style="background:linear-gradient(90deg,${meta.color},#7c3aed);box-shadow:0 0 9px ${meta.color}66;"></div></div>
+      ${(d.newlyPromoted||d.masterShield)?`<div style="margin:5px 0 2px;display:flex;gap:5px;flex-wrap:wrap;">${d.masterShield?'<span class="s1-shield-badge double">🛡️ 티어 방어막 ×2</span>':d.newlyPromoted?'<span class="s1-shield-badge">🛡️ 티어 방어막</span>':''}</div>`:''}
       <div class="wm-stat-strip">
         <div class="wm-stat-item"><span class="wm-sv win" id="wm-sv-win">0</span><span class="wm-sk">승</span></div>
         <div class="wm-stat-item"><span class="wm-sv loss" id="wm-sv-loss">0</span><span class="wm-sk">패</span></div>
@@ -13254,7 +13286,7 @@ function s1PrevTier(tier) {
 // ── 플레이어 데이터 헬퍼 ──────────────────────────────────────
 function s1DefaultPlayer() {
   return { tier:'unranked', lp:0, placementWins:0, placementGames:0, placementDone:false,
-           promoActive:false, promoWins:0, promoLosses:0 };
+           promoActive:false, promoWins:0, promoLosses:0, masterShield:false };
 }
 function s1GetPlayer(name) {
   return season1Data[normName(name)] || null;
@@ -13270,11 +13302,13 @@ function s1CalcPlacementResult(wins) {
 }
 
 // ── 승급전 성공/실패 ────────────────────────────────────────────
+const S1_HIGH_TIERS = new Set(['master','grandmaster','challenger']);
 function s1PromoSuccess(d) {
   const next = s1NextTier(d.tier);
   return { ...d, tier: next || d.tier, lp:0,
            promoActive:false, promoWins:0, promoLosses:0,
-           newlyPromoted:true }; // 승급 직후 1판 강등 보호
+           newlyPromoted:true,
+           masterShield: S1_HIGH_TIERS.has(next) }; // 마스터+ 승급 시 추가 방어막
 }
 function s1PromoFail(d) {
   return { ...d, lp: S1_PROMO_FAIL_LP,
@@ -13378,6 +13412,10 @@ async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = f
       if (d.lp > 0 || wasNewlyPromoted) {
         // LP > 0에서 마이너스 → 0LP 보호 / 승급 직후 0LP에서도 1판 보호
         d.lp = 0;
+      } else if (d.masterShield) {
+        // 마스터+ 승급 후 추가 방어막 (2번째 보호)
+        d.lp = 0;
+        d.masterShield = false;
       } else {
         // 0LP에서 재패배 → 강등 (Platinum 이상만)
         const prev = s1PrevTier(d.tier);
@@ -13389,22 +13427,32 @@ async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = f
   }
   if (isMe && !_prePromoActive && d.promoActive) _pendingPromoNotif = { type:'start', tier:d.tier };
   await s1SavePlayer(name, d);
+  return d;
 }
 
 // ── saveMatch 훅: 전체 플레이어 S1 결과 일괄 적용 ────────────────
 // newbiesAtMatch: 경기 당시 뉴비 normName 배열 (재시뮬레이션 시 m.newbies 전달, 현재 경기는 null → 현재 상태 사용)
 async function s1ApplyAllMatchResults(winners, losers, newbiesAtMatch = null) {
   if (CURRENT_SEASON < 1) return;
+  const allPlayers = [...winners, ...losers];
   const itemsKey = sField('items');
-  for (const p of [...winners, ...losers]) {
+  const newbieSet = newbiesAtMatch ? new Set(newbiesAtMatch) : null;
+
+  // 경기 전 티어 스냅샷
+  const preTiers = {};
+  for (const p of allPlayers) preTiers[normName(p)] = season1Data[normName(p)]?.tier || 'unranked';
+  const nonParticipantHadMaster = Object.entries(season1Data)
+    .some(([k,d]) => !allPlayers.map(normName).includes(k) && S1_HIGH_TIERS.has(d.tier));
+  const anyParticipantWasMaster = allPlayers.some(p => S1_HIGH_TIERS.has(preTiers[normName(p)]));
+  const hadMasterBefore = nonParticipantHadMaster || anyParticipantWasMaster;
+
+  const results = [];
+  for (const p of allPlayers) {
     const isWin = winners.some(w => normName(w) === normName(p));
     const myTeam = isWin ? winners : losers;
-    // 뉴비 판정: 저장된 스냅샷 우선, 없으면 현재 상태
-    const newbieSet = newbiesAtMatch ? new Set(newbiesAtMatch) : null;
     const iAmNewbie   = newbieSet ? newbieSet.has(normName(p)) : isNewbie(p);
     const hasNewbieTeammate = myTeam.some(t =>
       normName(t) !== normName(p) && (newbieSet ? newbieSet.has(normName(t)) : isNewbie(t)));
-    // 활성화된 S1 아이템 확인
     const entry = Object.entries(goldData).find(([,g]) => normName(g.name) === normName(p));
     let activeS1Item = null;
     if (entry) {
@@ -13412,9 +13460,61 @@ async function s1ApplyAllMatchResults(winners, losers, newbiesAtMatch = null) {
       const active = items.find(it => it.active && it.id.startsWith('s1_'));
       if (active) activeS1Item = active.id;
     }
-    await s1ApplyMatchResult(p, isWin, activeS1Item, hasNewbieTeammate, iAmNewbie);
+    const newD = await s1ApplyMatchResult(p, isWin, activeS1Item, hasNewbieTeammate, iAmNewbie);
+    results.push({ name: p, preTier: preTiers[normName(p)], newTier: newD?.tier || preTiers[normName(p)] });
+  }
+
+  // 첫 마스터 달성 감지 (라이브 모드만 골드 지급 처리)
+  if (!hadMasterBefore && liveMode) {
+    const newMasters = results.filter(r => !S1_HIGH_TIERS.has(r.preTier) && S1_HIGH_TIERS.has(r.newTier));
+    if (newMasters.length > 0) {
+      await s1TriggerFirstMasterEvent(allPlayers, newMasters[0].name);
+    }
   }
 }
+
+// ── 첫 마스터 달성 이벤트 ─────────────────────────────────────
+async function s1TriggerFirstMasterEvent(participants, achieverName) {
+  // 이미 기록됐는지 확인 후 원자적 저장
+  const snap = await get(ref(db, 'season1/milestones/firstMaster'));
+  if (snap.exists()) return;
+  await set(ref(db, 'season1/milestones/firstMaster'), {
+    achievedBy: achieverName,
+    participants: participants.map(p => p),
+    at: Date.now(),
+  });
+  // 참가자 전원 50G (witnessGold_s1)
+  for (const p of participants) {
+    const entry = Object.entries(goldData).find(([,g]) => normName(g.name) === normName(p));
+    if (entry) await update(ref(db, 'gold/' + entry[0]), { witnessGold_s1: 50 });
+  }
+}
+
+let _firstMasterShownAt = 0;
+onValue(ref(db, 'season1/milestones/firstMaster'), snapshot => {
+  const data = snapshot.val();
+  if (!data) return;
+  if (_firstMasterShownAt === data.at) return;
+  // 10분 이내의 이벤트만 팝업
+  if (Date.now() - (data.at || 0) < 600000) {
+    _firstMasterShownAt = data.at;
+    setTimeout(() => showFirstMasterPopup(data), 900);
+  }
+});
+
+function showFirstMasterPopup(data) {
+  const el = document.getElementById('master-popup');
+  if (!el) return;
+  const achiever = data.achievedBy || '???';
+  const parts = (data.participants || []).join(' · ');
+  document.getElementById('master-popup-achiever').textContent = `${achiever} — 역대 최초 마스터 달성!`;
+  document.getElementById('master-popup-participants').innerHTML = `역사의 증인<br>${parts}`;
+  el.style.display = 'flex';
+}
+window.closeMasterPopup = function() {
+  const el = document.getElementById('master-popup');
+  if (el) el.style.display = 'none';
+};
 
 // ── S1 랭킹 렌더 ─────────────────────────────────────────────
 function s1LpBarHtml(d) {
@@ -13571,12 +13671,18 @@ function renderS1HeroCard(r, place, hasChallenger) {
     const pct = isChallenger ? Math.min(((r.d.lp||0)/200)*100,100) : ((r.d.lp||0)/100)*100;
     const lpNum = r.d.lp || 0;
     const lpCap = isChallenger ? '' : `<span class="rk-hero-s1-lp-sub">/ 100</span>`;
+    const shieldHtml = r.d.masterShield
+      ? '<span class="s1-shield-badge double" style="margin-top:5px;display:inline-flex;">🛡️ 방어막 ×2</span>'
+      : r.d.newlyPromoted
+        ? '<span class="s1-shield-badge" style="margin-top:5px;display:inline-flex;">🛡️ 티어 방어막</span>'
+        : '';
     bottomSection = `<div class="rk-hero-s1-lp">
       <div class="rk-hero-s1-lp-head">
         <span class="rk-hero-s1-lp-tier" style="color:${meta.color};">${meta.label}</span>
         <span class="rk-hero-s1-lp-num" style="color:${meta.color};">${lpNum}${lpCap}<span class="rk-hero-s1-lp-sub"> LP</span></span>
       </div>
       <div class="s1-lp-bar-bg"><div class="s1-lp-bar" style="width:${pct.toFixed(1)}%;background:${meta.color};"></div></div>
+      ${shieldHtml}
     </div>`;
   }
 
@@ -13624,9 +13730,15 @@ function renderS1MiniCard(r, displayRank, hasChallenger) {
     const isChallenger = r.tier === 'challenger';
     const pct = isChallenger ? Math.min(((r.d.lp||0)/200)*100,100) : ((r.d.lp||0)/100)*100;
     const lpNum = r.d.lp || 0;
+    const miniShield = r.d.masterShield
+      ? '<span class="s1-shield-badge double" style="font-size:9px;padding:1px 5px;">🛡️×2</span>'
+      : r.d.newlyPromoted
+        ? '<span class="s1-shield-badge" style="font-size:9px;padding:1px 5px;">🛡️</span>'
+        : '';
     rightInner = `${s1TierBadgeHtml(r.tier,'mid')}
       <span class="rk-s1-lp-big" style="color:${meta.color};">${lpNum} <span style="font-size:10px;opacity:.7;">LP</span></span>
-      <div class="s1-lp-bar-bg rk-mini-lp-bar"><div class="s1-lp-bar" style="width:${pct.toFixed(1)}%;background:${meta.color};"></div></div>`;
+      <div class="s1-lp-bar-bg rk-mini-lp-bar"><div class="s1-lp-bar" style="width:${pct.toFixed(1)}%;background:${meta.color};"></div></div>
+      ${miniShield}`;
   }
 
   return `<div class="rk-mini${meCls}${promoCls}" data-name="${escHtml(r.name)}" style="cursor:pointer;">
