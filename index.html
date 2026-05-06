@@ -2723,7 +2723,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.45';
+const APP_VERSION = 'v2.37.46';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -8284,7 +8284,7 @@ window.saveMatch = async function() {
       _s1LpSnapshot = s1LpBefore; // 글로벌 저장
       _suppressS1SuccessBanners = true; // 정산창이 티어업 카드로 표시하므로 배너 억제
     }
-    await s1ApplyAllMatchResults(winners, losers, matchData.newbies || null);
+    await s1ApplyAllMatchResults(winners, losers, matchData.newbies || null, currentSpectators.map(s => s.name));
     await giveMatchGold(winners, losers, matchTimestamp);
 
     // 관전자 결과, questEvent 보관 (finalizeVotes에서 결과 요약 시 사용)
@@ -13465,7 +13465,7 @@ async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = f
 
 // ── saveMatch 훅: 전체 플레이어 S1 결과 일괄 적용 ────────────────
 // newbiesAtMatch: 경기 당시 뉴비 normName 배열 (재시뮬레이션 시 m.newbies 전달, 현재 경기는 null → 현재 상태 사용)
-async function s1ApplyAllMatchResults(winners, losers, newbiesAtMatch = null) {
+async function s1ApplyAllMatchResults(winners, losers, newbiesAtMatch = null, spectators = []) {
   if (CURRENT_SEASON < 1) return;
   const allPlayers = [...winners, ...losers];
   const itemsKey = sField('items');
@@ -13504,17 +13504,18 @@ async function s1ApplyAllMatchResults(winners, losers, newbiesAtMatch = null) {
 
   // 첫 마스터/그마/챌린저 달성 감지 (라이브 모드만 골드 지급 처리)
   if (liveMode) {
+    const milestoneParticipants = [...allPlayers, ...spectators];
     if (!hadMasterBefore) {
       const r = results.find(r => !S1_HIGH_TIERS.has(r.preTier) && S1_HIGH_TIERS.has(r.newTier));
-      if (r) await s1TriggerMilestone('master', allPlayers, r.name);
+      if (r) await s1TriggerMilestone('master', milestoneParticipants, r.name);
     }
     if (!hadGmBefore) {
       const r = results.find(r => !S1_GM_TIERS.has(r.preTier) && S1_GM_TIERS.has(r.newTier));
-      if (r) await s1TriggerMilestone('grandmaster', allPlayers, r.name);
+      if (r) await s1TriggerMilestone('grandmaster', milestoneParticipants, r.name);
     }
     if (!hadChallengerBefore) {
       const r = results.find(r => r.preTier !== 'challenger' && r.newTier === 'challenger');
-      if (r) await s1TriggerMilestone('challenger', allPlayers, r.name);
+      if (r) await s1TriggerMilestone('challenger', milestoneParticipants, r.name);
     }
   }
 }
