@@ -963,6 +963,9 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .bgm-sw input:checked+.bgm-sw-track::after{transform:translateX(14px);background:#a87fff;}
 .bgm-footer-vol{width:64px;height:2px;accent-color:rgba(168,135,255,.8);cursor:pointer;opacity:.45;transition:opacity .15s;}
 .bgm-footer-vol:hover{opacity:.85;}
+.bgm-preview-btn{background:none;border:1px solid rgba(168,135,255,.25);color:rgba(168,135,255,.6);font-size:10px;cursor:pointer;padding:1px 7px;border-radius:4px;line-height:1.6;transition:all .15s;flex-shrink:0;}
+.bgm-preview-btn:hover{border-color:rgba(168,135,255,.55);color:rgba(168,135,255,.9);}
+.bgm-preview-btn.playing{border-color:rgba(168,135,255,.5);color:#a87fff;}
 body.live-mode .nav-tab-shop{display:none!important;}
 body.live-mode #tab-shop{display:none!important;}
 body.live-mode .nav-tab-achievement{display:none!important;}
@@ -2672,6 +2675,7 @@ img.emoji{
       <input type="checkbox" id="bgm-toggle" checked onchange="setBgmEnabled(this.checked)">
       <span class="bgm-sw-track"></span>
     </label>
+    <button class="bgm-preview-btn" id="bgm-preview-btn" onclick="togglePreviewBgm()" title="미리듣기">▶</button>
     <input type="range" id="bgm-vol" class="bgm-footer-vol" min="0" max="100" step="5" value="40" oninput="setBgmVol(this.value)">
   </div>
 </footer>
@@ -2770,7 +2774,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.81';
+const APP_VERSION = 'v2.37.82';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -12552,7 +12556,12 @@ function playChampBgm() {
 function stopChampBgm(ms = 3000) {
   const audio = getChampBgm();
   if (!audio || audio.paused) return;
-  _fadeAudio(audio, 0, ms, () => { audio.pause(); audio.currentTime = 0; });
+  _fadeAudio(audio, 0, ms, () => {
+    audio.pause();
+    audio.currentTime = 0;
+    const btn = document.getElementById('bgm-preview-btn');
+    if (btn) { btn.textContent = '▶'; btn.classList.remove('playing'); }
+  });
 }
 window.setBgmEnabled = function(on) {
   _bgmEnabled = on;
@@ -14468,17 +14477,20 @@ window.previewMatch = function(opts = {}) {
 };
 
 // ── BGM 미리듣기 헬퍼 ──────────────────────────────────────────
-window.previewChampBgm = function() {
-  if (!_bgmEnabled) {
-    console.warn('BGM 토글이 OFF 상태입니다. 푸터에서 켜주세요.');
-    return;
+window.togglePreviewBgm = function() {
+  const btn = document.getElementById('bgm-preview-btn');
+  const audio = getChampBgm();
+  if (audio && !audio.paused) {
+    stopChampBgm(1500);
+    if (btn) { btn.textContent = '▶'; btn.classList.remove('playing'); }
+  } else {
+    playChampBgm();
+    if (btn) { btn.textContent = '■'; btn.classList.add('playing'); }
+    // 재생 종료 시 버튼 복원
+    if (audio) audio.onended = () => {
+      if (btn) { btn.textContent = '▶'; btn.classList.remove('playing'); }
+    };
   }
-  playChampBgm();
-  console.log('🎵 챔피언 선택 BGM 페이드인 시작 (2초)');
-};
-window.stopPreviewBgm = function(ms = 3000) {
-  stopChampBgm(ms);
-  console.log(`🔇 BGM 페이드아웃 시작 (${ms/1000}초)`);
 };
 
 </script>
