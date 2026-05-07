@@ -1555,21 +1555,18 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .pm-s1-sim{margin-bottom:10px;padding:9px 12px;background:rgba(255,255,255,0.025);border:1px solid var(--rk-border);border-radius:10px;}
 .pm-s1-sim-hd{font-size:9px;font-weight:700;letter-spacing:0.8px;color:var(--rk-text-muted);font-family:'JetBrains Mono',monospace;margin-bottom:6px;}
 .pm-sim-sub{font-weight:400;letter-spacing:0;color:var(--rk-gold);}
-.pm-s1-sim-grid{display:flex;flex-direction:column;}
-.pm-s1-sim-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
-.pm-s1-sim-row:last-child{border-bottom:none;}
-.pm-s1-sim-div{height:1px;background:var(--rk-border);margin:2px 0;}
+.pm-sim-2col{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+.pm-sim-half{display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:4px 0;}
 .pm-sim-tag{font-size:9px;font-weight:700;font-family:'JetBrains Mono',monospace;padding:2px 6px;border-radius:3px;white-space:nowrap;flex-shrink:0;letter-spacing:0.3px;}
 .pm-sim-tag.w{color:var(--green);background:rgba(0,199,122,0.1);border:1px solid rgba(0,199,122,0.25);}
 .pm-sim-tag.l{color:var(--red);background:rgba(232,64,87,0.08);border:1px solid rgba(232,64,87,0.25);}
-.pm-sim-tag.gw{color:var(--rk-gold);background:rgba(200,168,75,0.1);border:1px solid rgba(200,168,75,0.25);}
-.pm-sim-tag.gl{color:#f87171;background:rgba(248,113,113,0.07);border:1px solid rgba(248,113,113,0.2);}
 .pm-sim-tag.sh{color:#94a3b8;background:rgba(148,163,184,0.07);border:1px solid rgba(148,163,184,0.2);}
-.pm-sim-val{font-size:11px;color:var(--rk-text);display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end;}
+.pm-sim-val{font-size:11px;color:var(--rk-text);display:flex;align-items:center;gap:3px;flex-wrap:wrap;}
 .pm-sim-val strong{font-family:'JetBrains Mono',monospace;}
 .pm-sim-ev{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;white-space:nowrap;}
 .pm-sim-ev.up,.pm-sim-ev.promo{background:rgba(196,181,253,0.12);}
 .pm-sim-ev.down{color:#fca5a5;background:rgba(252,165,165,0.1);}
+.pm-sim-tip{font-size:10px;color:var(--rk-text-dim);line-height:1.4;padding-top:6px;margin-top:2px;border-top:1px solid rgba(255,255,255,0.05);}
 .pm-s1-pass-badge{display:inline-flex;align-items:center;gap:5px;background:var(--rk-sub);border:1px solid var(--rk-border);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--rk-text-dim);}
 .pm-s1-pass-badge .lv{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--rk-gold);}
 .pm-s1-streak{font-size:11px;font-weight:700;font-family:'JetBrains Mono',monospace;padding:4px 8px;border-radius:6px;}
@@ -2744,7 +2741,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.59';
+const APP_VERSION = 'v2.37.60';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -9150,32 +9147,58 @@ function buildS1SimSection(s1d) {
   const lp   = s1d.lp || 0;
   const tier = s1d.tier;
 
+  const evBadge = (res) => {
+    if (res.ev === 'tier_up') {
+      const nm = res.evTier ? S1_TIER_META[res.evTier] : null;
+      return `<span class="pm-sim-ev up" style="color:${nm?.color||'#c4b5fd'};">▲ ${nm?.label||''} 승급!</span>`;
+    }
+    if (res.ev === 'promo')  return `<span class="pm-sim-ev promo">▲ 승급전 진입!</span>`;
+    if (res.ev === 'demote') {
+      const pm = res.evTier ? S1_TIER_META[res.evTier] : null;
+      return `<span class="pm-sim-ev down">▼ ${pm?.label||''} 강등</span>`;
+    }
+    return '';
+  };
+
+  const half = (tagCls, sign, sc, res) =>
+    `<div class="pm-sim-half">
+      <span class="pm-sim-tag ${tagCls}">${tagCls === 'w' ? 'WIN' : 'LOSS'}</span>
+      <span class="pm-sim-val"><span style="color:${sc};font-weight:700;font-family:'JetBrains Mono',monospace;">${sign}</span> → <strong>${res.newLp}LP</strong> ${evBadge(res)}</span>
+    </div>`;
+
   // ── 승급전 진행 중 ────────────────────────────────────────────
   if (s1d.promoActive) {
     const w = s1d.promoWins || 0, l = s1d.promoLosses || 0;
     const nextTier = s1NextTier(tier);
     const nm = nextTier ? S1_TIER_META[nextTier] : null;
     const nc = nm?.color || '#c4b5fd';
+    const nl = nm?.label || '';
 
-    const winResult  = (w + 1) >= 2
-      ? `<span class="pm-sim-ev up" style="color:${nc};">▲ ${nm?.label || ''} 승급!</span>`
-      : `${w + 1}승 ${l}패 진행`;
-    const lossResult = (l + 1) >= 2
+    const winRes  = (w + 1) >= 2 ? { ev: 'promo_win', nc, nl } : null;
+    const lossRes = (l + 1) >= 2 ? { ev: 'promo_fail' } : null;
+
+    const winVal  = winRes
+      ? `<span class="pm-sim-ev up" style="color:${nc};">▲ ${nl} 승급!</span>`
+      : `<span style="color:var(--rk-text-dim);">${w+1}승 ${l}패 진행</span>`;
+    const lossVal = lossRes
       ? `<span class="pm-sim-ev down">▼ 실패 · 75LP 복귀</span>`
-      : `${w}승 ${l + 1}패 진행`;
-    const promoWinResult = w >= 1
-      ? `<span class="pm-sim-ev up" style="color:${nc};">▲ ${nm?.label || ''} 즉시 승급!</span>`
-      : `2승 처리 진행`;
+      : `<span style="color:var(--rk-text-dim);">${w}승 ${l+1}패 진행</span>`;
+
+    const tips = {
+      '0-0': `2승하면 ${nl} 승급 · 여유 있게 시작하세요`,
+      '1-0': `1승만 더하면 ${nl} 승급!`,
+      '0-1': `1패 중 — 방어권 보유 시 지금 사용을 고려하세요`,
+      '1-1': `결정전! 방어권 보유 시 반드시 지금 사용하세요`,
+    };
+    const tip = tips[`${w}-${l}`] || '';
 
     return `<div class="pm-s1-sim">
       <div class="pm-s1-sim-hd">NEXT GAME <span class="pm-sim-sub">· 승급전 ${w}승 ${l}패</span></div>
-      <div class="pm-s1-sim-grid">
-        <div class="pm-s1-sim-row"><span class="pm-sim-tag w">WIN</span><span class="pm-sim-val">${winResult}</span></div>
-        <div class="pm-s1-sim-row"><span class="pm-sim-tag l">LOSS</span><span class="pm-sim-val">${lossResult}</span></div>
-        <div class="pm-s1-sim-div"></div>
-        <div class="pm-s1-sim-row"><span class="pm-sim-tag sh">방어권</span><span class="pm-sim-val" style="color:var(--rk-text-dim);">패배 무효 · 현재 유지</span></div>
-        <div class="pm-s1-sim-row"><span class="pm-sim-tag gw">승리권</span><span class="pm-sim-val">${promoWinResult}</span></div>
+      <div class="pm-sim-2col">
+        <div class="pm-sim-half"><span class="pm-sim-tag w">WIN</span><span class="pm-sim-val">${winVal}</span></div>
+        <div class="pm-sim-half"><span class="pm-sim-tag l">LOSS</span><span class="pm-sim-val">${lossVal}</span></div>
       </div>
+      ${tip ? `<div class="pm-sim-tip">💡 ${tip}</div>` : ''}
     </div>`;
   }
 
@@ -9187,48 +9210,54 @@ function buildS1SimSection(s1d) {
       if (isChallenger) return { newLp: lp + delta, ev: null };
       const n = Math.min(lp + delta, S1_LP_CAP);
       if (n >= S1_LP_CAP) {
-        if (S1_AUTO_TIERS.has(tier))  return { newLp: 0, ev: 'tier_up', evTier: s1NextTier(tier) };
+        if (S1_AUTO_TIERS.has(tier))  return { newLp: 0,   ev: 'tier_up', evTier: s1NextTier(tier) };
         if (S1_PROMO_TIERS.has(tier)) return { newLp: S1_LP_CAP, ev: 'promo' };
       }
       return { newLp: n, ev: null };
     } else {
       const n = lp - delta;
-      if (n < 0 && !S1_NO_DEMOTE.has(tier)) {
+      if (n < 0 && !S1_NO_DEMOTE.has(tier))
         return { newLp: S1_PROMO_FAIL_LP, ev: 'demote', evTier: s1PrevTier(tier) };
-      }
       return { newLp: Math.max(0, n), ev: null };
     }
   };
 
-  const row = (tagCls, lbl, won, delta) => {
-    const res = calc(won, delta);
-    const sign = won ? `+${delta}` : `−${delta}`;
-    const sc   = won ? 'var(--green)' : 'var(--red)';
-    let ev = '';
-    if (res.ev === 'tier_up') {
-      const nm = res.evTier ? S1_TIER_META[res.evTier] : null;
-      ev = ` <span class="pm-sim-ev up" style="color:${nm?.color || '#c4b5fd'};">▲ ${nm?.label || ''} 승급!</span>`;
-    } else if (res.ev === 'promo') {
-      ev = ` <span class="pm-sim-ev promo">▲ 승급전 진입!</span>`;
-    } else if (res.ev === 'demote') {
-      const pm = res.evTier ? S1_TIER_META[res.evTier] : null;
-      ev = ` <span class="pm-sim-ev down">▼ ${pm?.label || ''} 강등</span>`;
+  const winRes  = calc(true,  S1_LP_WIN);
+  const lossRes = calc(false, S1_LP_LOSS);
+  const gambWin = calc(true,  S1_GAMBLE_WIN);
+
+  // ── 팁 산출 ──────────────────────────────────────────────────
+  let tip = '';
+  if (isChallenger) {
+    tip = '챌린저는 LP 상한이 없습니다 · 계속 쌓아가세요';
+  } else if (lossRes.ev === 'demote') {
+    const pm = lossRes.evTier ? S1_TIER_META[lossRes.evTier] : null;
+    tip = `패배하면 ${pm?.label||'이전 티어'} 강등 위험 — 조심하세요`;
+  } else if (winRes.ev === 'promo' || winRes.ev === 'tier_up') {
+    const nm = winRes.evTier ? S1_TIER_META[winRes.evTier] : null;
+    // 도박권도 동일한 결과면 이득 없음
+    const gambSame = gambWin.ev === winRes.ev;
+    if (gambSame) {
+      tip = '도박권은 현재 LP에서 이득 없어요 — 패배 페널티만 커집니다';
+    } else {
+      tip = winRes.ev === 'promo'
+        ? `승리하면 ${nm?.label||'다음 티어'} 승급전에 진입합니다`
+        : `승리하면 ${nm?.label||'다음 티어'}로 바로 승급합니다`;
     }
-    return `<div class="pm-s1-sim-row">
-      <span class="pm-sim-tag ${tagCls}">${lbl}</span>
-      <span class="pm-sim-val"><span style="color:${sc};font-weight:700;font-family:'JetBrains Mono',monospace;">${sign}</span> → <strong>${res.newLp}LP</strong>${ev}</span>
-    </div>`;
-  };
+  } else if (gambWin.ev === 'promo' || gambWin.ev === 'tier_up') {
+    const nm = gambWin.evTier ? S1_TIER_META[gambWin.evTier] : null;
+    tip = gambWin.ev === 'promo'
+      ? `도박권 사용 시 ${nm?.label||'다음 티어'} 승급전 바로 진입 가능`
+      : `도박권 사용 시 ${nm?.label||'다음 티어'}로 즉시 승급 가능`;
+  }
 
   return `<div class="pm-s1-sim">
     <div class="pm-s1-sim-hd">NEXT GAME</div>
-    <div class="pm-s1-sim-grid">
-      ${row('w', 'WIN', true, S1_LP_WIN)}
-      ${row('l', 'LOSS', false, S1_LP_LOSS)}
-      <div class="pm-s1-sim-div"></div>
-      ${row('gw', '도박 WIN', true, S1_GAMBLE_WIN)}
-      ${row('gl', '도박 LOSS', false, S1_GAMBLE_LOSS)}
+    <div class="pm-sim-2col">
+      ${half('w', `+${S1_LP_WIN}`,  'var(--green)', winRes)}
+      ${half('l', `−${S1_LP_LOSS}`, 'var(--red)',   lossRes)}
     </div>
+    ${tip ? `<div class="pm-sim-tip">💡 ${tip}</div>` : ''}
   </div>`;
 }
 
