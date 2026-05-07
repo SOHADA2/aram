@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.37.39
+- 현재 버전: v2.37.69
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -517,7 +517,7 @@
 
 ## LCU 브릿지 (aram-bridge)
 - 리포: https://github.com/SOHADA2/aram-bridge (로컬: `C:\Users\so\aram-bridge`)
-- 현재 버전: v1.1.25
+- 현재 버전: v1.1.27
 - 배포 형태: GitHub Releases에 ZIP (exe + `이 파일을 실행해 주세요.vbs`) 업로드
 - 웹사이트 다운로드 링크: GitHub API로 최신 릴리즈 .zip 에셋 자동 감지 (`index.html` line ~3510)
 

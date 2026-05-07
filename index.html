@@ -2747,7 +2747,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.68';
+const APP_VERSION = 'v2.37.69';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -9327,14 +9327,14 @@ function _openS1ProfileModal(fbKey, player) {
     const isChallenger = s1d.tier === 'challenger';
     const lp  = s1d.lp || 0;
     const pct = isChallenger ? Math.min((lp / 200) * 100, 100) : (lp / 100) * 100;
-    const lpText = isChallenger ? `${lp} LP` : `${lp} / 100`;
+    const lpSuffix = isChallenger ? ' LP' : ' / 100';
     lpCardHtml = `<div class="pm-s1-lp-card">
       <div class="pm-s1-lp-top">
         <span class="pm-s1-lp-tier" style="color:${tc};">${meta.label}</span>
-        <span class="pm-s1-lp-val">${lpText}</span>
+        <span class="pm-s1-lp-val" data-lp="${lp}" data-pct="${pct.toFixed(1)}" data-ch="${isChallenger?1:0}">0${lpSuffix}</span>
       </div>
       <div class="pm-s1-lp-bar-bg">
-        <div class="pm-s1-lp-bar" style="width:${pct.toFixed(1)}%;background:${tc};box-shadow:0 0 8px ${tc}60;"></div>
+        <div class="pm-s1-lp-bar" style="width:0%;background:${tc};box-shadow:0 0 8px ${tc}60;"></div>
       </div>
     </div>`;
   }
@@ -9369,8 +9369,11 @@ function _openS1ProfileModal(fbKey, player) {
   </div>` : '';
 
   // 통합 스탯+어워드 스트립
-  const ibox = (val, lbl, color) =>
-    `<div class="pm-s1-ibox"><span class="iv" style="color:${color};">${val}</span><span class="il">${lbl}</span></div>`;
+  const ibox = (val, lbl, color) => {
+    const vStr = String(val);
+    const initVal = (vStr === '—') ? '—' : (vStr.endsWith('%') ? '0%' : '0');
+    return `<div class="pm-s1-ibox"><span class="iv" data-v="${vStr}" style="color:${color};">${initVal}</span><span class="il">${lbl}</span></div>`;
+  };
   const infoStrip = `<div class="pm-s1-info-strip">
     ${ibox(s.total, '경기', 'var(--rk-text)')}
     ${ibox(s.wins, '승', 'var(--green)')}
@@ -9418,6 +9421,40 @@ function _openS1ProfileModal(fbKey, player) {
   overlay.addEventListener('click', closeProfileModal);
   document.body.appendChild(overlay);
   document.body.style.overflow = 'hidden';
+  // LP 카운트업 + 바
+  const _pmLpVal = overlay.querySelector('.pm-s1-lp-val[data-lp]');
+  const _pmLpBar = overlay.querySelector('.pm-s1-lp-bar');
+  if (_pmLpVal && _pmLpBar) {
+    const _tgt = parseFloat(_pmLpVal.dataset.lp);
+    const _sfx = _pmLpVal.dataset.ch === '1' ? ' LP' : ' / 100';
+    const _pct = parseFloat(_pmLpVal.dataset.pct);
+    setTimeout(() => {
+      _pmLpBar.style.width = _pct + '%';
+      const t0 = performance.now();
+      (function tick(now) {
+        const p = Math.min((now - t0) / 900, 1), e = 1 - Math.pow(1 - p, 3);
+        _pmLpVal.textContent = Math.round(e * _tgt) + _sfx;
+        if (p < 1) requestAnimationFrame(tick); else _pmLpVal.textContent = _tgt + _sfx;
+      })(performance.now());
+    }, 300);
+  }
+  // 스탯 카운트업
+  overlay.querySelectorAll('.pm-s1-ibox .iv[data-v]').forEach((el, i) => {
+    const raw = el.dataset.v;
+    if (raw === '—') return;
+    const isWr = raw.endsWith('%');
+    const tgt = parseFloat(raw);
+    if (isNaN(tgt)) return;
+    const sfx = isWr ? '%' : '';
+    setTimeout(() => {
+      const t0 = performance.now();
+      (function tick(now) {
+        const p = Math.min((now - t0) / 850, 1), e = 1 - Math.pow(1 - p, 2.5);
+        el.textContent = Math.round(e * tgt) + sfx;
+        if (p < 1) requestAnimationFrame(tick); else el.textContent = raw;
+      })(performance.now());
+    }, 380 + i * 55);
+  });
 }
 
 window.closeProfileModal = function() {
