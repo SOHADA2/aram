@@ -2774,7 +2774,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.84';
+const APP_VERSION = 'v2.37.85';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6459,47 +6459,41 @@ function _getAudioCtx() {
 
 function playTickSound(secs) {
   try {
-    const ctx = _getAudioCtx();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
+    const ctx = _tcCtx(), dst = _tcDest(), now = ctx.currentTime;
 
     if (secs <= 3) {
-      // 마지막 3초: 긴장감 — 높은 피치 + 더블탭
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880 + (3 - secs) * 120, ctx.currentTime); // 880→1120Hz
-      gain.gain.setValueAtTime(0.18, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.12);
-      // 더블탭 (짧은 간격으로 2번째 톤)
-      const osc2 = ctx.createOscillator();
-      const gain2 = ctx.createGain();
-      osc2.connect(gain2);
-      gain2.connect(ctx.destination);
-      osc2.type = 'sine';
-      osc2.frequency.setValueAtTime(880 + (3 - secs) * 120, ctx.currentTime + 0.08);
-      gain2.gain.setValueAtTime(0.12, ctx.currentTime + 0.08);
-      gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
-      osc2.start(ctx.currentTime + 0.08);
-      osc2.stop(ctx.currentTime + 0.18);
+      // 마지막 3초: 서브킥 스타일 — 피치 드롭 + 서브 레이어
+      const pitch = 62 + (3 - secs) * 7;
+      const o1 = ctx.createOscillator(), g1 = ctx.createGain();
+      o1.connect(g1); g1.connect(dst); o1.type = 'sine';
+      o1.frequency.setValueAtTime(pitch * 2.6, now);
+      o1.frequency.exponentialRampToValueAtTime(pitch * 0.52, now + 0.14);
+      g1.gain.setValueAtTime(0.58, now);
+      g1.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+      o1.start(now); o1.stop(now + 0.32);
+      const o2 = ctx.createOscillator(), g2 = ctx.createGain();
+      o2.connect(g2); g2.connect(dst); o2.type = 'sine'; o2.frequency.value = pitch * 0.46;
+      g2.gain.setValueAtTime(0.38, now);
+      g2.gain.exponentialRampToValueAtTime(0.001, now + 0.44);
+      o2.start(now); o2.stop(now + 0.48);
     } else if (secs <= 5) {
-      // 5~4초: 약간 긴장 — 중간 피치
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(660, ctx.currentTime);
-      gain.gain.setValueAtTime(0.13, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.1);
+      // 4~5초: 미드 서브 — 중간 강도 피치 드롭
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(dst); o.type = 'sine';
+      o.frequency.setValueAtTime(150, now);
+      o.frequency.exponentialRampToValueAtTime(50, now + 0.12);
+      g.gain.setValueAtTime(0.30, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+      o.start(now); o.stop(now + 0.26);
     } else {
-      // 일반 구간: 부드러운 틱
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(520, ctx.currentTime);
-      gain.gain.setValueAtTime(0.08, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.07);
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.07);
+      // 일반 구간: 낮고 짧은 딥 클릭
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(dst); o.type = 'sine';
+      o.frequency.setValueAtTime(115, now);
+      o.frequency.exponentialRampToValueAtTime(46, now + 0.09);
+      g.gain.setValueAtTime(0.18, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      o.start(now); o.stop(now + 0.18);
     }
   } catch(e) {}
 }
