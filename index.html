@@ -1084,12 +1084,13 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .wm-quest-desc{font-size:11px;color:var(--rk-text-dim);font-family:'JetBrains Mono',monospace;}
 .wm-quest-reward{flex-shrink:0;display:flex;align-items:center;gap:3px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--rk-gold);}
 .wm-divider{height:1px;background:var(--rk-border);margin:10px 0;}
-.wm-tip-row{display:flex;align-items:center;min-height:20px;overflow:hidden;}
+.wm-tip-row{display:flex;align-items:flex-start;gap:7px;}
 .wm-tip-ico{font-size:13px;flex-shrink:0;margin-top:1px;}
 .wm-tip-txt{font-size:11px;line-height:1.55;color:var(--rk-text-dim);}
-.wm-flip-text{display:inline-block;font-size:11px;line-height:1.55;color:var(--rk-text-dim);transform-origin:top center;}
-.wm-flip-text.wm-fout{animation:wmFOut 0.18s ease forwards;}
-.wm-flip-text.wm-fin{animation:wmFIn 0.22s ease forwards;}
+/* 상황별 LP 팁 (LP 바 아래 sim-tip 스타일) */
+.wm-ctx-tip{font-size:10px;color:var(--rk-text-dim);line-height:1.4;padding-top:5px;margin-top:5px;border-top:1px solid rgba(255,255,255,0.06);overflow:hidden;}
+.wm-ctx-tip.wm-fout{animation:wmFOut 0.18s ease forwards;}
+.wm-ctx-tip.wm-fin{animation:wmFIn 0.22s ease forwards;}
 @keyframes wmFOut{to{transform:perspective(250px) rotateX(70deg);opacity:0;}}
 @keyframes wmFIn{from{transform:perspective(250px) rotateX(-60deg);opacity:0;}to{transform:perspective(250px) rotateX(0deg);opacity:1;}}
 @media(max-width:420px){.wm-mid-row{grid-template-columns:1fr 108px;}.wm-fdot{width:22px;height:22px;font-size:9px;}.wm-form-row{gap:4px;}#wm-form-dots{gap:3px;}.wm-lp-big{font-size:22px;}.wm-pass-n{font-size:18px;}.wm-hero{padding:14px 13px;}.wm-lp-card{padding:10px 11px;}.wm-side-card{padding:9px 10px;}.wm-bottom-card{padding:10px 11px;}}
@@ -2746,7 +2747,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.63';
+const APP_VERSION = 'v2.37.64';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -11955,8 +11956,6 @@ function renderS1WaitingCard(el) {
     const pt = promoTips[`${w}-${l}`];
     if (pt) ctxTips.push(pt);
   }
-  const allTips = [...ctxTips, ...WAITING_TIPS];
-
   // 챔피언 (현재 시즌 경기만 집계)
   const cd = calcChampDetail(myName, CURRENT_SEASON);
   const cUrl = slug => `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(slug)}.png`;
@@ -12002,6 +12001,7 @@ function renderS1WaitingCard(el) {
         <span class="wm-lp-tier" style="color:${meta.color};">${meta.label}</span>
       </div>
       <div class="wm-bar"><div class="wm-bar-fill" id="wm-lp-bar" style="background:linear-gradient(90deg,${meta.color},#7c3aed);box-shadow:0 0 9px ${meta.color}66;"></div></div>
+      ${ctxTips.length > 0 ? `<div class="wm-ctx-tip" id="wm-ctx-tip">${escHtml(ctxTips[0])}</div>` : ''}
       ${(d.newlyPromoted||d.masterShield)?`<div style="margin:5px 0 2px;display:flex;gap:5px;flex-wrap:wrap;">${(d.newlyPromoted&&d.masterShield)?'<span class="s1-shield-badge first-chance">⏳ 첫판 보호</span>':''}<span class="s1-shield-badge zero-lp">🛡️ 0LP 방어막</span></div>`:''}
       <div class="wm-stat-strip">
         <div class="wm-stat-item"><span class="wm-sv win" id="wm-sv-win">0</span><span class="wm-sk">승</span></div>
@@ -12035,7 +12035,7 @@ function renderS1WaitingCard(el) {
   <div class="wm-card wm-bottom-card">
     ${questBodyHtml}
     <div class="wm-divider"></div>
-    <div class="wm-tip-row"><span id="wm-flip-txt" class="wm-flip-text">${escHtml(allTips[0])}</span></div>
+    <div class="wm-tip-row"><span class="wm-tip-ico">💡</span><span class="wm-tip-txt">${escHtml(WAITING_TIPS[Math.floor(Date.now()/60000) % WAITING_TIPS.length])}</span></div>
   </div>
 </div>`;
 
@@ -12043,22 +12043,22 @@ function renderS1WaitingCard(el) {
   const ringEl = el.querySelector('#wm-ring-el');
   if (ringEl) ringEl.style.setProperty('--wm-ring-color', meta.color);
 
-  // 팁 flip 순환 타이머 (1분마다 찰칵)
-  if (allTips.length > 1) {
-    let _tipIdx = 0;
+  // 상황별 팁 cycling (여러 개일 때만 1분마다 찰칵)
+  if (ctxTips.length > 1) {
+    let _ctxIdx = 0;
     window._wmTipTimer = setInterval(() => {
-      const ft = document.getElementById('wm-flip-txt');
-      if (!ft) { clearInterval(window._wmTipTimer); window._wmTipTimer = null; return; }
-      ft.classList.add('wm-fout');
+      const ct = document.getElementById('wm-ctx-tip');
+      if (!ct) { clearInterval(window._wmTipTimer); window._wmTipTimer = null; return; }
+      ct.classList.add('wm-fout');
       setTimeout(() => {
-        const ft2 = document.getElementById('wm-flip-txt');
-        if (!ft2) return;
-        _tipIdx = (_tipIdx + 1) % allTips.length;
-        ft2.textContent = allTips[_tipIdx];
-        ft2.classList.remove('wm-fout');
-        void ft2.offsetHeight;
-        ft2.classList.add('wm-fin');
-        ft2.addEventListener('animationend', () => ft2.classList.remove('wm-fin'), { once: true });
+        const ct2 = document.getElementById('wm-ctx-tip');
+        if (!ct2) return;
+        _ctxIdx = (_ctxIdx + 1) % ctxTips.length;
+        ct2.textContent = ctxTips[_ctxIdx];
+        ct2.classList.remove('wm-fout');
+        void ct2.offsetHeight;
+        ct2.classList.add('wm-fin');
+        ct2.addEventListener('animationend', () => ct2.classList.remove('wm-fin'), { once: true });
       }, 190);
     }, 60000);
   }
