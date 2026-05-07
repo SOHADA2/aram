@@ -1072,6 +1072,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .wm-champ-tag{font-size:8px;font-weight:700;letter-spacing:0.5px;font-family:'JetBrains Mono',monospace;line-height:1;}
 .wm-champ-tag.most{color:#ff9b6b;}
 .wm-champ-tag.best{color:var(--gold);}
+.wm-champ-tag.onepick{color:#60a5fa;}
 .wm-champ-name{font-family:'Black Han Sans',sans-serif;font-size:12px;letter-spacing:0.3px;color:var(--rk-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;}
 .wm-champ-st{font-size:8px;color:var(--rk-text-dim);font-family:'JetBrains Mono',monospace;}
 .wm-bottom-card{background:var(--rk-card);border-color:var(--rk-border);padding:12px 13px;}
@@ -9800,7 +9801,7 @@ window.claimAchievement = async function(id) {
 function calcChampStats(name, seasonFilter) {
   const d = calcChampDetail(name, seasonFilter);
   if (!d) return null;
-  return { most: d.most.slug, best: d.best ? d.best.slug : null };
+  return { most: d.most.slug, best: d.best ? d.best.slug : null, onePick: d.most.onePick };
 }
 
 // 프로필 모달용 — 챔프별 판수/승/패/승률까지 포함
@@ -9833,8 +9834,9 @@ function calcChampDetail(name, seasonFilter) {
     losses: st.g - st.w,
     winrate: Math.round((st.w / st.g) * 100),
   });
-  const most = pack(mostSlug, mostStats);
-  const best = (bestEntry && bestEntry[0] !== mostSlug) ? pack(bestEntry[0], bestEntry[1]) : null;
+  const isOnePick = !!(bestEntry && bestEntry[0] === mostSlug);
+  const most = { ...pack(mostSlug, mostStats), onePick: isOnePick };
+  const best = (!isOnePick && bestEntry) ? pack(bestEntry[0], bestEntry[1]) : null;
   return { most, best };
 }
 
@@ -9843,7 +9845,7 @@ function champIconsHtml(name, sz, seasonFilter) {
   if (!st) return '';
   const url = s => `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(s)}.png`;
   const item = (slug, lbl) => `<div class="champ-stat-item"><span class="champ-stat-lbl">${lbl}</span><img class="champ-stat-ico" style="width:${sz}px;height:${sz}px" src="${url(slug)}" onerror="this.style.display='none'" title="${slug}"></div>`;
-  return `<div class="champ-stats-row">${item(st.most, 'MOST')}${st.best ? item(st.best, 'BEST') : ''}</div>`;
+  return `<div class="champ-stats-row">${item(st.most, st.onePick ? 'ONE PICK' : 'MOST')}${st.best ? item(st.best, 'BEST') : ''}</div>`;
 }
 
 // 프로필 모달용 상세 카드 (MOST/BEST 한 쌍)
@@ -11806,7 +11808,7 @@ function renderS1WaitingCard(el) {
   let champHtml = '';
   if (cd) {
     const { most, best } = cd;
-    champHtml = `<div class="wm-champ-item"><img class="wm-champ-img" src="${cUrl(most.slug)}" onerror="this.style.display='none'" alt=""><div class="wm-champ-body"><div class="wm-champ-tag most">🔥 MOST</div><div class="wm-champ-name">${escHtml(cKR(most.slug))}</div><div class="wm-champ-st">${most.games}판 · ${most.wins}승 ${most.losses}패</div></div></div>`;
+    champHtml = `<div class="wm-champ-item"><img class="wm-champ-img" src="${cUrl(most.slug)}" onerror="this.style.display='none'" alt=""><div class="wm-champ-body"><div class="wm-champ-tag ${most.onePick?'onepick':'most'}">${most.onePick?'⚡ ONE PICK':'🔥 MOST'}</div><div class="wm-champ-name">${escHtml(cKR(most.slug))}</div><div class="wm-champ-st">${most.games}판 · ${most.wins}승 ${most.losses}패</div></div></div>`;
     if (best) champHtml += `<div class="wm-champ-item"><img class="wm-champ-img" src="${cUrl(best.slug)}" onerror="this.style.display='none'" alt=""><div class="wm-champ-body"><div class="wm-champ-tag best">⭐ BEST</div><div class="wm-champ-name">${escHtml(cKR(best.slug))}</div><div class="wm-champ-st">${best.games}판 · ${best.winrate}%</div></div></div>`;
   } else {
     champHtml = `<div style="font-size:11px;color:var(--text-dim);">데이터 없음</div>`;
