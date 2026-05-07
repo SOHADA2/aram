@@ -2726,7 +2726,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.47';
+const APP_VERSION = 'v2.37.56';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -9279,7 +9279,7 @@ function _openS1ProfileModal(fbKey, player) {
         ${formHtml}
         <div class="profile-stat-row">${statBoxes}</div>
         ${awardRow}
-        ${profileChampSectionHtml(name)}
+        ${profileChampSectionHtml(name, CURRENT_SEASON)}
         <div class="pm-s1-bottom-row">
           <div class="pm-s1-pass-badge">🎫 패스 <span class="lv">LV ${passLv}</span><span style="color:var(--rk-text-muted);"> / ${S1_PASS_MAX_LEVEL}</span></div>
           <div class="pm-s1-bottom-right">
@@ -9851,26 +9851,25 @@ function champIconsHtml(name, sz, seasonFilter) {
   return `<div class="champ-stats-row">${item(st.most, st.onePick ? 'ONE<br>PICK' : 'MOST')}${st.best ? item(st.best, 'BEST') : ''}</div>`;
 }
 
-// 프로필 모달용 상세 카드 (MOST/BEST 한 쌍)
-function profileChampSectionHtml(name) {
-  const d = calcChampDetail(name);
+// 프로필 모달용 챔피언 섹션 (wm-champ-item 스타일)
+function profileChampSectionHtml(name, seasonFilter) {
+  const d = calcChampDetail(name, seasonFilter);
   if (!d) return '';
   const url = s => `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(s)}.png`;
   const krName = s => champNamesKR[s] || s;
   const safeName = escHtml(name).replace(/'/g, "\\'");
-  const card = (data, kind) => {
-    const isMost = kind === 'most';
-    const lbl = data.onePick ? '⚡ ONE<br>PICK' : (isMost ? '🔥 MOST' : '⭐ BEST');
-    const cssKind = data.onePick ? 'onepick' : kind;
-    const stat = isMost
+  const item = (data, kind) => {
+    const tag = data.onePick ? '⚡ ONE PICK' : (kind === 'most' ? '🔥 MOST' : '⭐ BEST');
+    const tagCls = data.onePick ? 'onepick' : kind;
+    const st = kind === 'most'
       ? `${data.games}판 · ${data.wins}승 ${data.losses}패`
-      : `${data.wins}승 ${data.losses}패 · ${data.winrate}%`;
-    return `<div class="profile-champ-card ${cssKind}" onclick="event.stopPropagation();openChampPoolModal('${safeName}');">
-      <img class="profile-champ-img" src="${url(data.slug)}" onerror="this.style.display='none'" alt="${escHtml(krName(data.slug))}">
-      <div class="profile-champ-info">
-        <div class="profile-champ-lbl">${lbl}</div>
-        <div class="profile-champ-name">${escHtml(krName(data.slug))}</div>
-        <div class="profile-champ-stat">${stat}</div>
+      : `${data.games}판 · ${data.winrate}%`;
+    return `<div class="wm-champ-item" style="cursor:pointer;gap:9px;" onclick="event.stopPropagation();openChampPoolModal('${safeName}');">
+      <img class="wm-champ-img" style="width:38px;height:38px;" src="${url(data.slug)}" onerror="this.style.display='none'" alt="${escHtml(krName(data.slug))}">
+      <div class="wm-champ-body">
+        <div class="wm-champ-tag ${tagCls}" style="font-size:9px;">${tag}</div>
+        <div class="wm-champ-name" style="font-size:13px;">${escHtml(krName(data.slug))}</div>
+        <div class="wm-champ-st" style="font-size:9px;">${st}</div>
       </div>
     </div>`;
   };
@@ -9879,7 +9878,7 @@ function profileChampSectionHtml(name) {
       <span class="profile-champ-head-lbl">🎮 챔피언</span>
       <button class="profile-champ-view-btn" onclick="event.stopPropagation();openChampPoolModal('${safeName}');">전체 보기 ›</button>
     </div>
-    <div class="profile-champ-section">${card(d.most, 'most')}${d.best ? card(d.best, 'best') : ''}</div>
+    <div class="wm-champ-list">${item(d.most, 'most')}${d.best ? item(d.best, 'best') : ''}</div>
   </div>`;
 }
 
