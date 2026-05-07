@@ -939,6 +939,14 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .my-modal-btn{padding:9px 6px;border-radius:6px;border:1px solid var(--border);background:var(--surface2);color:var(--text);cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:11px;transition:all 0.15s;text-align:center;word-break:break-all;}
 .my-modal-btn:hover{border-color:var(--blue);background:rgba(11,196,227,0.08);color:var(--blue);}
 .my-modal-btn.selected{border-color:var(--gold);background:rgba(200,155,60,0.15);color:var(--gold);}
+.cfm-overlay{position:fixed;inset:0;z-index:3000;background:rgba(4,11,21,0.88);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 0.15s ease;}
+.cfm-box{background:var(--surface);border:1px solid var(--border);border-radius:14px;width:100%;max-width:320px;padding:28px 24px 20px;animation:popIn 0.2s cubic-bezier(0.175,0.885,0.32,1.275);text-align:center;}
+.cfm-msg{font-size:14px;color:var(--text);line-height:1.6;margin-bottom:20px;white-space:pre-line;}
+.cfm-btns{display:flex;gap:8px;}
+.cfm-btn{flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text-dim);font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:all 0.15s;}
+.cfm-btn:hover{border-color:var(--border);filter:brightness(1.15);}
+.cfm-btn.cfm-ok{border-color:rgba(239,68,68,0.5);color:#f87171;background:rgba(239,68,68,0.08);}
+.cfm-btn.cfm-ok:hover{background:rgba(239,68,68,0.18);border-color:#f87171;}
 /* ── 내 정보 바 ── */
 .my-info-bar{display:flex;align-items:center;gap:10px;padding:10px 14px;background:linear-gradient(160deg,var(--rk-card) 0%,var(--rk-sub) 100%);border:1px solid var(--rk-border-strong);border-radius:12px;margin-bottom:14px;cursor:pointer;transition:border-color .15s,box-shadow .15s;position:relative;overflow:hidden;}
 .my-info-bar::before{content:'';position:absolute;inset:0;pointer-events:none;background-image:repeating-linear-gradient(135deg,transparent 0 12px,rgba(255,255,255,.018) 12px 13px);}
@@ -2242,6 +2250,17 @@ img.emoji{
   </div>
 </div>
 
+<!-- 커스텀 확인 다이얼로그 -->
+<div id="cfm-overlay" class="cfm-overlay" style="display:none;">
+  <div class="cfm-box">
+    <div class="cfm-msg" id="cfm-msg"></div>
+    <div class="cfm-btns">
+      <button class="cfm-btn" id="cfm-cancel">취소</button>
+      <button class="cfm-btn cfm-ok" id="cfm-ok">확인</button>
+    </div>
+  </div>
+</div>
+
 <!-- 본인 선택 모달 -->
 <div class="my-modal-overlay" id="my-modal" style="display:none;">
   <div class="my-modal">
@@ -2777,7 +2796,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.91';
+const APP_VERSION = 'v2.37.92';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -13677,8 +13696,19 @@ window.confirmFixedTeams = function() {
   set(ref(db, 'session'), { phase: 'item', itemPhaseEnd: Date.now() + 15000 }).catch(console.error);
 };
 
+function showConfirm(msg, onOk) {
+  const ov = document.getElementById('cfm-overlay');
+  document.getElementById('cfm-msg').textContent = msg;
+  ov.style.display = 'flex';
+  const ok = document.getElementById('cfm-ok');
+  const cancel = document.getElementById('cfm-cancel');
+  const close = () => { ov.style.display = 'none'; ok.onclick = null; cancel.onclick = null; };
+  ok.onclick = () => { close(); onOk(); };
+  cancel.onclick = close;
+}
+
 window.resetSession = function() {
-  if(sessionPlayers.length>0&&!confirm('현재 참가자 목록을 비울까요?')) return;
+  const doReset = () => {
   _pendingRematchTeams = null;
   document.getElementById('rematch-btn').style.display = 'none';
   sessionPlayers=[];
@@ -13701,12 +13731,15 @@ window.resetSession = function() {
   mvpConfirmed = null;
   mannerConfirmed = null;
   _currentTeamsFormedAt = 0;
-  set(ref(db, 'session'), { active: false }).catch(console.error);
-  renderSessionPlayers();
-  renderShop();
-  document.getElementById('result-section').style.display='none';
-  document.getElementById('warn-box').innerHTML='';
-  updateMemberModeDisplay();
+    set(ref(db, 'session'), { active: false }).catch(console.error);
+    renderSessionPlayers();
+    renderShop();
+    document.getElementById('result-section').style.display='none';
+    document.getElementById('warn-box').innerHTML='';
+    updateMemberModeDisplay();
+  };
+  if (sessionPlayers.length > 0) showConfirm('현재 참가자 목록을 비울까요?', doReset);
+  else doReset();
 };
 
 function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
