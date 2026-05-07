@@ -1802,6 +1802,19 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .tier-change-arrow.up{color:var(--green);}
 .tier-change-arrow.down{color:var(--red);}
 .tier-change-badge{font-size:11px;padding:1px 6px;border-radius:4px;font-weight:700;}
+/* ── S1 티어 변동 (tc-*) ── */
+@keyframes tcRowIn{from{opacity:0;transform:translateX(-8px);}to{opacity:1;transform:none;}}
+.tc-wrap{display:flex;flex-direction:column;border-radius:7px;overflow:hidden;border:1px solid rgba(255,255,255,.07);margin:0 0 14px;}
+.tc-row{display:flex;align-items:center;gap:8px;padding:8px 11px;font-size:12px;border-bottom:1px solid rgba(255,255,255,.07);opacity:0;animation:tcRowIn 0.28s ease forwards;}
+.tc-row:last-child{border-bottom:none;}
+.tc-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;opacity:.75;}
+.tc-dot.up{background:#4ade80;}.tc-dot.down{background:#f87171;}.tc-dot.promo{background:var(--rk-gold-deep);}
+.tc-name{font-weight:700;flex-shrink:0;min-width:72px;font-size:12px;}
+.tc-badge{font-size:10px;font-weight:700;padding:2px 6px;border-radius:3px;border:1px solid currentColor;opacity:.85;flex-shrink:0;white-space:nowrap;}
+.tc-arr{font-size:10px;color:rgba(230,235,242,.45);flex-shrink:0;}
+.tc-stat{font-size:11px;font-weight:700;flex-shrink:0;}
+.tc-stat.up{color:rgba(74,222,128,.8);}.tc-stat.down{color:rgba(248,113,113,.7);}.tc-stat.promo{color:rgba(200,168,75,.85);}
+.tc-lp{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(230,235,242,.45);flex-shrink:0;}
 .save-done-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
 /* ── 경기 결과 요약 모달 ── */
 .match-summary-overlay{position:fixed;inset:0;z-index:2500;background:rgba(10,14,26,0.97);display:flex;flex-direction:column;align-items:center;justify-content:safe center;overflow-y:auto;padding:20px 16px 40px;animation:taFadeIn 0.25s ease;}
@@ -2749,7 +2762,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.72';
+const APP_VERSION = 'v2.37.73';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -8371,20 +8384,63 @@ window.saveMatch = async function() {
 
     // ── 티어 변동 렌더 ───────────────────────────────────────────
     const tcRow = document.getElementById('tier-changes-row');
-    if (tierChanges.length > 0) {
-      tcRow.innerHTML = tierChanges.map(c => {
-        const arrow = c.up ? '↑' : '↓';
-        const dir   = c.up ? 'up' : 'down';
-        const icon  = c.up ? '🎉 ' : '';
-        return `<div class="tier-change-item ${dir}">
-          <span class="tier-change-name">${icon}${escHtml(c.name)}</span>
-          <span class="tier-change-badge ${c.bInfo.cls}">${c.bInfo.label}</span>
-          <span class="tier-change-arrow ${dir}">${arrow}</span>
-          <span class="tier-change-badge ${c.aInfo.cls}">${c.aInfo.label}</span>
-        </div>`;
-      }).join('');
+    if (CURRENT_SEASON >= 1 && Object.keys(s1LpBefore).length > 0) {
+      const _tierOrder = ['unranked','bronze','silver','gold','platinum','diamond','master','grandmaster','challenger'];
+      const s1Changes = [];
+      allMatchPlayers.forEach(p => {
+        const k = normName(p.name);
+        const bef = s1LpBefore[k];
+        const aft = season1Data[k];
+        if (!bef || !aft) return;
+        const bRank = _tierOrder.indexOf(bef.tier);
+        const aRank = _tierOrder.indexOf(aft.tier);
+        if (aRank > bRank) {
+          s1Changes.push({ name: p.name, type: bef.promoActive ? 'promo-win' : 'tier-up', fromTier: bef.tier, toTier: aft.tier, lp: aft.lp });
+        } else if (aRank < bRank) {
+          s1Changes.push({ name: p.name, type: 'tier-down', fromTier: bef.tier, toTier: aft.tier, lp: aft.lp });
+        } else if (!bef.promoActive && aft.promoActive) {
+          s1Changes.push({ name: p.name, type: 'promo-start', tier: aft.tier, w: aft.promoWins || 0, l: aft.promoLosses || 0 });
+        } else if (bef.promoActive && !aft.promoActive && aRank === bRank) {
+          s1Changes.push({ name: p.name, type: 'promo-fail', tier: aft.tier, lp: aft.lp });
+        }
+      });
+      if (s1Changes.length > 0) {
+        const _tcHtml = (c, i) => {
+          const delay = (0.05 + i * 0.07).toFixed(2);
+          const toM = S1_TIER_META[c.toTier || c.tier] || S1_TIER_META.unranked;
+          const frM = c.fromTier ? (S1_TIER_META[c.fromTier] || S1_TIER_META.unranked) : null;
+          const base = `style="animation-delay:${delay}s"`;
+          if (c.type === 'tier-up')
+            return `<div class="tc-row" ${base}><span class="tc-dot up"></span><span class="tc-name">${escHtml(c.name)}</span><span class="tc-badge" style="color:${frM.color};">${frM.label}</span><span class="tc-arr">→</span><span class="tc-badge" style="color:${toM.color};">${toM.label}</span><span class="tc-stat up">승급</span><span class="tc-lp">${c.lp} LP</span></div>`;
+          if (c.type === 'promo-win')
+            return `<div class="tc-row" ${base}><span class="tc-dot up"></span><span class="tc-name">${escHtml(c.name)}</span><span class="tc-badge" style="color:${frM.color};">${frM.label}</span><span class="tc-arr">→</span><span class="tc-badge" style="color:${toM.color};">${toM.label}</span><span class="tc-stat up">승급 완료</span></div>`;
+          if (c.type === 'tier-down')
+            return `<div class="tc-row" ${base}><span class="tc-dot down"></span><span class="tc-name">${escHtml(c.name)}</span><span class="tc-badge" style="color:${frM.color};">${frM.label}</span><span class="tc-arr">→</span><span class="tc-badge" style="color:${toM.color};">${toM.label}</span><span class="tc-stat down">강등</span><span class="tc-lp">${c.lp} LP</span></div>`;
+          if (c.type === 'promo-start')
+            return `<div class="tc-row" ${base}><span class="tc-dot promo"></span><span class="tc-name">${escHtml(c.name)}</span><span class="tc-badge" style="color:${toM.color};">${toM.label}</span><span class="tc-stat promo">승급전 시작</span><span class="tc-lp">${c.w}승 ${c.l}패</span></div>`;
+          if (c.type === 'promo-fail')
+            return `<div class="tc-row" ${base}><span class="tc-dot down"></span><span class="tc-name">${escHtml(c.name)}</span><span class="tc-badge" style="color:${toM.color};">${toM.label}</span><span class="tc-stat down">승급전 실패</span><span class="tc-lp">${c.lp} LP</span></div>`;
+          return '';
+        };
+        tcRow.innerHTML = `<div class="tc-wrap">${s1Changes.map(_tcHtml).join('')}</div>`;
+      } else {
+        tcRow.innerHTML = '';
+      }
     } else {
-      tcRow.innerHTML = '';
+      // S0 fallback
+      if (tierChanges.length > 0) {
+        tcRow.innerHTML = tierChanges.map(c => {
+          const dir = c.up ? 'up' : 'down';
+          return `<div class="tier-change-item ${dir}">
+            <span class="tier-change-name">${escHtml(c.name)}</span>
+            <span class="tier-change-badge ${c.bInfo.cls}">${c.bInfo.label}</span>
+            <span class="tier-change-arrow ${dir}">${c.up ? '↑' : '↓'}</span>
+            <span class="tier-change-badge ${c.aInfo.cls}">${c.aInfo.label}</span>
+          </div>`;
+        }).join('');
+      } else {
+        tcRow.innerHTML = '';
+      }
     }
 
     matchSaved = true;
