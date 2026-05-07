@@ -2777,7 +2777,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.90';
+const APP_VERSION = 'v2.37.91';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5478,34 +5478,42 @@ window.selectNone = function() {
 function _playApplyCheckedSfx() {
   try {
     const ctx = _getAudioCtx(), now = ctx.currentTime;
-    // 두둥 — 저음 임팩트 + 미드 바디
-    const sub = ctx.createOscillator(), subG = ctx.createGain();
-    sub.connect(subG); subG.connect(ctx.destination);
-    sub.type = 'sine';
-    sub.frequency.setValueAtTime(120, now);
-    sub.frequency.exponentialRampToValueAtTime(42, now + 0.22);
-    subG.gain.setValueAtTime(0.7, now);
-    subG.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
-    sub.start(now); sub.stop(now + 0.4);
+    // 철컥 — 노이즈 어택 + 미드 클릭 바디
+    const bufLen = ctx.sampleRate * 0.06;
+    const buf = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1);
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.value = 3200;
+    noiseFilter.Q.value = 1.2;
+    const noiseG = ctx.createGain();
+    noise.connect(noiseFilter); noiseFilter.connect(noiseG); noiseG.connect(ctx.destination);
+    noiseG.gain.setValueAtTime(0.9, now);
+    noiseG.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
+    noise.start(now); noise.stop(now + 0.06);
 
-    const mid = ctx.createOscillator(), midG = ctx.createGain();
-    mid.connect(midG); midG.connect(ctx.destination);
-    mid.type = 'triangle';
-    mid.frequency.setValueAtTime(220, now);
-    mid.frequency.exponentialRampToValueAtTime(90, now + 0.15);
-    midG.gain.setValueAtTime(0.35, now);
-    midG.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-    mid.start(now); mid.stop(now + 0.28);
+    // 클릭 바디 — 미드 피치 드롭
+    const body = ctx.createOscillator(), bodyG = ctx.createGain();
+    body.connect(bodyG); bodyG.connect(ctx.destination);
+    body.type = 'square';
+    body.frequency.setValueAtTime(340, now);
+    body.frequency.exponentialRampToValueAtTime(120, now + 0.04);
+    bodyG.gain.setValueAtTime(0.18, now);
+    bodyG.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+    body.start(now); body.stop(now + 0.08);
 
-    // 두 번째 둥 (0.13초 후)
-    const sub2 = ctx.createOscillator(), sub2G = ctx.createGain();
-    sub2.connect(sub2G); sub2G.connect(ctx.destination);
-    sub2.type = 'sine';
-    sub2.frequency.setValueAtTime(90, now + 0.13);
-    sub2.frequency.exponentialRampToValueAtTime(35, now + 0.38);
-    sub2G.gain.setValueAtTime(0.5, now + 0.13);
-    sub2G.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-    sub2.start(now + 0.13); sub2.stop(now + 0.52);
+    // 컥 — 저음 마무리
+    const tail = ctx.createOscillator(), tailG = ctx.createGain();
+    tail.connect(tailG); tailG.connect(ctx.destination);
+    tail.type = 'sine';
+    tail.frequency.setValueAtTime(180, now + 0.03);
+    tail.frequency.exponentialRampToValueAtTime(60, now + 0.11);
+    tailG.gain.setValueAtTime(0.25, now + 0.03);
+    tailG.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+    tail.start(now + 0.03); tail.stop(now + 0.14);
   } catch(e) {}
 }
 
