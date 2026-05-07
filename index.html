@@ -1296,6 +1296,9 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .lsc-actions.show{opacity:1;transform:none;pointer-events:auto;}
 .lsc-confirm-btn{flex:1;padding:13px;border-radius:9px;border:1px solid rgba(200,168,75,0.35);background:linear-gradient(135deg,rgba(200,168,75,0.15),rgba(200,168,75,0.06));color:var(--gold-light);font-family:'Black Han Sans',sans-serif;font-size:13px;letter-spacing:1px;cursor:pointer;transition:all 0.2s;}
 .lsc-confirm-btn:hover{background:linear-gradient(135deg,rgba(200,168,75,0.25),rgba(200,168,75,0.12));transform:translateY(-1px);}
+.lsc-skip-btn{display:block;width:100%;padding:7px;margin:0 0 4px;background:none;border:none;color:rgba(255,255,255,0.2);font-size:11px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;letter-spacing:0.3px;transition:color 0.15s;}
+.lsc-skip-btn:hover{color:rgba(255,255,255,0.5);}
+.lsc-skip-btn.hidden{display:none;}
 .lsc-sparkle{position:fixed;border-radius:50%;pointer-events:none;z-index:3200;}
 .lsc-ray{position:fixed;z-index:3190;pointer-events:none;border-radius:2px;}
 .lsc-glow{position:fixed;inset:0;z-index:3180;pointer-events:none;opacity:0;transition:opacity 0.15s;}
@@ -2774,7 +2777,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.85';
+const APP_VERSION = 'v2.37.86';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -12964,6 +12967,7 @@ function showLotteryModal(result, remainingGold) {
           <span class="lsc-prog-pct" id="lsc-pct">0%</span>
         </div>
       </div>
+      <button class="lsc-skip-btn" id="lsc-skip">바로 확인</button>
       <div class="lsc-actions" id="lsc-actions">
         <button class="lsc-confirm-btn">🪙 현재 보유 ${remainingGold}G — 확인</button>
       </div>
@@ -13028,6 +13032,8 @@ function showLotteryModal(result, remainingGold) {
   }
   function doReveal(){
     if(revealed) return; revealed=true;
+    const skipBtn = overlay.querySelector('#lsc-skip');
+    if(skipBtn) skipBtn.classList.add('hidden');
     overlay.querySelector('#lsc-prog').style.width='100%';
     overlay.querySelector('#lsc-pct').textContent='100%';
     canvas.style.transition='opacity 0.55s ease'; canvas.style.opacity='0'; // 0.4→0.55 페이드 좀 더 길게
@@ -13058,6 +13064,12 @@ function showLotteryModal(result, remainingGold) {
       setTimeout(()=>overlay.querySelector('#lsc-actions').classList.add('show'), 700);
     }, 580);
   }
+  overlay.querySelector('#lsc-skip').onclick = () => {
+    ctx.globalCompositeOperation='destination-out';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.globalCompositeOperation='source-over';
+    doReveal();
+  };
   canvas.onmousedown =(e)=>{isScratching=true; doScratch(e);};
   canvas.onmousemove =(e)=>{if(isScratching) doScratch(e);};
   canvas.onmouseup   =()=>{isScratching=false; checkReveal();};
