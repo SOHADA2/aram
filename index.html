@@ -2749,7 +2749,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.71';
+const APP_VERSION = 'v2.37.72';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -12193,12 +12193,16 @@ function updateMemberModeDisplay() {
     if (_memberWaitingDebounce) clearTimeout(_memberWaitingDebounce);
     _memberWaitingDebounce = setTimeout(() => {
       _memberWaitingDebounce = null;
+      // 이미 visible 상태에서 4초 이내 재호출이면 스킵 (saveMatch 후 onValue 연쇄 중복 방지)
+      if (!wasHidden && Date.now() - _wmLastRenderTime < 4000) return;
       // 숨겨진 경우에만 애니메이션 재실행 (visible 상태에서 데이터 갱신은 조용히)
       if (wasHidden) { const el = document.getElementById('member-waiting'); if (el) el.querySelectorAll('.wm-card,.wm-side-card').forEach(c => c.classList.remove('in')); }
+      _wmLastRenderTime = Date.now();
       renderWaitingCard();
     }, 80);
   } else {
     if (_memberWaitingDebounce) { clearTimeout(_memberWaitingDebounce); _memberWaitingDebounce = null; }
+    _wmLastRenderTime = 0; // 숨겨질 때 리셋 → 다음에 보일 때 반드시 렌더
   }
 }
 
@@ -12212,6 +12216,7 @@ function updateMemberModeDisplay() {
 const LIVE_HEARTBEAT_MS = 20000; // 20초마다 heartbeat
 const LIVE_STALE_MS     = 60000; // 60초 이상 heartbeat 없으면 stale
 let _memberWaitingDebounce = null;
+let _wmLastRenderTime = 0;
 let _liveHeartbeatTimer = null;
 let _liveOwnerData      = null;  // 최신 /config/liveOwner 스냅샷
 let _liveBeingKicked    = false; // 빼앗기는 중 재진입 방지
