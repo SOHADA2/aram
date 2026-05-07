@@ -2777,7 +2777,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.88';
+const APP_VERSION = 'v2.37.89';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5475,6 +5475,22 @@ window.selectNone = function() {
   updateCheckedLabel();
 };
 
+function _playApplyCheckedSfx() {
+  try {
+    const ctx = _getAudioCtx(), now = ctx.currentTime;
+    // 두 음 상승 chime — 밝고 경쾌한 확인음
+    [[520, 0], [780, 0.10]].forEach(([freq, delay]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'sine'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0, now + delay);
+      g.gain.linearRampToValueAtTime(0.28, now + delay + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.32);
+      o.start(now + delay); o.stop(now + delay + 0.35);
+    });
+  } catch(e) {}
+}
+
 window.applyChecked = function() {
   const checked = [...document.querySelectorAll('.member-chip.checked')];
   if (checked.length === 0) { alert('팀원을 한 명 이상 선택해주세요!'); return; }
@@ -5484,6 +5500,7 @@ window.applyChecked = function() {
     const tier = getEffectiveTier(name, p.manualTier);
     return { id: Date.now() + Math.random(), name, tier, manualTier: p.manualTier };
   });
+  _playApplyCheckedSfx();
   renderSessionPlayers();
 };
 
