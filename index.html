@@ -2747,7 +2747,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.64';
+const APP_VERSION = 'v2.37.65';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -12301,6 +12301,44 @@ function setLiveMode(enabled) {
   }
   updateMemberModeDisplay();
 }
+// ── SFX 엔진 (Web Audio API, 파일 없음) ───────────────────────
+const SFX = (() => {
+  let _ac = null;
+  const ac = () => {
+    if (!_ac) _ac = new (window.AudioContext || window.webkitAudioContext)();
+    if (_ac.state === 'suspended') _ac.resume();
+    return _ac;
+  };
+  const play = (freq1, freq2, dur, vol, type = 'sine') => {
+    try {
+      const c = ac();
+      const osc  = c.createOscillator();
+      const gain = c.createGain();
+      osc.connect(gain); gain.connect(c.destination);
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq1, c.currentTime);
+      if (freq2 !== freq1) osc.frequency.exponentialRampToValueAtTime(freq2, c.currentTime + dur * 0.5);
+      gain.gain.setValueAtTime(vol, c.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur);
+      osc.start(c.currentTime);
+      osc.stop(c.currentTime + dur);
+    } catch(e) {}
+  };
+  return {
+    // 탭 hover — 짧은 고음 틱
+    tabHover() { play(900, 1150, 0.09, 0.07); },
+    // 버튼 클릭 (향후 확장용)
+    click()    { play(600, 400,  0.08, 0.08); },
+    // 알림/팝업 (향후 확장용)
+    notify()   { play(880, 1320, 0.18, 0.06); },
+  };
+})();
+
+// 탭 hover SFX 연결
+document.querySelectorAll('.nav-tab').forEach(btn => {
+  btn.addEventListener('mouseenter', () => SFX.tabHover());
+});
+
 // ── BGM 제어 ──────────────────────────────────────────────────
 function getBgm() { return document.getElementById('live-bgm'); }
 function setBgmUI(playing) {
