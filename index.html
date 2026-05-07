@@ -2762,7 +2762,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.73';
+const APP_VERSION = 'v2.37.74';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -14369,6 +14369,34 @@ window.previewTierUp = function(opts = {}) {
   });
   showMatchSummary({ winners: w, losers: l, itemEffects: {}, tierChanges: [], s1LpBefore: before,
     questEvent: null, spectatorResult: null, mvpWinner: w[0]||null, mvpLoser: l[0]||null, mannerWinner: null, mannerLoser: null });
+};
+// 저장 완료 패널 + 티어 변동 안내 미리보기
+window.previewTierChange = function() {
+  const el = document.getElementById('result-section');
+  const panel = document.getElementById('save-done-panel');
+  if (!el || !panel) { console.warn('result-section 또는 save-done-panel 없음'); return; }
+  el.style.display = 'block';
+  panel.classList.add('show');
+  document.getElementById('tier-changes-row').innerHTML = (() => {
+    const M = S1_TIER_META;
+    const row = (dot, name, content, delay) =>
+      `<div class="tc-row" style="animation-delay:${delay}s">${dot}${name}${content}</div>`;
+    const dot  = cls => `<span class="tc-dot ${cls}"></span>`;
+    const name = n   => `<span class="tc-name">${n}</span>`;
+    const badge = t  => `<span class="tc-badge" style="color:${M[t].color};">${M[t].label}</span>`;
+    const arr        = `<span class="tc-arr">→</span>`;
+    const stat = (cls, txt) => `<span class="tc-stat ${cls}">${txt}</span>`;
+    const lp   = txt => `<span class="tc-lp">${txt}</span>`;
+    return `<div class="tc-wrap">
+      ${row(dot('up'),   name('나랑듀오해듀오'), badge('gold')+arr+badge('platinum')+stat('up','승급')+lp('0 LP'),         '0.05')}
+      ${row(dot('promo'),name('ap렉사이서폿'),   badge('diamond')+stat('promo','승급전 시작')+lp('0승 0패'),               '0.12')}
+      ${row(dot('up'),   name('빛나는언즈'),     badge('platinum')+arr+badge('diamond')+stat('up','승급 완료'),            '0.19')}
+      ${row(dot('down'), name('울퉁쓰'),         badge('platinum')+arr+badge('gold')+stat('down','강등')+lp('75 LP'),      '0.26')}
+      ${row(dot('down'), name('조조와빈찬합'),   badge('gold')+stat('down','승급전 실패')+lp('75 LP'),                    '0.33')}
+    </div>`;
+  })();
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  console.log('previewTierChange: 팀구성 탭 → 결과 섹션 확인');
 };
 window.previewMatch = function(opts = {}) {
   const allNames = Object.values(registeredPlayers).map(p => p.name);
