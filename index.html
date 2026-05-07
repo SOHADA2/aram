@@ -2777,7 +2777,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.86';
+const APP_VERSION = 'v2.37.87';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3796,7 +3796,7 @@ const GOLD_WIN    = 15;
 const GOLD_LOSE   = 5;
 const GOLD_MVP    = 50; // MVP 추가 골드 (v2.25.0~)
 const GOLD_MVP_LEGACY = 50; // MVP 추가 골드 — 소급 적용으로 GOLD_MVP와 통일 (v2.31.70)
-const GOLD_ATTEND = 30; // 출석 체크 보너스
+const GOLD_ATTEND = 50; // 출석 체크 보너스 (타임당)
 const GOLD_SPECTATOR_CORRECT = 50; // 관전자 예측 적중 골드 (v2.25.0 ~ v2.36.10, 정액 보상. v2.36.11+에서 베팅 시스템으로 대체)
 const GOLD_SPECTATOR_CORRECT_LEGACY = 15; // 관전자 예측 적중 골드 (v2.24.x 이하, 소급 방지용)
 // 관전자 베팅 시스템 (v2.36.11~) — 적중 시 +betAmount, 미적중 시 -betAmount (net 변동)
@@ -12649,6 +12649,12 @@ function getLocalDateKey() {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+// 현재 출석 슬롯 반환 (1: 자정~오후3시, 2: 오후3시~자정)
+function getAttendSlot() { return new Date().getHours() < 15 ? 1 : 2; }
+function isAttendSlotDone(data, slot, todayKey) {
+  return slot === 1 ? data?.lastAttendance === todayKey : data?.lastAttendance2 === todayKey;
+}
+
 // 출석 체크 렌더링
 function renderAttendance() {
   const card = document.getElementById('attend-card');
@@ -12656,15 +12662,18 @@ function renderAttendance() {
   if (!card || !content) return;
   const data = getMyGoldData();
   const todayKey = getLocalDateKey();
-  const alreadyDone = data?.lastAttendance === todayKey;
-  if (!myName || alreadyDone) { card.style.display = 'none'; return; }
+  const slot = getAttendSlot();
+  const slotDone = isAttendSlotDone(data, slot, todayKey);
+  if (!myName || slotDone) { card.style.display = 'none'; return; }
   card.style.display = 'block';
-  const today = todayKey.replace(/-/g, '. ').replace(/(\d{4}\. \d{2}\. \d{2})/, '$1');
+  const slotLabel = slot === 1 ? '1타임 (자정 ~ 오후 3시)' : '2타임 (오후 3시 ~ 자정)';
+  const today = todayKey.replace(/-/g, '. ');
   content.innerHTML = `
     <div class="attend-box">
       <div class="attend-info">
-        <div class="attend-date">📆 오늘 ${today}</div>
+        <div class="attend-date">📆 ${today} · ${slotLabel}</div>
         <div class="attend-reward">🪙 +${GOLD_ATTEND} 골드 지급</div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:4px;">하루 2회 · 타임당 ${GOLD_ATTEND}G · 1타임 자정~오후3시 / 2타임 오후3시~자정</div>
       </div>
       <button class="attend-btn" onclick="doAttendance(event)">출석 체크</button>
     </div>`;
@@ -12676,33 +12685,26 @@ window.doAttendance = async function(ev) {
   if (!key) return;
   const data = goldData[key];
   const todayKey = getLocalDateKey();
-  if (data?.lastAttendance === todayKey) {
-    showGoldToast('오늘 이미 출석 완료!'); return;
+  const slot = getAttendSlot();
+  if (isAttendSlotDone(data, slot, todayKey)) {
+    showGoldToast('이 타임 출석 이미 완료!'); return;
   }
-  // 즉시 버튼 상태 갱신 (Firebase 라운드트립 대기 중에도 더블클릭/혼동 방지)
   const btn = ev?.currentTarget || document.querySelector('#attend-content .attend-btn');
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = '✅ 출석 완료';
-    btn.style.cursor = 'default';
-  }
+  if (btn) { btn.disabled = true; btn.textContent = '✅ 출석 완료'; btn.style.cursor = 'default'; }
   const histKey = sField('attendanceHistory');
-  const newHistory = [...(data[histKey] || []), { date: todayKey, gold: GOLD_ATTEND, ts: Date.now() }];
+  const newHistory = [...(data[histKey] || []), { date: todayKey, gold: GOLD_ATTEND, ts: Date.now(), slot }];
+  const updates = {
+    ...data,
+    [histKey]: newHistory,
+    [sField('attendanceCount')]: (data[sField('attendanceCount')] ?? 0) + 1,
+  };
+  if (slot === 1) updates.lastAttendance  = todayKey;
+  else            updates.lastAttendance2 = todayKey;
   try {
-    await set(ref(db, 'gold/' + key), {
-      ...data,
-      [histKey]: newHistory,
-      lastAttendance: todayKey,
-      [sField('attendanceCount')]: (data[sField('attendanceCount')] ?? 0) + 1,
-    });
+    await set(ref(db, 'gold/' + key), updates);
     showGoldToast(`🪙 +${GOLD_ATTEND} 출석 보너스!`);
   } catch (e) {
-    // 실패 시 버튼 복구
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = '출석 체크';
-      btn.style.cursor = '';
-    }
+    if (btn) { btn.disabled = false; btn.textContent = '출석 체크'; btn.style.cursor = ''; }
     showGoldToast('❌ 출석 체크 실패 — 다시 시도해주세요');
     throw e;
   }
