@@ -2084,6 +2084,8 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .s1-promo-dot.l{background:rgba(150,35,35,0.55);border-color:rgba(190,55,55,0.45);}
 .s1-promo-dot.p{background:rgba(255,255,255,0.05);border-color:rgba(255,255,255,0.2);}
 .s1-promo-label{font-size:9px;color:var(--rk-gold);font-weight:700;margin-left:3px;}
+@keyframes rkCardIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+.rk-card-in{opacity:0;animation:rkCardIn 0.35s ease forwards;}
 /* ── 승률 바 (S0 랭킹) ── */
 .rk-winrate-strip{display:flex;align-items:center;gap:5px;margin-top:7px;padding-top:6px;border-top:1px dashed var(--rk-dash);}
 .rk-winrate-bg{flex:1;min-width:30px;height:4px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;}
@@ -2747,7 +2749,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.69';
+const APP_VERSION = 'v2.37.70';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7767,8 +7769,8 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
       <span class="ms2-pr-name">${escHtml(name)}</span>${meTag}
       <div class="ms2-pr-items">${itemChips}</div>
       <div class="ms2-pr-nums">
-        <span class="ms2-pr-lp ${ptClass}">${ptLabel}</span>
-        <span class="ms2-pr-gold">+${gold}G</span>
+        <span class="ms2-pr-lp ${ptClass}" data-v="${ptLabel}"></span>
+        <span class="ms2-pr-gold" data-v="+${gold}G"></span>
       </div>
     </div>`;
   }
@@ -7901,6 +7903,25 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
       </div>
     </div>`;
   document.body.appendChild(overlay);
+  // LP·골드 카운트업
+  overlay.querySelectorAll('.ms2-pr-lp[data-v],.ms2-pr-gold[data-v]').forEach((el, i) => {
+    const raw = el.dataset.v;
+    el.textContent = raw;
+    const m = raw.match(/^([+\-]?)(\d+)(.*)$/);
+    if (!m) return;
+    const [, sign, numStr, suffix] = m;
+    const tgt = parseInt(numStr, 10);
+    if (tgt === 0) return;
+    el.textContent = sign + '0' + suffix;
+    setTimeout(() => {
+      const t0 = performance.now();
+      (function tick(now) {
+        const p = Math.min((now - t0) / 600, 1), e = 1 - Math.pow(1 - p, 3);
+        el.textContent = sign + Math.round(e * tgt) + suffix;
+        if (p < 1) requestAnimationFrame(tick); else el.textContent = raw;
+      })(performance.now());
+    }, 180 + i * 30);
+  });
   if (_msTierUpColors.length > 0) {
     overlay.querySelectorAll('.ms-tier-up-card').forEach((card, ci) => {
       const hex = _msTierUpColors[ci] || '#c8a84b';
@@ -14147,6 +14168,11 @@ function renderS1Ranking() {
       const entry = Object.entries(registeredPlayers).find(([,p]) => normName(p.name)===normName(card.dataset.name));
       if (entry) openProfileModal(entry[0]);
     });
+  });
+  // 카드 스태거 등장
+  el.querySelectorAll('.rk-hero, .rk-mini').forEach((card, i) => {
+    card.classList.add('rk-card-in');
+    card.style.animationDelay = (i * 50) + 'ms';
   });
 }
 
