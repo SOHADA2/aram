@@ -1084,9 +1084,14 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .wm-quest-desc{font-size:11px;color:var(--rk-text-dim);font-family:'JetBrains Mono',monospace;}
 .wm-quest-reward{flex-shrink:0;display:flex;align-items:center;gap:3px;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--rk-gold);}
 .wm-divider{height:1px;background:var(--rk-border);margin:10px 0;}
-.wm-tip-row{display:flex;align-items:flex-start;gap:7px;}
+.wm-tip-row{display:flex;align-items:center;min-height:20px;overflow:hidden;}
 .wm-tip-ico{font-size:13px;flex-shrink:0;margin-top:1px;}
 .wm-tip-txt{font-size:11px;line-height:1.55;color:var(--rk-text-dim);}
+.wm-flip-text{display:inline-block;font-size:11px;line-height:1.55;color:var(--rk-text-dim);transform-origin:top center;}
+.wm-flip-text.wm-fout{animation:wmFOut 0.18s ease forwards;}
+.wm-flip-text.wm-fin{animation:wmFIn 0.22s ease forwards;}
+@keyframes wmFOut{to{transform:perspective(250px) rotateX(70deg);opacity:0;}}
+@keyframes wmFIn{from{transform:perspective(250px) rotateX(-60deg);opacity:0;}to{transform:perspective(250px) rotateX(0deg);opacity:1;}}
 @media(max-width:420px){.wm-mid-row{grid-template-columns:1fr 108px;}.wm-fdot{width:22px;height:22px;font-size:9px;}.wm-form-row{gap:4px;}#wm-form-dots{gap:3px;}.wm-lp-big{font-size:22px;}.wm-pass-n{font-size:18px;}.wm-hero{padding:14px 13px;}.wm-lp-card{padding:10px 11px;}.wm-side-card{padding:9px 10px;}.wm-bottom-card{padding:10px 11px;}}
 @media(max-width:340px){.wm-mid-row{grid-template-columns:1fr;}.wm-right-col{flex-direction:row;}}
 /* ── 티어 방어막 배지 ── */
@@ -2741,7 +2746,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.62';
+const APP_VERSION = 'v2.37.63';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -11858,6 +11863,7 @@ function renderWaitingCard() {
 
 // ── 시즌 1 대기 카드 v2 (목업 기반 리디자인) ─────────────────────
 function renderS1WaitingCard(el) {
+  if (window._wmTipTimer) { clearInterval(window._wmTipTimer); window._wmTipTimer = null; }
   const key    = normName(myName);
   const d      = s1GetPlayer(myName) || s1DefaultPlayer();
   const meta   = S1_TIER_META[d.tier] || S1_TIER_META.unranked;
@@ -11907,22 +11913,49 @@ function renderS1WaitingCard(el) {
     lpNum = d.lp||0; lpCapText = d.tier==='challenger' ? 'LP' : '/ 100 LP'; lpPct = d.tier==='challenger' ? 100 : Math.min(100, d.lp||0);
   }
 
-  // 예측
-  let predHtml = '';
+  // 상황별 팁 목록 구성
+  const ctxTips = [];
   if (d.placementDone && !d.promoActive) {
-    const lp = d.lp||0;
-    if (d.tier !== 'challenger' && lp + S1_LP_WIN >= S1_LP_CAP) {
+    const lp  = d.lp || 0;
+    const wLP = lp + S1_LP_WIN;
+    const lLP = lp - S1_LP_LOSS;
+    const gLP = lp + S1_GAMBLE_WIN;
+    if (d.tier === 'challenger') {
+      ctxTips.push('⚡ 챌린저는 LP 상한이 없어요 · 계속 쌓아가세요');
+    } else if (wLP >= S1_LP_CAP) {
       if (S1_AUTO_TIERS.has(d.tier)) {
         const next = s1NextTier(d.tier);
-        if (next) predHtml = `<div class="wm-pred">▲ 다음 승리 시 <strong style="color:#c4b5fd;margin-left:3px;">${S1_TIER_META[next].label} 승급!</strong></div>`;
+        if (next) ctxTips.push(`▲ 승리하면 ${S1_TIER_META[next].label}로 바로 승급합니다`);
       } else if (S1_PROMO_TIERS.has(d.tier)) {
-        predHtml = `<div class="wm-pred">▲ 다음 승리 시 <strong style="color:#c4b5fd;margin-left:3px;">승급전 진입!</strong></div>`;
+        ctxTips.push('▲ 승리하면 승급전에 진입합니다');
+        if (gLP >= S1_LP_CAP) ctxTips.push('🎲 도박권은 이득 없어요 — 패배 페널티만 커집니다');
       }
-    } else if (!S1_NO_DEMOTE.has(d.tier) && lp - S1_LP_LOSS < 0) {
-      const prev = s1PrevTier(d.tier);
-      if (prev) predHtml = `<div class="wm-pred" style="color:#fca5a5;background:rgba(232,64,87,0.1);border-color:rgba(232,64,87,0.25);">▽ 다음 패배 시 <strong>${S1_TIER_META[prev].label}</strong> 강등 위기</div>`;
+    } else if (gLP >= S1_LP_CAP) {
+      if (S1_AUTO_TIERS.has(d.tier)) {
+        const next = s1NextTier(d.tier);
+        if (next) ctxTips.push(`🎲 도박권 사용 시 ${S1_TIER_META[next].label} 즉시 승급 가능`);
+      } else if (S1_PROMO_TIERS.has(d.tier)) {
+        ctxTips.push('🎲 도박권 사용 시 승급전 바로 진입 가능');
+      }
     }
+    if (!S1_NO_DEMOTE.has(d.tier) && lLP < 0) {
+      const prev = s1PrevTier(d.tier);
+      if (prev) ctxTips.push(`▽ 패배하면 ${S1_TIER_META[prev].label} 강등 위험`);
+    }
+  } else if (d.placementDone && d.promoActive) {
+    const w = d.promoWins||0, l = d.promoLosses||0;
+    const next = s1NextTier(d.tier);
+    const nl = next ? S1_TIER_META[next].label : '';
+    const promoTips = {
+      '0-0': `▲ 2승하면 ${nl} 승급 · 여유 있게 시작하세요`,
+      '1-0': `▲ 1승만 더하면 ${nl} 승급!`,
+      '0-1': `⚠️ 1패 중 — 방어권 보유 시 지금 사용을 고려하세요`,
+      '1-1': `⚠️ 결정전! 방어권 보유 시 반드시 지금 사용하세요`,
+    };
+    const pt = promoTips[`${w}-${l}`];
+    if (pt) ctxTips.push(pt);
   }
+  const allTips = [...ctxTips, ...WAITING_TIPS];
 
   // 챔피언 (현재 시즌 경기만 집계)
   const cd = calcChampDetail(myName, CURRENT_SEASON);
@@ -11951,8 +11984,6 @@ function renderS1WaitingCard(el) {
     questBodyHtml = `<div class="wm-quest-row"><span class="wm-quest-icon">🎉</span><div class="wm-quest-body"><div class="wm-quest-name">시즌 패스 완주!</div><div class="wm-quest-desc">모든 퀘스트를 완료했어요</div></div></div>`;
   }
 
-  const tip = WAITING_TIPS[Math.floor(Date.now()/60000) % WAITING_TIPS.length];
-
   // 아바타 (상태 이모지 or 이름 첫 글자)
   const plr = Object.values(registeredPlayers||{}).find(p => normName(p.name)===key);
   const avatar = plr?.statusEmoji || escHtml(myName.trim().charAt(0));
@@ -11968,7 +11999,7 @@ function renderS1WaitingCard(el) {
           <span class="wm-lp-big" id="wm-lp-num" style="color:${meta.color};text-shadow:0 0 16px ${meta.color}66;">0</span>
           <span class="wm-lp-cap">${lpCapText}</span>
         </div>
-        ${predHtml || `<span class="wm-lp-tier" style="color:${meta.color};">${meta.label}</span>`}
+        <span class="wm-lp-tier" style="color:${meta.color};">${meta.label}</span>
       </div>
       <div class="wm-bar"><div class="wm-bar-fill" id="wm-lp-bar" style="background:linear-gradient(90deg,${meta.color},#7c3aed);box-shadow:0 0 9px ${meta.color}66;"></div></div>
       ${(d.newlyPromoted||d.masterShield)?`<div style="margin:5px 0 2px;display:flex;gap:5px;flex-wrap:wrap;">${(d.newlyPromoted&&d.masterShield)?'<span class="s1-shield-badge first-chance">⏳ 첫판 보호</span>':''}<span class="s1-shield-badge zero-lp">🛡️ 0LP 방어막</span></div>`:''}
@@ -12004,13 +12035,33 @@ function renderS1WaitingCard(el) {
   <div class="wm-card wm-bottom-card">
     ${questBodyHtml}
     <div class="wm-divider"></div>
-    <div class="wm-tip-row"><span class="wm-tip-ico">💡</span><span class="wm-tip-txt">${escHtml(tip)}</span></div>
+    <div class="wm-tip-row"><span id="wm-flip-txt" class="wm-flip-text">${escHtml(allTips[0])}</span></div>
   </div>
 </div>`;
 
   // 링 티어 컬러 적용
   const ringEl = el.querySelector('#wm-ring-el');
   if (ringEl) ringEl.style.setProperty('--wm-ring-color', meta.color);
+
+  // 팁 flip 순환 타이머 (1분마다 찰칵)
+  if (allTips.length > 1) {
+    let _tipIdx = 0;
+    window._wmTipTimer = setInterval(() => {
+      const ft = document.getElementById('wm-flip-txt');
+      if (!ft) { clearInterval(window._wmTipTimer); window._wmTipTimer = null; return; }
+      ft.classList.add('wm-fout');
+      setTimeout(() => {
+        const ft2 = document.getElementById('wm-flip-txt');
+        if (!ft2) return;
+        _tipIdx = (_tipIdx + 1) % allTips.length;
+        ft2.textContent = allTips[_tipIdx];
+        ft2.classList.remove('wm-fout');
+        void ft2.offsetHeight;
+        ft2.classList.add('wm-fin');
+        ft2.addEventListener('animationend', () => ft2.classList.remove('wm-fin'), { once: true });
+      }, 190);
+    }, 60000);
+  }
 
   // 카드 stagger 등장
   el.querySelectorAll('.wm-card,.wm-side-card').forEach((c, i) => setTimeout(() => c.classList.add('in'), 60 + i * 70));
