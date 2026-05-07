@@ -1552,6 +1552,20 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .pm-s1-form-dot{width:26px;height:26px;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);font-size:9px;font-weight:700;font-family:'JetBrains Mono',monospace;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.2);}
 .pm-s1-form-dot.w{background:rgba(0,199,122,0.15);border-color:rgba(0,199,122,0.45);color:var(--green);}
 .pm-s1-form-dot.l{background:rgba(232,64,87,0.12);border-color:rgba(232,64,87,0.4);color:var(--red);}
+/* ── 프로필 다음 경기 예측 시뮬 ── */
+.pm-s1-sim{margin-bottom:14px;padding:10px 12px;background:rgba(255,255,255,0.025);border:1px solid var(--rk-border);border-radius:10px;}
+.pm-s1-sim-hd{font-size:9px;font-weight:700;letter-spacing:0.8px;color:var(--rk-text-muted);font-family:'JetBrains Mono',monospace;margin-bottom:7px;}
+.pm-sim-sub{font-weight:400;letter-spacing:0;color:var(--rk-gold);}
+.pm-s1-sim-grid{display:flex;flex-direction:column;}
+.pm-s1-sim-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+.pm-s1-sim-row:last-child{border-bottom:none;}
+.pm-s1-sim-div{height:1px;background:var(--rk-border);margin:3px 0;}
+.pm-sim-lbl{font-size:10px;color:var(--rk-text-dim);white-space:nowrap;flex-shrink:0;}
+.pm-sim-val{font-size:11px;color:var(--rk-text);display:flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end;}
+.pm-sim-val strong{font-family:'JetBrains Mono',monospace;}
+.pm-sim-ev{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;white-space:nowrap;}
+.pm-sim-ev.up,.pm-sim-ev.promo{background:rgba(196,181,253,0.12);}
+.pm-sim-ev.down{color:#fca5a5;background:rgba(252,165,165,0.1);}
 .pm-s1-pass-badge{display:inline-flex;align-items:center;gap:5px;background:var(--rk-sub);border:1px solid var(--rk-border);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--rk-text-dim);}
 .pm-s1-pass-badge .lv{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--rk-gold);}
 .pm-s1-streak{font-size:11px;font-weight:700;font-family:'JetBrains Mono',monospace;padding:4px 8px;border-radius:6px;}
@@ -2726,7 +2740,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.57';
+const APP_VERSION = 'v2.37.58';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -9126,6 +9140,94 @@ window.openProfileModal = function(fbKey) {
   document.body.style.overflow = 'hidden';
 };
 
+// 프로필용 다음 경기 시뮬레이션 섹션 빌더
+function buildS1SimSection(s1d) {
+  if (!s1d || !s1d.placementDone) return '';
+  const lp   = s1d.lp || 0;
+  const tier = s1d.tier;
+
+  // ── 승급전 진행 중 ────────────────────────────────────────────
+  if (s1d.promoActive) {
+    const w = s1d.promoWins || 0, l = s1d.promoLosses || 0;
+    const nextTier = s1NextTier(tier);
+    const nm = nextTier ? S1_TIER_META[nextTier] : null;
+    const nc = nm?.color || '#c4b5fd';
+
+    const winResult  = (w + 1) >= 2
+      ? `<span class="pm-sim-ev up" style="color:${nc};">▲ ${nm?.label || ''} 승급!</span>`
+      : `${w + 1}승 ${l}패 진행`;
+    const lossResult = (l + 1) >= 2
+      ? `<span class="pm-sim-ev down">▼ 실패 · 75LP 복귀</span>`
+      : `${w}승 ${l + 1}패 진행`;
+    const promoWinResult = w >= 1
+      ? `<span class="pm-sim-ev up" style="color:${nc};">▲ ${nm?.label || ''} 즉시 승급!</span>`
+      : `2승 처리 진행`;
+
+    return `<div class="pm-s1-sim">
+      <div class="pm-s1-sim-hd">🔮 다음 경기 예측 <span class="pm-sim-sub">· 승급전 ${w}승 ${l}패</span></div>
+      <div class="pm-s1-sim-grid">
+        <div class="pm-s1-sim-row"><span class="pm-sim-lbl">🏆 승리</span><span class="pm-sim-val">${winResult}</span></div>
+        <div class="pm-s1-sim-row"><span class="pm-sim-lbl">❌ 패배</span><span class="pm-sim-val">${lossResult}</span></div>
+        <div class="pm-s1-sim-div"></div>
+        <div class="pm-s1-sim-row"><span class="pm-sim-lbl">🛡️ 방어권 패배</span><span class="pm-sim-val" style="color:var(--rk-text-dim);">패배 무효 · 현재 유지</span></div>
+        <div class="pm-s1-sim-row"><span class="pm-sim-lbl">⚔️ 승리권 승리</span><span class="pm-sim-val">${promoWinResult}</span></div>
+      </div>
+    </div>`;
+  }
+
+  // ── 일반 정규전 ───────────────────────────────────────────────
+  const isChallenger = tier === 'challenger';
+
+  const calc = (won, delta) => {
+    if (won) {
+      if (isChallenger) return { newLp: lp + delta, ev: null };
+      const n = Math.min(lp + delta, S1_LP_CAP);
+      if (n >= S1_LP_CAP) {
+        if (S1_AUTO_TIERS.has(tier))  return { newLp: 0, ev: 'tier_up', evTier: s1NextTier(tier) };
+        if (S1_PROMO_TIERS.has(tier)) return { newLp: S1_LP_CAP, ev: 'promo' };
+      }
+      return { newLp: n, ev: null };
+    } else {
+      const n = lp - delta;
+      if (n < 0 && !S1_NO_DEMOTE.has(tier)) {
+        return { newLp: S1_PROMO_FAIL_LP, ev: 'demote', evTier: s1PrevTier(tier) };
+      }
+      return { newLp: Math.max(0, n), ev: null };
+    }
+  };
+
+  const row = (icon, lbl, won, delta) => {
+    const res = calc(won, delta);
+    const sign = won ? `+${delta}` : `−${delta}`;
+    const sc   = won ? 'var(--green)' : 'var(--red)';
+    let ev = '';
+    if (res.ev === 'tier_up') {
+      const nm = res.evTier ? S1_TIER_META[res.evTier] : null;
+      ev = ` <span class="pm-sim-ev up" style="color:${nm?.color || '#c4b5fd'};">▲ ${nm?.label || ''} 승급!</span>`;
+    } else if (res.ev === 'promo') {
+      ev = ` <span class="pm-sim-ev promo">▲ 승급전 진입!</span>`;
+    } else if (res.ev === 'demote') {
+      const pm = res.evTier ? S1_TIER_META[res.evTier] : null;
+      ev = ` <span class="pm-sim-ev down">▼ ${pm?.label || ''} 강등</span>`;
+    }
+    return `<div class="pm-s1-sim-row">
+      <span class="pm-sim-lbl">${icon} ${lbl}</span>
+      <span class="pm-sim-val"><span style="color:${sc};font-weight:700;font-family:'JetBrains Mono',monospace;">${sign}</span> → <strong>${res.newLp}LP</strong>${ev}</span>
+    </div>`;
+  };
+
+  return `<div class="pm-s1-sim">
+    <div class="pm-s1-sim-hd">🔮 다음 경기 예측</div>
+    <div class="pm-s1-sim-grid">
+      ${row('🏆', '승리', true, S1_LP_WIN)}
+      ${row('❌', '패배', false, S1_LP_LOSS)}
+      <div class="pm-s1-sim-div"></div>
+      ${row('🎲', '도박권 승', true, S1_GAMBLE_WIN)}
+      ${row('🎲', '도박권 패', false, S1_GAMBLE_LOSS)}
+    </div>
+  </div>`;
+}
+
 function _openS1ProfileModal(fbKey, player) {
   const name = player.name;
   const s1d  = season1Data[normName(name)] || s1DefaultPlayer();
@@ -9276,6 +9378,7 @@ function _openS1ProfileModal(fbKey, player) {
       <div class="pm-s1-body">
         ${player.motto ? `<div class="pm-s1-motto">"${escHtml(player.motto)}"</div>` : ''}
         ${lpCardHtml}
+        ${buildS1SimSection(s1d)}
         ${formHtml}
         <div class="profile-stat-row">${statBoxes}</div>
         ${awardRow}
