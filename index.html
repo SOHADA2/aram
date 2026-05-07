@@ -949,6 +949,9 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .live-mode-label{font-size:11px;color:rgba(220,100,100,0.9);flex:1;font-weight:700;}
 .live-exit-btn{background:none;border:1px solid rgba(200,50,50,0.3);color:rgba(200,80,80,0.7);font-size:11px;cursor:pointer;padding:2px 8px;border-radius:4px;font-family:'Noto Sans KR',sans-serif;font-weight:700;transition:all 0.15s;}
 .live-exit-btn:hover{border-color:rgba(220,80,80,0.7);color:rgba(220,80,80,0.9);}
+.live-house-gold{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;margin-left:auto;flex-shrink:0;padding:1px 7px;border-radius:4px;}
+.live-house-gold.pos{color:rgba(74,222,128,.85);background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.18);}
+.live-house-gold.neg{color:rgba(248,113,113,.8);background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.18);}
 /* ── 배경음 푸터 컨트롤 ── */
 .bgm-footer{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px;}
 .bgm-footer-lbl{font-size:10px;color:var(--text-dim);letter-spacing:0.5px;}
@@ -2253,6 +2256,7 @@ img.emoji{
 <div class="live-mode-bar" id="live-mode-bar">
   <div class="live-mode-dot"></div>
   <span class="live-mode-label">라이브 모드</span>
+  <span class="live-house-gold" id="live-house-gold"></span>
   <button class="live-exit-btn" onclick="exitLiveMode()">종료</button>
 </div>
 
@@ -2766,7 +2770,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.79';
+const APP_VERSION = 'v2.37.80';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4381,6 +4385,7 @@ onValue(ref(db, 'gold'), (snapshot) => {
   renderShop();
   if (playersLoaded && matchesLoaded) seedGoldForAllPlayers();
   checkLotteryRefund();
+  updateLiveHouseGold();
 });
 
 // 경기 기록 실시간 구독
@@ -11635,6 +11640,28 @@ function calcLotteryGold(data) {
   if (!data?.lotteryHistory) return 0;
   return data.lotteryHistory.reduce((sum, h) => sum + (h.gold || 0), 0);
 }
+// 하우스 골드: 전체 팀원 복권 구매금 - 전체 당첨금 (라이브용 전용 지표)
+function calcLotteryHouseGold() {
+  let house = 0;
+  Object.values(goldData).forEach(data => {
+    if (!data.lotteryHistory) return;
+    data.lotteryHistory.forEach(h => {
+      if (h.refund) return;
+      house += h.premium ? 200 : 30;  // 구매가 수금
+      house -= (h.gold || 0);          // 당첨금 지불
+    });
+  });
+  return house;
+}
+function updateLiveHouseGold() {
+  const el = document.getElementById('live-house-gold');
+  if (!el) return;
+  if (!liveMode) { el.textContent = ''; el.className = 'live-house-gold'; return; }
+  const g = calcLotteryHouseGold();
+  el.textContent = (g >= 0 ? '+' : '') + g.toLocaleString() + 'G';
+  el.className = 'live-house-gold ' + (g >= 0 ? 'pos' : 'neg');
+  el.title = `팀원 복권 구매금 합계 - 당첨금 합계`;
+}
 
 // 콘솔 진단 — showLotteryHistory("닉네임") (v2.36.29~)
 // 그 사람의 모든 복권 이력 표 + 종합(지출/적중률/순이익) 출력. update 없음
@@ -12559,12 +12586,14 @@ window.enterLiveMode = function() {
   closeMyModal();
   myName = null;
   setLiveMode(true); // startLiveHeartbeat 내부 호출됨
+  updateLiveHouseGold();
   if (currentTeamA.length || currentTeamB.length) renderResult();
 };
 window.exitLiveMode = async function() {
   myName = localStorage.getItem('myName') || null; // 이전 닉네임 복원
   setLiveMode(false); // stopLiveHeartbeat 내부 호출됨
   stopChampBgm(1000);
+  updateLiveHouseGold();
   await releaseLiveOwner();
   if (currentTeamA.length || currentTeamB.length) renderResult();
 };
