@@ -9797,8 +9797,8 @@ window.claimAchievement = async function(id) {
 
 // 시즌 1 퀘스트 판정용 통계 집계
 // ── MOST/BEST 챔피언 통계 ─────────────────────────────────────────
-function calcChampStats(name) {
-  const d = calcChampDetail(name);
+function calcChampStats(name, seasonFilter) {
+  const d = calcChampDetail(name, seasonFilter);
   if (!d) return null;
   return { most: d.most.slug, best: d.best ? d.best.slug : null };
 }
@@ -9838,8 +9838,8 @@ function calcChampDetail(name, seasonFilter) {
   return { most, best };
 }
 
-function champIconsHtml(name, sz) {
-  const st = calcChampStats(name);
+function champIconsHtml(name, sz, seasonFilter) {
+  const st = calcChampStats(name, seasonFilter);
   if (!st) return '';
   const url = s => `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(s)}.png`;
   const item = (slug, lbl) => `<div class="champ-stat-item"><span class="champ-stat-lbl">${lbl}</span><img class="champ-stat-ico" style="width:${sz}px;height:${sz}px" src="${url(slug)}" onerror="this.style.display='none'" title="${slug}"></div>`;
@@ -10453,7 +10453,7 @@ function renderRankHeroCard(r, place, hasChallenger) {
   const scoreNum = r.games >= 3 && r.score != null
     ? `<span class="num">${r.score.toLocaleString()}</span><span class="pt">pt</span>`
     : `<span class="num dim">—</span>`;
-  const champIcons0 = champIconsHtml(r.name, 24);
+  const champIcons0 = champIconsHtml(r.name, 24, 0);
   return `<div class="rk-hero ${cls}${meCls}" data-name="${escHtml(r.name)}">
     <div class="glow"></div>
     <div class="hatch"></div>
@@ -10490,7 +10490,7 @@ function renderRankMiniCard(r, displayRank, hasChallenger) {
   const scoreNum = r.games >= 3 && r.score != null
     ? `<span class="num">${r.score.toLocaleString()}</span><span class="pt">pt</span>`
     : `<span class="num dim">—</span>`;
-  const champIcons = champIconsHtml(r.name, 18);
+  const champIcons = champIconsHtml(r.name, 18, 0);
   return `<div class="rk-mini${meCls}" data-name="${escHtml(r.name)}">
     <div class="stripe" style="background:${tierColor};"></div>
     <div class="rk-mini-rank">${displayRank}</div>
@@ -11543,9 +11543,9 @@ function updateMyInfoBar() {
       const d    = s1GetPlayer(myName) || s1DefaultPlayer();
       const meta = S1_TIER_META[d.tier] || S1_TIER_META.unranked;
       avatarEl.style.setProperty('--mib-ring-color', meta.color);
-      // MOST 챔피언 이미지 설정
+      // MOST 챔피언 이미지 설정 (현재 시즌 기준)
       if (faceEl) {
-        const cd = calcChampDetail(myName);
+        const cd = calcChampDetail(myName, CURRENT_SEASON);
         if (cd?.most?.slug) {
           const img = document.createElement('img');
           img.src = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(cd.most.slug)}.png`;
@@ -13875,7 +13875,7 @@ function renderS1HeroCard(r, place, hasChallenger) {
   const meCls    = r.me ? ' me' : '';
   const chips    = renderRankClassChips(r.champTier1, r.champTier2);
   const meta     = S1_TIER_META[r.tier] || S1_TIER_META.unranked;
-  const champIcons = champIconsHtml(r.name, 24);
+  const champIcons = champIconsHtml(r.name, 24, CURRENT_SEASON);
 
   let bottomSection;
   if (r.d.promoActive) {
@@ -13930,7 +13930,7 @@ function renderS1MiniCard(r, displayRank, hasChallenger) {
   const promoCls = r.d.promoActive ? ' in-promo' : '';
   const chips   = renderRankClassChips(r.champTier1, r.champTier2, { max: 3, tiny: true });
   const dots    = renderRankStreakDots(r.streak, { tiny: true });
-  const champIcons = champIconsHtml(r.name, 20);
+  const champIcons = champIconsHtml(r.name, 20, CURRENT_SEASON);
 
   let rightInner;
   if (!r.d.placementDone) {
