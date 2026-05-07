@@ -2251,6 +2251,7 @@ img.emoji{
 
 <!-- BGM -->
 <audio id="live-bgm" src="bgm.mp3" loop preload="none"></audio>
+<audio id="champ-bgm" src="롤챔스 오프닝 BGM.mp4" loop preload="none"></audio>
 
 <!-- 라이브 모드 바 -->
 <div class="live-mode-bar" id="live-mode-bar">
@@ -2767,7 +2768,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.77';
+const APP_VERSION = 'v2.37.78';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4878,6 +4879,21 @@ onValue(ref(db, 'bridge/champSelect'), (snap) => {
 // ── BRIDGE: 게임 시작 감지 → 투표 카드에 챔피언 이미지 선반영 ─────────
 onValue(ref(db, 'bridge/gamePhase'), async (snap) => {
   const phase = snap.val();
+
+  // ── 챔피언 선택 BGM 제어 ─────────────────────────────────────
+  if (phase === 'ChampSelect') {
+    // live BGM 페이드아웃 후 챔피언 선택 BGM 페이드인
+    const live = getBgm();
+    if (live && !live.paused) {
+      _fadeAudio(live, 0, 1500, () => { live.pause(); });
+    }
+    playChampBgm();
+  } else if (phase === 'InProgress') {
+    // 게임 시작 → 챔피언 선택 BGM 페이드아웃
+    stopChampBgm(3000);
+  }
+  // ────────────────────────────────────────────────────────────
+
   if (phase !== 'InProgress') return;
   if (!_champSelectCache) return;
   if (!currentTeamA.length || !currentTeamB.length) return;
@@ -12485,6 +12501,43 @@ document.querySelectorAll('.nav-tab').forEach(btn => {
 
 // ── BGM 제어 ──────────────────────────────────────────────────
 function getBgm() { return document.getElementById('live-bgm'); }
+function getChampBgm() { return document.getElementById('champ-bgm'); }
+
+let _liveBgmFadeTimer  = null;
+let _champBgmFadeTimer = null;
+function _fadeAudio(audio, targetVol, ms, onDone) {
+  const isChamp = audio.id === 'champ-bgm';
+  const timerRef = isChamp ? '_champBgmFadeTimer' : '_liveBgmFadeTimer';
+  if (window[timerRef]) { clearInterval(window[timerRef]); window[timerRef] = null; }
+  const STEPS = 50;
+  const iv    = ms / STEPS;
+  const start = audio.volume;
+  const delta = (targetVol - start) / STEPS;
+  let i = 0;
+  window[timerRef] = setInterval(() => {
+    i++;
+    audio.volume = Math.max(0, Math.min(1, start + delta * i));
+    if (i >= STEPS) {
+      clearInterval(window[timerRef]);
+      window[timerRef] = null;
+      if (onDone) onDone();
+    }
+  }, iv);
+}
+function playChampBgm() {
+  const audio = getChampBgm();
+  if (!audio) return;
+  const vol = (document.getElementById('bgm-vol')?.value ?? 40) / 100;
+  audio.volume = 0;
+  audio.currentTime = 0;
+  audio.play().catch(() => {});
+  _fadeAudio(audio, vol, 2000);
+}
+function stopChampBgm(ms = 3000) {
+  const audio = getChampBgm();
+  if (!audio || audio.paused) return;
+  _fadeAudio(audio, 0, ms, () => { audio.pause(); audio.currentTime = 0; });
+}
 function setBgmUI(playing) {
   const btn  = document.getElementById('bgm-btn');
   const info = document.getElementById('bgm-info');
@@ -12525,8 +12578,11 @@ window.toggleBgm = function() {
   else            { bgm.pause(); setBgmUI(false); }
 };
 window.setBgmVol = function(val) {
+  const v = val / 100;
   const bgm = getBgm();
-  if (bgm) bgm.volume = val / 100;
+  if (bgm && !bgm.paused) bgm.volume = v;
+  const champ = getChampBgm();
+  if (champ && !champ.paused) champ.volume = v;
 };
 
 window.confirmLiveMode = async function() {
