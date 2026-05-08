@@ -1888,6 +1888,17 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .vpas-attend-waiting{font-size:9px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;flex-shrink:0;}
 .vpas-attend-btn{padding:3px 8px;background:linear-gradient(135deg,#c8a84b,var(--gold));border:none;border-radius:5px;color:#060d18;font-size:10px;font-weight:800;font-family:'Noto Sans KR',sans-serif;cursor:pointer;flex-shrink:0;transition:transform .1s;}
 .vpas-attend-btn:active{transform:scale(.93);}
+/* ── 패스 탭 간소화 출석 바 ── */
+.vpas-attend-bar{display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--border);background:rgba(255,255,255,.015);}
+.vpas-attend-bar-lbl{font-size:9px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;letter-spacing:.3px;flex-shrink:0;}
+.vpas-attend-chips{display:flex;gap:5px;}
+.vac-chip{display:inline-flex;align-items:center;gap:3px;padding:3px 9px;border-radius:5px;font-size:10px;font-weight:700;font-family:'Noto Sans KR',sans-serif;border:1px solid var(--border);color:var(--text-dim);background:transparent;cursor:default;}
+.vac-chip.done{color:var(--green);border-color:rgba(74,222,128,.3);background:rgba(74,222,128,.06);}
+.vac-chip.past,.vac-chip.wait{opacity:.35;}
+.vac-chip.btn{background:rgba(200,168,75,.1);border-color:rgba(200,168,75,.35);color:var(--gold);cursor:pointer;transition:all .15s;}
+.vac-chip.btn:hover{background:rgba(200,168,75,.2);}
+.vac-chip.btn:active{transform:scale(.93);}
+.vac-g{font-family:'JetBrains Mono',monospace;font-size:9px;opacity:.7;}
 /* ══ 패스 탭 선택기 (pass-view-sel) ══ */
 .pass-view-sel{display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);}
 .pass-view-btn{flex:1;padding:5px 4px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-dim);font-size:10px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;transition:all .15s;text-align:center;line-height:1.4;}
@@ -2905,7 +2916,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.38.4';
+const APP_VERSION = 'v2.38.5';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -10835,24 +10846,20 @@ window.renderS1Pass = function renderS1Pass() {
   const slot1Done = isAttendSlotDone(myData, 1, todayKey);
   const slot2Done = isAttendSlotDone(myData, 2, todayKey);
   const currentSlot = getAttendSlot();
-  function buildSlotRow(slotNum) {
+  function slotChip(slotNum) {
     const isDone = slotNum === 1 ? slot1Done : slot2Done;
     const isActive = slotNum === currentSlot && !isDone;
     const isPast = slotNum < currentSlot && !isDone;
-    const timeLabel = slotNum === 1 ? '자정 ~ 오후 3시' : '오후 3시 ~ 자정';
-    const cls = 'vpas-attend-row' + (isDone ? ' done' : isActive ? ' available' : '');
-    let right;
-    if (isDone) right = '<span class="vpas-attend-check">✓</span>';
-    else if (isActive) right = '<button class="vpas-attend-btn" onclick="doAttendance(event)">출석 체크</button>';
-    else if (isPast) right = '<span class="vpas-attend-waiting">기간 종료</span>';
-    else right = '<span class="vpas-attend-waiting">오픈 대기</span>';
-    return '<div class="' + cls + '"><div class="vpas-attend-left"><span class="vpas-attend-slot-num">' + slotNum + '타임</span><span class="vpas-attend-slot-time">' + timeLabel + '</span></div><span class="vpas-attend-gold">+' + GOLD_ATTEND + 'G</span>' + right + '</div>';
+    if (isDone) return '<span class="vac-chip done">' + slotNum + '타임 ✓</span>';
+    if (isActive) return '<button class="vac-chip btn" onclick="doAttendance(event)">' + slotNum + '타임 출석 <span class="vac-g">+' + GOLD_ATTEND + 'G</span></button>';
+    if (isPast) return '<span class="vac-chip past">' + slotNum + '타임 종료</span>';
+    return '<span class="vac-chip wait">' + slotNum + '타임 대기</span>';
   }
-  const attendSectionHtml = '<div class="vpas-attend"><div class="vpas-done-sep"><span class="vpas-done-sep-label">오늘의 출석</span></div>' + buildSlotRow(1) + buildSlotRow(2) + '</div>';
+  const attendSectionHtml = '<div class="vpas-attend-bar"><span class="vpas-attend-bar-lbl">📅 출석</span><div class="vpas-attend-chips">' + slotChip(1) + slotChip(2) + '</div></div>';
 
   el.innerHTML = '<div class="vpas-header"><div class="vpas-header-left"><span class="vpas-title">🎫 시즌 패스</span><span class="vpas-subtitle">완료된 파트를 탭하면 확인할 수 있어요</span></div><span class="vpas-lv-pill">' + lvPillText + '</span></div>'
-    + buildPassSelector('s1')
     + attendSectionHtml
+    + buildPassSelector('s1')
     + activeSectionHtml
     + doneSectionHtml
     + statsDetailsHtml;
