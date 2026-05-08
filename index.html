@@ -2722,6 +2722,7 @@ img.emoji{
       </div>
       <div class="sp-cat-tabs">
         <button class="sp-cat-tab active" id="shop-cat-consume" onclick="switchShopCat('consume')">소비 아이템</button>
+        <button class="sp-cat-tab" id="shop-cat-pass" onclick="switchShopCat('pass')">패스권</button>
         <button class="sp-cat-tab" id="shop-cat-equip" onclick="switchShopCat('equip')">장비 아이템</button>
       </div>
       <div id="shop-list"></div>
@@ -2900,7 +2901,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.38.0';
+const APP_VERSION = 'v2.38.2';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -13308,6 +13309,7 @@ window.doAttendance = async function(ev) {
 window.switchShopCat = function(cat) {
   shopCatTab = cat;
   document.getElementById('shop-cat-consume')?.classList.toggle('active', cat==='consume');
+  document.getElementById('shop-cat-pass')?.classList.toggle('active', cat==='pass');
   document.getElementById('shop-cat-equip')?.classList.toggle('active', cat==='equip');
   renderShop();
 };
@@ -13355,8 +13357,12 @@ function _renderShopImmediate() {
   // ── 상점 리스트 ─────────────────────────────────────────
   const _shopList = CURRENT_SEASON >= 1 ? S1_SHOP_ITEMS : SHOP_ITEMS;
   const isLotteryType = t => t === 'lottery' || t === 'lottery_premium';
-  const isConsumeType = t => t === 'oneshot' || isLotteryType(t) || t === 'pass';
-  const shopFiltered = _shopList.filter(item => shopCatTab === 'equip' ? !isConsumeType(item.type) : isConsumeType(item.type));
+  const isConsumeType = t => t === 'oneshot' || isLotteryType(t);
+  const shopFiltered = _shopList.filter(item => {
+    if (shopCatTab === 'pass')    return item.type === 'pass';
+    if (shopCatTab === 'equip')   return !isConsumeType(item.type) && item.type !== 'pass';
+    return isConsumeType(item.type); // consume
+  });
   const myShopKey = getMyGoldKey();
   const myShopData = myShopKey ? goldData[myShopKey] : null;
   const todayStr = getLocalDateKey();
