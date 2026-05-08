@@ -2919,7 +2919,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.38.11';
+const APP_VERSION = 'v2.38.12';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -10971,13 +10971,19 @@ function renderPaidPass(passType) {
   const selHtml   = buildPassSelector(passType);
 
   if (!purchaseTs) {
+    const otherPassOwned = isB ? !!myData.hasSupportPass_s1 : !!myData.hasBattlePass_s1;
+    const otherPassName  = isB ? '지원 패스' : '전투 패스';
+    const lockedDesc = otherPassOwned
+      ? '<strong style="color:var(--text)">' + otherPassName + '</strong>를 선택하셨어요<br>패스는 1종만 진행할 수 있어요'
+      : '상점에서 패스권을 구매하면<br>퀘스트를 진행할 수 있어요';
+    const lockedExtra = otherPassOwned ? '' : '<div class="pass-locked-price">🪙 500G</div>';
     el.innerHTML = '<div class="vpas-header"><div class="vpas-header-left"><span class="vpas-title">' + passIcon + ' ' + passName + '</span></div></div>'
       + selHtml
       + '<div class="pass-locked-screen">'
       + '<div class="pass-locked-icon">' + passIcon + '</div>'
       + '<div class="pass-locked-title">' + passName + '</div>'
-      + '<div class="pass-locked-desc">상점에서 패스권을 구매하면<br>퀘스트를 진행할 수 있어요</div>'
-      + '<div class="pass-locked-price">🪙 500G</div>'
+      + '<div class="pass-locked-desc">' + lockedDesc + '</div>'
+      + lockedExtra
       + '</div>';
     return;
   }
@@ -11191,20 +11197,31 @@ window.renderAchievementsOrPass = function renderAchievementsOrPass() {
   updateS1PassTabBadge();
 };
 
-// 시즌패스 탭 배지 (수령 가능한 퀘스트 있을 때 반짝이는 점 표시)
+// 시즌패스 탭 배지 (수령 가능한 퀘스트 or 출석 가능 시 반짝이는 점 표시)
 function updateS1PassTabBadge() {
   const tabBtn = document.querySelector('.nav-tab-achievement');
   if (!tabBtn) return;
   const removeDot = () => tabBtn.querySelector('.s1p-tab-dot')?.remove();
   if (CURRENT_SEASON < 1 || !myName) { removeDot(); return; }
   const myEntry = Object.entries(goldData).find(([,g]) => normName(g.name) === normName(myName));
-  const claimed = myEntry?.[1]?.seasonPassClaimed_s1 || {};
+  const myData = myEntry?.[1] || {};
+
+  // 출석 가능 여부 확인
+  const todayKey = getLocalDateKey();
+  const currentSlot = getAttendSlot();
+  const attendAvailable = !isAttendSlotDone(myData, currentSlot, todayKey);
+
+  // 패스 퀘스트 수령 가능 여부 확인
+  const claimed = myData.seasonPassClaimed_s1 || {};
   const currentLv = calcS1PassCurrentLevel(claimed);
-  if (currentLv >= S1_PASS_MAX_LEVEL) { removeDot(); return; }
-  const quest = S1_PASS_QUESTS.find(q => q.lv === currentLv + 1);
-  const afterTs = s1PassAfterTs(claimed, currentLv + 1);
-  const stats = calcS1PassStats(myName, afterTs);
-  if (quest && quest.check(stats)) {
+  const questClaimable = currentLv < S1_PASS_MAX_LEVEL && (() => {
+    const quest = S1_PASS_QUESTS.find(q => q.lv === currentLv + 1);
+    const afterTs = s1PassAfterTs(claimed, currentLv + 1);
+    const stats = calcS1PassStats(myName, afterTs);
+    return quest && quest.check(stats);
+  })();
+
+  if (attendAvailable || questClaimable) {
     if (!tabBtn.querySelector('.s1p-tab-dot')) {
       const dot = document.createElement('span');
       dot.className = 's1p-tab-dot';
