@@ -13368,7 +13368,7 @@ function _renderShopImmediate() {
     const isLotteryLimitHit = (item.type === 'lottery' && todayLotteryCount >= 10)
                            || (item.type === 'lottery_premium' && todayPremiumCount >= 3);
     const isPassOwned = item.type === 'pass' && myShopData
-      && myShopData[item.id === 'battle_pass' ? 'hasBattlePass_s1' : 'hasSupportPass_s1'];
+      && (myShopData.hasBattlePass_s1 || myShopData.hasSupportPass_s1);
     const isPassType  = item.type === 'pass';
     const canBuy   = myGold >= item.price && !isLotteryLimitHit && !isPassOwned
                    && (isLotteryType(item.type) || isPassType || !isItemsEffectivelyLocked());
@@ -13872,11 +13872,17 @@ window.buyItem = async function(itemId) {
     return;
   }
 
-  // 패스권 전용 처리
+  // 패스권 전용 처리 (전투/지원 중 1개만 구매 가능)
   if (item.type === 'pass') {
-    const ownedField = itemId === 'battle_pass' ? 'hasBattlePass_s1' : 'hasSupportPass_s1';
+    const ownedField  = itemId === 'battle_pass' ? 'hasBattlePass_s1'  : 'hasSupportPass_s1';
+    const otherField  = itemId === 'battle_pass' ? 'hasSupportPass_s1' : 'hasBattlePass_s1';
+    const otherName   = itemId === 'battle_pass' ? '지원패스권' : '전투 패스권';
     if (data[ownedField]) {
       showGoldToast(`이미 ${item.name}을 보유하고 있어요!`);
+      return;
+    }
+    if (data[otherField]) {
+      showGoldToast(`이미 ${otherName}을 보유하고 있어요. 패스권은 1종만 구매할 수 있어요.`);
       return;
     }
     const newGoldSpent2 = (data[spentKey] ?? 0) + item.price;
