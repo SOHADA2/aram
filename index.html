@@ -1884,6 +1884,28 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .vpas-attend-waiting{font-size:9px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;flex-shrink:0;}
 .vpas-attend-btn{padding:3px 8px;background:linear-gradient(135deg,#c8a84b,var(--gold));border:none;border-radius:5px;color:#060d18;font-size:10px;font-weight:800;font-family:'Noto Sans KR',sans-serif;cursor:pointer;flex-shrink:0;transition:transform .1s;}
 .vpas-attend-btn:active{transform:scale(.93);}
+/* ══ 패스 탭 선택기 (pass-view-sel) ══ */
+.pass-view-sel{display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);}
+.pass-view-btn{flex:1;padding:5px 4px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-dim);font-size:10px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;transition:all .15s;text-align:center;line-height:1.4;}
+.pass-view-btn.active{background:rgba(200,168,75,.12);border-color:rgba(200,168,75,.4);color:var(--gold);}
+.pass-view-btn:not(.active):hover{border-color:rgba(200,168,75,.25);color:var(--text);}
+/* ══ 패스 활성화 팝업 ══ */
+.pass-act-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:9999;animation:taFadeIn .2s ease;}
+.pass-act-modal{background:#0e1726;border:1px solid rgba(200,168,75,.35);border-radius:14px;padding:30px 26px 24px;text-align:center;max-width:280px;width:90%;box-shadow:0 24px 64px rgba(0,0,0,.65);}
+.pass-act-icon{font-size:38px;margin-bottom:10px;}
+.pass-act-title{font-family:'Black Han Sans',sans-serif;font-size:18px;color:var(--gold);margin-bottom:6px;letter-spacing:.5px;}
+.pass-act-desc{font-size:11px;color:var(--text-dim);line-height:1.6;margin-bottom:20px;}
+.pass-act-go{padding:9px 22px;background:linear-gradient(135deg,#c8a84b,var(--gold));border:none;border-radius:7px;color:#060d18;font-size:12px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-right:8px;}
+.pass-act-close{padding:9px 16px;background:transparent;border:1px solid var(--border);border-radius:7px;color:var(--text-dim);font-size:12px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;}
+.pass-act-go:hover{filter:brightness(1.1);}
+/* ══ 미보유 패스 잠금 화면 ══ */
+.pass-locked-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:44px 24px;text-align:center;gap:10px;}
+.pass-locked-icon{font-size:44px;}
+.pass-locked-title{font-family:'Black Han Sans',sans-serif;font-size:15px;color:var(--text);}
+.pass-locked-desc{font-size:11px;color:var(--text-dim);line-height:1.6;}
+.pass-locked-price{font-size:13px;color:var(--gold);font-family:'JetBrains Mono',monospace;font-weight:700;}
+/* ══ 마일스톤 아이템 배지 ══ */
+.pass-ms-item{display:inline-flex;align-items:center;gap:2px;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:rgba(200,168,75,.1);border:1px solid rgba(200,168,75,.25);color:var(--gold);vertical-align:middle;margin-left:3px;}
 .save-done-panel.show{display:block;}
 .save-done-title{font-size:14px;font-weight:700;color:rgba(74,222,128,.85);margin-bottom:3px;}
 .save-done-sub{font-size:12px;color:var(--text-dim);margin-bottom:14px;}
@@ -2870,6 +2892,7 @@ function isItemsEffectivelyLocked() {
 }
 let shopCatTab = 'consume';
 let invCatTab  = 'consume';
+let currentPassView = 's1'; // 's1' | 'battle' | 'support'
 let _pendingRematchTeams = null; // 한 판 더: { teamA, teamB, teamSize, spectator }
 let goldLoaded = false; // goldData 로드 완료 여부
 let questEventState = null; // 발동된 퀘스트 { rank, playerName, questName, emoji, bonusGold, lossExtraPt }
@@ -2877,7 +2900,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.37.99';
+const APP_VERSION = 'v2.38.0';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3952,6 +3975,10 @@ const S1_SHOP_ITEMS = [
     desc:'승급전 중 승리 시 2승 처리 → 즉시 승급 · 패배 시 1패 정상 기록' },
   { id:'s1_gamble',       icon:ITEM_SVG_ICONS.s1_gamble,       name:'도박권',         color:'#c084fc', price:60,  type:'oneshot',
     desc:'일반전 전용 · 승리 +40 LP / 패배 −30 LP (승급전 중 사용 불가)' },
+  { id:'battle_pass', icon:'<span style="font-size:18px;line-height:1">⚔️</span>', name:'전투 패스권', color:'#f87171', price:500, type:'pass',
+    desc:'킬·딜량·KDA 전투 성과 25단계 · 총 1000G + 아이템 보상 · 구매 즉시 활성화' },
+  { id:'support_pass', icon:'<span style="font-size:18px;line-height:1">🤝</span>', name:'지원패스권',  color:'#34d399', price:500, type:'pass',
+    desc:'어시·서포팅·팀플 성과 25단계 · 총 1000G + 아이템 보상 · 구매 즉시 활성화' },
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -4006,6 +4033,93 @@ const S1_PASS_QUESTS = [
   { lv:23, icon:'💎',  name:'KDA 5.0 클럽',   desc:'한 판 KDA 5.0+',              check:s=>s.maxKda>=5,              prog:s=>[Math.min(s.maxKda,5).toFixed(1),'5.0'] },
   { lv:24, icon:'🎖️',  name:'콤보 마스터',     desc:'킬+어시 합 20+',              check:s=>s.maxKa>=20,              prog:s=>[Math.min(s.maxKa,20),20] },
   { lv:25, icon:'👑',  name:'시즌의 정점',     desc:'킬+어시 합 25+',              check:s=>s.maxKa>=25,              prog:s=>[Math.min(s.maxKa,25),25], milestone:true },
+];
+
+// ─────────────────────────────────────────────────────────────
+// ████  전투 패스권 + 지원패스권 (유료 패스, 500G 구매)  ████████
+// ─────────────────────────────────────────────────────────────
+// 공통 보상 구조: LV25=200G / LV20=150G / LV15=120G / LV10=80G / LV5=50G / 나머지 20G = 총 1000G
+function paidPassRewardForLevel(level) {
+  if (level === 25) return 200;
+  if (level === 20) return 150;
+  if (level === 15) return 120;
+  if (level === 10) return 80;
+  if (level === 5)  return 50;
+  return 20;
+}
+const battlePassRewardForLevel  = paidPassRewardForLevel;
+const supportPassRewardForLevel = paidPassRewardForLevel;
+
+// 마일스톤 아이템 (수령 시 items_s1 에 자동 지급)
+const BATTLE_PASS_MILESTONE_ITEMS  = { 5:'s1_gamble', 10:'s1_gamble', 15:'s1_promo_shield', 20:'s1_promo_win', 25:'s1_promo_win' };
+const SUPPORT_PASS_MILESTONE_ITEMS = { 5:'s1_gamble', 10:'s1_promo_shield', 15:'s1_promo_shield', 20:'s1_promo_shield', 25:'s1_promo_win' };
+
+// ── 전투 패스권 퀘스트 ─────────────────────────────────────────
+const BATTLE_PASS_QUESTS = [
+  // ── 입문 (LV 1-5) ─────────────────────────────────────────
+  { lv:1,  icon:'⚔️',  name:'전장 입성',   desc:'경기 1회 참여',          check:s=>s.games>=1,            prog:s=>[Math.min(s.games,1),1] },
+  { lv:2,  icon:'🏆',  name:'첫 피 맛',     desc:'승리 1회',               check:s=>s.wins>=1,             prog:s=>[Math.min(s.wins,1),1] },
+  { lv:3,  icon:'💥',  name:'딜 입문',      desc:'한 판 딜량 15,000+',     check:s=>s.maxDamage>=15000,    prog:s=>[Math.min(s.maxDamage,15000).toLocaleString(),'15,000'] },
+  { lv:4,  icon:'⚔️',  name:'3경기 참전',  desc:'경기 3회 참여',          check:s=>s.games>=3,            prog:s=>[Math.min(s.games,3),3] },
+  { lv:5,  icon:'⭐',  name:'킬 사냥꾼',   desc:'한 판 킬 5+',            check:s=>s.maxKills>=5,         prog:s=>[Math.min(s.maxKills,5),5], milestone:true },
+  // ── 성장 (LV 6-10) ───────────────────────────────────────
+  { lv:6,  icon:'💣',  name:'딜러 견습',   desc:'한 판 딜량 25,000+',     check:s=>s.maxDamage>=25000,    prog:s=>[Math.min(s.maxDamage,25000).toLocaleString(),'25,000'] },
+  { lv:7,  icon:'🔥',  name:'킬 7+',       desc:'한 판 킬 7+',            check:s=>s.maxKills>=7,         prog:s=>[Math.min(s.maxKills,7),7] },
+  { lv:8,  icon:'🎯',  name:'KDA 2.5',     desc:'한 판 KDA 2.5+',         check:s=>s.maxKda>=2.5,         prog:s=>[Math.min(s.maxKda,2.5).toFixed(1),'2.5'] },
+  { lv:9,  icon:'🔗',  name:'2연승',        desc:'2연승 달성',             check:s=>s.maxWinStreak>=2,     prog:s=>[Math.min(s.maxWinStreak,2),2] },
+  { lv:10, icon:'⭐',  name:'도박 전사',   desc:'도박권 사용 후 승리',    check:s=>s.gambleWinS1>=1,      prog:s=>[Math.min(s.gambleWinS1,1),1], milestone:true },
+  // ── 중급 (LV 11-15) ──────────────────────────────────────
+  { lv:11, icon:'🗡️',  name:'킬 10+',      desc:'한 판 킬 10+',           check:s=>s.maxKills>=10,        prog:s=>[Math.min(s.maxKills,10),10] },
+  { lv:12, icon:'🏅',  name:'MVP 등극',    desc:'MVP 또는 SVP 선정',      check:s=>s.mvpCount>=1,         prog:s=>[Math.min(s.mvpCount,1),1] },
+  { lv:13, icon:'💎',  name:'KDA 3.5',     desc:'한 판 KDA 3.5+',         check:s=>s.maxKda>=3.5,         prog:s=>[Math.min(s.maxKda,3.5).toFixed(1),'3.5'] },
+  { lv:14, icon:'💥',  name:'딜 50k',      desc:'한 판 딜량 50,000+',     check:s=>s.maxDamage>=50000,    prog:s=>[Math.min(s.maxDamage,50000).toLocaleString(),'50,000'] },
+  { lv:15, icon:'⭐',  name:'킬 머신',     desc:'한 판 킬 12+',           check:s=>s.maxKills>=12,        prog:s=>[Math.min(s.maxKills,12),12], milestone:true },
+  // ── 고수 (LV 16-20) ──────────────────────────────────────
+  { lv:16, icon:'🌊',  name:'딜 60k',      desc:'한 판 딜량 60,000+',     check:s=>s.maxDamage>=60000,    prog:s=>[Math.min(s.maxDamage,60000).toLocaleString(),'60,000'] },
+  { lv:17, icon:'🔥',  name:'3연승',        desc:'3연승 달성',             check:s=>s.maxWinStreak>=3,     prog:s=>[Math.min(s.maxWinStreak,3),3] },
+  { lv:18, icon:'💎',  name:'KDA 4.5',     desc:'한 판 KDA 4.5+',         check:s=>s.maxKda>=4.5,         prog:s=>[Math.min(s.maxKda,4.5).toFixed(1),'4.5'] },
+  { lv:19, icon:'🗡️',  name:'킬 14+',      desc:'한 판 킬 14+',           check:s=>s.maxKills>=14,        prog:s=>[Math.min(s.maxKills,14),14] },
+  { lv:20, icon:'⭐',  name:'콤보 마스터', desc:'한 판 킬+어시 합 20+',  check:s=>s.maxKa>=20,           prog:s=>[Math.min(s.maxKa,20),20], milestone:true },
+  // ── 챌린저 (LV 21-25) ────────────────────────────────────
+  { lv:21, icon:'⚡',  name:'딜 70k',      desc:'한 판 딜량 70,000+',     check:s=>s.maxDamage>=70000,    prog:s=>[Math.min(s.maxDamage,70000).toLocaleString(),'70,000'] },
+  { lv:22, icon:'💣',  name:'킬 15+',      desc:'한 판 킬 15+',           check:s=>s.maxKills>=15,        prog:s=>[Math.min(s.maxKills,15),15] },
+  { lv:23, icon:'👑',  name:'KDA 6.0',     desc:'한 판 KDA 6.0+',         check:s=>s.maxKda>=6,           prog:s=>[Math.min(s.maxKda,6).toFixed(1),'6.0'] },
+  { lv:24, icon:'🎖️',  name:'콤보 23+',    desc:'한 판 킬+어시 합 23+',  check:s=>s.maxKa>=23,           prog:s=>[Math.min(s.maxKa,23),23] },
+  { lv:25, icon:'👑',  name:'전쟁의 신',   desc:'한 판 딜량 80,000+',     check:s=>s.maxDamage>=80000,    prog:s=>[Math.min(s.maxDamage,80000).toLocaleString(),'80,000'], milestone:true },
+];
+
+// ── 지원패스권 퀘스트 ─────────────────────────────────────────
+const SUPPORT_PASS_QUESTS = [
+  // ── 입문 (LV 1-5) ─────────────────────────────────────────
+  { lv:1,  icon:'🤝',  name:'전장 입성',    desc:'경기 1회 참여',           check:s=>s.games>=1,            prog:s=>[Math.min(s.games,1),1] },
+  { lv:2,  icon:'🏆',  name:'첫 승리',      desc:'승리 1회',                check:s=>s.wins>=1,             prog:s=>[Math.min(s.wins,1),1] },
+  { lv:3,  icon:'💪',  name:'팀플 입문',    desc:'한 판 어시 5+',           check:s=>s.maxAssists>=5,       prog:s=>[Math.min(s.maxAssists,5),5] },
+  { lv:4,  icon:'⚔️',  name:'3경기 참전',  desc:'경기 3회 참여',           check:s=>s.games>=3,            prog:s=>[Math.min(s.games,3),3] },
+  { lv:5,  icon:'⭐',  name:'생존 서포터', desc:'한 판 데스 5이하 + 승리', check:s=>s.lowDeathWin5,        prog:null, milestone:true },
+  // ── 성장 (LV 6-10) ───────────────────────────────────────
+  { lv:6,  icon:'💪',  name:'어시 8+',      desc:'한 판 어시 8+',           check:s=>s.maxAssists>=8,       prog:s=>[Math.min(s.maxAssists,8),8] },
+  { lv:7,  icon:'🏅',  name:'MVP/SVP',      desc:'MVP 또는 SVP 선정',       check:s=>s.mvpCount>=1,         prog:s=>[Math.min(s.mvpCount,1),1] },
+  { lv:8,  icon:'🤝',  name:'매너왕',       desc:'매너왕 선정 1회',         check:s=>s.mannerCount>=1,      prog:s=>[Math.min(s.mannerCount,1),1] },
+  { lv:9,  icon:'🔗',  name:'2연승',         desc:'2연승 달성',              check:s=>s.maxWinStreak>=2,     prog:s=>[Math.min(s.maxWinStreak,2),2] },
+  { lv:10, icon:'⭐',  name:'어시 마스터', desc:'한 판 어시 11+',           check:s=>s.maxAssists>=11,      prog:s=>[Math.min(s.maxAssists,11),11], milestone:true },
+  // ── 중급 (LV 11-15) ──────────────────────────────────────
+  { lv:11, icon:'🌈',  name:'어시 13+',     desc:'한 판 어시 13+',          check:s=>s.maxAssists>=13,      prog:s=>[Math.min(s.maxAssists,13),13] },
+  { lv:12, icon:'🌱',  name:'CS 장인',      desc:'한 판 CS 50+',            check:s=>s.maxCs>=50,           prog:s=>[Math.min(s.maxCs,50),50] },
+  { lv:13, icon:'🎯',  name:'족집게 관전', desc:'관전 예측 적중 1회',      check:s=>s.specCorrect>=1,      prog:s=>[Math.min(s.specCorrect,1),1] },
+  { lv:14, icon:'🔥',  name:'3연승',         desc:'3연승 달성',              check:s=>s.maxWinStreak>=3,     prog:s=>[Math.min(s.maxWinStreak,3),3] },
+  { lv:15, icon:'⭐',  name:'완벽한 방어', desc:'한 판 데스 3이하 + 승리', check:s=>s.lowDeathWin,         prog:null, milestone:true },
+  // ── 고수 (LV 16-20) ──────────────────────────────────────
+  { lv:16, icon:'🌊',  name:'어시 16+',     desc:'한 판 어시 16+',          check:s=>s.maxAssists>=16,      prog:s=>[Math.min(s.maxAssists,16),16] },
+  { lv:17, icon:'💎',  name:'KDA 3.5',      desc:'한 판 KDA 3.5+',          check:s=>s.maxKda>=3.5,         prog:s=>[Math.min(s.maxKda,3.5).toFixed(1),'3.5'] },
+  { lv:18, icon:'🤝',  name:'매너왕 2회', desc:'매너왕 2회 이상 선정',     check:s=>s.mannerCount>=2,      prog:s=>[Math.min(s.mannerCount,2),2] },
+  { lv:19, icon:'🌱',  name:'CS 고수',      desc:'한 판 CS 55+',            check:s=>s.maxCs>=55,           prog:s=>[Math.min(s.maxCs,55),55] },
+  { lv:20, icon:'⭐',  name:'어시 폭발',   desc:'한 판 어시 19+',          check:s=>s.maxAssists>=19,      prog:s=>[Math.min(s.maxAssists,19),19], milestone:true },
+  // ── 챌린저 (LV 21-25) ────────────────────────────────────
+  { lv:21, icon:'🌟',  name:'KDA 4.0',      desc:'한 판 KDA 4.0+',          check:s=>s.maxKda>=4,           prog:s=>[Math.min(s.maxKda,4).toFixed(1),'4.0'] },
+  { lv:22, icon:'🤝',  name:'매너왕 3회', desc:'매너왕 3회 이상 선정',     check:s=>s.mannerCount>=3,      prog:s=>[Math.min(s.mannerCount,3),3] },
+  { lv:23, icon:'🌈',  name:'어시 22+',     desc:'한 판 어시 22+',          check:s=>s.maxAssists>=22,      prog:s=>[Math.min(s.maxAssists,22),22] },
+  { lv:24, icon:'🎖️',  name:'킬+어시 합 25+', desc:'한 판 킬+어시 합 25+', check:s=>s.maxKa>=25,          prog:s=>[Math.min(s.maxKa,25),25] },
+  { lv:25, icon:'👑',  name:'서포터의 정점', desc:'한 판 어시 25+',         check:s=>s.maxAssists>=25,      prog:s=>[Math.min(s.maxAssists,25),25], milestone:true },
 ];
 
 // ── 전역 툴팁 시스템 ─────────────────────────────────────────
@@ -10530,6 +10644,31 @@ function calcS1PassGold(claimed) {
   return Object.keys(claimed).reduce((sum, lv) => sum + s1PassRewardForLevel(Number(lv)), 0);
 }
 
+// ── 유료 패스 공용 헬퍼 ─────────────────────────────────────
+// LV N 퀘스트 집계 기준 시각: 패스 구매 시각 or LV N-1 수령 시각 중 최신
+function paidPassAfterTs(claimed, level, purchaseTs) {
+  const baseTs = Math.max(S1_PASS_START_TS, purchaseTs || 0);
+  if (level <= 1) return baseTs;
+  const ts = s1PassClaimTs(claimed, level - 1);
+  return ts !== null ? ts : baseTs;
+}
+function calcPaidPassCurrentLevel(claimed) {
+  if (!claimed) return 0;
+  let lv = 0;
+  for (let i = 1; i <= 25; i++) {
+    if (claimed[i]) lv = i; else break;
+  }
+  return lv;
+}
+function calcBattlePassGold(claimed) {
+  if (!claimed) return 0;
+  return Object.keys(claimed).reduce((sum, lv) => sum + battlePassRewardForLevel(Number(lv)), 0);
+}
+function calcSupportPassGold(claimed) {
+  if (!claimed) return 0;
+  return Object.keys(claimed).reduce((sum, lv) => sum + supportPassRewardForLevel(Number(lv)), 0);
+}
+
 // 완료 파트 토글
 window.vpasToggleDone = function(partNum) {
   const el = document.getElementById('vpas-done-part-' + partNum);
@@ -10706,6 +10845,7 @@ window.renderS1Pass = function renderS1Pass() {
   const attendSectionHtml = '<div class="vpas-attend"><div class="vpas-done-sep"><span class="vpas-done-sep-label">오늘의 출석</span></div>' + buildSlotRow(1) + buildSlotRow(2) + '</div>';
 
   el.innerHTML = '<div class="vpas-header"><div class="vpas-header-left"><span class="vpas-title">🎫 시즌 패스</span><span class="vpas-subtitle">완료된 파트를 탭하면 확인할 수 있어요</span></div><span class="vpas-lv-pill">' + lvPillText + '</span></div>'
+    + buildPassSelector('s1')
     + attendSectionHtml
     + activeSectionHtml
     + doneSectionHtml
@@ -10746,11 +10886,282 @@ window.claimS1PassLevel = async function(level) {
   updateMyInfoBar();
 };
 
+// ── 유료 패스 뷰 전환 ──────────────────────────────────────
+window.switchPassView = function(view) {
+  currentPassView = view;
+  if (!myName) return;
+  if (view === 'battle') renderBattlePass();
+  else if (view === 'support') renderSupportPass();
+  else renderS1Pass();
+};
+
+// 패스 탭 선택기 HTML 생성
+function buildPassSelector(activeView) {
+  const myEntry = Object.entries(goldData).find(([,g]) => normName(g.name) === normName(myName));
+  const myData  = myEntry?.[1] || {};
+  const hasBattle  = !!myData.hasBattlePass_s1;
+  const hasSupport = !!myData.hasSupportPass_s1;
+  function btn(view, label, has) {
+    const active = activeView === view ? ' active' : '';
+    const suffix = !has && view !== 's1' ? ' 🔒' : '';
+    return `<button class="pass-view-btn${active}" onclick="switchPassView('${view}')">${label}${suffix}</button>`;
+  }
+  return '<div class="pass-view-sel">'
+    + btn('s1',      '시즌 패스',  true)
+    + btn('battle',  '전투 패스',  hasBattle)
+    + btn('support', '지원 패스',  hasSupport)
+    + '</div>';
+}
+
+// 패스 활성화 팝업
+function showPassActivated(item) {
+  const passType = item.id === 'battle_pass' ? 'battle' : 'support';
+  const overlay = document.createElement('div');
+  overlay.className = 'pass-act-overlay';
+  overlay.innerHTML = `
+    <div class="pass-act-modal">
+      <div class="pass-act-icon">${item.id === 'battle_pass' ? '⚔️' : '🤝'}</div>
+      <div class="pass-act-title">${item.name} 활성화!</div>
+      <div class="pass-act-desc">퀘스트를 완료하면 보상을 받을 수 있어요.<br>패스 탭에서 진행 상황을 확인해보세요.</div>
+      <div>
+        <button class="pass-act-go" onclick="this.closest('.pass-act-overlay').remove();showTab('tab-achievement');switchPassView('${passType}')">패스 탭으로 이동</button>
+        <button class="pass-act-close" onclick="this.closest('.pass-act-overlay').remove()">닫기</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+// ── 유료 패스 공용 렌더러 ──────────────────────────────────
+let _paidPassRenderCnt = 0;
+function renderPaidPass(passType) {
+  const el = document.getElementById('achievement-content');
+  if (!el) return;
+
+  const isB         = passType === 'battle';
+  const quests      = isB ? BATTLE_PASS_QUESTS      : SUPPORT_PASS_QUESTS;
+  const rewardFn    = isB ? battlePassRewardForLevel : supportPassRewardForLevel;
+  const msItems     = isB ? BATTLE_PASS_MILESTONE_ITEMS : SUPPORT_PASS_MILESTONE_ITEMS;
+  const claimedFld  = isB ? 'battlePassClaimed_s1'  : 'supportPassClaimed_s1';
+  const purchaseFld = isB ? 'hasBattlePass_s1'       : 'hasSupportPass_s1';
+  const claimFn     = isB ? 'claimBattlePassLevel'   : 'claimSupportPassLevel';
+  const passName    = isB ? '전투 패스'               : '지원 패스';
+  const passIcon    = isB ? '⚔️'                     : '🤝';
+
+  const myEntry   = Object.entries(goldData).find(([,g]) => normName(g.name) === normName(myName));
+  const myData    = myEntry?.[1] || {};
+  const purchaseTs = myData[purchaseFld];
+  const selHtml   = buildPassSelector(passType);
+
+  if (!purchaseTs) {
+    el.innerHTML = '<div class="vpas-header"><div class="vpas-header-left"><span class="vpas-title">' + passIcon + ' ' + passName + '</span></div></div>'
+      + selHtml
+      + '<div class="pass-locked-screen">'
+      + '<div class="pass-locked-icon">' + passIcon + '</div>'
+      + '<div class="pass-locked-title">' + passName + '</div>'
+      + '<div class="pass-locked-desc">상점에서 패스권을 구매하면<br>퀘스트를 진행할 수 있어요</div>'
+      + '<div class="pass-locked-price">🪙 500G</div>'
+      + '</div>';
+    return;
+  }
+
+  _paidPassRenderCnt++;
+  const _cnt = _paidPassRenderCnt;
+
+  const claimed = myData[claimedFld] || {};
+  const currentLv = calcPaidPassCurrentLevel(claimed);
+  const MAX_LV = 25;
+  const allDone = currentLv >= MAX_LV;
+  const QUESTS_PER_PART = 5;
+  const NUM_PARTS = 5;
+  const activePartNum = allDone ? NUM_PARTS : Math.floor(currentLv / QUESTS_PER_PART) + 1;
+
+  const baseTs = Math.max(S1_PASS_START_TS, purchaseTs);
+  const summaryStats = calcS1PassStats(myName, baseTs);
+  const activeLv = currentLv + 1;
+  const activeStats = currentLv < MAX_LV
+    ? calcS1PassStats(myName, paidPassAfterTs(claimed, activeLv, purchaseTs))
+    : summaryStats;
+
+  function buildQHtml(q, qState, qStats) {
+    const reward      = rewardFn(q.lv);
+    const isMilestone = !!q.milestone;
+    const isFinal     = q.lv === MAX_LV;
+    const msTag = isMilestone
+      ? '<span class="vpas-ms-tag' + (isFinal ? ' final' : '') + '">' + (isFinal ? 'FINAL' : 'MILE') + '</span>'
+      : '';
+    let midHtml = '';
+    if      (qState === 'claimed')   midHtml = msTag + '<span class="vpas-q-check">✓</span>';
+    else if (qState === 'claimable') midHtml = msTag + '<button class="vpas-claim-btn" onclick="' + claimFn + '(' + q.lv + ')">받기</button>';
+    else if (qState === 'current') {
+      const p = q.prog ? q.prog(qStats) : null;
+      midHtml = msTag + '<span class="vpas-q-prog">' + (p ? p[0] + ' / ' + p[1] : '진행 중') + '</span>';
+    } else { midHtml = msTag; }
+
+    const msItemId  = isMilestone ? msItems[q.lv] : null;
+    const msItemDef = msItemId ? S1_SHOP_ITEMS.find(i => i.id === msItemId) : null;
+    const rewardHtml = msItemDef
+      ? '<span class="vpas-q-reward">+' + reward + 'G<span class="pass-ms-item">' + msItemDef.name + '</span></span>'
+      : '<span class="vpas-q-reward">+' + reward + 'G</span>';
+
+    const qCls = ['vpas-q',
+      qState === 'claimed'   && 'done',
+      qState === 'claimable' && 'claimable',
+      qState === 'current'   && 'current',
+      qState === 'locked'    && 'locked',
+      isMilestone            && 'milestone',
+    ].filter(Boolean).join(' ');
+    return '<div class="' + qCls + '"><div class="vpas-q-body"><div class="vpas-q-name">' + q.name + '</div><div class="vpas-q-desc">' + q.desc + '</div></div>' + midHtml + rewardHtml + '</div>';
+  }
+
+  // 활성 파트
+  const activeLvStart = (activePartNum - 1) * QUESTS_PER_PART + 1;
+  const activeLvEnd   = activePartNum * QUESTS_PER_PART;
+  const activePartQs  = quests.filter(q => q.lv >= activeLvStart && q.lv <= activeLvEnd);
+  const claimedInPart = activePartQs.filter(q => !!claimed[q.lv]).length;
+  const barFillPct    = (claimedInPart / QUESTS_PER_PART) * 100;
+
+  let nodesHtml = '';
+  activePartQs.forEach(function(q, i) {
+    const pct = (i + 1) * 20;
+    const isClaimed = !!claimed[q.lv];
+    const isCurrent = q.lv === currentLv + 1;
+    const nodeState = isClaimed ? 'done' : (isCurrent ? 'active' : 'locked');
+    nodesHtml += '<div class="vpas-node ' + nodeState + '" style="bottom:calc(' + pct + '% - 5px)"></div>';
+  });
+
+  let activeQsHtml = '';
+  [...activePartQs].reverse().forEach(function(q) {
+    const isClaimed = !!claimed[q.lv];
+    const isCurrent = !allDone && q.lv === currentLv + 1;
+    let qState;
+    if (isClaimed) qState = 'claimed';
+    else if (isCurrent && q.check(activeStats)) qState = 'claimable';
+    else if (isCurrent) qState = 'current';
+    else qState = 'locked';
+    activeQsHtml += buildQHtml(q, qState, isCurrent ? activeStats : summaryStats);
+  });
+
+  const activePartLabel    = 'PART ' + activePartNum + ' · LV ' + activeLvStart + ' ~ ' + activeLvEnd;
+  const activePartProgress = allDone
+    ? QUESTS_PER_PART + ' / ' + QUESTS_PER_PART + ' 완료 ✓'
+    : claimedInPart + ' / ' + QUESTS_PER_PART + ' 완료';
+
+  const activeSectionHtml = '<div class="vpas-active-section">'
+    + '<div class="vpas-vbar-col"><div class="vpas-vbar-track"></div><div class="vpas-vbar-fill" id="vpas-pp-vbar-fill"></div>' + nodesHtml + '</div>'
+    + '<div class="vpas-active-col"><div class="vpas-part active">'
+    + '<div class="vpas-active-head"><span class="vpas-active-label">' + activePartLabel + '</span><span class="vpas-active-progress">' + activePartProgress + '</span></div>'
+    + '<div class="vpas-quest-list">' + activeQsHtml + '</div>'
+    + '</div></div></div>';
+
+  // 완료된 파트
+  let doneSectionHtml = '';
+  const donePartNums = [];
+  for (let p = 1; p < activePartNum; p++) donePartNums.push(p);
+  if (donePartNums.length > 0) {
+    let doneCardsHtml = '';
+    [...donePartNums].reverse().forEach(function(partNum) {
+      const lvStart   = (partNum - 1) * QUESTS_PER_PART + 1;
+      const lvEnd     = partNum * QUESTS_PER_PART;
+      const partQs    = quests.filter(q => q.lv >= lvStart && q.lv <= lvEnd);
+      const partGold  = partQs.reduce((sum, q) => sum + rewardFn(q.lv), 0);
+      let expandedQsHtml = '';
+      [...partQs].reverse().forEach(function(q) { expandedQsHtml += buildQHtml(q, 'claimed', summaryStats); });
+      const domId = 'vpas-pp-done-' + passType + '-' + partNum;
+      doneCardsHtml += '<div class="vpas-done-part" id="' + domId + '" onclick="vpasToggleDonePP(\'' + passType + '\',' + partNum + ')">'
+        + '<div class="vpas-done-row">'
+        + '<span class="vpas-done-check">✓</span>'
+        + '<span class="vpas-done-label">PART ' + partNum + ' · LV ' + lvStart + ' ~ ' + lvEnd + '</span>'
+        + '<span class="vpas-done-gold">+' + partGold + 'G</span>'
+        + '<span class="vpas-done-chev">▾</span>'
+        + '</div>'
+        + '<div class="vpas-expanded-quests"><div class="vpas-quest-list">' + expandedQsHtml + '</div></div>'
+        + '</div>';
+    });
+    doneSectionHtml = '<div class="vpas-done-section">'
+      + '<div class="vpas-done-sep"><span class="vpas-done-sep-label">완료된 파트</span></div>'
+      + doneCardsHtml + '</div>';
+  }
+
+  const lvPillText = allDone ? 'MAX ✓' : 'LV ' + currentLv + ' / ' + MAX_LV;
+
+  el.innerHTML = '<div class="vpas-header"><div class="vpas-header-left"><span class="vpas-title">' + passIcon + ' ' + passName + '</span><span class="vpas-subtitle">완료된 파트를 탭하면 확인할 수 있어요</span></div><span class="vpas-lv-pill">' + lvPillText + '</span></div>'
+    + selHtml
+    + activeSectionHtml
+    + doneSectionHtml;
+
+  setTimeout(function() {
+    if (_paidPassRenderCnt !== _cnt) return;
+    const fill = document.getElementById('vpas-pp-vbar-fill');
+    if (fill) fill.style.height = barFillPct + '%';
+  }, 50);
+}
+
+window.vpasToggleDonePP = function(passType, partNum) {
+  const el = document.getElementById('vpas-pp-done-' + passType + '-' + partNum);
+  if (el) el.classList.toggle('expanded');
+};
+
+window.renderBattlePass  = function() { renderPaidPass('battle'); };
+window.renderSupportPass = function() { renderPaidPass('support'); };
+
+// ── 유료 패스 레벨 클레임 ──────────────────────────────────
+async function claimPaidPassLevelImpl(passType, level) {
+  if (!myName) return;
+  if (level < 1 || level > 25) return;
+  const myEntry = Object.entries(goldData).find(([,g]) => normName(g.name) === normName(myName));
+  if (!myEntry) return;
+  const [key, data] = myEntry;
+
+  const isB         = passType === 'battle';
+  const quests      = isB ? BATTLE_PASS_QUESTS      : SUPPORT_PASS_QUESTS;
+  const rewardFn    = isB ? battlePassRewardForLevel : supportPassRewardForLevel;
+  const msItems     = isB ? BATTLE_PASS_MILESTONE_ITEMS : SUPPORT_PASS_MILESTONE_ITEMS;
+  const claimedFld  = isB ? 'battlePassClaimed_s1'  : 'supportPassClaimed_s1';
+  const purchaseFld = isB ? 'hasBattlePass_s1'       : 'hasSupportPass_s1';
+
+  const purchaseTs = data[purchaseFld];
+  if (!purchaseTs) return; // 패스 미보유
+
+  const claimed = data[claimedFld] || {};
+  if (claimed[level]) return;
+  for (let i = 1; i < level; i++) { if (!claimed[i]) return; }
+
+  const quest = quests.find(q => q.lv === level);
+  if (!quest) return;
+  const afterTs = paidPassAfterTs(claimed, level, purchaseTs);
+  const stats   = calcS1PassStats(myName, afterTs);
+  if (!quest.check(stats)) return;
+
+  const reward      = rewardFn(level);
+  const msItemId    = msItems[level];
+  const updates     = { [`${claimedFld}/${level}`]: Date.now() };
+
+  if (msItemId) {
+    const itemsKey = sField('items');
+    const newItems = [...(data[itemsKey] || []), { id: msItemId, boughtAt: Date.now(), active: false }];
+    updates[itemsKey] = newItems;
+  }
+
+  await update(ref(db, 'gold/' + key), updates);
+
+  const msItemDef = msItemId ? S1_SHOP_ITEMS.find(i => i.id === msItemId) : null;
+  const extra     = msItemDef ? ` + ${msItemDef.name}!` : '';
+  showS1Toast(`🎫 [${quest.name}] 완료! +${reward}G${extra}`);
+  renderPaidPass(passType);
+  updateMyInfoBar();
+}
+
+window.claimBattlePassLevel  = function(level) { claimPaidPassLevelImpl('battle',  level); };
+window.claimSupportPassLevel = function(level) { claimPaidPassLevelImpl('support', level); };
+
 // 업적/시즌패스 탭 공용 라우터 (탭 클릭 & 시즌 변경 시 호출)
 window.renderAchievementsOrPass = function renderAchievementsOrPass() {
   renderAttendance();
-  if (CURRENT_SEASON >= 1) renderS1Pass();
-  else {
+  if (CURRENT_SEASON >= 1) {
+    if (currentPassView === 'battle') renderBattlePass();
+    else if (currentPassView === 'support') renderSupportPass();
+    else renderS1Pass();
+  } else {
     const titleEl = document.getElementById('achievement-card-title');
     if (titleEl) titleEl.textContent = '🏅 업적';
     renderAchievements();
@@ -11994,7 +12405,9 @@ function calcPlayerGoldEarned(name, data) {
   const bonusLegacy  = (data[sField('goldBonusLegacy')] ?? data[sField('goldBonus')] ?? 0); // 구형 출석골드 호환
   const attendGold   = calcAttendanceGold(data[sField('attendanceHistory')]);
   const achieveGold  = calcAchievementGold(data[sField('achievements')]);
-  const passGold     = CURRENT_SEASON >= 1 ? calcS1PassGold(data.seasonPassClaimed_s1) : 0;
+  const passGold     = CURRENT_SEASON >= 1 ? calcS1PassGold(data.seasonPassClaimed_s1)
+                                           + calcBattlePassGold(data.battlePassClaimed_s1)
+                                           + calcSupportPassGold(data.supportPassClaimed_s1) : 0;
   const lotteryGold  = CURRENT_SEASON >= 1 ? calcLotteryGold(data) : 0;
   const witnessGold  = (data.witnessGold_s1_master || data.witnessGold_s1 || 0)
                      + (data.witnessGold_s1_gm  || 0)
@@ -12942,7 +13355,7 @@ function _renderShopImmediate() {
   // ── 상점 리스트 ─────────────────────────────────────────
   const _shopList = CURRENT_SEASON >= 1 ? S1_SHOP_ITEMS : SHOP_ITEMS;
   const isLotteryType = t => t === 'lottery' || t === 'lottery_premium';
-  const isConsumeType = t => t === 'oneshot' || isLotteryType(t);
+  const isConsumeType = t => t === 'oneshot' || isLotteryType(t) || t === 'pass';
   const shopFiltered = _shopList.filter(item => shopCatTab === 'equip' ? !isConsumeType(item.type) : isConsumeType(item.type));
   const myShopKey = getMyGoldKey();
   const myShopData = myShopKey ? goldData[myShopKey] : null;
@@ -12954,11 +13367,22 @@ function _renderShopImmediate() {
     : shopFiltered.map(item => {
     const isLotteryLimitHit = (item.type === 'lottery' && todayLotteryCount >= 10)
                            || (item.type === 'lottery_premium' && todayPremiumCount >= 3);
-    const canBuy   = myGold >= item.price && !isLotteryLimitHit && (isLotteryType(item.type) || !isItemsEffectivelyLocked());
+    const isPassOwned = item.type === 'pass' && myShopData
+      && myShopData[item.id === 'battle_pass' ? 'hasBattlePass_s1' : 'hasSupportPass_s1'];
+    const isPassType  = item.type === 'pass';
+    const canBuy   = myGold >= item.price && !isLotteryLimitHit && !isPassOwned
+                   && (isLotteryType(item.type) || isPassType || !isItemsEffectivelyLocked());
     const nameColor = item.color || 'var(--text)';
-    const btnText = isLotteryLimitHit ? '한도 소진' : (isItemsEffectivelyLocked() && !isLotteryType(item.type)) ? '🔒' : '🪙' + item.price + 'G';
-    const btnClass = isLotteryLimitHit ? 'sli-price sli-limit-hit' : 'sli-price';
-    const btnClick = isLotteryLimitHit ? '' : `onclick="buyItem('${item.id}')"`;
+    let btnText, btnClass, btnClick;
+    if (isPassOwned) {
+      btnText = '보유중'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
+    } else if (isLotteryLimitHit) {
+      btnText = '한도 소진'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
+    } else if (isItemsEffectivelyLocked() && !isLotteryType(item.type) && !isPassType) {
+      btnText = '🔒'; btnClass = 'sli-price'; btnClick = `onclick="buyItem('${item.id}')"`;
+    } else {
+      btnText = '🪙' + item.price + 'G'; btnClass = 'sli-price'; btnClick = `onclick="buyItem('${item.id}')"`;
+    }
     return `<div class="sli">
       <div class="sli-icon" style="color:${nameColor};">${item.icon}</div>
       <div class="sli-info">
@@ -12966,7 +13390,7 @@ function _renderShopImmediate() {
         <div class="sli-desc">${item.desc}</div>
       </div>
       <div class="sli-right">
-        <button class="${btnClass}" ${(!canBuy && !isLotteryLimitHit)?'disabled':''} ${btnClick}>
+        <button class="${btnClass}" ${!canBuy?'disabled':''} ${btnClick}>
           ${btnText}
         </button>
       </div>
@@ -13445,6 +13869,21 @@ window.buyItem = async function(itemId) {
     });
     const remainingGold = currentGold - item.price + result.gold;
     showLotteryModal(result, remainingGold);
+    return;
+  }
+
+  // 패스권 전용 처리
+  if (item.type === 'pass') {
+    const ownedField = itemId === 'battle_pass' ? 'hasBattlePass_s1' : 'hasSupportPass_s1';
+    if (data[ownedField]) {
+      showGoldToast(`이미 ${item.name}을 보유하고 있어요!`);
+      return;
+    }
+    const newGoldSpent2 = (data[spentKey] ?? 0) + item.price;
+    await update(ref(db, 'gold/' + key), { [spentKey]: newGoldSpent2, [ownedField]: Date.now() });
+    showPassActivated(item);
+    renderShop();
+    updateMyInfoBar();
     return;
   }
 
