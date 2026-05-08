@@ -2919,7 +2919,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.38.10';
+const APP_VERSION = 'v2.38.11';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -14733,6 +14733,41 @@ registerMilestoneListener('grandmaster');
 registerMilestoneListener('challenger');
 
 // 콘솔에서 수동 실행용 (type="module" 스코프 우회)
+// 승급전 아이템 사용 여부 진단 (콘솔용)
+window.diagPromoItem = function(playerName, approxTimestamp) {
+  const norm = normName(playerName);
+  // 타임스탬프 기준 ±5분 이내 매치 찾기
+  const matchList = Object.entries(matches).map(([k,v])=>({key:k,...v}));
+  let target;
+  if (approxTimestamp) {
+    target = matchList.sort((a,b)=>Math.abs(a.timestamp-approxTimestamp)-Math.abs(b.timestamp-approxTimestamp))[0];
+  } else {
+    target = matchList.sort((a,b)=>b.timestamp-a.timestamp)[0];
+  }
+  if (!target) { console.error('매치 없음'); return; }
+  const d = new Date(target.timestamp);
+  console.log(`📋 매치: ${d.toLocaleString('ko-KR')} (key: ${target.key})`);
+  const inMatch = [...(target.teamA||[]),...(target.teamB||[])].some(n=>normName(n)===norm);
+  console.log(`참가 여부: ${inMatch ? '✅ 참가' : '❌ 불참'}`);
+  const effects = target.itemEffects?.[norm] || [];
+  console.log(`itemEffects[${norm}]:`, effects.length ? effects : '(없음 — 아이템 미활성화)');
+  const hadPromoItem = effects.includes('s1_promo_win');
+  console.log(`s1_promo_win 활성화됨: ${hadPromoItem ? '✅ YES (저장 당시 아이템 ON)' : '❌ NO (저장 당시 아이템 OFF 또는 미보유)'}`);
+  const s1 = season1Data[norm];
+  console.log(`현재 S1 상태:`, s1 ? {tier:s1.tier, lp:s1.lp, promoActive:s1.promoActive, promoWins:s1.promoWins, promoLosses:s1.promoLosses} : '(없음)');
+  const goldEntry = Object.values(goldData).find(g=>normName(g.name)===norm);
+  if (goldEntry) {
+    const items = goldEntry[sField('items')] || [];
+    const promoWinItem = items.find(it=>it.id==='s1_promo_win');
+    console.log(`인벤토리 s1_promo_win:`, promoWinItem ? `${promoWinItem.active?'🟡 활성':'⚫ 비활성'} (남아있음)` : '(없음 — 소모됨)');
+  }
+  if (!hadPromoItem) {
+    console.warn('▶ 결론: 아이템이 저장 시점에 활성화되지 않았음 → LP 효과 미적용. 인벤토리에 아이템 확인 필요.');
+  } else {
+    console.log('▶ 결론: 아이템은 활성화됐음. LP 계산 로직 또는 promoActive 상태 문제일 수 있음.');
+  }
+};
+
 window.fixMilestone = async function(tier = 'master') {
   const last = Object.values(matches).sort((a,b)=>b.timestamp-a.timestamp)[0];
   if (!last) { console.error('경기 데이터 없음'); return; }
