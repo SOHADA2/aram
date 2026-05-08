@@ -2918,7 +2918,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.38.7';
+const APP_VERSION = 'v2.38.8';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4303,8 +4303,9 @@ let matchesLoaded = false;
 let seasonLoaded = false;
 let pendingSessionData = null; // players/matches 로드 전에 도착한 session 데이터 임시 보관
 
-function renderAllWhenReady() {
+async function renderAllWhenReady() {
   if (!playersLoaded || !matchesLoaded || !seasonLoaded) return;
+  await loadChampNamesKR();
   if (goldLoaded) { seedGoldForAllPlayers(); migrateGoldBonusToLegacy(); }
   renderMemberGrid();
   renderSessionPlayers();
@@ -9457,9 +9458,10 @@ function calcS1AwardStats(name) {
   return { mvp, svp, mmp };
 }
 
-window.openProfileModal = function(fbKey) {
+window.openProfileModal = async function(fbKey) {
   const player = fbKey ? registeredPlayers[fbKey] : null;
   if (!player) return;
+  await loadChampNamesKR();
   const old = document.getElementById('profile-modal-root');
   if (old) old.remove();
   if (CURRENT_SEASON >= 1) { _openS1ProfileModal(fbKey, player); return; }
@@ -9639,7 +9641,8 @@ function buildS1SimSection(s1d) {
   </div>`;
 }
 
-function _openS1ProfileModal(fbKey, player) {
+async function _openS1ProfileModal(fbKey, player) {
+  await loadChampNamesKR();
   const name = player.name;
   const s1d  = season1Data[normName(name)] || s1DefaultPlayer();
   const meta = S1_TIER_META[s1d.tier] || S1_TIER_META.unranked;
@@ -10381,7 +10384,7 @@ function champIconsHtml(name, sz, seasonFilter) {
   const st = calcChampStats(name, seasonFilter);
   if (!st) return '';
   const url = s => `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(s)}.png`;
-  const item = (slug, lbl) => `<div class="champ-stat-item"><span class="champ-stat-lbl">${lbl}</span><img class="champ-stat-ico" style="width:${sz}px;height:${sz}px" src="${url(slug)}" onerror="this.style.display='none'" title="${slug}"></div>`;
+  const item = (slug, lbl) => `<div class="champ-stat-item"><span class="champ-stat-lbl">${lbl}</span><img class="champ-stat-ico" style="width:${sz}px;height:${sz}px" src="${url(slug)}" onerror="this.style.display='none'" title="${champNamesKR[slug]||slug}"></div>`;
   return `<div class="champ-stats-row">${item(st.most, st.onePick ? 'ONE<br>PICK' : 'MOST')}${st.best ? item(st.best, 'BEST') : ''}</div>`;
 }
 
