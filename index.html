@@ -2919,7 +2919,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.38.9';
+const APP_VERSION = 'v2.38.10';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -13392,15 +13392,21 @@ function _renderShopImmediate() {
     : shopFiltered.map(item => {
     const isLotteryLimitHit = (item.type === 'lottery' && todayLotteryCount >= 10)
                            || (item.type === 'lottery_premium' && todayPremiumCount >= 3);
-    const isPassOwned = item.type === 'pass' && myShopData
-      && (myShopData.hasBattlePass_s1 || myShopData.hasSupportPass_s1);
     const isPassType  = item.type === 'pass';
+    const isThisPassOwned = item.id === 'battle_pass' ? !!(myShopData && myShopData.hasBattlePass_s1)
+                          : item.id === 'support_pass' ? !!(myShopData && myShopData.hasSupportPass_s1)
+                          : false;
+    const isOtherPassOwned = isPassType && !isThisPassOwned && myShopData
+      && (myShopData.hasBattlePass_s1 || myShopData.hasSupportPass_s1);
+    const isPassOwned = isThisPassOwned || isOtherPassOwned;
     const canBuy   = myGold >= item.price && !isLotteryLimitHit && !isPassOwned
                    && (isLotteryType(item.type) || isPassType || !isItemsEffectivelyLocked());
     const nameColor = item.color || 'var(--text)';
     let btnText, btnClass, btnClick;
-    if (isPassOwned) {
+    if (isThisPassOwned) {
       btnText = '보유중'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
+    } else if (isOtherPassOwned) {
+      btnText = '다른 패스 보유중'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
     } else if (isLotteryLimitHit) {
       btnText = '한도 소진'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
     } else if (isItemsEffectivelyLocked() && !isLotteryType(item.type) && !isPassType) {
