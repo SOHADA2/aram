@@ -1092,6 +1092,16 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .wm-pass-n{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:700;color:var(--rk-gold);line-height:1;}
 .wm-pass-m{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--rk-text-dim);}
 .wm-pass-bar{height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;margin-bottom:4px;}
+/* 추가 패스 (전투/지원) — 시즌 패스 카드 하단 (v2.38.14~) */
+.wm-paid-pass-block{margin-top:8px;padding-top:7px;border-top:1px dashed rgba(255,255,255,0.06);display:flex;flex-direction:column;gap:4px;}
+.wm-paid-pass-row{display:flex;align-items:center;gap:5px;font-size:10px;line-height:1.3;}
+.wm-paid-pass-row.locked{opacity:0.4;}
+.wm-paid-pass-ico{font-size:11px;flex-shrink:0;width:13px;text-align:center;}
+.wm-paid-pass-name{color:var(--text-dim);min-width:18px;font-weight:600;letter-spacing:0.2px;}
+.wm-paid-pass-bar{flex:1;height:3px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;min-width:0;}
+.wm-paid-pass-fill{height:100%;border-radius:2px;transition:width .3s ease;}
+.wm-paid-pass-num{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--text);font-weight:700;flex-shrink:0;letter-spacing:0.2px;}
+.wm-paid-pass-locked{font-size:9px;color:var(--text-dim);font-weight:600;flex:1;text-align:right;letter-spacing:0.3px;}
 .wm-pass-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--gold),var(--gold-light));width:0%;transition:width 1s cubic-bezier(0.25,1,0.5,1) 0.5s;}
 .wm-pass-sub{font-size:8px;color:var(--rk-text-dim);font-family:'JetBrains Mono',monospace;line-height:1.4;}
 .wm-champ-list{display:flex;flex-direction:column;gap:6px;}
@@ -2919,7 +2929,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.38.13';
+const APP_VERSION = 'v2.38.14';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2928,6 +2938,9 @@ const APP_VERSION = 'v2.38.13';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.38.14', date: '2026-05-07', changes: [
+    { tag: 'new', text: '대기카드 시즌 패스 영역에 추가 패스(전투/지원) 진행률 표시 — hasBattlePass_s1/hasSupportPass_s1 보유 시 ⚔️ 전투 N/25, 🤝 지원 N/25 미니 바로 표시. 미보유는 🔒 회색 처리. 시즌 패스 카드 하단에 dashed 구분선 + 컴팩트 행. 챔피언 영역과 높이 균형' },
+  ]},
   { ver: 'v2.38.13', date: '2026-05-07', changes: [
     { tag: 'fix', text: '패스 탭 노란 닷이 새로고침 직후 일시적으로 표시되던 문제 — Firebase 응답 도착 전 myData={}라 lastAttendance가 undefined로 평가돼 attendAvailable=true 되던 race condition. updateS1PassTabBadge에 goldLoaded/matchesLoaded 가드 + myEntry 미존재 시 보류 추가' },
   ]},
@@ -12793,6 +12806,22 @@ async function renderS1WaitingCard(el) {
     questBodyHtml = `<div class="wm-quest-row"><span class="wm-quest-icon">🎉</span><div class="wm-quest-body"><div class="wm-quest-name">시즌 패스 완주!</div><div class="wm-quest-desc">모든 퀘스트를 완료했어요</div></div></div>`;
   }
 
+  // 추가 패스(전투/지원) 보유·진행률 (v2.38.14~)
+  const PAID_PASS_MAX = 25;
+  const hasBattle  = !!myGoldData?.hasBattlePass_s1;
+  const hasSupport = !!myGoldData?.hasSupportPass_s1;
+  const battleLv   = hasBattle  ? calcPaidPassCurrentLevel(myGoldData?.battlePassClaimed_s1  || {}) : 0;
+  const supportLv  = hasSupport ? calcPaidPassCurrentLevel(myGoldData?.supportPassClaimed_s1 || {}) : 0;
+  const battlePct  = Math.round((battleLv  / PAID_PASS_MAX) * 100);
+  const supportPct = Math.round((supportLv / PAID_PASS_MAX) * 100);
+  const paidRow = (icon, label, has, lv, pct, color) => has
+    ? `<div class="wm-paid-pass-row owned"><span class="wm-paid-pass-ico">${icon}</span><span class="wm-paid-pass-name">${label}</span><div class="wm-paid-pass-bar"><div class="wm-paid-pass-fill" style="width:${pct}%;background:${color};"></div></div><span class="wm-paid-pass-num">${lv}/${PAID_PASS_MAX}</span></div>`
+    : `<div class="wm-paid-pass-row locked"><span class="wm-paid-pass-ico">${icon}</span><span class="wm-paid-pass-name">${label}</span><span class="wm-paid-pass-locked">🔒 미보유</span></div>`;
+  const paidPassHtml = `<div class="wm-paid-pass-block">
+    ${paidRow('⚔️', '전투', hasBattle,  battleLv,  battlePct,  '#f87171')}
+    ${paidRow('🤝', '지원', hasSupport, supportLv, supportPct, '#34d399')}
+  </div>`;
+
   // 아바타 (상태 이모지 or 이름 첫 글자)
   const plr = Object.values(registeredPlayers||{}).find(p => normName(p.name)===key);
   const avatar = plr?.statusEmoji || escHtml(myName.trim().charAt(0));
@@ -12835,6 +12864,7 @@ async function renderS1WaitingCard(el) {
         <div class="wm-pass-num-row"><span class="wm-pass-n">${passLv}</span><span class="wm-pass-m">/ ${S1_PASS_MAX_LEVEL}</span></div>
         <div class="wm-pass-bar"><div class="wm-pass-fill" id="wm-pass-fill"></div></div>
         <div class="wm-pass-sub">${passSub}</div>
+        ${paidPassHtml}
       </div>
       <div class="wm-side-card" style="flex:1;">
         <div class="wm-side-lbl">챔피언</div>
