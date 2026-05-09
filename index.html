@@ -2929,7 +2929,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.38.14';
+const APP_VERSION = 'v2.38.15';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2938,6 +2938,10 @@ const APP_VERSION = 'v2.38.14';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.38.15', date: '2026-05-07', changes: [
+    { tag: 'improve', text: '대기카드 하단 정리 — 다음 퀘스트 안내 박스 제거(시즌 패스 카드에서 이미 다음 LV 표시). wm-divider도 함께 제거. 꿀팁 영역만 깔끔하게 단독 표시' },
+    { tag: 'new', text: '꿀팁 회전 강화 — 9초마다 직전과 다른 팁으로 페이드 자동 전환. WAITING_TIPS 풀 24개 → 60개로 확장(칼바람 게임 꿀팁 15·시스템 안내 12·응원/격려 17·멘탈 케어 10·유머 5). 초기 표시도 분 단위 회전 → 진입 시 랜덤. _wmTipRotateTimer 별도 관리(ctxTip 타이머와 분리, renderS1WaitingCard 진입 시 cleanup)' },
+  ]},
   { ver: 'v2.38.14', date: '2026-05-07', changes: [
     { tag: 'new', text: '대기카드 시즌 패스 영역에 추가 패스(전투/지원) 진행률 표시 — hasBattlePass_s1/hasSupportPass_s1 보유 시 ⚔️ 전투 N/25, 🤝 지원 N/25 미니 바로 표시. 미보유는 🔒 회색 처리. 시즌 패스 카드 하단에 dashed 구분선 + 컴팩트 행. 챔피언 영역과 높이 균형' },
   ]},
@@ -12560,30 +12564,69 @@ window.closeMyModal = function() {
   document.getElementById('my-modal').style.display='none';
 };
 const WAITING_TIPS = [
+  // ── 칼바람 게임 꿀팁 ──
   '💡 칼바람은 팀 싸움이 전부! 혼자 앞서 나가면 손해예요.',
   '💡 스킬 쿨타임이 빠진 직후가 싸울 최적의 타이밍이에요.',
   '💡 체력이 낮을 땐 미니언 뒤에서 피해를 최소화하세요.',
   '⚔️ 팀원과의 호흡이 개인 실력보다 중요한 게 칼바람이에요.',
-  '🔥 연패 중이라도 다음 한 판이 반전의 시작일 수 있어요.',
   '💡 포탑 아래 전투는 최후의 수단으로 아껴두세요.',
-  '☕ 경기 전 가볍게 스트레칭하면 집중력이 올라가요!',
-  '🎲 도박권은 자신 있을 때만! 리스크와 리턴을 잘 계산하세요.',
   '💡 우리 팀 CC기가 집결됐을 때 한타 타이밍을 잡으세요.',
-  '🌱 뉴비 팀원이 있다면 조금 더 챙겨주면 팀이 강해져요.',
-  '☕ 게임 시작 전 물 한 잔 마시는 거 잊지 마세요!',
   '💡 회복 아이템이 없다면 포탑 뒤 자동 회복을 적극 활용하세요.',
+  '💡 증강 조합을 미리 생각하고 게임에 임하면 효율이 달라져요.',
+  '🎯 첫 한타에서 죽지 않는 것만으로도 승률이 크게 올라요.',
+  '🛒 한타 직전 골드 100원이면 회복 아이템이라도 꼭 사세요.',
+  '💪 후반 조합이라면 조심스럽게 시간을 끄는 것도 전략이에요.',
+  '⚡ 적이 점멸을 썼다면 그 시점이 이니시 타이밍이에요.',
+  '🧊 체력 절반 이하면 무리한 진입은 피하고 거리를 두세요.',
+  '🌀 한 명만 잘리면 그 한타는 거의 진다고 보면 돼요.',
+  '🎯 막타에 집중하면 골드 차이가 누적돼 승부를 가르는 거예요.',
+  // ── 시스템 안내 ──
+  '🎲 도박권은 자신 있을 때만! 리스크와 리턴을 잘 계산하세요.',
   '🛡️ 승급전 직전이라면 승급전 방어권을 미리 챙겨두세요.',
   '⚔️ 승급전 승리권 한 장이면 2연승도 1판으로 끝낼 수 있어요.',
   '🎟️ 복권은 1일 10장 한도! 매일 도전해서 잭팟을 노려보세요.',
   '💎 프리미엄 복권은 1일 3장 한도지만 기댓값이 훨씬 높아요.',
   '🏆 MVP는 골드뿐 아니라 랭킹에도 기록돼요. 매너 있게 투표해 주세요.',
-  '💡 승급전 실패해도 75LP로 돌아와요. 절망하지 마세요!',
   '🥇 패스 레벨을 올리면 골드 보상이 쌓여요. 퀘스트를 확인해 보세요.',
-  '💡 관전 예측을 잘 맞추면 골드를 받아요. 눈치 싸움도 실력이에요.',
-  '🔥 3연승부터 분위기가 달라져요. 기세를 이어가세요!',
+  '💰 출석 체크는 무료 +30G! 매일 잊지 말고 챙기세요.',
+  '🎁 전투/지원 패스권은 500G로 추가 퀘스트가 열려요.',
+  '🔮 관전 예측을 잘 맞추면 골드를 받아요. 눈치 싸움도 실력이에요.',
   '⚡ 마스터·그마·챌린저 첫 달성 시 팀 전원이 골드를 받아요!',
-  '💡 증강 조합을 미리 생각하고 게임에 임하면 효율이 달라져요.',
+  // ── 응원·격려 ──
+  '🔥 연패 중이라도 다음 한 판이 반전의 시작일 수 있어요.',
+  '🌱 뉴비 팀원이 있다면 조금 더 챙겨주면 팀이 강해져요.',
+  '💡 승급전 실패해도 75LP로 돌아와요. 절망하지 마세요!',
+  '🔥 3연승부터 분위기가 달라져요. 기세를 이어가세요!',
+  '🌟 오늘도 한 판 한 판 즐겁게! 그게 가장 중요해요.',
+  '💪 패배도 경험치예요. 다음 판은 분명 다를 거예요.',
+  '🎮 즐기는 자가 결국 이깁니다. 부담 없이!',
+  '🌈 무지개는 비 온 뒤에 떠요. 지금이 바로 그 순간!',
+  '✨ 오늘 잘했어요. 한 판 더 가볼까요?',
+  '🚀 도전하는 사람이 가장 멋있어요!',
+  '💎 작은 한 판이 모여 큰 시즌을 만들어요.',
+  '🏅 어제의 나보다 오늘 한 걸음 앞으로!',
+  '🍀 운도 실력의 일부예요. 충분히 누리세요.',
+  '🌻 패배가 두려워 도전하지 않으면 아무것도 얻을 수 없어요.',
+  '🎉 즐거운 게임이 좋은 결과를 만들어요!',
+  '🔆 한 판 한 판이 모두 의미 있는 경험이에요.',
+  '🍻 친구들과 함께라서 더 즐거운 칼바람!',
+  // ── 멘탈 케어·휴식 ──
+  '☕ 경기 전 가볍게 스트레칭하면 집중력이 올라가요!',
+  '☕ 게임 시작 전 물 한 잔 마시는 거 잊지 마세요!',
   '😤 경기 후 감정 조절이 다음 판 승률을 결정해요. 잠깐 쉬어도 괜찮아요.',
+  '🧘 한 판 진다고 끝이 아니에요. 심호흡 한 번 하고 가요.',
+  '👀 화면 너무 가까이 보지 마세요. 한 발짝 떨어져서 봐요.',
+  '🌙 늦은 시간엔 한 판만! 내일도 게임은 있어요.',
+  '🍎 간식 챙기면서 게임하면 집중력이 더 올라요.',
+  '🛋️ 자세를 바르게! 허리 펴고 앉으면 반응 속도도 좋아져요.',
+  '😌 채팅창에서 화 나면 잠깐 닫아두세요. 마음의 평화가 우선!',
+  '🎵 좋아하는 음악 BGM으로 깔면 분위기가 달라져요.',
+  // ── 가벼운 유머·재미 ──
+  '🦊 운빨겜이라고 욕하지만 결국 잘하는 사람이 이겨요.',
+  '🐢 느려도 꾸준한 사람이 챌린저가 돼요.',
+  '🎰 잭팟 한 번이면 한 달 골드 걱정 끝!',
+  '🦁 매일 한 판이라도 챔피언처럼 임하세요.',
+  '🌪️ 연패 끝에 오는 연승이 가장 짜릿해요.',
 ];
 
 function tierFromPt(pt) {
@@ -12688,6 +12731,7 @@ function renderWaitingCard() {
 async function renderS1WaitingCard(el) {
   await loadChampNamesKR();
   if (window._wmTipTimer) { clearInterval(window._wmTipTimer); window._wmTipTimer = null; }
+  if (window._wmTipRotateTimer) { clearInterval(window._wmTipRotateTimer); window._wmTipRotateTimer = null; }
   const key    = normName(myName);
   const d      = s1GetPlayer(myName) || s1DefaultPlayer();
   const meta   = S1_TIER_META[d.tier] || S1_TIER_META.unranked;
@@ -12873,9 +12917,7 @@ async function renderS1WaitingCard(el) {
     </div>
   </div>
   <div class="wm-card wm-bottom-card">
-    ${questBodyHtml}
-    <div class="wm-divider"></div>
-    <div class="wm-tip-row"><span class="wm-tip-txt">${escHtml(WAITING_TIPS[Math.floor(Date.now()/60000) % WAITING_TIPS.length])}</span></div>
+    <div class="wm-tip-row"><span class="wm-tip-txt" id="wm-tip-txt">${escHtml(WAITING_TIPS[Math.floor(Math.random() * WAITING_TIPS.length)])}</span></div>
   </div>
 </div>`;
 
@@ -12902,6 +12944,26 @@ async function renderS1WaitingCard(el) {
       }, 190);
     }, 60000);
   }
+
+  // 일반 꿀팁 회전 (v2.38.15~) — 9초마다 랜덤(직전과 다른) 팁으로 페이드 전환
+  let _lastTipIdx = -1;
+  // 현재 표시된 팁의 인덱스 추정 (랜덤 시작이라 모르면 -1)
+  window._wmTipRotateTimer = setInterval(() => {
+    const tipEl = document.getElementById('wm-tip-txt');
+    if (!tipEl) { clearInterval(window._wmTipRotateTimer); window._wmTipRotateTimer = null; return; }
+    let nextIdx;
+    do { nextIdx = Math.floor(Math.random() * WAITING_TIPS.length); }
+    while (nextIdx === _lastTipIdx && WAITING_TIPS.length > 1);
+    _lastTipIdx = nextIdx;
+    tipEl.style.transition = 'opacity 0.25s ease';
+    tipEl.style.opacity = '0';
+    setTimeout(() => {
+      const el2 = document.getElementById('wm-tip-txt');
+      if (!el2) return;
+      el2.textContent = WAITING_TIPS[nextIdx];
+      el2.style.opacity = '1';
+    }, 260);
+  }, 9000);
 
   // 카드 stagger 등장
   el.querySelectorAll('.wm-card,.wm-side-card').forEach((c, i) => setTimeout(() => c.classList.add('in'), 60 + i * 70));
