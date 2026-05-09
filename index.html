@@ -2919,7 +2919,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.38.12';
+const APP_VERSION = 'v2.38.13';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -2928,6 +2928,9 @@ const APP_VERSION = 'v2.38.12';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.38.13', date: '2026-05-07', changes: [
+    { tag: 'fix', text: '패스 탭 노란 닷이 새로고침 직후 일시적으로 표시되던 문제 — Firebase 응답 도착 전 myData={}라 lastAttendance가 undefined로 평가돼 attendAvailable=true 되던 race condition. updateS1PassTabBadge에 goldLoaded/matchesLoaded 가드 + myEntry 미존재 시 보류 추가' },
+  ]},
   { ver: 'v2.37.40', date: '2026-05-06', changes: [
     { tag: 'fix', text: '새로고침 시 대기 화면 깜박임 — my-info-bar가 대기카드 자리에 잠깐 표시되던 문제 수정. updateMemberModeDisplay에서 my-info-bar도 함께 제어, 멤버 모드에서는 항상 숨김(대기카드가 담당)' },
   ]},
@@ -11203,8 +11206,11 @@ function updateS1PassTabBadge() {
   if (!tabBtn) return;
   const removeDot = () => tabBtn.querySelector('.s1p-tab-dot')?.remove();
   if (CURRENT_SEASON < 1 || !myName) { removeDot(); return; }
+  // v2.38.13~ Firebase 동기화 전 false positive 방지 — gold/matches 로드 완료 후만 판정
+  if (!goldLoaded || !matchesLoaded) { removeDot(); return; }
   const myEntry = Object.entries(goldData).find(([,g]) => normName(g.name) === normName(myName));
-  const myData = myEntry?.[1] || {};
+  if (!myEntry) { removeDot(); return; } // 신규 유저 — 데이터 없으면 알람 보류
+  const myData = myEntry[1] || {};
 
   // 출석 가능 여부 확인
   const todayKey = getLocalDateKey();
