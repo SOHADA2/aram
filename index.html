@@ -122,6 +122,10 @@ body.s1-active .nav-tab:not(.active):hover{background:rgba(60,30,120,0.4);border
 /* ── HoF 접근 버튼 (sync-bar 내 계정변경 좌측) ── */
 #hof-access-btn{background:none;border:1px solid rgba(200,168,75,0.22);color:rgba(200,168,75,0.65);font-size:10px;cursor:pointer;padding:2px 9px;border-radius:4px;font-family:'Noto Sans KR',sans-serif;font-weight:700;transition:all 0.15s;white-space:nowrap;letter-spacing:0.5px;}
 #hof-access-btn:hover{border-color:var(--gold);color:var(--gold);}
+/* ── 상단바 출석 빠른 버튼 ── */
+#attend-quick-btn{display:none;background:none;border:1px solid rgba(52,211,153,0.35);color:rgba(52,211,153,0.85);font-size:10px;cursor:pointer;padding:2px 9px;border-radius:4px;font-family:'Noto Sans KR',sans-serif;font-weight:700;transition:all 0.15s;white-space:nowrap;letter-spacing:0.3px;animation:attendPulse 2.5s ease-in-out infinite;}
+#attend-quick-btn:hover{border-color:#34d399;color:#34d399;background:rgba(52,211,153,0.08);}
+@keyframes attendPulse{0%,100%{box-shadow:0 0 0 0 rgba(52,211,153,0);}50%{box-shadow:0 0 0 3px rgba(52,211,153,0.18);}}
 /* ── 명예의전당 모달 ── */
 .hof-overlay{position:fixed;inset:0;z-index:9998;background:rgba(4,2,14,0.95);backdrop-filter:blur(8px);display:flex;align-items:flex-start;justify-content:center;padding:16px 16px 40px;overflow-y:auto;animation:fadeIn 0.35s ease;}
 .hof-modal{background:linear-gradient(160deg,#12092a,#0d0820);border:1px solid rgba(200,168,75,0.28);border-radius:24px;width:100%;max-width:460px;padding:28px 20px 24px;margin:auto;box-shadow:0 0 80px rgba(200,168,75,0.1),0 8px 40px rgba(0,0,0,0.85);}
@@ -2384,6 +2388,7 @@ img.emoji{
     <span id="bridge-msg" style="font-size:10px;">브릿지 없음</span>
     <button id="hof-access-btn" onclick="showHallOfFame()">🏛 명예의전당</button>
     <span style="color:rgba(255,255,255,0.12);margin:0 2px;">|</span>
+    <button id="attend-quick-btn" onclick="doAttendance(event)">📅 출석</button>
     <button class="account-change-btn" onclick="openMyModal()">계정변경</button>
   </div>
 </div>
@@ -2936,7 +2941,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.38.17';
+const APP_VERSION = 'v2.38.18';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -11225,6 +11230,7 @@ window.renderAchievementsOrPass = function renderAchievementsOrPass() {
   const tabBtn = document.querySelector('.nav-tab-achievement');
   if (tabBtn) tabBtn.innerHTML = CURRENT_SEASON >= 1 ? '🎫<br>패스' : '🏅<br>업적';
   updateS1PassTabBadge();
+  updateAttendQuickBtn();
 };
 
 // 시즌패스 탭 배지 (수령 가능한 퀘스트 or 출석 가능 시 반짝이는 점 표시)
@@ -11263,6 +11269,20 @@ function updateS1PassTabBadge() {
   } else {
     removeDot();
   }
+}
+
+// 상단바 출석 빠른 버튼 표시/숨김
+function updateAttendQuickBtn() {
+  const btn = document.getElementById('attend-quick-btn');
+  if (!btn) return;
+  if (!myName || CURRENT_SEASON < 1) { btn.style.display = 'none'; return; }
+  const myEntry = Object.entries(goldData).find(([,g]) => normName(g.name) === normName(myName));
+  const myData = myEntry?.[1] || {};
+  const todayKey = getLocalDateKey();
+  const currentSlot = getAttendSlot();
+  const available = !isAttendSlotDone(myData, currentSlot, todayKey);
+  btn.style.display = available ? 'inline-block' : 'none';
+  if (available) btn.textContent = `📅 ${currentSlot}타임 출석 (+${GOLD_ATTEND}G)`;
 }
 
 // ── 랭킹 v2 헬퍼 (v2.29.23~) ──────────────────────────────
@@ -11435,7 +11455,6 @@ function renderRankMiniCard(r, displayRank, hasChallenger) {
     : `<span class="num dim">—</span>`;
   const champIcons = champIconsHtml(r.name, 18, 0);
   return `<div class="rk-mini${meCls}" data-name="${escHtml(r.name)}">
-    ${r.me ? '<span class="rk-mini-me-corner">나</span>' : ''}
     <div class="stripe" style="background:${tierColor};"></div>
     <div class="rk-mini-rank">${displayRank}</div>
     <div class="rk-mini-champ-col">${champIcons}</div>
@@ -11445,7 +11464,7 @@ function renderRankMiniCard(r, displayRank, hasChallenger) {
         ${r.isNewbie ? '<span class="rk-newbie-emoji">🌱</span>' : ''}
         ${r.motto ? `<div class="rk-mini-motto-bubble"><span class="rk-motto-text">"${escHtml(r.motto)}"</span></div>` : ''}
       </div>
-      <div class="rk-mini-meta">${dots}${chips}</div>
+      <div class="rk-mini-meta">${r.me ? renderRankMeTag(true) : ''}${dots}${chips}</div>
     </div>
     <div class="rk-mini-right">
       ${renderRankTierBadge(r.tier, 'mini')}
@@ -12551,6 +12570,7 @@ function updateMyInfoBar() {
     }
   }
   updateS1PassTabBadge();
+  updateAttendQuickBtn();
 }
 
 // 내 정보 바 클릭 → 내 프로필 모달 오픈
@@ -13442,6 +13462,7 @@ window.doAttendance = async function(ev) {
   try {
     await set(ref(db, 'gold/' + key), updates);
     showGoldToast(`🪙 +${GOLD_ATTEND} 출석 보너스!`);
+    updateAttendQuickBtn();
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = '출석 체크'; btn.style.cursor = ''; }
     showGoldToast('❌ 출석 체크 실패 — 다시 시도해주세요');
@@ -15221,7 +15242,6 @@ function renderS1MiniCard(r, displayRank, hasChallenger) {
   }
 
   return `<div class="rk-mini${meCls}${promoCls}" data-name="${escHtml(r.name)}" style="cursor:pointer;">
-    ${r.me?'<span class="rk-mini-me-corner">나</span>':''}
     <div class="stripe" style="background:${meta.color};"></div>
     <div class="rk-mini-rank">${displayRank}</div>
     <div class="rk-mini-champ-col">${champIcons}</div>
@@ -15231,7 +15251,7 @@ function renderS1MiniCard(r, displayRank, hasChallenger) {
         ${r.isNewbie?'<span class="rk-newbie-emoji">🌱</span>':''}
         ${r.motto?`<div class="rk-mini-motto-bubble"><span class="rk-motto-text">"${escHtml(r.motto)}"</span></div>`:''}
       </div>
-      <div class="rk-mini-meta">${dots}${chips}</div>
+      <div class="rk-mini-meta">${r.me?renderRankMeTag(true):''}${dots}${chips}</div>
     </div>
     <div class="rk-mini-right rk-mini-right-s1">
       <div class="rk-s1-tier-lp">${rightInner}</div>
