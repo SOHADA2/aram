@@ -3475,7 +3475,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.40.6';
+const APP_VERSION = 'v2.40.7';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -16774,6 +16774,58 @@ window.mgForceCancel = async function(matchIdArg) {
   console.log('[막고라] 강제 취소 완료:', matchId);
 };
 
+// ── 개발/테스트용 콘솔 헬퍼 ─────────────────────────────
+// mgSkipTimer()   : 배팅 타이머 즉시 만료 → closed 상태로 전환
+// mgTestSettle()  : closed 상태에서 랜덤 결과로 바로 정산
+// mgTestSettle('이름', 'tower'|'kill2'|'cs100')  : 직접 지정
+
+window.mgSkipTimer = async function() {
+  const matchId=currentMagollaId;
+  if (!matchId) { console.log('[막고라] 활성 매치 없음'); return; }
+  const snap=await get(ref(db,'magolla_matches/'+matchId));
+  const d=snap.val();
+  if (!d) { console.log('[막고라] 데이터 없음'); return; }
+  if (d.status!=='betting') { console.log('[막고라] betting 상태 아님:', d.status); return; }
+  // auto-bet 처리 후 closed
+  const updates={};
+  const bets=d.bets||{};
+  const now=Date.now();
+  for (const specName of (d.spectators||[])) {
+    const nn=normName(specName);
+    const alreadyBet=Object.keys(bets).find(k=>normName(bets[k].name||'')===nn||normName(k)===nn);
+    if (alreadyBet) continue;
+    const gk=mgFindGoldKey(specName);
+    const gd=gk?goldData[gk]:null;
+    const balance=gd?(calcPlayerGoldEarned(specName,gd)-(gd[sField('goldSpent')]||0)):0;
+    const amount=balance>=10?10:5;
+    const noDeduct=amount===5;
+    const winner=[d.fighter1,d.fighter2][Math.floor(Math.random()*2)];
+    const cond=['tower','kill2','cs100'][Math.floor(Math.random()*3)];
+    updates['magolla_matches/'+matchId+'/bets/'+nn]={name:specName,winner,cond,amount,betAt:now,auto:true,noDeduct};
+    if (gk&&gd&&!noDeduct) updates['gold/'+gk+'/'+sField('goldSpent')]=(gd[sField('goldSpent')]||0)+amount;
+  }
+  updates['magolla_matches/'+matchId+'/status']='closed';
+  await update(ref(db),updates);
+  console.log('[막고라] 타이머 스킵 → closed');
+};
+
+window.mgTestSettle = async function(winnerArg, condArg) {
+  const matchId=currentMagollaId;
+  if (!matchId) { console.log('[막고라] 활성 매치 없음'); return; }
+  const snap=await get(ref(db,'magolla_matches/'+matchId));
+  const d=snap.val();
+  if (!d) { console.log('[막고라] 데이터 없음'); return; }
+  if (d.status!=='closed') {
+    console.log('[막고라] closed 상태 아님. 먼저 mgSkipTimer() 실행 후 시도하세요. 현재:', d.status);
+    return;
+  }
+  const winner=winnerArg||d.fighter1;
+  const cond=condArg||['tower','kill2','cs100'][Math.floor(Math.random()*3)];
+  console.log('[막고라] 정산 시작 — 승자:', winner, '/ 요건:', cond);
+  await mgSettleMatch(matchId, winner, cond, d);
+  console.log('[막고라] 정산 완료');
+};
+
 // window 등록
 window.openMagollaModal = openMagollaModal;
 window.closeMagollaModal = closeMagollaModal;
@@ -16788,6 +16840,8 @@ window.mgConfirmResult = mgConfirmResult;
 window.mgCancelMatch = mgCancelMatch;
 window.mgToggleFormula = mgToggleFormula;
 window.mgToggleMute = mgToggleMute;
+// 테스트 헬퍼 (콘솔에서 호출)
+// window.mgSkipTimer / window.mgTestSettle 은 위에서 직접 선언됨
 
 </script>
 
