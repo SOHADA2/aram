@@ -2500,6 +2500,13 @@ img.emoji{
 .bm-streak { font-size:9px;font-weight:700;margin-top:3px;letter-spacing:1px; }
 .bm-streak.win { color:rgba(80,220,130,0.8); }
 .bm-streak.loss { color:rgba(239,83,80,0.65); }
+.bet-fighter-info { display:grid;grid-template-columns:1fr 1px 1fr;gap:0;padding:8px 12px;background:rgba(239,83,80,0.03);border:1px solid rgba(239,83,80,0.1);border-radius:10px;margin-top:6px; }
+.bfi-col { display:flex;flex-direction:column;align-items:center;padding:4px 6px; }
+.bfi-sep { background:rgba(239,83,80,0.12); }
+.bfi-kda-row { display:flex;align-items:baseline;gap:4px;flex-wrap:wrap;justify-content:center; }
+.bfi-kda-label { font-size:8px;font-weight:700;letter-spacing:1.5px;color:rgba(239,83,80,0.45); }
+.bfi-kda-val { font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;color:rgba(200,168,75,0.9); }
+.bfi-kda-sub { font-family:'JetBrains Mono',monospace;font-size:9px;color:rgba(220,190,190,0.4); }
 .fc-kda-block { display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px;margin-top:4px;text-align:center; }
 .fc-kda-block-label { font-size:8px;font-weight:700;letter-spacing:1px;color:rgba(220,190,190,0.3); }
 .fc-kda-block-val { font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(220,190,190,0.65); }
@@ -3494,7 +3501,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.40.24';
+const APP_VERSION = 'v2.40.25';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -16295,6 +16302,21 @@ function mgRenderBettingView(data, role) {
   </div>`;
   const str1=calcStreak(f1), str2=calcStreak(f2);
   const strHtml=(st)=>st?`<div class="bm-streak ${st.type==='win'?'win':'loss'}">${st.type==='win'?'▲':'▼'} ${st.count}연${st.type==='win'?'승':'패'}</div>`:'';
+  const kda1=mgAvgKda(f1), kda2=mgAvgKda(f2);
+  const form1=mgRecentForm(f1,5), form2=mgRecentForm(f2,5);
+  const bfiFormHtml=(form)=>form.length?form.map(r=>`<span class="fc-form-dot ${r==='W'?'win':'loss'}">${r}</span>`).join(''):'';
+  const bfiKdaHtml=(kda)=>kda?`<span class="bfi-kda-label">KDA</span><span class="bfi-kda-val">${kda.kda}</span><span class="bfi-kda-sub">${kda.k}/${kda.d}/${kda.a}</span>`:'';
+  const fighterInfoHtml=`<div class="bet-fighter-info">
+    <div class="bfi-col">
+      <div class="bfi-kda-row">${bfiKdaHtml(kda1)}</div>
+      <div class="fc-form" style="margin-top:5px;">${bfiFormHtml(form1)}</div>
+    </div>
+    <div class="bfi-sep"></div>
+    <div class="bfi-col">
+      <div class="bfi-kda-row">${bfiKdaHtml(kda2)}</div>
+      <div class="fc-form" style="margin-top:5px;">${bfiFormHtml(form2)}</div>
+    </div>
+  </div>`;
   const matchupHtml=`<div class="bet-matchup">
     <div class="bm-fighter${isMeF1?' me':''}">
       ${isMeF1?'<div class="bm-me-badge">나</div>':''}
@@ -16309,7 +16331,7 @@ function mgRenderBettingView(data, role) {
       <div class="bm-tier">${mgTierLabel(d2.tier)} · ${d2.lp||0}LP</div>
       ${strHtml(str2)}
     </div>
-  </div>`;
+  </div>${fighterInfoHtml}`;
   let mid='';
   if (role==='live') {
     mid=`<div class="live-monitor-panel">
