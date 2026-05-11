@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.38.16
+- 현재 버전: v2.40.25
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -35,6 +35,7 @@
   spectatorPicks: { [normName]: string } | null  // 다중 관전자 각자 예측
   spectatorBets:  { [normName]: number } | null  // 관전자 베팅 금액 (v2.36.11~, 30/50/80/100)
   spectatorPickStartAt: number  // 예측 모달 시작 시각
+  magollaMatchId: string | null // 활성 막고라 매치 ID (v2.39.0~) — 모든 기기에 막고라 모달 전파용
   // onValue로 모든 기기에 실시간 동기화됨 (일반 매치만, 이벤트 매치는 제외)
 
 /matches/{key}
@@ -537,3 +538,115 @@ gh release create vX.X.X dist/aram-bridge-vX.X.X.zip dist/aram-bridge-vX.X.X.exe
 - `index.js` — LCU 폴링 + Firebase 전송 + HTTP 상태 페이지(7654포트)
 - `이 파일을 실행해 주세요.vbs` — 런처 (CP949 인코딩, Zone.Identifier 자동 해제 후 exe 숨김 실행)
 - 상태 페이지: `/api/status` (JSON), `/api/shutdown` (POST → 종료)
+
+## 막고라 매치 시스템 (v2.39.0~, v2.40.x 대규모 개선)
+최소 5인 세션에서 파이터 2명이 1:1 대결, 나머지는 관전자로 배팅 참여하는 미니게임.
+
+### 발동 조건 및 UI
+- `sessionPlayers.length >= 5` 이고 `liveMode` 일 때 막고라 드롭다운 항목 활성화
+- 매치 타입 드롭다운 3번째 항목 (일반/이벤트/막고라), 조건 미충족 시 dim 처리
+- 막고라 진행 중에는 `make-teams-btn`(팀짜기) 비활성화
+- **`type="module"` 주의**: HTML onclick 사용 함수는 반드시 `window.*` 등록 필요
+
+### Firebase 데이터 구조
+```
+/magolla_matches/{matchId}
+  status: 'betting' | 'closed' | 'settled' | 'cancelled'
+  fighter1: string          // 파이터 1 이름
+  fighter2: string          // 파이터 2 이름
+  spectators: string[]      // 관전자(배팅자) 이름 배열 (3명)
+  bettingStartAt: number    // 배팅 시작 타임스탬프
+  createdBy: string         // 생성자 이름
+  season: number
+  bets: {
+    [normName]: {
+      winner: string        // 승리 예측 이름
+      cond: 'tower'|'kill2'|'cs100'  // 승리 요건 예측
+      amount: number        // 배팅 금액 (10~100G, step 10)
+      betAt: number
+    }
+  }
+  result: { winner: string, cond: string }  // 라이브 결과 입력
+  payouts: { [normName]: number }           // 정산 후 net 골드 (파이터: 절대값, 관전자: net)
+  status: 'settled' → payouts 확정
+
+/session/magollaMatchId: string | null  // 활성 매치 ID — 모든 기기 전파용
+```
+
+### 골드 처리
+- **배팅 시**: 관전자 `goldSpent += amount` (선차감)
+- **정산 시**: `mgSettleMatch()` — `goldSpent` 복구 후 `magollaHistory` 배열에 net delta 기록
+- **취소 시**: `mgCancelMatch()` / `mgForceCancel()` — 모든 배팅자 `goldSpent -= amount` 환불
+- **파이터**: goldSpent 변동 없음, magollaHistory goldDelta로만 earned 증가
+- `calcMagollaGold(history)` — `magollaHistory_s1` 배열 합산, `calcPlayerGoldEarned`에 통합
+
+### 배팅 배율 (군중 배율)
+- 승자 예측 단독: ×1.4 / 다수 중 소수: ×1.0 / 전원 동일: ×0.8
+- 요건 예측 단독: ×1.6 / 다수 중 소수: ×1.0 / 전원 동일: ×0.75
+- 둘 다 맞춤: `amount × 2.20 × wm × cm`
+- 하나만 맞춤: `amount × 0.88 × wm` 또는 `amount × 1.08 × cm`
+- 파이터: 승리 +100G / 패배 +50G (`MAGOLLA_FIGHTER_WIN/LOSE`)
+
+### 상태 흐름
+```
+null → 'betting'(90초) → 'closed'(타이머 만료)
+                       → 'settled'(라이브 결과 입력 후 mgConfirmResult)
+                       → 'cancelled'(매칭 취소 버튼)
+```
+- `closed` 상태: 배팅 마감, 라이브 결과 입력 대기 (UI에 "마감" 표시)
+- `settled` → `session/magollaMatchId = null` 자동 초기화
+- `cancelled` → `session/magollaMatchId = null` + 모든 기기 모달 즉시 닫힘
+
+### 핵심 변수 (전역)
+```javascript
+let magollaState      = null;  // null | 'active' | 'settled'
+let currentMagollaId  = null;
+let magollaData       = null;  // onMagollaUpdate에서 최신 snap.val() 캐시
+let magollaUnsubscribe   = null;
+let magollaTimerInterval = null;
+let _mgSelectedWinner = null;  // 배팅 뷰 로컬 선택값
+let _mgSelectedCond   = null;
+let _mgResultWinner   = null;  // 라이브 결과 입력 선택값
+let _mgResultCond     = null;
+let _mgBettingTabFocused = false; // 관전자 배팅탭 자동포커스 1회 가드
+const MAGOLLA_BET_DURATION = 90000; // 90초
+```
+
+### 파이터 선정 로직 (v2.40.13~)
+- 전체 쌍(C(n,2))을 `weight = 1/(LP차이+20)` 가중치 랜덤으로 선택 — LP 밸런스 유지하되 다양한 매치업 가능
+- 직전 정산 완료된 파이터 쌍은 `localStorage('mgLastFighters')`로 저장 → 다음 매치에서 weight=0 제외
+
+### 파이터 카드 표시 정보 (v2.40.x~)
+- 티어/LP, 전체 승률/전적, 평균 KDA (K/D/A 3열 그리드), 연승/연패 배지, 최근 5경기 폼 도트
+- `mgAvgKda(name)` — `Object.values(matches)` 순회, participants KDA 집계
+- `mgRecentForm(name, n)` — 최근 n경기 W/L 배열
+- `mgHeadToHead(n1, n2)` — 서로 다른 팀에 속했던 경기에서의 팀경기 승부 전적
+- 배팅 뷰 매치업 헤더 아래 `.bet-fighter-info` 패널: KDA + 폼 도트 (라이브/파이터/배팅자 모두 표시)
+
+### 브릿지 충돌 방지 (v2.40.16~17)
+막고라 1v1 게임 종료 시 브릿지 이벤트가 일반 매치 UI를 오염하지 않도록 `magollaState === 'active'` 가드:
+- `bridge/eogStats` → EOG 오버레이 차단
+- `bridge/matchData` → EOG 오버레이 차단
+- `bridge/voteStarted` → 탭 전환/배너 차단
+- `bridge/gamePhase → InProgress` → `currentMatchParticipants` 오염 차단
+
+### 핵심 함수
+- `openMagollaModal()` — 새 매치 생성 + session/magollaMatchId 저장 + 모달 오픈
+- `closeMagollaModal()` — 모달 닫기 (settled/cancelled 시 상태 초기화)
+- `onMagollaUpdate(snap)` — Firebase 실시간 업데이트 핸들러, 모든 뷰 렌더링
+- `mgStartTimer(data)` — 90초 카운트다운, 만료 시 liveMode 기기가 status='closed' 기록
+- `mgConfirmBet()` — 배팅 확정/수정 (재배팅 허용, goldSpent 차액 조정)
+- `mgConfirmResult()` — 라이브 전용, 결과 입력 후 mgSettleMatch 호출
+- `mgCancelMatch()` — UI 취소 버튼 (확인 다이얼로그 포함)
+- `mgForceCancel(matchId?)` — 콘솔 강제 취소/환불 (matchId 없으면 session에서 자동 조회)
+- `diagMagolla()` — 콘솔 진단 함수
+
+### 전파 메커니즘
+- 호스트 기기: `push(magolla_matches)` → `set(session/magollaMatchId, matchId)`
+- 다른 기기: `onValue(session/magollaMatchId)` 감지 → 자동 모달 오픈 + 리스너 구독
+- 관전자: 첫 onMagollaUpdate 시 배팅 탭 자동 포커스 (`_mgBettingTabFocused` 가드)
+
+### 주의사항
+- `type="module"` 스크립트라 onclick 함수는 반드시 `window.함수명` 으로 등록해야 함
+- `cancelled` 상태 수신 시 `onMagollaUpdate`에서 `magollaState=null` 먼저 세팅 후 `closeMagollaModal()` 호출
+- 파이터 통계 헬퍼는 전역 `matches` 객체 사용 (`Object.values(matches)`) — `allMatches`는 함수 내 지역 변수라 접근 불가
