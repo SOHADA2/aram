@@ -3126,7 +3126,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.39.4';
+const APP_VERSION = 'v2.39.5';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3135,6 +3135,9 @@ const APP_VERSION = 'v2.39.4';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.39.5', date: '2026-05-11', changes: [
+    { tag: 'fix', text: '막고라 배팅 시스템 전반 수정 — ①mgUpdateBet window 미등록으로 슬라이더 완전 무동작 수정 ②배팅 마감 전 수정 허용(재배팅 시 goldSpent 차액 조정) ③타이머 90초로 연장 ④진행바 좌→우 방향 수정 ⑤관전자 배팅탭 자동 포커스 플래그(_mgBettingTabFocused) onValue 재실행마다 리셋되던 버그 수정 ⑥슬라이더 기존 배팅금액으로 초기화' },
+  ]},
   { ver: 'v2.39.4', date: '2026-05-11', changes: [
     { tag: 'fix', text: '막고라 배팅 창 모든 기기 자동 오픈 — 호스트가 매치 생성 시 session/magollaMatchId에 저장, 다른 기기는 onValue 리스너로 감지해 자동 모달 오픈 + 팀구성 버튼 비활성. 배팅 단계에서 관전자에게 배팅 탭 자동 포커스. 정산 완료 시 session/magollaMatchId null 초기화' },
   ]},
@@ -5189,6 +5192,7 @@ onValue(ref(db, 'session/magollaMatchId'), (snap) => {
   currentMagollaId = matchId;
   magollaState = 'active';
   _mgSelectedWinner = _mgSelectedCond = _mgResultWinner = _mgResultCond = null;
+  _mgBettingTabFocused = false;
   updateMagollaBtn();
   const teamsBtn = document.getElementById('make-teams-btn');
   if (teamsBtn) teamsBtn.disabled = true;
@@ -15574,10 +15578,11 @@ let _mgSelectedWinner = null;
 let _mgSelectedCond   = null;
 let _mgResultWinner   = null;
 let _mgResultCond     = null;
+let _mgBettingTabFocused = false; // 배팅 탭 자동 포커스 1회 가드
 
 const MAGOLLA_FIGHTER_WIN  = 100;
 const MAGOLLA_FIGHTER_LOSE =  50;
-const MAGOLLA_BET_DURATION = 60000; // 60초
+const MAGOLLA_BET_DURATION = 90000; // 90초
 
 function calcMagollaGold(history) {
   if (!Array.isArray(history)) return 0;
@@ -15634,6 +15639,7 @@ async function openMagollaModal() {
   currentMagollaId = mRef.key;
   magollaState = 'active';
   _mgSelectedWinner = _mgSelectedCond = _mgResultWinner = _mgResultCond = null;
+  _mgBettingTabFocused = false;
   updateMagollaBtn();
   const teamsBtn = document.getElementById('make-teams-btn');
   if (teamsBtn) teamsBtn.disabled = true;
@@ -15692,9 +15698,9 @@ function onMagollaUpdate(snap) {
     updateMagollaBtn();
     set(ref(db,'session/magollaMatchId'), null);
   }
-  // 배팅 단계에서 관전자에게 자동으로 배팅 탭 포커스
-  if (data.status==='betting' && isSp && magollaData?._autoTabDone !== true) {
-    magollaData._autoTabDone = true;
+  // 배팅 단계에서 관전자에게 배팅 탭 자동 포커스 (1회)
+  if (data.status==='betting' && isSp && !_mgBettingTabFocused) {
+    _mgBettingTabFocused = true;
     showMgView('betting', document.querySelector('.mg-tab[data-view="betting"]'));
   }
 }
@@ -15802,12 +15808,17 @@ function mgRenderBettingView(data, myNN) {
     _mgSelectedCond=myBet.cond;
   }
   if (myBet?.winner) _mgSelectedWinner=myBet.winner;
+  // 기존 배팅 있으면 슬라이더도 해당 금액으로 초기화
+  if (myBet?.amount) {
+    const slider=document.getElementById('mg-slider');
+    if (slider && slider.value!=myBet.amount) slider.value=myBet.amount;
+  }
   const confirmBtn=document.getElementById('mg-bet-confirm-btn');
   if (confirmBtn) {
-    const locked=!!myBet||data.status!=='betting';
+    const locked=data.status!=='betting';
     confirmBtn.disabled=locked;
-    confirmBtn.textContent=myBet?'✅ 배팅 완료':'배팅 확정하기';
-    confirmBtn.classList.toggle('done',!!myBet);
+    confirmBtn.textContent=myBet?'🔄 배팅 수정하기':'배팅 확정하기';
+    confirmBtn.classList.toggle('done',false);
   }
   const bStatus=document.getElementById('mg-b-spec-status');
   if (bStatus) {
@@ -15878,7 +15889,7 @@ function mgStartTimer(data) {
       const t=document.getElementById('mg-timer-'+sx);
       const f=document.getElementById('mg-fill-'+sx);
       if(t){t.textContent=str;t.classList.toggle('urgent',urgent);}
-      if(f){f.style.width=pct.toFixed(1)+'%';f.classList.toggle('urgent',urgent);}
+      if(f){f.style.width=(100-pct).toFixed(1)+'%';f.classList.toggle('urgent',urgent);}
     });
     if(rem<=0){
       clearInterval(magollaTimerInterval); magollaTimerInterval=null;
@@ -15917,7 +15928,7 @@ function mgUpdateBet(val, data) {
 }
 
 function mgSelectWinner(btn) {
-  if(!btn||magollaData?.bets?.[normName(myName||'')]) return;
+  if(!btn||magollaData?.status!=='betting') return;
   document.querySelectorAll('#mg-bet-win-row .mg-pick-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   _mgSelectedWinner=btn.dataset.name;
@@ -15925,7 +15936,7 @@ function mgSelectWinner(btn) {
 }
 
 function mgSelectCond(btn) {
-  if(!btn||magollaData?.bets?.[normName(myName||'')]) return;
+  if(!btn||magollaData?.status!=='betting') return;
   document.querySelectorAll('.mg-pick-btn[data-cond]').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   _mgSelectedCond=btn.dataset.cond;
@@ -15948,14 +15959,16 @@ async function mgConfirmBet() {
   const myNN=normName(myName||'');
   if(!myNN||!currentMagollaId||!magollaData) return;
   if(!_mgSelectedWinner||!_mgSelectedCond){alert('승자와 승리 요건을 모두 선택해주세요.');return;}
-  if(magollaData.bets?.[myNN]) return;
   if(magollaData.status!=='betting'){alert('배팅 시간이 종료되었습니다.');return;}
   const amount=parseInt(document.getElementById('mg-slider')?.value||50);
-  if(getMyGold()<amount){alert('골드가 부족합니다.');return;}
+  const existingBet=magollaData.bets?.[myNN];
+  const oldAmount=existingBet?.amount||0;
+  const diff=amount-oldAmount;
+  if(diff>0&&getMyGold()<diff){alert('골드가 부족합니다.');return;}
   const gk=getMyGoldKey(), gv=getMyGoldData();
-  if(gk&&gv){
+  if(gk&&gv&&diff!==0){
     const sf=sField('goldSpent');
-    await update(ref(db,'gold/'+gk),{[sf]:(gv[sf]??0)+amount});
+    await update(ref(db,'gold/'+gk),{[sf]:Math.max(0,(gv[sf]??0)+diff)});
   }
   await update(ref(db,'magolla_matches/'+currentMagollaId+'/bets/'+myNN),
     {winner:_mgSelectedWinner,cond:_mgSelectedCond,amount,betAt:Date.now()});
@@ -16051,6 +16064,7 @@ window.mgSelectResultWinner = mgSelectResultWinner;
 window.mgSelectResultCond   = mgSelectResultCond;
 window.mgConfirmBet      = mgConfirmBet;
 window.mgConfirmResult   = mgConfirmResult;
+window.mgUpdateBet       = mgUpdateBet;
 
 </script>
 <!-- ══════════════════════════════════════
@@ -16113,7 +16127,7 @@ window.mgConfirmResult   = mgConfirmResult;
       <div class="mg-card">
         <div class="mg-timer-bar">
           <span class="mg-timer-label">⏱ 배팅 진행 중</span>
-          <span class="mg-timer-count" id="mg-timer-p">1:00</span>
+          <span class="mg-timer-count" id="mg-timer-p">1:30</span>
         </div>
         <div class="mg-timer-progress"><div class="mg-timer-fill" id="mg-fill-p" style="width:100%;"></div></div>
         <div style="padding:14px;display:flex;flex-direction:column;gap:10px;">
@@ -16135,7 +16149,7 @@ window.mgConfirmResult   = mgConfirmResult;
       <div class="mg-card">
         <div class="mg-timer-bar">
           <span class="mg-timer-label">⏱ 배팅 마감까지</span>
-          <span class="mg-timer-count" id="mg-timer-b">1:00</span>
+          <span class="mg-timer-count" id="mg-timer-b">1:30</span>
         </div>
         <div class="mg-timer-progress"><div class="mg-timer-fill" id="mg-fill-b" style="width:100%;"></div></div>
         <div class="mg-bet-section">
