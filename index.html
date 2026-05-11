@@ -3126,7 +3126,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.39.6';
+const APP_VERSION = 'v2.39.7';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -15711,6 +15711,18 @@ function onMagollaUpdate(snap) {
     document.getElementById('magolla-overlay').classList.remove('open');
     return;
   }
+  if (data.status==='closed') {
+    clearInterval(magollaTimerInterval); magollaTimerInterval=null;
+    // 배팅 마감 — UI에 안내 표시
+    ['p','b'].forEach(sx=>{
+      const t=document.getElementById('mg-timer-'+sx);
+      const f=document.getElementById('mg-fill-'+sx);
+      if(t){t.textContent='마감';t.classList.add('urgent');}
+      if(f){f.style.width='100%';f.classList.add('urgent');}
+    });
+    const confirmBtn=document.getElementById('mg-bet-confirm-btn');
+    if(confirmBtn){confirmBtn.disabled=true;confirmBtn.textContent='배팅 마감';}
+  }
   // 배팅 단계에서 관전자에게 배팅 탭 자동 포커스 (1회)
   if (data.status==='betting' && isSp && !_mgBettingTabFocused) {
     _mgBettingTabFocused = true;
@@ -16101,6 +16113,35 @@ window.mgConfirmBet      = mgConfirmBet;
 window.mgConfirmResult   = mgConfirmResult;
 window.mgUpdateBet       = mgUpdateBet;
 window.mgCancelMatch     = mgCancelMatch;
+
+// 막고라 강제 취소 + 환불 (콘솔용 — matchId 없으면 session에서 자동 조회)
+window.mgForceCancel = async function(matchId) {
+  if (!matchId) {
+    const s = await get(ref(db,'session/magollaMatchId'));
+    matchId = s.val();
+  }
+  if (!matchId) { console.log('활성 막고라 없음'); return; }
+  const mSnap = await get(ref(db,'magolla_matches/'+matchId));
+  const m = mSnap.val();
+  if (!m) { console.log('매치 없음'); return; }
+  if (m.status==='settled') { console.log('이미 정산됨'); return; }
+  const bets = m.bets||{};
+  const sf = sField('goldSpent');
+  const gSnap = await get(ref(db,'gold'));
+  const gAll = gSnap.val()||{};
+  const updates = {};
+  updates['magolla_matches/'+matchId+'/status'] = 'cancelled';
+  updates['session/magollaMatchId'] = null;
+  Object.entries(bets).forEach(([nn,bet])=>{
+    const entry = Object.entries(gAll).find(([,v])=>normName(v.name)===nn);
+    if (!entry) { console.log('골드 데이터 없음:', nn); return; }
+    const [gk,gv] = entry;
+    updates['gold/'+gk+'/'+sf] = Math.max(0,(gv[sf]??0)-bet.amount);
+    console.log('환불:', nn, '+'+bet.amount+'G');
+  });
+  await update(ref(db), updates);
+  console.log('✅ 강제 취소 완료');
+};
 
 // 막고라 상태 진단 (콘솔용)
 window.diagMagolla = async function() {
