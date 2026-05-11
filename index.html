@@ -2500,6 +2500,9 @@ img.emoji{
 .bm-streak { font-size:9px;font-weight:700;margin-top:3px; }
 .bm-streak.win { color:rgba(80,220,130,0.85); }
 .bm-streak.loss { color:rgba(239,83,80,0.7); }
+.fc-kda-row { display:flex;align-items:center;justify-content:center;gap:6px;margin-top:6px; }
+.fc-kda-num { font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(220,190,190,0.7); }
+.fc-kda-badge { font-size:10px;font-weight:700;color:rgba(200,168,75,0.9);background:rgba(200,168,75,0.1);border:1px solid rgba(200,168,75,0.25);border-radius:6px;padding:1px 6px; }
 .fc-form { display:flex;gap:3px;justify-content:center;margin-top:8px;flex-wrap:wrap; }
 .fc-form-dot { font-size:9px;font-weight:900;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center; }
 .fc-form-dot.win { background:rgba(80,220,130,0.15);color:rgba(80,220,130,0.9);border:1px solid rgba(80,220,130,0.3); }
@@ -3491,7 +3494,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.40.20';
+const APP_VERSION = 'v2.40.21';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -16195,6 +16198,19 @@ function mgHeadToHead(n1, n2) {
   return {f1w, f2w, total};
 }
 
+function mgAvgKda(name) {
+  const nn=normName(name);
+  let tk=0, td=0, ta=0, cnt=0;
+  Object.values(matches).forEach(m=>{
+    const p=m.participants&&m.participants[nn];
+    if(!p||p.kills==null) return;
+    tk+=p.kills||0; td+=p.deaths||0; ta+=p.assists||0; cnt++;
+  });
+  if(!cnt) return null;
+  const kda=td===0?(tk+ta):((tk+ta)/td);
+  return {k:(tk/cnt).toFixed(1), d:(td/cnt).toFixed(1), a:(ta/cnt).toFixed(1), kda:kda.toFixed(2), cnt};
+}
+
 // ── 파이터 카드 ──────────────────────────────────────────
 function mgFighterCardHtml(name, side) {
   const d=s1GetPlayer(name)||s1DefaultPlayer();
@@ -16203,8 +16219,10 @@ function mgFighterCardHtml(name, side) {
   const wr=s.total>0?Math.round(s.wins/s.total*100):0;
   const streak=calcStreak(name);
   const form=mgRecentForm(name,5);
+  const kda=mgAvgKda(name);
   const streakHtml=streak?`<div class="fc-streak ${streak.type==='win'?'win':'loss'}">${streak.type==='win'?'🔥':'❄️'} ${streak.count}연${streak.type==='win'?'승':'패'}</div>`:'';
   const formHtml=form.length?`<div class="fc-form">${form.map(r=>`<span class="fc-form-dot ${r==='W'?'win':'loss'}">${r}</span>`).join('')}</div>`:'';
+  const kdaHtml=kda?`<div class="fc-kda-row"><span class="fc-kda-num">${kda.k} / ${kda.d} / ${kda.a}</span><span class="fc-kda-badge">${kda.kda} KDA</span></div>`:'';
   return `<div class="fighter-card ${side}">
     <div class="fc-tier-badge" style="background:${meta.color}22;color:${meta.color};border:1px solid ${meta.color}55;">${meta.label.toUpperCase()}</div>
     <div class="fc-name">${escHtml(name)}</div>
@@ -16213,6 +16231,7 @@ function mgFighterCardHtml(name, side) {
       ${s.total>0?`<div class="fc-stat">승률 <span>${wr}%</span></div>`:''}
       <div class="fc-stat">전적 <span>${s.total}전</span></div>
     </div>
+    ${kdaHtml}
     ${streakHtml}
     ${formHtml}
   </div>`;
