@@ -3475,7 +3475,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.40.7';
+const APP_VERSION = 'v2.40.8';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -16775,55 +16775,76 @@ window.mgForceCancel = async function(matchIdArg) {
 };
 
 // ── 개발/테스트용 콘솔 헬퍼 ─────────────────────────────
-// mgSkipTimer()   : 배팅 타이머 즉시 만료 → closed 상태로 전환
-// mgTestSettle()  : closed 상태에서 랜덤 결과로 바로 정산
-// mgTestSettle('이름', 'tower'|'kill2'|'cs100')  : 직접 지정
+// Firebase 쓰기 없이 화면만 로컬 렌더 (골드 변동 없음)
+//
+// mgPreview('closed')                          : 배팅 마감 화면 미리보기
+// mgPreview('settled')                         : 정산 결과 화면 미리보기 (랜덤 승자)
+// mgPreview('settled', '이름', 'tower')        : 승자/요건 직접 지정
+//
+// 원래 화면으로 돌아가기: closeMagollaModal() 후 재오픈, 또는 페이지 새로고침
 
-window.mgSkipTimer = async function() {
-  const matchId=currentMagollaId;
-  if (!matchId) { console.log('[막고라] 활성 매치 없음'); return; }
-  const snap=await get(ref(db,'magolla_matches/'+matchId));
-  const d=snap.val();
-  if (!d) { console.log('[막고라] 데이터 없음'); return; }
-  if (d.status!=='betting') { console.log('[막고라] betting 상태 아님:', d.status); return; }
-  // auto-bet 처리 후 closed
-  const updates={};
-  const bets=d.bets||{};
+window.mgPreview = async function(phase, winnerArg, condArg) {
+  if (!currentMagollaId&&!magollaData) { console.log('[미리보기] 막고라 모달이 열려있어야 합니다'); return; }
+  const d=magollaData||(await get(ref(db,'magolla_matches/'+currentMagollaId))).val();
+  if (!d) { console.log('[미리보기] 데이터 없음'); return; }
+  const content=document.getElementById('mg-content');
+  if (!content) { console.log('[미리보기] 모달이 열려있어야 합니다'); return; }
+
+  // 가짜 배팅 생성 (미배팅 관전자 자동 채움 — 메모리만)
+  const fakeBets=Object.assign({},d.bets||{});
   const now=Date.now();
-  for (const specName of (d.spectators||[])) {
+  (d.spectators||[]).forEach(function(specName) {
     const nn=normName(specName);
-    const alreadyBet=Object.keys(bets).find(k=>normName(bets[k].name||'')===nn||normName(k)===nn);
-    if (alreadyBet) continue;
+    const alreadyBet=Object.keys(fakeBets).find(k=>normName(fakeBets[k].name||'')===nn||normName(k)===nn);
+    if (alreadyBet) return;
     const gk=mgFindGoldKey(specName);
     const gd=gk?goldData[gk]:null;
     const balance=gd?(calcPlayerGoldEarned(specName,gd)-(gd[sField('goldSpent')]||0)):0;
     const amount=balance>=10?10:5;
-    const noDeduct=amount===5;
-    const winner=[d.fighter1,d.fighter2][Math.floor(Math.random()*2)];
-    const cond=['tower','kill2','cs100'][Math.floor(Math.random()*3)];
-    updates['magolla_matches/'+matchId+'/bets/'+nn]={name:specName,winner,cond,amount,betAt:now,auto:true,noDeduct};
-    if (gk&&gd&&!noDeduct) updates['gold/'+gk+'/'+sField('goldSpent')]=(gd[sField('goldSpent')]||0)+amount;
-  }
-  updates['magolla_matches/'+matchId+'/status']='closed';
-  await update(ref(db),updates);
-  console.log('[막고라] 타이머 스킵 → closed');
-};
+    fakeBets[nn]={name:specName,winner:[d.fighter1,d.fighter2][Math.floor(Math.random()*2)],
+      cond:['tower','kill2','cs100'][Math.floor(Math.random()*3)],amount,betAt:now,auto:true,noDeduct:amount===5};
+  });
+  const fakeData=Object.assign({},d,{bets:fakeBets});
 
-window.mgTestSettle = async function(winnerArg, condArg) {
-  const matchId=currentMagollaId;
-  if (!matchId) { console.log('[막고라] 활성 매치 없음'); return; }
-  const snap=await get(ref(db,'magolla_matches/'+matchId));
-  const d=snap.val();
-  if (!d) { console.log('[막고라] 데이터 없음'); return; }
-  if (d.status!=='closed') {
-    console.log('[막고라] closed 상태 아님. 먼저 mgSkipTimer() 실행 후 시도하세요. 현재:', d.status);
-    return;
+  mgStopTimer(); mgStopVsBeat();
+
+  if (phase==='closed') {
+    const role=mgGetMyRole(fakeData);
+    fakeData.status='closed';
+    content.innerHTML=mgRenderClosedView(fakeData,role);
+    console.log('[미리보기] closed 화면 렌더 완료 — Firebase 쓰기 없음');
+  } else if (!phase||phase==='settled') {
+    const winner=winnerArg||fakeData.fighter1;
+    const cond=condArg||['tower','kill2','cs100'][Math.floor(Math.random()*3)];
+    // 정산 계산만 로컬에서 수행
+    const {wm,cm}=mgCalcMultipliers(fakeData,winner,cond);
+    const fakePayouts={};
+    (fakeData.spectators||[]).forEach(function(specName) {
+      const nn=normName(specName);
+      const bk=Object.keys(fakeBets).find(k=>normName(fakeBets[k].name||'')===nn||normName(k)===nn);
+      const bd=bk?fakeBets[bk]:null; if(!bd) return;
+      const winW=normName(bd.winner||'')===normName(winner);
+      const winC=bd.cond===cond;
+      const {delta}=mgCalcPayout(bd.amount||0,winW,winC,wm,cm,!!bd.noDeduct);
+      fakePayouts[nn]=delta;
+    });
+    [fakeData.fighter1,fakeData.fighter2].forEach(function(fn) {
+      if (!fn) return;
+      fakePayouts['f_'+normName(fn)]=normName(fn)===normName(winner)?MAGOLLA_FIGHTER_WIN:MAGOLLA_FIGHTER_LOSE;
+    });
+    const settled=Object.assign({},fakeData,{status:'settled',result:{winner,cond},payouts:fakePayouts});
+    content.innerHTML=mgRenderSettledView(settled);
+    setTimeout(function(){
+      content.querySelectorAll('.srh-fr-gold').forEach(function(el,i){ setTimeout(function(){ mgAnimCountUp(el,480); },i*160); });
+    },900);
+    setTimeout(function(){
+      content.querySelectorAll('.sr-payout').forEach(function(el,i){ setTimeout(function(){ mgAnimCountUp(el,380); },i*130); });
+    },1100);
+    mgSfx(mgFanfare);
+    console.log('[미리보기] settled 화면 렌더 완료 — Firebase 쓰기 없음 / 승자:', winner, '/ 요건:', cond);
+  } else {
+    console.log('[미리보기] phase는 "closed" 또는 "settled"');
   }
-  const winner=winnerArg||d.fighter1;
-  const cond=condArg||['tower','kill2','cs100'][Math.floor(Math.random()*3)];
-  console.log('[막고라] 정산 시작 — 승자:', winner, '/ 요건:', cond);
-  await mgSettleMatch(matchId, winner, cond, d);
-  console.log('[막고라] 정산 완료');
 };
 
 // window 등록
@@ -16840,8 +16861,7 @@ window.mgConfirmResult = mgConfirmResult;
 window.mgCancelMatch = mgCancelMatch;
 window.mgToggleFormula = mgToggleFormula;
 window.mgToggleMute = mgToggleMute;
-// 테스트 헬퍼 (콘솔에서 호출)
-// window.mgSkipTimer / window.mgTestSettle 은 위에서 직접 선언됨
+// 테스트 헬퍼 (콘솔에서 호출) — window.mgPreview 는 위에서 직접 선언됨
 
 </script>
 
