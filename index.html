@@ -2994,6 +2994,10 @@ img.emoji{
               <span class="dd-icon">🎉</span>
               <span class="dd-text"><span class="dd-name">이벤트 매치</span><span class="dd-sub">자유 인원 · 티어 미반영</span></span>
             </button>
+            <button class="match-cfg-dd-item" data-type="magolla" id="match-type-magolla" onclick="setMatchType('magolla')">
+              <span class="dd-icon">🥊</span>
+              <span class="dd-text"><span class="dd-name">막고라 매치</span><span class="dd-sub">5인 전용 · 1대1 결투 배팅</span></span>
+            </button>
           </div>
         </div>
         <div class="match-cfg-wrap">
@@ -3121,7 +3125,6 @@ img.emoji{
     <div class="action-row">
       <button class="btn btn-gold" id="make-teams-btn" onclick="startItemPhase()" style="flex:1;justify-content:center;font-size:15px;padding:13px;">⚔️ 팀 구성</button>
       <button class="btn btn-ghost btn-sm" id="rematch-btn" style="display:none;white-space:nowrap;" onclick="rematchSameTeams()">🔒 팀 고정 재경기</button>
-      <button class="btn btn-sm" id="magolla-btn" onclick="openMagollaModal()" style="display:none;background:linear-gradient(135deg,rgba(74,10,138,0.85),rgba(123,31,162,0.95));color:#f0d8ff;border:1px solid rgba(180,100,255,0.35);white-space:nowrap;">🥊 막고라</button>
       <button class="btn btn-ghost btn-sm" style="position:relative;padding-right:20px;" onclick="resetSession()">🔄 초기화<span class="btn-q" data-tip="reset" onclick="event.stopPropagation()"><span class="btn-q-icon">?</span></span></button>
     </div>
   </div>
@@ -3464,7 +3467,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.40.1';
+const APP_VERSION = 'v2.40.2';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7151,8 +7154,9 @@ window.showWatchingPoints = function() {
 // ── MATCH TYPE ───────────────────────────────────────────────
 // ── 매치 타입·구성 방식 컴팩트 드롭다운 (v2.31.7~) ──────────────
 const MATCH_TYPE_META = {
-  normal: { icon:'⚔️', label:'일반 매치' },
-  event:  { icon:'🎉', label:'이벤트 매치' },
+  normal:  { icon:'⚔️', label:'일반 매치' },
+  event:   { icon:'🎉', label:'이벤트 매치' },
+  magolla: { icon:'🥊', label:'막고라 매치' },
 };
 const MATCH_MODE_META = {
   balance: { icon:'⚖️', label:'밸런스' },
@@ -7204,13 +7208,16 @@ window.setMatchType = function(type) {
   const meta = MATCH_TYPE_META[type] || MATCH_TYPE_META.normal;
   if (typeIcon)  typeIcon.textContent  = meta.icon;
   if (typeLabel) typeLabel.textContent = meta.label;
-  if (typeBtn)   typeBtn.classList.toggle('event', type==='event');
+  if (typeBtn) {
+    typeBtn.classList.toggle('event', type==='event');
+    typeBtn.classList.toggle('magolla', type==='magolla');
+  }
   // 드롭다운 항목 active 표시
   document.querySelectorAll('#match-type-dd .match-cfg-dd-item').forEach(b =>
     b.classList.toggle('active', b.dataset.type === type));
-  // 모드 셀렉터: 이벤트 매치에선 비활성화
+  // 모드 셀렉터: 이벤트·막고라 매치에선 비활성화
   const modeBtn = document.getElementById('match-mode-btn');
-  if (modeBtn) modeBtn.classList.toggle('disabled', type==='event');
+  if (modeBtn) modeBtn.classList.toggle('disabled', type==='event' || type==='magolla');
   // 이벤트 매치 인원 설정 영역
   document.getElementById('event-config').style.display = type==='event' ? 'block' : 'none';
   // 팀 구성 버튼 스타일
@@ -7220,6 +7227,10 @@ window.setMatchType = function(type) {
     btn.className = 'btn btn-red';
     btn.style.cssText = 'flex:1;justify-content:center;font-size:15px;padding:13px;background:linear-gradient(135deg,#a0001e,#e84057);color:#fff;box-shadow:0 4px 15px rgba(232,64,87,0.3);';
     updateEventSizeInfo();
+  } else if (type==='magolla') {
+    btn.textContent = '🥊 막고라 시작';
+    btn.className = 'btn';
+    btn.style.cssText = 'flex:1;justify-content:center;font-size:15px;padding:13px;background:linear-gradient(135deg,rgba(74,10,138,0.9),rgba(123,31,162,1));color:#f0d8ff;border:1px solid rgba(180,100,255,0.4);box-shadow:0 4px 15px rgba(120,40,200,0.35);';
   } else {
     btn.textContent = '⚔️ 팀 구성';
     btn.style.cssText = 'flex:1;justify-content:center;font-size:15px;padding:13px;';
@@ -7289,6 +7300,8 @@ window.startItemPhase = function() {
   }
 
   if (isEventMatch) { makeTeams(); return; }
+
+  if (matchType === 'magolla') { openMagollaModal(); return; }
 
   // 고정 팀짜기 모드: 팀빌더 먼저 열기
   if (mode === 'fixed') {
@@ -16493,10 +16506,14 @@ function onMagollaUpdate(snap) {
 
 // ── 버튼 표시 제어 ───────────────────────────────────────
 function updateMagollaBtn() {
-  const btn=document.getElementById('magolla-btn');
-  if (!btn) return;
-  const canOpen=liveMode&&sessionPlayers.length===5&&(!magollaState||magollaState==='settled');
-  btn.style.display=canOpen?'':'none';
+  // 드롭다운 막고라 항목: 5인 비라이브 시 dim 처리
+  const item=document.getElementById('match-type-magolla');
+  if (!item) return;
+  const available=liveMode&&sessionPlayers.length===5;
+  item.style.opacity=available?'':'0.4';
+  item.style.pointerEvents=available?'':'none';
+  // 막고라 타입 선택 중인데 조건 해제되면 normal로 복귀
+  if (!available && matchType==='magolla') setMatchType('normal');
 }
 function updateMaketeamsBtn() {
   const btn=document.getElementById('make-teams-btn');
@@ -16552,6 +16569,7 @@ function closeMagollaModal() {
     magollaState=null; currentMagollaId=null; magollaData=null;
     _mgSelectedWinner=null; _mgSelectedCond=null;
     _mgResultWinner=null; _mgResultCond=null; _mgBettingTabFocused=false;
+    if (matchType==='magolla') setMatchType('normal');
   }
   updateMagollaBtn(); updateMaketeamsBtn();
 }
