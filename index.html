@@ -2497,6 +2497,18 @@ img.emoji{
 .bm-name { font-size:13px;font-weight:700;color:#f5d0d0;word-break:break-all; }
 @media(max-width:480px){.bm-name{font-size:11px;}}
 .bm-tier { font-size:9px;color:rgba(239,83,80,0.55);margin-top:1px; }
+.bm-streak { font-size:9px;font-weight:700;margin-top:3px; }
+.bm-streak.win { color:rgba(80,220,130,0.85); }
+.bm-streak.loss { color:rgba(239,83,80,0.7); }
+.fc-form { display:flex;gap:3px;justify-content:center;margin-top:8px;flex-wrap:wrap; }
+.fc-form-dot { font-size:9px;font-weight:900;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center; }
+.fc-form-dot.win { background:rgba(80,220,130,0.15);color:rgba(80,220,130,0.9);border:1px solid rgba(80,220,130,0.3); }
+.fc-form-dot.loss { background:rgba(239,83,80,0.1);color:rgba(239,83,80,0.7);border:1px solid rgba(239,83,80,0.2); }
+.fc-streak { font-size:10px;font-weight:700;text-align:center;margin-top:6px;padding:2px 8px;border-radius:8px; }
+.fc-streak.win { color:rgba(80,220,130,0.9);background:rgba(80,220,130,0.08);border:1px solid rgba(80,220,130,0.2); }
+.fc-streak.loss { color:rgba(239,83,80,0.8);background:rgba(239,83,80,0.08);border:1px solid rgba(239,83,80,0.2); }
+.h2h-info { font-size:11px;color:rgba(220,190,190,0.6); }
+.h2h-info strong { color:rgba(239,83,80,0.85); }
 .bm-vs { font-family:'Black Han Sans',sans-serif;font-size:14px;color:rgba(239,83,80,0.7); }
 .bm-me-badge {
   position:absolute;top:-6px;right:-6px;
@@ -3479,7 +3491,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.40.17';
+const APP_VERSION = 'v2.40.18';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -16156,12 +16168,43 @@ function mgRenderStatusTable(data, blurred) {
   </div>`;
 }
 
+// ── 파이터 파워 헬퍼 ─────────────────────────────────────
+function mgRecentForm(name, n) {
+  const nn=normName(name);
+  const recent=allMatches
+    .filter(m=>[...(m.teamA||[]),...(m.teamB||[])].map(normName).includes(nn))
+    .sort((a,b)=>b.timestamp-a.timestamp).slice(0,n||5);
+  return recent.map(m=>{
+    const wt=(m.winner==='blue'?m.teamA:m.teamB||[]).map(normName);
+    return wt.includes(nn)?'W':'L';
+  });
+}
+function mgHeadToHead(n1, n2) {
+  const nn1=normName(n1), nn2=normName(n2);
+  let f1w=0, f2w=0, total=0;
+  allMatches.forEach(m=>{
+    const aN=(m.teamA||[]).map(normName), bN=(m.teamB||[]).map(normName);
+    const f1A=aN.includes(nn1), f1B=bN.includes(nn1);
+    const f2A=aN.includes(nn2), f2B=bN.includes(nn2);
+    if((f1A&&f2A)||(f1B&&f2B)) return;
+    if(!(f1A||f1B)||!(f2A||f2B)) return;
+    total++;
+    const wt=(m.winner==='blue'?m.teamA:m.teamB||[]).map(normName);
+    if(wt.includes(nn1)) f1w++; else if(wt.includes(nn2)) f2w++;
+  });
+  return {f1w, f2w, total};
+}
+
 // ── 파이터 카드 ──────────────────────────────────────────
 function mgFighterCardHtml(name, side) {
   const d=s1GetPlayer(name)||s1DefaultPlayer();
   const meta=S1_TIER_META[d.tier]||S1_TIER_META.unranked;
   const s=calcStats(name);
   const wr=s.total>0?Math.round(s.wins/s.total*100):0;
+  const streak=calcStreak(name);
+  const form=mgRecentForm(name,5);
+  const streakHtml=streak?`<div class="fc-streak ${streak.type==='win'?'win':'loss'}">${streak.type==='win'?'🔥':'❄️'} ${streak.count}연${streak.type==='win'?'승':'패'}</div>`:'';
+  const formHtml=form.length?`<div class="fc-form">${form.map(r=>`<span class="fc-form-dot ${r==='W'?'win':'loss'}">${r}</span>`).join('')}</div>`:'';
   return `<div class="fighter-card ${side}">
     <div class="fc-tier-badge" style="background:${meta.color}22;color:${meta.color};border:1px solid ${meta.color}55;">${meta.label.toUpperCase()}</div>
     <div class="fc-name">${escHtml(name)}</div>
@@ -16170,6 +16213,8 @@ function mgFighterCardHtml(name, side) {
       ${s.total>0?`<div class="fc-stat">승률 <span>${wr}%</span></div>`:''}
       <div class="fc-stat">전적 <span>${s.total}전</span></div>
     </div>
+    ${streakHtml}
+    ${formHtml}
   </div>`;
 }
 
@@ -16177,7 +16222,10 @@ function mgFighterCardHtml(name, side) {
 function mgRenderFighterView(data) {
   const f1=data.fighter1||'', f2=data.fighter2||'';
   const d1=s1GetPlayer(f1)||s1DefaultPlayer(), d2=s1GetPlayer(f2)||s1DefaultPlayer();
-  const lpDiff=Math.abs((d1.lp||0)-(d2.lp||0));
+  const h2h=mgHeadToHead(f1,f2);
+  const h2hHtml=h2h.total>0
+    ?`<span class="h2h-info">맞대결 <strong>${escHtml(f1)}</strong> ${h2h.f1w}승 · <strong>${escHtml(f2)}</strong> ${h2h.f2w}승 <span style="color:rgba(239,83,80,0.35);">(${h2h.total}전)</span></span>`
+    :`<span class="h2h-info">맞대결 기록 없음 — <strong>첫 맞대결!</strong></span>`;
   const chips=(data.spectators||[]).map(s=>`<div class="spec-chip"><div class="spec-chip-role">BET</div><div class="spec-chip-name">${escHtml(s)}</div></div>`).join('');
   const startBtn=liveMode?`<button class="mg-action-btn" onclick="mgStartBetting()">배팅 시작 →</button>`:
     `<div style="text-align:center;font-size:11px;color:rgba(220,180,180,0.45);padding:10px;">라이브 계정이 배팅을 시작하면 자동으로 진행됩니다</div>`;
@@ -16192,7 +16240,7 @@ function mgRenderFighterView(data) {
       ${mgFighterCardHtml(f2,'right')}
     </div>
     <div class="balance-info">
-      <div class="balance-info-text">LP 차이 <strong>${lpDiff}</strong> — 파이터 선정 완료</div>
+      <div class="balance-info-text">${h2hHtml}</div>
     </div>
     <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:rgba(239,83,80,0.45);text-align:center;margin-bottom:8px;">SPECTATORS</div>
     <div class="spectators-row">${chips}</div>
@@ -16212,17 +16260,21 @@ function mgRenderBettingView(data, role) {
     <div class="timer-progress-track"><div class="mg-timer-fill" id="mg-timer-fill" style="width:100%"></div></div>
     ${cancelBtn}
   </div>`;
+  const str1=calcStreak(f1), str2=calcStreak(f2);
+  const strHtml=(st)=>st?`<div class="bm-streak ${st.type==='win'?'win':'loss'}">${st.type==='win'?'🔥':'❄️'}${st.count}연${st.type==='win'?'승':'패'}</div>`:'';
   const matchupHtml=`<div class="bet-matchup">
     <div class="bm-fighter${isMeF1?' me':''}">
       ${isMeF1?'<div class="bm-me-badge">나</div>':''}
       <div class="bm-name">${escHtml(f1)}</div>
       <div class="bm-tier">${mgTierLabel(d1.tier)} · ${d1.lp||0}LP</div>
+      ${strHtml(str1)}
     </div>
     <div class="bm-vs">VS</div>
     <div class="bm-fighter${isMeF2?' me':''}">
       ${isMeF2?'<div class="bm-me-badge">나</div>':''}
       <div class="bm-name">${escHtml(f2)}</div>
       <div class="bm-tier">${mgTierLabel(d2.tier)} · ${d2.lp||0}LP</div>
+      ${strHtml(str2)}
     </div>
   </div>`;
   let mid='';
