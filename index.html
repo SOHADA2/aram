@@ -3126,7 +3126,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.39.5';
+const APP_VERSION = 'v2.39.6';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3135,6 +3135,9 @@ const APP_VERSION = 'v2.39.5';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.39.6', date: '2026-05-11', changes: [
+    { tag: 'new', text: '막고라 매칭 취소 — 헤더에 "매칭 취소" 버튼 추가. 배팅한 관전자 전원 goldSpent 전액 환불, session/magollaMatchId null 초기화로 모든 기기 모달 자동 닫힘. cancelled 상태 onMagollaUpdate 처리 추가. window.diagMagolla 콘솔 진단 함수 추가' },
+  ]},
   { ver: 'v2.39.5', date: '2026-05-11', changes: [
     { tag: 'fix', text: '막고라 배팅 시스템 전반 수정 — ①mgUpdateBet window 미등록으로 슬라이더 완전 무동작 수정 ②배팅 마감 전 수정 허용(재배팅 시 goldSpent 차액 조정) ③타이머 90초로 연장 ④진행바 좌→우 방향 수정 ⑤관전자 배팅탭 자동 포커스 플래그(_mgBettingTabFocused) onValue 재실행마다 리셋되던 버그 수정 ⑥슬라이더 기존 배팅금액으로 초기화' },
   ]},
@@ -15698,6 +15701,16 @@ function onMagollaUpdate(snap) {
     updateMagollaBtn();
     set(ref(db,'session/magollaMatchId'), null);
   }
+  if (data.status==='cancelled') {
+    clearInterval(magollaTimerInterval); magollaTimerInterval=null;
+    magollaState=null; currentMagollaId=null; magollaData=null;
+    if(magollaUnsubscribe){magollaUnsubscribe();magollaUnsubscribe=null;}
+    const teamsBtn=document.getElementById('make-teams-btn');
+    if(teamsBtn) teamsBtn.disabled=false;
+    updateMagollaBtn();
+    document.getElementById('magolla-overlay').classList.remove('open');
+    return;
+  }
   // 배팅 단계에서 관전자에게 배팅 탭 자동 포커스 (1회)
   if (data.status==='betting' && isSp && !_mgBettingTabFocused) {
     _mgBettingTabFocused = true;
@@ -16055,6 +16068,27 @@ async function mgSettleMatch(matchData) {
   showS1Toast('⚔️ 막고라 정산 완료!');
 }
 
+async function mgCancelMatch() {
+  if(!currentMagollaId||!magollaData) return;
+  if(magollaData.status==='settled'||magollaData.status==='cancelled') return;
+  if(!confirm('막고라 매치를 취소할까요?\n배팅 금액은 전액 환불됩니다.')) return;
+  const bets=magollaData.bets||{};
+  const sf=sField('goldSpent');
+  const gSnap=await get(ref(db,'gold'));
+  const gAll=gSnap.val()||{};
+  const updates={'magolla_matches/'+currentMagollaId+'/status':'cancelled'};
+  // 배팅한 관전자 전원 goldSpent 환불
+  Object.entries(bets).forEach(([nn,bet])=>{
+    const entry=Object.entries(gAll).find(([,v])=>normName(v.name)===nn);
+    if(!entry) return;
+    const [gk,gv]=entry;
+    updates['gold/'+gk+'/'+sf]=Math.max(0,(gv[sf]??0)-bet.amount);
+  });
+  updates['session/magollaMatchId']=null;
+  await update(ref(db),updates);
+  showS1Toast('🚫 막고라 취소 — 배팅 금액 전액 환불');
+}
+
 window.openMagollaModal  = openMagollaModal;
 window.closeMagollaModal = closeMagollaModal;
 window.showMgView        = showMgView;
@@ -16065,6 +16099,29 @@ window.mgSelectResultCond   = mgSelectResultCond;
 window.mgConfirmBet      = mgConfirmBet;
 window.mgConfirmResult   = mgConfirmResult;
 window.mgUpdateBet       = mgUpdateBet;
+window.mgCancelMatch     = mgCancelMatch;
+
+// 막고라 상태 진단 (콘솔용)
+window.diagMagolla = async function() {
+  const snap = await get(ref(db,'session/magollaMatchId'));
+  const matchId = snap.val();
+  if (!matchId) { console.log('활성 막고라 없음'); return; }
+  const mSnap = await get(ref(db,'magolla_matches/'+matchId));
+  const m = mSnap.val();
+  console.log('📌 막고라 matchId:', matchId);
+  console.log('상태:', m.status, '| 배팅시작:', new Date(m.bettingStartAt).toLocaleTimeString());
+  console.log('파이터:', m.fighter1, 'vs', m.fighter2);
+  const bets = m.bets||{};
+  const sf = sField('goldSpent');
+  const gSnap = await get(ref(db,'gold'));
+  const gAll = gSnap.val()||{};
+  console.log('--- 배팅 현황 ---');
+  Object.entries(bets).forEach(([nn,b])=>{
+    const entry = Object.entries(gAll).find(([,v])=>normName(v.name)===nn);
+    const goldSpent = entry?.[1]?.[sf]??'?';
+    console.log(`  ${b.winner||nn}: ${b.amount}G 배팅 (goldSpent=${goldSpent})`);
+  });
+};
 
 </script>
 <!-- ══════════════════════════════════════
@@ -16075,7 +16132,10 @@ window.mgUpdateBet       = mgUpdateBet;
   <div class="mg-handle"><div class="mg-handle-bar"></div></div>
   <div class="mg-header">
     <span class="mg-title">⚔️ 막고라 매치</span>
-    <button class="mg-close" onclick="closeMagollaModal()">✕</button>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <button onclick="mgCancelMatch()" style="background:none;border:1px solid rgba(239,68,68,0.4);color:rgba(239,68,68,0.8);font-size:10px;padding:3px 9px;border-radius:4px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-weight:700;">매칭 취소</button>
+      <button class="mg-close" onclick="closeMagollaModal()">✕</button>
+    </div>
   </div>
   <div class="mg-tabs" id="mg-tabs">
     <button class="mg-tab active" data-view="matching" onclick="showMgView('matching',this)">매칭<br>결과</button>
