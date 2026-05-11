@@ -3475,7 +3475,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.40.5';
+const APP_VERSION = 'v2.40.6';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -16041,8 +16041,9 @@ function mgAnimCountUp(el, durationMs) {
 
 // ── 헬퍼 ──────────────────────────────────────────────────
 function mgGetMyRole(data) {
-  if (!data || !myName) return 'bettor';
+  if (!data) return 'bettor';
   if (liveMode) return 'live';
+  if (!myName) return 'bettor';
   const mn=normName(myName);
   if (normName(data.fighter1||'')===mn || normName(data.fighter2||'')===mn) return 'fighter';
   return 'bettor';
@@ -16486,6 +16487,14 @@ function onMagollaUpdate(snap) {
   mgStopTimer(); mgStopVsBeat();
   if (status==='betting') {
     if (data.bettingStartAt) {
+      // 배팅 뷰가 이미 렌더된 상태면 선택 유지를 위해 status table만 부분 갱신
+      const existingBetSection=content.querySelector('.bet-my-section,.live-monitor-panel,.fighter-notice-panel');
+      if (existingBetSection) {
+        const tbl=content.querySelector('.bet-status-section');
+        if (tbl) tbl.outerHTML=mgRenderStatusTable(data,role!=='live');
+        mgStartTimer(data);
+        return;
+      }
       content.innerHTML=mgRenderBettingView(data,role);
       mgStartTimer(data);
       mgSfx(function(){ mgDrone(80,0.9,0.12); mgShimmer(250,700,0.55,0.08); });
