@@ -2546,23 +2546,31 @@ img.emoji{
 .bet-winner-btn {
   padding:10px;border-radius:10px;border:1px solid rgba(239,83,80,0.18);
   background:rgba(239,83,80,0.04);text-align:center;cursor:pointer;transition:all .2s;
+  position:relative;
 }
-.bet-winner-btn:hover,.bet-winner-btn.selected {
-  border-color:rgba(239,83,80,0.6);background:rgba(239,83,80,0.12);
-  box-shadow:0 0 12px rgba(239,83,80,0.15);
+.bet-winner-btn:hover { border-color:rgba(239,83,80,0.4);background:rgba(239,83,80,0.08); }
+.bet-winner-btn.selected {
+  border-color:rgba(239,83,80,0.9);background:rgba(239,83,80,0.22);
+  box-shadow:0 0 18px rgba(239,83,80,0.35),inset 0 0 10px rgba(239,83,80,0.08);
 }
+.bet-winner-btn .bwb-check { display:none;position:absolute;top:5px;right:7px;font-size:11px;color:rgba(239,83,80,0.9);font-weight:900; }
+.bet-winner-btn.selected .bwb-check { display:block; }
 .bet-winner-btn .bwb-name { font-size:12px;font-weight:700;color:#f0d0d0; }
 .bet-winner-btn .bwb-tier { font-size:9px;color:rgba(239,83,80,0.5);margin-top:2px; }
-.bet-winner-btn.selected .bwb-name { color:rgba(239,83,80,1); }
+.bet-winner-btn.selected .bwb-name { color:#ff7070;text-shadow:0 0 8px rgba(239,83,80,0.5); }
 .bet-cond-row { display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:12px; }
 .bet-cond-btn {
   padding:8px 4px;border-radius:10px;border:1px solid rgba(239,83,80,0.15);
   background:rgba(239,83,80,0.03);text-align:center;cursor:pointer;transition:all .2s;
 }
-.bet-cond-btn:hover,.bet-cond-btn.selected { border-color:rgba(239,83,80,0.55);background:rgba(239,83,80,0.10); }
+.bet-cond-btn:hover { border-color:rgba(239,83,80,0.4);background:rgba(239,83,80,0.08); }
+.bet-cond-btn.selected {
+  border-color:rgba(239,83,80,0.9);background:rgba(239,83,80,0.2);
+  box-shadow:0 0 14px rgba(239,83,80,0.3);
+}
 .bet-cond-btn .bcb-icon { font-size:18px;margin-bottom:3px; }
 .bet-cond-btn .bcb-label { font-size:9px;font-weight:700;color:rgba(240,200,200,0.65);letter-spacing:0.5px; }
-.bet-cond-btn.selected .bcb-label { color:rgba(239,83,80,1); }
+.bet-cond-btn.selected .bcb-label { color:#ff7070;font-weight:900; }
 .bet-amount-row { display:flex;align-items:center;gap:10px;margin-bottom:12px; }
 .bet-amount-display {
   font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;
@@ -3467,7 +3475,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.40.4';
+const APP_VERSION = 'v2.40.5';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -16238,10 +16246,12 @@ function mgRenderBettingView(data, role) {
       </div>
       <div class="bet-part-label">PART 1 — 승자 예측</div>
       <div class="bet-winner-row">
-        <div class="bet-winner-btn ${w1sel}" onclick="mgSelectWinner(${JSON.stringify(f1)})">
+        <div class="bet-winner-btn ${w1sel}" data-fn="${escHtml(f1)}" onclick="mgSelectWinner(this.dataset.fn)">
+          <div class="bwb-check">✓</div>
           <div class="bwb-name">${escHtml(f1)}</div><div class="bwb-tier">${mgTierLabel(d1.tier)}</div>
         </div>
-        <div class="bet-winner-btn ${w2sel}" onclick="mgSelectWinner(${JSON.stringify(f2)})">
+        <div class="bet-winner-btn ${w2sel}" data-fn="${escHtml(f2)}" onclick="mgSelectWinner(this.dataset.fn)">
+          <div class="bwb-check">✓</div>
           <div class="bwb-name">${escHtml(f2)}</div><div class="bwb-tier">${mgTierLabel(d2.tier)}</div>
         </div>
       </div>
@@ -16261,7 +16271,8 @@ function mgRenderBettingView(data, role) {
           <div class="bet-range-labels"><span>10G</span><span>100G</span></div>
         </div>
       </div>
-      <button class="bet-confirm-btn" onclick="mgConfirmBet()">${existBet?'배팅 수정':'배팅 확정'}</button>
+      <button class="bet-confirm-btn" onclick="mgConfirmBet()">${existBet?'✏️ 배팅 수정':'💾 배팅 제출'}</button>
+      <div style="text-align:center;font-size:9px;color:rgba(239,83,80,0.35);margin-top:5px;letter-spacing:0.3px;">마감 전까지 자유롭게 수정 가능</div>
     </div>`;
   }
   return `<div class="bet-layout">${timerHtml}${matchupHtml}${mid}${mgRenderStatusTable(data,role!=='live')}</div>`;
@@ -16302,8 +16313,8 @@ function mgRenderClosedView(data, role) {
       <div class="ric-desc">실제 경기 결과를 선택하고 정산하세요.</div>
       <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:rgba(239,83,80,0.45);margin-bottom:6px;">승자</div>
       <div class="ric-winner-row">
-        <div class="ric-winner-btn ${f1s}" onclick="mgSelectResultWinner(${JSON.stringify(f1)})"><div class="riwb-name">${escHtml(f1)}</div></div>
-        <div class="ric-winner-btn ${f2s}" onclick="mgSelectResultWinner(${JSON.stringify(f2)})"><div class="riwb-name">${escHtml(f2)}</div></div>
+        <div class="ric-winner-btn ${f1s}" data-fn="${escHtml(f1)}" onclick="mgSelectResultWinner(this.dataset.fn)"><div class="riwb-name">${escHtml(f1)}</div></div>
+        <div class="ric-winner-btn ${f2s}" data-fn="${escHtml(f2)}" onclick="mgSelectResultWinner(this.dataset.fn)"><div class="riwb-name">${escHtml(f2)}</div></div>
       </div>
       <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:rgba(239,83,80,0.45);margin-bottom:6px;">승리 요건</div>
       <div class="ric-cond-row">
