@@ -2500,7 +2500,9 @@ img.emoji{
 .bm-streak { font-size:9px;font-weight:700;margin-top:3px;letter-spacing:1px; }
 .bm-streak.win { color:rgba(80,220,130,0.8); }
 .bm-streak.loss { color:rgba(239,83,80,0.65); }
-.fc-kda-detail { font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(220,190,190,0.45);text-align:center;margin-top:3px;letter-spacing:0.5px; }
+.fc-kda-block { display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px;margin-top:4px;text-align:center; }
+.fc-kda-block-label { font-size:8px;font-weight:700;letter-spacing:1px;color:rgba(220,190,190,0.3); }
+.fc-kda-block-val { font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(220,190,190,0.65); }
 .fc-form { display:flex;gap:3px;justify-content:center;margin-top:8px;flex-wrap:wrap; }
 .fc-form-dot { font-size:9px;font-weight:900;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center; }
 .fc-form-dot.win { background:rgba(200,168,75,0.15);color:rgba(200,168,75,0.9);border:1px solid rgba(200,168,75,0.35); }
@@ -3492,7 +3494,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.40.23';
+const APP_VERSION = 'v2.40.24';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -16218,10 +16220,23 @@ function mgFighterCardHtml(name, side) {
   const streak=calcStreak(name);
   const form=mgRecentForm(name,5);
   const kda=mgAvgKda(name);
-  const streakHtml=streak?`<div class="fc-streak ${streak.type==='win'?'win':'loss'}">${streak.type==='win'?'▲':'▼'} ${streak.count}연${streak.type==='win'?'승':'패'}</div>`:'';
+  const streakHtml=streak
+    ?`<div class="fc-streak ${streak.type==='win'?'win':'loss'}">${streak.type==='win'?'▲':'▼'} ${streak.count}연${streak.type==='win'?'승':'패'}</div>`
+    :`<div class="fc-streak" style="visibility:hidden">-</div>`;
   const formHtml=form.length?`<div class="fc-form">${form.map(r=>`<span class="fc-form-dot ${r==='W'?'win':'loss'}">${r}</span>`).join('')}</div>`:'';
-  const kdaStatHtml=kda?`<div class="fc-stat">KDA <span>${kda.kda}</span></div>`:'';
-  const kdaDetailHtml=kda?`<div class="fc-kda-detail">${kda.k} / ${kda.d} / ${kda.a}</div>`:'';
+  const kdaBlockHtml=kda
+    ?`<div class="fc-kda-block">
+        <div><div class="fc-kda-block-label">K</div><div class="fc-kda-block-val">${kda.k}</div></div>
+        <div><div class="fc-kda-block-label">D</div><div class="fc-kda-block-val">${kda.d}</div></div>
+        <div><div class="fc-kda-block-label">A</div><div class="fc-kda-block-val">${kda.a}</div></div>
+      </div>
+      <div class="fc-stat" style="justify-content:center;margin-top:4px;">KDA <span>${kda.kda}</span></div>`
+    :`<div class="fc-kda-block" style="visibility:hidden">
+        <div><div class="fc-kda-block-label">K</div><div class="fc-kda-block-val">-</div></div>
+        <div><div class="fc-kda-block-label">D</div><div class="fc-kda-block-val">-</div></div>
+        <div><div class="fc-kda-block-label">A</div><div class="fc-kda-block-val">-</div></div>
+      </div>
+      <div class="fc-stat" style="visibility:hidden;justify-content:center;margin-top:4px;">KDA -</div>`;
   return `<div class="fighter-card ${side}">
     <div class="fc-tier-badge" style="background:${meta.color}22;color:${meta.color};border:1px solid ${meta.color}55;">${meta.label.toUpperCase()}</div>
     <div class="fc-name">${escHtml(name)}</div>
@@ -16229,9 +16244,8 @@ function mgFighterCardHtml(name, side) {
     <div class="fc-stats">
       ${s.total>0?`<div class="fc-stat">승률 <span>${wr}%</span></div>`:''}
       <div class="fc-stat">전적 <span>${s.total}전</span></div>
-      ${kdaStatHtml}
     </div>
-    ${kdaDetailHtml}
+    ${kdaBlockHtml}
     ${streakHtml}
     ${formHtml}
   </div>`;
