@@ -3126,7 +3126,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.39.3';
+const APP_VERSION = 'v2.39.4';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3135,6 +3135,9 @@ const APP_VERSION = 'v2.39.3';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.39.4', date: '2026-05-11', changes: [
+    { tag: 'fix', text: '막고라 배팅 창 모든 기기 자동 오픈 — 호스트가 매치 생성 시 session/magollaMatchId에 저장, 다른 기기는 onValue 리스너로 감지해 자동 모달 오픈 + 팀구성 버튼 비활성. 배팅 단계에서 관전자에게 배팅 탭 자동 포커스. 정산 완료 시 session/magollaMatchId null 초기화' },
+  ]},
   { ver: 'v2.39.3', date: '2026-05-11', changes: [
     { tag: 'fix', text: '막고라 onclick 전혀 동작 안 하던 버그 수정 — type=module 스크립트라 openMagollaModal/closeMagollaModal/showMgView/mgSelectWinner/mgSelectCond/mgSelectResultWinner/mgSelectResultCond/mgConfirmBet/mgConfirmResult 모두 window에 미등록 상태였음. window.* 일괄 등록' },
   ]},
@@ -5167,6 +5170,33 @@ onValue(ref(db, 'session/bridgeConnected'), (snap) => {
 
 // 브릿지가 조용히 죽어도 10초 내 감지
 setInterval(_updateBridgeDot, 5000);
+
+// 막고라 매치 전파 — 호스트가 match 생성 시 모든 기기에 자동 모달 오픈
+onValue(ref(db, 'session/magollaMatchId'), (snap) => {
+  const matchId = snap.val();
+  if (!matchId) {
+    // 매치 종료 → 이미 settled 처리됐거나 비정상 종료
+    if (magollaState && magollaState !== 'settled') {
+      magollaState = null; currentMagollaId = null; magollaData = null;
+      const teamsBtn = document.getElementById('make-teams-btn');
+      if (teamsBtn) teamsBtn.disabled = false;
+      updateMagollaBtn();
+    }
+    return;
+  }
+  if (currentMagollaId === matchId) return; // 이미 이 매치 처리 중 (호스트 기기)
+  // 새 막고라 매치 감지 → 이 기기에서 모달 오픈
+  currentMagollaId = matchId;
+  magollaState = 'active';
+  _mgSelectedWinner = _mgSelectedCond = _mgResultWinner = _mgResultCond = null;
+  updateMagollaBtn();
+  const teamsBtn = document.getElementById('make-teams-btn');
+  if (teamsBtn) teamsBtn.disabled = true;
+  if (magollaUnsubscribe) { magollaUnsubscribe(); magollaUnsubscribe = null; }
+  magollaUnsubscribe = onValue(ref(db,'magolla_matches/'+matchId), onMagollaUpdate);
+  document.getElementById('magolla-overlay').classList.add('open');
+  showMgView('matching', document.querySelector('.mg-tab[data-view="matching"]'));
+});
 
 // ── EOG 결과 오버레이 ─────────────────────────────────────────────
 let _mvpSectionOriginalParent = null;
@@ -15607,9 +15637,11 @@ async function openMagollaModal() {
   updateMagollaBtn();
   const teamsBtn = document.getElementById('make-teams-btn');
   if (teamsBtn) teamsBtn.disabled = true;
-  magollaUnsubscribe = onValue(ref(db,'magolla_matches/'+currentMagollaId), onMagollaUpdate);
+  magollaUnsubscribe = onValue(ref(db,'magolla_matches/'+mRef.key), onMagollaUpdate);
   document.getElementById('magolla-overlay').classList.add('open');
   showMgView('matching', document.querySelector('.mg-tab[data-view="matching"]'));
+  // 다른 기기에 전파 (session/magollaMatchId listener가 받으면 자동 오픈)
+  await set(ref(db,'session/magollaMatchId'), mRef.key);
 }
 
 function closeMagollaModal() {
@@ -15658,6 +15690,12 @@ function onMagollaUpdate(snap) {
     const teamsBtn=document.getElementById('make-teams-btn');
     if (teamsBtn) teamsBtn.disabled=false;
     updateMagollaBtn();
+    set(ref(db,'session/magollaMatchId'), null);
+  }
+  // 배팅 단계에서 관전자에게 자동으로 배팅 탭 포커스
+  if (data.status==='betting' && isSp && magollaData?._autoTabDone !== true) {
+    magollaData._autoTabDone = true;
+    showMgView('betting', document.querySelector('.mg-tab[data-view="betting"]'));
   }
 }
 
