@@ -17134,6 +17134,52 @@ window.mgToggleFormula = mgToggleFormula;
 window.mgToggleMute = mgToggleMute;
 // 테스트 헬퍼 (콘솔에서 호출) — window.mgPreview 는 위에서 직접 선언됨
 
+// 막고라 기록 탭 목업 미리보기 (Firebase 쓰기 없음)
+// 콘솔에서 mgHistoryPreview() 호출
+window.mgHistoryPreview = function() {
+  const names = sessionPlayers.length >= 5
+    ? sessionPlayers.map(p => p.name)
+    : ['파이터1', '파이터2', '관전자A', '관전자B', '관전자C'];
+  const [f1, f2, s1, s2, s3] = names;
+  const winnerName = f1;
+  const condKey = 'tower';
+  const mockData = {
+    '__preview__': {
+      status: 'settled',
+      fighter1: f1, fighter2: f2,
+      spectators: [s1, s2, s3],
+      bettingStartAt: Date.now() - 300000,
+      season: CURRENT_SEASON,
+      result: { winner: winnerName, cond: condKey },
+      bets: {
+        [normName(s1)]: { winner: f1, cond: 'tower',  amount: 50,  betAt: Date.now()-250000 },
+        [normName(s2)]: { winner: f1, cond: 'kill2',  amount: 30,  betAt: Date.now()-240000 },
+        [normName(s3)]: { winner: f2, cond: 'tower',  amount: 100, betAt: Date.now()-230000 },
+      },
+      payouts: {
+        [normName(f1)]:  100,
+        [normName(f2)]:  50,
+        [normName(s1)]:  Math.round(50  * 2.20 * 1.4 * 1.6) - 50,  // 둘 다 맞춤
+        [normName(s2)]:  Math.round(30  * 0.88 * 1.4) - 30,         // 승자만
+        [normName(s3)]:  Math.round(100 * 1.08 * 1.6) - 100,        // 요건만
+      }
+    }
+  };
+  // 기록 탭으로 이동 후 막고라 뷰로 전환
+  const tab = document.getElementById('tab-record');
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  if (tab) tab.classList.add('active');
+  viewSeason = 'magolla';
+  document.getElementById('season-selector-label').textContent = '막고라';
+  // 임시로 magollaMatches 교체 후 렌더
+  const _backup = magollaMatches;
+  magollaMatches = mockData;
+  renderMatchHistory();
+  magollaMatches = _backup;
+  console.log('[mgHistoryPreview] 목업 렌더 완료. 실제 데이터로 되돌리려면 renderMatchHistory() 호출');
+};
+
 </script>
 
 <div id="magolla-modal" style="display:none;">
