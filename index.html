@@ -2862,6 +2862,41 @@ img.emoji{
   display:flex;align-items:center;justify-content:center;
 }
 .mg-mute-btn:hover { background:rgba(239,83,80,0.25);border-color:rgba(239,83,80,0.5); }
+/* ── 막고라 기록 카드 (v2.41.0~) ── */
+.mgh-item{background:var(--rk-card);border:1px solid var(--rk-border);border-radius:10px;overflow:hidden;margin-bottom:10px;position:relative;}
+.mgh-item::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(160,120,255,.4),transparent);}
+.mgh-header{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--rk-border);}
+.mgh-meta{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-dim);}
+.mgh-badge{font-size:8px;font-weight:700;padding:2px 6px;border-radius:3px;font-family:'JetBrains Mono',monospace;letter-spacing:.2px;}
+.mgh-badge.settled{background:rgba(0,230,118,.1);border:1px solid rgba(0,230,118,.25);color:var(--green);}
+.mgh-badge.cancelled{background:rgba(239,83,80,.1);border:1px solid rgba(239,83,80,.2);color:var(--red);}
+.mgh-badge.open{background:rgba(200,168,75,.1);border:1px solid rgba(200,168,75,.25);color:var(--gold);}
+.mgh-vs{display:flex;align-items:stretch;gap:0;padding:12px 14px;}
+.mgh-fighter{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 8px;border-radius:8px;border:1px solid var(--rk-border);background:rgba(255,255,255,.02);}
+.mgh-fighter.winner{border-color:rgba(0,230,118,.35);background:rgba(0,230,118,.04);}
+.mgh-fighter.loser{border-color:var(--rk-border);opacity:.7;}
+.mgh-fighter-name{font-size:12px;font-weight:700;color:var(--rk-text);text-align:center;word-break:break-all;}
+.mgh-fighter-tag{font-size:8px;font-weight:700;padding:1px 5px;border-radius:3px;letter-spacing:.3px;}
+.mgh-fighter-tag.win{background:rgba(0,230,118,.15);color:var(--green);}
+.mgh-fighter-tag.los{background:rgba(255,255,255,.05);color:var(--text-dim);}
+.mgh-fighter-gold{font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:var(--green);}
+.mgh-vs-sep{display:flex;align-items:center;justify-content:center;padding:0 10px;font-family:'Black Han Sans',sans-serif;font-size:14px;color:rgba(160,120,255,.6);flex-shrink:0;}
+.mgh-cond{display:flex;align-items:center;justify-content:center;gap:5px;padding:4px 14px 10px;font-size:10px;color:var(--text-dim);}
+.mgh-cond-val{color:rgba(160,120,255,.8);font-weight:700;}
+.mgh-bets{border-top:1px solid var(--rk-border);}
+.mgh-bets-title{padding:7px 14px 4px;font-size:9px;font-weight:700;letter-spacing:.5px;color:var(--text-dim);text-transform:uppercase;}
+.mgh-bet-row{display:flex;align-items:center;gap:6px;padding:5px 14px;font-size:10px;border-top:1px solid rgba(255,255,255,.03);}
+.mgh-bet-row:first-of-type{border-top:none;}
+.mgh-bet-name{font-weight:700;color:var(--rk-text);flex:0 0 70px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mgh-bet-pick{flex:1;display:flex;align-items:center;gap:3px;color:var(--text-dim);}
+.mgh-bet-pick .hit{color:var(--green);}
+.mgh-bet-pick .miss{color:var(--red);opacity:.7;}
+.mgh-bet-amount{font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-dim);flex-shrink:0;}
+.mgh-bet-result{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;flex-shrink:0;min-width:44px;text-align:right;}
+.mgh-bet-result.plus{color:var(--green);}
+.mgh-bet-result.minus{color:var(--red);}
+.mgh-bet-result.zero{color:var(--text-dim);}
+.mgh-empty{text-align:center;padding:40px 20px;color:var(--text-dim);font-size:13px;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
 </head>
@@ -3428,7 +3463,8 @@ const TIERS = {
 
 // ── SEASON ────────────────────────────────────────────────────
 let CURRENT_SEASON = parseInt(localStorage.getItem('aram_season') || '0', 10); // Firebase 로드 전 캐시값으로 초기화
-let viewSeason = 0;     // 현재 경기 기록 탭에서 보고 있는 시즌
+let viewSeason = 0;     // 현재 경기 기록 탭에서 보고 있는 시즌 (숫자=일반경기, 'magolla'=막고라)
+let magollaMatches = {};  // Firebase /magolla_matches 전체 캐시
 // 시즌별 Firebase 필드명 (season 0은 기존 필드명 유지, 이후부터 _s1, _s2 ...)
 function seasonSuffix(s) { return s === 0 ? '' : '_s' + s; }
 function sField(field) { return field + seasonSuffix(CURRENT_SEASON); }
@@ -3501,7 +3537,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.40.25';
+const APP_VERSION = 'v2.41.0';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3510,6 +3546,9 @@ const APP_VERSION = 'v2.40.25';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.41.0', date: '2026-05-12', changes: [
+    { tag: 'new', text: '기록 탭 막고라 파트 추가 — 시즌 드롭다운에 "⚔️ 막고라" 항목 추가. 선택 시 /magolla_matches에서 완료/취소된 매치 목록 표시. 파이터 승/패 카드(티어 LP·골드 수익), 관전자 배팅 행(승자픽·요건픽 적중 여부·정산액) 표시. 실시간 구독으로 정산 즉시 반영' },
+  ]},
   { ver: 'v2.40.1', date: '2026-05-11', changes: [
     { tag: 'new', text: '막고라 매치 시스템 전면 재구현 — 5명 세션에서 LP 차이 최소 2명이 1:1 대결, 나머지 3명은 배팅 참여. 90초 타이머·자동배팅·군중배율·역계산 가능 magollaHistory_s1 정산 이력 관리' },
   ]},
@@ -5240,6 +5279,12 @@ onValue(ref(db, 'matches'), (snapshot) => {
   if (goldLoaded) { updateMyInfoBar(); renderShop(); }
 }, (err) => {
   setSyncStatus('err', '연결 실패');
+});
+
+// 막고라 기록 실시간 구독
+onValue(ref(db, 'magolla_matches'), (snapshot) => {
+  magollaMatches = snapshot.val() || {};
+  if (viewSeason === 'magolla') renderMatchHistory();
 });
 
 // ── SESSION SYNC (팀짜기 실시간 공유) ─────────────────────────
@@ -9441,13 +9486,19 @@ function renderSeasonSelector() {
   const label = document.getElementById('season-selector-label');
   if (!btn || !dropdown) return;
   const seasons = getAvailableSeasons();
-  label.textContent = `S${viewSeason}`;
-  dropdown.innerHTML = seasons.map(s =>
+  label.textContent = viewSeason === 'magolla' ? '막고라' : `S${viewSeason}`;
+  const seasonItems = seasons.map(s =>
     `<button class="rk-season-dd-item${s===viewSeason?' active':''}" onclick="selectViewSeason(${s})">
       <span class="nm">시즌${s}</span>
       ${s===CURRENT_SEASON?'<span class="st now">NOW</span>':''}
     </button>`
   ).join('');
+  const magollaItem =
+    `<button class="rk-season-dd-item${'magolla'===viewSeason?' active':''}" onclick="selectViewSeason('magolla')" style="${'magolla'===viewSeason?'':''}">
+      <span class="nm">⚔️ 막고라</span>
+      <span class="st" style="background:rgba(160,120,255,.15);color:#b48aff;">NEW</span>
+    </button>`;
+  dropdown.innerHTML = seasonItems + magollaItem;
 }
 
 window.toggleSeasonDropdown = function() {
@@ -9473,7 +9524,7 @@ window.toggleSeasonDropdown = function() {
 
 window.selectViewSeason = function(s) {
   viewSeason = s;
-  document.getElementById('season-selector-label').textContent = `S${s}`;
+  document.getElementById('season-selector-label').textContent = s === 'magolla' ? '막고라' : `S${s}`;
   document.getElementById('season-dropdown').classList.remove('show');
   document.getElementById('season-selector-btn').classList.remove('open');
   renderMatchHistory();
@@ -9481,13 +9532,14 @@ window.selectViewSeason = function(s) {
 
 // ── MATCH HISTORY ─────────────────────────────────────────────
 function renderMatchHistory() {
+  renderSeasonSelector();
+  if (viewSeason === 'magolla') { renderMagollaHistory(); return; }
   const el=document.getElementById('match-history-list');
   const matchArr = Object.entries(matches)
     .map(([key,m])=>({key,...m}))
     .filter(m => (m.season ?? 0) === viewSeason)
     .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
   document.getElementById('match-count-badge').textContent=matchArr.length;
-  renderSeasonSelector();
 
 if(matchArr.length===0){el.innerHTML='<div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>';return;}
   el.innerHTML=matchArr.map(m=>{
@@ -9581,6 +9633,99 @@ if(matchArr.length===0){el.innerHTML='<div class="empty-state"><div class="icon"
         <div class="match-vs-sep">VS</div>
         ${boxB}
       </div>
+    </div>`;
+  }).join('');
+}
+
+// ── 막고라 기록 렌더 (v2.41.0) ─────────────────────────────
+function renderMagollaHistory() {
+  const el = document.getElementById('match-history-list');
+  const COND_LABEL = { tower: '🏰 포탑 파괴', kill2: '⚔️ 2킬 달성', cs100: '🌾 CS 100' };
+  const arr = Object.entries(magollaMatches)
+    .map(([key, m]) => ({ key, ...m }))
+    .filter(m => m.status === 'settled' || m.status === 'cancelled')
+    .sort((a, b) => (b.bettingStartAt || 0) - (a.bettingStartAt || 0));
+  document.getElementById('match-count-badge').textContent = arr.length;
+  if (arr.length === 0) {
+    el.innerHTML = '<div class="mgh-empty">⚔️ 아직 완료된 막고라 기록이 없어요</div>';
+    return;
+  }
+  el.innerHTML = arr.map(m => {
+    const settled = m.status === 'settled';
+    const ts = m.bettingStartAt ? new Date(m.bettingStartAt) : null;
+    const dateStr = ts ? ts.toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+    const badgeCls = settled ? 'settled' : 'cancelled';
+    const badgeText = settled ? '정산 완료' : '취소됨';
+    const result = m.result || {};
+    const payouts = m.payouts || {};
+    const bets = m.bets || {};
+    const specs = m.spectators || [];
+    const f1 = m.fighter1 || '', f2 = m.fighter2 || '';
+    const winnerName = result.winner || '';
+    const f1Win = settled && normName(winnerName) === normName(f1);
+    const f2Win = settled && normName(winnerName) === normName(f2);
+    // 파이터 골드 (payouts에서 직접 읽기)
+    const f1Gold = payouts[normName(f1)] ?? null;
+    const f2Gold = payouts[normName(f2)] ?? null;
+    const goldTag = g => g === null ? '' : `<span class="mgh-fighter-gold">+${g}G</span>`;
+    // 나(myName) 하이라이트
+    const myNN = normName(myName || '');
+    const f1Me = normName(f1) === myNN, f2Me = normName(f2) === myNN;
+    const fighterCard = (name, isWin, isMe, goldVal) => `
+      <div class="mgh-fighter${isWin ? ' winner' : ' loser'}">
+        <span class="mgh-fighter-tag ${isWin ? 'win' : 'los'}">${isWin ? '🏆 승' : '💀 패'}</span>
+        <span class="mgh-fighter-name">${escHtml(name)}${isMe ? '<span class="mg-me-tag">나</span>' : ''}</span>
+        ${settled ? goldTag(goldVal) : ''}
+      </div>`;
+    const vsSection = settled
+      ? `<div class="mgh-vs">
+          ${fighterCard(f1, f1Win, f1Me, f1Gold)}
+          <div class="mgh-vs-sep">VS</div>
+          ${fighterCard(f2, f2Win, f2Me, f2Gold)}
+        </div>
+        <div class="mgh-cond">요건: <span class="mgh-cond-val">${COND_LABEL[result.cond] || result.cond || '?'}</span></div>`
+      : `<div class="mgh-vs">
+          ${fighterCard(f1, false, f1Me, null)}
+          <div class="mgh-vs-sep">VS</div>
+          ${fighterCard(f2, false, f2Me, null)}
+        </div>`;
+    // 관전자 배팅 행
+    const betRows = specs.map(name => {
+      const nn = normName(name);
+      const bet = bets[nn];
+      const delta = payouts[nn] ?? null;
+      const isMe = nn === myNN;
+      if (!bet) return `<div class="mgh-bet-row">
+        <span class="mgh-bet-name">${escHtml(name)}${isMe ? '<span class="mg-me-tag">나</span>' : ''}</span>
+        <span class="mgh-bet-pick" style="color:var(--text-dim);font-size:9px;">배팅 미참여</span>
+      </div>`;
+      const gw = settled && normName(bet.winner) === normName(winnerName);
+      const gc = settled && bet.cond === result.cond;
+      const winnerHit = gw ? 'hit' : 'miss';
+      const condHit = gc ? 'hit' : 'miss';
+      const resultCls = delta === null ? '' : delta > 0 ? 'plus' : delta < 0 ? 'minus' : 'zero';
+      const resultText = delta === null ? '' : `${delta >= 0 ? '+' : ''}${delta}G`;
+      return `<div class="mgh-bet-row">
+        <span class="mgh-bet-name">${escHtml(name)}${isMe ? '<span class="mg-me-tag">나</span>' : ''}</span>
+        <span class="mgh-bet-pick">
+          <span class="${settled ? winnerHit : ''}">${escHtml(bet.winner||'')}</span>
+          <span style="color:rgba(255,255,255,.2)">·</span>
+          <span class="${settled ? condHit : ''}">${COND_LABEL[bet.cond] || bet.cond || ''}</span>
+        </span>
+        <span class="mgh-bet-amount">${bet.amount}G</span>
+        ${settled ? `<span class="mgh-bet-result ${resultCls}">${resultText}</span>` : ''}
+      </div>`;
+    }).join('');
+    return `<div class="mgh-item">
+      <div class="mgh-header">
+        <div class="mgh-meta">
+          <span>⚔️ 막고라</span>
+          ${dateStr ? `<span style="color:rgba(255,255,255,.15)">·</span><span>${dateStr}</span>` : ''}
+        </div>
+        <span class="mgh-badge ${badgeCls}">${badgeText}</span>
+      </div>
+      ${vsSection}
+      ${specs.length > 0 ? `<div class="mgh-bets"><div class="mgh-bets-title">배팅 결과</div>${betRows}</div>` : ''}
     </div>`;
   }).join('');
 }
