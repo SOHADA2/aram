@@ -650,3 +650,46 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 - `type="module"` 스크립트라 onclick 함수는 반드시 `window.함수명` 으로 등록해야 함
 - `cancelled` 상태 수신 시 `onMagollaUpdate`에서 `magollaState=null` 먼저 세팅 후 `closeMagollaModal()` 호출
 - 파이터 통계 헬퍼는 전역 `matches` 객체 사용 (`Object.values(matches)`) — `allMatches`는 함수 내 지역 변수라 접근 불가
+
+---
+
+## 세션 작업 이력
+
+> 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
+
+### v2.41.x (2026-05-12)
+- **v2.41.0**: 기록 탭 막고라 파트 추가
+  - 시즌 드롭다운에 "⚔️ 막고라" 항목 (`selectViewSeason('magolla')`)
+  - `viewSeason` 타입 확장: 숫자 → 숫자 | `'magolla'`
+  - `magollaMatches = {}` 전역 캐시 + `/magolla_matches` onValue 리스너
+  - `renderMagollaHistory()` — settled 경기만 표시, 파이터 VS 카드 + 배팅 결과 행
+  - `window.mgHistoryPreview()` — 콘솔 미리보기 헬퍼 (Firebase 쓰기 없음)
+  - `calcMagollaGold(history)` → `calcPlayerGoldEarned`에 통합
+- **v2.41.1**: 막고라 기록 카드 색상 — 초록 제거, 보라(`#b48aff`) + 금빛(`var(--gold-light)`) 통일
+- **v2.41.2**: 막고라 인트로 팝업 (`#mgintro-popup`, `.mgintro-*` CSS)
+  - 앱 로드 후 1.4초 뒤 표시 (`showMgIntro()` in `renderAllWhenReady`)
+  - `localStorage.mgIntroSeen = '1'` 시 영구 숨김 ("다시 안보기")
+  - "확인" 버튼은 세션 닫기만 (다음 접속 시 재표시)
+- **v2.41.3**: 이스터에그 2종
+  - `_eggChaos()` — `h1` 1.6초 내 10회 연타 → 텍스트 변경 + shake + 이모지 낙하 3초
+  - `_lateNightEgg()` — 새벽 2~4시 접속 시 시간대별 토스트 (`.late-toast` CSS)
+
+### v2.40.x (다른 컴퓨터 작업)
+- **v2.40.0~1**: 막고라 CSS/JS/HTML 전면 재구현, 드롭다운 3번째 항목으로 이동
+- **v2.40.2~7**: 버그 수정 (onclick, disabled, 역할 판정 등) + 콘솔 헬퍼
+- **v2.40.8**: `mgPreview()` 콘솔 UI 미리보기
+- **v2.40.9~11**: 모바일 이름 말줄임 수정
+- **v2.40.12~13**: 파이터 선정 가중치 랜덤(LP 차이 역비례)
+- **v2.40.14**: 취소 후 버튼 상태 초기화 버그 수정
+- **v2.40.15**: `mgLastFighters` localStorage — 직전 파이터 쌍 재선정 제외
+- **v2.40.16~17**: 브릿지 이벤트 오염 방지 (EOG/matchData/voteStarted/InProgress 가드)
+- **v2.40.18~24**: 파이터 카드 — 폼 도트, 연승배지, H2H 전적, avg KDA(K/D/A 3열)
+- **v2.40.25**: 배팅 뷰 `.bet-fighter-info` 패널 — 모든 역할 KDA+폼 도트
+
+### v2.38.x ~ v2.39.x
+- **v2.39.0**: 막고라 매치 JS 최초 구현 (v2.40에서 전면 재구현)
+- **v2.38.21**: 패스 탭 출석 제거 + 상단 버튼 glow 애니메이션
+- **v2.38.18~20**: 랭킹 me-tag 위치 조정, 상단바 출석 퀵버튼
+- **v2.38.8**: 챔피언 이름 전역 한글화 (`loadChampNamesKR()` 앱 초기화 시 선로드)
+- **v2.38.7**: 대기화면 챔피언 한글명, `renderS1WaitingCard` async 전환
+- **v2.38.0~6**: 유료 패스 2종 (전투/지원 패스권 500G, 25레벨), 패스 탭 UI 정리
