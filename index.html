@@ -2917,6 +2917,14 @@ img.emoji{
 .mgintro-btn-confirm:hover{background:rgba(160,120,255,.22);}
 .mgintro-btn-nosee{flex:1;background:linear-gradient(135deg,rgba(160,120,255,.28),rgba(120,80,220,.38));border:1px solid rgba(160,120,255,.5);border-radius:8px;padding:10px;font-size:13px;font-weight:700;color:#d0b0ff;cursor:pointer;transition:opacity .15s;}
 .mgintro-btn-nosee:hover{opacity:.82;}
+/* ── 이스터에그 ── */
+@keyframes eggShake{0%,100%{transform:translateX(0) rotate(0);}15%{transform:translateX(-5px) rotate(-2deg);}30%{transform:translateX(5px) rotate(2deg);}45%{transform:translateX(-4px) rotate(-1deg);}60%{transform:translateX(4px) rotate(1deg);}75%{transform:translateX(-2px) rotate(-.5deg);}90%{transform:translateX(2px) rotate(.5deg);}}
+@keyframes eggFall{from{top:-36px;opacity:1;}to{top:110vh;opacity:.6;transform:rotate(420deg);}}
+header h1{cursor:default;user-select:none;}
+header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-color:#ff7eb3!important;color:#ff7eb3!important;}
+.egg-drop{position:fixed;pointer-events:none;z-index:9999;animation:eggFall linear forwards;}
+.late-toast{position:fixed;bottom:76px;left:50%;transform:translateX(-50%) translateY(16px);background:rgba(8,5,22,.92);border:1px solid rgba(160,120,255,.3);border-radius:20px;padding:9px 18px;font-size:12px;color:rgba(200,180,255,.88);white-space:nowrap;z-index:8500;opacity:0;transition:opacity .4s ease,transform .4s ease;pointer-events:none;backdrop-filter:blur(10px);box-shadow:0 4px 20px rgba(0,0,0,.5);}
+.late-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
 </head>
@@ -5007,6 +5015,7 @@ async function renderAllWhenReady() {
   // 페이지 로드 전에 도착한 session 데이터가 있으면 적용
   if (pendingSessionData) { applySessionData(pendingSessionData); pendingSessionData = null; }
   updateMemberModeDisplay();
+  _lateNightEgg();
   setTimeout(showMgIntro, 1400);
 }
 
@@ -15747,6 +15756,74 @@ window.closeMgIntro = function(permanent) {
   if (el) el.style.display = 'none';
   if (permanent) localStorage.setItem('mgIntroSeen', '1');
 };
+
+// ── 이스터에그: 타이틀 연타 ──
+(function(){
+  let clicks = 0, t = null;
+  document.addEventListener('DOMContentLoaded', function(){
+    const h1 = document.querySelector('h1');
+    if (!h1) return;
+    h1.addEventListener('click', function(){
+      clicks++;
+      clearTimeout(t);
+      t = setTimeout(()=>{ clicks = 0; }, 1600);
+      if (clicks >= 10) {
+        clicks = 0;
+        clearTimeout(t);
+        _eggChaos();
+      }
+    });
+  });
+})();
+
+function _eggChaos() {
+  const header = document.querySelector('header');
+  const h1 = document.querySelector('h1');
+  if (!h1 || header.classList.contains('egg-chaos')) return;
+  const orig = h1.textContent;
+  h1.textContent = '진짜 아수라장 내전!!';
+  header.classList.add('egg-chaos');
+  const pool = ['⚔️','🥊','💥','🎲','👑','🔥','💀','🌪️','😱','🤯','🎉','🏆'];
+  for (let i = 0; i < 10; i++) {
+    setTimeout(() => {
+      const el = document.createElement('span');
+      el.className = 'egg-drop';
+      el.textContent = pool[Math.floor(Math.random() * pool.length)];
+      el.style.left = (Math.random() * 92) + '%';
+      el.style.top = '-36px';
+      el.style.fontSize = (16 + Math.random() * 18) + 'px';
+      el.style.animationDuration = (1.0 + Math.random() * 1.4) + 's';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 2800);
+    }, i * 100);
+  }
+  setTimeout(() => {
+    header.classList.remove('egg-chaos');
+    h1.textContent = orig;
+  }, 3000);
+}
+
+// ── 이스터에그: 새벽 접속 토스트 ──
+function _lateNightEgg() {
+  const h = new Date().getHours();
+  const msgs = {
+    2: ['이 시간에도 내전 생각이요?', '새벽 2시... 진심이 느껴집니다'],
+    3: ['새벽 3시인데 내전 기획 중이세요?', '이 시간엔 몬스터 에너지 필수입니다'],
+    4: ['이러다 진짜 해 뜨겠다', '새벽 4시 아람 유저... 당신은 진짜입니다'],
+  };
+  const pool = msgs[h];
+  if (!pool) return;
+  const msg = pool[Math.floor(Math.random() * pool.length)];
+  const el = document.createElement('div');
+  el.className = 'late-toast';
+  el.textContent = '🌙 ' + msg;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('show')));
+  setTimeout(() => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 500);
+  }, 4500);
+}
 
 // ── 방어막 배지 툴팁 ─────────────────────────────────────────────
 (function() {
