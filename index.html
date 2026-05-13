@@ -2597,6 +2597,18 @@ img.emoji{
 .bet-cond-btn .bcb-icon { font-size:18px;margin-bottom:3px; }
 .bet-cond-btn .bcb-label { font-size:9px;font-weight:700;color:rgba(240,200,200,0.65);letter-spacing:0.5px; }
 .bet-cond-btn.selected .bcb-label { color:#ff7070;font-weight:900; }
+.bet-aug-btn {
+  padding:8px 4px;border-radius:10px;border:1px solid rgba(160,120,255,0.18);
+  background:rgba(160,120,255,0.04);text-align:center;cursor:pointer;transition:all .2s;
+}
+.bet-aug-btn:hover { border-color:rgba(160,120,255,0.45);background:rgba(160,120,255,0.10); }
+.bet-aug-btn.selected {
+  border-color:rgba(160,120,255,0.9);background:rgba(160,120,255,0.22);
+  box-shadow:0 0 14px rgba(160,120,255,0.28);
+}
+.bet-aug-btn .bcb-icon { font-size:18px;margin-bottom:3px; }
+.bet-aug-btn .bcb-label { font-size:9px;font-weight:700;color:rgba(210,190,255,0.65);letter-spacing:0.5px; }
+.bet-aug-btn.selected .bcb-label { color:#c8aaff;font-weight:900; }
 .bet-amount-row { display:flex;align-items:center;gap:10px;margin-bottom:12px; }
 .bet-amount-display {
   font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;
@@ -2745,6 +2757,13 @@ img.emoji{
 .ric-cond-btn:hover,.ric-cond-btn.selected { border-color:rgba(239,83,80,0.55);background:rgba(239,83,80,0.10); }
 .ric-cond-btn .rcb-icon { font-size:18px;margin-bottom:3px; }
 .ric-cond-btn .rcb-label { font-size:9px;font-weight:700;color:rgba(240,200,200,0.65); }
+.ric-aug-btn {
+  padding:8px 4px;border-radius:10px;border:1px solid rgba(160,120,255,0.15);
+  background:rgba(160,120,255,0.03);text-align:center;cursor:pointer;transition:all .2s;
+}
+.ric-aug-btn:hover,.ric-aug-btn.selected { border-color:rgba(160,120,255,0.55);background:rgba(160,120,255,0.12); }
+.ric-aug-btn .rcb-icon { font-size:18px;margin-bottom:3px; }
+.ric-aug-btn .rcb-label { font-size:9px;font-weight:700;color:rgba(210,190,255,0.65); }
 .ric-confirm-btn {
   width:100%;padding:11px;border-radius:10px;border:none;
   background:linear-gradient(135deg,rgba(160,20,20,0.8),rgba(200,30,30,0.9));
@@ -3568,8 +3587,10 @@ let magollaUnsubscribe = null;
 let magollaTimerInterval = null;
 let _mgSelectedWinner = null;
 let _mgSelectedCond = null;
+let _mgSelectedAug = null;
 let _mgResultWinner = null;
 let _mgResultCond = null;
+let _mgResultAug = null;
 let _mgBettingTabFocused = false;
 const MAGOLLA_BET_DURATION = 90000;
 const MAGOLLA_FIGHTER_WIN = 100;
@@ -3597,7 +3618,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.41.0';
+const APP_VERSION = 'v2.41.8';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3606,6 +3627,9 @@ const APP_VERSION = 'v2.41.0';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.41.8', date: '2026-05-13', changes: [
+    { tag: 'new', text: '막고라 PART 3 추가 — 첫 증강 티어(실버/골드/프리즘) 예측 배팅. 3파트 배율 체계 적용: 3/3=×3.8×avg, 2/3=×2.0×avg, 1/3=×1.4×crowd. 1개 이상 맞추면 손해 없음.' },
+  ]},
   { ver: 'v2.41.6', date: '2026-05-13', changes: [
     { tag: 'improve', text: '막고라 배팅 배율 개편 — 하나만 맞춰도 손해 없도록 조정. 승자만: ×0.8→×1.3, 요건만: ×1.08→×1.5, 둘 다: ×2.0→×2.5 (군중배율 유지)' },
     { tag: 'improve', text: '막고라 CS 요건 100→70으로 완화' },
@@ -9708,6 +9732,7 @@ if(matchArr.length===0){el.innerHTML='<div class="empty-state"><div class="icon"
 function renderMagollaHistory() {
   const el = document.getElementById('match-history-list');
   const COND_LABEL = { tower: '🏰 포탑 파괴', kill2: '⚔️ 2킬 달성', cs100: '🌾 CS 70' };
+  const AUG_LABEL = { silver: '🩶 실버', gold: '💛 골드', prisma: '💎 프리즘' };
   const arr = Object.entries(magollaMatches)
     .map(([key, m]) => ({ key, ...m }))
     .filter(m => m.status === 'settled')
@@ -9750,7 +9775,7 @@ function renderMagollaHistory() {
           <div class="mgh-vs-sep">VS</div>
           ${fighterCard(f2, f2Win, f2Me, f2Gold)}
         </div>
-        <div class="mgh-cond">요건: <span class="mgh-cond-val">${COND_LABEL[result.cond] || result.cond || '?'}</span></div>`
+        <div class="mgh-cond">요건: <span class="mgh-cond-val">${COND_LABEL[result.cond] || result.cond || '?'}</span>${result.aug ? ` · 증강: <span class="mgh-cond-val">${AUG_LABEL[result.aug] || result.aug}</span>` : ''}</div>`
       : `<div class="mgh-vs">
           ${fighterCard(f1, false, f1Me, null)}
           <div class="mgh-vs-sep">VS</div>
@@ -9768,8 +9793,10 @@ function renderMagollaHistory() {
       </div>`;
       const gw = settled && normName(bet.winner) === normName(winnerName);
       const gc = settled && bet.cond === result.cond;
+      const ga = settled && result.aug && bet.aug === result.aug;
       const winnerHit = gw ? 'hit' : 'miss';
       const condHit = gc ? 'hit' : 'miss';
+      const augHit = ga ? 'hit' : 'miss';
       const resultCls = delta === null ? '' : delta > 0 ? 'plus' : delta < 0 ? 'minus' : 'zero';
       const resultText = delta === null ? '' : `${delta >= 0 ? '+' : ''}${delta}G`;
       return `<div class="mgh-bet-row">
@@ -9778,6 +9805,7 @@ function renderMagollaHistory() {
           <span class="${settled ? winnerHit : ''}">${escHtml(bet.winner||'')}</span>
           <span style="color:rgba(255,255,255,.2)">·</span>
           <span class="${settled ? condHit : ''}">${COND_LABEL[bet.cond] || bet.cond || ''}</span>
+          ${bet.aug ? `<span style="color:rgba(255,255,255,.2)">·</span><span class="${settled ? augHit : ''}">${AUG_LABEL[bet.aug] || bet.aug}</span>` : ''}
         </span>
         <span class="mgh-bet-amount">${bet.amount}G</span>
         ${settled ? `<span class="mgh-bet-result ${resultCls}">${resultText}</span>` : ''}
@@ -16375,6 +16403,12 @@ function mgCondLabel(cond) {
 function mgCondIcon(cond) {
   return cond==='tower'?'🏰':cond==='kill2'?'💀':cond==='cs100'?'🌾':'❓';
 }
+function mgAugLabel(aug) {
+  return aug==='silver'?'🩶 실버':aug==='gold'?'💛 골드':aug==='prisma'?'💎 프리즘':(aug||'');
+}
+function mgAugIcon(aug) {
+  return aug==='silver'?'🩶':aug==='gold'?'💛':aug==='prisma'?'💎':'❓';
+}
 function mgTierLabel(tier) {
   const m=S1_TIER_META[tier]; return m ? m.label.toUpperCase() : (tier||'UNRANKED').toUpperCase();
 }
@@ -16384,29 +16418,37 @@ function mgFindGoldKey(name) {
 }
 
 // ── 배율 계산 ──────────────────────────────────────────────
-function mgCalcMultipliers(data, winnerName, condKey) {
+function mgCalcMultipliers(data, winnerName, condKey, augKey) {
   const bets=data.bets||{}, placed=Object.values(bets).filter(b=>b.winner);
   const total=placed.length;
-  if (total===0) return {wm:1.0,cm:1.0,wmLabel:'보통',cmLabel:'보통'};
+  if (total===0) return {wm:1.0,cm:1.0,am:1.0,wmLabel:'보통',cmLabel:'보통',amLabel:'보통'};
   const winnerCnt=placed.filter(b=>normName(b.winner||'')===normName(winnerName)).length;
   const condCnt=placed.filter(b=>b.cond===condKey).length;
+  const augCnt=augKey?placed.filter(b=>b.aug===augKey).length:0;
   function calcMul(cnt,tot) {
     const pct=cnt/tot;
     if (pct>=0.67) return {mul:0.8,label:'몰빵'};
     if (pct<=0.34) return {mul:1.5,label:'역배'};
     return {mul:1.0,label:'보통'};
   }
-  const w=calcMul(winnerCnt,total), c=calcMul(condCnt,total);
-  return {wm:w.mul,cm:c.mul,wmLabel:w.label,cmLabel:c.label};
+  const w=calcMul(winnerCnt,total), c=calcMul(condCnt,total), a=augKey?calcMul(augCnt,total):{mul:1.0,label:'보통'};
+  return {wm:w.mul,cm:c.mul,am:a.mul,wmLabel:w.label,cmLabel:c.label,amLabel:a.label};
 }
-function mgCalcPayout(amount, winWinner, winCond, wm, cm, noDeduct) {
+function mgCalcPayout(amount, winWinner, winCond, winAug, wm, cm, am, noDeduct) {
+  // 3파트: 승자/요건/증강 각각 맞춘 수에 따라 배율 결정
+  // 3/3: ×3.8 × avg(wm,cm,am)
+  // 2/3: ×2.0 × avg of 2 correct crowd muls
+  // 1/3: ×1.4 × that part's crowd mul
+  // 0/3: 0
+  const correctMuls=[];
+  if (winWinner) correctMuls.push(wm);
+  if (winCond) correctMuls.push(cm);
+  if (winAug) correctMuls.push(am);
+  const n=correctMuls.length;
   let payout;
-  // 둘 다 맞춤: ×2.5 × wm × cm
-  // 하나만 맞춤: 승자 ×1.3×wm / 요건 ×1.5×cm — 몰빵(×0.8) 최악 조건도 최소 손해 없음
-  // 둘 다 틀림: 0
-  if (winWinner&&winCond) payout=Math.round(amount*2.5*wm*cm);
-  else if (winWinner) payout=Math.round(amount*1.3*wm);
-  else if (winCond) payout=Math.round(amount*1.5*cm);
+  if (n===3) payout=Math.round(amount*3.8*((wm+cm+am)/3));
+  else if (n===2) payout=Math.round(amount*2.0*((correctMuls[0]+correctMuls[1])/2));
+  else if (n===1) payout=Math.round(amount*1.4*correctMuls[0]);
   else payout=0;
   const cost=noDeduct?0:amount;
   return {payout, delta:payout-cost};
@@ -16432,18 +16474,20 @@ function mgRenderStatusTable(data, blurred) {
       rows+=`<tr><td class="bss-td-name">${esc}${autoBadge}</td>`
           +`<td><span class="bss-td-pick winner">${wShort}</span></td>`
           +`<td><span class="bss-td-pick cond">${mgCondLabel(bd.cond)}</span></td>`
+          +`<td><span class="bss-td-pick cond">${mgAugIcon(bd.aug)}</span></td>`
           +`<td class="bss-td-amount">${amtHtml}</td></tr>`;
     } else {
-      rows+=`<tr><td class="bss-td-name">${esc}</td><td colspan="2"><span class="bss-td-pick waiting">배팅 중...</span></td><td class="bss-td-amount waiting">—</td></tr>`;
+      rows+=`<tr><td class="bss-td-name">${esc}</td><td colspan="3"><span class="bss-td-pick waiting">배팅 중...</span></td><td class="bss-td-amount waiting">—</td></tr>`;
     }
   });
   const placed=Object.values(bets).filter(b=>b.winner), tot=placed.length;
-  const wc={}, cc={tower:0,kill2:0,cs100:0};
+  const wc={}, cc={tower:0,kill2:0,cs100:0}, ac={silver:0,gold:0,prisma:0};
   placed.forEach(function(b) {
     const k=normName(b.winner||''); wc[k]=(wc[k]||0)+1;
     if (b.cond) cc[b.cond]=(cc[b.cond]||0)+1;
+    if (b.aug) ac[b.aug]=(ac[b.aug]||0)+1;
   });
-  let wdist='', cdist='';
+  let wdist='', cdist='', adist='';
   [data.fighter1,data.fighter2].forEach(function(f) {
     const cnt=wc[normName(f||'')]||0, pct=tot>0?(cnt/tot*100):0;
     wdist+=`<div class="bss-dist-bar-row"><div class="bss-dist-name">${escHtml(f||'').slice(0,7)}</div>`
@@ -16456,18 +16500,25 @@ function mgRenderStatusTable(data, blurred) {
           +`<div class="bss-dist-track"><div class="bss-dist-fill" style="width:${pct}%"></div></div>`
           +`<div class="bss-dist-cnt">${cnt}명</div></div>`;
   });
+  ['silver','gold','prisma'].forEach(function(aug) {
+    const cnt=ac[aug]||0, pct=tot>0?(cnt/tot*100):0;
+    adist+=`<div class="bss-dist-bar-row"><div class="bss-dist-name">${mgAugLabel(aug)}</div>`
+          +`<div class="bss-dist-track"><div class="bss-dist-fill" style="width:${pct}%"></div></div>`
+          +`<div class="bss-dist-cnt">${cnt}명</div></div>`;
+  });
   return `<div class="bet-status-section">
     <div class="bss-header">
       <div class="bss-live-badge"><div class="bss-live-dot"></div>LIVE 배팅 현황</div>
       <div style="font-size:10px;color:rgba(200,168,75,0.55);">총 ${totalBet}G 배팅 중</div>
     </div>
     <table class="bss-table">
-      <thead><tr><th>닉네임</th><th>파이터 선정</th><th>요건</th><th>금액</th></tr></thead>
+      <thead><tr><th>닉네임</th><th>파이터 선정</th><th>요건</th><th>증강</th><th>금액</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <div class="bss-dist-summary">
       <div class="bss-dist-block"><div class="bss-dist-label">승자 분포</div>${wdist}</div>
       <div class="bss-dist-block"><div class="bss-dist-label">요건 분포</div>${cdist}</div>
+      <div class="bss-dist-block"><div class="bss-dist-label">증강 분포</div>${adist}</div>
     </div>
   </div>`;
 }
@@ -16649,6 +16700,9 @@ function mgRenderBettingView(data, role) {
     const cTsel=_mgSelectedCond==='tower'?'selected':'';
     const cKsel=_mgSelectedCond==='kill2'?'selected':'';
     const cCsel=_mgSelectedCond==='cs100'?'selected':'';
+    const aSsel=_mgSelectedAug==='silver'?'selected':'';
+    const aGsel=_mgSelectedAug==='gold'?'selected':'';
+    const aPsel=_mgSelectedAug==='prisma'?'selected':'';
     mid=`<div class="bet-my-section">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
         <div class="bet-section-title">내 배팅</div>
@@ -16670,6 +16724,12 @@ function mgRenderBettingView(data, role) {
         <div class="bet-cond-btn ${cTsel}" onclick="mgSelectCond('tower')"><div class="bcb-icon">🏰</div><div class="bcb-label">타워 먼저</div></div>
         <div class="bet-cond-btn ${cKsel}" onclick="mgSelectCond('kill2')"><div class="bcb-icon">💀</div><div class="bcb-label">2킬 먼저</div></div>
         <div class="bet-cond-btn ${cCsel}" onclick="mgSelectCond('cs100')"><div class="bcb-icon">🌾</div><div class="bcb-label">CS 70 먼저</div></div>
+      </div>
+      <div class="bet-part-label">PART 3 — 첫 증강 티어</div>
+      <div class="bet-cond-row">
+        <div class="bet-aug-btn ${aSsel}" onclick="mgSelectAug('silver')"><div class="bcb-icon">🩶</div><div class="bcb-label">실버</div></div>
+        <div class="bet-aug-btn ${aGsel}" onclick="mgSelectAug('gold')"><div class="bcb-icon">💛</div><div class="bcb-label">골드</div></div>
+        <div class="bet-aug-btn ${aPsel}" onclick="mgSelectAug('prisma')"><div class="bcb-icon">💎</div><div class="bcb-label">프리즘</div></div>
       </div>
       <div class="bet-part-label">배팅 금액</div>
       <div class="bet-amount-row">
@@ -16702,22 +16762,24 @@ function mgRenderClosedView(data, role) {
     rows+=`<tr><td class="fbc-td-name">${escHtml(name)}${autoBadge}</td>`
          +`<td><span class="fbc-td-pick winner">${escHtml(bd.winner||'').slice(0,6)}</span></td>`
          +`<td><span class="fbc-td-pick cond">${mgCondLabel(bd.cond)}</span></td>`
+         +`<td><span class="fbc-td-pick cond">${mgAugLabel(bd.aug)}</span></td>`
          +`<td class="fbc-td-amount" ${amtStyle}>${bd.amount}G</td></tr>`;
     totalBet+=bd.amount||0;
   });
   const fbc=`<div class="final-bets-card">
     <div class="fbc-header"><div class="fbc-title">최종 배팅 현황</div><div class="fbc-total">총 ${totalBet}G</div></div>
     <table class="fbc-table">
-      <thead><tr><th>닉네임</th><th>파이터 선정</th><th>요건</th><th style="text-align:right;">금액</th></tr></thead>
+      <thead><tr><th>닉네임</th><th>파이터 선정</th><th>요건</th><th>증강</th><th style="text-align:right;">금액</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     ${role!=='live'?`<div style="margin-top:8px;padding:7px 10px;border-radius:7px;background:rgba(255,152,0,0.05);border:1px solid rgba(255,152,0,0.14);font-size:9px;color:rgba(255,180,50,0.6);line-height:1.6;">⚡ 시간 내 미배팅 시 자동으로 10G · 랜덤 선택 처리됩니다.<br>보유 골드 부족 시 5G · 골드 차감 없음.</div>`:''}
   </div>`;
   let bottom='';
   if (role==='live') {
-    const r=_mgResultWinner, rc=_mgResultCond;
+    const r=_mgResultWinner, rc=_mgResultCond, ra=_mgResultAug;
     const f1s=r&&normName(r)===normName(f1)?'selected':'', f2s=r&&normName(r)===normName(f2)?'selected':'';
     const cTs=rc==='tower'?'selected':'', cKs=rc==='kill2'?'selected':'', cCs=rc==='cs100'?'selected':'';
+    const aSs=ra==='silver'?'selected':'', aGs=ra==='gold'?'selected':'', aPs=ra==='prisma'?'selected':'';
     bottom=`<div class="result-input-card">
       <div class="ric-title">⚡ 결과 입력 — 라이브 전용</div>
       <div class="ric-desc">실제 경기 결과를 선택하고 정산하세요.</div>
@@ -16732,7 +16794,13 @@ function mgRenderClosedView(data, role) {
         <div class="ric-cond-btn ${cKs}" onclick="mgSelectResultCond('kill2')"><div class="rcb-icon">💀</div><div class="rcb-label">2킬 먼저</div></div>
         <div class="ric-cond-btn ${cCs}" onclick="mgSelectResultCond('cs100')"><div class="rcb-icon">🌾</div><div class="rcb-label">CS 70 먼저</div></div>
       </div>
-      <button class="ric-confirm-btn${r&&rc?' ready':''}" id="mg-result-confirm-btn" onclick="mgConfirmResult()">정산 확정</button>
+      <div style="font-size:9px;font-weight:700;letter-spacing:1.5px;color:rgba(239,83,80,0.45);margin-bottom:6px;margin-top:8px;">첫 증강 티어</div>
+      <div class="ric-cond-row">
+        <div class="ric-aug-btn ${aSs}" onclick="mgSelectResultAug('silver')"><div class="rcb-icon">🩶</div><div class="rcb-label">실버</div></div>
+        <div class="ric-aug-btn ${aGs}" onclick="mgSelectResultAug('gold')"><div class="rcb-icon">💛</div><div class="rcb-label">골드</div></div>
+        <div class="ric-aug-btn ${aPs}" onclick="mgSelectResultAug('prisma')"><div class="rcb-icon">💎</div><div class="rcb-label">프리즘</div></div>
+      </div>
+      <button class="ric-confirm-btn${r&&rc&&ra?' ready':''}" id="mg-result-confirm-btn" onclick="mgConfirmResult()">정산 확정</button>
     </div>`;
   } else {
     bottom=`<div class="waiting-result-panel">
@@ -16752,10 +16820,10 @@ function mgRenderClosedView(data, role) {
 }
 
 function mgRenderSettledView(data) {
-  const res=data.result||{}, winnerName=res.winner||'', condKey=res.cond||'';
+  const res=data.result||{}, winnerName=res.winner||'', condKey=res.cond||'', augKey=res.aug||'';
   const loser=normName(winnerName)===normName(data.fighter1||'')?data.fighter2:data.fighter1;
   const bets=data.bets||{};
-  const {wm,cm,wmLabel,cmLabel}=mgCalcMultipliers(data,winnerName,condKey);
+  const {wm,cm,am,wmLabel,cmLabel,amLabel}=mgCalcMultipliers(data,winnerName,condKey,augKey);
   let rows='';
   (data.spectators||[]).forEach(function(name) {
     const nn=normName(name);
@@ -16764,20 +16832,34 @@ function mgRenderSettledView(data) {
     if (!bd) return;
     const winW=normName(bd.winner||'')===normName(winnerName);
     const winC=bd.cond===condKey;
+    const winA=bd.aug===augKey;
     const amount=bd.amount||0;
-    const {payout,delta}=mgCalcPayout(amount,winW,winC,wm,cm,!!bd.noDeduct);
+    const {payout,delta}=mgCalcPayout(amount,winW,winC,winA,wm,cm,am,!!bd.noDeduct);
+    const n=[winW,winC,winA].filter(Boolean).length;
     let rc='miss', icon='💸';
-    if (winW&&winC){rc='hit-both';icon='💰';}
-    else if (winW||winC){rc='hit-one';icon='📉';}
+    if (n===3){rc='hit-both';icon='💰';}
+    else if (n>0){rc='hit-one';icon='📉';}
     const chips=[
       {label:escHtml(bd.winner||''),correct:winW},
-      {label:mgCondLabel(bd.cond),correct:winC}
+      {label:mgCondLabel(bd.cond),correct:winC},
+      {label:mgAugLabel(bd.aug),correct:winA}
     ].map(p=>`<span class="sr-pick-chip ${p.correct?'correct':'wrong'}">${p.label} ${p.correct?'✓':'✗'}</span>`).join('');
     let formula='';
-    if (winW&&winC) formula=`${amount}G × <span class="fmt-base">×2.0 기본</span> × <span class="fmt-crowd">×${wm} ${wmLabel}(승자)</span> × <span class="fmt-crowd">×${cm} ${cmLabel}(요건)</span> → ${payout}G`;
-    else if (winW) formula=`${amount}G × <span class="fmt-base">×0.8 기본(승자만)</span> × <span class="fmt-crowd">×${wm} ${wmLabel}(승자)</span> → ${payout}G`;
-    else if (winC) formula=`${amount}G × <span class="fmt-base">×1.08 기본(요건만)</span> × <span class="fmt-crowd">×${cm} ${cmLabel}(요건)</span> → ${payout}G`;
-    else formula=`<span class="fmt-zero">×0 전부 틀림</span> → 수령 없음`;
+    if (n===3) {
+      const avg=((wm+cm+am)/3).toFixed(2);
+      formula=`${amount}G × <span class="fmt-base">×3.8 기본</span> × <span class="fmt-crowd">avg(×${wm}+×${cm}+×${am})÷3=×${avg}</span> → ${payout}G`;
+    } else if (n===2) {
+      const muls=[];
+      if (winW) muls.push({mul:wm,label:wmLabel,name:'승자'});
+      if (winC) muls.push({mul:cm,label:cmLabel,name:'요건'});
+      if (winA) muls.push({mul:am,label:amLabel,name:'증강'});
+      const avg=((muls[0].mul+muls[1].mul)/2).toFixed(2);
+      const mulStr=muls.map(m=>`×${m.mul} ${m.label}(${m.name})`).join(' + ');
+      formula=`${amount}G × <span class="fmt-base">×2.0 기본</span> × <span class="fmt-crowd">avg(${mulStr})÷2=×${avg}</span> → ${payout}G`;
+    } else if (n===1) {
+      const mul=winW?{mul:wm,label:wmLabel,name:'승자'}:winC?{mul:cm,label:cmLabel,name:'요건'}:{mul:am,label:amLabel,name:'증강'};
+      formula=`${amount}G × <span class="fmt-base">×1.4 기본</span> × <span class="fmt-crowd">×${mul.mul} ${mul.label}(${mul.name})</span> → ${payout}G`;
+    } else formula=`<span class="fmt-zero">×0 전부 틀림</span> → 수령 없음`;
     const sign=delta>0?'+':'', cls=delta>0?'plus':delta<0?'minus':'zero';
     rows+=`<div class="settle-row ${rc}">
       <div class="sr-result-icon">${icon}</div>
@@ -16797,7 +16879,7 @@ function mgRenderSettledView(data) {
     <div class="settle-result-header">
       <div class="srh-badge">MATCH SETTLED</div>
       <div class="srh-winner-name">${escHtml(winnerName)} 승리</div>
-      <div class="srh-cond">${mgCondIcon(condKey)} ${mgCondLabel(condKey)} 달성</div>
+      <div class="srh-cond">${mgCondIcon(condKey)} ${mgCondLabel(condKey)} 달성 · ${mgAugIcon(augKey)} ${mgAugLabel(augKey)}</div>
       <div class="srh-fighter-rewards">
         <div class="srh-fr-card win">
           <div class="srh-fr-label">🏆 승자</div>
@@ -16876,7 +16958,8 @@ async function mgTriggerClose() {
     const noDeduct=amount===5;
     const winner=[d.fighter1,d.fighter2][Math.floor(Math.random()*2)];
     const cond=['tower','kill2','cs100'][Math.floor(Math.random()*3)];
-    updates['magolla_matches/'+currentMagollaId+'/bets/'+nn]={name:specName,winner,cond,amount,auto:true,noDeduct,betAt:Date.now()};
+    const aug=['silver','gold','prisma'][Math.floor(Math.random()*3)];
+    updates['magolla_matches/'+currentMagollaId+'/bets/'+nn]={name:specName,winner,cond,aug,amount,auto:true,noDeduct,betAt:Date.now()};
     if (!noDeduct&&gk&&gd) {
       updates['gold/'+gk+'/'+sField('goldSpent')]=(gd[sField('goldSpent')]||0)+amount;
     }
@@ -17008,8 +17091,8 @@ function closeMagollaModal() {
   if (magollaUnsubscribe) { magollaUnsubscribe(); magollaUnsubscribe=null; }
   if (magollaState==='settled'||magollaState===null) {
     magollaState=null; currentMagollaId=null; magollaData=null;
-    _mgSelectedWinner=null; _mgSelectedCond=null;
-    _mgResultWinner=null; _mgResultCond=null; _mgBettingTabFocused=false;
+    _mgSelectedWinner=null; _mgSelectedCond=null; _mgSelectedAug=null;
+    _mgResultWinner=null; _mgResultCond=null; _mgResultAug=null; _mgBettingTabFocused=false;
     if (matchType==='magolla') setMatchType('normal');
   }
   updateMagollaBtn(); updateMaketeamsBtn();
@@ -17043,6 +17126,12 @@ function mgSelectCond(cond) {
     btn.classList.toggle('selected',['tower','kill2','cs100'][i]===cond);
   });
 }
+function mgSelectAug(aug) {
+  _mgSelectedAug=aug;
+  document.querySelectorAll('#magolla-modal .bet-aug-btn').forEach(function(btn,i) {
+    btn.classList.toggle('selected',['silver','gold','prisma'][i]===aug);
+  });
+}
 function mgSelectResultWinner(name) {
   _mgResultWinner=name;
   document.querySelectorAll('#magolla-modal .ric-winner-btn').forEach(function(btn) {
@@ -17058,9 +17147,16 @@ function mgSelectResultCond(cond) {
   });
   mgUpdateResultBtn();
 }
+function mgSelectResultAug(aug) {
+  _mgResultAug=aug;
+  document.querySelectorAll('#magolla-modal .ric-aug-btn').forEach(function(btn,i) {
+    btn.classList.toggle('selected',['silver','gold','prisma'][i]===aug);
+  });
+  mgUpdateResultBtn();
+}
 function mgUpdateResultBtn() {
   const btn=document.getElementById('mg-result-confirm-btn');
-  if (btn) btn.classList.toggle('ready',!!(_mgResultWinner&&_mgResultCond));
+  if (btn) btn.classList.toggle('ready',!!(_mgResultWinner&&_mgResultCond&&_mgResultAug));
 }
 function mgUpdateBetSlider(el) {
   const val=parseInt(el.value);
@@ -17073,7 +17169,7 @@ function mgUpdateBetSlider(el) {
 // ── 배팅 확정 ────────────────────────────────────────────
 async function mgConfirmBet() {
   if (!currentMagollaId||!myName||!magollaData) return;
-  if (!_mgSelectedWinner||!_mgSelectedCond) { showS1Toast('승자와 요건을 모두 선택해주세요'); return; }
+  if (!_mgSelectedWinner||!_mgSelectedCond||!_mgSelectedAug) { showS1Toast('승자, 요건, 증강 티어를 모두 선택해주세요'); return; }
   const slider=document.getElementById('mg-bet-slider');
   const amount=parseInt(slider?.value||0)+10;
   if (getMyGold()<amount) { showS1Toast('골드가 부족합니다'); return; }
@@ -17084,7 +17180,7 @@ async function mgConfirmBet() {
   const prevAmt=existBet&&!existBet.auto?(existBet.amount||0):0;
   const betKey=normName(myName);
   const updates={};
-  updates['magolla_matches/'+currentMagollaId+'/bets/'+betKey]={name:myName,winner:_mgSelectedWinner,cond:_mgSelectedCond,amount,betAt:Date.now()};
+  updates['magolla_matches/'+currentMagollaId+'/bets/'+betKey]={name:myName,winner:_mgSelectedWinner,cond:_mgSelectedCond,aug:_mgSelectedAug,amount,betAt:Date.now()};
   updates['gold/'+gk+'/'+sField('goldSpent')]=(gd[sField('goldSpent')]||0)+(amount-prevAmt);
   await update(ref(db),updates);
   mgSfx(mgCoin);
@@ -17093,17 +17189,17 @@ async function mgConfirmBet() {
 
 // ── 결과 확정 ────────────────────────────────────────────
 async function mgConfirmResult() {
-  if (!liveMode||!currentMagollaId||!_mgResultWinner||!_mgResultCond) return;
+  if (!liveMode||!currentMagollaId||!_mgResultWinner||!_mgResultCond||!_mgResultAug) return;
   const snap=await get(ref(db,'magolla_matches/'+currentMagollaId));
   const d=snap.val();
   if (!d||d.status!=='closed') return;
-  await mgSettleMatch(currentMagollaId,_mgResultWinner,_mgResultCond,d);
+  await mgSettleMatch(currentMagollaId,_mgResultWinner,_mgResultCond,_mgResultAug,d);
 }
 
 // ── 정산 ─────────────────────────────────────────────────
-async function mgSettleMatch(matchId, winnerName, condKey, data) {
+async function mgSettleMatch(matchId, winnerName, condKey, augKey, data) {
   const bets=data.bets||{};
-  const {wm,cm}=mgCalcMultipliers(data,winnerName,condKey);
+  const {wm,cm,am}=mgCalcMultipliers(data,winnerName,condKey,augKey);
   const updates={}, payouts={}, now=Date.now();
   // 관전자
   for (const specName of (data.spectators||[])) {
@@ -17113,7 +17209,8 @@ async function mgSettleMatch(matchId, winnerName, condKey, data) {
     if (!bd) continue;
     const winW=normName(bd.winner||'')===normName(winnerName);
     const winC=bd.cond===condKey;
-    const {payout,delta}=mgCalcPayout(bd.amount||0,winW,winC,wm,cm,!!bd.noDeduct);
+    const winA=bd.aug===augKey;
+    const {payout,delta}=mgCalcPayout(bd.amount||0,winW,winC,winA,wm,cm,am,!!bd.noDeduct);
     payouts[nn]=delta;
     const gk=mgFindGoldKey(specName);
     if (!gk) continue;
@@ -17136,7 +17233,7 @@ async function mgSettleMatch(matchId, winnerName, condKey, data) {
     updates['gold/'+gk+'/magollaHistory_s1']=(gd.magollaHistory_s1||[]).concat([{matchId,delta,ts:now}]);
   }
   updates['magolla_matches/'+matchId+'/status']='settled';
-  updates['magolla_matches/'+matchId+'/result']={winner:winnerName,cond:condKey};
+  updates['magolla_matches/'+matchId+'/result']={winner:winnerName,cond:condKey,aug:augKey};
   updates['magolla_matches/'+matchId+'/payouts']=payouts;
   await update(ref(db),updates);
 }
@@ -17203,7 +17300,7 @@ window.mgForceCancel = async function(matchIdArg) {
 //
 // 원래 화면으로 돌아가기: closeMagollaModal() 후 재오픈, 또는 페이지 새로고침
 
-window.mgPreview = async function(phase, winnerArg, condArg) {
+window.mgPreview = async function(phase, winnerArg, condArg, augArg) {
   if (!currentMagollaId&&!magollaData) { console.log('[미리보기] 막고라 모달이 열려있어야 합니다'); return; }
   const d=magollaData||(await get(ref(db,'magolla_matches/'+currentMagollaId))).val();
   if (!d) { console.log('[미리보기] 데이터 없음'); return; }
@@ -17222,7 +17319,9 @@ window.mgPreview = async function(phase, winnerArg, condArg) {
     const balance=gd?(calcPlayerGoldEarned(specName,gd)-(gd[sField('goldSpent')]||0)):0;
     const amount=balance>=10?10:5;
     fakeBets[nn]={name:specName,winner:[d.fighter1,d.fighter2][Math.floor(Math.random()*2)],
-      cond:['tower','kill2','cs100'][Math.floor(Math.random()*3)],amount,betAt:now,auto:true,noDeduct:amount===5};
+      cond:['tower','kill2','cs100'][Math.floor(Math.random()*3)],
+      aug:['silver','gold','prisma'][Math.floor(Math.random()*3)],
+      amount,betAt:now,auto:true,noDeduct:amount===5};
   });
   const fakeData=Object.assign({},d,{bets:fakeBets});
 
@@ -17236,8 +17335,9 @@ window.mgPreview = async function(phase, winnerArg, condArg) {
   } else if (!phase||phase==='settled') {
     const winner=winnerArg||fakeData.fighter1;
     const cond=condArg||['tower','kill2','cs100'][Math.floor(Math.random()*3)];
+    const aug=augArg||['silver','gold','prisma'][Math.floor(Math.random()*3)];
     // 정산 계산만 로컬에서 수행
-    const {wm,cm}=mgCalcMultipliers(fakeData,winner,cond);
+    const {wm,cm,am}=mgCalcMultipliers(fakeData,winner,cond,aug);
     const fakePayouts={};
     (fakeData.spectators||[]).forEach(function(specName) {
       const nn=normName(specName);
@@ -17245,14 +17345,15 @@ window.mgPreview = async function(phase, winnerArg, condArg) {
       const bd=bk?fakeBets[bk]:null; if(!bd) return;
       const winW=normName(bd.winner||'')===normName(winner);
       const winC=bd.cond===cond;
-      const {delta}=mgCalcPayout(bd.amount||0,winW,winC,wm,cm,!!bd.noDeduct);
+      const winA=bd.aug===aug;
+      const {delta}=mgCalcPayout(bd.amount||0,winW,winC,winA,wm,cm,am,!!bd.noDeduct);
       fakePayouts[nn]=delta;
     });
     [fakeData.fighter1,fakeData.fighter2].forEach(function(fn) {
       if (!fn) return;
       fakePayouts['f_'+normName(fn)]=normName(fn)===normName(winner)?MAGOLLA_FIGHTER_WIN:MAGOLLA_FIGHTER_LOSE;
     });
-    const settled=Object.assign({},fakeData,{status:'settled',result:{winner,cond},payouts:fakePayouts});
+    const settled=Object.assign({},fakeData,{status:'settled',result:{winner,cond,aug},payouts:fakePayouts});
     content.innerHTML=mgRenderSettledView(settled);
     setTimeout(function(){
       content.querySelectorAll('.srh-fr-gold').forEach(function(el,i){ setTimeout(function(){ mgAnimCountUp(el,480); },i*160); });
@@ -17261,7 +17362,7 @@ window.mgPreview = async function(phase, winnerArg, condArg) {
       content.querySelectorAll('.sr-payout').forEach(function(el,i){ setTimeout(function(){ mgAnimCountUp(el,380); },i*130); });
     },1100);
     mgSfx(mgFanfare);
-    console.log('[미리보기] settled 화면 렌더 완료 — Firebase 쓰기 없음 / 승자:', winner, '/ 요건:', cond);
+    console.log('[미리보기] settled 화면 렌더 완료 — Firebase 쓰기 없음 / 승자:', winner, '/ 요건:', cond, '/ 증강:', aug);
   } else {
     console.log('[미리보기] phase는 "closed" 또는 "settled"');
   }
@@ -17273,8 +17374,10 @@ window.closeMagollaModal = closeMagollaModal;
 window.mgStartBetting = mgStartBetting;
 window.mgSelectWinner = mgSelectWinner;
 window.mgSelectCond = mgSelectCond;
+window.mgSelectAug = mgSelectAug;
 window.mgSelectResultWinner = mgSelectResultWinner;
 window.mgSelectResultCond = mgSelectResultCond;
+window.mgSelectResultAug = mgSelectResultAug;
 window.mgUpdateBetSlider = mgUpdateBetSlider;
 window.mgConfirmBet = mgConfirmBet;
 window.mgConfirmResult = mgConfirmResult;
