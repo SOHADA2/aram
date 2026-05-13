@@ -3606,6 +3606,11 @@ const APP_VERSION = 'v2.41.0';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.41.6', date: '2026-05-13', changes: [
+    { tag: 'improve', text: '막고라 배팅 배율 개편 — 하나만 맞춰도 손해 없도록 조정. 승자만: ×0.8→×1.3, 요건만: ×1.08→×1.5, 둘 다: ×2.0→×2.5 (군중배율 유지)' },
+    { tag: 'improve', text: '막고라 CS 요건 100→70으로 완화' },
+    { tag: 'fix', text: 'MOST/BEST 챔피언 — S1 경기 데이터 없을 때 S0 챔피언이 잘못 표시되던 문제 수정' },
+  ]},
   { ver: 'v2.41.0', date: '2026-05-12', changes: [
     { tag: 'new', text: '기록 탭 막고라 파트 추가 — 시즌 드롭다운에 "⚔️ 막고라" 항목 추가. 선택 시 /magolla_matches에서 완료/취소된 매치 목록 표시. 파이터 승/패 카드(티어 LP·골드 수익), 관전자 배팅 행(승자픽·요건픽 적중 여부·정산액) 표시. 실시간 구독으로 정산 즉시 반영' },
   ]},
@@ -16396,9 +16401,12 @@ function mgCalcMultipliers(data, winnerName, condKey) {
 }
 function mgCalcPayout(amount, winWinner, winCond, wm, cm, noDeduct) {
   let payout;
-  if (winWinner&&winCond) payout=Math.round(amount*2.0*wm*cm);
-  else if (winWinner) payout=Math.round(amount*0.8*wm);
-  else if (winCond) payout=Math.round(amount*1.08*cm);
+  // 둘 다 맞춤: ×2.5 × wm × cm
+  // 하나만 맞춤: 승자 ×1.3×wm / 요건 ×1.5×cm — 몰빵(×0.8) 최악 조건도 최소 손해 없음
+  // 둘 다 틀림: 0
+  if (winWinner&&winCond) payout=Math.round(amount*2.5*wm*cm);
+  else if (winWinner) payout=Math.round(amount*1.3*wm);
+  else if (winCond) payout=Math.round(amount*1.5*cm);
   else payout=0;
   const cost=noDeduct?0:amount;
   return {payout, delta:payout-cost};
