@@ -687,6 +687,45 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 - **v2.40.18~24**: 파이터 카드 — 폼 도트, 연승배지, H2H 전적, avg KDA(K/D/A 3열)
 - **v2.40.25**: 배팅 뷰 `.bet-fighter-info` 패널 — 모든 역할 KDA+폼 도트
 
+### 다음 작업: 펫 시스템 (미구현 — 설계 확정)
+
+#### 최종 확정 설계
+- **50G 뽑기** → 항상 **기본 클래식 포로** 지급 (랜덤 아님)
+- **1판 완료** → 10종 중 랜덤 변신 (이게 수집 요소, 레벨 시스템 없음)
+- 스페셜(cosplay5) 확률 미확정 (유저에게 물어볼 것: 5%? 10%?)
+- 기존 펫 보유 중 뽑기 시 "기존 포로가 사라집니다" 경고 팝업 필수
+- **컬렉션(도감)**: 한 번이라도 획득한 포로는 영구 기록 (펫 교체해도 도감은 유지)
+- 1인 1펫 — 동시에 여러 마리 보유 불가
+
+#### 이미지 소스 (Community Dragon CDN)
+```
+기본 포로 (항상 이 이미지로 시작):
+https://raw.communitydragon.org/latest/game/assets/characters/petporo/hud/loadscreen_poro_base_classic_tier1.png
+
+변신 후 랜덤 10종 (variant1~5 + cosplay1~4 + cosplay5스페셜):
+https://raw.communitydragon.org/latest/game/assets/characters/petporo/hud/loadscreen_poro_base_variant{1~5}_tier1.png
+https://raw.communitydragon.org/latest/game/assets/characters/petporo/hud/loadscreen_poro_cosplay_cosplay{1~4}_tier1.png
+https://raw.communitydragon.org/latest/game/assets/characters/petporo/hud/loadscreen_poro_cosplay_cosplay5_tier1.png  ← 스페셜
+```
+
+#### Firebase 데이터 구조 (추가 필드)
+```
+/gold/{key}
+  pet_s1: {
+    type: 'classic' | 'variant1'~'variant5' | 'cosplay1'~'cosplay5' | null
+    obtained: number   // 변신 완료 timestamp (null이면 아직 기본 포로 상태)
+    pulledAt: number   // 뽑기 timestamp
+  }
+  petLog_s1: string[]  // 도감 — 획득한 type 문자열 배열 (중복 제거, 영구 누적)
+```
+
+#### UI 구현 위치
+- 상점 탭(`🛒 상점`) 내 새 카테고리 **"🐾 펫"** 추가
+- 뽑기 버튼 (50G), 보유 펫 카드 표시 (loadscreen 이미지 카드 스타일)
+- 1판 대기 중: 기본 포로 카드 + "다음 경기 후 변신!" 안내
+- 컬렉션 그리드: 11종, 미획득은 실루엣(filter:brightness(0) opacity(0.2)) + 🔒
+- 카드 스타일: 세로 카드, 아트 위/이름 아래, rounded border
+
 ### v2.38.x ~ v2.39.x
 - **v2.39.0**: 막고라 매치 JS 최초 구현 (v2.40에서 전면 재구현)
 - **v2.38.21**: 패스 탭 출석 제거 + 상단 버튼 glow 애니메이션
