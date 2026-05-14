@@ -14435,19 +14435,24 @@ function _renderShopImmediate() {
   if (filteredItems.length === 0 && invCatTab === 'equip') {
     invEl.innerHTML = '<div class="sp-cat-empty" style="grid-column:1/-1">🔧 보유한 장비 아이템이 없어요.</div>';
   } else {
-    const SLOT_CNT = Math.max(filteredItems.length + 4, 8);
-    // 아이템 타입별 보유 개수 집계
+    // 아이템 타입별 보유 개수 집계 + 중복 제거 (종류당 1슬롯)
     const invCounts = {};
     filteredItems.forEach(it => { invCounts[it.id] = (invCounts[it.id] || 0) + 1; });
+    const seenIds = new Set();
+    const uniqueItems = filteredItems.filter(it => { if (seenIds.has(it.id)) return false; seenIds.add(it.id); return true; });
+    const SLOT_CNT = Math.max(uniqueItems.length + 4, 8);
     const slots = [];
     for (let i = 0; i < SLOT_CNT; i++) {
-      const item = filteredItems[i];
-      if (!item) { slots.push('<div class="inv-slot inv-slot-empty"></div>'); continue; }
-      const def = allDefs.find(s=>s.id===item.id);
-      if (!def)  { slots.push('<div class="inv-slot inv-slot-empty"></div>'); continue; }
-      // 실제 myItems 인덱스를 찾아야 toggleItemActive가 올바르게 동작함
-      const realIdx = myItems.indexOf(item);
-      const isActive   = !!item.active;
+      const repItem = uniqueItems[i];
+      if (!repItem) { slots.push('<div class="inv-slot inv-slot-empty"></div>'); continue; }
+      const def = allDefs.find(s=>s.id===repItem.id);
+      if (!def)    { slots.push('<div class="inv-slot inv-slot-empty"></div>'); continue; }
+      // 활성화된 인스턴스 우선, 없으면 첫 번째 인스턴스 기준으로 toggleItemActive
+      const sameType = filteredItems.filter(it => it.id === repItem.id);
+      const activeItem = sameType.find(it => it.active);
+      const displayItem = activeItem || sameType[0];
+      const realIdx  = myItems.indexOf(displayItem);
+      const isActive   = !!activeItem;
       const nameColor  = def.color || 'var(--text)';
       const lockedCls  = isItemsEffectivelyLocked() ? ' inv-locked' : '';
       const clickAttr  = isItemsEffectivelyLocked() ? '' : `onclick="toggleItemActive(${realIdx})"`;
