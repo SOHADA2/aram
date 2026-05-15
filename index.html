@@ -3631,7 +3631,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.41.17';
+const APP_VERSION = 'v2.41.18';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3640,6 +3640,9 @@ const APP_VERSION = 'v2.41.17';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.41.18', date: '2026-05-15', changes: [
+    { tag: 'improve', text: '팀 발표 팝업 챌린저 효과 — S1 랭킹 1위(챌린저)인 플레이어 1명에게만 적용되도록 수정' },
+  ]},
   { ver: 'v2.41.17', date: '2026-05-15', changes: [
     { tag: 'improve', text: '팀 발표 팝업 — 챌린저 플레이어 닉네임에 골드 shimmer 텍스트 + 방사형 광선 효과 추가' },
   ]},
@@ -8072,6 +8075,19 @@ function showTeamAnnounce(teamA, teamB) {
 
   const DURATION = 7000;
 
+  // S1 랭킹 1위 & 챌린저인 플레이어만 특수 효과 적용
+  const s1Rank1Key = (() => {
+    if (CURRENT_SEASON < 1) return null;
+    const sorted = Object.entries(season1Data)
+      .filter(([, d]) => d.placementDone)
+      .sort(([, a], [, b]) => {
+        const ti = d => S1_TIER_ORDER.indexOf(d.tier || 'unranked');
+        return ti(b) !== ti(a) ? ti(b) - ti(a) : (b.lp || 0) - (a.lp || 0);
+      });
+    const top = sorted[0];
+    return (top && top[1].tier === 'challenger') ? top[0] : null;
+  })();
+
   function playerRow(p, i) {
     const isMe = myName && normName(p.name) === normName(myName);
     const streak = calcStreak(p.name);
@@ -8101,9 +8117,9 @@ function showTeamAnnounce(teamA, teamB) {
       const t = TIERS[p.tier] || TIERS.unranked;
       tierHtml = `<span class="tier-badge ${t.cls}">${t.label}</span>`;
     }
-    const isChallenger = CURRENT_SEASON >= 1 && season1Data[normName(p.name)]?.tier === 'challenger';
-    const displayName = isChallenger ? `<span class="chall-name">${escHtml(p.name)}</span>` : nameHtml(p.name);
-    return `<div class="ta-player${isMe ? ' is-me' : ''}${isChallenger ? ' is-challenger' : ''}">
+    const isS1Top = s1Rank1Key !== null && normName(p.name) === s1Rank1Key;
+    const displayName = isS1Top ? `<span class="chall-name">${escHtml(p.name)}</span>` : nameHtml(p.name);
+    return `<div class="ta-player${isMe ? ' is-me' : ''}${isS1Top ? ' is-challenger' : ''}">
       <div class="ta-p-num">${i + 1}</div>
       <div class="ta-p-info">
         <div class="ta-p-name">${displayName}${nBadge}${rBadge}${meBadge}</div>
