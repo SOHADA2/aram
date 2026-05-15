@@ -1537,6 +1537,11 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .champ-pool-close{background:none;border:none;color:var(--text-dim);font-size:20px;cursor:pointer;padding:4px;line-height:1;flex-shrink:0;}
 .champ-pool-close:hover{color:var(--text);}
 .champ-pool-body{flex:1;overflow-y:auto;padding:10px 14px 16px;-webkit-overflow-scrolling:touch;transform:translateZ(0);}
+.cp-filter-tabs{display:flex;gap:5px;padding:8px 14px;flex-shrink:0;overflow-x:auto;scrollbar-width:none;border-bottom:1px solid var(--border);}
+.cp-filter-tabs::-webkit-scrollbar{display:none;}
+.cp-filter-btn{flex-shrink:0;padding:4px 11px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text-dim);font-size:11px;cursor:pointer;transition:all 0.15s;font-family:'Noto Sans KR',sans-serif;white-space:nowrap;}
+.cp-filter-btn.active{background:var(--gold);border-color:var(--gold);color:#000;font-weight:700;}
+.cp-filter-btn:hover:not(.active){background:var(--surface2);color:var(--text);}
 .cp-empty{text-align:center;padding:32px 16px;color:var(--text-dim);font-size:13px;line-height:1.6;}
 .cp-row{display:flex;gap:10px;padding:10px 12px 10px 14px;border-radius:9px;background:var(--surface2);border:1px solid var(--border);margin-bottom:7px;align-items:flex-start;position:relative;overflow:hidden;}
 .cp-row::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;}
@@ -3631,7 +3636,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.41.19';
+const APP_VERSION = 'v2.41.20';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3640,6 +3645,9 @@ const APP_VERSION = 'v2.41.19';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.41.20', date: '2026-05-15', changes: [
+    { tag: 'new', text: '챔피언 풀 카테고리 필터 — 전체/마법사/전사/원딜/암살자/탱커/서포터 탭으로 포지션별 챔프 확인 가능' },
+  ]},
   { ver: 'v2.41.19', date: '2026-05-15', changes: [
     { tag: 'improve', text: '챔피언 풀 스크롤 렉 개선 — 모달 GPU 레이어 분리(isolation:isolate, translateZ), 이미지 lazy/async 로딩, backdrop-filter 최적화' },
   ]},
@@ -7857,6 +7865,7 @@ loadDdragonVersion();
 
 let champNamesKR = {};
 let champIdToSlug = {};
+let champTags = {};
 async function loadChampNamesKR() {
   if (Object.keys(champNamesKR).length > 0) return;
   await loadDdragonVersion();
@@ -7866,6 +7875,7 @@ async function loadChampNamesKR() {
     for (const [id, champ] of Object.entries(data.data)) {
       champNamesKR[id] = champ.name;
       champIdToSlug[champ.key] = id; // champId(숫자) → slug(이미지 파일명)
+      champTags[id] = champ.tags || [];
     }
   } catch(e) {}
 }
@@ -11480,7 +11490,7 @@ window.openChampPoolModal = async function(name) {
             ? `<div class="cp-extra-row">${extraParts.join(sep)}</div>` : '';
           return kdaRow + extraRow;
         })() : '';
-        return `<div class="cp-row ${wrCls}">
+        return `<div class="cp-row ${wrCls}" data-tags="${(champTags[c.slug]||[]).join(' ')}">
           <img class="cp-champ-img" src="${url(c.slug)}" loading="lazy" decoding="async" onerror="this.style.display='none'" alt="${escHtml(krName(c.slug))}">
           <div class="cp-info">
             <div class="cp-top-row">
@@ -11499,6 +11509,8 @@ window.openChampPoolModal = async function(name) {
   const overlay = document.createElement('div');
   overlay.className = 'champ-pool-overlay';
   overlay.id = 'champ-pool-root';
+  const filterTabs = ['전체:all','마법사:Mage','전사:Fighter','원딜:Marksman','암살자:Assassin','탱커:Tank','서포터:Support']
+    .map(s => { const [label,key] = s.split(':'); return `<button class="cp-filter-btn${key==='all'?' active':''}" onclick="window.cpFilterChamps('${key}',this)">${label}</button>`; }).join('');
   overlay.innerHTML = `
     <div class="champ-pool-modal" onclick="event.stopPropagation();">
       <div class="champ-pool-handle"></div>
@@ -11509,6 +11521,7 @@ window.openChampPoolModal = async function(name) {
         </div>
         <button class="champ-pool-close" onclick="closeChampPoolModal()">✕</button>
       </div>
+      <div class="cp-filter-tabs">${filterTabs}</div>
       <div class="champ-pool-body">${rowsHtml}</div>
     </div>`;
   overlay.addEventListener('click', e => { if (e.target === overlay) closeChampPoolModal(); });
@@ -11530,6 +11543,28 @@ window.closeChampPoolModal = function() {
   if (!el) return;
   if (el._escHandler) document.removeEventListener('keydown', el._escHandler, true);
   el.remove();
+};
+
+window.cpFilterChamps = function(tag, btn) {
+  const tabs = btn.closest('.cp-filter-tabs');
+  if (tabs) tabs.querySelectorAll('.cp-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const body = document.querySelector('#champ-pool-root .champ-pool-body');
+  if (!body) return;
+  let anyVisible = false;
+  body.querySelectorAll('.cp-row').forEach(row => {
+    const show = tag === 'all' || (row.dataset.tags || '').split(' ').includes(tag);
+    row.style.display = show ? '' : 'none';
+    if (show) anyVisible = true;
+  });
+  let emptyEl = body.querySelector('.cp-filter-empty');
+  if (!anyVisible) {
+    if (!emptyEl) { emptyEl = document.createElement('div'); emptyEl.className = 'cp-filter-empty cp-empty'; body.appendChild(emptyEl); }
+    emptyEl.textContent = '해당 포지션의 기록이 없어요';
+    emptyEl.style.display = '';
+  } else if (emptyEl) {
+    emptyEl.style.display = 'none';
+  }
 };
 
 // - matches.participants[normName].{kills,deaths,assists,damage,cs} 를 포함한 한 경기 최대치
