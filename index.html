@@ -320,6 +320,9 @@ select option{background:var(--surface2);}
 .spec-excl-chip{font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);cursor:pointer;color:var(--text-dim);transition:all 0.15s;user-select:none;white-space:nowrap;}
 .spec-excl-chip:hover{border-color:rgba(248,113,113,0.4);color:var(--text);}
 .spec-excl-chip.active{background:rgba(248,113,113,0.1);border-color:rgba(248,113,113,0.35);color:#f87171;text-decoration:line-through;}
+.mg-fight-excl-chip{font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);cursor:pointer;color:var(--text-dim);transition:all 0.15s;user-select:none;white-space:nowrap;}
+.mg-fight-excl-chip:hover{border-color:rgba(180,138,255,0.4);color:var(--text);}
+.mg-fight-excl-chip.active{background:rgba(180,138,255,0.1);border-color:rgba(180,138,255,0.4);color:#b48aff;text-decoration:line-through;}
 .member-select-actions{display:flex;gap:8px;margin-bottom:14px;align-items:center;flex-wrap:wrap;}
 .member-select-actions span{font-size:11px;color:var(--text-dim);}
 .new-player-toggle{font-size:12px;font-weight:700;color:var(--blue);cursor:pointer;background:rgba(11,196,227,0.06);border:1px dashed rgba(11,196,227,0.45);border-radius:4px;padding:5px 12px;letter-spacing:.5px;font-family:'Noto Sans KR',sans-serif;transition:all 0.2s;margin-left:auto;}
@@ -3286,6 +3289,7 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
     </div>
     <div id="warn-box"></div>
     <div id="spec-excl-section" style="display:none;"></div>
+    <div id="mg-fight-excl-section" style="display:none;"></div>
     <div class="action-row">
       <button class="btn btn-gold" id="make-teams-btn" onclick="startItemPhase()" style="flex:1;justify-content:center;font-size:15px;padding:13px;">⚔️ 팀 구성</button>
       <button class="btn btn-ghost btn-sm" id="rematch-btn" style="display:none;white-space:nowrap;" onclick="rematchSameTeams()">🔒 팀 고정 재경기</button>
@@ -3614,6 +3618,7 @@ const MAGOLLA_FIGHTER_LOSE = 50;
 
 let itemsLocked = false; // 팀 구성 후 아이템 잠금 여부 (전역 플래그)
 let spectatorExcludeSet = new Set(JSON.parse(localStorage.getItem('spectatorExcludeSet') || '[]'));
+let mgFightExcludeSet = new Set(JSON.parse(localStorage.getItem('mgFightExcludeSet') || '[]'));
 // v2.36.30~ 미참여자는 잠금 무시 — 본인이 currentTeamA/B 에 들어있을 때만 실효 잠금
 function isMyselfInCurrentMatch() {
   if (!myName) return false;
@@ -3634,7 +3639,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.41.13';
+const APP_VERSION = 'v2.41.14';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6610,6 +6615,7 @@ function renderSessionPlayers() {
     ul.appendChild(li);
   });
   renderSpecExclSection();
+  renderMgFightExclSection();
   if (typeof updateMagollaBtn === 'function') updateMagollaBtn();
 }
 
@@ -6632,6 +6638,30 @@ window.toggleSpecExcl = function(nn) {
   else spectatorExcludeSet.add(nn);
   localStorage.setItem('spectatorExcludeSet', JSON.stringify([...spectatorExcludeSet]));
   renderSpecExclSection();
+};
+
+function renderMgFightExclSection() {
+  const sec = document.getElementById('mg-fight-excl-section');
+  if (!sec) return;
+  if (matchType !== 'magolla' || sessionPlayers.length < 3) { sec.style.display = 'none'; return; }
+  sec.style.display = 'block';
+  const chips = sessionPlayers.map(p => {
+    const nn = normName(p.name);
+    const excl = mgFightExcludeSet.has(nn);
+    return `<span class="mg-fight-excl-chip${excl?' active':''}" data-n="${escHtml(nn)}" onclick="toggleMgFightExcl(this.dataset.n)">${escHtml(p.name)}</span>`;
+  }).join('');
+  sec.innerHTML = `<div class="spec-excl-row"><span class="spec-excl-label">⚔️ 전투 제외</span>${chips}</div>`;
+}
+
+window.toggleMgFightExcl = function(nn) {
+  const fighters = sessionPlayers.filter(p => !mgFightExcludeSet.has(normName(p.name)));
+  if (!mgFightExcludeSet.has(nn) && fighters.length <= 2) {
+    showS1Toast('파이터가 최소 2명은 있어야 해요'); return;
+  }
+  if (mgFightExcludeSet.has(nn)) mgFightExcludeSet.delete(nn);
+  else mgFightExcludeSet.add(nn);
+  localStorage.setItem('mgFightExcludeSet', JSON.stringify([...mgFightExcludeSet]));
+  renderMgFightExclSection();
 };
 
 function updateDatalist() {
@@ -7433,7 +7463,9 @@ window.setMatchType = function(type) {
     btn.className = 'btn';
     btn.style.cssText = 'flex:1;justify-content:center;font-size:15px;padding:13px;background:linear-gradient(135deg,rgba(74,10,138,0.9),rgba(123,31,162,1));color:#f0d8ff;border:1px solid rgba(180,100,255,0.4);box-shadow:0 4px 15px rgba(120,40,200,0.35);';
     const sec=document.getElementById('spec-excl-section'); if(sec) sec.style.display='none';
+    renderMgFightExclSection();
   } else {
+    const mgSec=document.getElementById('mg-fight-excl-section'); if(mgSec) mgSec.style.display='none';
     btn.textContent = '⚔️ 팀 구성';
     btn.style.cssText = 'flex:1;justify-content:center;font-size:15px;padding:13px;';
     btn.className = 'btn btn-gold';
@@ -17081,8 +17113,12 @@ async function openMagollaModal(existingMatchId) {
   }
   if (!liveMode) return;
   if (sessionPlayers.length<5) { showS1Toast('막고라는 최소 5명 이상이어야 시작할 수 있어요'); return; }
+  // 전투 제외 플레이어 분리
+  const fightExcluded = sessionPlayers.filter(p => mgFightExcludeSet.has(normName(p.name)));
+  const fightEligible = sessionPlayers.filter(p => !mgFightExcludeSet.has(normName(p.name)));
+  if (fightEligible.length < 2) { showS1Toast('전투 가능한 플레이어가 최소 2명이어야 해요'); return; }
   // LP 기반 파이터 2명 선택 (차이 최소)
-  const players=sessionPlayers.map(function(p) {
+  const players=fightEligible.map(function(p) {
     const d=s1GetPlayer(p.name)||s1DefaultPlayer();
     const rank=(S1_TIER_ORDER.indexOf(d.tier||'unranked')+1)*100+(d.lp||0);
     return {name:p.name, score:rank};
@@ -17108,7 +17144,10 @@ async function openMagollaModal(existingMatchId) {
   let best=pool[pool.length-1]; // 부동소수점 폴백: 마지막 항목 (편향 방지)
   for (const p of pool) { r-=p.weight; if(r<=0){best=p;break;} }
   const f1=players[best.i].name, f2=players[best.j].name;
-  const spectators=players.filter((_,idx)=>idx!==best.i&&idx!==best.j).map(p=>p.name);
+  const spectators=[
+    ...players.filter((_,idx)=>idx!==best.i&&idx!==best.j).map(p=>p.name),
+    ...fightExcluded.map(p=>p.name)
+  ];
   const matchRef=await push(ref(db,'magolla_matches'),{
     status:'betting',fighter1:f1,fighter2:f2,spectators,
     createdBy:myName,season:CURRENT_SEASON,
