@@ -1307,6 +1307,34 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .inv-slot:not(.inv-slot-empty):not(.inv-locked):hover .inv-action-use{background:rgba(200,155,60,0.18);color:rgba(200,155,60,0.9);}
 .sli-price.sli-limit-hit{background:rgba(200,155,60,0.1);color:rgba(200,155,60,0.5);border:1px solid rgba(200,155,60,0.2);cursor:not-allowed;font-size:9px;}
 .sli-pass-notice{font-size:9px;color:rgba(248,113,113,0.75);margin-top:4px;}
+/* ── 펫 시스템 (v2.41.22~) ── */
+.pet-shop-wrap{display:flex;flex-direction:column;gap:12px;padding-top:4px;}
+.pet-gacha-card{background:linear-gradient(135deg,rgba(120,80,200,0.15),rgba(80,40,160,0.08));border:1px solid rgba(150,100,255,0.3);border-radius:12px;padding:16px;text-align:center;}
+.pet-gacha-title{font-family:'Black Han Sans',sans-serif;font-size:16px;letter-spacing:0.5px;margin-bottom:4px;}
+.pet-gacha-sub{font-size:11px;color:var(--text-dim);margin-bottom:12px;}
+.pet-gacha-btn{background:linear-gradient(135deg,#7c3aed,#a855f7);border:none;border-radius:8px;color:#fff;font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:14px;padding:10px 28px;cursor:pointer;transition:all 0.15s;}
+.pet-gacha-btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 14px rgba(168,85,247,0.45);}
+.pet-gacha-btn:disabled{opacity:0.4;cursor:not-allowed;}
+.pet-gacha-result{margin-top:10px;font-size:12px;min-height:20px;}
+.pet-col-tabs{display:flex;gap:5px;margin-bottom:8px;}
+.pet-col-tab{flex:1;padding:5px 0;border-radius:6px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.04);color:var(--text-dim);font-family:'Noto Sans KR',sans-serif;font-size:10.5px;font-weight:700;cursor:pointer;transition:all 0.15s;}
+.pet-col-tab.active{background:rgba(150,100,255,0.18);border-color:rgba(150,100,255,0.5);color:#c4a0ff;}
+.pet-col-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.pet-card{border-radius:10px;border:1px solid var(--border);background:var(--surface2);padding:8px 6px 7px;display:flex;flex-direction:column;align-items:center;gap:4px;position:relative;transition:all 0.15s;}
+.pet-card.owned{border-color:rgba(150,100,255,0.4);}
+.pet-card.locked{opacity:0.38;}
+.pet-img-wrap{width:60px;height:60px;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;border:1px solid rgba(255,255,255,0.08);background:rgba(0,0,0,0.2);}
+.pet-img-wrap img{width:100%;height:100%;object-fit:contain;}
+.pet-img-wrap.star2{box-shadow:0 0 10px rgba(255,200,0,0.6);border-color:rgba(255,200,0,0.7);}
+.pet-img-wrap.star3{border-color:transparent;animation:petRainbow 2.5s linear infinite;}
+@keyframes petRainbow{0%{box-shadow:0 0 10px #ff4444;}25%{box-shadow:0 0 10px #ffaa00;}50%{box-shadow:0 0 10px #44ff88;}75%{box-shadow:0 0 10px #4488ff;}100%{box-shadow:0 0 10px #ff4444;}}
+.pet-star-badge{position:absolute;top:4px;right:4px;font-size:8px;line-height:1;}
+.pet-name{font-size:9px;color:var(--text-dim);text-align:center;max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pet-name.owned{color:var(--text);}
+.pet-count-badge{font-size:9px;color:#c4a0ff;font-weight:700;}
+.pet-merge-btn{width:100%;padding:3px 0;border-radius:5px;border:none;background:linear-gradient(90deg,rgba(120,80,200,0.5),rgba(168,85,247,0.5));color:#e8d5ff;font-size:8px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all 0.15s;}
+.pet-merge-btn:hover{background:linear-gradient(90deg,rgba(120,80,200,0.8),rgba(168,85,247,0.8));}
+.pet-merge-hint{font-size:10px;color:var(--text-dim);text-align:center;padding:4px 0 2px;line-height:1.5;}
 /* ── 복권 결과 모달 ── */
 .lottery-overlay{position:fixed;inset:0;z-index:3000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.72);backdrop-filter:blur(4px);animation:lottOvIn 0.22s ease forwards;}
 @keyframes lottOvIn{from{opacity:0;}to{opacity:1;}}
@@ -3444,8 +3472,10 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
         <button class="sp-cat-tab active" id="shop-cat-consume" onclick="switchShopCat('consume')">소비 아이템</button>
         <button class="sp-cat-tab" id="shop-cat-pass" onclick="switchShopCat('pass')">패스권</button>
         <button class="sp-cat-tab" id="shop-cat-equip" onclick="switchShopCat('equip')">장비 아이템</button>
+        <button class="sp-cat-tab" id="shop-cat-pet" onclick="switchShopCat('pet')">🐾 펫</button>
       </div>
       <div id="shop-list"></div>
+      <div id="pet-shop-section" style="display:none;"></div>
     </div>
     <div class="sp-panel">
       <div class="sp-header">내 아이템</div>
@@ -3632,6 +3662,10 @@ function isItemsEffectivelyLocked() {
   return itemsLocked && isMyselfInCurrentMatch();
 }
 let shopCatTab = 'consume';
+const PET_CHAMPS = ['Akshan','Amumu','Brand','DrMundo','Fizz','Gangplank','Jhin','Khazix','Lulu','Malphite','Malzahar','Mel','Morgana','Naafiri','Poppy','Rammus','Yasuo'];
+const PET_GACHA_COST = 10;
+const PET_IMG = slug => `assets/pets/${slug}.png`;
+let petColStarTab = 1;
 let invCatTab  = 'consume';
 let currentPassView = 's1'; // 's1' | 'battle' | 'support'
 let _pendingRematchTeams = null; // 한 판 더: { teamA, teamB, teamSize, spectator }
@@ -3641,7 +3675,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.41.21';
+const APP_VERSION = 'v2.41.22';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3650,6 +3684,9 @@ const APP_VERSION = 'v2.41.21';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.41.22', date: '2026-05-15', changes: [
+    { tag: 'new', text: '펫 시스템 추가 — 상점 🐾펫 탭: 10G 뽑기(랜덤 챔피언 1성), 같은 1성×3→2성/2성×3→3성 합성, 1성·2성·3성 컬렉션 도감(미획득 시 흐릿)' },
+  ]},
   { ver: 'v2.41.21', date: '2026-05-15', changes: [
     { tag: 'new', text: '챔피언 풀 정렬 탭 추가 — 판수/승률순/딜량순/최다승/최다패로 정렬 가능' },
   ]},
@@ -14446,8 +14483,130 @@ window.switchShopCat = function(cat) {
   document.getElementById('shop-cat-consume')?.classList.toggle('active', cat==='consume');
   document.getElementById('shop-cat-pass')?.classList.toggle('active', cat==='pass');
   document.getElementById('shop-cat-equip')?.classList.toggle('active', cat==='equip');
+  document.getElementById('shop-cat-pet')?.classList.toggle('active', cat==='pet');
+  const isPet = cat === 'pet';
+  const shopList = document.getElementById('shop-list');
+  const petSection = document.getElementById('pet-shop-section');
+  if (shopList) shopList.style.display = isPet ? 'none' : '';
+  if (petSection) petSection.style.display = isPet ? '' : 'none';
   renderShop();
 };
+
+// 펫 컬렉션 탭 전환
+window.switchPetColTab = function(star) {
+  petColStarTab = star;
+  renderShop();
+};
+
+// 펫 뽑기
+window.doPetGacha = async function() {
+  const key = getMyGoldKey();
+  if (!key) { showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
+  const data = goldData[key];
+  if (!data) return;
+  const currentGold = getMyGold();
+  if (currentGold < PET_GACHA_COST) { showGoldToast(`🪙 골드가 부족해요! (보유: ${currentGold}G / 필요: ${PET_GACHA_COST}G)`); return; }
+
+  const slug = PET_CHAMPS[Math.floor(Math.random() * PET_CHAMPS.length)];
+  const spentKey = sField('goldSpent');
+  const petsKey  = 'pets_s1';
+  const everKey  = 'petEver_s1';
+  const curPets  = data[petsKey] || {};
+  const curEver  = data[everKey] || {};
+  const champPets = curPets[slug] || { s1:0, s2:0, s3:0 };
+  const champEver = curEver[slug] || {};
+
+  await set(ref(db,'gold/'+key), {
+    ...data,
+    [spentKey]: (data[spentKey] ?? 0) + PET_GACHA_COST,
+    [petsKey]: { ...curPets, [slug]: { ...champPets, s1: champPets.s1 + 1 } },
+    [everKey]: { ...curEver, [slug]: { ...champEver, e1: true } },
+  });
+
+  const krName = champNamesKR[slug] || slug;
+  const el = document.getElementById('pet-gacha-result');
+  if (el) el.innerHTML = `✨ <span style="color:#c4a0ff;font-weight:700;">${krName}</span> 1성 펫 획득!`;
+  showGoldToast(`🐾 ${krName} 1성 펫 획득!`);
+};
+
+// 펫 합성 (fromStar: 1 또는 2)
+window.doPetMerge = async function(slug, fromStar) {
+  const key = getMyGoldKey();
+  if (!key) return;
+  const data = goldData[key];
+  if (!data) return;
+  const petsKey = 'pets_s1';
+  const everKey = 'petEver_s1';
+  const curPets  = data[petsKey] || {};
+  const curEver  = data[everKey] || {};
+  const champPets = { s1:0, s2:0, s3:0, ...(curPets[slug] || {}) };
+  const sKey = `s${fromStar}`, nKey = `s${fromStar+1}`;
+  if (champPets[sKey] < 3) { showGoldToast('재료가 부족해요! (같은 펫 3개 필요)'); return; }
+  const champEver = curEver[slug] || {};
+  const eKey = `e${fromStar+1}`;
+  await set(ref(db,'gold/'+key), {
+    ...data,
+    [petsKey]: { ...curPets, [slug]: { ...champPets, [sKey]: champPets[sKey]-3, [nKey]: champPets[nKey]+1 } },
+    [everKey]: { ...curEver, [slug]: { ...champEver, [eKey]: true } },
+  });
+  const krName = champNamesKR[slug] || slug;
+  showGoldToast(`⭐ ${krName} ${fromStar+1}성 합성 성공!`);
+};
+
+// 펫 상점 렌더링
+function renderPetShop() {
+  const el = document.getElementById('pet-shop-section');
+  if (!el) return;
+  const key = getMyGoldKey();
+  const data = key ? (goldData[key] || {}) : {};
+  const myGold = getMyGold();
+  const pets = data['pets_s1'] || {};
+  const ever = data['petEver_s1'] || {};
+  const star = petColStarTab;
+  const starLabel = ['','⭐','⭐⭐','⭐⭐⭐'][star];
+  const starKey = `s${star}`;
+  const everKey = `e${star}`;
+
+  const cards = PET_CHAMPS.map(slug => {
+    const champPets = { s1:0, s2:0, s3:0, ...(pets[slug] || {}) };
+    const champEver = ever[slug] || {};
+    const count = champPets[starKey] || 0;
+    const owned = champEver[everKey] || count > 0;
+    const canMerge = star < 3 && count >= 3;
+    const krName = champNamesKR[slug] || slug;
+    const starBadge = starLabel;
+    const imgStyle = owned ? '' : 'filter:brightness(0.12) saturate(0)';
+    return `<div class="pet-card ${owned ? 'owned' : 'locked'}">
+      <div class="pet-star-badge">${starBadge}</div>
+      <div class="pet-img-wrap star${owned ? star : 0}">
+        <img src="${PET_IMG(slug)}" style="${imgStyle}" loading="lazy" onerror="this.style.display='none'" alt="${escHtml(krName)}">
+      </div>
+      <div class="pet-name ${owned ? 'owned' : ''}">${owned ? escHtml(krName) : '???'}</div>
+      ${owned && count > 0 ? `<div class="pet-count-badge">× ${count}</div>` : ''}
+      ${canMerge ? `<button class="pet-merge-btn" onclick="window.doPetMerge('${slug}',${star})">합성 ▲</button>` : ''}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `<div class="pet-shop-wrap">
+    <div class="pet-gacha-card">
+      <div class="pet-gacha-title">🐾 펫 뽑기</div>
+      <div class="pet-gacha-sub">랜덤 챔피언 1성 펫 획득 · 총 ${PET_CHAMPS.length}종</div>
+      <button class="pet-gacha-btn" ${myGold < PET_GACHA_COST ? 'disabled' : ''} onclick="window.doPetGacha()">
+        뽑기 · 🪙${PET_GACHA_COST}G
+      </button>
+      <div class="pet-gacha-result" id="pet-gacha-result"></div>
+    </div>
+    <div class="pet-merge-hint">같은 1성 × 3 → 2성 합성 &nbsp;|&nbsp; 같은 2성 × 3 → 3성 합성</div>
+    <div>
+      <div class="pet-col-tabs">
+        <button class="pet-col-tab ${star===1?'active':''}" onclick="window.switchPetColTab(1)">⭐ 1성</button>
+        <button class="pet-col-tab ${star===2?'active':''}" onclick="window.switchPetColTab(2)">⭐⭐ 2성</button>
+        <button class="pet-col-tab ${star===3?'active':''}" onclick="window.switchPetColTab(3)">⭐⭐⭐ 3성</button>
+      </div>
+      <div class="pet-col-grid">${cards}</div>
+    </div>
+  </div>`;
+}
 window.switchInvCat = function(cat) {
   invCatTab = cat;
   document.getElementById('inv-cat-consume')?.classList.toggle('active', cat==='consume');
@@ -14488,6 +14647,9 @@ function _renderShopImmediate() {
 
   // 잠금 배너 (이미 wrapper 에서 갱신됐지만 안전망)
   updateLockBanner();
+
+  // ── 펫 탭 ───────────────────────────────────────────────
+  if (shopCatTab === 'pet') { renderPetShop(); return; }
 
   // ── 상점 리스트 ─────────────────────────────────────────
   const _shopList = CURRENT_SEASON >= 1 ? S1_SHOP_ITEMS : SHOP_ITEMS;
