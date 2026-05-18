@@ -2219,6 +2219,15 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .eog-cc-stats{display:flex;justify-content:center;gap:6px;}
 .eog-cc-stat{display:flex;align-items:center;gap:2px;font-family:'JetBrains Mono',monospace;font-size:8px;color:rgba(255,255,255,0.45);}
 .eog-cc-stat .sv{font-weight:700;font-size:9px;color:rgba(255,255,255,0.78);}
+.eog-aug-row{display:flex;justify-content:center;gap:3px;margin-top:4px;}
+.eog-aug-ico{width:16px;height:16px;border-radius:3px;object-fit:cover;display:block;border:1px solid rgba(255,255,255,0.15);}
+.eog-aug-ico.silver{border-color:rgba(148,163,184,0.4);}
+.eog-aug-ico.gold{border-color:rgba(200,168,75,0.5);box-shadow:0 0 4px rgba(200,168,75,0.3);}
+.eog-aug-ico.prismatic{border-color:rgba(168,85,247,0.6);box-shadow:0 0 5px rgba(168,85,247,0.35);}
+.eog-aug-ph{width:16px;height:16px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:700;}
+.eog-aug-ph.silver{background:rgba(148,163,184,0.15);color:#94a3b8;border:1px solid rgba(148,163,184,0.3);}
+.eog-aug-ph.gold{background:rgba(200,168,75,0.15);color:#e8d080;border:1px solid rgba(200,168,75,0.4);}
+.eog-aug-ph.prismatic{background:rgba(168,85,247,0.18);color:#c084fc;border:1px solid rgba(168,85,247,0.5);}
 .eog-cc-badge{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;z-index:3;opacity:0;transform:scale(0) rotate(-30deg);transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);border:1.5px solid rgba(255,255,255,0.3);}
 .eog-cc.selected .eog-cc-badge{opacity:1;transform:scale(1) rotate(0);}
 .eog-cg.mvp-type .eog-cc-badge{background:#c8a84b;color:#1a0e00;}
@@ -3655,7 +3664,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.41.26';
+const APP_VERSION = 'v2.41.27';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3664,6 +3673,9 @@ const APP_VERSION = 'v2.41.26';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.41.27', date: '2026-05-18', changes: [
+    { tag: 'new', text: 'EOG 투표 카드에 증강 아이콘 표시 — KDA·딜량·CS 아래 증강 행 추가. 실버/골드/프리즈매틱 티어별 테두리 색 구분. CDN 아이콘 로드 실패 시 자연스럽게 숨김 처리, 브릿지 미연결 시 미표시' },
+  ]},
   { ver: 'v2.41.26', date: '2026-05-18', changes: [
     { tag: 'new', text: 'EOG 투표 카드 스탯 표시 — 브릿지 연결 시 KDA(킬/데스/어시)·딜량·CS 표시. 미연결 시 이름만 (기존 동일)' },
   ]},
@@ -5104,6 +5116,7 @@ let pendingSessionData = null; // players/matches 로드 전에 도착한 sessio
 async function renderAllWhenReady() {
   if (!playersLoaded || !matchesLoaded || !seasonLoaded) return;
   await loadChampNamesKR();
+  loadAugmentData(); // EOG 카드 증강 표시용 백그라운드 프리로드
   if (goldLoaded) { seedGoldForAllPlayers(); migrateGoldBonusToLegacy(); }
   renderMemberGrid();
   renderSessionPlayers();
@@ -7993,12 +8006,22 @@ function eogChampCardHtml(p, type, selectedName, index) {
   const statsHtml = (dmgStr || csStr)
     ? `<div class="eog-cc-stats">${dmgStr?`<span class="eog-cc-stat">⚔️<span class="sv">${dmgStr}</span></span>`:''}${csStr?`<span class="eog-cc-stat">🌾<span class="sv">${csStr}</span></span>`:''}</div>`
     : '';
+  const _augRcMap = {'kPrismatic':'prismatic','kGold':'gold','kSilver':'silver'};
+  const augHtml = (pt?.augments?.length > 0 && Object.keys(augmentMap).length > 0)
+    ? `<div class="eog-aug-row">${pt.augments.map(id => {
+        const a = augmentMap[id];
+        const rc = _augRcMap[a?.rarity] || 'silver';
+        return a?.icon
+          ? `<img class="eog-aug-ico ${rc}" src="${a.icon}" loading="lazy" onerror="this.style.display='none'">`
+          : `<div class="eog-aug-ph ${rc}">${rc[0].toUpperCase()}</div>`;
+      }).join('')}</div>`
+    : '';
   return `<div class="eog-cc${sel?' selected':''}" style="animation-delay:${index*0.1}s;" onclick="${onclick}">
     ${imgSrc?`<img src="${imgSrc}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
     <div class="eog-cc-badge">${badge}</div>
     <div class="eog-cc-foot">
       <div class="eog-cc-name">${escHtml(p.name)}</div>
-      ${kdaHtml}${statsHtml}
+      ${kdaHtml}${statsHtml}${augHtml}
     </div>
   </div>`;
 }
