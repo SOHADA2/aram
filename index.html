@@ -2352,6 +2352,9 @@ body.member-mode #event-no-save-notice{display:none!important;}
 /* ── 연승/연패 인라인 텍스트 ── */
 .streak-inline{font-size:9px;font-weight:700;letter-spacing:0.3px;white-space:nowrap;flex-shrink:0;opacity:0.85;}
 .tc-lp-mini{font-size:9px;font-weight:600;color:rgba(255,255,255,0.4);font-family:'JetBrains Mono',monospace;white-space:nowrap;flex-shrink:0;}
+.sp-lp-wrap{display:flex;flex-direction:column;gap:3px;align-items:flex-end;flex-shrink:0;}
+.sp-lp-bar{width:72px;height:3px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;}
+.sp-lp-fill{height:100%;border-radius:2px;transition:width 0.4s ease;}
 .streak-inline.win{color:var(--green);}
 .streak-inline.loss{color:var(--red);}
 /* ── 승급/강등 서브텍스트 (티어 아래) ── */
@@ -3666,7 +3669,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.41.34';
+const APP_VERSION = 'v2.41.35';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6720,14 +6723,19 @@ function renderSessionPlayers() {
           const _d=season1Data[normName(p.name)];
           if(!_d||!_d.placementDone){
             const _n=(_d?.placementGames)||0;
-            return '<span class="tier-badge s1t-unranked">' + '배치 ' + _n + '/5</span>';
+            const _pct=Math.round(_n/5*100);
+            return '<div class="sp-lp-wrap"><span class="tier-badge s1t-unranked">배치 '+_n+'/5</span><div class="sp-lp-bar"><div class="sp-lp-fill" style="width:'+_pct+'%;background:rgba(255,255,255,0.3);"></div></div></div>';
           }
           if(_d.promoActive){
             const _m=S1_TIER_META[_d.tier]||S1_TIER_META.bronze;
-            return '<span class="tier-badge '+_m.cls+'">승급전</span>';
+            const _pct=Math.round((_d.promoWins||0)/2*100);
+            return '<div class="sp-lp-wrap"><span class="tier-badge '+_m.cls+'">승급전 '+(_d.promoWins||0)+'W</span><div class="sp-lp-bar"><div class="sp-lp-fill" style="width:'+_pct+'%;background:'+_m.color+';"></div></div></div>';
           }
           const _m=S1_TIER_META[_d.tier]||S1_TIER_META.unranked;
-          return '<span class="tier-badge '+_m.cls+'">'+_m.label+' '+((_d.lp)||0)+'LP</span>';
+          const _lp=(_d.lp)||0;
+          const _isChall=_d.tier==='challenger';
+          const _pct=_isChall?Math.min(100,Math.round(_lp/300*100)):Math.min(100,_lp);
+          return '<div class="sp-lp-wrap"><span class="tier-badge '+_m.cls+'">'+_m.label+' '+_lp+'LP</span><div class="sp-lp-bar"><div class="sp-lp-fill" style="width:'+_pct+'%;background:'+_m.color+';"></div></div></div>';
         }
         return '<span class="tier-badge '+t.cls+'">'+t.label+'</span>';
       })()}
