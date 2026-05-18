@@ -472,9 +472,12 @@ select option{background:var(--surface2);}
 .team-b .team-header{background:linear-gradient(135deg,rgba(26,20,4,0.92),rgba(18,13,2,0.88));border-bottom:1px solid rgba(232,200,74,0.12);color:#e8c84a;}
 .team-count-badge{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--text-dim);background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.07);border-radius:4px;padding:1px 6px;}
 .team-players{background:var(--rk-card);flex:1;}
-.team-player{display:flex;align-items:center;gap:8px;padding:9px 16px;border-bottom:1px solid var(--rk-border);}
+.team-player{display:flex;flex-direction:column;padding:9px 16px;border-bottom:1px solid var(--rk-border);}
 .team-player:last-child{border-bottom:none;}
+.tp-main-row{display:flex;align-items:center;gap:8px;}
+.tp-lp-row{display:flex;align-items:center;gap:6px;margin-top:5px;}
 .team-player-name{flex:1;font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.tc-lp-num{font-size:9px;font-weight:600;color:rgba(255,255,255,0.35);font-family:'JetBrains Mono',monospace;white-space:nowrap;flex-shrink:0;}
 .team-player.is-me{background:rgba(200,168,75,0.06);}
 .team-a .team-player.is-me{border-left:2px solid rgba(56,217,192,0.65);padding-left:14px;}
 .team-b .team-player.is-me{border-left:2px solid rgba(232,200,74,0.65);padding-left:14px;}
@@ -2352,9 +2355,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 /* ── 연승/연패 인라인 텍스트 ── */
 .streak-inline{font-size:9px;font-weight:700;letter-spacing:0.3px;white-space:nowrap;flex-shrink:0;opacity:0.85;}
 .tc-lp-mini{font-size:9px;font-weight:600;color:rgba(255,255,255,0.4);font-family:'JetBrains Mono',monospace;white-space:nowrap;flex-shrink:0;}
-.tc-lp-bar{width:64px;height:3px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;}
-.tc-right-col{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;}
-.tc-right-row{display:flex;align-items:center;gap:5px;}
+.tc-lp-bar{flex:1;height:3px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;}
 .sp-lp-wrap{display:flex;flex-direction:column;gap:3px;align-items:flex-end;flex-shrink:0;}
 .sp-lp-bar{width:72px;height:3px;background:rgba(255,255,255,0.08);border-radius:2px;overflow:hidden;}
 .sp-lp-fill{height:100%;border-radius:2px;transition:width 0.4s ease;}
@@ -3672,7 +3673,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.41.36';
+const APP_VERSION = 'v2.41.37';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -8667,27 +8668,32 @@ function teamCard(title,cls,members) {
     const nTipKey = CURRENT_SEASON >= 1 ? 'newbie_bonus_s1' : 'newbie_bonus';
     const nBadge = isNewbie(p.name) ? ` <span class="newbie-badge" data-tip="${nTipKey}">🌱</span>` : '';
     const rBadge = getRankBadge(p.name);
-    return`<div class="team-player${isMe?' is-me':''}">
-      <div class="team-player-name">${nameHtml(p.name)}${nBadge}${rBadge}${isMe?'&nbsp;<span class="me-badge">나</span>':''}</div>
-      ${(()=>{
-        if(CURRENT_SEASON>=1){
-          const _d=season1Data[normName(p.name)];
-          if(!_d||!_d.placementDone) return '<div class="tc-right-row" style="flex-shrink:0;">'+streakHtml+'<span class="tier-badge s1t-unranked">배치</span></div>';
-          if(_d.promoActive){
-            const _m=S1_TIER_META[_d.tier]||S1_TIER_META.bronze;
-            const _pct=Math.min(100,Math.round((_d.promoWins||0)/2*100));
-            return '<div class="tc-right-col"><div class="tc-right-row">'+streakHtml+'<span class="tier-badge '+_m.cls+'">승급전 '+(_d.promoWins||0)+'W</span></div><div class="tc-lp-bar"><div class="sp-lp-fill" style="width:'+_pct+'%;background:'+_m.color+';"></div></div></div>';
-          }
-          const _m=S1_TIER_META[_d.tier]||S1_TIER_META.unranked;
-          const _lp=(_d.lp)||0;
-          if(_d.tier==='challenger'){
-            return '<div class="tc-right-row" style="flex-shrink:0;">'+streakHtml+'<span class="tier-badge '+_m.cls+'">'+_m.label+'</span><span class="tc-lp-mini">'+_lp+'LP</span></div>';
-          }
-          const _pct=Math.min(100,_lp);
-          return '<div class="tc-right-col"><div class="tc-right-row">'+streakHtml+'<span class="tier-badge '+_m.cls+'">'+_m.label+'</span></div><div class="tc-lp-bar"><div class="sp-lp-fill" style="width:'+_pct+'%;background:'+_m.color+';"></div></div></div>';
+    const _tcTierRow=(()=>{
+      if(CURRENT_SEASON>=1){
+        const _d=season1Data[normName(p.name)];
+        if(!_d||!_d.placementDone) return {badge:'<span class="tier-badge s1t-unranked">배치</span>',bar:''};
+        if(_d.promoActive){
+          const _m=S1_TIER_META[_d.tier]||S1_TIER_META.bronze;
+          const _pct=Math.min(100,Math.round((_d.promoWins||0)/2*100));
+          const _label=`${_d.promoWins||0}W / ${_d.promoLosses||0}L`;
+          return {badge:'<span class="tier-badge '+_m.cls+'">승급전</span>',bar:'<div class="tp-lp-row"><div class="tc-lp-bar"><div class="sp-lp-fill" style="width:'+_pct+'%;background:'+_m.color+';"></div></div><span class="tc-lp-num">'+_label+'</span></div>'};
         }
-        return '<div class="tc-right-row" style="flex-shrink:0;">'+streakHtml+'<span class="tier-badge '+t.cls+'">'+t.label+'</span></div>';
-      })()}
+        const _m=S1_TIER_META[_d.tier]||S1_TIER_META.unranked;
+        const _lp=(_d.lp)||0;
+        if(_d.tier==='challenger'){
+          return {badge:'<span class="tier-badge '+_m.cls+'">'+_m.label+'</span>',bar:'<div class="tp-lp-row"><span class="tc-lp-num">'+_lp+' LP</span></div>'};
+        }
+        const _pct=Math.min(100,_lp);
+        return {badge:'<span class="tier-badge '+_m.cls+'">'+_m.label+'</span>',bar:'<div class="tp-lp-row"><div class="tc-lp-bar"><div class="sp-lp-fill" style="width:'+_pct+'%;background:'+_m.color+';"></div></div><span class="tc-lp-num">'+_lp+' LP</span></div>'};
+      }
+      return {badge:'<span class="tier-badge '+t.cls+'">'+t.label+'</span>',bar:''};
+    })();
+    return`<div class="team-player${isMe?' is-me':''}">
+      <div class="tp-main-row">
+        <div class="team-player-name">${nameHtml(p.name)}${nBadge}${rBadge}${isMe?'&nbsp;<span class="me-badge">나</span>':''}</div>
+        <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">${streakHtml}${_tcTierRow.badge}</div>
+      </div>
+      ${_tcTierRow.bar}
     </div>`;
   }).join('');
   return`<div class="team-card ${cls}" id="tc-${cls}">
