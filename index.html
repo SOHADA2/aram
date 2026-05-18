@@ -2209,7 +2209,16 @@ body.member-mode #event-no-save-notice{display:none!important;}
 @keyframes eogCcIn{from{opacity:0;transform:translateY(18px) scale(0.9)}to{opacity:1;transform:translateY(0) scale(1)}}
 .eog-cc img{width:100%;height:100%;object-fit:cover;object-position:center 15%;transition:transform 0.4s ease;display:block;}
 .eog-cc::before{content:'';position:absolute;inset:0;background:rgba(0,0,0,0.2);transition:background 0.3s ease;z-index:1;}
-.eog-cc-name{position:absolute;bottom:0;left:0;right:0;padding:24px 6px 8px;background:linear-gradient(transparent,rgba(0,0,0,0.9));font-size:10.5px;font-weight:700;text-align:center;letter-spacing:0.3px;z-index:2;transition:color 0.3s ease;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.eog-cc-foot{position:absolute;bottom:0;left:0;right:0;padding:28px 6px 6px;background:linear-gradient(transparent,rgba(0,0,0,0.88) 36%,rgba(0,0,0,0.97));z-index:2;}
+.eog-cc-name{font-size:10.5px;font-weight:700;text-align:center;letter-spacing:0.3px;transition:color 0.3s ease;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;}
+.eog-cc-kda{display:flex;justify-content:center;font-family:'JetBrains Mono',monospace;margin-bottom:3px;}
+.eog-kda-k{color:#fca5a5;font-size:11px;font-weight:700;}
+.eog-kda-d{color:#94a3b8;font-size:11px;font-weight:700;}
+.eog-kda-a{color:#93c5fd;font-size:11px;font-weight:700;}
+.eog-kda-sep{color:rgba(255,255,255,0.2);font-size:10px;margin:0 2px;}
+.eog-cc-stats{display:flex;justify-content:center;gap:6px;}
+.eog-cc-stat{display:flex;align-items:center;gap:2px;font-family:'JetBrains Mono',monospace;font-size:8px;color:rgba(255,255,255,0.45);}
+.eog-cc-stat .sv{font-weight:700;font-size:9px;color:rgba(255,255,255,0.78);}
 .eog-cc-badge{position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;z-index:3;opacity:0;transform:scale(0) rotate(-30deg);transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);border:1.5px solid rgba(255,255,255,0.3);}
 .eog-cc.selected .eog-cc-badge{opacity:1;transform:scale(1) rotate(0);}
 .eog-cg.mvp-type .eog-cc-badge{background:#c8a84b;color:#1a0e00;}
@@ -3646,7 +3655,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.41.25';
+const APP_VERSION = 'v2.41.26';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3655,6 +3664,9 @@ const APP_VERSION = 'v2.41.25';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.41.26', date: '2026-05-18', changes: [
+    { tag: 'new', text: 'EOG 투표 카드 스탯 표시 — 브릿지 연결 시 KDA(킬/데스/어시)·딜량·CS 표시. 미연결 시 이름만 (기존 동일)' },
+  ]},
   { ver: 'v2.41.25', date: '2026-05-18', changes: [
     { tag: 'fix', text: '재편성 버튼(구 초기화) — 팀 편성 초기화 시 체크된 참가자 선택 유지. 버튼명 "초기화"→"재편성", 확인 문구 개선' },
   ]},
@@ -7972,10 +7984,22 @@ function eogChampCardHtml(p, type, selectedName, index) {
   const imgSrc = slug ? `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${encodeURIComponent(slug)}_0.jpg` : '';
   const onclick = type === 'mvp' ? `_eogPickMvp(this,'${escHtml(p.name)}')` : `_eogPickManner(this,'${escHtml(p.name)}')`;
   const badge = type === 'mvp' ? '🏆' : '💎';
+  const hasStats = pt && pt.kills != null;
+  const kdaHtml = hasStats
+    ? `<div class="eog-cc-kda"><span class="eog-kda-k">${pt.kills}</span><span class="eog-kda-sep">/</span><span class="eog-kda-d">${pt.deaths}</span><span class="eog-kda-sep">/</span><span class="eog-kda-a">${pt.assists}</span></div>`
+    : '';
+  const dmgStr = hasStats && pt.damage ? (pt.damage >= 1000 ? (pt.damage/1000).toFixed(1)+'k' : String(pt.damage)) : '';
+  const csStr  = hasStats && pt.cs != null ? 'CS '+pt.cs : '';
+  const statsHtml = (dmgStr || csStr)
+    ? `<div class="eog-cc-stats">${dmgStr?`<span class="eog-cc-stat">⚔️<span class="sv">${dmgStr}</span></span>`:''}${csStr?`<span class="eog-cc-stat">🌾<span class="sv">${csStr}</span></span>`:''}</div>`
+    : '';
   return `<div class="eog-cc${sel?' selected':''}" style="animation-delay:${index*0.1}s;" onclick="${onclick}">
     ${imgSrc?`<img src="${imgSrc}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
     <div class="eog-cc-badge">${badge}</div>
-    <div class="eog-cc-name">${escHtml(p.name)}</div>
+    <div class="eog-cc-foot">
+      <div class="eog-cc-name">${escHtml(p.name)}</div>
+      ${kdaHtml}${statsHtml}
+    </div>
   </div>`;
 }
 
