@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.41.8
+- 현재 버전: v2.41.37
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -657,8 +657,8 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.41.x (2026-05-12~13)
-- **v2.41.4**: `calcChampDetail` 시즌 필터 폴백 제거 — S1 브릿지 데이터 없을 때 S0 챔피언이 S1 랭킹에 표시되던 버그 수정. `entries` 없으면 null 반환으로 단순화 (line 11204)
+### v2.41.x (2026-05-12~19)
+- **v2.41.4**: `calcChampDetail` 시즌 필터 폴백 제거 — S1 브릿지 데이터 없을 때 S0 챔피언이 S1 랭킹에 표시되던 버그 수정. `entries` 없으면 null 반환으로 단순화
 - **v2.41.0**: 기록 탭 막고라 파트 추가
   - 시즌 드롭다운에 "⚔️ 막고라" 항목 (`selectViewSeason('magolla')`)
   - `viewSeason` 타입 확장: 숫자 → 숫자 | `'magolla'`
@@ -674,6 +674,29 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 - **v2.41.3**: 이스터에그 2종
   - `_eggChaos()` — `h1` 1.6초 내 10회 연타 → 텍스트 변경 + shake + 이모지 낙하 3초
   - `_lateNightEgg()` — 새벽 2~4시 접속 시 시간대별 토스트 (`.late-toast` CSS)
+- **v2.41.22**: 대기 화면 패스 탭(전투/지원) + 지원 패스 순차 언락; 펫 시스템 추가 후 revert (미완성)
+- **v2.41.23**: EOG 투표 UI 색상 통일
+- **v2.41.24**: EOG 카드 1~2인 시 초상화 비율 버그 수정
+- **v2.41.25**: 팀 재구성(recompose) 기능 — 기존 체크 유지 수정
+- **v2.41.26**: EOG 투표 카드 전적 표시 (KDA, 딜량, CS)
+- **v2.41.27**: EOG 카드 증강 아이콘 초기 구현
+- **v2.41.28**: EOG 증강 아이콘 옵션 B 확정 (KDA + 딜량 + 증강, CS 제거)
+  - 증강 아이콘 크기 버그 수정: `.eog-cc img` → `.eog-cc>img` (CSS 특이성 충돌)
+  - 증강 호버 툴팁 (`showAugTip/hideAugTip` 재활용)
+  - 툴팁 raw 변수 문자열(`@var@`, `%var%`) 제거 — `stripTags` 정규식 보강
+  - 희귀도 레이블: "프리즈매틱" → "프리즘" (`kPrismatic` rMap)
+  - `__mockEog()` 콘솔 헬퍼 추가
+- **v2.41.29**: 대기 화면 패스 탭 텍스트 줄바꿈 수정 (`white-space:nowrap`)
+- **v2.41.30**: 패스 탭 이모지 제거 (⚔️전투→전투, 🤝지원→지원); 대기 화면 챔피언 카드 "전체 보기 ›" 버튼
+- **v2.41.31**: 챔피언 풀 카테고리 필터 — 주력(첫 번째) 태그만 사용 (`champTags[slug][0]`), 베인/트위치/야스오 암살자 오분류 수정
+- **v2.41.32**: 챔피언 풀 필터 탭 카테고리별 챔피언 수 표시
+- **v2.41.33**: 팀 결과 카드 LP 텍스트 표시 (티어 배지 옆 `tc-lp-mini`)
+- **v2.41.34**: `APP_VERSION` 상수 버그 수정 (v2.41.28에 고착됨); 챔피언 풀 승률 바 (wins/losses 텍스트 대체, `cp-wr-bar`)
+- **v2.41.35**: 참가자 선택 목록 승률 % 만 표시 (wins/losses 제거); LP 바 추가 (`sp-lp-wrap/bar/fill`)
+- **v2.41.36**: 팀 결과 카드 LP 바 1차 (티어 배지 아래)
+- **v2.41.37**: 팀 결과 카드 LP 바 최종 — 닉네임-티어 사이 전체 너비 배치
+  - `.team-player` column flex 재구성, `.tp-main-row` + `.tp-lp-row`
+  - 일반 티어: lp/100% 바 + "XX LP" / 승급전: promoWins/2 바 + "XW/XL" / 챌린저: LP 텍스트만 / 배치: 바 없음
 
 ### v2.40.x (다른 컴퓨터 작업)
 - **v2.40.0~1**: 막고라 CSS/JS/HTML 전면 재구현, 드롭다운 3번째 항목으로 이동
