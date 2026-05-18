@@ -1127,6 +1127,10 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .wm-paid-pass-locked{font-size:9px;color:var(--text-dim);font-weight:600;flex:1;text-align:right;letter-spacing:0.3px;}
 .wm-pass-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,var(--gold),var(--gold-light));width:0%;transition:width 1s cubic-bezier(0.25,1,0.5,1) 0.5s;}
 .wm-pass-sub{font-size:8px;color:var(--rk-text-dim);font-family:'JetBrains Mono',monospace;line-height:1.4;}
+.wm-pass-tabs{display:flex;gap:3px;margin-bottom:7px;}
+.wm-pass-tab{flex:1;font-size:8px;font-weight:700;letter-spacing:0.4px;padding:3px 2px;border-radius:5px;border:1px solid var(--rk-border);background:transparent;color:var(--rk-text-dim);cursor:pointer;font-family:'JetBrains Mono',monospace;transition:all .15s;}
+.wm-pass-tab.active{background:rgba(255,255,255,0.07);border-color:var(--gold);color:var(--gold);}
+.wm-pass-tab:hover:not(.active){background:rgba(255,255,255,0.04);color:var(--rk-text);}
 .wm-champ-list{display:flex;flex-direction:column;gap:6px;}
 .wm-champ-item{display:flex;align-items:center;gap:6px;}
 .wm-champ-img{width:26px;height:26px;border-radius:5px;object-fit:cover;border:1px solid var(--rk-border);flex-shrink:0;}
@@ -3600,6 +3604,7 @@ let _spectatorPickAnnounced = false; // 중복 발표 방지 플래그
 let selectedWinner = null;
 let myName = localStorage.getItem('myName') || null; // 본인 닉네임
 let liveMode = !!localStorage.getItem('liveMode');   // 라이브 모드
+let _wmPassViewPref = localStorage.getItem('wmPassView') || 's1'; // 대기화면 패스 탭
 
 // ── 막고라 상태 변수 ─────────────────────────────────────────
 let magollaState = null;          // null | 'active' | 'settled'
@@ -3641,7 +3646,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.41.21';
+const APP_VERSION = 'v2.41.22';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3650,6 +3655,10 @@ const APP_VERSION = 'v2.41.21';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.41.22', date: '2026-05-18', changes: [
+    { tag: 'new', text: '대기화면 패스 탭 — 시즌/전투/지원 패스 뷰를 탭으로 전환 가능, 선택 저장됨' },
+    { tag: 'improve', text: '지원 패스 해금 조건 변경 — 전투 패스 25레벨 완주 후 구매 가능' },
+  ]},
   { ver: 'v2.41.21', date: '2026-05-15', changes: [
     { tag: 'new', text: '챔피언 풀 정렬 탭 추가 — 판수/승률순/딜량순/최다승/최다패로 정렬 가능' },
   ]},
@@ -13727,6 +13736,37 @@ function renderWaitingCard() {
   `;
 }
 
+function buildWmPassCardContent(view) {
+  const d = window._wmPassData;
+  if (!d) return '';
+  const { passLv, s1Max, passBarPct, passSub, hasBattle, hasSupport, battleLv, supportLv, battlePct, supportPct, paidMax } = d;
+  if (view === 'battle') {
+    if (hasBattle) {
+      const bSub = battleLv < paidMax ? `LV ${battleLv+1}까지` : '전투 패스 완주 🎉';
+      return `<div class="wm-pass-num-row"><span class="wm-pass-n" style="color:#f87171;">${battleLv}</span><span class="wm-pass-m">/ ${paidMax}</span></div>
+<div class="wm-pass-bar"><div class="wm-pass-fill" id="wm-pass-fill" style="background:linear-gradient(90deg,#f87171,#fb923c);"></div></div>
+<div class="wm-pass-sub">${bSub}</div>`;
+    }
+    return `<div class="wm-pass-num-row"><span class="wm-pass-n" style="font-size:18px;color:var(--rk-text-dim);">🔒</span></div><div class="wm-pass-sub" style="margin-top:4px;">상점에서 구매 가능해요</div>`;
+  }
+  if (view === 'support') {
+    if (hasSupport) {
+      const sSub = supportLv < paidMax ? `LV ${supportLv+1}까지` : '지원 패스 완주 🎉';
+      return `<div class="wm-pass-num-row"><span class="wm-pass-n" style="color:#34d399;">${supportLv}</span><span class="wm-pass-m">/ ${paidMax}</span></div>
+<div class="wm-pass-bar"><div class="wm-pass-fill" id="wm-pass-fill" style="background:linear-gradient(90deg,#34d399,#6ee7b7);"></div></div>
+<div class="wm-pass-sub">${sSub}</div>`;
+    }
+    if (battleLv >= paidMax) {
+      return `<div class="wm-pass-num-row"><span class="wm-pass-n" style="font-size:18px;color:var(--gold);">🛒</span></div><div class="wm-pass-sub" style="margin-top:4px;">전투 패스 완주!<br>상점에서 구매 가능</div>`;
+    }
+    return `<div class="wm-pass-num-row"><span class="wm-pass-n" style="font-size:18px;color:var(--rk-text-dim);">🔒</span></div><div class="wm-pass-sub" style="margin-top:4px;">전투 패스 완주 후 해금<br>(${battleLv}/25)</div>`;
+  }
+  // s1 (default)
+  return `<div class="wm-pass-num-row"><span class="wm-pass-n">${passLv}</span><span class="wm-pass-m">/ ${s1Max}</span></div>
+<div class="wm-pass-bar"><div class="wm-pass-fill" id="wm-pass-fill"></div></div>
+<div class="wm-pass-sub">${passSub}</div>`;
+}
+
 // ── 시즌 1 대기 카드 v2 (목업 기반 리디자인) ─────────────────────
 async function renderS1WaitingCard(el) {
   await loadChampNamesKR();
@@ -13865,6 +13905,7 @@ async function renderS1WaitingCard(el) {
     ${paidRow('⚔️', '전투', hasBattle,  battleLv,  battlePct,  '#f87171')}
     ${paidRow('🤝', '지원', hasSupport, supportLv, supportPct, '#34d399')}
   </div>`;
+  window._wmPassData = { passLv, s1Max: S1_PASS_MAX_LEVEL, passBarPct, passSub, hasBattle, hasSupport, battleLv, supportLv, battlePct, supportPct, paidMax: PAID_PASS_MAX };
 
   // 아바타 (상태 이모지 or 이름 첫 글자)
   const plr = Object.values(registeredPlayers||{}).find(p => normName(p.name)===key);
@@ -13904,11 +13945,12 @@ async function renderS1WaitingCard(el) {
     </div>
     <div class="wm-right-col">
       <div class="wm-side-card">
-        <div class="wm-side-lbl">🎫 시즌 패스</div>
-        <div class="wm-pass-num-row"><span class="wm-pass-n">${passLv}</span><span class="wm-pass-m">/ ${S1_PASS_MAX_LEVEL}</span></div>
-        <div class="wm-pass-bar"><div class="wm-pass-fill" id="wm-pass-fill"></div></div>
-        <div class="wm-pass-sub">${passSub}</div>
-        ${paidPassHtml}
+        <div class="wm-pass-tabs">
+          <button class="wm-pass-tab${_wmPassViewPref==='s1'?' active':''}" onclick="setWmPassView('s1')">시즌</button>
+          <button class="wm-pass-tab${_wmPassViewPref==='battle'?' active':''}${!hasBattle?' locked':''}" onclick="setWmPassView('battle')">⚔️전투</button>
+          <button class="wm-pass-tab${_wmPassViewPref==='support'?' active':''}${!hasSupport?' locked':''}" onclick="setWmPassView('support')">🤝지원</button>
+        </div>
+        <div id="wm-pass-content">${buildWmPassCardContent(_wmPassViewPref)}</div>
       </div>
       <div class="wm-side-card" style="flex:1;">
         <div class="wm-side-lbl">챔피언</div>
@@ -14018,8 +14060,31 @@ async function renderS1WaitingCard(el) {
 
   // 패스 바
   const pf = el.querySelector('#wm-pass-fill');
-  if (pf) setTimeout(() => { pf.style.width = passBarPct + '%'; }, 500);
+  if (pf) setTimeout(() => {
+    const d2 = window._wmPassData;
+    if (!d2) return;
+    const pct = _wmPassViewPref === 'battle' ? d2.battlePct : _wmPassViewPref === 'support' ? d2.supportPct : d2.passBarPct;
+    pf.style.width = pct + '%';
+  }, 500);
 }
+
+window.setWmPassView = function(view) {
+  _wmPassViewPref = view;
+  localStorage.setItem('wmPassView', view);
+  const contentEl = document.getElementById('wm-pass-content');
+  if (contentEl) {
+    contentEl.innerHTML = buildWmPassCardContent(view);
+    const d = window._wmPassData;
+    if (d) {
+      const pct = view === 'battle' ? d.battlePct : view === 'support' ? d.supportPct : d.passBarPct;
+      const pf = document.getElementById('wm-pass-fill');
+      if (pf) setTimeout(() => { pf.style.width = pct + '%'; }, 50);
+    }
+  }
+  document.querySelectorAll('.wm-pass-tab').forEach((btn, i) => {
+    btn.classList.toggle('active', ['s1','battle','support'][i] === view);
+  });
+};
 
 function updateMemberModeDisplay() {
   const waiting = document.getElementById('member-waiting');
@@ -14512,17 +14577,18 @@ function _renderShopImmediate() {
     const isThisPassOwned = item.id === 'battle_pass' ? !!(myShopData && myShopData.hasBattlePass_s1)
                           : item.id === 'support_pass' ? !!(myShopData && myShopData.hasSupportPass_s1)
                           : false;
-    const isOtherPassOwned = isPassType && !isThisPassOwned && myShopData
-      && (myShopData.hasBattlePass_s1 || myShopData.hasSupportPass_s1);
-    const isPassOwned = isThisPassOwned || isOtherPassOwned;
-    const canBuy   = myGold >= item.price && !isLotteryLimitHit && !isPassOwned
+    const battlePassOwned = !!(myShopData && myShopData.hasBattlePass_s1);
+    const battlePassLv = battlePassOwned ? calcPaidPassCurrentLevel(myShopData.battlePassClaimed_s1 || {}) : 0;
+    const isSupportLocked = item.id === 'support_pass' && !isThisPassOwned && battlePassLv < 25;
+    const isPassOwned = isThisPassOwned;
+    const canBuy   = myGold >= item.price && !isLotteryLimitHit && !isPassOwned && !isSupportLocked
                    && (isLotteryType(item.type) || isPassType || !isItemsEffectivelyLocked());
     const nameColor = item.color || 'var(--text)';
     let btnText, btnClass, btnClick;
     if (isThisPassOwned) {
       btnText = '보유중'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
-    } else if (isOtherPassOwned) {
-      btnText = '다른 패스 보유중'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
+    } else if (isSupportLocked) {
+      btnText = battlePassOwned ? `🔒 전투 ${battlePassLv}/25` : '🔒 전투 패스 필요'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
     } else if (isLotteryLimitHit) {
       btnText = '한도 소진'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
     } else if (isItemsEffectivelyLocked() && !isLotteryType(item.type) && !isPassType) {
@@ -14535,7 +14601,7 @@ function _renderShopImmediate() {
       <div class="sli-info">
         <div class="sli-name" style="color:${nameColor};">${item.name}</div>
         <div class="sli-desc">${item.desc}</div>
-        ${isPassType ? '<div class="sli-pass-notice">※ 1개만 구매 가능</div>' : ''}
+        ${item.id === 'battle_pass' ? '<div class="sli-pass-notice">전투 패스 완주 시 지원 패스 해금</div>' : item.id === 'support_pass' ? '<div class="sli-pass-notice">전투 패스 완주 후 구매 가능</div>' : ''}
       </div>
       <div class="sli-right">
         <button class="${btnClass}" ${!canBuy?'disabled':''} ${btnClick}>
@@ -15025,18 +15091,23 @@ window.buyItem = async function(itemId) {
     return;
   }
 
-  // 패스권 전용 처리 (전투/지원 중 1개만 구매 가능)
+  // 패스권 전용 처리 (전투 패스 완주 후 지원 패스 해금)
   if (item.type === 'pass') {
-    const ownedField  = itemId === 'battle_pass' ? 'hasBattlePass_s1'  : 'hasSupportPass_s1';
-    const otherField  = itemId === 'battle_pass' ? 'hasSupportPass_s1' : 'hasBattlePass_s1';
-    const otherName   = itemId === 'battle_pass' ? '지원패스권' : '전투 패스권';
+    const ownedField = itemId === 'battle_pass' ? 'hasBattlePass_s1' : 'hasSupportPass_s1';
     if (data[ownedField]) {
       showGoldToast(`이미 ${item.name}을 보유하고 있어요!`);
       return;
     }
-    if (data[otherField]) {
-      showGoldToast(`이미 ${otherName}을 보유하고 있어요. 패스권은 1종만 구매할 수 있어요.`);
-      return;
+    if (itemId === 'support_pass') {
+      if (!data.hasBattlePass_s1) {
+        showGoldToast('전투 패스를 먼저 구매해야 지원 패스를 살 수 있어요!');
+        return;
+      }
+      const blv = calcPaidPassCurrentLevel(data.battlePassClaimed_s1 || {});
+      if (blv < 25) {
+        showGoldToast(`전투 패스를 완주해야 해요 (현재 ${blv}/25)`);
+        return;
+      }
     }
     const newGoldSpent2 = (data[spentKey] ?? 0) + item.price;
     await update(ref(db, 'gold/' + key), { [spentKey]: newGoldSpent2, [ownedField]: Date.now() });
