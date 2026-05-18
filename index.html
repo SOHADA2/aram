@@ -6053,6 +6053,48 @@ window.__injectMockChamps = async () => {
   console.log('✅ mock 챔피언 데이터 주입 완료:', currentMatchParticipants);
 };
 
+window.__mockEog = async (winSide = 'blue') => {
+  const players = Object.values(registeredPlayers);
+  if (players.length < 2) { console.warn('등록된 플레이어가 없습니다.'); return; }
+  const champs  = ['Lux','Jinx','Yasuo','Thresh','Ahri','Zed','Sona','Ezreal','Caitlyn','Vi'];
+  const dmgs    = [67500,42100,55300,31200,48700,72100,29800,61400,44200,38900];
+  const kills   = [11,5,7,2,9,14,3,8,4,6];
+  const deaths  = [2,3,5,4,1,4,6,2,3,5];
+  const assists = [7,9,4,18,5,3,15,6,11,8];
+  // augment ID 샘플 (실제 존재하는 ID: 실버/골드/프리즈매틱)
+  const augSets = [
+    [1,2,3],[4,5,6],[7,8,9],[10,11,12],[13,14,15],
+  ];
+  const half = Math.ceil(Math.min(players.length, 10) / 2);
+  const teamA = players.slice(0, half);
+  const teamB = players.slice(half, half * 2);
+  currentTeamA = teamA;
+  currentTeamB = teamB;
+  currentMatchParticipants = {};
+  [...teamA, ...teamB].forEach((p, i) => {
+    currentMatchParticipants[normName(p.name)] = {
+      champion: champs[i % champs.length],
+      kills:    kills[i % kills.length],
+      deaths:   deaths[i % deaths.length],
+      assists:  assists[i % assists.length],
+      damage:   dmgs[i % dmgs.length],
+      cs:       40 + i * 7,
+      augments: augSets[i % augSets.length],
+    };
+  });
+  await loadAugmentData();
+  // augmentMap에 샘플 데이터 주입 (CDN 로드 실패 대비)
+  if (Object.keys(augmentMap).length === 0) {
+    [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15].forEach((id, i) => {
+      augmentMap[id] = { name:`증강${id}`, icon:'', rarity: ['kSilver','kGold','kPrismatic'][i%3], desc:'' };
+    });
+  }
+  const old = document.getElementById('eog-overlay');
+  if (old) old.remove();
+  showEogOverlay(winSide);
+  console.log('✅ __mockEog 실행됨 — winSide:', winSide);
+};
+
 // ── BRIDGE: 투표 자동 팝업 ────────────────────────────────────────
 let _lastVoteStarted = undefined;
 
