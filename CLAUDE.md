@@ -697,6 +697,14 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 - **v2.41.37**: 팀 결과 카드 LP 바 최종 — 닉네임-티어 사이 전체 너비 배치
   - `.team-player` column flex 재구성, `.tp-main-row` + `.tp-lp-row`
   - 일반 티어: lp/100% 바 + "XX LP" / 승급전: promoWins/2 바 + "XW/XL" / 챌린저: LP 텍스트만 / 배치: 바 없음
+- **(다른 컴퓨터, v2.41.37 이후 — APP_VERSION 미변경)**
+  - **퀵 아이템 바** (`renderQuickItemBar`, `_qibRender`): 아이템 사용 시간 중(`#quick-item-bar-prep`) + 팀 결과 화면(`#quick-item-bar`) 두 곳에 표시
+    - 라이브 계정/이벤트 매치에서는 숨김; 팀 결성 전(allowBuy=true)은 구매 가능, 후(false)는 상태 표시만
+    - `quickToggleItem(idx)` / `quickBuyItem(itemId)` — window 등록, toggleItemActive와 동일한 충돌 검사 적용
+    - CSS: `.qib-wrap`, `.qib-chip`, `.qib-icon`, `.qib-btn`, `.qib-status` 등
+  - **관전 패스 버그 수정** (`calcS1PassStats`): 관전자는 teamA/B에 없으므로 `spectatorPicks` 기반 별도 스캔 분리 — specTotal/specCorrect 누락 수정
+  - **복권 통계 헬퍼** (`window.lotteryStats()`): 전체 팀원 복권 현황 요약 `console.table` 출력 (일반/프리미엄/순이익/최고당첨, 하우스 수익 합계)
+  - **펫 목업** (`pet_mockup.html`): 사이트 톤앤매너 리디자인, 드라마틱 가챠 리빌 연출, RPG 장비창 스타일 장착 UI, 프로필 모달 peek 애니메이션 (index.html 미통합)
 
 ### v2.40.x (다른 컴퓨터 작업)
 - **v2.40.0~1**: 막고라 CSS/JS/HTML 전면 재구현, 드롭다운 3번째 항목으로 이동
