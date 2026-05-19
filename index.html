@@ -499,7 +499,7 @@ select option{background:var(--surface2);}
 .qib-info{min-width:0;}
 .qib-name{font-size:11px;font-weight:700;color:var(--rk-text);white-space:nowrap;}
 .qib-sub{font-size:9px;color:var(--text-dim);margin-top:1px;}
-.qib-btn{flex-shrink:0;padding:4px 10px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all 0.15s;white-space:nowrap;line-height:1.4;}
+.qib-btn{flex-shrink:0;padding:3px 10px;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all 0.15s;white-space:nowrap;line-height:1.5;letter-spacing:0.2px;}
 .qib-btn.qib-activate{background:rgba(79,195,247,0.1);color:#4fc3f7;border:1px solid rgba(79,195,247,0.3);}
 .qib-btn.qib-activate:hover{background:rgba(79,195,247,0.25);}
 .qib-btn.qib-on{background:rgba(79,195,247,0.2);color:#4fc3f7;border:1px solid rgba(79,195,247,0.5);font-weight:900;}
@@ -507,6 +507,9 @@ select option{background:var(--surface2);}
 .qib-btn.qib-buy{background:rgba(200,168,75,0.1);color:var(--gold);border:1px solid rgba(200,168,75,0.3);}
 .qib-btn.qib-buy:hover{background:rgba(200,168,75,0.22);}
 .qib-btn:disabled{opacity:0.3;cursor:not-allowed;}
+.qib-status{flex-shrink:0;padding:3px 9px;border-radius:4px;font-size:9px;font-weight:700;line-height:1.5;letter-spacing:0.3px;}
+.qib-status.on{color:#4fc3f7;background:rgba(79,195,247,0.1);border:1px solid rgba(79,195,247,0.28);}
+.qib-status.off{color:rgba(255,255,255,0.25);background:transparent;border:1px solid rgba(255,255,255,0.08);}
 
 .record-panel{margin-top:16px;background:var(--rk-card);border:1px solid var(--rk-border);border-radius:10px;padding:18px 20px;position:relative;overflow:hidden;}
 .record-panel::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(200,168,75,0.35),transparent);}
@@ -3310,10 +3313,11 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 
   <div id="card-team-config" class="card">
     <div id="item-phase-card" class="item-phase-card" style="display:none;">
-      <div class="item-phase-title">⚡ 아이템 사용 시간</div>
-      <div class="item-phase-sub">상점에서 아이템을 활성화해 주세요! 시간이 지나면 자동으로 팀이 구성됩니다.</div>
+      <div class="item-phase-title">아이템 사용 시간</div>
+      <div class="item-phase-sub">아래에서 아이템을 구매하거나 활성화하세요. 시간이 지나면 자동으로 팀이 구성됩니다.</div>
       <div class="item-phase-timer" id="item-phase-timer">15</div>
       <div class="item-phase-bar-wrap"><div class="item-phase-bar" id="item-phase-bar"></div></div>
+      <div id="quick-item-bar-prep"></div>
       <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;" onclick="skipItemPhase()">바로 진행 →</button>
     </div>
     <div class="match-type-tabs" id="match-type-tabs">
@@ -7819,6 +7823,8 @@ function startItemCountdown(endTime) {
       card.style.display = 'none';
       timerEl.className = 'item-phase-timer';
       if (btn) btn.disabled = false;
+      const prepEl = document.getElementById('quick-item-bar-prep');
+      if (prepEl) prepEl.innerHTML = '';
       playCompleteSound(); // 모든 기기에서 완료 사운드
       if (liveMode) makeTeams(); // 호스트만 팀 구성 실행
       lastTickSec = -1;
@@ -7826,6 +7832,7 @@ function startItemCountdown(endTime) {
   }
   tick();
   itemPhaseTimer = setInterval(tick, 250);
+  renderQuickItemBar(); // 아이템 페이즈 시작 시 퀵 구매 바 표시
 }
 
 function stopItemCountdown() {
@@ -7836,6 +7843,8 @@ function stopItemCountdown() {
   if (timerEl) timerEl.className = 'item-phase-timer';
   const btn = document.getElementById('make-teams-btn');
   if (btn) btn.disabled = false;
+  const prepEl = document.getElementById('quick-item-bar-prep');
+  if (prepEl) prepEl.innerHTML = '';
 }
 
 window.skipItemPhase = function() {
@@ -8672,12 +8681,26 @@ function renderResult() {
 }
 
 function renderQuickItemBar() {
-  const el = document.getElementById('quick-item-bar');
+  _qibRender('quick-item-bar', false);
+  _qibRender('quick-item-bar-prep', true);
+}
+
+function _qibRender(elId, allowBuy) {
+  const el = document.getElementById(elId);
   if (!el) return;
-  // 라이브 계정이거나 이벤트 매치, 팀 미결정 시 숨김
-  if (liveMode || isEventMatch || (!currentTeamA.length && !currentTeamB.length)) {
-    el.innerHTML = ''; return;
+
+  if (elId === 'quick-item-bar') {
+    // 팀 결성 후 결과 화면: 라이브 계정, 이벤트 매치, 팀 미결정 시 숨김
+    if (liveMode || isEventMatch || (!currentTeamA.length && !currentTeamB.length)) {
+      el.innerHTML = ''; return;
+    }
+  } else {
+    // 아이템 사용 시간 카운트다운: 아이템 페이즈가 아닐 때 숨김
+    if (liveMode || isEventMatch || !itemPhaseTimer) {
+      el.innerHTML = ''; return;
+    }
   }
+
   const key = getMyGoldKey();
   if (!key) { el.innerHTML = ''; return; }
   const data = goldData[key];
@@ -8688,7 +8711,6 @@ function renderQuickItemBar() {
   const myGold  = getMyGold();
   const allDefs = [...SHOP_ITEMS, ...S1_SHOP_ITEMS];
 
-  // 현재 시즌 활성화형 소비 아이템만
   const relevantIds = CURRENT_SEASON >= 1
     ? ['s1_promo_shield', 's1_promo_win', 's1_gamble']
     : ['score2x', 'insurance', 'gamble'];
@@ -8701,16 +8723,27 @@ function renderQuickItemBar() {
     const activeIdx = myItems.findIndex(it => it.id === def.id && it.active);
     const firstIdx  = myItems.findIndex(it => it.id === def.id);
 
+    // 팀 결성 후(allowBuy=false): 미보유 아이템 숨김 — 구매 마감
+    if (!allowBuy && !hasOwned) return '';
+
     let btnHtml;
     if (hasOwned) {
-      if (isActive) {
-        btnHtml = `<button class="qib-btn qib-on" onclick="quickToggleItem(${activeIdx})">✓ 활성화됨</button>`;
+      if (allowBuy) {
+        // 아이템 사용 시간 중: 활성화/비활성화 가능
+        if (isActive) {
+          btnHtml = `<button class="qib-btn qib-on" onclick="quickToggleItem(${activeIdx})">활성화됨</button>`;
+        } else {
+          btnHtml = `<button class="qib-btn qib-activate" onclick="quickToggleItem(${firstIdx})">활성화</button>`;
+        }
       } else {
-        btnHtml = `<button class="qib-btn qib-activate" onclick="quickToggleItem(${firstIdx})">활성화</button>`;
+        // 팀 결성 후: 상태 표시만, 버튼 없음
+        btnHtml = isActive
+          ? `<span class="qib-status on">활성화됨</span>`
+          : `<span class="qib-status off">미활성화</span>`;
       }
     } else {
       const ok = myGold >= def.price;
-      btnHtml = `<button class="qib-btn qib-buy" onclick="buyItem('${def.id}')" ${ok?'':'disabled'}>🛒 ${def.price}G</button>`;
+      btnHtml = `<button class="qib-btn qib-buy" onclick="quickBuyItem('${def.id}')" ${ok?'':'disabled'}>${def.price}G</button>`;
     }
 
     return `<div class="qib-chip ${isActive?'is-active':''} ${!hasOwned?'can-buy':''}">
@@ -8721,10 +8754,13 @@ function renderQuickItemBar() {
       </div>
       ${btnHtml}
     </div>`;
-  }).join('');
+  }).filter(Boolean).join('');
 
+  if (!chipsHtml) { el.innerHTML = ''; return; }
+
+  const titleLabel = allowBuy ? '아이템 구매 · 설정' : '아이템 설정';
   el.innerHTML = `<div class="qib-wrap">
-    <div class="qib-title">⚡ 아이템 퀵 설정</div>
+    <div class="qib-title">${titleLabel}</div>
     <div class="qib-chips">${chipsHtml}</div>
   </div>`;
 }
@@ -8765,6 +8801,32 @@ window.quickToggleItem = async function(idx) {
   await set(ref(db, 'gold/'+key), {...data, [itemsKey]: items});
   const toastFn = S1_SHOP_ITEMS.some(s => s.id===items[idx].id) ? showS1Toast : showGoldToast;
   toastFn(items[idx].active ? `${def?.icon} ${def?.name} 활성화!` : `${def?.icon} ${def?.name} 비활성화됨`);
+  renderQuickItemBar();
+};
+
+window.quickBuyItem = async function(itemId) {
+  const key = getMyGoldKey();
+  if (!key) { showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
+  const data = goldData[key];
+  if (!data) return;
+  const item = [...SHOP_ITEMS, ...S1_SHOP_ITEMS].find(s => s.id === itemId);
+  if (!item) return;
+  const currentGold = getMyGold();
+  if (currentGold < item.price) {
+    showGoldToast(`🪙 골드가 부족해요! (보유: ${currentGold} / 필요: ${item.price})`);
+    return;
+  }
+  const spentKey = sField('goldSpent');
+  const itemsKey = sField('items');
+  const items = [...(data[itemsKey] || [])];
+  items.push({ id: itemId, active: false });
+  await set(ref(db, 'gold/'+key), {
+    ...data,
+    [itemsKey]: items,
+    [spentKey]: (data[spentKey] || 0) + item.price,
+  });
+  const toastFn = S1_SHOP_ITEMS.some(s => s.id === itemId) ? showS1Toast : showGoldToast;
+  toastFn(`${item.icon} ${item.name} 구매 완료!`);
   renderQuickItemBar();
 };
 
@@ -11847,11 +11909,14 @@ window.cpFilterChamps = function(tag, btn) {
 // - 연승/누적 승·경기수·매너왕·MVP·관전·출석
 function calcS1PassStats(name, afterTs = S1_PASS_START_TS) {
   const key = normName(name);
-  const myMatches = Object.values(matches)
-    .filter(m => (m.season ?? 0) === 1
-              && (m.timestamp || 0) >= afterTs
-              && ((m.teamA||[]).some(n=>normName(n)===key) || (m.teamB||[]).some(n=>normName(n)===key)))
+  const allS1 = Object.values(matches).filter(m => (m.season ?? 0) === 1 && (m.timestamp || 0) >= afterTs);
+  // 참가자 경기 (게임 스탯용)
+  const myMatches = allS1
+    .filter(m => (m.teamA||[]).some(n=>normName(n)===key) || (m.teamB||[]).some(n=>normName(n)===key))
     .sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
+  // 관전 경기 (specTotal/specCorrect용 — 관전자는 teamA/B에 없으므로 별도 스캔)
+  const specMatches = allS1
+    .filter(m => m.spectatorPicks ? !!m.spectatorPicks[key] : m.spectatorName === key);
 
   let games=0, wins=0, losses=0;
   let maxKills=0, maxDeaths=0, maxAssists=0, maxDamage=0, maxCs=0, maxKda=0, maxKa=0;
@@ -11892,13 +11957,17 @@ function calcS1PassStats(name, afterTs = S1_PASS_START_TS) {
     if (effects.includes('s1_promo_shield'))        promoShieldUsed++;
     if (effects.includes('s1_promo_win'))           promoWinUsed++;
 
-    // MVP/매너/관전
+    // MVP/매너
     if (normName(m.mvpWinner||'')===key || normName(m.mvpLoser||'')===key) mvpCount++;
     if (normName(m.mannerWinner||'')===key || normName(m.mannerLoser||'')===key || normName(m.mannerKing||'')===key) mannerCount++;
+  }
+
+  // 관전 통계 (참가자 필터와 별도 스캔)
+  for (const m of specMatches) {
+    specTotal++;
     if (m.spectatorPicks) {
-      if (m.spectatorPicks[key]) { specTotal++; if (m.spectatorPicks[key].correct) specCorrect++; }
-    } else if (m.spectatorName===key) {
-      specTotal++;
+      if (m.spectatorPicks[key]?.correct) specCorrect++;
+    } else {
       if (m.spectatorCorrect) specCorrect++;
     }
   }
@@ -13612,6 +13681,49 @@ window.showLotteryHistory = function(name) {
   if (refund.length) console.log(`🔄 환불 보너스: ${refund.length}건 · ${sumGold(refund)}G`);
   console.log(`💰 calcLotteryGold 합산: ${calcLotteryGold(entry)}G`);
   return rows;
+};
+
+// 전체 팀원 복권 현황 요약표 (콘솔용)
+window.lotteryStats = function() {
+  const rows = Object.values(goldData)
+    .filter(d => d.name)
+    .map(d => {
+      const hist = d.lotteryHistory || [];
+      const normal  = hist.filter(h => !h.premium && !h.refund);
+      const premium = hist.filter(h =>  h.premium && !h.refund);
+      const refund  = hist.filter(h =>  h.refund);
+      const sumGold = arr => arr.reduce((s,h) => s + (h.gold||0), 0);
+      const wins    = arr => arr.filter(h => (h.gold||0) > 0).length;
+      const nSpent  = normal.length  * 30;
+      const pSpent  = premium.length * 200;
+      const nGot    = sumGold(normal);
+      const pGot    = sumGold(premium);
+      const refGot  = sumGold(refund);
+      const totalSpent = nSpent + pSpent;
+      const totalGot   = nGot + pGot + refGot;
+      const net        = totalGot - totalSpent;
+      const maxWin     = Math.max(0, ...hist.filter(h=>!h.refund).map(h=>h.gold||0));
+      const totalBuys  = normal.length + premium.length;
+      const totalWins  = wins(normal) + wins(premium);
+      return {
+        이름: d.name,
+        일반: normal.length,
+        프리미엄: premium.length,
+        지출: totalSpent,
+        당첨금: totalGot,
+        순이익: net,
+        적중: totalBuys ? `${totalWins}/${totalBuys}` : '-',
+        최고당첨: maxWin || '-',
+      };
+    })
+    .sort((a, b) => b.당첨금 - a.당첨금);
+
+  console.log('━━━ 복권 현황 ━━━');
+  console.table(rows);
+
+  const totalSpent = rows.reduce((s,r) => s + r.지출, 0);
+  const totalGot   = rows.reduce((s,r) => s + r.당첨금, 0);
+  console.log(`하우스 수익: ${totalSpent}G 수금 - ${totalGot}G 지급 = ${totalSpent - totalGot >= 0 ? '+' : ''}${totalSpent - totalGot}G`);
 };
 
 // 복권 환불 팝업 — 버그 수정 전 구매자 대상 구매비 환불
