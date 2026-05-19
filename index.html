@@ -487,6 +487,27 @@ select option{background:var(--surface2);}
 .balance-bar{height:7px;border-radius:4px;background:var(--border);overflow:hidden;}
 .balance-fill{height:100%;border-radius:4px;transition:width 0.8s cubic-bezier(0.25,1,0.5,1);}
 /* ── 경기 결과 기록 패널 ── */
+/* ── 퀵 아이템 바 ── */
+.qib-wrap{margin:14px 0 6px;}
+.qib-title{font-size:9px;color:var(--text-dim);letter-spacing:2px;font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.qib-title::before,.qib-title::after{content:'';flex:1;height:1px;background:var(--rk-border);}
+.qib-chips{display:flex;gap:8px;flex-wrap:wrap;}
+.qib-chip{display:flex;align-items:center;gap:8px;padding:8px 12px 8px 10px;border-radius:8px;border:1px solid var(--rk-border);background:rgba(255,255,255,0.02);transition:border-color 0.15s;}
+.qib-chip.is-active{border-color:rgba(79,195,247,0.45);background:rgba(79,195,247,0.07);}
+.qib-chip.can-buy{border-color:rgba(200,168,75,0.25);}
+.qib-icon{flex-shrink:0;width:26px;height:26px;display:flex;align-items:center;justify-content:center;}
+.qib-info{min-width:0;}
+.qib-name{font-size:11px;font-weight:700;color:var(--rk-text);white-space:nowrap;}
+.qib-sub{font-size:9px;color:var(--text-dim);margin-top:1px;}
+.qib-btn{flex-shrink:0;padding:4px 10px;border-radius:5px;font-size:10px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all 0.15s;white-space:nowrap;line-height:1.4;}
+.qib-btn.qib-activate{background:rgba(79,195,247,0.1);color:#4fc3f7;border:1px solid rgba(79,195,247,0.3);}
+.qib-btn.qib-activate:hover{background:rgba(79,195,247,0.25);}
+.qib-btn.qib-on{background:rgba(79,195,247,0.2);color:#4fc3f7;border:1px solid rgba(79,195,247,0.5);font-weight:900;}
+.qib-btn.qib-on:hover{background:rgba(79,195,247,0.08);}
+.qib-btn.qib-buy{background:rgba(200,168,75,0.1);color:var(--gold);border:1px solid rgba(200,168,75,0.3);}
+.qib-btn.qib-buy:hover{background:rgba(200,168,75,0.22);}
+.qib-btn:disabled{opacity:0.3;cursor:not-allowed;}
+
 .record-panel{margin-top:16px;background:var(--rk-card);border:1px solid var(--rk-border);border-radius:10px;padding:18px 20px;position:relative;overflow:hidden;}
 .record-panel::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(200,168,75,0.35),transparent);}
 .record-panel-title{font-family:'Black Han Sans',sans-serif;font-size:15px;letter-spacing:.03em;color:var(--rk-text);margin-bottom:16px;display:flex;align-items:center;gap:8px;}
@@ -3343,6 +3364,8 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
     <div id="watch-points-section"></div>
     <!-- 이벤트 핸디캡 박스 -->
     <div id="handicap-section"></div>
+    <!-- 퀵 아이템 바 (라이브 계정 제외 팀원용) -->
+    <div id="quick-item-bar"></div>
 
     <div class="record-panel">
       <div class="record-panel-title">경기 결과 기록</div>
@@ -8645,7 +8668,105 @@ function renderResult() {
   if (!isEventMatch) renderMvpSection();
   if (!isEventMatch) renderMannerSection();
   updateMemberModeDisplay();
+  renderQuickItemBar();
 }
+
+function renderQuickItemBar() {
+  const el = document.getElementById('quick-item-bar');
+  if (!el) return;
+  // 라이브 계정이거나 이벤트 매치, 팀 미결정 시 숨김
+  if (liveMode || isEventMatch || (!currentTeamA.length && !currentTeamB.length)) {
+    el.innerHTML = ''; return;
+  }
+  const key = getMyGoldKey();
+  if (!key) { el.innerHTML = ''; return; }
+  const data = goldData[key];
+  if (!data) { el.innerHTML = ''; return; }
+
+  const itemsKey = sField('items');
+  const myItems = data[itemsKey] || [];
+  const myGold  = getMyGold();
+  const allDefs = [...SHOP_ITEMS, ...S1_SHOP_ITEMS];
+
+  // 현재 시즌 활성화형 소비 아이템만
+  const relevantIds = CURRENT_SEASON >= 1
+    ? ['s1_promo_shield', 's1_promo_win', 's1_gamble']
+    : ['score2x', 'insurance', 'gamble'];
+  const defs = relevantIds.map(id => allDefs.find(s => s.id === id)).filter(Boolean);
+
+  const chipsHtml = defs.map(def => {
+    const owned    = myItems.filter(it => it.id === def.id);
+    const hasOwned = owned.length > 0;
+    const isActive = owned.some(it => it.active);
+    const activeIdx = myItems.findIndex(it => it.id === def.id && it.active);
+    const firstIdx  = myItems.findIndex(it => it.id === def.id);
+
+    let btnHtml;
+    if (hasOwned) {
+      if (isActive) {
+        btnHtml = `<button class="qib-btn qib-on" onclick="quickToggleItem(${activeIdx})">✓ 활성화됨</button>`;
+      } else {
+        btnHtml = `<button class="qib-btn qib-activate" onclick="quickToggleItem(${firstIdx})">활성화</button>`;
+      }
+    } else {
+      const ok = myGold >= def.price;
+      btnHtml = `<button class="qib-btn qib-buy" onclick="buyItem('${def.id}')" ${ok?'':'disabled'}>🛒 ${def.price}G</button>`;
+    }
+
+    return `<div class="qib-chip ${isActive?'is-active':''} ${!hasOwned?'can-buy':''}">
+      <div class="qib-icon">${def.icon}</div>
+      <div class="qib-info">
+        <div class="qib-name">${escHtml(def.name)}</div>
+        <div class="qib-sub">${hasOwned ? `보유 ${owned.length}개` : '미보유'}</div>
+      </div>
+      ${btnHtml}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `<div class="qib-wrap">
+    <div class="qib-title">⚡ 아이템 퀵 설정</div>
+    <div class="qib-chips">${chipsHtml}</div>
+  </div>`;
+}
+
+window.quickToggleItem = async function(idx) {
+  const key = getMyGoldKey();
+  if (!key) return;
+  const data = goldData[key];
+  const itemsKey = sField('items');
+  const items = [...(data[itemsKey] || [])];
+  if (!items[idx]) return;
+  const def = [...SHOP_ITEMS, ...S1_SHOP_ITEMS].find(s => s.id === items[idx].id);
+  const isActive = !!items[idx].active;
+
+  if (!isActive) {
+    items.forEach((it, i) => { if (it.id === items[idx].id) items[i] = {...it, active: false}; });
+    const tryId = items[idx].id;
+    const myS1  = season1Data[normName(myName)];
+    // 충돌 검사 (toggleItemActive 와 동일)
+    const gambleOn = items.some((it,i) => i!==idx && it.id==='gamble' && it.active);
+    const otherOn  = items.some((it,i) => i!==idx && (it.id==='score2x'||it.id==='insurance') && it.active);
+    if ((tryId==='gamble' && otherOn)||(tryId!=='gamble' && gambleOn)) {
+      showGoldToast('⚠ 도박 주사위는 다른 아이템과 함께 사용할 수 없어요'); return;
+    }
+    const isPromo = id => id==='s1_promo_shield'||id==='s1_promo_win';
+    if (isPromo(tryId) && !myS1?.promoActive) {
+      showS1Toast('⚠ 승급전 진행 중에만 사용할 수 있어요'); return;
+    }
+    if (isPromo(tryId) && items.some((it,i) => i!==idx && it.active && isPromo(it.id))) {
+      showS1Toast('⚠ 승급전 방어권과 승리권은 함께 활성화할 수 없어요'); return;
+    }
+    if (tryId==='s1_gamble' && (!myS1?.placementDone||myS1?.promoActive)) {
+      showS1Toast(!myS1?.placementDone ? '⚠ 도박권은 배치고사 완료 후 사용할 수 있어요' : '⚠ 도박권은 승급전 중 사용할 수 없어요'); return;
+    }
+  }
+
+  items[idx] = {...items[idx], active: !isActive};
+  await set(ref(db, 'gold/'+key), {...data, [itemsKey]: items});
+  const toastFn = S1_SHOP_ITEMS.some(s => s.id===items[idx].id) ? showS1Toast : showGoldToast;
+  toastFn(items[idx].active ? `${def?.icon} ${def?.name} 활성화!` : `${def?.icon} ${def?.name} 비활성화됨`);
+  renderQuickItemBar();
+};
 
 function promoSubHtml(promo) {
   if (!promo) return '';
@@ -14658,6 +14779,7 @@ function updateLockBanner() {
 let _renderShopTimer = null;
 function renderShop() {
   updateLockBanner();
+  renderQuickItemBar(); // 팀 결과 퀵 아이템 바도 갱신
   if (_currentTabId !== 'tab-shop') return; // 다른 탭에선 무거운 렌더 skip
   if (_renderShopTimer) return;              // 이미 예약됨
   _renderShopTimer = setTimeout(() => {
