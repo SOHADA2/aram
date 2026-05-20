@@ -1989,9 +1989,10 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .vac-g{font-family:'JetBrains Mono',monospace;font-size:9px;opacity:.7;}
 /* ══ 패스 탭 선택기 (pass-view-sel) ══ */
 .pass-view-sel{display:flex;gap:6px;padding:8px 12px;border-bottom:1px solid var(--border);}
-.pass-view-btn{flex:1;padding:5px 4px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-dim);font-size:10px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;transition:all .15s;text-align:center;line-height:1.4;}
+.pass-view-btn{flex:1;padding:5px 4px;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-dim);font-size:10px;font-weight:700;font-family:'Noto Sans KR',sans-serif;cursor:pointer;transition:all .15s;text-align:center;line-height:1.4;position:relative;}
 .pass-view-btn.active{background:rgba(200,168,75,.12);border-color:rgba(200,168,75,.4);color:var(--gold);}
 .pass-view-btn:not(.active):hover{border-color:rgba(200,168,75,.25);color:var(--text);}
+.pvb-dot{position:absolute;top:3px;right:4px;width:6px;height:6px;background:#ffd700;border-radius:50%;animation:s1pDotBlink 1.1s ease-in-out infinite;pointer-events:none;box-shadow:0 0 5px rgba(255,215,0,0.7);}
 /* ══ 패스 활성화 팝업 ══ */
 .pass-act-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:center;justify-content:center;z-index:9999;animation:taFadeIn .2s ease;}
 .pass-act-modal{background:#0e1726;border:1px solid rgba(200,168,75,.35);border-radius:14px;padding:30px 26px 24px;text-align:center;max-width:280px;width:90%;box-shadow:0 24px 64px rgba(0,0,0,.65);}
@@ -3707,7 +3708,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.41.38';
+const APP_VERSION = 'v2.41.39';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -3716,6 +3717,10 @@ const APP_VERSION = 'v2.41.38';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.41.39', date: '2026-05-20', changes: [
+    { tag: 'fix',     text: '전투/지원 패스 수령 가능 시 탭 노란 dot 미표시 버그 — updateS1PassTabBadge가 시즌 패스만 검사하던 문제. isPassClaimable() 공용 헬퍼 분리 후 3개 패스 타입 모두 검사' },
+    { tag: 'improve', text: '패스 탭 선택기 내 수령 가능 dot — 시즌/전투/지원 패스 각각 달성 가능 레벨 있을 때 탭 버튼에 노란 점 표시' },
+  ]},
   { ver: 'v2.41.38', date: '2026-05-20', changes: [
     { tag: 'improve', text: '출석 체크 헤더 이전 — 타이틀 아래 SEASON 뱃지 옆에 1타임·2타임 칩으로 배치. 골드 톤앤매너 적용, 완료 시 ✓ 표시' },
     { tag: 'fix',     text: '출석 칩 race condition 수정 — goldData 로드 전 호출 시 myEntry 없으면 숨김 처리. 기존엔 lastAttendance 미정의로 가용 판정돼 이미 받은 유저에게도 노출되던 버그 수정' },
@@ -12253,20 +12258,50 @@ window.switchPassView = function(view) {
 };
 
 // 패스 탭 선택기 HTML 생성
+// 특정 패스 타입의 수령 가능 레벨 여부 (탭 배지·내부 dot 공용)
+function isPassClaimable(passType, myData) {
+  if (!myName) return false;
+  if (passType === 's1') {
+    const claimed = myData.seasonPassClaimed_s1 || {};
+    const currentLv = calcS1PassCurrentLevel(claimed);
+    if (currentLv >= S1_PASS_MAX_LEVEL) return false;
+    const quest = S1_PASS_QUESTS.find(q => q.lv === currentLv + 1);
+    const afterTs = s1PassAfterTs(claimed, currentLv + 1);
+    return !!(quest && quest.check(calcS1PassStats(myName, afterTs)));
+  }
+  const isB = passType === 'battle';
+  const purchaseFld = isB ? 'hasBattlePass_s1' : 'hasSupportPass_s1';
+  const claimedFld  = isB ? 'battlePassClaimed_s1' : 'supportPassClaimed_s1';
+  const quests      = isB ? BATTLE_PASS_QUESTS : SUPPORT_PASS_QUESTS;
+  const purchaseTs  = myData[purchaseFld];
+  if (!purchaseTs) return false;
+  const claimed = myData[claimedFld] || {};
+  const currentLv = calcPaidPassCurrentLevel(claimed);
+  if (currentLv >= 25) return false;
+  const quest = quests.find(q => q.lv === currentLv + 1);
+  const afterTs = paidPassAfterTs(claimed, currentLv + 1, purchaseTs);
+  return !!(quest && quest.check(calcS1PassStats(myName, afterTs)));
+}
+
 function buildPassSelector(activeView) {
   const myEntry = Object.entries(goldData).find(([,g]) => normName(g.name) === normName(myName));
   const myData  = myEntry?.[1] || {};
   const hasBattle  = !!myData.hasBattlePass_s1;
   const hasSupport = !!myData.hasSupportPass_s1;
-  function btn(view, label, has) {
+  const canCheck = goldLoaded && matchesLoaded && !!myEntry;
+  const s1Dot      = canCheck && isPassClaimable('s1', myData);
+  const battleDot  = canCheck && hasBattle && isPassClaimable('battle', myData);
+  const supportDot = canCheck && hasSupport && isPassClaimable('support', myData);
+  function btn(view, label, has, dot) {
     const active = activeView === view ? ' active' : '';
     const suffix = !has && view !== 's1' ? ' 🔒' : '';
-    return `<button class="pass-view-btn${active}" onclick="switchPassView('${view}')">${label}${suffix}</button>`;
+    const dotHtml = dot ? '<span class="pvb-dot"></span>' : '';
+    return `<button class="pass-view-btn${active}" onclick="switchPassView('${view}')">${dotHtml}${label}${suffix}</button>`;
   }
   return '<div class="pass-view-sel">'
-    + btn('s1',      '시즌 패스',  true)
-    + btn('battle',  '전투 패스',  hasBattle)
-    + btn('support', '지원 패스',  hasSupport)
+    + btn('s1',      '시즌 패스',  true,       s1Dot)
+    + btn('battle',  '전투 패스',  hasBattle,  battleDot)
+    + btn('support', '지원 패스',  hasSupport, supportDot)
     + '</div>';
 }
 
@@ -12537,29 +12572,23 @@ window.renderAchievementsOrPass = function renderAchievementsOrPass() {
   updateAttendQuickBtn();
 };
 
-// 시즌패스 탭 배지 (수령 가능한 퀘스트 있을 때만 반짝이는 점 표시)
+// 패스 탭 배지 (시즌 패스 + 유료 패스 중 수령 가능 퀘스트 있을 때 표시)
 function updateS1PassTabBadge() {
   const tabBtn = document.querySelector('.nav-tab-achievement');
   if (!tabBtn) return;
   const removeDot = () => tabBtn.querySelector('.s1p-tab-dot')?.remove();
   if (CURRENT_SEASON < 1 || !myName) { removeDot(); return; }
-  // v2.38.13~ Firebase 동기화 전 false positive 방지 — gold/matches 로드 완료 후만 판정
+  // Firebase 동기화 전 false positive 방지
   if (!goldLoaded || !matchesLoaded) { removeDot(); return; }
   const myEntry = Object.entries(goldData).find(([,g]) => normName(g.name) === normName(myName));
-  if (!myEntry) { removeDot(); return; } // 신규 유저 — 데이터 없으면 알람 보류
+  if (!myEntry) { removeDot(); return; }
   const myData = myEntry[1] || {};
 
-  // 패스 퀘스트 수령 가능 여부 확인
-  const claimed = myData.seasonPassClaimed_s1 || {};
-  const currentLv = calcS1PassCurrentLevel(claimed);
-  const questClaimable = currentLv < S1_PASS_MAX_LEVEL && (() => {
-    const quest = S1_PASS_QUESTS.find(q => q.lv === currentLv + 1);
-    const afterTs = s1PassAfterTs(claimed, currentLv + 1);
-    const stats = calcS1PassStats(myName, afterTs);
-    return quest && quest.check(stats);
-  })();
+  const anyClaimable = isPassClaimable('s1', myData)
+    || (!!myData.hasBattlePass_s1  && isPassClaimable('battle',  myData))
+    || (!!myData.hasSupportPass_s1 && isPassClaimable('support', myData));
 
-  if (questClaimable) {
+  if (anyClaimable) {
     if (!tabBtn.querySelector('.s1p-tab-dot')) {
       const dot = document.createElement('span');
       dot.className = 's1p-tab-dot';
