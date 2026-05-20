@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.41.37
+- 현재 버전: v2.42.6
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -656,6 +656,30 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 ## 세션 작업 이력
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
+
+### v2.42.x (2026-05-21)
+- **v2.42.0~3**: 챔피언 가챠 시스템 index.html 통합
+  - 상점 탭 "펫" 카테고리 → 뽑기/카드/도감 3탭 구조
+  - RPG 카드 디자인: `aspect-ratio:5/7`, `.pc-art/.pc-vignette/.pc-top/.pc-pet-wrap/.pc-bottom`
+  - `GACHA_CHAMPS` 18종 (desc 필드 추가, DrMundo role fighter 수정)
+  - `GACHA_SYNERGY_GROUPS`, `GACHA_PET_TYPE`, `GACHA_EFFECT_TXT`, `GACHA_TIER_PATH` 등 상수
+  - `_gachaCardHtml()`, `_gachaDexFigure()`, `renderGachaDex()`, `showGachaCardZoom()` 함수
+  - 카드 줌: `#card-zoom-overlay` > `.cz-wrap` > `.cz-card-host` + `.cz-detail` (역할칩/타입/효과/설명/합성)
+  - 뽑기/합성 구매는 "준비 중" 상태 유지 (이미지 미완성)
+  - 펫 이미지 경로: `assets/pets/{slug}/{silver|gold|prism}/default.png`
+- **v2.42.4**: 팀원용 아이템 페이즈 배너 (`#member-item-phase-bar`)
+  - 라이브 계정이 팀짜기 시작 시 비(非)라이브 팀원 전 기기에 탭 무관 전역 표시
+  - 타이머(좌) + 구분선 + 아이템 구매·활성화 칩(우) 레이아웃
+  - `startItemCountdown()` / `stopItemCountdown()` / `tick()` 연동
+  - `_qibRenderChips('mipb-chips', true)` — 기존 qib 칩 재사용
+- **v2.42.5**: 팀 결과 UI 개선 3종
+  - `#quick-item-bar`: 전체 목록 대신 활성화된 아이템만 뱃지(`.qib-active-badge`)로 표시
+  - `closeMatchSummary()`: 닫힐 때 `teams-grid` 재렌더 → LP/티어 즉시 최신화
+  - 챌린저 LP: `⚡` 제거, `#ffe040` 노란색, 닉네임-배지 사이 인라인 배치 (`tc-lp-chall`)
+- **v2.42.6**: 챌린저 LP + 아이템 페이즈 배너 리디자인
+  - 챌린저 `tc-lp-chall`: `lpBefore` 필드로 tp-main-row 내 인라인 배치 확정
+  - 배너 골드 테마: 상단 3px 진행바(금→레드), 타이머 32px 금색 + `SEC` 서브라벨, 수직 구분선
+  - urgent(≤3초): 전체 보더/타이머/바 레드 + 글로우 애니메이션, `.mipb-wrap.urgent` 클래스
 
 ### v2.41.x (2026-05-12~19)
 - **v2.41.4**: `calcChampDetail` 시즌 필터 폴백 제거 — S1 브릿지 데이터 없을 때 S0 챔피언이 S1 랭킹에 표시되던 버그 수정. `entries` 없으면 null 반환으로 단순화
