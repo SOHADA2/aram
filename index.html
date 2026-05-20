@@ -523,6 +523,19 @@ select option{background:var(--surface2);}
 .qib-status{flex-shrink:0;padding:3px 9px;border-radius:4px;font-size:9px;font-weight:700;line-height:1.5;letter-spacing:0.3px;}
 .qib-status.on{color:#4fc3f7;background:rgba(79,195,247,0.1);border:1px solid rgba(79,195,247,0.28);}
 .qib-status.off{color:rgba(255,255,255,0.25);background:transparent;border:1px solid rgba(255,255,255,0.08);}
+/* ── 팀원 아이템 페이즈 배너 ── */
+#member-item-phase-bar{display:none;margin-bottom:12px;}
+.mipb-wrap{background:rgba(8,18,38,0.97);border:1px solid rgba(79,195,247,0.22);border-radius:10px;padding:11px 14px 12px;animation:mipb-in 0.3s cubic-bezier(0.34,1.4,0.64,1) both;}
+@keyframes mipb-in{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
+.mipb-header{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.mipb-label{font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--text-dim);white-space:nowrap;}
+.mipb-timer-wrap{flex:1;display:flex;align-items:center;gap:8px;}
+.mipb-timer{font-family:'Black Han Sans',sans-serif;font-size:20px;color:#4fc3f7;min-width:24px;text-align:right;line-height:1;}
+.mipb-timer.urgent{color:var(--red);animation:pulse 0.6s ease infinite;}
+.mipb-bar-wrap{flex:1;height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;}
+.mipb-bar{height:100%;background:#4fc3f7;border-radius:2px;transition:none;width:0%;}
+.mipb-bar.urgent{background:var(--red);}
+.mipb-chips{display:flex;gap:8px;flex-wrap:wrap;}
 
 .record-panel{margin-top:16px;background:var(--rk-card);border:1px solid var(--rk-border);border-radius:10px;padding:18px 20px;position:relative;overflow:hidden;}
 .record-panel::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(200,168,75,0.35),transparent);}
@@ -3547,6 +3560,8 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
   <button class="nav-tab nav-tab-shop" onclick="showTab('tab-shop',this)">🛒<br>상점</button>
   <button class="nav-tab nav-tab-achievement" onclick="showTab('tab-achievement',this);renderAchievementsOrPass();">🏅<br>업적</button>
 </div>
+<!-- 팀원용 아이템 페이즈 배너 (라이브 계정 제외, 탭 무관하게 표시) -->
+<div id="member-item-phase-bar"></div>
 
 <!-- ===== TAB: 팀 구성 ===== -->
 <div id="tab-team" class="tab-content active">
@@ -4037,7 +4052,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.42.3';
+const APP_VERSION = 'v2.42.4';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -8159,6 +8174,23 @@ function startItemCountdown(endTime) {
   card.style.display = 'block';
   if (btn) btn.disabled = true;
 
+  // 팀원 배너: 라이브 계정 제외, 모든 탭에서 보이는 전역 타이머
+  const mipbEl = document.getElementById('member-item-phase-bar');
+  if (!liveMode && !isEventMatch && mipbEl) {
+    mipbEl.innerHTML = `<div class="mipb-wrap">
+      <div class="mipb-header">
+        <span class="mipb-label">아이템 구매 · 설정</span>
+        <div class="mipb-timer-wrap">
+          <span class="mipb-timer" id="mipb-timer">15</span>
+          <div class="mipb-bar-wrap"><div class="mipb-bar" id="mipb-bar"></div></div>
+        </div>
+      </div>
+      <div class="mipb-chips" id="mipb-chips"></div>
+    </div>`;
+    mipbEl.style.display = 'block';
+    _qibRenderChips('mipb-chips', true);
+  }
+
   if (itemPhaseTimer) clearInterval(itemPhaseTimer);
 
   const TOTAL_MS = 15000;
@@ -8170,6 +8202,17 @@ function startItemCountdown(endTime) {
     barEl.style.transition = 'none';
     barEl.style.width = ((TOTAL_MS - remaining) / TOTAL_MS * 100) + '%';
     timerEl.className = 'item-phase-timer' + (secs <= 3 ? ' urgent' : '');
+    // 팀원 배너 타이머 동기화
+    const mipbTimer = document.getElementById('mipb-timer');
+    const mipbBar   = document.getElementById('mipb-bar');
+    if (mipbTimer) {
+      mipbTimer.textContent = secs;
+      mipbTimer.className = 'mipb-timer' + (secs <= 3 ? ' urgent' : '');
+    }
+    if (mipbBar) {
+      mipbBar.style.width = ((TOTAL_MS - remaining) / TOTAL_MS * 100) + '%';
+      mipbBar.className = 'mipb-bar' + (secs <= 3 ? ' urgent' : '');
+    }
     // 전 구간 틱 사운드 — 초가 바뀔 때마다 1회만
     if (secs > 0 && secs !== lastTickSec) {
       lastTickSec = secs;
@@ -8183,6 +8226,7 @@ function startItemCountdown(endTime) {
       if (btn) btn.disabled = false;
       const prepEl = document.getElementById('quick-item-bar-prep');
       if (prepEl) prepEl.innerHTML = '';
+      if (mipbEl) { mipbEl.style.display = 'none'; mipbEl.innerHTML = ''; }
       playCompleteSound(); // 모든 기기에서 완료 사운드
       if (liveMode) makeTeams(); // 호스트만 팀 구성 실행
       lastTickSec = -1;
@@ -8203,6 +8247,8 @@ function stopItemCountdown() {
   if (btn) btn.disabled = false;
   const prepEl = document.getElementById('quick-item-bar-prep');
   if (prepEl) prepEl.innerHTML = '';
+  const mipbEl = document.getElementById('member-item-phase-bar');
+  if (mipbEl) { mipbEl.style.display = 'none'; mipbEl.innerHTML = ''; }
 }
 
 window.skipItemPhase = function() {
@@ -9041,6 +9087,55 @@ function renderResult() {
 function renderQuickItemBar() {
   _qibRender('quick-item-bar', false);
   _qibRender('quick-item-bar-prep', true);
+  // 팀원 배너 칩도 갱신
+  if (!liveMode && !isEventMatch && itemPhaseTimer) {
+    _qibRenderChips('mipb-chips', true);
+  }
+}
+
+// 칩만 렌더 (배너 내부용 — 외부 컨테이너는 startItemCountdown이 생성)
+function _qibRenderChips(elId, allowBuy) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const key = getMyGoldKey();
+  if (!key) { el.innerHTML = ''; return; }
+  const data = goldData[key];
+  if (!data) { el.innerHTML = ''; return; }
+  const itemsKey = sField('items');
+  const myItems = data[itemsKey] || [];
+  const myGold  = getMyGold();
+  const allDefs = [...SHOP_ITEMS, ...S1_SHOP_ITEMS];
+  const relevantIds = CURRENT_SEASON >= 1
+    ? ['s1_promo_shield', 's1_promo_win', 's1_gamble']
+    : ['score2x', 'insurance', 'gamble'];
+  const defs = relevantIds.map(id => allDefs.find(s => s.id === id)).filter(Boolean);
+  const chipsHtml = defs.map(def => {
+    const owned    = myItems.filter(it => it.id === def.id);
+    const hasOwned = owned.length > 0;
+    const isActive = owned.some(it => it.active);
+    const activeIdx = myItems.findIndex(it => it.id === def.id && it.active);
+    const firstIdx  = myItems.findIndex(it => it.id === def.id);
+    let btnHtml;
+    if (hasOwned) {
+      if (isActive) {
+        btnHtml = `<button class="qib-btn qib-on" onclick="quickToggleItem(${activeIdx})">활성화됨</button>`;
+      } else {
+        btnHtml = `<button class="qib-btn qib-activate" onclick="quickToggleItem(${firstIdx})">활성화</button>`;
+      }
+    } else {
+      const ok = allowBuy && myGold >= def.price;
+      btnHtml = `<button class="qib-btn qib-buy" onclick="quickBuyItem('${def.id}')" ${ok?'':'disabled'}>${def.price}G</button>`;
+    }
+    return `<div class="qib-chip ${isActive?'is-active':''} ${!hasOwned?'can-buy':''}">
+      <div class="qib-icon">${def.icon}</div>
+      <div class="qib-info">
+        <div class="qib-name">${escHtml(def.name)}</div>
+        <div class="qib-sub">${hasOwned ? `보유 ${owned.length}개` : '미보유'}</div>
+      </div>
+      ${btnHtml}
+    </div>`;
+  }).join('');
+  el.innerHTML = chipsHtml;
 }
 
 function _qibRender(elId, allowBuy) {
