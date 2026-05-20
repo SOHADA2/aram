@@ -491,6 +491,12 @@ select option{background:var(--surface2);}
 .tp-lp-row{display:flex;align-items:center;gap:6px;margin-top:5px;}
 .team-player-name{flex:1;font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
 .tc-lp-num{font-size:9px;font-weight:600;color:rgba(255,255,255,0.35);font-family:'JetBrains Mono',monospace;white-space:nowrap;flex-shrink:0;}
+.tc-lp-num.challenger{font-size:13px;font-weight:900;color:#00e4ff;text-shadow:0 0 10px rgba(0,228,255,0.55);letter-spacing:0.5px;}
+/* 팀 결과 활성 아이템 뱃지 */
+.qib-active-bar{display:flex;align-items:center;gap:8px;padding:7px 0 3px;flex-wrap:wrap;}
+.qib-active-badge{display:flex;align-items:center;gap:5px;padding:4px 10px 4px 7px;border-radius:6px;background:rgba(79,195,247,0.08);border:1px solid rgba(79,195,247,0.28);font-size:11px;font-weight:700;color:#4fc3f7;white-space:nowrap;}
+.qib-active-badge .qab-icon{font-size:14px;line-height:1;}
+.qib-active-bar-empty{font-size:10px;color:rgba(255,255,255,0.2);padding:4px 0 2px;font-style:italic;}
 .team-player.is-me{background:rgba(200,168,75,0.06);}
 .team-a .team-player.is-me{border-left:2px solid rgba(56,217,192,0.65);padding-left:14px;}
 .team-b .team-player.is-me{border-left:2px solid rgba(232,200,74,0.65);padding-left:14px;}
@@ -4052,7 +4058,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.42.4';
+const APP_VERSION = 'v2.42.5';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -9143,10 +9149,26 @@ function _qibRender(elId, allowBuy) {
   if (!el) return;
 
   if (elId === 'quick-item-bar') {
-    // 팀 결성 후 결과 화면: 라이브 계정, 이벤트 매치, 팀 미결정 시 숨김
+    // 팀 결성 후 결과 화면: 활성화된 아이템만 뱃지로 표시
     if (liveMode || isEventMatch || (!currentTeamA.length && !currentTeamB.length)) {
       el.innerHTML = ''; return;
     }
+    const key2 = getMyGoldKey();
+    if (!key2) { el.innerHTML = ''; return; }
+    const data2 = goldData[key2];
+    if (!data2) { el.innerHTML = ''; return; }
+    const myItems2 = (data2[sField('items')] || []);
+    const allDefs2 = [...SHOP_ITEMS, ...S1_SHOP_ITEMS];
+    const activeItems = myItems2
+      .filter(it => it.active)
+      .map(it => allDefs2.find(d => d.id === it.id))
+      .filter(Boolean);
+    if (!activeItems.length) { el.innerHTML = ''; return; }
+    const badgesHtml = activeItems.map(def =>
+      `<div class="qib-active-badge"><span class="qab-icon">${def.icon}</span>${escHtml(def.name)}</div>`
+    ).join('');
+    el.innerHTML = `<div class="qib-wrap"><div class="qib-title">이번 판 활성 아이템</div><div class="qib-active-bar">${badgesHtml}</div></div>`;
+    return;
   } else {
     // 아이템 사용 시간 카운트다운: 아이템 페이즈가 아닐 때 숨김
     if (liveMode || isEventMatch || !itemPhaseTimer) {
@@ -9176,20 +9198,17 @@ function _qibRender(elId, allowBuy) {
     const activeIdx = myItems.findIndex(it => it.id === def.id && it.active);
     const firstIdx  = myItems.findIndex(it => it.id === def.id);
 
-    // 팀 결성 후(allowBuy=false): 미보유 아이템 숨김 — 구매 마감
     if (!allowBuy && !hasOwned) return '';
 
     let btnHtml;
     if (hasOwned) {
       if (allowBuy) {
-        // 아이템 사용 시간 중: 활성화/비활성화 가능
         if (isActive) {
           btnHtml = `<button class="qib-btn qib-on" onclick="quickToggleItem(${activeIdx})">활성화됨</button>`;
         } else {
           btnHtml = `<button class="qib-btn qib-activate" onclick="quickToggleItem(${firstIdx})">활성화</button>`;
         }
       } else {
-        // 팀 결성 후: 상태 표시만, 버튼 없음
         btnHtml = isActive
           ? `<span class="qib-status on">활성화됨</span>`
           : `<span class="qib-status off">미활성화</span>`;
@@ -9211,9 +9230,8 @@ function _qibRender(elId, allowBuy) {
 
   if (!chipsHtml) { el.innerHTML = ''; return; }
 
-  const titleLabel = allowBuy ? '아이템 구매 · 설정' : '아이템 설정';
   el.innerHTML = `<div class="qib-wrap">
-    <div class="qib-title">${titleLabel}</div>
+    <div class="qib-title">아이템 구매 · 설정</div>
     <div class="qib-chips">${chipsHtml}</div>
   </div>`;
 }
@@ -9317,7 +9335,7 @@ function teamCard(title,cls,members) {
         const _m=S1_TIER_META[_d.tier]||S1_TIER_META.unranked;
         const _lp=(_d.lp)||0;
         if(_d.tier==='challenger'){
-          return {badge:'<span class="tier-badge '+_m.cls+'">'+_m.label+'</span>',bar:'<div class="tp-lp-row"><span class="tc-lp-num">'+_lp+' LP</span></div>'};
+          return {badge:'<span class="tier-badge '+_m.cls+'">'+_m.label+'</span>',bar:'<div class="tp-lp-row" style="justify-content:flex-end;"><span class="tc-lp-num challenger">⚡ '+_lp+' LP</span></div>'};
         }
         const _pct=Math.min(100,_lp);
         return {badge:'<span class="tier-badge '+_m.cls+'">'+_m.label+'</span>',bar:'<div class="tp-lp-row"><div class="tc-lp-bar"><div class="sp-lp-fill" style="width:'+_pct+'%;background:'+_m.color+';"></div></div><span class="tc-lp-num">'+_lp+' LP</span></div>'};
@@ -9892,12 +9910,22 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
 
 window.closeMatchSummary = function() {
   const overlay = document.querySelector('.match-summary-overlay');
-  if (overlay) {
-    overlay.style.animation = 'taFadeOut 0.25s ease forwards';
-    setTimeout(() => { overlay.remove(); _suppressS1SuccessBanners = false; _showPendingPromoNotif(); }, 280);
-  } else {
+  const finish = () => {
     _suppressS1SuccessBanners = false;
     _showPendingPromoNotif();
+    // 팀 결과 카드 LP/티어 최신화
+    if (currentTeamA.length || currentTeamB.length) {
+      document.getElementById('teams-grid').innerHTML =
+        teamCard('⚡ 1팀','team-a',currentTeamA) +
+        teamCard('🔥 2팀','team-b',currentTeamB);
+      renderQuickItemBar();
+    }
+  };
+  if (overlay) {
+    overlay.style.animation = 'taFadeOut 0.25s ease forwards';
+    setTimeout(() => { overlay.remove(); finish(); }, 280);
+  } else {
+    finish();
   }
 };
 
