@@ -4261,7 +4261,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.15';
+const APP_VERSION = 'v2.43.16';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4270,6 +4270,9 @@ const APP_VERSION = 'v2.43.15';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.16', date: '2026-05-21', changes: [
+    { tag: 'fix', text: 'v2.43.14 배포 직후 출석한 유저 자동 마이그레이션 — relayClaimed>0이지만 relayBase 미설정인 유저를 앱 로드 시 자동 감지하여 relayBase_s1 일괄 보정. 이중지급 완전 차단' },
+  ]},
   { ver: 'v2.43.15', date: '2026-05-21', changes: [
     { tag: 'fix', text: '릴레이 이벤트 소급 이중지급 방지 — v2.43.14 이전에 출첵한 팀원이 다음 출석 시 구 출첵골드(50G×N)와 릴레이 보상이 중복 계산되던 문제 수정. relayBase_s1 필드로 구 진행분 구간을 마킹해 신규 스텝부터만 릴레이 골드 지급' },
   ]},
@@ -6123,6 +6126,7 @@ onValue(ref(db, 'players'), (snapshot) => {
 onValue(ref(db, 'gold'), (snapshot) => {
   goldData = snapshot.val() || {};
   goldLoaded = true;
+  migrateRelayBase();
   if (matchesLoaded) updateMyInfoBar();
   renderShop();
   if (playersLoaded && matchesLoaded) seedGoldForAllPlayers();
@@ -14892,6 +14896,34 @@ function calcRelayGold(claimed, base) {
   if (!claimed) return 0;
   const from = base || 0;
   return RELAY_REWARDS.slice(from, Math.min(claimed, 30)).reduce((s, r) => s + r.gold, 0);
+}
+
+// v2.43.14 배포 직후 출석한 구버전 유저 일회성 마이그레이션
+// 조건: relayClaimed>0 && relayBase=0 && attendanceHistory에 gold>0 항목 존재
+let _relayBaseMigrated = false;
+async function migrateRelayBase() {
+  if (_relayBaseMigrated) return;
+  _relayBaseMigrated = true;
+  const affected = [];
+  for (const [key, data] of Object.entries(goldData)) {
+    const claimed  = data[sField('relayClaimed')] || 0;
+    const base     = data[sField('relayBase')]    || 0;
+    const history  = data[sField('attendanceHistory')] || [];
+    const oldCount = history.filter(h => (h.gold || 0) > 0).length;
+    if (claimed > 0 && base === 0 && oldCount > 0) {
+      affected.push({ key, data, correctBase: oldCount, name: data.name });
+    }
+  }
+  if (affected.length === 0) return;
+  console.log(`[릴레이 마이그레이션] ${affected.length}명 relayBase 수정:`,
+    affected.map(a => `${a.name} → relayBase_s1=${a.correctBase}`).join(', '));
+  for (const { key, data, correctBase } of affected) {
+    try {
+      await set(ref(db, 'gold/' + key), { ...data, [sField('relayBase')]: correctBase });
+    } catch (e) {
+      console.error('[릴레이 마이그레이션 실패]', data.name, e);
+    }
+  }
 }
 function calcMagollaGold(history) {
   if (!Array.isArray(history)) return 0;
