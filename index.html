@@ -3392,10 +3392,14 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .late-toast{position:fixed;bottom:76px;left:50%;transform:translateX(-50%) translateY(16px);background:rgba(8,5,22,.92);border:1px solid rgba(160,120,255,.3);border-radius:20px;padding:9px 18px;font-size:12px;color:rgba(200,180,255,.88);white-space:nowrap;z-index:8500;opacity:0;transition:opacity .4s ease,transform .4s ease;pointer-events:none;backdrop-filter:blur(10px);box-shadow:0 4px 20px rgba(0,0,0,.5);}
 .late-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 /* ── 릴레이 출석 이벤트 버튼 ── */
-.relay-event-btn{display:none;width:100%;padding:9px 14px;margin-bottom:10px;border-radius:10px;border:1px solid rgba(180,138,255,0.18);background:rgba(180,138,255,0.05);color:var(--text-dim);font-size:12px;font-weight:700;cursor:pointer;text-align:left;align-items:center;gap:8px;transition:border-color .2s,background .2s,box-shadow .2s;font-family:'Noto Sans KR',sans-serif;}
-.relay-event-btn.glow{border-color:rgba(180,138,255,0.55);background:rgba(180,138,255,0.1);color:#b48aff;animation:rebGlow 2.2s ease-in-out infinite;}
-@keyframes rebGlow{0%,100%{box-shadow:0 0 8px rgba(180,138,255,0.14)}50%{box-shadow:0 0 18px rgba(180,138,255,0.38)}}
-.reb-dot{width:6px;height:6px;border-radius:50%;background:#b48aff;flex-shrink:0;animation:rebDot 1.5s ease-in-out infinite;}
+.relay-event-btn{display:none;width:100%;padding:9px 14px;margin-bottom:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:var(--text-dim);font-size:12px;font-weight:700;cursor:pointer;text-align:left;align-items:center;gap:8px;transition:border-color .2s,background .2s,box-shadow .2s,color .2s;font-family:'Noto Sans KR',sans-serif;}
+.relay-event-btn.glow-attend{border-color:rgba(200,151,60,0.6);background:rgba(200,151,60,0.08);color:#e8b84b;animation:rebGlowGold 2.2s ease-in-out infinite;}
+@keyframes rebGlowGold{0%,100%{box-shadow:0 0 8px rgba(200,151,60,0.15)}50%{box-shadow:0 0 20px rgba(200,151,60,0.42)}}
+.relay-event-btn.glow-claim{border-color:rgba(180,138,255,0.5);background:rgba(180,138,255,0.08);color:#b48aff;animation:rebGlowPurple 2.2s ease-in-out infinite;}
+@keyframes rebGlowPurple{0%,100%{box-shadow:0 0 8px rgba(180,138,255,0.14)}50%{box-shadow:0 0 18px rgba(180,138,255,0.38)}}
+.reb-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;animation:rebDot 1.5s ease-in-out infinite;}
+.reb-dot.gold{background:#e8b84b;}
+.reb-dot.purple{background:#b48aff;}
 @keyframes rebDot{0%,100%{opacity:1}50%{opacity:0.2}}
 .reb-arrow{margin-left:auto;font-size:10px;color:var(--text-muted);font-weight:400;}
 /* ── 릴레이 출석 보드 ── */
@@ -3607,8 +3611,6 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
   <h1>무작위 총력전 아수라장 내전</h1>
   <div class="hs-row">
     <span id="header-season-label" class="hs-season-badge"></span>
-    <button class="hs-attend-chip" id="hs-attend-1"></button>
-    <button class="hs-attend-chip" id="hs-attend-2"></button>
   </div>
 </header>
 
@@ -4275,7 +4277,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.10';
+const APP_VERSION = 'v2.43.11';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -13586,11 +13588,18 @@ function updateRelayEventBtn() {
   const currentSlot = getAttendSlot();
   const canAttend = !isAttendSlotDone(myData, currentSlot, todayKey);
   const relayClaimable = (myData[sField('relayProgress')] || 0) > (myData[sField('relayClaimed')] || 0);
-  const shouldGlow = canAttend || relayClaimable;
 
   btn.style.display = 'flex';
-  btn.classList.toggle('glow', shouldGlow);
-  if (dot) dot.style.display = shouldGlow ? 'inline-block' : 'none';
+  btn.classList.remove('glow-attend', 'glow-claim');
+  if (dot) { dot.className = 'reb-dot'; dot.style.display = 'none'; }
+
+  if (canAttend) {
+    btn.classList.add('glow-attend');
+    if (dot) { dot.classList.add('gold'); dot.style.display = 'inline-block'; }
+  } else if (relayClaimable) {
+    btn.classList.add('glow-claim');
+    if (dot) { dot.classList.add('purple'); dot.style.display = 'inline-block'; }
+  }
 }
 
 window.goToRelayBoard = function() { openRelayModal(); };
@@ -13614,27 +13623,8 @@ window.handleRelayOverlayClick = function(e) {
   if (e.target === document.getElementById('relay-modal-overlay')) closeRelayModal();
 };
 
-// 헤더 출석 칩 업데이트 — 현재 슬롯만, 미완료 시만 노출
+// 헤더 출석 칩 제거 — relay-event-btn으로 통합
 function updateAttendQuickBtn() {
-  const c1 = document.getElementById('hs-attend-1');
-  const c2 = document.getElementById('hs-attend-2');
-  if (!c1 || !c2) return;
-  c1.style.display = 'none';
-  c2.style.display = 'none';
-  if (!myName || CURRENT_SEASON < 1) return;
-  const myEntry = Object.entries(goldData).find(([,g]) => normName(g.name) === normName(myName));
-  if (!myEntry) return; // goldData 로드 전 race condition 방지
-  const myData = myEntry[1];
-  const todayKey = getLocalDateKey();
-  const currentSlot = getAttendSlot();
-  if (!isAttendSlotDone(myData, currentSlot, todayKey)) {
-    const chip = currentSlot === 1 ? c1 : c2;
-    chip.style.display = 'inline-block';
-    chip.className = 'hs-attend-chip';
-    chip.textContent = '출석체크';
-    chip.disabled = false;
-    chip.onclick = () => openRelayModal();
-  }
   updateRelayEventBtn();
 }
 
