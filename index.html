@@ -4291,7 +4291,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.25';
+const APP_VERSION = 'v2.43.26';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6163,7 +6163,8 @@ onValue(ref(db, 'gold'), (snapshot) => {
   goldData = snapshot.val() || {};
   goldLoaded = true;
   migrateRelayBase();
-  fixRelaySogeup();
+  revertRelaySogeup();
+  fixRelayBaseOnly();
   if (matchesLoaded) updateMyInfoBar();
   renderShop();
   if (playersLoaded && matchesLoaded) seedGoldForAllPlayers();
@@ -14938,35 +14939,64 @@ function calcRelayGold(claimed, base) {
 let _relayBaseMigrated = false;
 async function migrateRelayBase() {}
 
-// v2.43.25 릴레이 소급 정상화
-// · relayClaimed = min(총 출첵수, 30) 으로 전원 소급
-// · relayBase = 0 (migration이 잘못 설정한 값 초기화)
-// · 누락 마일스톤 아이템 지급
-let _relaySogeupDone = false;
-async function fixRelaySogeup() {
-  if (_relaySogeupDone) return;
-  _relaySogeupDone = true;
+// v2.43.25 소급 함수 — v2.43.26에서 롤백됨 (골드/아이템 과지급)
+async function fixRelaySogeup() {}
+
+// v2.43.26 롤백: 소급 적용 전 원본 값으로 복원 (2026-05-22 Firebase 스냅샷 기준)
+// relayClaimed/relayProgress는 실제 출첵 시점의 값으로, 아이템은 역순 제거
+const _RELAY_ROLLBACK = {
+  '애긢반달곰':       { claimed: 2  },
+  '신규회원임':       { claimed: 1  },
+  '울퉁쓰':          { claimed: 2  },
+  '브랜딩프로':       { claimed: 1  },
+  '조조와빈찬합':     { claimed: 1  },
+  '맹독 벌꿀오소리':  { claimed: 2  },
+  '나랑듀오해듀오':   { claimed: 2  },
+  '빛나는언즈':       { claimed: 1  },
+  '쭝쭝이주인':       { claimed: 0  },
+};
+let _relayRollbackDone = false;
+async function revertRelaySogeup() {
+  if (_relayRollbackDone) return;
+  _relayRollbackDone = true;
   for (const [key, data] of Object.entries(goldData)) {
-    const attendCount    = data[sField('attendanceCount')] || 0;
-    if (!attendCount) continue;
-    const correctClaimed = Math.min(attendCount, 30);
-    const currentClaimed = data[sField('relayClaimed')]  || 0;
-    const currentBase    = data[sField('relayBase')]     || 0;
-    if (currentClaimed >= correctClaimed && currentBase === 0) continue;
-    const newItems = RELAY_REWARDS.slice(currentClaimed, correctClaimed)
-      .filter(r => r.itemId)
-      .map(r => ({ id: r.itemId, active: false }));
+    const rb = _RELAY_ROLLBACK[data.name];
+    if (!rb) continue;
+    const currentClaimed = data[sField('relayClaimed')] || 0;
+    if (currentClaimed === rb.claimed) continue; // 이미 원상복구됨
+    // 소급으로 추가된 아이템 제거 (slice 범위의 milestone 아이템을 뒤에서 제거)
+    const addedItems = RELAY_REWARDS.slice(rb.claimed, currentClaimed)
+      .filter(r => r.itemId).map(r => r.itemId);
+    let revertedItems = [...(data[sField('items')] || [])];
+    for (const itemId of addedItems) {
+      const idx = revertedItems.map(i=>i.id).lastIndexOf(itemId);
+      if (idx >= 0) revertedItems.splice(idx, 1);
+    }
     const updates = {
-      [sField('relayClaimed')]:  correctClaimed,
-      [sField('relayProgress')]: correctClaimed,
+      [sField('relayClaimed')]:  rb.claimed,
+      [sField('relayProgress')]: rb.claimed,
       [sField('relayBase')]:     0,
+      [sField('items')]:         revertedItems,
     };
-    if (newItems.length) updates[sField('items')] = [...(data[sField('items')] || []), ...newItems];
     try {
       await update(ref(db, 'gold/' + key), updates);
-      console.log(`[릴레이 소급] ${data.name}: claimed ${currentClaimed}→${correctClaimed}, base ${currentBase}→0` +
-        (newItems.length ? `, 아이템 ${newItems.map(i=>i.id).join('/')} 지급` : ''));
-    } catch(e) { console.error('[릴레이 소급 실패]', data.name, e); }
+      console.log(`[릴레이 롤백] ${data.name}: claimed ${currentClaimed}→${rb.claimed}, 아이템 ${addedItems.length}개 제거`);
+    } catch(e) { console.error('[릴레이 롤백 실패]', data.name, e); }
+  }
+}
+
+// 안전한 최소 수정: relayBase가 0이 아닌 유저만 0으로 초기화
+let _relayBaseFixDone = false;
+async function fixRelayBaseOnly() {
+  if (_relayBaseFixDone) return;
+  _relayBaseFixDone = true;
+  for (const [key, data] of Object.entries(goldData)) {
+    const base = data[sField('relayBase')] || 0;
+    if (base === 0) continue;
+    try {
+      await update(ref(db, 'gold/' + key), { [sField('relayBase')]: 0 });
+      console.log(`[relayBase 초기화] ${data.name}: ${base}→0`);
+    } catch(e) { console.error('[relayBase 초기화 실패]', data.name, e); }
   }
 }
 function calcMagollaGold(history) {
