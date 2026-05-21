@@ -3508,6 +3508,18 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .rlb-tm-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,#c8973c,#f0c060);}
 .rlb-tm-step{font-size:11px;font-weight:700;color:var(--text-dim);min-width:34px;text-align:right;font-family:'JetBrains Mono',monospace;}
 .rlb-tm-step.done{color:#4ade80;}
+.rlb-top-bar{margin-bottom:10px;}
+.rlb-help-wrap{position:relative;display:inline-flex;align-items:center;cursor:pointer;}
+.rlb-help-btn{background:none;border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:3px 9px;font-size:11px;color:var(--text-dim);cursor:pointer;font-family:'Noto Sans KR',sans-serif;letter-spacing:0;}
+.rlb-help-btn:hover{color:var(--text);border-color:rgba(255,255,255,0.22);}
+.rlb-help-tip{display:none;position:absolute;top:calc(100% + 6px);left:0;background:#0d1829;border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:10px 13px;font-size:11.5px;color:var(--text-dim);min-width:190px;line-height:1.9;z-index:300;box-shadow:0 8px 24px rgba(0,0,0,.6);pointer-events:none;white-space:normal;}
+.rlb-help-tip b{color:var(--text);}
+.rlb-help-wrap:hover .rlb-help-tip,.rlb-help-wrap.open .rlb-help-tip{display:block;}
+.rlb-tm-toggle{display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:7px 0;margin-top:4px;border-top:1px solid rgba(255,255,255,0.05);}
+.rlb-tm-toggle-title{font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:.6px;}
+.rlb-tm-toggle-arr{font-size:10px;color:var(--text-muted);}
+.rlb-tm-body-wrap{display:none;}
+.rlb-tm-body-wrap.open{display:block;}
 /* ── 릴레이 이벤트 팝업 모달 ── */
 .relay-modal-overlay{display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.72);backdrop-filter:blur(8px);align-items:flex-start;justify-content:center;padding:20px 12px 40px;overflow-y:auto;}
 .relay-modal-overlay.open{display:flex;}
@@ -3655,23 +3667,6 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
         <div class="rm-head-banner">
           <span class="rm-banner-tag">EVENT</span>
           <h2 class="rm-banner-title">릴레이 <span>출석 이벤트</span></h2>
-          <div class="rm-banner-sub">출석할 때마다 한 칸씩 전진 — 30칸 완주 시 <b>보너스 보상 1,000G + 아이템 6장</b></div>
-        </div>
-
-        <div class="rm-reward-grid">
-          <div class="rm-rw-card rm-rw-bonus" style="flex:unset;width:100%;">
-            <div class="rm-rw-icon">🎁</div>
-            <div class="rm-rw-label">릴레이 완주 보너스</div>
-            <div class="rm-rw-amount">+1,000G + 아이템 6장</div>
-            <div class="rm-rw-foot">마일스톤(5·10·15·20·25·30일차) 도달 시 수령</div>
-          </div>
-        </div>
-
-        <div class="relay-modal-slots">
-          <span class="rms-clock">⏰</span>
-          <span class="rms-item"><b>오전 출첵</b> 자정 ~ 정오</span>
-          <span class="rms-sep">·</span>
-          <span class="rms-item"><b>오후 출첵</b> 정오 ~ 자정</span>
         </div>
       </div>
     </div>
@@ -4291,7 +4286,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.29';
+const APP_VERSION = 'v2.43.30';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4300,6 +4295,9 @@ const APP_VERSION = 'v2.43.29';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.30', date: '2026-05-22', changes: [
+    { tag: 'improve', text: '릴레이 보드 UI 정리 — LP 2배권 설명 카드 제거, 헤더 "30칸 완주 보너스" 텍스트·완주 보너스 카드·오전/오후 슬롯 안내 제거. 오전/오후 출석 방법은 최상단 "? 출석체크 하는 법" 호버 툴팁으로 이전. 팀원 진행도는 기본 접힘, 클릭 시 펼쳐보기' },
+  ]},
   { ver: 'v2.43.29', date: '2026-05-22', changes: [
     { tag: 'fix', text: 'LP 2배권 릴레이 보드 아이콘이 SVG 대신 "2×" 텍스트로 고정 출력되던 버그 수정 — renderRelayBoard에서 s1_lp2x를 특별 처리(rlb-lp2x 텍스트 뱃지)하던 분기 제거, 다른 아이템과 동일하게 SHOP_ITEMS.icon SVG 렌더링으로 통합' },
   ]},
@@ -13145,25 +13143,21 @@ function renderRelayBoardHtml() {
   }).join('');
 
   const tmSection = teammates.length ? `
-    <div class="rlb-slabel" style="margin-top:4px;">팀원 현황</div>
-    <div class="rlb-tm-card">
-      <div class="rlb-tm-header">
-        <span class="rlb-tm-htitle">팀원 진행도</span>
-        <span class="rlb-tm-hcount">${teammates.length}명</span>
-      </div>
-      ${tmRows}
+    <div class="rlb-tm-toggle" onclick="this.nextElementSibling.classList.toggle('open');this.querySelector('.rlb-tm-toggle-arr').textContent=this.nextElementSibling.classList.contains('open')?'▲':'▼';">
+      <span class="rlb-tm-toggle-title">팀원 현황 · ${teammates.length}명</span>
+      <span class="rlb-tm-toggle-arr">▼</span>
+    </div>
+    <div class="rlb-tm-body-wrap">
+      <div class="rlb-tm-card">${tmRows}</div>
     </div>` : '';
 
-  const infoCard = `<div class="rlb-info-card">
-    <div class="rlb-info-icon">2×</div>
-    <div class="rlb-info-body">
-      <div class="rlb-info-name">LP 2배권</div>
-      <div class="rlb-info-tag">출석 전용 아이템</div>
-      <div class="rlb-info-desc"><b>승리 시</b> LP를 2배로 획득 (+40 LP)<br><b>패배 시</b> 아이템 소모, 일반 패배 적용 (−14 LP)</div>
-    </div>
+  const helpTip = `<div class="rlb-help-wrap" onclick="this.classList.toggle('open')">
+    <button class="rlb-help-btn">? 출석체크 하는 법</button>
+    <div class="rlb-help-tip"><b>오전 출첵</b> 자정 ~ 정오<br><b>오후 출첵</b> 정오 ~ 자정<br><span style="color:rgba(255,255,255,.35);font-size:10px;">하루 2회, 각 1칸씩 전진</span></div>
   </div>`;
 
   return `<div class="rlb-section">
+    <div class="rlb-top-bar">${helpTip}</div>
     ${attendArea}
     <div class="rlb-my-card">
       <div class="rlb-my-info">
@@ -13183,7 +13177,6 @@ function renderRelayBoardHtml() {
     ${claimArea}
     <div class="rlb-slabel">보상판<div class="rlb-legend-row"><div class="rlb-legend-chip"><div class="rlb-ldot rlb-ldot-gold"></div>일반</div><div class="rlb-legend-chip"><div class="rlb-ldot rlb-ldot-purple"></div>마일스톤</div><div class="rlb-legend-chip"><div class="rlb-ldot rlb-ldot-dim"></div>미개방</div></div></div>
     <div class="rlb-grid">${cells}</div>
-    ${infoCard}
     ${tmSection}
   </div>`;
 }
