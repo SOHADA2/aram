@@ -4267,7 +4267,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.8';
+const APP_VERSION = 'v2.43.9';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4276,6 +4276,10 @@ const APP_VERSION = 'v2.43.8';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.9', date: '2026-05-21', changes: [
+    { tag: 'fix', text: '상태 부적합 active S1 아이템이 다음 매치에서 효과 없이 소모되던 버그 수정 — 정규전→승급전 전환 후 active 상태 leftover (도박권/LP2x), 승급전→정규전 복귀 후 leftover (promo_shield/promo_win), 배치고사 중 leftover 등으로 인한 100G 증발 위험. saveMatch 진입 시 _normalizeActiveS1Items 가 매치 시작 직전 player.s1 상태에 부적합한 active 아이템을 자동 비활성화(인벤 보존). 본인이면 토스트 안내' },
+    { tag: 'fix', text: 'buyItem 에 relayOnly 가드 추가 — s1_lp2x 같은 출석 릴레이 전용 아이템(price:0)을 콘솔에서 직접 buyItem 호출 시 무료 구매 가능했던 잠재 익스플로잇 방어. 상점 목록 필터(renderShop) 외에 buyItem 함수에도 차단' },
+  ]},
   { ver: 'v2.43.8', date: '2026-05-21', changes: [
     { tag: 'fix', text: 'toggleItemActive(인벤토리 그리드 클릭) 에 LP 2배권 가드 누락 수정 — quickToggleItem 에는 있지만 메인 활성화 경로인 toggleItemActive 에는 (1) 배치고사·승급전 중 활성화 차단, (2) 도박권과 동시 활성화 차단 둘 다 없어서 양쪽 켤 수 있던 버그. 둘 다 active 상태로 저장되면 s1ApplyMatchResult 가 items.find()로 1개만 잡아 한 효과만 발동되는데 giveMatchGold 는 둘 다 소모 → 아이템 증발 위험. 두 가드 모두 추가' },
   ]},
@@ -10594,6 +10598,11 @@ window.saveMatch = async function() {
       });
       _s1LpSnapshot = s1LpBefore; // 글로벌 저장
       _suppressS1SuccessBanners = true; // 정산창이 티어업 카드로 표시하므로 배너 억제
+      // 상태 부적합 active 아이템 자동 비활성화 (v2.43.9~)
+      // 예: 정규전에서 도박권 켜고 LP 100 → 승급전 진입 → 다음 매치는 승급전인데
+      // 도박권 active 상태 그대로 → s1Apply 가 무시하지만 giveMatchGold 가 소모 → 아이템 증발
+      // 매치 진입 직전 player.s1State 와 매치 가능한 아이템만 active 유지하도록 정규화
+      await _normalizeActiveS1Items(allMatchPlayers, s1LpBefore);
     }
     await s1ApplyAllMatchResults(winners, losers, matchData.newbies || null, currentSpectators.map(s => s.name));
     await giveMatchGold(winners, losers, matchTimestamp);
@@ -16491,6 +16500,10 @@ window.buyItem = async function(itemId) {
   if (!data) return;
   const item = [...SHOP_ITEMS, ...S1_SHOP_ITEMS].find(s=>s.id===itemId);
   if (!item) return;
+  // 릴레이 전용 아이템은 상점에서 구매 불가 (v2.43.9~ 방어 추가)
+  if (item.relayOnly) {
+    showS1Toast?.('이 아이템은 상점에서 구매할 수 없어요'); return;
+  }
   // v2.36.30~ 잠금 가드 — 복권은 매치 중에도 항상 허용, 그 외는 본인 참여 매치일 때만 차단
   const _isLottery = item.type === 'lottery' || item.type === 'lottery_premium';
   if (!_isLottery && isItemsEffectivelyLocked()) {
@@ -17245,6 +17258,44 @@ async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = f
   if (isMe && !_prePromoActive && d.promoActive) _pendingPromoNotif = { type:'start', tier:d.tier };
   await s1SavePlayer(name, d);
   return d;
+}
+
+// 매치 진입 직전 plyer 상태와 부적합한 active S1 아이템 자동 비활성화 (v2.43.9~)
+// 상태 vs 아이템 매칭:
+//   placementDone=false                  → 모든 S1 아이템 무효
+//   promoActive=true                     → s1_gamble, s1_lp2x 무효 (promo_* 만 유효)
+//   placementDone=true && promoActive=false → s1_promo_shield, s1_promo_win 무효
+// 효과가 없는 채로 giveMatchGold 가 소모해버리는 100G 증발 버그 방지.
+async function _normalizeActiveS1Items(players, preMatchState) {
+  const itemsKey = sField('items');
+  for (const p of players) {
+    const pKey = normName(p.name);
+    const goldEntry = Object.entries(goldData).find(([,g]) => normName(g.name) === pKey);
+    if (!goldEntry) continue;
+    const [k, d] = goldEntry;
+    const items = d[itemsKey] || [];
+    const state = preMatchState[pKey] || s1DefaultPlayer();
+    let changed = false;
+    const newItems = items.map(it => {
+      if (!it.active || !it.id?.startsWith?.('s1_')) return it;
+      let invalid = false;
+      if (!state.placementDone) invalid = true;
+      else if (state.promoActive) {
+        if (it.id === 's1_gamble' || it.id === 's1_lp2x') invalid = true;
+      } else {
+        if (it.id === 's1_promo_shield' || it.id === 's1_promo_win') invalid = true;
+      }
+      if (invalid) { changed = true; return { ...it, active: false }; }
+      return it;
+    });
+    if (changed) {
+      await update(ref(db, 'gold/' + k), { [itemsKey]: newItems });
+      // 본인이면 알림 (다른 플레이어는 라이브 기기에서 처리되므로 토스트 띄우지 않음)
+      if (myName && pKey === normName(myName) && typeof showS1Toast === 'function') {
+        showS1Toast('⚠ 현재 상태에 맞지 않는 활성 아이템은 비활성화됐어요 (인벤토리에 보존됨)');
+      }
+    }
+  }
 }
 
 // ── saveMatch 훅: 전체 플레이어 S1 결과 일괄 적용 ────────────────
