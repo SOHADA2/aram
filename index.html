@@ -4261,7 +4261,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.14';
+const APP_VERSION = 'v2.43.15';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4270,6 +4270,9 @@ const APP_VERSION = 'v2.43.14';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.15', date: '2026-05-21', changes: [
+    { tag: 'fix', text: '릴레이 이벤트 소급 이중지급 방지 — v2.43.14 이전에 출첵한 팀원이 다음 출석 시 구 출첵골드(50G×N)와 릴레이 보상이 중복 계산되던 문제 수정. relayBase_s1 필드로 구 진행분 구간을 마킹해 신규 스텝부터만 릴레이 골드 지급' },
+  ]},
   { ver: 'v2.43.9', date: '2026-05-21', changes: [
     { tag: 'fix', text: '상태 부적합 active S1 아이템이 다음 매치에서 효과 없이 소모되던 버그 수정 — 정규전→승급전 전환 후 active 상태 leftover (도박권/LP2x), 승급전→정규전 복귀 후 leftover (promo_shield/promo_win), 배치고사 중 leftover 등으로 인한 100G 증발 위험. saveMatch 진입 시 _normalizeActiveS1Items 가 매치 시작 직전 player.s1 상태에 부적합한 active 아이템을 자동 비활성화(인벤 보존). 본인이면 토스트 안내' },
     { tag: 'fix', text: 'buyItem 에 relayOnly 가드 추가 — s1_lp2x 같은 출석 릴레이 전용 아이템(price:0)을 콘솔에서 직접 buyItem 호출 시 무료 구매 가능했던 잠재 익스플로잇 방어. 상점 목록 필터(renderShop) 외에 buyItem 함수에도 차단' },
@@ -14881,12 +14884,14 @@ function calcPlayerGoldEarned(name, data) {
                      + (data.witnessGold_s1_gm  || 0)
                      + (data.witnessGold_s1_ch  || 0);
   const magollaGold = calcMagollaGold(data.magollaHistory_s1);
-  const relayGold   = CURRENT_SEASON >= 1 ? calcRelayGold(data[sField('relayClaimed')]) : 0;
+  const relayBase   = data[sField('relayBase')] || 0;
+  const relayGold   = CURRENT_SEASON >= 1 ? calcRelayGold(data[sField('relayClaimed')], relayBase) : 0;
   return calcGoldFromMatches(name) + bonusLegacy + attendGold + achieveGold + passGold + lotteryGold + witnessGold + magollaGold + relayGold;
 }
-function calcRelayGold(claimed) {
+function calcRelayGold(claimed, base) {
   if (!claimed) return 0;
-  return RELAY_REWARDS.slice(0, Math.min(claimed, 30)).reduce((s, r) => s + r.gold, 0);
+  const from = base || 0;
+  return RELAY_REWARDS.slice(from, Math.min(claimed, 30)).reduce((s, r) => s + r.gold, 0);
 }
 function calcMagollaGold(history) {
   if (!Array.isArray(history)) return 0;
@@ -15900,12 +15905,21 @@ window.doAttendance = async function() {
 
   const relayPKey       = sField('relayProgress');
   const relayClaimedKey = sField('relayClaimed');
+  const relayBaseKey    = sField('relayBase');
+  const oldProgress     = data[relayPKey] || 0;
   const oldClaimed      = data[relayClaimedKey] || 0;
-  const newRelayP       = Math.min(30, (data[relayPKey] || 0) + 1);
+  const oldBase         = data[relayBaseKey] || 0;
+  const newRelayP       = Math.min(30, oldProgress + 1);
   const newClaimed      = newRelayP; // 출석 즉시 해당 칸까지 자동 수령
 
-  // 수령 단계 계산 (밀린 이전 단계 + 새 단계 포함)
-  const newSteps      = RELAY_REWARDS.slice(oldClaimed, newClaimed);
+  // 구버전 사용자: relayClaimed=0인데 relayProgress>0 → 이미 출첵골드(50G)로 보상받은 구간
+  // relayBase를 구 progress 값으로 설정해 해당 구간은 calcRelayGold에서 제외 (이중지급 방지)
+  const isLegacyUser    = oldClaimed === 0 && oldProgress > 0 && oldBase === 0;
+  const newBase         = isLegacyUser ? oldProgress : oldBase;
+  const effectiveFrom   = Math.max(oldClaimed, newBase);
+
+  // 수령 단계 계산 (구버전 base 이후 구간만)
+  const newSteps      = RELAY_REWARDS.slice(effectiveFrom, newClaimed);
   const relayGoldGain = newSteps.reduce((s, r) => s + r.gold, 0);
   const relayItems    = newSteps.filter(r => r.itemId).map(r => ({ id: r.itemId, active: false }));
   const newItems      = [...(data[sField('items')] || []), ...relayItems];
@@ -15920,6 +15934,7 @@ window.doAttendance = async function() {
     [sField('attendanceCount')]: (data[sField('attendanceCount')] ?? 0) + 1,
     [relayPKey]:       newRelayP,
     [relayClaimedKey]: newClaimed,
+    [relayBaseKey]:    newBase,
     [sField('items')]: newItems,
   };
   if (slot === 1) updates.lastAttendance  = todayKey;
