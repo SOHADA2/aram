@@ -4267,7 +4267,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.7';
+const APP_VERSION = 'v2.43.8';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4276,6 +4276,9 @@ const APP_VERSION = 'v2.43.7';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.8', date: '2026-05-21', changes: [
+    { tag: 'fix', text: 'toggleItemActive(인벤토리 그리드 클릭) 에 LP 2배권 가드 누락 수정 — quickToggleItem 에는 있지만 메인 활성화 경로인 toggleItemActive 에는 (1) 배치고사·승급전 중 활성화 차단, (2) 도박권과 동시 활성화 차단 둘 다 없어서 양쪽 켤 수 있던 버그. 둘 다 active 상태로 저장되면 s1ApplyMatchResult 가 items.find()로 1개만 잡아 한 효과만 발동되는데 giveMatchGold 는 둘 다 소모 → 아이템 증발 위험. 두 가드 모두 추가' },
+  ]},
   { ver: 'v2.43.7', date: '2026-05-21', changes: [
     { tag: 'fix', text: 's1Resimulate() LP 재시뮬레이션에서 LP 2배권(s1_lp2x) 분기 누락 수정 — 재시뮬 실행 시 LP 2배권 사용 경기가 일반 +20 LP로 계산되어 LP 손실 발생할 수 있던 잠재 버그. 라이브 s1ApplyMatchResult와 동일하게 useLp2x → +40 LP 적용. 출석 릴레이로 받은 LP 2배권 모든 사용 케이스 정상 반영 보장' },
   ]},
@@ -16642,6 +16645,19 @@ window.toggleItemActive = async function(idx) {
       showS1Toast(!myS1?.placementDone
         ? `⚠ 도박권은 배치고사 완료 후 사용할 수 있어요`
         : `⚠ 도박권은 승급전 중 사용할 수 없어요`);
+      return;
+    }
+    // LP 2배권: 배치고사·승급전 중 사용 불가 (v2.43.8~ 가드 추가)
+    if (tryId === 's1_lp2x' && (!myS1?.placementDone || myS1?.promoActive)) {
+      showS1Toast(!myS1?.placementDone
+        ? `⚠ LP 2배권은 배치고사 완료 후 사용할 수 있어요`
+        : `⚠ LP 2배권은 승급전 중 사용할 수 없어요`);
+      return;
+    }
+    // LP 2배권 ↔ 도박권 동시 활성화 방지 (둘 다 켜져 있어도 s1ApplyMatchResult가 1개만 잡고 둘 다 소모됨)
+    if ((tryId === 's1_lp2x' && items.some((it,i)=>i!==idx&&it.active&&it.id==='s1_gamble'))
+     || (tryId === 's1_gamble' && items.some((it,i)=>i!==idx&&it.active&&it.id==='s1_lp2x'))) {
+      showS1Toast(`⚠ LP 2배권과 도박권은 함께 사용할 수 없어요`);
       return;
     }
   }
