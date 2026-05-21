@@ -4291,7 +4291,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.23';
+const APP_VERSION = 'v2.43.24';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6163,6 +6163,7 @@ onValue(ref(db, 'gold'), (snapshot) => {
   goldData = snapshot.val() || {};
   goldLoaded = true;
   migrateRelayBase();
+  fixRelayBaseOverflow();
   if (matchesLoaded) updateMyInfoBar();
   renderShop();
   if (playersLoaded && matchesLoaded) seedGoldForAllPlayers();
@@ -14934,12 +14935,27 @@ function calcRelayGold(claimed, base) {
   return RELAY_REWARDS.slice(from, Math.min(claimed, 30)).reduce((s, r) => s + r.gold, 0);
 }
 
-// v2.43.14 배포 직후 출석한 구버전 유저 일회성 마이그레이션
-// 조건: relayClaimed>0 && relayBase=0 && attendanceHistory에 gold>0 항목 존재
+// v2.43.23: 비활성화 (relayBase > relayClaimed → 0G 버그 원인)
 let _relayBaseMigrated = false;
-async function migrateRelayBase() {
-  // v2.43.23: 비활성화 — relayBase를 oldCount로 설정하면 relayBase > relayClaimed 상태가 되어
-  // effectiveFrom이 newClaimed를 초과하고, relayClaimed가 base에 도달할 때까지 0G 출첵 발생.
+async function migrateRelayBase() {}
+
+// v2.43.24: relayBase > relayClaimed인 유저 일괄 수정 (migrateRelayBase가 잘못 설정한 값 정상화)
+let _relayBaseFixApplied = false;
+async function fixRelayBaseOverflow() {
+  if (_relayBaseFixApplied) return;
+  _relayBaseFixApplied = true;
+  for (const [key, data] of Object.entries(goldData)) {
+    const claimed = data[sField('relayClaimed')] || 0;
+    const base    = data[sField('relayBase')]    || 0;
+    if (base > claimed) {
+      try {
+        await update(ref(db, 'gold/' + key), { [sField('relayBase')]: 0 });
+        console.log(`[relayBase 수정] ${data.name}: base ${base} → 0 (claimed=${claimed})`);
+      } catch(e) {
+        console.error('[relayBase 수정 실패]', data.name, e);
+      }
+    }
+  }
 }
 function calcMagollaGold(history) {
   if (!Array.isArray(history)) return 0;
