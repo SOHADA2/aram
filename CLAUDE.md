@@ -657,6 +657,53 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
+### v2.43.x (2026-05-21) ← 최신
+
+#### 릴레이 출석 호환성 (v2.43.15~17)
+- **v2.43.15**: `relayBase_s1` 필드 도입 — v2.43.14 이전 유저의 이중 골드 지급 방지
+  - `calcRelayGold(claimed, base)` — `RELAY_REWARDS.slice(base, claimed)` 합산
+  - `calcPlayerGoldEarned`에서 `relayBase` 참조
+  - `doAttendance`에서 `isLegacyUser` 판별 후 `newBase` 설정
+- **v2.43.16**: `migrateRelayBase()` — v2.43.14 창 유저 자동 마이그레이션 (출석 이력 기반 `correctBase` 계산)
+- **v2.43.17**: `attendanceHistory` 항목에 `relayStep` 필드 추가 (출석 시 현재 릴레이 단계 기록)
+
+#### 챔피언 가챠 개편 (v2.43.18~20)
+- **v2.43.18**: 1성 → **파편** 리네임 (배경만 존재, 누끼 없음, 효과 없음)
+  - `GACHA_TIER_KR`, `GACHA_STAR_LABEL`, `GACHA_STAR_FLAVOR` 갱신
+  - `_gachaCardHtml`: `isShard = star===1` 분기 — 파편은 petWrap/roleText/효과 미표시
+- **v2.43.19**: 가챠 확률 복원 — 파편 87% / 2성 10% / 3성 3% (`gachaRollStar` 정상화)
+- **v2.43.20**: **시너지 시스템 전면 개편**
+  - `GACHA_CHAMPS`에 `faction` 필드 추가 (ionia/void/bilgewater/demacia/shurima/null)
+  - `GACHA_SYNERGY_GROUPS` 3개 → **11개** (역할 6 + 진영 5)
+    - 역할: 검을 뽑아라(전사), 신성한 개입(서폿), 탄환 세례(원딜), 그림자 주자(암살자), 강철 심장(탱커), 유레카(마법사)
+    - 진영: 검무(아이오니아), 공허 균열(공허), 골드 강탈(빌지워터), 여명의 의지(데마시아), 나는 왕이다(슈리마)
+  - 카드 개별 타입/효과 표시 제거 (`GACHA_PET_TYPE`, `GACHA_EFFECT_TXT`, `GACHA_SET_CFG` 폐기)
+  - **시너지 효과**: 발동률 2성=10% / 3성=20%, 효과값은 멤버수 기준 (2명→약, 3명→중, 4명→강)
+  - **토글 조건**: 2성 토글 = 전원 s2≥1 / 3성 토글 = 전원 s3≥1, 동시 1개만 활성화
+  - Firebase: `activeSynergy_s1: {sid, tier}` 저장
+  - `_renderSynGroup()`: 시너지 row 렌더 (챔피언 실루엣 줄 + 토글 버튼 + 효과 미리보기 드롭다운)
+  - `window.toggleGachaSynergy(sid, tier)`: 토글 ON/OFF + Firebase 저장
+  - CSS: `.syn-row`, `.syn-fig`, `.syn-toggle`, `.dex-syn-group` 등 시너지 row 스타일 추가
+
+#### 시너지 효과 설계
+| 시너지 | 이름 | 효과 타입 | 효과값 |
+|--------|------|----------|--------|
+| 전사(3명) | 검을 뽑아라 | 승리 LP | +6 |
+| 서폿(2명) | 신성한 개입 | 패배 LP 방어 | -3 방어 |
+| 원딜(3명) | 탄환 세례 | 승리 LP | +6 |
+| 암살자(3명) | 그림자 주자 | 출석 골드 | +12G |
+| 탱커(4명) | 강철 심장 | 패배 LP 방어 | -8 방어 |
+| 마법사(3명) | 유레카 | 출석 골드 | +12G |
+| 아이오니아(2명) | 검무 | 승리 LP | +4 |
+| 공허(2명) | 공허 균열 | 패배 LP 방어 | -3 방어 |
+| 빌지워터(2명) | 골드 강탈 | 출석 골드 | +8G |
+| 데마시아(3명) | 여명의 의지 | 승리 LP | +6 |
+| 슈리마(4명) | 나는 왕이다 | 승리 LP | +9 |
+
+#### 다음 작업 (미구현)
+- 시너지 실제 효과 적용 로직 (경기 결과 처리 시 `activeSynergy_s1` 읽어서 발동 계산)
+- 챔피언 이미지 파일 (`assets/pets/{slug}/silver|gold|prism/default.png`) 준비
+
 ### v2.42.x (2026-05-21)
 - **v2.42.0~3**: 챔피언 가챠 시스템 index.html 통합
   - 상점 탭 "펫" 카테고리 → 뽑기/카드/도감 3탭 구조
