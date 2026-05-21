@@ -4291,7 +4291,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.27';
+const APP_VERSION = 'v2.43.28';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4300,6 +4300,10 @@ const APP_VERSION = 'v2.43.27';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.28', date: '2026-05-22', changes: [
+    { tag: 'fix', text: 'LP 2배권 EOG 화면 LP 표시 버그 수정 — LP 2배권 활성 경기 결과에서 +40 LP 대신 +20 LP로 표시되던 문제(실제 DB 저장은 정상). _lp 계산 분기에 useLp2x 추가. 새싹 팀원과 함께한 경우도 +43 LP 정확히 표시' },
+    { tag: 'improve', text: 'LP 2배권 아이콘 개선 — 기존 번개 폴리라인 단일 요소에서 원(메달) + 더블 쉐브론 업 디자인으로 변경. 2배 상승 의미를 명확히 시각화' },
+  ]},
   { ver: 'v2.43.18', date: '2026-05-21', changes: [
     { tag: 'improve', text: '챔피언 가챠 파편 시스템 개편 — 기존 1성(SILVER)을 파편으로 개명. 파편은 배경만 표시(캐릭터 아트 없음), 보유효과 없음. 가챠는 항상 파편 지급, 2성/3성은 합성으로만 획득. 2성(GOLD)·3성(PRISM)부터 보유효과 적용. 카드탭·도감·줌 패널 전 영역 반영' },
   ]},
@@ -5417,7 +5421,7 @@ const ITEM_SVG_ICONS = {
   s1_promo_shield: _si('<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 14 12 10 15 14"/>'),
   s1_promo_win:   _si('<polyline points="2 18 5 5 9 13 12 5 15 13 19 5 22 18"/><rect x="2" y="18" width="20" height="3" rx="1"/>'),
   s1_gamble:      _si('<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="8.5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="15.5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="8.5" cy="16.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="15.5" cy="16.5" r="1.2" fill="currentColor" stroke="none"/>'),
-  s1_lp2x:       _si('<polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>'),
+  s1_lp2x:       _si('<circle cx="12" cy="12" r="9"/><polyline points="8 16 12 12 16 16"/><polyline points="8 11 12 7 16 11"/>'),
 };
 
 const SHOP_ITEMS = [
@@ -10047,8 +10051,9 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
           const _s1item = effects.find(e => e.startsWith('s1_'));
           let _lp;
           if (isWin) {
+            const _useLp2x = _s1item === 's1_lp2x';
             _lp = _s1item === 's1_gamble' ? S1_GAMBLE_WIN
-                : S1_LP_WIN + (!_s1item && hasNewbieTeammate ? S1_NEWBIE_WIN_BONUS_LP : 0);
+                : (_useLp2x ? S1_LP_WIN * 2 : S1_LP_WIN) + (!_s1item || _useLp2x ? (hasNewbieTeammate ? S1_NEWBIE_WIN_BONUS_LP : 0) : 0);
           } else {
             if (_s1item === 's1_promo_shield') _lp = 0;
             else if (_s1item === 's1_gamble') _lp = -S1_GAMBLE_LOSS;
