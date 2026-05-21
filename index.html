@@ -3527,6 +3527,14 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .relay-modal-slots .rms-reward{margin-left:auto;color:rgba(255,255,255,0.55);}
 .relay-modal-slots .rms-reward b{color:#f0c060;font-weight:700;}
 .relay-modal-body{padding:14px 16px 16px;}
+/* 모달 내 출첵 버튼 */
+.rlb-attend-btn{width:100%;padding:13px;border-radius:10px;border:none;background:linear-gradient(135deg,#e8b84b,#c8973c);color:#000;font-size:14px;font-weight:800;cursor:pointer;margin-bottom:14px;transition:filter .15s;display:flex;align-items:center;justify-content:center;gap:8px;font-family:'Noto Sans KR',sans-serif;}
+.rlb-attend-btn:hover{filter:brightness(1.1);}
+.rlb-attend-btn:active{filter:brightness(0.9);}
+.rlb-attend-gold{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;opacity:.8;}
+.rlb-attend-done{width:100%;padding:11px;border-radius:10px;border:1px solid rgba(74,222,128,0.2);background:rgba(74,222,128,0.05);color:#4ade80;font-size:13px;font-weight:700;text-align:center;margin-bottom:14px;box-sizing:border-box;}
+.rlb-attend-partial{width:100%;padding:11px;border-radius:10px;border:1px solid rgba(200,151,60,0.18);background:rgba(200,151,60,0.04);color:var(--text-dim);font-size:12px;text-align:center;margin-bottom:14px;box-sizing:border-box;line-height:1.6;}
+.rlb-attend-partial b{color:#c8973c;}
 @media (max-width:520px){
   .relay-modal-head{padding:18px 16px 14px;}
   .rm-banner-title{font-size:19px;letter-spacing:1px;}
@@ -3706,7 +3714,7 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 
 <!-- 출석 릴레이 이벤트 버튼 -->
 <button class="relay-event-btn" id="relay-event-btn" onclick="goToRelayBoard()" style="display:none">
-  <span class="reb-dot" id="reb-dot" style="display:none"></span>출석체크 이벤트<span class="reb-arrow">보상판 →</span>
+  <span class="reb-dot" id="reb-dot" style="display:none"></span>출석체크<span class="reb-arrow">이벤트 →</span>
 </button>
 
 <!-- 내 정보 바 -->
@@ -4267,7 +4275,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.9';
+const APP_VERSION = 'v2.43.10';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -12994,10 +13002,30 @@ function renderRelayBoardHtml() {
   // 오늘 출석 가능 여부
   const todayKey    = getLocalDateKey();
   const currentSlot = getAttendSlot();
+  const slot1Done   = isAttendSlotDone(data, 1, todayKey);
+  const slot2Done   = isAttendSlotDone(data, 2, todayKey);
   const canAttend   = !isAttendSlotDone(data, currentSlot, todayKey);
   const tagHtml = canAttend
     ? '<span class="rlb-today-tag">출석 가능</span>'
     : '<span class="rlb-today-tag done">출석 완료</span>';
+
+  // 출첵 버튼 영역
+  let attendArea;
+  if (slot1Done && slot2Done) {
+    attendArea = '<div class="rlb-attend-done">오늘 출석 완료 ✓ (오전 · 오후)</div>';
+  } else if (canAttend) {
+    const label = currentSlot === 1 ? '오전 출첵하기' : '오후 출첵하기';
+    const other = currentSlot === 1
+      ? (slot1Done ? '' : '')
+      : (slot1Done ? '<div class="rlb-attend-partial">오전 출첵 완료 ✓ · <b>오후 출첵</b> 정오 ~ 자정</div>' : '');
+    attendArea = `${other}<button class="rlb-attend-btn" onclick="doAttendance()">${label} <span class="rlb-attend-gold">+${GOLD_ATTEND}G</span></button>`;
+  } else {
+    const doneSlot = currentSlot === 1 ? '오전' : '오후';
+    const nextSlot = currentSlot === 1
+      ? '<b>오후 출첵</b>은 정오(12시) 이후 가능'
+      : '<b>오전 출첵</b>은 내일 자정부터';
+    attendArea = `<div class="rlb-attend-partial">${doneSlot} 출첵 완료 ✓ · ${nextSlot}</div>`;
+  }
 
   // 진행률 바
   const pct    = Math.round((claimed / 30) * 100);
@@ -13104,6 +13132,7 @@ function renderRelayBoardHtml() {
   </div>`;
 
   return `<div class="rlb-section">
+    ${attendArea}
     <div class="rlb-my-card">
       <div class="rlb-my-info">
         <div class="rlb-my-name">${escHtml(myName)}${tagHtml}</div>
@@ -13604,7 +13633,7 @@ function updateAttendQuickBtn() {
     chip.className = 'hs-attend-chip';
     chip.textContent = '출석체크';
     chip.disabled = false;
-    chip.onclick = (ev) => doAttendance(ev);
+    chip.onclick = () => openRelayModal();
   }
   updateRelayEventBtn();
 }
@@ -15888,7 +15917,7 @@ function renderAttendance() {
 }
 
 // 출석 체크 실행
-window.doAttendance = async function(ev) {
+window.doAttendance = async function() {
   const key = getMyGoldKey();
   if (!key) return;
   const data = goldData[key];
@@ -15897,8 +15926,9 @@ window.doAttendance = async function(ev) {
   if (isAttendSlotDone(data, slot, todayKey)) {
     showGoldToast('이 타임 출석 이미 완료!'); return;
   }
-  const chip = ev?.currentTarget || document.getElementById(`hs-attend-${slot}`);
-  if (chip) { chip.disabled = true; chip.textContent = '처리 중...'; }
+  // 모달 내 버튼 비활성화
+  const modalBtn = document.querySelector('.rlb-attend-btn');
+  if (modalBtn) { modalBtn.disabled = true; modalBtn.textContent = '처리 중...'; }
   const histKey = sField('attendanceHistory');
   const newHistory = [...(data[histKey] || []), { date: todayKey, gold: GOLD_ATTEND, ts: Date.now(), slot }];
   const relayPKey = sField('relayProgress');
@@ -15915,6 +15945,11 @@ window.doAttendance = async function(ev) {
     await set(ref(db, 'gold/' + key), updates);
     showAttendPopup(slot);
     updateAttendQuickBtn();
+    // 모달 열려있으면 내용 갱신
+    const rmBody = document.getElementById('relay-modal-body');
+    if (rmBody && document.getElementById('relay-modal-overlay')?.classList.contains('open')) {
+      rmBody.innerHTML = renderRelayBoardHtml();
+    }
   } catch (e) {
     updateAttendQuickBtn();
     showGoldToast('❌ 출석 체크 실패 — 다시 시도해주세요');
