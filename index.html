@@ -3429,6 +3429,7 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .rlb-claim-btn:hover{filter:brightness(1.1);}
 .rlb-done{width:100%;padding:12px;border-radius:10px;border:1px solid rgba(74,222,128,0.2);background:rgba(74,222,128,0.05);color:#4ade80;font-size:13px;font-weight:700;text-align:center;margin-bottom:16px;box-sizing:border-box;}
 .rlb-nodot{width:100%;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.06);color:var(--text-dim);font-size:12px;text-align:center;margin-bottom:16px;box-sizing:border-box;}
+.rlb-nodot b{color:#e8b84b;}
 .rlb-slabel{font-size:11px;font-weight:700;color:var(--text-dim);letter-spacing:.6px;display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
 .rlb-legend-row{display:flex;gap:10px;}
 .rlb-legend-chip{font-size:10px;color:var(--text-dim);display:flex;align-items:center;gap:4px;}
@@ -4260,7 +4261,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.13';
+const APP_VERSION = 'v2.43.14';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -13003,7 +13004,9 @@ function renderRelayBoardHtml() {
     const other = currentSlot === 1
       ? (slot1Done ? '' : '')
       : (slot1Done ? '<div class="rlb-attend-partial">오전 출첵 완료 ✓ · <b>오후 출첵</b> 정오 ~ 자정</div>' : '');
-    attendArea = `${other}<button class="rlb-attend-btn" onclick="doAttendance()">${label} <span class="rlb-attend-gold">+${GOLD_ATTEND}G</span></button>`;
+    const nextReward = RELAY_REWARDS[claimed] || RELAY_REWARDS[claimed < 30 ? claimed : 29];
+    const nextGold   = nextReward ? `+${nextReward.gold}G` : '';
+    attendArea = `${other}<button class="rlb-attend-btn" onclick="doAttendance()">${label} <span class="rlb-attend-gold">${nextGold}</span></button>`;
   } else {
     const doneSlot = currentSlot === 1 ? '오전' : '오후';
     const nextSlot = currentSlot === 1
@@ -13026,34 +13029,28 @@ function renderRelayBoardHtml() {
     `<div class="rlb-pbtick" style="left:${(d/30*100).toFixed(1)}%"></div>`
   ).join('');
 
-  // 수령 버튼
-  let claimArea;
+  // 수령은 출석 시 자동 처리 — 다음 칸 미리보기만 표시
+  let claimArea = '';
   if (claimed >= 30) {
-    claimArea = '<div class="rlb-done">30일 완주 — 모든 보상 수령 완료</div>';
-  } else if (avail > 0) {
-    const goldSum = RELAY_REWARDS.slice(claimed, claimed + avail).reduce((s, r) => s + r.gold, 0);
-    const itemNames = RELAY_REWARDS.slice(claimed, claimed + avail)
-      .filter(r => r.itemId)
-      .map(r => S1_SHOP_ITEMS.find(s => s.id === r.itemId)?.name || r.itemId);
-    const itemPart = itemNames.length ? ` + ${itemNames.join(', ')}` : '';
-    const rangeLabel = avail > 1 ? `${claimed+1}~${claimed+avail}일차` : `${claimed+1}일차`;
-    claimArea = `<button class="rlb-claim-btn" onclick="claimRelayRewards()">${rangeLabel} 수령 (+${goldSum}G${itemPart})</button>`;
+    claimArea = '<div class="rlb-done">30칸 완주 — 모든 보상 수령 완료</div>';
   } else {
-    claimArea = '<div class="rlb-nodot">출석하면 보상이 열려요</div>';
+    const next = RELAY_REWARDS[claimed];
+    const nextItem = next?.itemId ? ` + ${S1_SHOP_ITEMS.find(s => s.id === next.itemId)?.name || ''}` : '';
+    claimArea = `<div class="rlb-nodot">다음 출석 시 <b>${claimed + 1}일차</b> 보상 자동 지급 (+${next?.gold || 0}G${nextItem})</div>`;
   }
 
   // 그리드 셀
   const cells = RELAY_REWARDS.map(r => {
     const idx       = r.day - 1;
     const isClaimed = idx < claimed;
-    const isAvail   = idx >= claimed && idx < progress;
-    const isLocked  = !isClaimed && !isAvail;
+    const isNext    = idx === claimed && claimed < 30; // 다음 출석 시 받을 칸
+    const isLocked  = !isClaimed && !isNext;
 
     const cls = ['rlb-cell',
       isClaimed   ? 'rlb-c'    : '',
       isLocked    ? 'rlb-lk'   : '',
       r.milestone ? 'rlb-ms'   : '',
-      isAvail     ? 'rlb-av'   : '',
+      isNext      ? 'rlb-av'   : '',
       r.final     ? 'rlb-final': '',
     ].filter(Boolean).join(' ');
 
@@ -13608,10 +13605,13 @@ function updateAttendQuickBtn() {
 }
 
 // 출석 완료 팝업 표시
-function showAttendPopup(slot) {
-  const slotLabel = slot === 1 ? '오전 출첵 · 자정 ~ 정오' : '오후 출첵 · 정오 ~ 자정';
+function showAttendPopup(slot, relayGold, relaySteps) {
+  const slotLabel  = slot === 1 ? '오전 출첵 · 자정 ~ 정오' : '오후 출첵 · 정오 ~ 자정';
+  const itemNames  = (relaySteps || []).filter(r => r.itemId)
+    .map(r => S1_SHOP_ITEMS.find(s => s.id === r.itemId)?.name || r.itemId);
+  const itemPart   = itemNames.length ? ` + ${itemNames.join(', ')}` : '';
   document.getElementById('attend-popup-slot').textContent = slotLabel;
-  document.getElementById('attend-popup-gold').textContent = `+${GOLD_ATTEND}G 획득!`;
+  document.getElementById('attend-popup-gold').textContent = `+${relayGold || 0}G 획득!${itemPart}`;
   const overlay = document.getElementById('attend-popup');
   if (overlay) overlay.style.display = 'flex';
 }
@@ -15885,7 +15885,7 @@ function renderAttendance() {
   if (card) card.style.display = 'none';
 }
 
-// 출석 체크 실행
+// 출석 체크 실행 — 출석 즉시 릴레이 보상 자동 수령
 window.doAttendance = async function() {
   const key = getMyGoldKey();
   if (!key) return;
@@ -15895,26 +15895,40 @@ window.doAttendance = async function() {
   if (isAttendSlotDone(data, slot, todayKey)) {
     showGoldToast('이 타임 출석 이미 완료!'); return;
   }
-  // 모달 내 버튼 비활성화
   const modalBtn = document.querySelector('.rlb-attend-btn');
   if (modalBtn) { modalBtn.disabled = true; modalBtn.textContent = '처리 중...'; }
-  const histKey = sField('attendanceHistory');
-  const newHistory = [...(data[histKey] || []), { date: todayKey, gold: GOLD_ATTEND, ts: Date.now(), slot }];
-  const relayPKey = sField('relayProgress');
-  const newRelayP = Math.min(30, (data[relayPKey] || 0) + 1);
+
+  const relayPKey       = sField('relayProgress');
+  const relayClaimedKey = sField('relayClaimed');
+  const oldClaimed      = data[relayClaimedKey] || 0;
+  const newRelayP       = Math.min(30, (data[relayPKey] || 0) + 1);
+  const newClaimed      = newRelayP; // 출석 즉시 해당 칸까지 자동 수령
+
+  // 수령 단계 계산 (밀린 이전 단계 + 새 단계 포함)
+  const newSteps      = RELAY_REWARDS.slice(oldClaimed, newClaimed);
+  const relayGoldGain = newSteps.reduce((s, r) => s + r.gold, 0);
+  const relayItems    = newSteps.filter(r => r.itemId).map(r => ({ id: r.itemId, active: false }));
+  const newItems      = [...(data[sField('items')] || []), ...relayItems];
+
+  // attendanceHistory: 날짜/슬롯 기록용, gold=0 (릴레이 보상으로 통합)
+  const histKey    = sField('attendanceHistory');
+  const newHistory = [...(data[histKey] || []), { date: todayKey, gold: 0, ts: Date.now(), slot }];
+
   const updates = {
     ...data,
     [histKey]: newHistory,
     [sField('attendanceCount')]: (data[sField('attendanceCount')] ?? 0) + 1,
-    [relayPKey]: newRelayP,
+    [relayPKey]:       newRelayP,
+    [relayClaimedKey]: newClaimed,
+    [sField('items')]: newItems,
   };
   if (slot === 1) updates.lastAttendance  = todayKey;
   else            updates.lastAttendance2 = todayKey;
+
   try {
     await set(ref(db, 'gold/' + key), updates);
-    showAttendPopup(slot);
+    showAttendPopup(slot, relayGoldGain, newSteps);
     updateAttendQuickBtn();
-    // 모달 열려있으면 내용 갱신
     const rmBody = document.getElementById('relay-modal-body');
     if (rmBody && document.getElementById('relay-modal-overlay')?.classList.contains('open')) {
       rmBody.innerHTML = renderRelayBoardHtml();
