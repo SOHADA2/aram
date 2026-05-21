@@ -3476,6 +3476,26 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .rlb-tm-fill{height:100%;border-radius:2px;background:linear-gradient(90deg,#c8973c,#f0c060);}
 .rlb-tm-step{font-size:11px;font-weight:700;color:var(--text-dim);min-width:34px;text-align:right;font-family:'JetBrains Mono',monospace;}
 .rlb-tm-step.done{color:#4ade80;}
+/* ── 릴레이 이벤트 팝업 모달 ── */
+.relay-modal-overlay{display:none;position:fixed;inset:0;z-index:9500;background:rgba(0,0,0,.72);backdrop-filter:blur(8px);align-items:flex-start;justify-content:center;padding:20px 12px 40px;overflow-y:auto;}
+.relay-modal-overlay.open{display:flex;}
+.relay-modal{background:var(--surface);border:1px solid rgba(180,138,255,0.22);border-radius:16px;width:100%;max-width:460px;margin:auto;box-shadow:0 24px 64px rgba(0,0,0,.8);animation:popIn .25s cubic-bezier(.175,.885,.32,1.275);}
+.relay-modal-head{display:flex;align-items:flex-start;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid rgba(255,255,255,0.06);}
+.relay-modal-title{font-size:15px;font-weight:800;color:var(--text);margin-bottom:5px;}
+.relay-modal-title span{color:#b48aff;}
+.relay-modal-chips{display:flex;gap:5px;flex-wrap:wrap;}
+.relay-modal-chip{padding:2px 9px;border-radius:20px;font-size:10px;font-weight:700;}
+.rmc-gold{background:rgba(200,151,60,0.1);border:1px solid rgba(200,151,60,0.28);color:#c8973c;}
+.rmc-purple{background:rgba(180,138,255,0.09);border:1px solid rgba(180,138,255,0.22);color:#b48aff;}
+.relay-modal-close{width:28px;height:28px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);background:transparent;color:var(--text-dim);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:2px;}
+.relay-modal-close:hover{background:rgba(255,255,255,0.07);color:var(--text);}
+.relay-modal-body{padding:14px 16px 16px;}
+/* ── 출석 슬롯 물음표 툴팁 ── */
+.hs-slot-help{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.05);color:var(--text-muted);font-size:9px;font-weight:700;cursor:default;position:relative;font-family:'JetBrains Mono',monospace;flex-shrink:0;}
+.hs-slot-help:hover .hs-slot-tip{display:block;}
+.hs-slot-tip{display:none;position:absolute;top:calc(100% + 7px);left:50%;transform:translateX(-50%);background:rgba(8,14,28,0.98);border:1px solid rgba(255,255,255,0.12);border-radius:9px;padding:9px 13px;white-space:nowrap;font-size:11px;color:var(--text-dim);line-height:1.8;z-index:9999;pointer-events:none;font-family:'Noto Sans KR',sans-serif;font-weight:400;box-shadow:0 8px 24px rgba(0,0,0,.6);}
+.hs-slot-tip b{color:var(--text);}
+.hs-slot-tip::before{content:'';position:absolute;bottom:100%;left:50%;transform:translateX(-50%);border:5px solid transparent;border-bottom-color:rgba(255,255,255,0.12);}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
 </head>
@@ -3542,8 +3562,26 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
     <span id="header-season-label" class="hs-season-badge"></span>
     <button class="hs-attend-chip" id="hs-attend-1"></button>
     <button class="hs-attend-chip" id="hs-attend-2"></button>
+    <span class="hs-slot-help">?<span class="hs-slot-tip"><b>슬롯 1</b> 자정 ~ 오후 3시<br><b>슬롯 2</b> 오후 3시 ~ 자정</span></span>
   </div>
 </header>
+
+<!-- 릴레이 출석 이벤트 팝업 -->
+<div class="relay-modal-overlay" id="relay-modal-overlay" onclick="handleRelayOverlayClick(event)">
+  <div class="relay-modal" id="relay-modal">
+    <div class="relay-modal-head">
+      <div>
+        <div class="relay-modal-title">릴레이 <span>출석 이벤트</span></div>
+        <div class="relay-modal-chips">
+          <span class="relay-modal-chip rmc-gold">총 1,000G</span>
+          <span class="relay-modal-chip rmc-purple">LP 2배권 · 도박권 · 승급전 방어권</span>
+        </div>
+      </div>
+      <button class="relay-modal-close" onclick="closeRelayModal()">✕</button>
+    </div>
+    <div class="relay-modal-body" id="relay-modal-body"></div>
+  </div>
+</div>
 
 <!-- 동기화 상태 -->
 <div class="sync-bar">
@@ -4157,7 +4195,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.2';
+const APP_VERSION = 'v2.43.3';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -12833,8 +12871,7 @@ window.renderS1Pass = function renderS1Pass() {
   const lvPillText = allDone ? 'MAX ✓' : 'LV ' + currentLv + ' / ' + S1_PASS_MAX_LEVEL;
   const lvHeaderHtml = '<div class="vpas-lv-header"><span class="vpas-lv-pill">' + lvPillText + '</span></div>';
 
-  el.innerHTML = renderRelayBoardHtml()
-    + lvHeaderHtml
+  el.innerHTML = lvHeaderHtml
     + buildPassSelector('s1')
     + activeSectionHtml
     + doneSectionHtml
@@ -12960,15 +12997,16 @@ function renderRelayBoardHtml() {
       ${tmRows}
     </div>` : '';
 
-  return `<div class="rlb-section">
-    <div class="rlb-info-card">
-      <div class="rlb-info-icon">2×</div>
-      <div class="rlb-info-body">
-        <div class="rlb-info-name">LP 2배권</div>
-        <div class="rlb-info-tag">출석 전용 아이템</div>
-        <div class="rlb-info-desc"><b>승리 시</b> LP를 2배로 획득 (+40 LP)<br><b>패배 시</b> 아이템 소모, 일반 패배 적용 (−14 LP)</div>
-      </div>
+  const infoCard = `<div class="rlb-info-card">
+    <div class="rlb-info-icon">2×</div>
+    <div class="rlb-info-body">
+      <div class="rlb-info-name">LP 2배권</div>
+      <div class="rlb-info-tag">출석 전용 아이템</div>
+      <div class="rlb-info-desc"><b>승리 시</b> LP를 2배로 획득 (+40 LP)<br><b>패배 시</b> 아이템 소모, 일반 패배 적용 (−14 LP)</div>
     </div>
+  </div>`;
+
+  return `<div class="rlb-section">
     <div class="rlb-my-card">
       <div class="rlb-my-info">
         <div class="rlb-my-name">${escHtml(myName)}${tagHtml}</div>
@@ -12987,6 +13025,7 @@ function renderRelayBoardHtml() {
     ${claimArea}
     <div class="rlb-slabel">보상판<div class="rlb-legend-row"><div class="rlb-legend-chip"><div class="rlb-ldot rlb-ldot-gold"></div>일반</div><div class="rlb-legend-chip"><div class="rlb-ldot rlb-ldot-purple"></div>마일스톤</div><div class="rlb-legend-chip"><div class="rlb-ldot rlb-ldot-dim"></div>미개방</div></div></div>
     <div class="rlb-grid">${cells}</div>
+    ${infoCard}
     ${tmSection}
   </div>`;
 }
@@ -13018,6 +13057,11 @@ window.claimRelayRewards = async function() {
   showS1Toast(`릴레이 ${steps.length}칸 수령! +${goldGain}G${itemMsg}`);
   updateMyInfoBar();
   renderAchievementsOrPass();
+  // 모달이 열려있으면 내용 새로고침
+  const rmBody = document.getElementById('relay-modal-body');
+  if (rmBody && document.getElementById('relay-modal-overlay')?.classList.contains('open')) {
+    rmBody.innerHTML = renderRelayBoardHtml();
+  }
 };
 
 // 퀘스트 클레임 — 순차 언락 (직전 레벨까지 모두 클레임 완료 + 현재 레벨 퀘스트 조건 충족)
@@ -13423,12 +13467,25 @@ function updateRelayEventBtn() {
   if (dot) dot.style.display = shouldGlow ? 'inline-block' : 'none';
 }
 
-window.goToRelayBoard = function() {
-  document.querySelector('.nav-tab-achievement')?.click();
-  setTimeout(() => {
-    const board = document.querySelector('.rlb-section');
-    if (board) board.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, 120);
+window.goToRelayBoard = function() { openRelayModal(); };
+
+function openRelayModal() {
+  const overlay = document.getElementById('relay-modal-overlay');
+  const body    = document.getElementById('relay-modal-body');
+  if (!overlay || !body) return;
+  body.innerHTML = renderRelayBoardHtml();
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+window.closeRelayModal = function() {
+  const overlay = document.getElementById('relay-modal-overlay');
+  if (overlay) overlay.classList.remove('open');
+  document.body.style.overflow = '';
+};
+
+window.handleRelayOverlayClick = function(e) {
+  if (e.target === document.getElementById('relay-modal-overlay')) closeRelayModal();
 };
 
 // 헤더 출석 칩 업데이트 — 현재 슬롯만, 미완료 시만 노출
