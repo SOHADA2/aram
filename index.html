@@ -4291,7 +4291,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.21';
+const APP_VERSION = 'v2.43.22';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -15992,9 +15992,13 @@ window.doAttendance = async function() {
   const relayItems    = newSteps.filter(r => r.itemId).map(r => ({ id: r.itemId, active: false }));
   const newItems      = [...(data[sField('items')] || []), ...relayItems];
 
-  // attendanceHistory: 날짜/슬롯 기록용, gold=0 (릴레이 보상으로 통합)
+  // 릴레이 30스텝 완주 후 기본 출석 보상 (슬롯당 20G)
+  const baseAttendGold = (relayGoldGain === 0 && newClaimed >= 30) ? 20 : 0;
+  const totalGoldGain  = relayGoldGain + baseAttendGold;
+
+  // attendanceHistory: 날짜/슬롯 기록용
   const histKey    = sField('attendanceHistory');
-  const newHistory = [...(data[histKey] || []), { date: todayKey, gold: 0, ts: Date.now(), slot, relayStep: newRelayP }];
+  const newHistory = [...(data[histKey] || []), { date: todayKey, gold: baseAttendGold, ts: Date.now(), slot, relayStep: newRelayP }];
 
   const updates = {
     ...data,
@@ -16010,7 +16014,7 @@ window.doAttendance = async function() {
 
   try {
     await set(ref(db, 'gold/' + key), updates);
-    showAttendPopup(slot, relayGoldGain, newSteps);
+    showAttendPopup(slot, totalGoldGain, newSteps);
     updateAttendQuickBtn();
     const rmBody = document.getElementById('relay-modal-body');
     if (rmBody && document.getElementById('relay-modal-overlay')?.classList.contains('open')) {
