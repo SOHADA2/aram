@@ -657,7 +657,50 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.43.x (2026-05-21) ← 최신
+### v2.43.x (2026-05-22) ← 최신
+
+#### 릴레이 보드 UI + 버그 수정 집중 (v2.43.21~32, 다른 컴퓨터 작업)
+
+- **v2.43.21**: 릴레이 30칸 완료 후 패스 탭 노란 dot 오표시 수정
+  - `updateS1PassTabBadge` / `updateRelayEventBtn` 두 곳에 `Math.min(..., 30)` 캡 추가
+- **v2.43.22**: 릴레이 완주 후 출첵 0G 버그 수정
+  - 30스텝 완료 후 이후 출첵에서 슬롯당 50G 기본 보상 지급 (attendanceHistory.gold 기록)
+- **v2.43.23**: `migrateRelayBase()` 비활성화 — `relayBase > relayClaimed` 상태 야기하는 근본 원인
+- **v2.43.24**: `fixRelayBaseOnly()` 도입 — relayBase > relayClaimed인 유저 6명 relayBase=0 일괄 초기화
+  - 영향 유저: 애긢반달곰·신규회원임·울퉁쓰·브랜딩프로·조조와빈찬합·빛나는언즈
+- **v2.43.25**: `fixRelaySogeup()` — 전원 relayClaimed 소급 + 마일스톤 아이템 자동 지급 (→ 과지급 발생)
+- **v2.43.26**: `revertRelaySogeup()` — v2.43.25 과지급 롤백, 원본값 스냅샷 복원
+  - `fixRelaySogeup`은 빈 함수로 비활성화 유지, `fixRelayBaseOnly`만 앱 로드 시 실행
+- **v2.43.27**: **릴레이 보상 전면 상향** — 일반 칸 20G→**50G**, 마일스톤 전체 상향, 총합 **2160G**
+  - Day5: 40→70G+LP2x / Day10: 55→100G+LP2x / Day15: 65→130G+도박권
+  - Day20: 90→160G+승급전방어권 / Day25: 110→200G+LP2x / Day30: 160→300G+LP2x
+- **v2.43.28**: LP 2배권 EOG 표시 버그 수정 + 아이콘 개선
+  - `renderRelayBoard`의 `rlb-lp2x` 텍스트 뱃지 분기 제거 → `SHOP_ITEMS.icon` SVG로 통합
+  - `s1Resimulate()`에 s1_lp2x 분기 추가 (재시뮬 시 +40LP 적용)
+  - `buyItem`에 `relayOnly` 가드 추가 (콘솔 익스플로잇 방어)
+- **v2.43.29**: LP 2배권 릴레이 보드 아이콘 SVG 적용 완료
+- **v2.43.30**: 릴레이 보드 UI 정리
+  - 팀원 현황 기본 접힘, 출석법 호버 툴팁 추가
+- **v2.43.31**: 릴레이 보드 UI 개선
+  - 타이틀 크기/정렬, 단계 표시, 보상판에 출석 버튼 추가
+- **v2.43.32**: 릴레이 보드 오전/오후 출첵 상태 텍스트 제거 (오늘 둘 다 완료 시에만 표시)
+
+#### LP 2배권 (s1_lp2x) 아이템 설계
+- `relayOnly:true`, `price:0` — 상점에서 구매 불가, 릴레이 보상으로만 획득 (Day5/10/25/30)
+- 정규전 전 활성화 시: 승리 → **+40 LP** / 패배 → 아이템 소모 + **-14 LP** (일반 패배)
+- 배치고사·승급전 중 사용 불가
+
+#### 현재 RELAY_REWARDS 구조 (v2.43.27~)
+```
+총 2160G = 24칸×50G + 마일스톤 6개(70+100+130+160+200+300)
+Day5:+LP2x  Day10:+LP2x  Day15:+도박권  Day20:+승급전방어권  Day25:+LP2x  Day30:+LP2x
+```
+
+#### 릴레이 소급/마이그레이션 함수 현황
+- `migrateRelayBase()`: **비활성화** (v2.43.23~, 과지급 원인)
+- `fixRelaySogeup()`: **빈 함수** (v2.43.26 롤백)
+- `revertRelaySogeup()`: v2.43.25 과지급 복원용 (앱 로드 시 실행)
+- `fixRelayBaseOnly()`: relayBase>relayClaimed 초기화만 수행 (앱 로드 시 실행)
 
 #### 릴레이 출석 호환성 (v2.43.15~17)
 - **v2.43.15**: `relayBase_s1` 필드 도입 — v2.43.14 이전 유저의 이중 골드 지급 방지
@@ -701,8 +744,9 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 | 슈리마(4명) | 나는 왕이다 | 승리 LP | +9 |
 
 #### 다음 작업 (미구현)
-- 시너지 실제 효과 적용 로직 (경기 결과 처리 시 `activeSynergy_s1` 읽어서 발동 계산)
+- 시너지 실제 효과 적용 로직 (`activeSynergy_s1` 읽어서 경기 결과·출석 시 LP/골드 발동 계산)
 - 챔피언 이미지 파일 (`assets/pets/{slug}/silver|gold|prism/default.png`) 준비
+- 뽑기 기능 활성화 (현재 "준비 중" 상태)
 
 ### v2.42.x (2026-05-21)
 - **v2.42.0~3**: 챔피언 가챠 시스템 index.html 통합
