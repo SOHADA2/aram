@@ -4351,7 +4351,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.46';
+const APP_VERSION = 'v2.43.47';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4360,6 +4360,9 @@ const APP_VERSION = 'v2.43.46';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.47', date: '2026-05-23', changes: [
+    { tag: 'improve', text: '비밀 퀘스트 토큰 — 구매 즉시 자동 활성화로 흐름 단순화. 별도 활성화 토글 불필요(원하면 인벤토리에서 끄기 가능), 구매하면 다음 매치 팀 발표 후 자동 발동. 차단 구간(배치/승급전/도박권 활성)은 구매 시점에 사전 차단해 200G 낭비 방지. 이미 활성화된 토큰 보유 중에는 추가 구매 차단(매치당 1회). 상점 카드에 "📅 오늘 N/2 · 구매 즉시 다음 매치 자동 발동" 안내 + 한도 소진 시 "한도 소진 (2/2)" 표시 + 활성화 중일 땐 "다음 판 발동" 표시' },
+  ]},
   { ver: 'v2.43.46', date: '2026-05-23', changes: [
     { tag: 'fix', text: '비밀 퀘스트 토큰 — 새로고침·재팀짜기 케이스에서 토큰이 소실되거나 보상이 누락되던 문제 보강. (1) 모달 노출 전에 새로고침해도 saveMatch 시점에 questId fallback 즉석 부여로 보상 정상 지급. (2) applySessionData 백업 트리거(팀 변경 후 9초) — 팀 발표 오버레이를 못 본 기기에서도 모달 노출. (3) 재팀짜기 시 questId 재사용(어뷰즈 차단) + 모달 재노출. (4) _shownSqForTeamTs 가드로 동일 팀 형성 중 중복 모달 방지. 토큰 실제 소비는 saveMatch 시점에만 발생 → 게임 미완료 케이스에서 손실 없음' },
   ]},
@@ -5601,8 +5604,8 @@ const S1_SHOP_ITEMS = [
 // ────────────────────────────────────────────────────────────────
 // ████  비밀 퀘스트 토큰 (v2.43.39~)  ████████████████████████████████
 // ────────────────────────────────────────────────────────────────
-// 가격 200G / 1일 2회 / 인벤토리 누적 / 매치당 1개 자동 활성
-// 활성화 차단: 배치고사, 승급전, 도박권 활성 중
+// 가격 200G / 1일 2회 / 구매 즉시 active=true (v2.43.47~) → 다음 매치 자동 발동
+// 구매 차단: 배치고사·승급전·도박권·이미 활성화된 토큰 보유 중
 // 적중 + 승리: 골드 보상 (500/850/1000)
 // 적중 + 패배: LP 차감 완화 (-14 → -9/-5/0) ※ 본인 뉴비/도박권 활성 시 LP 보호 비활성
 const SECRET_QUEST_DAILY_LIMIT = 2;
@@ -16616,11 +16619,16 @@ function _renderShopImmediate() {
   const todayStr = getLocalDateKey();
   const todayLotteryCount = myShopData && myShopData.lotteryDate === todayStr ? (myShopData.lotteryCount || 0) : 0;
   const todayPremiumCount = myShopData && myShopData.lotteryPremiumDate === todayStr ? (myShopData.lotteryPremiumCount || 0) : 0;
+  const todaySqCount      = myShopData && myShopData.secretQuestDate === todayStr ? (myShopData.secretQuestCount || 0) : 0;
+  // 비밀 퀘스트는 이미 활성화된 토큰이 있어도 중복 구매 차단 (한 매치 1회)
+  const sqAlreadyActive   = myShopData && (myShopData[sField('items')] || []).some(it => it.active && it.id === 'secret_quest');
   document.getElementById('shop-list').innerHTML = shopFiltered.length === 0
     ? `<div class="sp-cat-empty">🔧 준비 중인 아이템이에요.<br>곧 장비 아이템이 추가될 예정이에요!</div>`
     : shopFiltered.map(item => {
     const isLotteryLimitHit = (item.type === 'lottery' && todayLotteryCount >= 10)
-                           || (item.type === 'lottery_premium' && todayPremiumCount >= 3);
+                           || (item.type === 'lottery_premium' && todayPremiumCount >= 3)
+                           || (item.type === 'secret_quest' && todaySqCount >= SECRET_QUEST_DAILY_LIMIT);
+    const isSqAlreadyActive = item.type === 'secret_quest' && sqAlreadyActive;
     const isPassType  = item.type === 'pass';
     const isThisPassOwned = item.id === 'battle_pass' ? !!(myShopData && myShopData.hasBattlePass_s1)
                           : item.id === 'support_pass' ? !!(myShopData && myShopData.hasSupportPass_s1)
@@ -16629,7 +16637,7 @@ function _renderShopImmediate() {
     const battlePassLv = battlePassOwned ? calcPaidPassCurrentLevel(myShopData.battlePassClaimed_s1 || {}) : 0;
     const isSupportLocked = item.id === 'support_pass' && !isThisPassOwned && battlePassLv < 25;
     const isPassOwned = isThisPassOwned;
-    const canBuy   = myGold >= item.price && !isLotteryLimitHit && !isPassOwned && !isSupportLocked
+    const canBuy   = myGold >= item.price && !isLotteryLimitHit && !isSqAlreadyActive && !isPassOwned && !isSupportLocked
                    && (isLotteryType(item.type) || isPassType || !isItemsEffectivelyLocked());
     const nameColor = item.color || 'var(--text)';
     let btnText, btnClass, btnClick;
@@ -16637,8 +16645,10 @@ function _renderShopImmediate() {
       btnText = '보유중'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
     } else if (isSupportLocked) {
       btnText = battlePassOwned ? `🔒 전투 ${battlePassLv}/25` : '🔒 전투 패스 필요'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
+    } else if (isSqAlreadyActive) {
+      btnText = '다음 판 발동'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
     } else if (isLotteryLimitHit) {
-      btnText = '한도 소진'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
+      btnText = `한도 소진 (${item.type === 'secret_quest' ? todaySqCount + '/' + SECRET_QUEST_DAILY_LIMIT : item.type === 'lottery_premium' ? '3/3' : '10/10'})`; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
     } else if (isItemsEffectivelyLocked() && !isLotteryType(item.type) && !isPassType) {
       btnText = '🔒'; btnClass = 'sli-price'; btnClick = `onclick="buyItem('${item.id}')"`;
     } else {
@@ -16650,6 +16660,7 @@ function _renderShopImmediate() {
         <div class="sli-name" style="color:${nameColor};">${item.name}</div>
         <div class="sli-desc">${item.desc}</div>
         ${item.id === 'battle_pass' ? '<div class="sli-pass-notice">전투 패스 완주 시 지원 패스 해금</div>' : item.id === 'support_pass' ? '<div class="sli-pass-notice">전투 패스 완주 후 구매 가능</div>' : ''}
+        ${item.type === 'secret_quest' ? `<div class="sli-pass-notice" style="color:#a78bfa;">📅 오늘 ${todaySqCount}/${SECRET_QUEST_DAILY_LIMIT} · 구매 즉시 다음 매치 자동 발동</div>` : ''}
       </div>
       <div class="sli-right">
         <button class="${btnClass}" ${!canBuy?'disabled':''} ${btnClick}>
@@ -16836,15 +16847,15 @@ window.showSecretQuestPurchaseInfo = function(remaining, used) {
       <div class="sq-modal-corner sq-modal-corner-br"></div>
       <div class="sq-modal-header">
         <div class="sq-modal-badge">🎫 토큰 구매 완료</div>
-        <div class="sq-modal-hint">활성화하면 다음 매치 시작 시 자동 발동</div>
+        <div class="sq-modal-hint">다음 매치 시작 시 자동 발동돼요</div>
       </div>
       <div class="sq-modal-icon">🤫</div>
       <div class="sq-modal-name">비밀 퀘스트 토큰</div>
-      <div class="sq-modal-desc">인벤토리에서 활성화하세요<br>매치 시작 시점에 본인에게만 퀘스트 노출</div>
+      <div class="sq-modal-desc">즉시 활성화 완료<br>다음 매치 팀 발표 후 본인에게만 퀘스트 노출</div>
       <div class="sq-modal-divider"></div>
       <div class="sq-modal-meta">
         <div class="sq-meta-row">
-          <span class="sq-meta-label">📅 오늘 사용</span>
+          <span class="sq-meta-label">📅 오늘 구매</span>
           <span class="sq-meta-val gold">${used} / ${SECRET_QUEST_DAILY_LIMIT}</span>
         </div>
         <div class="sq-meta-row">
@@ -16857,7 +16868,7 @@ window.showSecretQuestPurchaseInfo = function(remaining, used) {
         </div>
       </div>
       <div class="sq-modal-warn" style="background:rgba(125,211,252,0.07);color:#7dd3fc;border-color:rgba(125,211,252,0.2);">
-        💡 인벤토리 → 토큰 클릭하여 활성화하세요. 차단 구간엔 자동 보존됩니다.
+        💡 별도 활성화 불필요 — 인벤토리에서 끄려면 토큰 클릭. 차단 구간 발생 시 자동 보존됩니다.
       </div>
       <button class="sq-modal-close" onclick="document.getElementById('sq-info-overlay').remove();">확인</button>
     </div>`;
@@ -17320,7 +17331,8 @@ window.buyItem = async function(itemId) {
     return;
   }
 
-  // 비밀 퀘스트 토큰 — 일일 한도 + 인벤토리 적재 (v2.43.39~)
+  // 비밀 퀘스트 토큰 — 1일 한도 + 구매 즉시 자동 활성화 (v2.43.47~)
+  // 구매 시점에 다음 매치 자동 발동 예약 → 인벤토리 적재로 못 쓰는 케이스 차단
   if (item.type === 'secret_quest') {
     const today = getLocalDateKey();
     const sqDate = data.secretQuestDate || '';
@@ -17329,8 +17341,28 @@ window.buyItem = async function(itemId) {
       showGoldToast(`🎫 오늘 비밀 퀘스트 토큰은 모두 사용했어요! (1일 ${SECRET_QUEST_DAILY_LIMIT}회 한도)`);
       return;
     }
+    // 차단 구간 사전 가드 — 구매가 곧 활성화라서 미리 차단해야 200G 낭비 방지
+    const myS1 = season1Data[normName(myName || '')];
+    if (!myS1?.placementDone) {
+      showGoldToast('⚠ 비밀 퀘스트는 배치고사 완료 후 구매할 수 있어요');
+      return;
+    }
+    if (myS1?.promoActive) {
+      showGoldToast('⚠ 비밀 퀘스트는 승급전 중 구매할 수 없어요');
+      return;
+    }
+    const existingItems = data[itemsKey] || [];
+    if (existingItems.some(it => it.active && it.id === 's1_gamble')) {
+      showGoldToast('⚠ 도박권 활성 중에는 비밀 퀘스트를 구매할 수 없어요');
+      return;
+    }
+    if (existingItems.some(it => it.active && it.id === 'secret_quest')) {
+      showGoldToast('⚠ 이미 비밀 퀘스트가 활성화돼 있어요 — 한 매치엔 1회만');
+      return;
+    }
     const newGoldSpent = (data[spentKey] ?? 0) + item.price;
-    const newItems = [...(data[itemsKey]||[]), {id:itemId, boughtAt:Date.now(), active:false}];
+    // 구매 즉시 active:true — 다음 매치 시작 시 _maybeShowSecretQuestModal 자동 발동
+    const newItems = [...existingItems, {id:itemId, boughtAt:Date.now(), active:true, activatedAt:Date.now()}];
     await set(ref(db,'gold/'+key), {
       ...data,
       [spentKey]: newGoldSpent,
@@ -17339,7 +17371,7 @@ window.buyItem = async function(itemId) {
       secretQuestCount: sqCount + 1,
     });
     renderShop();
-    // 안내 모달 (v2.43.43~) — 자동 적용 흐름·한도·차단 구간 한 번에 명시
+    // 안내 모달 — 구매 즉시 다음 매치 자동 적용 명시
     showSecretQuestPurchaseInfo(currentGold - item.price, sqCount + 1);
     return;
   }
