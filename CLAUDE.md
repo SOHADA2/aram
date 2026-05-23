@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.43.45
+- 현재 버전: v2.43.46
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -664,7 +664,17 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.43.x (2026-05-22) ← 최신
+### v2.43.x (2026-05-22~23) ← 최신
+
+#### 비밀 퀘스트 토큰 안정성 보강 (v2.43.46, 2026-05-23)
+새로고침·재팀짜기 케이스에서 토큰이 소실되거나 200G가 증발하던 엣지 케이스 차단.
+
+- **재팀짜기 정책**: `questId` 한 번 부여되면 saveMatch까지 고정(어뷰즈·리롤 차단), 모달은 새 팀 발표마다 재노출
+- **`_shownSqForTeamTs` 가드**: `_currentTeamsFormedAt`과 비교해 같은 팀 형성 중 중복 모달 방지
+- **Option A (백업 트리거)**: `applySessionData`에서 `teamsChanged === true` 시 9초 후 `_maybeShowSecretQuestModal()` 호출 — 발표 오버레이를 놓친 기기 (탭 이동·새로고침) 대비
+- **Option B (saveMatch fallback)**: `active=true` 토큰에 `questId`가 없으면 즉석 부여(`pickRandomSecretQuest()`)해서 판정·소비 — 모달 노출 전 새로고침된 케이스에서 토큰 손실 방지
+- **소비 시점 원칙**: 토큰은 saveMatch 시점에만 소비됨 → 게임 미완료(reset/cancel) 시 토큰 보존
+- `resetSession`에서 `_shownSqForTeamTs = 0` 초기화
 
 #### 릴레이 보드 UI + 버그 수정 집중 (v2.43.21~32, 다른 컴퓨터 작업)
 

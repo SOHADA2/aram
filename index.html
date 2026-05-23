@@ -4351,7 +4351,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.45';
+const APP_VERSION = 'v2.43.46';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4360,6 +4360,9 @@ const APP_VERSION = 'v2.43.45';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.46', date: '2026-05-23', changes: [
+    { tag: 'fix', text: '비밀 퀘스트 토큰 — 새로고침·재팀짜기 케이스에서 토큰이 소실되거나 보상이 누락되던 문제 보강. (1) 모달 노출 전에 새로고침해도 saveMatch 시점에 questId fallback 즉석 부여로 보상 정상 지급. (2) applySessionData 백업 트리거(팀 변경 후 9초) — 팀 발표 오버레이를 못 본 기기에서도 모달 노출. (3) 재팀짜기 시 questId 재사용(어뷰즈 차단) + 모달 재노출. (4) _shownSqForTeamTs 가드로 동일 팀 형성 중 중복 모달 방지. 토큰 실제 소비는 saveMatch 시점에만 발생 → 게임 미완료 케이스에서 손실 없음' },
+  ]},
   { ver: 'v2.43.45', date: '2026-05-23', changes: [
     { tag: 'new', text: '비밀 퀘스트 전체 흐름 프리뷰 — previewSecretQuestFlow() 함수 + 어드민 "🎬 전체 흐름" 버튼. 실제 매치 시작과 동일한 시퀀스(팀 발표 7초 → 페이드아웃 380ms → 딜레이 800ms → 비밀 퀘스트 모달) 시연. 콘솔에 단계별 타임라인 출력' },
   ]},
@@ -6459,6 +6462,11 @@ function applySessionData(data) {
       showTeamAnnounce(currentTeamA, currentTeamB);
     }
     _justMadeTeams = false;
+    // 비밀 퀘스트 백업 트리거 (v2.43.46~) — 새로고침/탭 재진입 등으로 팀 발표를 못 본 경우 대비
+    // 발표 오버레이가 떴다면 그 close() 핸들러에서 800ms 후 노출 → blocker 가드로 자연스레 중복 방지
+    if (teamsChanged && typeof _maybeShowSecretQuestModal === 'function') {
+      setTimeout(_maybeShowSecretQuestModal, 9000);
+    }
   }
   _initialSessionLoaded = true;
   // 팀 복원 후 대기 중인 MVP / 매너 데이터 적용
@@ -10804,15 +10812,19 @@ window.saveMatch = async function() {
     if (currentRiotMatchId) matchData.riotMatchId = currentRiotMatchId;
 
     // ── 비밀 퀘스트 토큰 (v2.43.39~) — active=true 토큰 보유자만 판정·저장 ──
+    // v2.43.46~: questId 없는 active 토큰 (모달 표시 전 새로고침 케이스) 도 fallback 으로 즉석 부여
     const _secretQuests = {};
     for (const p of allPlayers) {
       const entry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(p.name));
       if (!entry) continue;
       const itemsArr = entry[1][sField('items')] || [];
-      const sqItem = itemsArr.find(it => it.active && it.id === 'secret_quest' && it.questId);
+      const sqItem = itemsArr.find(it => it.active && it.id === 'secret_quest');
       if (!sqItem) continue;
-      const quest = getSecretQuestById(sqItem.questId);
-      if (!quest) continue;
+      let quest = sqItem.questId ? getSecretQuestById(sqItem.questId) : null;
+      if (!quest) {
+        // Fallback — 토큰 소실 방지 위해 즉석 부여 (보상은 정상 판정)
+        quest = pickRandomSecretQuest();
+      }
       const pNorm = normName(p.name);
       const inA = currentTeamA.some(x=>normName(x.name)===pNorm);
       const won = (inA && selectedWinner==='blue') || (!inA && selectedWinner==='red');
@@ -16856,29 +16868,35 @@ window.showSecretQuestPurchaseInfo = function(remaining, used) {
 };
 
 // ── 매치 시작 시점 비밀 퀘스트 자동 발동 (v2.43.43~) ──────────
-// active=true && !questId 인 본인 토큰 발견 시 questId 부여 + 모달 노출
+// active=true 토큰 발견 시 questId 부여(첫 노출)·재사용(재팀짜기) + 모달 노출
 // 다른 풀스크린 모달이 떠 있으면 1초 후 재시도 (큐잉)
+// 같은 팀 형성 동안 중복 노출 방지 (_shownSqForTeamTs 가드)
+// 토큰 소비는 saveMatch 시점에만 일어남 → 새로고침·재팀짜기 케이스에서도 토큰 손실 없음
 let _sqAutoActivateRetries = 0;
+let _shownSqForTeamTs = 0;
 window._maybeShowSecretQuestModal = async function() {
   if (CURRENT_SEASON < 1 || !myName) return;
   if (!isMyselfInCurrentMatch()) return;
+  // 동일 팀 형성 동안 중복 노출 방지
+  if (_currentTeamsFormedAt && _shownSqForTeamTs === _currentTeamsFormedAt) return;
   const myEntry = Object.entries(goldData).find(([,g]) => normName(g.name) === normName(myName));
   if (!myEntry) return;
   const [fbKey, gData] = myEntry;
   const itemsKey = sField('items');
   const items = [...(gData[itemsKey] || [])];
-  const idx = items.findIndex(it => it.active && it.id === 'secret_quest' && !it.questId);
+  // active 토큰이면 questId 유무 상관없이 모두 대상 (재팀짜기 시 기존 questId 재사용)
+  const idx = items.findIndex(it => it.active && it.id === 'secret_quest');
   if (idx < 0) return;
   // 차단 구간 가드 (안전망)
   const myS1 = season1Data[normName(myName)];
   if (!myS1?.placementDone || myS1?.promoActive) {
-    items[idx] = { ...items[idx], active: false };
+    items[idx] = { ...items[idx], active: false, questId: undefined, activatedAt: undefined };
     await set(ref(db, 'gold/'+fbKey), { ...gData, [itemsKey]: items });
     if (typeof showS1Toast === 'function') showS1Toast('⚠ 비밀 퀘스트는 배치/승급전 중 사용 불가 — 토큰 보존됨');
     return;
   }
   if (items.some(it => it.active && it.id === 's1_gamble')) {
-    items[idx] = { ...items[idx], active: false };
+    items[idx] = { ...items[idx], active: false, questId: undefined, activatedAt: undefined };
     await set(ref(db, 'gold/'+fbKey), { ...gData, [itemsKey]: items });
     if (typeof showS1Toast === 'function') showS1Toast('⚠ 도박권 활성 중 — 비밀 퀘스트 보존됨');
     return;
@@ -16890,10 +16908,14 @@ window._maybeShowSecretQuestModal = async function() {
     return;
   }
   _sqAutoActivateRetries = 0;
-  // questId 부여 + 모달 노출
-  const quest = pickRandomSecretQuest();
-  items[idx] = { ...items[idx], questId: quest.id, activatedAt: Date.now() };
-  await set(ref(db, 'gold/'+fbKey), { ...gData, [itemsKey]: items });
+  // questId 유지 (재팀짜기 어뷰즈 방지) 또는 신규 부여
+  const existingQuest = items[idx].questId ? getSecretQuestById(items[idx].questId) : null;
+  const quest = existingQuest || pickRandomSecretQuest();
+  if (!existingQuest) {
+    items[idx] = { ...items[idx], questId: quest.id, activatedAt: Date.now() };
+    await set(ref(db, 'gold/'+fbKey), { ...gData, [itemsKey]: items });
+  }
+  if (_currentTeamsFormedAt) _shownSqForTeamTs = _currentTeamsFormedAt;
   showSecretQuestModal(quest);
 };
 
@@ -17770,6 +17792,7 @@ window.resetSession = function() {
   mvpConfirmed = null;
   mannerConfirmed = null;
   _currentTeamsFormedAt = 0;
+  _shownSqForTeamTs = 0;
     set(ref(db, 'session'), { active: false }).catch(console.error);
     renderSessionPlayers();
     renderShop();
