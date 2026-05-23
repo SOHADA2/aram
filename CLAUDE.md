@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.43.38
+- 현재 버전: v2.43.39
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -60,6 +60,10 @@
                                   // 다중 관전자 예측 (v2.32.2~), 베팅 시스템 (v2.36.11~ — betAmount/payout 추가)
                                   // payout: 적중 시 +betAmount / 실패 시 -betAmount
                                   // 자동 픽(betAmount=0): 적중 시 +30G 보너스 / 실패 0 (v2.36.12~)
+  secretQuests: { [normName]: { questId, questName, questDiff, questIcon, questDesc, success, won, reward, lpProtect } }
+                                  // 비밀 퀘스트 토큰 (v2.43.39~) — 토큰 보유자만 저장됨
+                                  // success+won=true 시 reward 골드 지급
+                                  // success+won=false 시 lpProtect 만큼 LP 차감 완화 (본인 뉴비/도박권 시 비활성)
   // 하위 호환: spectatorName, spectatorPick, spectatorCorrect (단일 관전자 레거시)
 
 /gold/{key}
@@ -80,6 +84,8 @@
   lotteryPremiumCount: number   // 오늘 프리미엄 복권 구매 횟수 (v2.36.0~, 1일 3장 한도 v2.37.13~)
   lotteryPremiumDate: string    // lotteryPremiumCount 기준 날짜
   lotteryRefundApplied: boolean // 구버전 복권 환불 완료 플래그 (v2.31.99~)
+  secretQuestCount: number      // 오늘 비밀 퀘스트 토큰 구매 횟수 (1일 2회 한도, v2.43.39~)
+  secretQuestDate: string       // secretQuestCount 기준 날짜 (YYYY-MM-DD)
 
 /config/currentSeason            // 현재 시즌 번호 (0 또는 1)
 /config/riotApiKey               // Riot API Key (24h 갱신)
@@ -165,6 +171,7 @@
 | 🎲 도박권 | 60G | 일반전 전용 · 승리 +40 LP / 패배 −30 LP (승급전 중 사용 불가) | S1 |
 | 🎟️ 골드 복권 | 30G | 즉시 결과 · 1일 10장 한도 · 꽝 30%~잭팟 500G 1% (EV ≈ 32G) | S1 |
 | 💎 프리미엄 복권 | 200G | 즉시 결과 · **1일 3장** 한도 · 꽝 40%~메가잭팟 5000G 1% (EV ≈ 196G, 상위권 골드 흡수용) | S1 |
+| 🤫 비밀 퀘스트 토큰 | 200G | 다음 정규전에 본인만 보이는 비밀 퀘스트 · 적중+승리 +500~1000G · 적중+패배 LP 감소 완화 · 1일 2회 (v2.43.39~) | S1 |
 
 - 팀 구성 완료 후 **아이템 잠금** (경기 저장 시 자동 해제)
 - 아이템 사용 통계: `calcItemStats(name)` — `matches[].itemEffects[normName]` 스캔
