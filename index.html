@@ -4351,7 +4351,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.44';
+const APP_VERSION = 'v2.43.45';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4360,6 +4360,9 @@ const APP_VERSION = 'v2.43.44';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.45', date: '2026-05-23', changes: [
+    { tag: 'new', text: '비밀 퀘스트 전체 흐름 프리뷰 — previewSecretQuestFlow() 함수 + 어드민 "🎬 전체 흐름" 버튼. 실제 매치 시작과 동일한 시퀀스(팀 발표 7초 → 페이드아웃 380ms → 딜레이 800ms → 비밀 퀘스트 모달) 시연. 콘솔에 단계별 타임라인 출력' },
+  ]},
   { ver: 'v2.43.44', date: '2026-05-23', changes: [
     { tag: 'fix', text: '비밀 퀘스트 모달 모바일에서 잘려보이는 문제 — .sq-modal overflow:hidden + max-height 없어서 콘텐츠가 viewport 넘으면 잘리던 게 원인. max-height:calc(100vh-32px) + overflow-y:auto + -webkit-overflow-scrolling:touch 추가. 오버레이 padding 16px, 작은 폰(<380px)·낮은 화면(<600px) 미디어 쿼리로 패딩·폰트·아이콘 사이즈 자동 축소' },
   ]},
@@ -10587,6 +10590,36 @@ window.previewSecretQuestResult = function(outcome = 'win', questIdx) {
 };
 
 // 가짜 정산창 + 본인 비밀 퀘스트 결과 동시 시연 (실제 매치 종료 시점 재현)
+// 실제 흐름 그대로 시연 — 팀 발표 → 380ms → 800ms → 비밀 퀘스트 모달 (v2.43.45~)
+window.previewSecretQuestFlow = function(questIdx) {
+  const quest = (questIdx != null && SECRET_QUEST_POOL[questIdx])
+    ? SECRET_QUEST_POOL[questIdx]
+    : pickRandomSecretQuest();
+  // 가짜 팀 (현재 매치가 없으면 임시 데이터)
+  const fakeA = currentTeamA.length > 0 ? currentTeamA : [
+    {name:'쭝쭝이주인', tier:'gold'},{name:'애블린', tier:'silver'},{name:'럼블홀릭', tier:'bronze'}
+  ];
+  const fakeB = currentTeamB.length > 0 ? currentTeamB : [
+    {name:'브랜딩프로', tier:'silver'},{name:'IfCES', tier:'gold'},{name:'안hey시캬', tier:'bronze'}
+  ];
+  console.log('%c🎬 비밀 퀘스트 전체 흐름 시연 시작', 'color:#a78bfa;font-weight:bold;font-size:13px');
+  console.log('  ⏱ 0초     — 팀 발표 오버레이 등장 (showTeamAnnounce)');
+  console.log('  ⏱ ~7초    — 발표 자동 종료 (DURATION 7000ms)');
+  console.log('  ⏱ ~7.4초  — 페이드아웃 완료 (380ms)');
+  console.log('  ⏱ ~8.2초  — 비밀 퀘스트 모달 자동 노출 (+800ms)');
+  console.log(`  🎲 부여될 퀘스트: ${quest.icon} ${quest.name} (${quest.desc})`);
+
+  try { showTeamAnnounce(fakeA, fakeB); } catch (e) {
+    console.warn('팀 발표 오버레이 실패:', e);
+  }
+
+  // showTeamAnnounce: DURATION 7000ms + 페이드 380ms + 비밀퀘 딜레이 800ms = 8180ms
+  setTimeout(() => {
+    console.log('%c🤫 비밀 퀘스트 모달 노출', 'color:#a78bfa;font-weight:bold');
+    showSecretQuestModal(quest);
+  }, 8200);
+};
+
 window.previewSecretQuestSummary = function(outcome = 'win', questIdx) {
   const quest = (questIdx != null && SECRET_QUEST_POOL[questIdx])
     ? SECRET_QUEST_POOL[questIdx]
@@ -17802,6 +17835,7 @@ function renderSeasonAdmin() {
     <button class="season-admin-btn${CURRENT_SEASON===1?' active':''}" onclick="switchSeason(1)">S1</button>
     <span style="margin-left:10px;display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;">
       <button class="season-admin-btn" onclick="previewSecretQuest()" title="비밀 퀘스트 활성화 모달 시연">🤫 모달</button>
+      <button class="season-admin-btn" onclick="previewSecretQuestFlow()" title="팀 발표 → 8초 후 비밀 퀘스트 자동 노출">🎬 전체 흐름</button>
       <button class="season-admin-btn" onclick="previewSecretQuestResult('win')" title="적중+승리 결과">✅승</button>
       <button class="season-admin-btn" onclick="previewSecretQuestResult('protect')" title="적중+패배 (LP 보호)">✅패</button>
       <button class="season-admin-btn" onclick="previewSecretQuestResult('fail')" title="미적중+패배">❌패</button>
