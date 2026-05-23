@@ -4326,7 +4326,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.42';
+const APP_VERSION = 'v2.43.43';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4335,6 +4335,9 @@ const APP_VERSION = 'v2.43.42';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.43', date: '2026-05-23', changes: [
+    { tag: 'improve', text: '비밀 퀘스트 토큰 흐름 개편 — (1) 구매 시 안내 모달(검정 톤) 노출: 자동 적용·1일 한도·차단 구간 명시. (2) 활성화 토글 시 questId 부여·모달 노출 제거 → active만 켬. (3) 매치 시작 시점(팀 발표 종료 후 800ms)에 본인 토큰 자동 발동: questId 랜덤 부여 + 모달 노출. 충돌 가드(다른 풀스크린 모달 떠있으면 1초 후 재시도, 최대 10회) + 차단 구간 안전망(배치/승급전/도박권 활성 시 자동 비활성·토큰 보존)' },
+  ]},
   { ver: 'v2.43.42', date: '2026-05-23', changes: [
     { tag: 'improve', text: '비밀 퀘스트 결과 공개 정책 — 시작 시 모달은 본인만(비밀), 정산창에서는 토큰 사용자 전원의 결과 표시(옵션 B). 본인 행은 "나" 골드 뱃지 + 보라 글로우로 강조, 본인이 가장 위에 정렬. 매치 기록(openMatchDetail)에도 🤫 비밀 퀘스트 섹션 추가 — 사용자·퀘스트·결과 한 줄씩 모두 공개' },
   ]},
@@ -9183,6 +9186,9 @@ function showTeamAnnounce(teamA, teamB) {
       if (sec && sec.style.display !== 'none') {
         sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
+      // 비밀 퀘스트 토큰 자동 발동 (v2.43.43~) — 본인이 활성화한 토큰 있으면 모달 노출
+      // 다른 풀스크린 모달 (관전자 베팅·퀘스트 이벤트)이 떠 있으면 1초 후 재시도
+      setTimeout(() => { if (typeof _maybeShowSecretQuestModal === 'function') _maybeShowSecretQuestModal(); }, 800);
     }, 380);
   }
 
@@ -16742,6 +16748,94 @@ window.showSecretQuestModal = function showSecretQuestModal(quest) {
   document.addEventListener('keydown', escClose, true);
 };
 
+// ── 비밀 퀘스트 토큰 — 구매 시 안내 모달 (v2.43.43~) ──────────
+// 자동 적용·한도·차단 조건·비밀 컨셉을 한 번에 명확히 노출 (검정 톤 검소형)
+window.showSecretQuestPurchaseInfo = function(remaining, used) {
+  document.getElementById('sq-info-overlay')?.remove();
+  const el = document.createElement('div');
+  el.id = 'sq-info-overlay';
+  el.className = 'sq-modal-overlay';
+  el.innerHTML = `
+    <div class="sq-modal" onclick="event.stopPropagation();" style="max-width:340px;">
+      <div class="sq-modal-corner sq-modal-corner-tl"></div>
+      <div class="sq-modal-corner sq-modal-corner-tr"></div>
+      <div class="sq-modal-corner sq-modal-corner-bl"></div>
+      <div class="sq-modal-corner sq-modal-corner-br"></div>
+      <div class="sq-modal-header">
+        <div class="sq-modal-badge">🎫 토큰 구매 완료</div>
+        <div class="sq-modal-hint">활성화하면 다음 매치 시작 시 자동 발동</div>
+      </div>
+      <div class="sq-modal-icon">🤫</div>
+      <div class="sq-modal-name">비밀 퀘스트 토큰</div>
+      <div class="sq-modal-desc">인벤토리에서 활성화하세요<br>매치 시작 시점에 본인에게만 퀘스트 노출</div>
+      <div class="sq-modal-divider"></div>
+      <div class="sq-modal-meta">
+        <div class="sq-meta-row">
+          <span class="sq-meta-label">📅 오늘 사용</span>
+          <span class="sq-meta-val gold">${used} / ${SECRET_QUEST_DAILY_LIMIT}</span>
+        </div>
+        <div class="sq-meta-row">
+          <span class="sq-meta-label">🪙 잔액</span>
+          <span class="sq-meta-val gold">${remaining}G</span>
+        </div>
+        <div class="sq-meta-row">
+          <span class="sq-meta-label">⚠ 사용 불가 구간</span>
+          <span class="sq-meta-val cyan" style="font-size:10.5px;">배치/승급전·도박권</span>
+        </div>
+      </div>
+      <div class="sq-modal-warn" style="background:rgba(125,211,252,0.07);color:#7dd3fc;border-color:rgba(125,211,252,0.2);">
+        💡 인벤토리 → 토큰 클릭하여 활성화하세요. 차단 구간엔 자동 보존됩니다.
+      </div>
+      <button class="sq-modal-close" onclick="document.getElementById('sq-info-overlay').remove();">확인</button>
+    </div>`;
+  el.addEventListener('click', ev => { if (ev.target === el) el.remove(); });
+  document.body.appendChild(el);
+  const escClose = ev => { if (ev.key === 'Escape') { el.remove(); document.removeEventListener('keydown', escClose, true); } };
+  document.addEventListener('keydown', escClose, true);
+};
+
+// ── 매치 시작 시점 비밀 퀘스트 자동 발동 (v2.43.43~) ──────────
+// active=true && !questId 인 본인 토큰 발견 시 questId 부여 + 모달 노출
+// 다른 풀스크린 모달이 떠 있으면 1초 후 재시도 (큐잉)
+let _sqAutoActivateRetries = 0;
+window._maybeShowSecretQuestModal = async function() {
+  if (CURRENT_SEASON < 1 || !myName) return;
+  if (!isMyselfInCurrentMatch()) return;
+  const myEntry = Object.entries(goldData).find(([,g]) => normName(g.name) === normName(myName));
+  if (!myEntry) return;
+  const [fbKey, gData] = myEntry;
+  const itemsKey = sField('items');
+  const items = [...(gData[itemsKey] || [])];
+  const idx = items.findIndex(it => it.active && it.id === 'secret_quest' && !it.questId);
+  if (idx < 0) return;
+  // 차단 구간 가드 (안전망)
+  const myS1 = season1Data[normName(myName)];
+  if (!myS1?.placementDone || myS1?.promoActive) {
+    items[idx] = { ...items[idx], active: false };
+    await set(ref(db, 'gold/'+fbKey), { ...gData, [itemsKey]: items });
+    if (typeof showS1Toast === 'function') showS1Toast('⚠ 비밀 퀘스트는 배치/승급전 중 사용 불가 — 토큰 보존됨');
+    return;
+  }
+  if (items.some(it => it.active && it.id === 's1_gamble')) {
+    items[idx] = { ...items[idx], active: false };
+    await set(ref(db, 'gold/'+fbKey), { ...gData, [itemsKey]: items });
+    if (typeof showS1Toast === 'function') showS1Toast('⚠ 도박권 활성 중 — 비밀 퀘스트 보존됨');
+    return;
+  }
+  // 충돌 가드 — 다른 풀스크린 모달 떠있으면 1초 후 재시도 (최대 10회)
+  const blocker = document.querySelector('.team-announce-overlay, .sp-overlay.sp-center, .quest-event-overlay, .sq-modal-overlay, .match-summary-overlay');
+  if (blocker) {
+    if (_sqAutoActivateRetries++ < 10) { setTimeout(_maybeShowSecretQuestModal, 1000); }
+    return;
+  }
+  _sqAutoActivateRetries = 0;
+  // questId 부여 + 모달 노출
+  const quest = pickRandomSecretQuest();
+  items[idx] = { ...items[idx], questId: quest.id, activatedAt: Date.now() };
+  await set(ref(db, 'gold/'+fbKey), { ...gData, [itemsKey]: items });
+  showSecretQuestModal(quest);
+};
+
 function showLotteryResult(result, remainingGold) {
   const isPremium = !!result.premium;
   // 프리미엄: 모든 등급 모달 (200G 짜리니 결과가 항상 임팩트 있게)
@@ -17161,8 +17255,9 @@ window.buyItem = async function(itemId) {
       secretQuestDate: today,
       secretQuestCount: sqCount + 1,
     });
-    showGoldToast(`🎫 비밀 퀘스트 토큰 구매! 다음 정규전에서 활성화하세요 (🪙${currentGold - item.price} 남음)`);
     renderShop();
+    // 안내 모달 (v2.43.43~) — 자동 적용 흐름·한도·차단 구간 한 번에 명시
+    showSecretQuestPurchaseInfo(currentGold - item.price, sqCount + 1);
     return;
   }
 
@@ -17256,12 +17351,11 @@ window.toggleItemActive = async function(idx) {
       return;
     }
   }
-  // 비밀 퀘스트 토큰 활성화 순간 — questId 랜덤 부여 + 모달 표시
+  // 비밀 퀘스트 토큰 활성화 (v2.43.43~) — active만 토글, questId·모달은 매치 시작 시점에 부여
   if (!isActive && items[idx].id === 'secret_quest') {
-    const quest = pickRandomSecretQuest();
-    items[idx] = {...items[idx], active: true, questId: quest.id, activatedAt: Date.now()};
+    items[idx] = {...items[idx], active: true, questId: null, activatedAt: Date.now()};
     await set(ref(db,'gold/'+key), {...data, [itemsKey]: items});
-    showSecretQuestModal(quest);
+    showS1Toast('🤫 비밀 퀘스트 토큰 활성화! 다음 매치 시작 시 퀘스트가 부여됩니다');
     return;
   }
   items[idx] = {...items[idx], active: !isActive};
