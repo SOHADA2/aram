@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.43.47
+- 현재 버전: v2.43.48
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -665,6 +665,21 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
 ### v2.43.x (2026-05-22~23) ← 최신
+
+#### 비밀 퀘스트 토큰 엣지 케이스 5종 보강 (v2.43.48, 2026-05-23)
+프로세스 정밀 검토에서 발견된 엣지 케이스 일괄 수정.
+
+- **#1 한도 우회 차단**:
+  - `buyItem` 가드: `existingItems.some(it => it.id === 'secret_quest')` — active 무관, 보유 자체로 추가 구매 차단
+  - `toggleItemActive` OFF 분기: `secret_quest` 토글 OFF 시 `questId`/`activatedAt` 함께 제거 → 재활성화 시 새 questId 강제 부여 (어뷰즈 차단)
+  - 상점 카드 버튼: active=true → `다음 판 발동` / active=false → `보유 중`
+- **#2 이벤트/막고라 매치 모달 차단**: `_maybeShowSecretQuestModal`에 `isEventMatch` + `magollaState === 'active'` 가드 추가 (saveMatch 없는 흐름에서 사용자 혼란 방지)
+- **#3 sq_mvp 토큰 보존**: MVP 정보 부재(`!_mvpInfoAvailable`) 시 토큰 보존
+  - `window._preservedSqPlayersForThisMatch` Set으로 saveMatch → giveMatchGold 전달
+  - `giveMatchGold` 필터에서 secret_quest + preserved 케이스는 `return true`로 active 유지
+  - 본인이면 토스트 안내 "MVP 투표 미확정으로 다음 매치로 미뤄짐"
+- **#4 자동 비활성화 알림 강화**: 토스트 + `showSecretQuestPreservedNotice` 모달 결합. 시안 톤 검정 배경, 인벤토리 보존 명시
+- **#5 fallback 식별 플래그**: `wasFallback: true` 필드 추가 (saveMatch에서 questId 즉석 부여 케이스). 정산창 `.ms-sq-fb-badge` 로 🔄 복구 배지 표시
 
 #### 비밀 퀘스트 토큰 구매=즉시 활성화 정책 전환 (v2.43.47, 2026-05-23)
 인벤토리 적재로 못 쓰는 토큰 발생 가능성을 원천 차단.

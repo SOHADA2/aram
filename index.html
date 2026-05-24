@@ -1782,6 +1782,7 @@ body.member-mode #event-no-save-notice{display:none!important;}
 .ms-secret-quest{margin-top:6px;padding:9px 12px;border-radius:8px;background:linear-gradient(135deg,rgba(167,139,250,0.07),rgba(0,0,0,0.3));border:1px solid rgba(167,139,250,0.22);display:flex;align-items:center;gap:10px;font-size:12px;}
 .ms-secret-quest.me{background:linear-gradient(135deg,rgba(167,139,250,0.14),rgba(0,0,0,0.35));border-color:rgba(167,139,250,0.4);box-shadow:0 0 12px rgba(167,139,250,0.18);}
 .ms-sq-me-tag{display:inline-block;font-size:9px;font-weight:800;padding:1.5px 5px;border-radius:4px;background:var(--rk-gold-deep);color:#0d0d18;letter-spacing:0.5px;margin-right:5px;vertical-align:middle;}
+.ms-sq-fb-badge{display:inline-block;font-size:9px;font-weight:700;padding:1.5px 5px;border-radius:4px;background:rgba(125,211,252,0.18);color:#7dd3fc;letter-spacing:0.3px;margin-left:6px;vertical-align:middle;cursor:help;}
 .ms-sq-ico{font-size:18px;line-height:1;flex-shrink:0;}
 .ms-sq-body{flex:1;min-width:0;}
 .ms-sq-name{font-weight:700;color:#fff;font-size:12.5px;}
@@ -4351,7 +4352,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.47';
+const APP_VERSION = 'v2.43.48';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4360,6 +4361,9 @@ const APP_VERSION = 'v2.43.47';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.48', date: '2026-05-23', changes: [
+    { tag: 'fix', text: '비밀 퀘스트 토큰 엣지 케이스 5종 일괄 보강. (1) 한도 우회 차단 — 구매 가드를 "active 토큰 보유" → "토큰 보유 자체"로 강화, 토글 OFF 시 questId/activatedAt 함께 제거해 재활성화 시 새 questId 강제. (2) 이벤트 매치/막고라 매치 시 모달 노출 차단 — saveMatch 없는 흐름에서 토큰 발동되어 사용자 혼란 방지. (3) sq_mvp 퀘스트 + MVP 투표 미확정 시 토큰 보존 — _preservedSqPlayersForThisMatch Set으로 giveMatchGold 소비 차단, 다음 매치 재시도 가능. (4) 자동 비활성화 알림 강화 — 토스트 + 안내 모달(showSecretQuestPreservedNotice) 결합. (5) saveMatch fallback 케이스에 wasFallback 플래그 추가 → 정산창에 🔄 복구 배지 표시' },
+  ]},
   { ver: 'v2.43.47', date: '2026-05-23', changes: [
     { tag: 'improve', text: '비밀 퀘스트 토큰 — 구매 즉시 자동 활성화로 흐름 단순화. 별도 활성화 토글 불필요(원하면 인벤토리에서 끄기 가능), 구매하면 다음 매치 팀 발표 후 자동 발동. 차단 구간(배치/승급전/도박권 활성)은 구매 시점에 사전 차단해 200G 낭비 방지. 이미 활성화된 토큰 보유 중에는 추가 구매 차단(매치당 1회). 상점 카드에 "📅 오늘 N/2 · 구매 즉시 다음 매치 자동 발동" 안내 + 한도 소진 시 "한도 소진 (2/2)" 표시 + 활성화 중일 땐 "다음 판 발동" 표시' },
   ]},
@@ -10408,10 +10412,12 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
               resultHtml = `<span class="ms-sq-result fail">${succ ? '✅' : '❌'} ${won ? '승리' : '패배'}</span>`;
             }
             const meTag = isMe ? '<span class="ms-sq-me-tag">나</span>' : '';
+            // 자동 복구 배지 (v2.43.48~) — 모달 노출 전 새로고침된 케이스에서 questId fallback 부여됨
+            const fbBadge = sq.wasFallback ? '<span class="ms-sq-fb-badge" title="모달 노출 전 새로고침으로 인한 자동 복구">🔄 복구</span>' : '';
             return `<div class="ms-secret-quest${isMe ? ' me' : ''}">
               <span class="ms-sq-ico">${sq.questIcon || '🎫'}</span>
               <div class="ms-sq-body">
-                <div class="ms-sq-name">${meTag}🤫 ${escHtml(displayName)} — ${escHtml(sq.questName)}</div>
+                <div class="ms-sq-name">${meTag}🤫 ${escHtml(displayName)} — ${escHtml(sq.questName)}${fbBadge}</div>
                 <div class="ms-sq-desc">${escHtml(sq.questDesc || '')}</div>
               </div>
               ${resultHtml}
@@ -10816,19 +10822,33 @@ window.saveMatch = async function() {
 
     // ── 비밀 퀘스트 토큰 (v2.43.39~) — active=true 토큰 보유자만 판정·저장 ──
     // v2.43.46~: questId 없는 active 토큰 (모달 표시 전 새로고침 케이스) 도 fallback 으로 즉석 부여
+    // v2.43.48~: sq_mvp + MVP 정보 없는 케이스에선 토큰 보존 + fallback 식별 플래그 추가
     const _secretQuests = {};
+    const _preservedSqPlayers = new Set(); // sq_mvp 보존 대상 — giveMatchGold가 소비 안 하도록 표시
+    // MVP 정보 자체가 있는지 (sq_mvp 판정 가능 여부)
+    const _mvpInfoAvailable = !!(matchData.mvpWinner || matchData.mvpLoser
+                              || mvpConfirmed?.teamAMvp || mvpConfirmed?.teamBMvp);
     for (const p of allPlayers) {
       const entry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(p.name));
       if (!entry) continue;
       const itemsArr = entry[1][sField('items')] || [];
       const sqItem = itemsArr.find(it => it.active && it.id === 'secret_quest');
       if (!sqItem) continue;
+      const wasFallback = !sqItem.questId; // 모달 못 본 케이스 식별 (정산창에서 자동 복구 배지 표시용)
       let quest = sqItem.questId ? getSecretQuestById(sqItem.questId) : null;
       if (!quest) {
         // Fallback — 토큰 소실 방지 위해 즉석 부여 (보상은 정상 판정)
         quest = pickRandomSecretQuest();
       }
       const pNorm = normName(p.name);
+      // sq_mvp + MVP 정보 자체가 없는 경우 → 판정 불가 → 토큰 보존 (다음 매치 재시도)
+      if (quest.id === 'sq_mvp' && !_mvpInfoAvailable) {
+        _preservedSqPlayers.add(pNorm);
+        if (normName(myName || '') === pNorm) {
+          showS1Toast('🤫 비밀 퀘스트 (MVP) — MVP 투표 미확정으로 다음 매치로 미뤄짐');
+        }
+        continue; // _secretQuests 에 안 넣음 → matches.secretQuests 에도 미포함
+      }
       const inA = currentTeamA.some(x=>normName(x.name)===pNorm);
       const won = (inA && selectedWinner==='blue') || (!inA && selectedWinner==='red');
       const pData = currentMatchParticipants[pNorm];
@@ -10849,9 +10869,12 @@ window.saveMatch = async function() {
         questIcon: quest.icon,
         questDesc: quest.desc,
         success, won, reward, lpProtect,
+        ...(wasFallback ? { wasFallback: true } : {}),
       };
     }
     if (Object.keys(_secretQuests).length > 0) matchData.secretQuests = _secretQuests;
+    // giveMatchGold 가 읽도록 모듈 스코프에 노출 (이 saveMatch 호출 한정)
+    window._preservedSqPlayersForThisMatch = _preservedSqPlayers;
 
     // ── 관전자 결과 헬퍼 (다중 관전자 지원) ─────────────────────
     const _buildSpecResults = () => {
@@ -11042,6 +11065,7 @@ window.saveMatch = async function() {
     }
     await s1ApplyAllMatchResults(winners, losers, matchData.newbies || null, currentSpectators.map(s => s.name), matchData.secretQuests || null);
     await giveMatchGold(winners, losers, matchTimestamp);
+    window._preservedSqPlayersForThisMatch = null; // 청소 — 다음 saveMatch 호출에 영향 X
 
     // 관전자 결과, questEvent 보관 (finalizeVotes에서 결과 요약 시 사용)
     const spectatorResult = _buildSpecResults();
@@ -16620,8 +16644,9 @@ function _renderShopImmediate() {
   const todayLotteryCount = myShopData && myShopData.lotteryDate === todayStr ? (myShopData.lotteryCount || 0) : 0;
   const todayPremiumCount = myShopData && myShopData.lotteryPremiumDate === todayStr ? (myShopData.lotteryPremiumCount || 0) : 0;
   const todaySqCount      = myShopData && myShopData.secretQuestDate === todayStr ? (myShopData.secretQuestCount || 0) : 0;
-  // 비밀 퀘스트는 이미 활성화된 토큰이 있어도 중복 구매 차단 (한 매치 1회)
-  const sqAlreadyActive   = myShopData && (myShopData[sField('items')] || []).some(it => it.active && it.id === 'secret_quest');
+  // 비밀 퀘스트는 보유 자체로 중복 구매 차단 (한도 우회 방지)
+  const sqOwnedActive     = (myShopData?.[sField('items')] || []).find(it => it.id === 'secret_quest');
+  const sqAlreadyActive   = !!sqOwnedActive;
   document.getElementById('shop-list').innerHTML = shopFiltered.length === 0
     ? `<div class="sp-cat-empty">🔧 준비 중인 아이템이에요.<br>곧 장비 아이템이 추가될 예정이에요!</div>`
     : shopFiltered.map(item => {
@@ -16646,7 +16671,7 @@ function _renderShopImmediate() {
     } else if (isSupportLocked) {
       btnText = battlePassOwned ? `🔒 전투 ${battlePassLv}/25` : '🔒 전투 패스 필요'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
     } else if (isSqAlreadyActive) {
-      btnText = '다음 판 발동'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
+      btnText = sqOwnedActive?.active ? '다음 판 발동' : '보유 중'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
     } else if (isLotteryLimitHit) {
       btnText = `한도 소진 (${item.type === 'secret_quest' ? todaySqCount + '/' + SECRET_QUEST_DAILY_LIMIT : item.type === 'lottery_premium' ? '3/3' : '10/10'})`; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
     } else if (isItemsEffectivelyLocked() && !isLotteryType(item.type) && !isPassType) {
@@ -16878,6 +16903,37 @@ window.showSecretQuestPurchaseInfo = function(remaining, used) {
   document.addEventListener('keydown', escClose, true);
 };
 
+// 비밀 퀘스트 자동 비활성화 안내 모달 (v2.43.48~) — 토스트 놓쳐도 인지 가능하도록
+window.showSecretQuestPreservedNotice = function(msg) {
+  document.getElementById('sq-preserved-overlay')?.remove();
+  const el = document.createElement('div');
+  el.id = 'sq-preserved-overlay';
+  el.className = 'sq-modal-overlay';
+  el.innerHTML = `
+    <div class="sq-modal" onclick="event.stopPropagation();" style="max-width:340px;">
+      <div class="sq-modal-corner sq-modal-corner-tl"></div>
+      <div class="sq-modal-corner sq-modal-corner-tr"></div>
+      <div class="sq-modal-corner sq-modal-corner-bl"></div>
+      <div class="sq-modal-corner sq-modal-corner-br"></div>
+      <div class="sq-modal-header">
+        <div class="sq-modal-badge" style="background:rgba(125,211,252,0.15);color:#7dd3fc;">🛡️ 토큰 보존</div>
+        <div class="sq-modal-hint">발동 불가 구간으로 자동 비활성화</div>
+      </div>
+      <div class="sq-modal-icon">🤫</div>
+      <div class="sq-modal-name">비밀 퀘스트 토큰</div>
+      <div class="sq-modal-desc">${escHtml(msg)}</div>
+      <div class="sq-modal-divider"></div>
+      <div class="sq-modal-warn" style="background:rgba(125,211,252,0.07);color:#7dd3fc;border-color:rgba(125,211,252,0.2);">
+        💡 인벤토리에 토큰이 그대로 남아 있어요. 차단 구간이 해제되면 다시 활성화 가능.
+      </div>
+      <button class="sq-modal-close" onclick="document.getElementById('sq-preserved-overlay').remove();">확인</button>
+    </div>`;
+  el.addEventListener('click', ev => { if (ev.target === el) el.remove(); });
+  document.body.appendChild(el);
+  const escClose = ev => { if (ev.key === 'Escape') { el.remove(); document.removeEventListener('keydown', escClose, true); } };
+  document.addEventListener('keydown', escClose, true);
+};
+
 // ── 매치 시작 시점 비밀 퀘스트 자동 발동 (v2.43.43~) ──────────
 // active=true 토큰 발견 시 questId 부여(첫 노출)·재사용(재팀짜기) + 모달 노출
 // 다른 풀스크린 모달이 떠 있으면 1초 후 재시도 (큐잉)
@@ -16888,6 +16944,10 @@ let _shownSqForTeamTs = 0;
 window._maybeShowSecretQuestModal = async function() {
   if (CURRENT_SEASON < 1 || !myName) return;
   if (!isMyselfInCurrentMatch()) return;
+  // 이벤트 매치 가드 (v2.43.48~) — 이벤트 매치는 saveMatch 안 부르고 결과 안 저장됨 → 토큰 발동 X, 사용자 혼란 방지
+  if (isEventMatch) return;
+  // 막고라 매치 가드 (v2.43.48~) — 1v1은 일반 매치와 별개 흐름
+  if (typeof magollaState !== 'undefined' && magollaState === 'active') return;
   // 동일 팀 형성 동안 중복 노출 방지
   if (_currentTeamsFormedAt && _shownSqForTeamTs === _currentTeamsFormedAt) return;
   const myEntry = Object.entries(goldData).find(([,g]) => normName(g.name) === normName(myName));
@@ -16898,18 +16958,25 @@ window._maybeShowSecretQuestModal = async function() {
   // active 토큰이면 questId 유무 상관없이 모두 대상 (재팀짜기 시 기존 questId 재사용)
   const idx = items.findIndex(it => it.active && it.id === 'secret_quest');
   if (idx < 0) return;
-  // 차단 구간 가드 (안전망)
+  // 차단 구간 가드 (안전망) — v2.43.48~ 토스트 + 알림 모달(strong) 결합
   const myS1 = season1Data[normName(myName)];
+  const _notifySqPreserved = (msg) => {
+    if (typeof showS1Toast === 'function') showS1Toast(msg);
+    // 안내 모달 — 토스트 놓쳐도 인지 가능 (인벤토리에 보존됨을 명확히 알림)
+    if (typeof showSecretQuestPreservedNotice === 'function') showSecretQuestPreservedNotice(msg);
+  };
   if (!myS1?.placementDone || myS1?.promoActive) {
     items[idx] = { ...items[idx], active: false, questId: undefined, activatedAt: undefined };
     await set(ref(db, 'gold/'+fbKey), { ...gData, [itemsKey]: items });
-    if (typeof showS1Toast === 'function') showS1Toast('⚠ 비밀 퀘스트는 배치/승급전 중 사용 불가 — 토큰 보존됨');
+    _notifySqPreserved(myS1?.promoActive
+      ? '⚠ 승급전 진입으로 비밀 퀘스트 자동 비활성화 — 인벤토리에 보존됨'
+      : '⚠ 배치고사 중 비밀 퀘스트 자동 비활성화 — 인벤토리에 보존됨');
     return;
   }
   if (items.some(it => it.active && it.id === 's1_gamble')) {
     items[idx] = { ...items[idx], active: false, questId: undefined, activatedAt: undefined };
     await set(ref(db, 'gold/'+fbKey), { ...gData, [itemsKey]: items });
-    if (typeof showS1Toast === 'function') showS1Toast('⚠ 도박권 활성 중 — 비밀 퀘스트 보존됨');
+    _notifySqPreserved('⚠ 도박권 활성 중 — 비밀 퀘스트 자동 비활성화 (인벤토리에 보존됨)');
     return;
   }
   // 충돌 가드 — 다른 풀스크린 모달 떠있으면 1초 후 재시도 (최대 10회)
@@ -17356,8 +17423,9 @@ window.buyItem = async function(itemId) {
       showGoldToast('⚠ 도박권 활성 중에는 비밀 퀘스트를 구매할 수 없어요');
       return;
     }
-    if (existingItems.some(it => it.active && it.id === 'secret_quest')) {
-      showGoldToast('⚠ 이미 비밀 퀘스트가 활성화돼 있어요 — 한 매치엔 1회만');
+    // 보유 자체로 차단 (active 무관) — 한도 우회 방지: 비활성 토큰을 인벤토리에 쌓아두고 나중에 일괄 활성화하는 어뷰즈 차단
+    if (existingItems.some(it => it.id === 'secret_quest')) {
+      showGoldToast('⚠ 이미 비밀 퀘스트 토큰을 보유 중이에요 — 사용 후 추가 구매 가능');
       return;
     }
     const newGoldSpent = (data[spentKey] ?? 0) + item.price;
@@ -17473,6 +17541,13 @@ window.toggleItemActive = async function(idx) {
     showS1Toast('🤫 비밀 퀘스트 토큰 활성화! 다음 매치 시작 시 퀘스트가 부여됩니다');
     return;
   }
+  // 비밀 퀘스트 토큰 비활성화 (v2.43.48~) — questId·activatedAt도 함께 제거해 재활성화 시 새 questId 강제 부여
+  if (isActive && items[idx].id === 'secret_quest') {
+    items[idx] = {...items[idx], active: false, questId: undefined, activatedAt: undefined};
+    await set(ref(db,'gold/'+key), {...data, [itemsKey]: items});
+    showS1Toast('🤫 비밀 퀘스트 토큰 비활성화 (보존됨) — 다시 활성화하면 새 퀘스트 부여');
+    return;
+  }
   items[idx] = {...items[idx], active: !isActive};
   await set(ref(db,'gold/'+key), {...data, [itemsKey]: items});
   const isS1Item = S1_SHOP_ITEMS.some(s => s.id === items[idx].id);
@@ -17527,8 +17602,18 @@ async function giveMatchGold(winners, losers, matchTimestamp) {
         else          applyLog.push(`🎲 ${name} 도박 실패... (-15pt)`);
         return false; // 소모
       }
+      // 비밀 퀘스트 토큰 보존 케이스 (v2.43.48~) — sq_mvp + MVP 정보 부재 시 다음 매치로 미룸
+      if (item.id === 'secret_quest'
+          && window._preservedSqPlayersForThisMatch?.has(normName(name))) {
+        return true; // 보존 — active 유지
+      }
       return false; // 그 외 active 아이템도 소모
-    }).map(item => ({...item, active: false}));
+    }).map(item => {
+      // 보존된 비밀 퀘스트 토큰은 active=true 유지 (다음 매치 재시도용)
+      if (item.id === 'secret_quest' && item.active
+          && window._preservedSqPlayersForThisMatch?.has(normName(name))) return item;
+      return { ...item, active: false };
+    });
 
     await set(ref(db,'gold/'+k), {
       ...d, [itemsKey]: items,
