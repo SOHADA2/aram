@@ -57,7 +57,7 @@
   --rk-card:#100c1e; --rk-sub:#18102e;
   --rk-border:rgba(255,255,255,.07); --rk-border-strong:rgba(255,255,255,.12);
 }
-.s1-active::before{
+body.s1-active::before{
   background:
     /* 별자리 — 퍼플 화이트 톤 */
     radial-gradient(1px 1px at 6%  5%,  rgba(240,225,255,0.70) 0%,transparent 100%),
@@ -79,7 +79,7 @@
     linear-gradient(180deg,#040210 0%,#070518 30%,#09071c 60%,#050313 100%);
   animation: s1AuroraB 7s ease-in-out infinite;
 }
-.s1-active::after{
+body.s1-active::after{
   mix-blend-mode:normal;
   background:
     /* 오로라 메인 커튼 — 퍼플 */
@@ -4403,7 +4403,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.56';
+const APP_VERSION = 'v2.43.57';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4412,6 +4412,9 @@ const APP_VERSION = 'v2.43.56';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.57', date: '2026-05-24', changes: [
+    { tag: 'fix', text: '최근 변경 사항 잠재 버그 일괄 보강. (1) v2.43.54 body→. 선택자 변경 부작용 — .s1-active::before/::after 가 html·body 양쪽에 매칭돼 별·오로라 배경 2중 렌더링 가능성 → body 한정으로 스코프 복원. (2) saveMatch 도중 에러 시 _preservedSqPlayersForThisMatch 누수 → try/finally 로 cleanup 보장. (3) openGachaInvModal 닫지 않고 재호출 시 _gachaInvPanelOriginalParent 덮어쓰여 패널 복귀 불가 → 이중 오픈 가드 추가. (4) toggleItemActive questId/activatedAt undefined 가 Firebase 직렬화에서 제거 안되는 케이스 → delete 로 명시 제거' },
+  ]},
   { ver: 'v2.43.56', date: '2026-05-24', changes: [
     { tag: 'fix', text: '5번째 탭 라벨 잔존 깜박임 완전 제거 — v2.43.55 는 버튼 직후 인라인 스크립트로 교체했지만 "버튼 DOM 추가 → 스크립트 실행" 사이의 ms 단위 페인트는 남아있었음. HTML 디폴트를 현재 시즌(S1) 라벨 "🎫 패스" 로 변경, S0 케이스에만 인라인 스크립트가 "🏅 업적" 으로 교체. 대다수 사용자(S1)는 깜박임 0' },
   ]},
@@ -11139,9 +11142,13 @@ window.saveMatch = async function() {
       // 매치 진입 직전 player.s1State 와 매치 가능한 아이템만 active 유지하도록 정규화
       await _normalizeActiveS1Items(allMatchPlayers, s1LpBefore);
     }
-    await s1ApplyAllMatchResults(winners, losers, matchData.newbies || null, currentSpectators.map(s => s.name), matchData.secretQuests || null);
-    await giveMatchGold(winners, losers, matchTimestamp);
-    window._preservedSqPlayersForThisMatch = null; // 청소 — 다음 saveMatch 호출에 영향 X
+    try {
+      await s1ApplyAllMatchResults(winners, losers, matchData.newbies || null, currentSpectators.map(s => s.name), matchData.secretQuests || null);
+      await giveMatchGold(winners, losers, matchTimestamp);
+    } finally {
+      // 청소 — 다음 saveMatch 호출 누수 방지 (에러 케이스에서도 항상 실행)
+      window._preservedSqPlayersForThisMatch = null;
+    }
 
     // 관전자 결과, questEvent 보관 (finalizeVotes에서 결과 요약 시 사용)
     const spectatorResult = _buildSpecResults();
@@ -16622,6 +16629,11 @@ let _gachaInvPanelOriginalParent = null;
 window.openGachaInvModal = function() {
   const overlay = document.getElementById('gacha-inv-overlay');
   const body    = document.getElementById('gacha-inv-body');
+  // 이미 모달에 패널이 있으면 (이중 오픈) overlay 만 다시 show — 원본 부모 ref 덮어쓰기 차단 (v2.43.57~)
+  if (body && body.querySelector('.sp-panel')) {
+    overlay?.classList.add('show');
+    return;
+  }
   const rightPanel = document.querySelector('#shop-panels > .sp-panel:last-child');
   if (!overlay || !body || !rightPanel) return;
   _gachaInvPanelOriginalParent = rightPanel.parentNode;
@@ -17077,8 +17089,10 @@ window._maybeShowSecretQuestModal = async function() {
     // 안내 모달 — 토스트 놓쳐도 인지 가능 (인벤토리에 보존됨을 명확히 알림)
     if (typeof showSecretQuestPreservedNotice === 'function') showSecretQuestPreservedNotice(msg);
   };
+  // (v2.43.57~) undefined 대신 delete 로 키 명시 제거 → Firebase 직렬화 호환성
+  const _deactivateSq = (item) => { const it = { ...item, active: false }; delete it.questId; delete it.activatedAt; return it; };
   if (!myS1?.placementDone || myS1?.promoActive) {
-    items[idx] = { ...items[idx], active: false, questId: undefined, activatedAt: undefined };
+    items[idx] = _deactivateSq(items[idx]);
     await set(ref(db, 'gold/'+fbKey), { ...gData, [itemsKey]: items });
     _notifySqPreserved(myS1?.promoActive
       ? '⚠ 승급전 진입으로 비밀 퀘스트 자동 비활성화 — 인벤토리에 보존됨'
@@ -17086,7 +17100,7 @@ window._maybeShowSecretQuestModal = async function() {
     return;
   }
   if (items.some(it => it.active && it.id === 's1_gamble')) {
-    items[idx] = { ...items[idx], active: false, questId: undefined, activatedAt: undefined };
+    items[idx] = _deactivateSq(items[idx]);
     await set(ref(db, 'gold/'+fbKey), { ...gData, [itemsKey]: items });
     _notifySqPreserved('⚠ 도박권 활성 중 — 비밀 퀘스트 자동 비활성화 (인벤토리에 보존됨)');
     return;
@@ -17654,8 +17668,11 @@ window.toggleItemActive = async function(idx) {
     return;
   }
   // 비밀 퀘스트 토큰 비활성화 (v2.43.48~) — questId·activatedAt도 함께 제거해 재활성화 시 새 questId 강제 부여
+  // (v2.43.57~) undefined 대신 delete 로 키 명시 제거 → Firebase 직렬화 호환성
   if (isActive && items[idx].id === 'secret_quest') {
-    items[idx] = {...items[idx], active: false, questId: undefined, activatedAt: undefined};
+    const next = {...items[idx], active: false};
+    delete next.questId; delete next.activatedAt;
+    items[idx] = next;
     await set(ref(db,'gold/'+key), {...data, [itemsKey]: items});
     showS1Toast('🤫 비밀 퀘스트 토큰 비활성화 (보존됨) — 다시 활성화하면 새 퀘스트 부여');
     return;
