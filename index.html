@@ -4403,7 +4403,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.58';
+const APP_VERSION = 'v2.43.59';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -13635,15 +13635,31 @@ function renderRelayBoardHtml() {
     .sort((a, b) => b.step - a.step)
     .slice(0, 12);
 
-  const tmRows = teammates.map((tm, i) => {
+  // 동률 포함 순위 계산 (1,1,3,4...)
+  let rankCounter = 1;
+  teammates.forEach((tm, i) => {
+    if (i > 0 && tm.step < teammates[i-1].step) rankCounter = i + 1;
+    tm.rank = rankCounter;
+  });
+  const MEDAL = { 1: { icon:'🥇', color:'#f5c842', bg:'rgba(245,200,66,0.08)' },
+                  2: { icon:'🥈', color:'#b0b8c8', bg:'rgba(176,184,200,0.07)' },
+                  3: { icon:'🥉', color:'#cd7f46', bg:'rgba(205,127,70,0.08)' } };
+
+  const tmRows = teammates.map(tm => {
     const p = Math.round((tm.step / 30) * 100);
     const isDone = tm.step >= 30;
+    const medal = MEDAL[tm.rank];
     const meTag = tm.isMe ? '<span style="font-size:9px;font-weight:700;color:#c8973c;margin-left:5px;letter-spacing:.4px;">나</span>' : '';
-    return `<div class="rlb-tm-row"${tm.isMe?' style="background:rgba(200,151,60,0.06);"':''}>
-      <div class="rlb-tm-rank">${i+1}</div>
+    const rankCell = medal
+      ? `<div class="rlb-tm-rank" style="font-size:15px;">${medal.icon}</div>`
+      : `<div class="rlb-tm-rank">${tm.rank}</div>`;
+    const rowBg = medal ? medal.bg : tm.isMe ? 'rgba(200,151,60,0.06)' : '';
+    const nameColor = medal ? `color:${medal.color};` : '';
+    return `<div class="rlb-tm-row"${rowBg?` style="background:${rowBg};"`:''}>
+      ${rankCell}
       <div class="rlb-tm-body">
-        <div class="rlb-tm-name">${escHtml(tm.name)}${meTag}</div>
-        <div class="rlb-tm-bar"><div class="rlb-tm-fill" style="width:${p}%"></div></div>
+        <div class="rlb-tm-name" style="${nameColor}">${escHtml(tm.name)}${meTag}</div>
+        <div class="rlb-tm-bar"><div class="rlb-tm-fill" style="width:${p}%${medal?`;background:${medal.color}`:''};"></div></div>
       </div>
       <div class="rlb-tm-step${isDone?' done':''}">${isDone ? '완주' : tm.step+'/30'}</div>
     </div>`;
