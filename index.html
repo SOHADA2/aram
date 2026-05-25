@@ -4403,7 +4403,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.57';
+const APP_VERSION = 'v2.43.58';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -13627,20 +13627,22 @@ function renderRelayBoardHtml() {
     </div>`;
   }).join('');
 
-  // 팀원 진행도
+  // 팀원 진행도 (본인 포함)
+  const myNormForTm = normName(myName);
   const teammates = Object.entries(goldData)
-    .filter(([,g]) => g.name && normName(g.name) !== normName(myName))
-    .map(([,g]) => ({ name: g.name, step: Math.min(g[sField('relayProgress')] || 0, 30) }))
+    .filter(([,g]) => !!g.name)
+    .map(([,g]) => ({ name: g.name, step: Math.min(g[sField('relayProgress')] || 0, 30), isMe: normName(g.name) === myNormForTm }))
     .sort((a, b) => b.step - a.step)
     .slice(0, 12);
 
   const tmRows = teammates.map((tm, i) => {
     const p = Math.round((tm.step / 30) * 100);
     const isDone = tm.step >= 30;
-    return `<div class="rlb-tm-row">
+    const meTag = tm.isMe ? '<span style="font-size:9px;font-weight:700;color:#c8973c;margin-left:5px;letter-spacing:.4px;">나</span>' : '';
+    return `<div class="rlb-tm-row"${tm.isMe?' style="background:rgba(200,151,60,0.06);"':''}>
       <div class="rlb-tm-rank">${i+1}</div>
       <div class="rlb-tm-body">
-        <div class="rlb-tm-name">${escHtml(tm.name)}</div>
+        <div class="rlb-tm-name">${escHtml(tm.name)}${meTag}</div>
         <div class="rlb-tm-bar"><div class="rlb-tm-fill" style="width:${p}%"></div></div>
       </div>
       <div class="rlb-tm-step${isDone?' done':''}">${isDone ? '완주' : tm.step+'/30'}</div>
