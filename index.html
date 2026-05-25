@@ -4403,7 +4403,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.60';
+const APP_VERSION = 'v2.43.61';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4412,6 +4412,9 @@ const APP_VERSION = 'v2.43.60';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.61', date: '2026-05-25', changes: [
+    { tag: 'new', text: '정산창 전파 — 라이브 호스트뿐 아니라 매치 참여 팀원(승자·패자) 본인 기기에서도 자동 표시. finalizeVotes 에서 정산 데이터를 Firebase /lastSettlement 에 publish, 각 기기 onValue 리스너가 본인이 참여자(winners·losers 본인 이름 포함)일 때만 showMatchSummary 호출. localStorage `shownSettlements` 로 매치 키 마킹해 중복 표시·새로고침 시 재표시 차단 (최근 50개 유지). 라이브 호스트는 finalizeVotes 직접 호출 후 마킹 → onValue 트리거에는 차단됨. 10분 이상 오래된 데이터는 무시' },
+  ]},
   { ver: 'v2.43.57', date: '2026-05-24', changes: [
     { tag: 'fix', text: '최근 변경 사항 잠재 버그 일괄 보강. (1) v2.43.54 body→. 선택자 변경 부작용 — .s1-active::before/::after 가 html·body 양쪽에 매칭돼 별·오로라 배경 2중 렌더링 가능성 → body 한정으로 스코프 복원. (2) saveMatch 도중 에러 시 _preservedSqPlayersForThisMatch 누수 → try/finally 로 cleanup 보장. (3) openGachaInvModal 닫지 않고 재호출 시 _gachaInvPanelOriginalParent 덮어쓰여 패널 복귀 불가 → 이중 오픈 가드 추가. (4) toggleItemActive questId/activatedAt undefined 가 Firebase 직렬화에서 제거 안되는 케이스 → delete 로 명시 제거' },
   ]},
@@ -6410,6 +6413,39 @@ onValue(ref(db, 'matches'), (snapshot) => {
 onValue(ref(db, 'magolla_matches'), (snapshot) => {
   magollaMatches = snapshot.val() || {};
   if (viewSeason === 'magolla') renderMatchHistory();
+});
+
+// ── 정산창 전파 (v2.43.61~) — 매치 참여 팀원에게 자동 표시 ──
+function _hasShownSettlement(matchKey) {
+  if (!matchKey) return false;
+  const raw = localStorage.getItem('shownSettlements') || '';
+  return raw.split(',').filter(Boolean).includes(matchKey);
+}
+function _markSettlementShown(matchKey) {
+  if (!matchKey) return;
+  let shown = (localStorage.getItem('shownSettlements') || '').split(',').filter(Boolean);
+  if (shown.includes(matchKey)) return;
+  shown.push(matchKey);
+  if (shown.length > 50) shown = shown.slice(-50); // 최근 50개만 유지
+  localStorage.setItem('shownSettlements', shown.join(','));
+}
+onValue(ref(db, 'lastSettlement'), (snapshot) => {
+  const data = snapshot.val();
+  if (!data || !data.matchKey) return;
+  if (_hasShownSettlement(data.matchKey)) return; // 이미 본 매치
+  if (!myName) return; // 본인 닉 미선택 → 표시 안함
+  // 너무 오래된 데이터 차단 (10분 이상)
+  if (data.publishedAt && Date.now() - data.publishedAt > 10 * 60 * 1000) return;
+  // 본인이 매치 참여자인지 (승자 또는 패자) 체크
+  const myNorm = normName(myName);
+  const winners = data.winners || [];
+  const losers  = data.losers  || [];
+  const isParticipant = winners.some(n => normName(n) === myNorm)
+                     || losers.some(n => normName(n) === myNorm);
+  if (!isParticipant) return;
+  _markSettlementShown(data.matchKey);
+  // 라이브 호스트는 finalizeVotes에서 이미 호출됨 → 살짝 늦게 떠도 _hasShownSettlement로 차단됨
+  if (typeof showMatchSummary === 'function') showMatchSummary(data);
 });
 
 // ── SESSION SYNC (팀짜기 실시간 공유) ─────────────────────────
@@ -11281,13 +11317,21 @@ async function finalizeVotes() {
   closeEogOverlay();
   // 결과 요약 모달 (postSaveMatchData는 이후 null로 초기화되므로 미리 캡처)
   const _summaryData = { ...postSaveMatchData };
-  setTimeout(() => showMatchSummary({
+  const _summaryPayload = {
     ..._summaryData,
     mvpWinner: mvpWinnerName,
     mvpLoser: mvpLoserName,
     mannerWinner: mannerWinnerName,
     mannerLoser: mannerLoserName,
-  }), 400);
+    matchKey: savedMatchKey,
+    publishedAt: Date.now(),
+  };
+  // 참여 팀원에게도 정산창 전파 (v2.43.61~) — session 밖 별도 경로 (saveMatch가 session 리셋해도 살아남음)
+  set(ref(db, 'lastSettlement'), _summaryPayload).catch(console.error);
+  // 라이브 호스트는 onValue 지연 없이 즉시 표시
+  setTimeout(() => showMatchSummary(_summaryPayload), 400);
+  // 같은 매치 정산창 중복 표시 방지용 키 마킹 (라이브 호스트도 onValue로 다시 표시 안 되도록)
+  if (savedMatchKey) _markSettlementShown(savedMatchKey);
 
   // 저장 완료 패널 표시
   document.getElementById('save-done-panel').classList.add('show');
