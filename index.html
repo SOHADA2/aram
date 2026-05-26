@@ -1915,9 +1915,9 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
   box-shadow:inset 0 1px 0 rgba(200,168,75,0.1),inset 0 -1px 0 rgba(0,0,0,0.4);}
 .scard-cell-bonus{grid-column:1/-1;height:56px;}
 .scard-sym{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;pointer-events:none;user-select:none;}
-.scard-sym-emoji{font-size:30px;line-height:1;transform:scale(0.4);opacity:0;transition:transform 0.45s cubic-bezier(0.34,1.56,0.64,1),opacity 0.3s ease;filter:drop-shadow(0 2px 6px rgba(0,0,0,0.6));}
+.scard-sym-emoji{font-size:30px;line-height:1;transform:scale(0.7);opacity:0;transition:transform 0.45s cubic-bezier(0.34,1.56,0.64,1),opacity 0.35s ease,filter 0.4s ease;filter:blur(10px) drop-shadow(0 2px 6px rgba(0,0,0,0.6));}
 .scard-cell-bonus .scard-sym-emoji{font-size:26px;}
-.scard-sym-emoji.revealed{transform:scale(1);opacity:1;}
+.scard-sym-emoji.revealed{transform:scale(1);opacity:1;filter:drop-shadow(0 2px 8px rgba(0,0,0,0.6));}
 .scard-sym-name{font-size:9px;letter-spacing:0.3px;color:rgba(200,168,75,0.5);}
 /* BONUS 배지 */
 .scard-bonus-tag{position:absolute;top:5px;right:7px;z-index:2;font-size:8px;letter-spacing:2px;
@@ -4468,7 +4468,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.73';
+const APP_VERSION = 'v2.43.74';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -17290,7 +17290,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
           <button class="scard-mode-btn" data-mode="hold">● 홀드</button>
         </div>
         ${testMode && testStats
-          ? `<div class="scard-price" style="font-size:10px;letter-spacing:0;">${testStats.tries}회 · 당첨 ${testStats.wins}회 · 회수율 ${testStats.rate}%</div>`
+          ? `<div class="scard-price" style="font-size:10px;letter-spacing:0;">${testStats.tries}회 · 당첨 ${testStats.wins}회 · 회수율 ${testStats.rate}</div>`
           : `<div class="scard-price">100G</div>`}
       </div>
       <div class="scard-body">
@@ -17310,7 +17310,6 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
                 <div class="scard-sym-name">${slots[4].id !== 'miss' ? slots[4].name : ''}</div>
               </div>
               <canvas class="scard-canvas"></canvas>
-              <div class="scard-bonus-tag">BONUS</div>
             </div>
           </div>
           <div class="scard-bottom">
@@ -17365,7 +17364,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     if (st.revealed || allDone) return;
     overlay.querySelector('#scard-hint').style.opacity = '0';
     st.ctx.globalCompositeOperation = 'destination-out';
-    st.ctx.beginPath(); st.ctx.arc(x, y, 26, 0, Math.PI * 2); st.ctx.fill();
+    st.ctx.beginPath(); st.ctx.arc(x, y, 12, 0, Math.PI * 2); st.ctx.fill();
     st.ctx.globalCompositeOperation = 'source-over';
     if (++st.tick % 3 === 0) checkCellReveal(st);
   }
@@ -17381,16 +17380,41 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     const d = st.ctx.getImageData(0, 0, st.canvas.width, st.canvas.height).data;
     let cleared = 0;
     for (let i = 3; i < d.length; i += 4) if (d[i] < 128) cleared++;
-    if (cleared / (st.canvas.width * st.canvas.height) >= 0.55) revealCell(st);
+    const pct = cleared / (st.canvas.width * st.canvas.height);
+    if (pct >= 0.5) {
+      st.symEl.style.opacity = '0.8';
+      st.symEl.style.filter = 'blur(2px) drop-shadow(0 2px 6px rgba(0,0,0,0.6))';
+      st.symEl.style.transform = 'scale(0.97)';
+    } else if (pct >= 0.32) {
+      st.symEl.style.opacity = '0.5';
+      st.symEl.style.filter = 'blur(7px) drop-shadow(0 2px 6px rgba(0,0,0,0.6))';
+      st.symEl.style.transform = 'scale(0.85)';
+    } else if (pct >= 0.14) {
+      st.symEl.style.opacity = '0.25';
+      st.symEl.style.filter = 'blur(12px) drop-shadow(0 2px 6px rgba(0,0,0,0.6))';
+      st.symEl.style.transform = 'scale(0.75)';
+    }
+    if (pct >= 0.55) revealCell(st);
   }
 
   function revealCell(st) {
     if (st.revealed) return;
     st.revealed = true;
+    st.symEl.style.transition = 'opacity 0.25s ease, filter 0.5s ease, transform 0.5s cubic-bezier(0.34,1.56,0.64,1)';
+    st.symEl.style.opacity = '1';
+    st.symEl.style.filter = 'drop-shadow(0 2px 6px rgba(0,0,0,0.6))';
+    st.symEl.style.transform = 'scale(1)';
     st.canvas.style.transition = 'opacity 0.4s ease';
     st.canvas.style.opacity = '0';
-    setTimeout(() => { st.canvas.style.display = 'none'; st.symEl.classList.add('revealed'); }, 420);
-    if (++revealedCount === 5) setTimeout(finishReveal, 520);
+    setTimeout(() => {
+      st.canvas.style.display = 'none';
+      st.symEl.style.filter = '';
+      st.symEl.style.opacity = '';
+      st.symEl.style.transform = '';
+      st.symEl.style.transition = '';
+      st.symEl.classList.add('revealed');
+    }, 520);
+    if (++revealedCount === 5) setTimeout(finishReveal, 620);
   }
 
   function finishReveal() {
@@ -17451,12 +17475,16 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
 
     function startHold() {
       if (st.holdTimer || scratchMode !== 'hold') return;
+      let phase = 0;
       st.holdTimer = setInterval(() => {
         if (!st.scratching || st.revealed || allDone) { stopHold(); return; }
-        const jx = (st.lastX ?? 0) + (Math.random() - 0.5) * 20;
-        const jy = (st.lastY ?? 0) + (Math.random() - 0.5) * 20;
+        phase += 0.28;
+        const cx = st.lastX ?? st.canvas.width / 2;
+        const cy = st.lastY ?? st.canvas.height / 2;
+        const jx = cx + Math.sin(phase) * 38;
+        const jy = cy + Math.sin(phase * 0.6) * 10;
         scratchAt(st, jx, jy);
-      }, 30);
+      }, 18);
     }
     function stopHold() {
       clearInterval(st.holdTimer); st.holdTimer = null;
