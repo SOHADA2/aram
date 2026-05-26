@@ -664,7 +664,40 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.43.x (2026-05-22~23) ← 최신
+### v2.43.x (2026-05-27) ← 최신
+
+#### 챔피언 가챠 프리즘 카드 + 복권 개선 (v2.43.82~89, 2026-05-27)
+
+##### 복권 긁기 시스템 개편 (v2.43.82~86)
+- **v2.43.82**: 3줄 평행선 긁기 → 단일 스트로크로 변경 시도 (dark blob 문제)
+- **v2.43.83**: 이모지 즉시 노출 시도 (유저 요청으로 롤백)
+- **v2.43.84**: `lineCap:'square'` 사각형 긁기로 변경
+- **v2.43.85**: `globalAlpha:0.45` 레이어 효과 추가 (한 꺼풀씩 벗겨지는 느낌)
+- **v2.43.86**: **최종 확정** — 이모지를 캔버스 아래에 즉시 노출(opacity:1), destination-out + globalAlpha:0.45로 긁을수록 비쳐 보이는 구조. checkCellReveal 임계값 `< 200` (1번 긁힌 픽셀도 카운트)
+  - 핵심: 캔버스(은박 커버)가 불투명하게 이모지를 가리고, 긁으면 캔버스가 반투명해지며 아래 이모지 노출
+
+##### 복권 확률/골드 조정 (v2.43.87)
+- 🍀 클로버 5%→**30%** 50G / 🌙 달 20%→**25%** 100G / ⭐ 별 8% 200G / 💎 다이아 4% 400G / 👑 왕관 1.5%→**1%** 1000G→**800G**
+- 총 당첨률 38.5%→**68%**, 꽝 **32%**
+- `rollScratch()` 누적 확률 구간 갱신
+
+##### 챔피언 가챠 프리즘 이미지 (v2.43.88~89)
+- 프리즘 카드 이미지 18종 추가 (`assets/pets/{slug}/prism/default.png`)
+  - 스타일: StarCraft Remastered Cartooned DLC 스타일 (Adobe Firefly 생성)
+  - 골드=기본 스킨 치비 일러스트 / 프리즘=유료 스킨 동일 스타일
+  - 스킨 목록: Cyber Pop 아크샨, Re-Gifted 아무무, Zombie 브랜드, Corporate 문도, Fuzz 피즈, Sultan 갱플랭크, High Noon 진, Mecha 카직스, Pool Party 룰루, Glacial 말파이트, Snow Day 말자하, Prestige Winterblessed 멜, Sinful Succulence 모르가나, Soul Fighter 나피리, Lollipoppy, Durian Guardian 람머스, 악마의 저주(대혼란) 베인, PROJECT 야스오
+- `gacha_mockup.html` 추가 (gitignore됨 — 로컬 테스트용)
+- `gachaTestGrant()` / `gachaTestReset()` 콘솔 함수 추가 (전 챔피언 카드 임시 부여/초기화)
+- 카드 배경 아트 밝기 조정: t1(파편) brightness(0.5), t2(골드) 0.32, t3(프리즘) 0.28
+
+##### 다음 작업 (미구현)
+- **시너지 효과 적용 로직**: `activeSynergy_s1` {sid, tier} 읽어서 경기 결과(`s1ApplyMatchResult`) + 출석(`doAttendance`) 시 LP/골드 발동 계산
+  - `win_lp`: 승리 시 확률(2성 10%/3성 20%) → LP 추가
+  - `loss_lp`: 패배 시 확률 → LP 감소 방어
+  - `attend_g`: 출석 시 확률 → 골드 추가
+- **뽑기/합성 기능 활성화**: `doGachaPull`, `doGachaMerge` 함수 "준비 중" 잠금 해제
+
+### v2.43.x (2026-05-22~23)
 
 #### 비밀 퀘스트 토큰 엣지 케이스 5종 보강 (v2.43.48, 2026-05-23)
 프로세스 정밀 검토에서 발견된 엣지 케이스 일괄 수정.
