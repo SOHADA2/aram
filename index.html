@@ -4468,7 +4468,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.80';
+const APP_VERSION = 'v2.43.81';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -17371,18 +17371,25 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     return { x: (e.clientX - r.left) * (canvas.width / r.width), y: (e.clientY - r.top) * (canvas.height / r.height) };
   }
 
+  const hintEl = overlay.querySelector('#scard-hint');
+
+  function scratchLine(c2d, x1, y1, x2, y2) {
+    c2d.globalCompositeOperation = 'destination-out';
+    c2d.lineWidth = 26; c2d.lineCap = 'round'; c2d.lineJoin = 'round';
+    c2d.beginPath(); c2d.moveTo(x1, y1); c2d.lineTo(x2, y2); c2d.stroke();
+    c2d.globalCompositeOperation = 'source-over';
+  }
+
   function scratchAt(st, x, y) {
     if (st.revealed || allDone) return;
-    overlay.querySelector('#scard-hint').style.opacity = '0';
-    st.ctx.globalCompositeOperation = 'destination-out';
-    st.ctx.beginPath(); st.ctx.arc(x, y, 12, 0, Math.PI * 2); st.ctx.fill();
-    st.ctx.globalCompositeOperation = 'source-over';
+    hintEl.style.opacity = '0';
+    scratchLine(st.ctx, st.prevX ?? x, st.prevY ?? y, x, y);
+    st.prevX = x; st.prevY = y;
     if (++st.tick % 3 === 0) checkCellReveal(st);
   }
 
   function doScratch(st, e) {
     const { x, y } = getPos(st.canvas, e);
-    st.lastX = x; st.lastY = y;
     scratchAt(st, x, y);
   }
 
@@ -17486,28 +17493,42 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
 
     function startHold() {
       if (st.holdTimer || scratchMode !== 'hold') return;
-      let phase = 0;
+      const W = st.canvas.width, H = st.canvas.height;
+      const rowH = 24, speed = 20;
+      let hx = 0, hy = rowH / 2, dir = 1, phx = 0, phy = rowH / 2;
       st.holdTimer = setInterval(() => {
         if (!st.scratching || st.revealed || allDone) { stopHold(); return; }
-        phase += 0.28;
-        const cx = st.lastX ?? st.canvas.width / 2;
-        const cy = st.lastY ?? st.canvas.height / 2;
-        const jx = cx + Math.sin(phase) * 38;
-        const jy = cy + Math.sin(phase * 0.6) * 10;
-        scratchAt(st, jx, jy);
-      }, 18);
+        const nx = hx + speed * dir;
+        if (nx > W + 14 || nx < -14) {
+          dir *= -1; hy += rowH;
+          hx = phx = dir > 0 ? -14 : W + 14; phy = hy;
+          if (hy > H + rowH) { revealCell(st); stopHold(); }
+        } else {
+          scratchLine(st.ctx, phx, phy, nx, hy);
+          if (++st.tick % 3 === 0) checkCellReveal(st);
+          phx = nx; phy = hy; hx = nx;
+        }
+      }, 16);
     }
-    function stopHold() {
-      clearInterval(st.holdTimer); st.holdTimer = null;
-    }
+    function stopHold() { clearInterval(st.holdTimer); st.holdTimer = null; }
 
-    cv.onmousedown  = e => { st.scratching = true;  doScratch(st, e); startHold(); };
-    cv.onmousemove  = e => { if (st.scratching && scratchMode === 'drag') doScratch(st, e); };
-    cv.onmouseup    = () => { st.scratching = false; stopHold(); checkCellReveal(st); };
-    cv.onmouseleave = () => { st.scratching = false; stopHold(); };
-    cv.ontouchstart = e => { e.preventDefault(); st.scratching = true;  doScratch(st, e.touches[0]); startHold(); };
-    cv.ontouchmove  = e => { e.preventDefault(); if (st.scratching && scratchMode === 'drag') doScratch(st, e.touches[0]); };
-    cv.ontouchend   = () => { st.scratching = false; stopHold(); checkCellReveal(st); };
+    cv.addEventListener('pointerdown', e => {
+      cv.setPointerCapture(e.pointerId);
+      st.scratching = true; st.prevX = st.prevY = undefined;
+      doScratch(st, e); startHold();
+    });
+    cv.addEventListener('pointermove', e => {
+      if (!st.scratching) return;
+      if (scratchMode === 'drag') doScratch(st, e);
+      else { const p = getPos(cv, e); st.lastX = p.x; st.lastY = p.y; }
+    });
+    cv.addEventListener('pointerup', () => {
+      st.scratching = false; st.prevX = st.prevY = undefined;
+      stopHold(); checkCellReveal(st);
+    });
+    cv.addEventListener('pointercancel', () => {
+      st.scratching = false; st.prevX = st.prevY = undefined; stopHold();
+    });
   });
 }
 
