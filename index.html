@@ -4393,7 +4393,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.71';
+const APP_VERSION = 'v2.43.72';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4402,6 +4402,9 @@ const APP_VERSION = 'v2.43.71';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.72', date: '2026-05-26', changes: [
+    { tag: 'improve', text: '콘솔 시연 함수 전체 제거 — previewPromoNotif/Batch/WithSummary, previewSecretQuest/List/Result/Flow/Summary, previewMatch/TierUp/TierChange 삭제' },
+  ]},
   { ver: 'v2.43.71', date: '2026-05-26', changes: [
     { tag: 'improve', text: '시즌 어드민 시연 버튼 제거 — 기능 검증 완료. 🤫모달/🎬전체흐름/✅승/✅패/❌패/🎬정산 6개 버튼 삭제. S0/S1 시즌 전환 버튼만 유지' },
   ]},
@@ -10645,178 +10648,6 @@ window._closePromoNotif = function _closePromoNotif() {
   }
 };
 
-// 콘솔 미리보기 — previewPromoNotif(toTier?, fromTier?, opts?)
-//   opts.name: 닉네임 (기본 myName 또는 '플레이어')
-//   opts.isMe: 본인 표시 (기본 false)
-// v2.36.27부터 승급(success)만 지원 — fail/demote 제거됨
-window.previewPromoNotif = function(toTier, fromTier, opts = {}) {
-  const order = ['unranked','bronze','silver','gold','platinum','diamond','master','grandmaster','challenger'];
-  const type = 'success';
-  if (!toTier) toTier = 'gold';
-  if (!fromTier) {
-    const idx = order.indexOf(toTier);
-    fromTier = idx > 0 ? order[idx-1] : 'silver';
-  }
-  if (!S1_TIER_META[toTier] || !S1_TIER_META[fromTier]) {
-    console.warn(`❗ 알 수 없는 티어. 사용 가능: ${order.slice(1).join(', ')}`);
-    return;
-  }
-  const name = opts.name || myName || '플레이어';
-  const isMe = opts.isMe != null ? opts.isMe : (name === myName);
-  _showPromoBanner({ name, type, fromTier, toTier, isMe });
-  console.log(`🎉 승급 배너 미리보기: ${type} · ${name} · ${fromTier} → ${toTier} · isMe=${isMe}`);
-};
-// 다양한 시나리오 한 번에 시연 (큐가 자동 0.7초 간격으로 분산) — v2.36.27 success만
-window.previewPromoBatch = function() {
-  previewPromoNotif('gold',     null, { name: myName || '쭝쭝이주인', type:'success', isMe: true  });
-  previewPromoNotif('platinum', null, { name: '애블린',     type:'success', isMe: false });
-  previewPromoNotif('diamond',  null, { name: '럼블홀릭',   type:'success', isMe: false });
-  previewPromoNotif('master',   null, { name: '브랜딩프로', type:'success', isMe: false });
-};
-
-// 정산창 + 승급 배너 동시 시연 (실제 매치 종료 시점 재현)
-window.previewPromoWithSummary = function() {
-  if (typeof previewMatch === 'function') {
-    try { previewMatch(); } catch(e) { console.warn('previewMatch 실패:', e); }
-  }
-  // 정산창이 화면에 떠 있는 상태에서 승급 배너 시연
-  setTimeout(() => previewPromoBatch(), 600);
-};
-
-// ── 비밀 퀘스트 토큰 프리뷰 (v2.43.41~) ──────────────────────────
-// 콘솔 명령: previewSecretQuest() / previewSecretQuestResult('win') / previewSecretQuestSummary('win')
-window.previewSecretQuestList = function() {
-  console.log('🤫 비밀 퀘스트 토큰 — 12개 퀘스트 풀:\n');
-  const diffLabel = { easy:'🟢 쉬움', mid:'🟡 보통', hard:'🔴 어려움' };
-  const rows = SECRET_QUEST_POOL.map((q, i) => ({
-    '#': i,
-    아이콘: q.icon,
-    퀘스트: q.name,
-    조건: q.desc,
-    난이도: diffLabel[q.diff] || q.diff,
-    승리보상: q.reward + 'G',
-    LP보호: '-14 → -' + (14 - q.protect),
-  }));
-  console.table(rows);
-  console.log('\n사용:');
-  console.log('  previewSecretQuest()              — 랜덤 퀘스트로 활성화 모달');
-  console.log('  previewSecretQuest(7)             — 특정 퀘스트(0~11) 모달');
-  console.log('  previewSecretQuestResult("win")   — 정산창 결과 한 줄 (win/protect/fail/missed)');
-  console.log('  previewSecretQuestSummary("win")  — 가짜 정산창 + 본인 결과 동시 시연');
-};
-
-window.previewSecretQuest = function(questIdx) {
-  const quest = (questIdx != null && SECRET_QUEST_POOL[questIdx])
-    ? SECRET_QUEST_POOL[questIdx]
-    : pickRandomSecretQuest();
-  console.log(`🤫 활성화 모달 시연: ${quest.icon} ${quest.name}`);
-  showSecretQuestModal(quest);
-};
-
-// 정산창 한 줄 결과만 따로 띄움 (간이 오버레이)
-window.previewSecretQuestResult = function(outcome = 'win', questIdx) {
-  const quest = (questIdx != null && SECRET_QUEST_POOL[questIdx])
-    ? SECRET_QUEST_POOL[questIdx]
-    : pickRandomSecretQuest();
-  // outcome: 'win'(적중+승), 'protect'(적중+패), 'fail'(미적중+패), 'missed'(미적중+승)
-  const succ = outcome === 'win' || outcome === 'protect';
-  const won  = outcome === 'win' || outcome === 'missed';
-  let resultHtml = '';
-  if (succ && won) {
-    resultHtml = `<span class="ms-sq-result win">+${quest.reward}G</span>`;
-  } else if (succ && !won) {
-    resultHtml = `<span class="ms-sq-result win">✅ 적중</span><span class="ms-sq-result protect">LP -${14-quest.protect}</span>`;
-  } else {
-    resultHtml = `<span class="ms-sq-result fail">${succ ? '✅' : '❌'} ${won ? '승리' : '패배'}</span>`;
-  }
-  // 기존 비밀 모달과 안 겹치게 별도 오버레이로 표시
-  document.getElementById('sq-preview-result')?.remove();
-  const el = document.createElement('div');
-  el.id = 'sq-preview-result';
-  el.style.cssText = 'position:fixed;inset:0;z-index:3300;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;padding:20px;';
-  el.innerHTML = `<div style="background:#0a0a14;border:1px solid #2a2a3a;border-radius:14px;padding:18px;max-width:380px;width:100%;box-sizing:border-box;display:flex;flex-direction:column;gap:10px;" onclick="event.stopPropagation();">
-    <div style="font-size:11px;color:#888;letter-spacing:0.5px;text-align:center;">정산창 표시 미리보기 — ${outcome}</div>
-    <div class="ms-secret-quest">
-      <span class="ms-sq-ico">${quest.icon}</span>
-      <div class="ms-sq-body">
-        <div class="ms-sq-name">🤫 비밀 퀘스트: ${escHtml(quest.name)}</div>
-        <div class="ms-sq-desc">${escHtml(quest.desc)}</div>
-      </div>
-      ${resultHtml}
-    </div>
-    <button onclick="document.getElementById('sq-preview-result').remove();" style="padding:8px;border-radius:8px;border:1px solid #2a2a3a;background:#1a1825;color:#a78bfa;cursor:pointer;font-family:'Black Han Sans',sans-serif;letter-spacing:1px;">닫기</button>
-  </div>`;
-  el.addEventListener('click', e => { if (e.target === el) el.remove(); });
-  document.body.appendChild(el);
-  console.log(`🤫 정산창 결과 시연: ${quest.name} (${outcome})`);
-};
-
-// 가짜 정산창 + 본인 비밀 퀘스트 결과 동시 시연 (실제 매치 종료 시점 재현)
-// 실제 흐름 그대로 시연 — 팀 발표 → 380ms → 800ms → 비밀 퀘스트 모달 (v2.43.45~)
-window.previewSecretQuestFlow = function(questIdx) {
-  const quest = (questIdx != null && SECRET_QUEST_POOL[questIdx])
-    ? SECRET_QUEST_POOL[questIdx]
-    : pickRandomSecretQuest();
-  // 가짜 팀 (현재 매치가 없으면 임시 데이터)
-  const fakeA = currentTeamA.length > 0 ? currentTeamA : [
-    {name:'쭝쭝이주인', tier:'gold'},{name:'애블린', tier:'silver'},{name:'럼블홀릭', tier:'bronze'}
-  ];
-  const fakeB = currentTeamB.length > 0 ? currentTeamB : [
-    {name:'브랜딩프로', tier:'silver'},{name:'IfCES', tier:'gold'},{name:'안hey시캬', tier:'bronze'}
-  ];
-  console.log('%c🎬 비밀 퀘스트 전체 흐름 시연 시작', 'color:#a78bfa;font-weight:bold;font-size:13px');
-  console.log('  ⏱ 0초     — 팀 발표 오버레이 등장 (showTeamAnnounce)');
-  console.log('  ⏱ ~7초    — 발표 자동 종료 (DURATION 7000ms)');
-  console.log('  ⏱ ~7.4초  — 페이드아웃 완료 (380ms)');
-  console.log('  ⏱ ~8.2초  — 비밀 퀘스트 모달 자동 노출 (+800ms)');
-  console.log(`  🎲 부여될 퀘스트: ${quest.icon} ${quest.name} (${quest.desc})`);
-
-  try { showTeamAnnounce(fakeA, fakeB); } catch (e) {
-    console.warn('팀 발표 오버레이 실패:', e);
-  }
-
-  // showTeamAnnounce: DURATION 7000ms + 페이드 380ms + 비밀퀘 딜레이 800ms = 8180ms
-  setTimeout(() => {
-    console.log('%c🤫 비밀 퀘스트 모달 노출', 'color:#a78bfa;font-weight:bold');
-    showSecretQuestModal(quest);
-  }, 8200);
-};
-
-window.previewSecretQuestSummary = function(outcome = 'win', questIdx) {
-  const quest = (questIdx != null && SECRET_QUEST_POOL[questIdx])
-    ? SECRET_QUEST_POOL[questIdx]
-    : pickRandomSecretQuest();
-  const succ = outcome === 'win' || outcome === 'protect';
-  const won  = outcome === 'win' || outcome === 'missed';
-  // previewMatch() 호출 후 secretQuests 강제 주입해서 정산창 재호출은 복잡 →
-  // 정산창은 그냥 띄우고, 0.5초 후 ms2-btm에 secretQuest 카드 직접 삽입
-  if (typeof previewMatch === 'function') {
-    try { previewMatch(); } catch(e) { console.warn('previewMatch 실패:', e); }
-  }
-  setTimeout(() => {
-    const btm = document.querySelector('.match-summary-overlay .ms2-btm');
-    if (!btm) { console.warn('정산창을 찾을 수 없음'); return; }
-    let resultHtml = '';
-    if (succ && won) {
-      resultHtml = `<span class="ms-sq-result win">+${quest.reward}G</span>`;
-    } else if (succ && !won) {
-      resultHtml = `<span class="ms-sq-result win">✅ 적중</span><span class="ms-sq-result protect">LP -${14-quest.protect}</span>`;
-    } else {
-      resultHtml = `<span class="ms-sq-result fail">${succ ? '✅' : '❌'} ${won ? '승리' : '패배'}</span>`;
-    }
-    const card = document.createElement('div');
-    card.innerHTML = `<div class="ms-secret-quest">
-      <span class="ms-sq-ico">${quest.icon}</span>
-      <div class="ms-sq-body">
-        <div class="ms-sq-name">🤫 비밀 퀘스트: ${escHtml(quest.name)}</div>
-        <div class="ms-sq-desc">${escHtml(quest.desc)}</div>
-      </div>
-      ${resultHtml}
-    </div>`;
-    btm.insertBefore(card.firstChild, btm.firstChild);
-    console.log(`🤫 정산창 + 결과 시연: ${quest.name} (${outcome})`);
-  }, 500);
-};
 
 function _showPendingPromoNotif() {
   const notif = _pendingPromoNotif;
@@ -18135,7 +17966,6 @@ if (liveMode) {
 })();
 
 // ── 시즌 어드민 (라이브 계정 전용) ───────────────────────────────
-// 미리보기 UI는 v2.36.28에서 제거 — 콘솔 함수(previewPromoNotif/Batch/WithSummary)는 디버깅용으로 유지
 function renderSeasonAdmin() {
   const wrap = document.getElementById('season-admin-wrap');
   if (!wrap) return;
@@ -18995,85 +18825,6 @@ function renderS1MiniCard(r, displayRank, hasChallenger) {
   </div>`;
 }
 
-// ── 정산창 미리보기 (콘솔용) ─────────────────────────────────
-// 티어업 카드 시연용 — 첫 2명(또는 opts.tierUps 배열)을 강제 승급 상태로 previewMatch
-window.previewTierUp = function(opts = {}) {
-  const order = ['unranked','bronze','silver','gold','platinum','diamond','master','grandmaster','challenger'];
-  const allNames = Object.values(registeredPlayers).map(p => p.name);
-  const teamSize = Math.min(5, Math.floor(allNames.length / 2)) || 2;
-  const w = opts.winners || allNames.slice(0, teamSize);
-  const l = opts.losers  || allNames.slice(teamSize, teamSize * 2);
-  const tierUpNames = new Set((opts.tierUps || [w[0]].filter(Boolean)).map(normName));
-  const before = {};
-  [...w, ...l].forEach(name => {
-    const k = normName(name);
-    const d = season1Data[k] ? { ...season1Data[k] } : { tier:'silver', lp:80, placementDone:true };
-    if (tierUpNames.has(k)) {
-      const idx = order.indexOf(d.tier);
-      before[k] = { ...d, tier: idx > 0 ? order[idx - 1] : 'bronze' };
-    } else {
-      before[k] = { ...d };
-    }
-  });
-  showMatchSummary({ winners: w, losers: l, itemEffects: {}, tierChanges: [], s1LpBefore: before,
-    questEvent: null, spectatorResult: null, mvpWinner: w[0]||null, mvpLoser: l[0]||null, mannerWinner: null, mannerLoser: null });
-};
-// 저장 완료 패널 + 티어 변동 안내 미리보기
-window.previewTierChange = function() {
-  const el = document.getElementById('result-section');
-  const panel = document.getElementById('save-done-panel');
-  if (!el || !panel) { console.warn('result-section 또는 save-done-panel 없음'); return; }
-  el.style.display = 'block';
-  panel.classList.add('show');
-  document.getElementById('tier-changes-row').innerHTML = (() => {
-    const M = S1_TIER_META;
-    const row = (dot, name, content, delay) =>
-      `<div class="tc-row" style="animation-delay:${delay}s">${dot}${name}${content}</div>`;
-    const dot  = cls => `<span class="tc-dot ${cls}"></span>`;
-    const name = n   => `<span class="tc-name">${n}</span>`;
-    const badge = t  => `<span class="tc-badge" style="color:${M[t].color};">${M[t].label}</span>`;
-    const arr        = `<span class="tc-arr">→</span>`;
-    const stat = (cls, txt) => `<span class="tc-stat ${cls}">${txt}</span>`;
-    const lp   = txt => `<span class="tc-lp">${txt}</span>`;
-    return `<div class="tc-wrap">
-      ${row(dot('up'),   name('나랑듀오해듀오'), badge('gold')+arr+badge('platinum')+stat('up','승급')+lp('0 LP'),         '0.05')}
-      ${row(dot('promo'),name('ap렉사이서폿'),   badge('diamond')+stat('promo','승급전 시작')+lp('0승 0패'),               '0.12')}
-      ${row(dot('up'),   name('빛나는언즈'),     badge('platinum')+arr+badge('diamond')+stat('up','승급 완료'),            '0.19')}
-      ${row(dot('down'), name('울퉁쓰'),         badge('platinum')+arr+badge('gold')+stat('down','강등')+lp('75 LP'),      '0.26')}
-      ${row(dot('down'), name('조조와빈찬합'),   badge('gold')+stat('down','승급전 실패')+lp('75 LP'),                    '0.33')}
-    </div>`;
-  })();
-  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  console.log('previewTierChange: 팀구성 탭 → 결과 섹션 확인');
-};
-window.previewMatch = function(opts = {}) {
-  const allNames = Object.values(registeredPlayers).map(p => p.name);
-  // 실제 매치 최대 5:5에 맞춰 팀당 최대 5명으로 제한 (v2.36.25~)
-  const teamSize = Math.min(5, Math.floor(allNames.length / 2)) || 5;
-  const w = opts.winners || allNames.slice(0, teamSize);
-  const l = opts.losers  || allNames.slice(teamSize, teamSize * 2);
-  // before 스냅샷: 현재 season1Data 기반, LP를 승리 1회분 전으로
-  const before = {};
-  [...w, ...l].forEach(name => {
-    const k = normName(name);
-    const d = season1Data[k] ? { ...season1Data[k] } : s1DefaultPlayer();
-    if (d.placementDone && !d.promoActive) {
-      d.lp = Math.max(0, (d.lp || 0) - S1_LP_WIN);
-    }
-    before[k] = d;
-  });
-  showMatchSummary({
-    winners: w, losers: l,
-    itemEffects: opts.itemEffects || {},
-    tierChanges: [],
-    s1LpBefore: before,
-    questEvent: null, spectatorResult: null,
-    mvpWinner: opts.mvpWinner || w[0] || null,
-    mvpLoser:  opts.mvpLoser  || l[0] || null,
-    mannerWinner: opts.mannerWinner || null,
-    mannerLoser:  opts.mannerLoser  || null,
-  });
-};
 
 
 
