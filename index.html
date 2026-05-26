@@ -4468,7 +4468,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.75';
+const APP_VERSION = 'v2.43.77';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5770,7 +5770,7 @@ const SCRATCH_LOTTERY_LOCKED = true; // 점검 중 — 테스트 완료 후 fals
 // 시즌 1 전용 아이템
 const S1_SHOP_ITEMS = [
   { id:'lottery', icon:ITEM_SVG_ICONS.lottery, name:'스크래치 복권', color:'#f59e0b', price:100, type:'lottery',
-    desc:'5칸 긁기 · 2개 이상 일치 시 당첨 · 꽝(61.5%)~왕관 1000G(1.5%) · 한도 없음' },
+    desc:'5칸 긁기 · 2개 이상 일치 시 당첨 · 꽝(61.5%) · 클로버 50G(5%)~왕관 1000G(1.5%) · 한도 없음' },
   { id:'lottery_premium', icon:ITEM_SVG_ICONS.lottery_premium, name:'프리미엄 복권', color:'#e879f9', price:200, type:'lottery_premium',
     desc:'고액 복권 · 꽝(40%)~메가잭팟 5000G(1%) · 1일 3장 한도' },
   { id:'s1_promo_shield', icon:ITEM_SVG_ICONS.s1_promo_shield, name:'승급전 방어권', color:'#7dd3fc', price:100, type:'oneshot',
@@ -16856,29 +16856,31 @@ window.previewLottery = function(tier, premium) {
   showLotteryResult(RESULTS[tier], getMyGold() || 999);
 };
 
-// ── 스크래치 복권 심볼 (v2.43.73~) ──
+// ── 스크래치 복권 심볼 (v2.43.76~) ──
+// 5칸 5종 구조: 꽝 = 5종 각 1개(쌍 없음), 당첨 = 1쌍 + 나머지 3개
 const SCRATCH_SYMBOLS = [
+  { id:'clover',  emoji:'🍀', name:'클로버', gold:50   },
   { id:'moon',    emoji:'🌙', name:'달',     gold:100  },
   { id:'star',    emoji:'⭐', name:'별',     gold:200  },
   { id:'diamond', emoji:'💎', name:'다이아', gold:400  },
   { id:'crown',   emoji:'👑', name:'왕관',   gold:1000 },
 ];
-const SCRATCH_MISS = { id:'miss', emoji:'🎴', name:'꽝', gold:0 };
-// 당첨 확률: 🌙 20% / ⭐ 12% / 💎 5% / 👑 1.5% / 꽝 61.5%
+// 당첨 확률: 🍀 5% / 🌙 20% / ⭐ 8% / 💎 4% / 👑 1.5% / 꽝 61.5%
 
 function rollScratch() {
   const r = Math.random() * 100;
   let winSym = null;
-  if      (r < 1.5)  winSym = SCRATCH_SYMBOLS[3]; // 👑 1.5%
-  else if (r < 6.5)  winSym = SCRATCH_SYMBOLS[2]; // 💎 5%
-  else if (r < 18.5) winSym = SCRATCH_SYMBOLS[1]; // ⭐ 12%
-  else if (r < 38.5) winSym = SCRATCH_SYMBOLS[0]; // 🌙 20%
+  if      (r < 1.5)  winSym = SCRATCH_SYMBOLS[4]; // 👑 1.5%
+  else if (r < 5.5)  winSym = SCRATCH_SYMBOLS[3]; // 💎 4%
+  else if (r < 13.5) winSym = SCRATCH_SYMBOLS[2]; // ⭐ 8%
+  else if (r < 33.5) winSym = SCRATCH_SYMBOLS[1]; // 🌙 20%
+  else if (r < 38.5) winSym = SCRATCH_SYMBOLS[0]; // 🍀 5%
   let slots;
   if (winSym) {
     const others = shuffle(SCRATCH_SYMBOLS.filter(s => s.id !== winSym.id)).slice(0, 3);
     slots = shuffle([winSym, winSym, ...others]);
   } else {
-    slots = shuffle([...SCRATCH_SYMBOLS, SCRATCH_MISS]);
+    slots = shuffle([...SCRATCH_SYMBOLS]);
   }
   return { slots, win: winSym };
 }
@@ -17300,14 +17302,14 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
               <div class="scard-cell" data-idx="${i}">
                 <div class="scard-sym">
                   <div class="scard-sym-emoji">${s.emoji}</div>
-                  <div class="scard-sym-name">${s.id !== 'miss' ? s.name : ''}</div>
+                  <div class="scard-sym-name">${s.name}</div>
                 </div>
                 <canvas class="scard-canvas"></canvas>
               </div>`).join('')}
             <div class="scard-cell scard-cell-bonus" data-idx="4">
               <div class="scard-sym">
                 <div class="scard-sym-emoji">${slots[4].emoji}</div>
-                <div class="scard-sym-name">${slots[4].id !== 'miss' ? slots[4].name : ''}</div>
+                <div class="scard-sym-name">${slots[4].name}</div>
               </div>
               <canvas class="scard-canvas"></canvas>
               <div class="scard-bonus-tag">BONUS</div>
@@ -17325,14 +17327,9 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
           ${SCRATCH_SYMBOLS.map(s => `
             <div class="scard-table-row">
               <div class="scard-table-em">${s.emoji}</div>
-              <div class="scard-table-pct2">${s.id==='moon'?'20%':s.id==='star'?'12%':s.id==='diamond'?'5%':'1.5%'}</div>
+              <div class="scard-table-pct2">${s.id==='clover'?'5%':s.id==='moon'?'20%':s.id==='star'?'8%':s.id==='diamond'?'4%':'1.5%'}</div>
               <div class="scard-table-gold">+${s.gold}G</div>
             </div>`).join('')}
-            <div class="scard-table-row" style="opacity:0.45;">
-              <div class="scard-table-em">${SCRATCH_MISS.emoji}</div>
-              <div class="scard-table-pct2">61.5%</div>
-              <div class="scard-table-gold" style="color:rgba(255,255,255,0.35);">꽝</div>
-            </div>
         </div>
       </div>
     </div>`;
@@ -17345,7 +17342,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     const symEl  = cellEl.querySelector('.scard-sym-emoji');
     const sym    = slots[idx];
     canvas.width  = cellEl.offsetWidth  || (idx < 4 ? 110 : 220);
-    canvas.height = cellEl.offsetHeight || (idx < 4 ? 80  : 58);
+    canvas.height = cellEl.offsetHeight || (idx < 4 ? 90  : 58);
     const ctx2d = canvas.getContext('2d');
     _scardDrawCover(ctx2d, canvas.width, canvas.height);
     return { cellEl, canvas, ctx: ctx2d, symEl, sym, revealed: false, scratching: false, tick: 0 };
