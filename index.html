@@ -1805,6 +1805,21 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .ms-secret-quest.me{background:linear-gradient(135deg,rgba(167,139,250,0.14),rgba(0,0,0,0.35));border-color:rgba(167,139,250,0.4);box-shadow:0 0 12px rgba(167,139,250,0.18);}
 .ms-sq-me-tag{display:inline-block;font-size:9px;font-weight:800;padding:1.5px 5px;border-radius:4px;background:var(--rk-gold-deep);color:#0d0d18;letter-spacing:0.5px;margin-right:5px;vertical-align:middle;}
 .ms-sq-fb-badge{display:inline-block;font-size:9px;font-weight:700;padding:1.5px 5px;border-radius:4px;background:rgba(125,211,252,0.18);color:#7dd3fc;letter-spacing:0.3px;margin-left:6px;vertical-align:middle;cursor:help;}
+/* 비밀 퀘스트 상시 알림 배너 — 팀 결과 하단, 본인만 표시 (v2.43.63~) */
+#sq-reminder:not(:empty){margin-top:8px;}
+.sq-reminder-card{background:linear-gradient(135deg,rgba(167,139,250,0.10),rgba(13,13,24,0.90));border:1px solid rgba(167,139,250,0.30);border-radius:10px;padding:9px 12px;cursor:pointer;transition:border-color 0.15s,box-shadow 0.15s;}
+.sq-reminder-card:hover{border-color:rgba(167,139,250,0.55);box-shadow:0 0 14px rgba(167,139,250,0.18);}
+.sq-reminder-header{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+.sq-reminder-badge{font-family:'Black Han Sans',sans-serif;font-size:10px;letter-spacing:1.5px;color:#a78bfa;text-shadow:0 0 6px rgba(167,139,250,0.5);}
+.sq-reminder-hint{font-size:9.5px;color:var(--text-dim);margin-left:auto;}
+.sq-reminder-body{display:flex;align-items:center;gap:10px;}
+.sq-reminder-icon{font-size:22px;flex-shrink:0;width:28px;text-align:center;}
+.sq-reminder-info{flex:1;min-width:0;}
+.sq-reminder-name{font-size:12px;font-weight:700;color:#e2d9f3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.sq-reminder-desc{font-size:10.5px;color:var(--text-dim);margin-top:1px;}
+.sq-reminder-rewards{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;}
+.sq-reminder-reward{font-size:11.5px;font-weight:700;color:#fbbf24;}
+.sq-reminder-protect{font-size:10px;color:#7dd3fc;}
 .ms-sq-ico{font-size:18px;line-height:1;flex-shrink:0;}
 .ms-sq-body{flex:1;min-width:0;}
 .ms-sq-name{font-weight:700;color:#fff;font-size:12.5px;}
@@ -4063,6 +4078,8 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
     <div id="handicap-section"></div>
     <!-- 퀵 아이템 바 (라이브 계정 제외 팀원용) -->
     <div id="quick-item-bar"></div>
+    <!-- 비밀 퀘스트 상시 알림 (본인에게만 표시, v2.43.63~) -->
+    <div id="sq-reminder"></div>
 
     <div class="record-panel">
       <div class="record-panel-title">경기 결과 기록</div>
@@ -4403,7 +4420,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.62';
+const APP_VERSION = 'v2.43.63';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4412,6 +4429,9 @@ const APP_VERSION = 'v2.43.62';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.63', date: '2026-05-26', changes: [
+    { tag: 'new', text: '비밀 퀘스트 상시 알림 배너 — 팀 발표 오버레이 사라진 후 팀 결과 하단에 현재 활성 퀘스트(이름·설명·보상·LP 보호) 컴팩트 카드로 표시. 본인에게만 노출, 탭 시 상세 모달 재오픈. renderResult() 및 _maybeShowSecretQuestModal() 양쪽에서 renderSqReminder() 호출' },
+  ]},
   { ver: 'v2.43.62', date: '2026-05-25', changes: [
     { tag: 'fix', text: '관전자 예측 투표창이 새로고침 전에는 자동으로 안 뜨던 문제 — spectatorPickTimer 가 clearInterval 후에도 변수에 stale timer id 가 남아서 다음 매치 모달 가드 `!spectatorPickTimer` 가 truthy 평가로 차단되던 게 원인. timer 만료/픽 확정/모달 재오픈/세션 리셋/spectatorPick 결과 처리 등 5곳 모두 `clearInterval` 직후 `spectatorPickTimer = null` 명시 초기화 추가' },
   ]},
@@ -9646,6 +9666,7 @@ function renderResult() {
 
   document.getElementById('quest-banner-section').innerHTML = '';
 
+  renderSqReminder();
 
   document.getElementById('chemi-legend-section').innerHTML = '';
 
@@ -17192,7 +17213,45 @@ window._maybeShowSecretQuestModal = async function() {
   }
   if (_currentTeamsFormedAt) _shownSqForTeamTs = _currentTeamsFormedAt;
   showSecretQuestModal(quest);
+  renderSqReminder();
 };
+
+// 비밀 퀘스트 상시 알림 배너 렌더링 (v2.43.63~)
+// renderResult() 및 _maybeShowSecretQuestModal() 호출 — 본인에게만 표시
+function renderSqReminder() {
+  const el = document.getElementById('sq-reminder');
+  if (!el) return;
+  el.innerHTML = '';
+  if (!myName || CURRENT_SEASON < 1) return;
+  if (!isMyselfInCurrentMatch()) return;
+  if (isEventMatch) return;
+  if (typeof magollaState !== 'undefined' && magollaState === 'active') return;
+  const myEntry = Object.entries(goldData).find(([,g]) => normName(g.name) === normName(myName));
+  if (!myEntry) return;
+  const [, gData] = myEntry;
+  const sqItem = (gData[sField('items')] || []).find(it => it.active && it.id === 'secret_quest' && it.questId);
+  if (!sqItem) return;
+  const quest = getSecretQuestById(sqItem.questId);
+  if (!quest) return;
+  const diffColor = { easy:'#7dd3fc', mid:'#fbbf24', hard:'#fb7185' }[quest.diff] || '#a78bfa';
+  el.innerHTML = `<div class="sq-reminder-card" onclick="showSecretQuestModal(getSecretQuestById('${escHtml(quest.id)}'))">
+    <div class="sq-reminder-header">
+      <span class="sq-reminder-badge">🤫 비밀 퀘스트</span>
+      <span class="sq-reminder-hint">본인만 표시 · 탭하면 상세 보기</span>
+    </div>
+    <div class="sq-reminder-body">
+      <span class="sq-reminder-icon">${quest.icon}</span>
+      <div class="sq-reminder-info">
+        <div class="sq-reminder-name">${escHtml(quest.name)}</div>
+        <div class="sq-reminder-desc">${escHtml(quest.desc)}</div>
+      </div>
+      <div class="sq-reminder-rewards">
+        <span class="sq-reminder-reward">승리 +${quest.reward}G</span>
+        <span class="sq-reminder-protect" style="color:${diffColor};">LP -14→-${14 - quest.protect}</span>
+      </div>
+    </div>
+  </div>`;
+}
 
 function showLotteryResult(result, remainingGold) {
   const isPremium = !!result.premium;
