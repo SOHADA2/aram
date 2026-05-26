@@ -516,6 +516,9 @@ select option{background:var(--surface2);}
 .qib-chip-new .chip-icon{font-size:11px;flex-shrink:0;}
 .qib-chip-new .chip-name{font-size:10px;font-weight:700;color:#e8d98a;}
 .qib-chip-new .chip-on{font-size:8.5px;font-weight:700;color:#4fc3f7;margin-left:1px;}
+.qib-chip-new[data-sq-tip]{cursor:help;position:relative;}
+.qib-chip-new[data-sq-tip]:hover::before{content:'';position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);border:5px solid transparent;border-top-color:rgba(167,139,250,0.4);z-index:101;pointer-events:none;}
+.qib-chip-new[data-sq-tip]:hover::after{content:attr(data-sq-tip);position:absolute;bottom:calc(100% + 13px);left:50%;transform:translateX(-50%);background:rgba(13,11,28,0.97);border:1px solid rgba(167,139,250,0.35);border-radius:7px;padding:7px 10px;font-size:10.5px;color:#e2d9f3;white-space:pre;z-index:100;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,0.6);line-height:1.6;}
 .team-player.is-me{background:rgba(200,168,75,0.06);}
 .team-a .team-player.is-me{border-left:2px solid rgba(56,217,192,0.65);padding-left:14px;}
 .team-b .team-player.is-me{border-left:2px solid rgba(232,200,74,0.65);padding-left:14px;}
@@ -4431,7 +4434,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.66';
+const APP_VERSION = 'v2.43.67';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4440,6 +4443,9 @@ const APP_VERSION = 'v2.43.66';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.67', date: '2026-05-26', changes: [
+    { tag: 'new', text: '활성 아이템 바 — 비밀 퀘스트 토큰 호버 툴팁 추가. 퀘스트명·설명·보상·LP 보호·난이도를 data-sq-tip CSS 툴팁으로 표시. 본인에게만 노출' },
+  ]},
   { ver: 'v2.43.66', date: '2026-05-26', changes: [
     { tag: 'improve', text: '활성 아이템 바 얇은 한 줄 스트립으로 개선 — 카드형에서 "⚡ 활성 아이템 | 🛡️ 승급전 방어권 ● ON" 형태 단일 행으로 축소, 팀 결과 카드 세로 높이 감소' },
   ]},
@@ -9835,12 +9841,20 @@ function _qibRender(elId, allowBuy) {
     const allDefs2 = [...SHOP_ITEMS, ...S1_SHOP_ITEMS];
     const activeItems = myItems2
       .filter(it => it.active)
-      .map(it => allDefs2.find(d => d.id === it.id))
-      .filter(Boolean);
+      .map(it => ({ raw: it, def: allDefs2.find(d => d.id === it.id) }))
+      .filter(({ def }) => !!def);
     if (!activeItems.length) { el.innerHTML = ''; return; }
-    const chipsHtml2 = activeItems.map(def =>
-      `<div class="qib-chip-new"><span class="chip-icon">${def.icon}</span><span class="chip-name">${escHtml(def.name)}</span><span class="chip-on">● ON</span></div>`
-    ).join('');
+    const chipsHtml2 = activeItems.map(({ raw, def }) => {
+      let tipAttr = '';
+      if (raw.id === 'secret_quest' && raw.questId) {
+        const q = getSecretQuestById(raw.questId);
+        if (q) {
+          const diffLabel = { easy:'쉬움', mid:'보통', hard:'어려움' }[q.diff] || '';
+          tipAttr = ` data-sq-tip="${escHtml(q.name)}\n${escHtml(q.desc)}\n승리 +${q.reward}G · LP -14→-${14 - q.protect} · ${diffLabel}"`;
+        }
+      }
+      return `<div class="qib-chip-new"${tipAttr}><span class="chip-icon">${def.icon}</span><span class="chip-name">${escHtml(def.name)}</span><span class="chip-on">● ON</span></div>`;
+    }).join('');
     el.innerHTML = `<div class="qib-new-bar"><span class="qib-new-label">⚡ 활성 아이템</span><div class="qib-new-divider"></div><div class="qib-new-chips">${chipsHtml2}</div></div>`;
     return;
   } else {
