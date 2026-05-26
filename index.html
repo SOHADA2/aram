@@ -506,6 +506,19 @@ select option{background:var(--surface2);}
 .qib-active-badge{display:flex;align-items:center;gap:5px;padding:4px 10px 4px 7px;border-radius:6px;background:rgba(79,195,247,0.08);border:1px solid rgba(79,195,247,0.28);font-size:11px;font-weight:700;color:#4fc3f7;white-space:nowrap;}
 .qib-active-badge .qab-icon{font-size:14px;line-height:1;}
 .qib-active-bar-empty{font-size:10px;color:rgba(255,255,255,0.2);padding:4px 0 2px;font-style:italic;}
+/* 활성 아이템 바 — 결과 카드 상단 (v2.43.65~) */
+#quick-item-bar:not(:empty){margin-bottom:12px;}
+.qib-new-bar{padding:10px 12px;background:linear-gradient(135deg,rgba(200,168,75,0.07),rgba(12,9,28,0.9));border:1px solid rgba(200,168,75,0.25);border-radius:9px;position:relative;overflow:hidden;}
+.qib-new-bar::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 18px,rgba(255,255,255,0.008) 18px,rgba(255,255,255,0.008) 19px);pointer-events:none;}
+.qib-new-header{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
+.qib-new-label{font-family:'Black Han Sans',sans-serif;font-size:10px;letter-spacing:1.5px;color:#c8a84b;}
+.qib-new-hint{font-size:9.5px;color:var(--text-dim);margin-left:auto;}
+.qib-new-chips{display:flex;gap:8px;flex-wrap:wrap;}
+.qib-chip-new{display:flex;align-items:center;gap:8px;padding:6px 12px 6px 10px;background:rgba(200,168,75,0.09);border:1px solid rgba(200,168,75,0.28);border-radius:8px;}
+.qib-chip-new .chip-icon{font-size:17px;flex-shrink:0;}
+.qib-chip-new .chip-info{display:flex;flex-direction:column;gap:2px;}
+.qib-chip-new .chip-name{font-size:11.5px;font-weight:700;color:#e8d98a;}
+.qib-chip-new .chip-on{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:700;color:#34d399;background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.25);border-radius:3px;padding:1px 5px;}
 .team-player.is-me{background:rgba(200,168,75,0.06);}
 .team-a .team-player.is-me{border-left:2px solid rgba(56,217,192,0.65);padding-left:14px;}
 .team-b .team-player.is-me{border-left:2px solid rgba(232,200,74,0.65);padding-left:14px;}
@@ -4070,6 +4083,8 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
       <h2 id="result-title">— VS —</h2>
       <p id="result-mode-label"></p>
     </div>
+    <!-- 퀵 아이템 바 (라이브 계정 제외 팀원용, v2.43.65~ 헤더 바로 아래) -->
+    <div id="quick-item-bar"></div>
     <div class="teams-grid" id="teams-grid"></div>
     <div id="spectator-section"></div>
     <div id="quest-banner-section"></div>
@@ -4077,8 +4092,6 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
     <div id="watch-points-section"></div>
     <!-- 이벤트 핸디캡 박스 -->
     <div id="handicap-section"></div>
-    <!-- 퀵 아이템 바 (라이브 계정 제외 팀원용) -->
-    <div id="quick-item-bar"></div>
     <!-- 비밀 퀘스트 상시 알림 (본인에게만 표시, v2.43.63~) -->
     <div id="sq-reminder"></div>
 
@@ -4421,7 +4434,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.64';
+const APP_VERSION = 'v2.43.65';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4430,6 +4443,9 @@ const APP_VERSION = 'v2.43.64';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.65', date: '2026-05-26', changes: [
+    { tag: 'improve', text: '활성 아이템 바 시인성 개선 — 팀 결과 카드에서 맨 하단 작은 배지에서 결과 헤더 바로 아래(팀 그리드 위) 골드 테두리 카드로 이동. 아이템 페이즈 타이머 중 구매 UI도 기존 세로형 칩에서 pill 형태로 교체' },
+  ]},
   { ver: 'v2.43.64', date: '2026-05-26', changes: [
     { tag: 'fix', text: '팀 결과 카드 중복 애니메이션 제거 — .team-card에 popIn이 전역 적용되어 오버레이·결과 카드 양쪽에서 재생되던 문제. #teams-grid .team-card{animation:none} 추가로 결과 섹션만 비활성화' },
   ]},
@@ -9807,7 +9823,7 @@ function _qibRender(elId, allowBuy) {
   if (!el) return;
 
   if (elId === 'quick-item-bar') {
-    // 팀 결성 후 결과 화면: 활성화된 아이템만 뱃지로 표시
+    // 팀 결성 후 결과 화면: 활성화된 아이템 — 헤더 바로 아래 골드 카드 (v2.43.65~)
     if (liveMode || isEventMatch || (!currentTeamA.length && !currentTeamB.length)) {
       el.innerHTML = ''; return;
     }
@@ -9822,16 +9838,18 @@ function _qibRender(elId, allowBuy) {
       .map(it => allDefs2.find(d => d.id === it.id))
       .filter(Boolean);
     if (!activeItems.length) { el.innerHTML = ''; return; }
-    const badgesHtml = activeItems.map(def =>
-      `<div class="qib-active-badge"><span class="qab-icon">${def.icon}</span>${escHtml(def.name)}</div>`
+    const chipsHtml2 = activeItems.map(def =>
+      `<div class="qib-chip-new"><span class="chip-icon">${def.icon}</span><div class="chip-info"><span class="chip-name">${escHtml(def.name)}</span><span class="chip-on">● 활성화됨</span></div></div>`
     ).join('');
-    el.innerHTML = `<div class="qib-wrap"><div class="qib-title">이번 판 활성 아이템</div><div class="qib-active-bar">${badgesHtml}</div></div>`;
+    el.innerHTML = `<div class="qib-new-bar"><div class="qib-new-header"><span class="qib-new-label">⚡ 이번 판 활성 아이템</span><span class="qib-new-hint">본인만 표시</span></div><div class="qib-new-chips">${chipsHtml2}</div></div>`;
     return;
   } else {
-    // 아이템 사용 시간 카운트다운: 아이템 페이즈가 아닐 때 숨김
+    // 아이템 페이즈 구매 UI — pill 형태 (v2.43.65~)
     if (liveMode || isEventMatch || !itemPhaseTimer) {
       el.innerHTML = ''; return;
     }
+    _mipbRenderPills(elId, allowBuy);
+    return;
   }
 
   const key = getMyGoldKey();
