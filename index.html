@@ -1898,6 +1898,9 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .scard-price{font-size:12px;font-weight:700;letter-spacing:1px;color:#1a1206;
   background:linear-gradient(135deg,#d4a843,#f0c84a,#c8a030);
   padding:4px 12px;border-radius:20px;box-shadow:0 2px 8px rgba(200,168,75,0.4);}
+.scard-mode-tog{display:flex;background:rgba(0,0,0,0.35);border:1px solid rgba(200,168,75,0.25);border-radius:20px;padding:2px;gap:2px;flex-shrink:0;}
+.scard-mode-btn{background:none;border:none;cursor:pointer;font-size:10px;font-family:'Noto Sans KR',sans-serif;font-weight:500;letter-spacing:0.3px;color:rgba(200,168,75,0.45);padding:3px 9px;border-radius:16px;transition:all 0.18s;white-space:nowrap;}
+.scard-mode-btn.active{background:linear-gradient(135deg,rgba(200,168,75,0.28),rgba(200,168,75,0.14));color:rgba(200,168,75,0.95);box-shadow:0 1px 4px rgba(0,0,0,0.4);}
 .scard-body{display:flex;}
 .scard-left{padding:12px 12px 10px;flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
 /* 우측 당첨표 — 티켓 인쇄 느낌 */
@@ -17282,6 +17285,10 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     <div class="scard-modal">
       <div class="scard-head">
         <div class="scard-title">${testMode ? '🧪 테스트 모드' : '🎰 스크래치 복권'}</div>
+        <div class="scard-mode-tog" id="scard-mode-tog">
+          <button class="scard-mode-btn active" data-mode="drag">↔ 드래그</button>
+          <button class="scard-mode-btn" data-mode="hold">● 홀드</button>
+        </div>
         ${testMode && testStats
           ? `<div class="scard-price" style="font-size:10px;letter-spacing:0;">${testStats.tries}회 · 당첨 ${testStats.wins}회 · 회수율 ${testStats.rate}%</div>`
           : `<div class="scard-price">100G</div>`}
@@ -17339,7 +17346,15 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     return { cellEl, canvas, ctx: ctx2d, symEl, sym, revealed: false, scratching: false, tick: 0 };
   });
 
-  let revealedCount = 0, allDone = false;
+  let revealedCount = 0, allDone = false, scratchMode = 'drag';
+
+  // 모드 토글 연결
+  overlay.querySelectorAll('.scard-mode-btn').forEach(btn => {
+    btn.onclick = () => {
+      scratchMode = btn.dataset.mode;
+      overlay.querySelectorAll('.scard-mode-btn').forEach(b => b.classList.toggle('active', b === btn));
+    };
+  });
 
   function getPos(canvas, e) {
     const r = canvas.getBoundingClientRect();
@@ -17435,11 +17450,11 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     st.holdTimer = null;
 
     function startHold() {
-      if (st.holdTimer) return;
+      if (st.holdTimer || scratchMode !== 'hold') return;
       st.holdTimer = setInterval(() => {
         if (!st.scratching || st.revealed || allDone) { stopHold(); return; }
-        const jx = (st.lastX ?? 0) + (Math.random() - 0.5) * 18;
-        const jy = (st.lastY ?? 0) + (Math.random() - 0.5) * 18;
+        const jx = (st.lastX ?? 0) + (Math.random() - 0.5) * 20;
+        const jy = (st.lastY ?? 0) + (Math.random() - 0.5) * 20;
         scratchAt(st, jx, jy);
       }, 30);
     }
@@ -17448,11 +17463,11 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     }
 
     cv.onmousedown  = e => { st.scratching = true;  doScratch(st, e); startHold(); };
-    cv.onmousemove  = e => { if (st.scratching) doScratch(st, e); };
+    cv.onmousemove  = e => { if (st.scratching && scratchMode === 'drag') doScratch(st, e); };
     cv.onmouseup    = () => { st.scratching = false; stopHold(); checkCellReveal(st); };
     cv.onmouseleave = () => { st.scratching = false; stopHold(); };
     cv.ontouchstart = e => { e.preventDefault(); st.scratching = true;  doScratch(st, e.touches[0]); startHold(); };
-    cv.ontouchmove  = e => { e.preventDefault(); if (st.scratching) doScratch(st, e.touches[0]); };
+    cv.ontouchmove  = e => { e.preventDefault(); if (st.scratching && scratchMode === 'drag') doScratch(st, e.touches[0]); };
     cv.ontouchend   = () => { st.scratching = false; stopHold(); checkCellReveal(st); };
   });
 }
