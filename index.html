@@ -17346,14 +17346,19 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     return { x: (e.clientX - r.left) * (canvas.width / r.width), y: (e.clientY - r.top) * (canvas.height / r.height) };
   }
 
-  function doScratch(st, e) {
+  function scratchAt(st, x, y) {
     if (st.revealed || allDone) return;
     overlay.querySelector('#scard-hint').style.opacity = '0';
-    const { x, y } = getPos(st.canvas, e);
     st.ctx.globalCompositeOperation = 'destination-out';
     st.ctx.beginPath(); st.ctx.arc(x, y, 26, 0, Math.PI * 2); st.ctx.fill();
     st.ctx.globalCompositeOperation = 'source-over';
     if (++st.tick % 3 === 0) checkCellReveal(st);
+  }
+
+  function doScratch(st, e) {
+    const { x, y } = getPos(st.canvas, e);
+    st.lastX = x; st.lastY = y;
+    scratchAt(st, x, y);
   }
 
   function checkCellReveal(st) {
@@ -17427,13 +17432,28 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
 
   cellState.forEach(st => {
     const cv = st.canvas;
-    cv.onmousedown  = e => { st.scratching = true;  doScratch(st, e); };
+    st.holdTimer = null;
+
+    function startHold() {
+      if (st.holdTimer) return;
+      st.holdTimer = setInterval(() => {
+        if (!st.scratching || st.revealed || allDone) { stopHold(); return; }
+        const jx = (st.lastX ?? 0) + (Math.random() - 0.5) * 18;
+        const jy = (st.lastY ?? 0) + (Math.random() - 0.5) * 18;
+        scratchAt(st, jx, jy);
+      }, 30);
+    }
+    function stopHold() {
+      clearInterval(st.holdTimer); st.holdTimer = null;
+    }
+
+    cv.onmousedown  = e => { st.scratching = true;  doScratch(st, e); startHold(); };
     cv.onmousemove  = e => { if (st.scratching) doScratch(st, e); };
-    cv.onmouseup    = () => { st.scratching = false; checkCellReveal(st); };
-    cv.onmouseleave = () => { st.scratching = false; };
-    cv.ontouchstart = e => { e.preventDefault(); st.scratching = true;  doScratch(st, e.touches[0]); };
+    cv.onmouseup    = () => { st.scratching = false; stopHold(); checkCellReveal(st); };
+    cv.onmouseleave = () => { st.scratching = false; stopHold(); };
+    cv.ontouchstart = e => { e.preventDefault(); st.scratching = true;  doScratch(st, e.touches[0]); startHold(); };
     cv.ontouchmove  = e => { e.preventDefault(); if (st.scratching) doScratch(st, e.touches[0]); };
-    cv.ontouchend   = () => { st.scratching = false; checkCellReveal(st); };
+    cv.ontouchend   = () => { st.scratching = false; stopHold(); checkCellReveal(st); };
   });
 }
 
