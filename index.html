@@ -4468,7 +4468,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.82';
+const APP_VERSION = 'v2.43.83';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -17353,6 +17353,9 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     canvas.height = cellEl.offsetHeight || (idx < 4 ? 90  : 58);
     const ctx2d = canvas.getContext('2d');
     _scardDrawCover(ctx2d, canvas.width, canvas.height);
+    symEl.style.opacity = '1';
+    symEl.style.filter = 'drop-shadow(0 2px 6px rgba(0,0,0,0.6))';
+    symEl.style.transform = 'scale(1)';
     return { cellEl, canvas, ctx: ctx2d, symEl, sym, revealed: false, scratching: false, tick: 0 };
   });
 
@@ -17374,26 +17377,14 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   const hintEl = overlay.querySelector('#scard-hint');
 
   function scratchLine(c2d, x1, y1, x2, y2) {
-    const dx = x2 - x1, dy = y2 - y1;
-    const dist = Math.sqrt(dx*dx + dy*dy);
-    // 이동 방향 수직 벡터 (긁힌 자국 폭 방향)
-    const px = dist > 0.5 ? -dy/dist : 0;
-    const py = dist > 0.5 ?  dx/dist : 1;
     c2d.globalCompositeOperation = 'destination-out';
-    if (dist < 1) {
-      // 정지 탭 — 작은 직사각형 패치
-      c2d.fillRect(x1 - 11, y1 - 5, 22, 10);
-    } else {
-      c2d.lineCap = 'butt';
-      // 폭 다른 3줄 평행선 → 동전 긁힌 자국
-      [{ t: -9, w: 5 }, { t: 1, w: 8 }, { t: 11, w: 5 }].forEach(({ t, w }) => {
-        c2d.lineWidth = w;
-        c2d.beginPath();
-        c2d.moveTo(x1 + px * t, y1 + py * t);
-        c2d.lineTo(x2 + px * t, y2 + py * t);
-        c2d.stroke();
-      });
-    }
+    c2d.lineWidth = 22;
+    c2d.lineCap = 'round';
+    c2d.lineJoin = 'round';
+    c2d.beginPath();
+    c2d.moveTo(x1, y1);
+    c2d.lineTo(x2, y2);
+    c2d.stroke();
     c2d.globalCompositeOperation = 'source-over';
   }
 
@@ -17416,19 +17407,6 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     let cleared = 0;
     for (let i = 3; i < d.length; i += 4) if (d[i] < 128) cleared++;
     const pct = cleared / (st.canvas.width * st.canvas.height);
-    if (pct >= 0.5) {
-      st.symEl.style.opacity = '0.8';
-      st.symEl.style.filter = 'blur(2px) drop-shadow(0 2px 6px rgba(0,0,0,0.6))';
-      st.symEl.style.transform = 'scale(0.97)';
-    } else if (pct >= 0.32) {
-      st.symEl.style.opacity = '0.5';
-      st.symEl.style.filter = 'blur(7px) drop-shadow(0 2px 6px rgba(0,0,0,0.6))';
-      st.symEl.style.transform = 'scale(0.85)';
-    } else if (pct >= 0.14) {
-      st.symEl.style.opacity = '0.25';
-      st.symEl.style.filter = 'blur(12px) drop-shadow(0 2px 6px rgba(0,0,0,0.6))';
-      st.symEl.style.transform = 'scale(0.75)';
-    }
     if (pct >= 0.55) revealCell(st);
   }
 
