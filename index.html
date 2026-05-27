@@ -4605,7 +4605,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.115';
+const APP_VERSION = 'v2.43.116';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4614,6 +4614,9 @@ const APP_VERSION = 'v2.43.115';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.116', date: '2026-05-27', changes: [
+    { tag: 'improve', text: '스크래치 긁기 속도 슬로다운 — 셀 하나 풀리는 데 ~1.7배 더 많은 스트로크 필요. (1) reveal 임계값 0.45 → 0.55 (필요 커버리지 +22%). (2) 메인 스트로크 alpha 0.65 → 0.40, 가장자리 스트로크 alpha 0.35 → 0.20·갯수 3 → 2 → 한 스트로크당 클리어 영역 ~40% ↓. (3) 도구 임계값도 비례 조정 — 긁기 동전 0.34 → 0.40, 만능 긁개 0.22 → 0.28 → 상대 우위 유지하면서 절대값은 슬로다운. brushRadius·셀 디자인은 동일' },
+  ]},
   { ver: 'v2.43.115', date: '2026-05-27', changes: [
     { tag: 'improve', text: '스크래치 복권 "쪼는 맛" 강화 — 당첨이면 winSym 1개를 마지막 셀에 고정, 나머지(matchCount-1)는 앞쪽 셀 랜덤 배치. 기존엔 셔플로 winSym 위치가 무작위 → 운 좋으면 앞 2~3개 셀에서 결판나서 뒷셀은 의미 없었음. 이제 매칭 완성은 항상 마지막 셀이 결정 → 끝까지 긁어야 결과 확정. 곁들여 v2.43.114의 cap=matchCount 보정을 전 티어로 확장 (winSym 인스턴스 정확히 matchCount 개 → 강제 배치 안정성). 패배 티켓은 그대로 shuffle (마지막 셀에 의미 부여 안 함)' },
   ]},
@@ -17171,8 +17174,8 @@ const SCRATCH_TIERS = [
 // 긁기 도구: brushMult = 브러시 반지름 배율, threshold = 공개 임계값(기본 0.45)
 // v2.43.109~: 기본 임계값 ↑에 맞춰 도구 임계값도 비례 조정
 const SCRATCH_TOOLS = {
-  scratch_coin: { brushMult: 2.0, threshold: 0.34 }, // 브러시 2배 + 약간 더 쉽게
-  scratch_key:  { brushMult: 3.0, threshold: 0.22 }, // 브러시 3배 + 훨씬 쉽게
+  scratch_coin: { brushMult: 2.0, threshold: 0.40 }, // 브러시 2배 + 약간 더 쉽게
+  scratch_key:  { brushMult: 3.0, threshold: 0.28 }, // 브러시 3배 + 훨씬 쉽게
 };
 
 // v2.43.110~ 출연 확률(appear) 독립 추첨 + 모든 슬롯 무조건 심볼 + 사후 매칭 판정
@@ -17756,9 +17759,9 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   const totalCells = slots.length;
   // 난이도 완화 (v2.43.104~) — 단일 레이어로 통일, 마지막 레이어 점진 노출 제거 (스크래치 복권과 동떨어진 느낌)
   // 대신 심볼이 처음부터 살짝 비쳐 보임 (CSS .scard-sym-emoji 기본 opacity 0.12 + blur)
-  // v2.43.109~ 임계값 0.38 → 0.45 (모든 셀 균일, 인지 시간 확보)
+  // v2.43.116~ 임계값 0.45 → 0.55 + 한 스트로크 영향력 ↓ (긁기 시간 ~1.7배 슬로다운)
   const brushRadius = Math.round(14 * (toolParams?.brushMult ?? 1.0));
-  const revealThreshold = toolParams?.threshold ?? 0.45;
+  const revealThreshold = toolParams?.threshold ?? 0.55;
   const CELL_LAYERS = 1;
   const LAYER_THRESHOLD = 0.28; // 미사용
   const titleMap = ['🎰 일반 복권', '🎰 고급 복권', '🎰 프리미엄 복권'];
@@ -17854,17 +17857,18 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   const hintEl = overlay.querySelector('#scard-hint');
 
   // v2.43.102~ 실제 복권 긁기 느낌 — 다중 라인(메인 + ±오프셋) + 가루 파티클
+  // v2.43.116~ 스트로크당 영향력 ↓ (메인 0.65→0.40, 가장자리 0.35→0.20·갯수 3→2)
   function scratchLine(c2d, x1, y1, x2, y2) {
     c2d.globalCompositeOperation = 'destination-out';
     c2d.lineCap = 'round'; c2d.lineJoin = 'round';
-    // 메인 라인 — 더 진하게 (한 번에 잘 긁힘)
-    c2d.globalAlpha = 0.65;
+    // 메인 라인 — 천천히 풀려야 쪼는 맛
+    c2d.globalAlpha = 0.40;
     c2d.lineWidth = brushRadius * 2;
     c2d.beginPath(); c2d.moveTo(x1, y1); c2d.lineTo(x2, y2); c2d.stroke();
-    // 거친 가장자리 — 메인 양쪽에 작은 라인 추가로 너덜너덜한 자국
-    c2d.globalAlpha = 0.35;
+    // 거친 가장자리 — 메인 양쪽에 작은 라인 추가로 너덜너덜한 자국 (갯수·alpha ↓)
+    c2d.globalAlpha = 0.20;
     c2d.lineWidth = brushRadius * 0.7;
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
       const ox = (Math.random() - 0.5) * brushRadius * 1.4;
       const oy = (Math.random() - 0.5) * brushRadius * 1.4;
       c2d.beginPath();
