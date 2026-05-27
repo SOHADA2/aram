@@ -1411,6 +1411,12 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .lh-gold-row{font-size:12px;color:var(--gold);text-align:right;margin-bottom:10px;font-family:'JetBrains Mono',monospace;}
 .lh-test-banner{font-size:11.5px;color:#fde68a;background:linear-gradient(135deg,rgba(245,158,11,0.18),rgba(232,121,249,0.12));border:1px solid rgba(245,158,11,0.4);border-radius:7px;padding:8px 11px;margin-bottom:10px;text-align:center;letter-spacing:0.3px;}
 .lh-test-banner strong{color:#fff;font-weight:700;}
+.lh-test-tool-row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(245,158,11,0.06);border:1px dashed rgba(245,158,11,0.30);border-radius:7px;padding:6px 10px;margin-bottom:10px;flex-wrap:wrap;}
+.lh-test-tool-label{font-size:11px;font-weight:600;color:#fde68a;letter-spacing:0.3px;}
+.lh-test-tool-btns{display:flex;gap:4px;}
+.lh-test-tool-btn{font-size:11px;padding:4px 9px;border-radius:5px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.7);cursor:pointer;transition:all .15s;font-weight:600;}
+.lh-test-tool-btn:hover{background:rgba(255,255,255,0.10);color:#fff;}
+.lh-test-tool-btn.on{background:linear-gradient(135deg,#f59e0b,#d97706);border-color:#fbbf24;color:#fff;box-shadow:0 0 8px rgba(245,158,11,0.4);}
 .lh-section-title{font-size:12px;font-weight:700;color:rgba(245,209,255,0.85);margin-bottom:8px;letter-spacing:0.5px;}
 .lh-section-sub{font-size:10px;font-weight:400;color:rgba(245,209,255,0.45);margin-left:6px;}
 .lh-tier-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;}
@@ -4605,7 +4611,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.116';
+const APP_VERSION = 'v2.43.117';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4614,6 +4620,10 @@ const APP_VERSION = 'v2.43.116';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.117', date: '2026-05-27', changes: [
+    { tag: 'new', text: '🧪 긁기 도구 시뮬레이션 토글 — 테스트 모드에서 도구(긁기 동전·만능 긁개) 효과를 골드 지불 없이 미리 체험. Hub 모달 상단 노란 점선 박스에 [없음/🪙 동전/🔑 만능] 3버튼 토글. 클릭 시 _scratchTestTool 변수 갱신 + Hub 재렌더로 활성 표시 토글. scratch_tier 구매 시 사용자 보유 도구 대신 시뮬 도구 적용. SCRATCH_LOTTERY_TESTMODE=false 가 되면 토글·override 모두 자동 비활성' },
+    { tag: 'fix', text: '긁기 도구 사전 구매분 환불 — 브랜딩프로 만능 긁개 500G·맹독 벌꿀오소리 동전+만능 700G 환불 (테스트 중인 미완성 기능). 아이템 제거 후 goldBonusLegacy_s1 에 합산' },
+  ]},
   { ver: 'v2.43.116', date: '2026-05-27', changes: [
     { tag: 'improve', text: '스크래치 긁기 속도 슬로다운 — 셀 하나 풀리는 데 ~1.7배 더 많은 스트로크 필요. (1) reveal 임계값 0.45 → 0.55 (필요 커버리지 +22%). (2) 메인 스트로크 alpha 0.65 → 0.40, 가장자리 스트로크 alpha 0.35 → 0.20·갯수 3 → 2 → 한 스트로크당 클리어 영역 ~40% ↓. (3) 도구 임계값도 비례 조정 — 긁기 동전 0.34 → 0.40, 만능 긁개 0.22 → 0.28 → 상대 우위 유지하면서 절대값은 슬로다운. brushRadius·셀 디자인은 동일' },
   ]},
@@ -5973,6 +5983,9 @@ const SCRATCH_LOTTERY_LOCKED = false;
 // false → 정상 모드 (골드 차감, 결과 저장)
 // 테스트 완료 후 이 줄만 false 로 바꾸면 즉시 정상 모드 전환
 const SCRATCH_LOTTERY_TESTMODE = true;
+// 🧪 긁기 도구 시뮬레이션 — 테스트 모드에서만 적용. null | 'scratch_coin' | 'scratch_key'
+// Hub 모달 안 토글로 변경됨. 다음 티어 구매 시 toolParams override.
+let _scratchTestTool = null;
 // ─────────────────────────────────────────────────────────
 // 잠금 해제 시 테스트 FAB 자동 숨김 (v2.43.79~) — FAB 디폴트 표시이므로 여기서 hide
 if (!SCRATCH_LOTTERY_LOCKED) {
@@ -17721,6 +17734,17 @@ window.openLotteryHub = function() {
   const testBanner = SCRATCH_LOTTERY_TESTMODE
     ? `<div class="lh-test-banner">🧪 <strong>테스트 모드</strong> — 골드 차감 없이 자유롭게 체험 (결과 저장 X)</div>`
     : '';
+  // 🧪 테스트 도구 토글 — 골드 지불 없이 도구 효과 미리보기 (다음 티어 구매부터 적용)
+  const testToolToggle = SCRATCH_LOTTERY_TESTMODE
+    ? `<div class="lh-test-tool-row">
+        <span class="lh-test-tool-label">🧪 도구 시뮬레이션</span>
+        <div class="lh-test-tool-btns">
+          <button class="lh-test-tool-btn ${!_scratchTestTool ? 'on' : ''}" onclick="window._setScratchTestTool(null)">없음</button>
+          <button class="lh-test-tool-btn ${_scratchTestTool === 'scratch_coin' ? 'on' : ''}" onclick="window._setScratchTestTool('scratch_coin')">🪙 동전</button>
+          <button class="lh-test-tool-btn ${_scratchTestTool === 'scratch_key' ? 'on' : ''}" onclick="window._setScratchTestTool('scratch_key')">🔑 만능</button>
+        </div>
+      </div>`
+    : '';
   el.innerHTML = `
     <div class="lh-sheet" onclick="event.stopPropagation();">
       <div class="lh-head">
@@ -17728,6 +17752,7 @@ window.openLotteryHub = function() {
         <button class="lh-close" onclick="window.closeLotteryHub()">✕</button>
       </div>
       ${testBanner}
+      ${testToolToggle}
       <div class="lh-gold-row">🪙 보유 ${myGold}G</div>
       <div class="lh-section-title">티어 선택</div>
       <div class="lh-tier-grid">${tierCards}</div>
@@ -17742,6 +17767,11 @@ window._lhBuyTier = function(itemId) {
   window.closeLotteryHub();
   // buyItem 의 scratch_tier 분기 → 자체적으로 showScratchModal 띄움
   window.buyItem(itemId);
+};
+window._setScratchTestTool = function(toolId) {
+  _scratchTestTool = toolId;
+  // 토글 즉시 갱신
+  window.openLotteryHub();
 };
 window._lhBuyTool = async function(itemId) {
   await window.buyItem(itemId);
@@ -18344,7 +18374,9 @@ async function _buyItemImpl(itemId) {
     if (!tierDef) return;
     // 긁기 도구 체크 — 영구 소유, 소모 없음 (v2.43.96~)
     const myItemsArr = data[itemsKey] || [];
-    const activeTool = ['scratch_key', 'scratch_coin'].map(tid => myItemsArr.find(it => it.id === tid)).find(Boolean);
+    let activeTool = ['scratch_key', 'scratch_coin'].map(tid => myItemsArr.find(it => it.id === tid)).find(Boolean);
+    // 🧪 테스트 모드 도구 override (v2.43.117~)
+    if (SCRATCH_LOTTERY_TESTMODE && _scratchTestTool) activeTool = { id: _scratchTestTool };
     const toolParams = activeTool ? SCRATCH_TOOLS[activeTool.id] : null;
     // 테스트 모드: 골드 차감·결과 저장 모두 skip (v2.43.100~)
     if (SCRATCH_LOTTERY_TESTMODE) {
