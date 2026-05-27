@@ -2075,6 +2075,20 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
   border:none;box-shadow:0 3px 12px rgba(200,168,75,0.35);}
 .scard-confirm.show{display:block;}
 .scard-confirm:hover{filter:brightness(1.1);transform:translateY(-1px);}
+/* v2.43.118~ 액션 버튼 그룹 (뒤로·한 번 더·확인) */
+.scard-actions{display:none;gap:6px;width:100%;}
+.scard-actions.show{display:flex;}
+.scard-act-btn{padding:11px 6px;border-radius:8px;cursor:pointer;transition:all 0.2s;
+  font-family:'Black Han Sans',sans-serif;font-size:12px;letter-spacing:0.5px;border:none;
+  display:flex;align-items:center;justify-content:center;}
+.scard-act-btn:hover{filter:brightness(1.12);transform:translateY(-1px);}
+.scard-act-back{flex:0 0 70px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.78);
+  border:1px solid rgba(255,255,255,0.18);}
+.scard-act-back:hover{background:rgba(255,255,255,0.12);}
+.scard-act-replay{flex:1;background:linear-gradient(135deg,#0ea5e9,#0284c7);color:#fff;
+  box-shadow:0 3px 10px rgba(14,165,233,0.30);}
+.scard-act-confirm{flex:1.4;color:#1a1206;background:linear-gradient(135deg,#d4a843,#f0c84a,#c8a030);
+  box-shadow:0 3px 12px rgba(200,168,75,0.35);}
 .scard-skip{background:none;border:none;color:rgba(200,168,75,0.25);font-size:11px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;padding:4px;letter-spacing:0.3px;transition:color 0.15s;text-align:center;width:100%;}
 .scard-skip:hover{color:rgba(200,168,75,0.6);}
 .scard-skip.hidden{display:none;}
@@ -4611,7 +4625,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.117';
+const APP_VERSION = 'v2.43.118';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4620,6 +4634,9 @@ const APP_VERSION = 'v2.43.117';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.118', date: '2026-05-27', changes: [
+    { tag: 'new', text: '스크래치 결과 화면 액션 3종 — [← 뒤로 / 🔁 한 번 더 (-NG) / ✓ 보유 NG · 확인]. 한 번 더는 같은 티어 즉시 재구매 (결과 저장 후), 뒤로는 결과 저장 후 Hub 모달 재오픈. 테스트 모드는 뒤로/다시 긁기 2버튼. 매칭 완성 후 어느 버튼이든 finishReveal → onComplete 호출 → 다음 흐름 진행' },
+  ]},
   { ver: 'v2.43.117', date: '2026-05-27', changes: [
     { tag: 'new', text: '🧪 긁기 도구 시뮬레이션 토글 — 테스트 모드에서 도구(긁기 동전·만능 긁개) 효과를 골드 지불 없이 미리 체험. Hub 모달 상단 노란 점선 박스에 [없음/🪙 동전/🔑 만능] 3버튼 토글. 클릭 시 _scratchTestTool 변수 갱신 + Hub 재렌더로 활성 표시 토글. scratch_tier 구매 시 사용자 보유 도구 대신 시뮬 도구 적용. SCRATCH_LOTTERY_TESTMODE=false 가 되면 토글·override 모두 자동 비활성' },
     { tag: 'fix', text: '긁기 도구 사전 구매분 환불 — 브랜딩프로 만능 긁개 500G·맹독 벌꿀오소리 동전+만능 700G 환불 (테스트 중인 미완성 기능). 아이템 제거 후 goldBonusLegacy_s1 에 합산' },
@@ -17833,7 +17850,13 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
             <div class="scard-hint" id="scard-hint">🖱 긁어서 문양을 확인하세요</div>
             <div class="scard-progress" id="scard-progress"></div>
             <div class="scard-result" id="scard-result"></div>
-            <button class="scard-confirm" id="scard-confirm">${testMode ? '🔄 다시 긁기' : `🪙 현재 보유 ${remainingGold}G — 확인`}</button>
+            <div class="scard-actions" id="scard-actions">
+              <button class="scard-act-btn scard-act-back" id="scard-back">← 뒤로</button>
+              ${testMode
+                ? ''
+                : `<button class="scard-act-btn scard-act-replay" id="scard-replay">🔁 한 번 더 (-${activeTier.price}G)</button>`}
+              <button class="scard-act-btn scard-act-confirm" id="scard-confirm">${testMode ? '🔄 다시 긁기' : `🪙 보유 ${remainingGold}G · 확인`}</button>
+            </div>
           </div>
         </div>
         <div class="scard-right">
@@ -18027,8 +18050,8 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     const winRevealed = win ? cellState.filter(s => s.revealed && s.sym.id === win.id).length : 0;
     const matchDone = winRevealed >= matchCount;
     if (matchDone && !allDone) {
-      // confirm 버튼 활성화 (자동 종료 X)
-      overlay.querySelector('#scard-confirm')?.classList.add('show');
+      // 액션 버튼 그룹 활성화 (자동 종료 X)
+      overlay.querySelector('#scard-actions')?.classList.add('show');
     }
     if (revealedCount === totalCells && !allDone) {
       setTimeout(finishReveal, 620);
@@ -18080,25 +18103,54 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
       _lscPlaySound('lose');
     }
 
-    if (!testMode) confirmEl.textContent = `🪙 현재 보유 ${finalBalance}G — 확인`;
-    setTimeout(() => confirmEl.classList.add('show'), 300);
+    if (!testMode) confirmEl.textContent = `🪙 보유 ${finalBalance}G · 확인`;
+    setTimeout(() => overlay.querySelector('#scard-actions')?.classList.add('show'), 300);
   }
 
-  // v2.43.111~ 매칭 완성 또는 모든 셀 reveal 시 확인 가능. 매칭 완성 후 사용자가 더 긁어도 OK
-  overlay.querySelector('#scard-confirm').onclick = () => {
+  // v2.43.118~ 액션 버튼 3종 — 매칭 완성 또는 모든 셀 reveal 후 활성
+  const _canFinalize = () => {
     const winRevealed = win ? cellState.filter(s => s.revealed && s.sym.id === win.id).length : 0;
     const matchDone = winRevealed >= matchCount;
-    // 매칭 완성도 안됐고 모든 셀 reveal도 안됐으면 무시
-    if (!allDone && !matchDone && revealedCount < totalCells) return;
-    // allDone 아니면 finishReveal 호출 (결과 메시지·사운드·onComplete)
+    return allDone || matchDone || revealedCount >= totalCells;
+  };
+  const _runComplete = () => {
+    if (!testMode && onComplete) {
+      onComplete({ winGold: win ? win.gold : 0, skullPenalty: activeTier.skullPenalty * revealedSkulls });
+    }
+  };
+
+  // 확인: 기본 닫기 (테스트 모드면 onNext = 다시 긁기)
+  overlay.querySelector('#scard-confirm').onclick = () => {
+    if (!_canFinalize()) return;
     if (!allDone) finishReveal();
-    // finishReveal 안의 setTimeout(300)에서 confirm.show 후 즉시 닫기는 어색 — 200ms 지연
     setTimeout(() => {
       overlay.remove();
       if (testMode && onNext) { onNext(); return; }
-      if (onComplete) onComplete({ winGold: win ? win.gold : 0, skullPenalty: activeTier.skullPenalty * revealedSkulls });
+      _runComplete();
     }, 200);
   };
+
+  // 뒤로: 결과 정산 후 Hub 재오픈 (테스트 모드면 그냥 닫기)
+  overlay.querySelector('#scard-back').onclick = () => {
+    if (!_canFinalize()) return;
+    if (!allDone) finishReveal();
+    setTimeout(() => {
+      overlay.remove();
+      _runComplete();
+      if (!testMode) setTimeout(() => window.openLotteryHub(), 120);
+    }, 200);
+  };
+
+  // 한 번 더: 결과 정산 후 같은 티어 재구매 (테스트 모드엔 버튼 자체 없음)
+  overlay.querySelector('#scard-replay')?.addEventListener('click', () => {
+    if (!_canFinalize()) return;
+    if (!allDone) finishReveal();
+    setTimeout(() => {
+      overlay.remove();
+      _runComplete();
+      if (tierDef) setTimeout(() => window.buyItem(tierDef.id), 120);
+    }, 200);
+  });
 
   cellState.forEach(st => {
     const cv = st.canvas;
