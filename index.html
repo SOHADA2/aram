@@ -2021,6 +2021,8 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .scard-modal.tier-2 .scard-rule,.scard-modal.tier-2 .scard-hint{color:rgba(245,170,250,0.45)!important;}
 .scard-cell-skull{background:linear-gradient(135deg,#2d0a0a,#180404)!important;border-color:rgba(239,68,68,0.3)!important;}
 .scard-cell-skull .scard-sym-name{color:rgba(239,68,68,0.4);}
+/* 해골 비침 강조 (v2.43.108~) — 살짝 더 잘 보이게 + 붉은 빛 윤곽 */
+.scard-cell-skull .scard-sym-emoji{opacity:0.22!important;filter:blur(4px) drop-shadow(0 0 5px rgba(239,68,68,0.5))!important;}
 .scard-cell-skull.skull-hit{border-color:rgba(239,68,68,0.85)!important;box-shadow:0 0 14px rgba(239,68,68,0.3),inset 0 0 8px rgba(239,68,68,0.06)!important;}
 .scard-cell-skull.skull-hit .scard-sym-emoji{filter:drop-shadow(0 0 10px rgba(239,68,68,0.9))!important;}
 .scard-result.skull{color:#ef4444;background:linear-gradient(135deg,rgba(239,68,68,0.12),rgba(239,68,68,0.05));border:1px solid rgba(239,68,68,0.4);}
@@ -4600,7 +4602,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.107';
+const APP_VERSION = 'v2.43.108';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4609,6 +4611,9 @@ const APP_VERSION = 'v2.43.107';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.108', date: '2026-05-27', changes: [
+    { tag: 'improve', text: '해골 셀 회피 매커닉 강화. (1) 해골 reveal 임계값 0.38 → 0.65 고정(도구 무관) — 일반 심볼은 빨리 풀리지만 해골만 더 긁어야 노출. 사용자가 윤곽 인지 후 멈출 시간 확보. (2) 해골 emoji 비침 강조 — opacity 0.13 → 0.22, blur 5px → 4px + 붉은 빛 글로우. 살짝만 긁어도 해골 윤곽이 분명해서 회피 결정 빠름' },
+  ]},
   { ver: 'v2.43.107', date: '2026-05-27', changes: [
     { tag: 'fix', text: '치명 — 스크래치 복권 셀을 긁어도 진행 상태/결과 화면이 전혀 안 뜨던 버그. v2.43.103에서 추가한 매칭 완성 체크(winRevealed >= matchCount)와 v2.43.106 진행 상태(updateProgress) 가 모두 matchCount 변수를 참조하는데, 그 변수가 rollScratch 함수 안에만 정의돼 있었음. showScratchModal 함수 안엔 없어서 ReferenceError 발생 → 셀 reveal 직후 모든 후속 코드 멈춤(매칭 완성 감지·finishReveal 호출 X). showScratchModal 상단에 const matchCount = activeTier.matchCount || 2 추가' },
   ]},
@@ -17823,7 +17828,9 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     let cleared = 0;
     for (let i = 3; i < d.length; i += 4) if (d[i] < 200) cleared++;
     const pct = cleared / (st.canvas.width * st.canvas.height);
-    if (pct >= revealThreshold) revealCell(st);
+    // v2.43.108~ 해골은 임계값 0.65로 고정(도구 무관) — 사용자가 윤곽 인지 후 회피할 시간 확보
+    const threshold = st.sym.id === 'skull' ? 0.65 : revealThreshold;
+    if (pct >= threshold) revealCell(st);
   }
 
   // v2.43.106~ 진행 상태 표시 — 같은 심볼 카운트 + 해골 노출 + net 잠재 금액
