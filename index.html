@@ -4605,7 +4605,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.111';
+const APP_VERSION = 'v2.43.112';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4614,6 +4614,9 @@ const APP_VERSION = 'v2.43.111';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.112', date: '2026-05-27', changes: [
+    { tag: 'fix', text: '출석 릴레이 보상 누락 자동 복구 — 7명(신규회원임·울퉁쓰·브랜딩프로·맹독 벌꿀오소리·조조와빈찬합·나랑듀오해듀오·빛나는언즈)이 5/21 릴레이 도입 후 출석은 됐지만 relayProgress 갱신이 안 되어 보상 누락. attendanceHistory의 relayStep 항목들이 모두 gold=0(이중 지급 X 검증) → 누락 칸 RELAY_REWARDS(골드+마일스톤 아이템) 일괄 지급. 총 +2640G + s1_lp2x ×9. autoCompensateRelayV1 함수 코드에 추가 → 미보정 사용자나 미래 케이스 자동 1회 보정(relayCompensationV1 플래그)' },
+  ]},
   { ver: 'v2.43.111', date: '2026-05-27', changes: [
     { tag: 'improve', text: '스크래치 복권 매칭 완성 자동 종료 제거 + 인플레 방지 보상 하향. (1) 매칭 완성 시 confirm 버튼 활성화만 — 자동 종료 없어서 사용자가 나머지 셀(특히 해골)도 자유롭게 긁어볼 수 있음. 추가 긁기로 해골 노출되면 progress 실시간 net 갱신. 사용자가 confirm 누르면 그 시점 최종 결과 저장 (해골 패널티 포함). (2) 보상 대폭 하향 — 7종 심볼 + 5칸 2매칭의 매칭률이 매우 높아 (~95%) 인플레 위험. 일반 잭팟 7000→1500G·고급 15000→6000G·프리미엄 30000→12000G. 평균 EV 100~115% 목표 (살짝 양수, 도전 매력 유지). 본전치기(클로버 = 구매가) 자주 + 잭팟은 ×15~20 임팩트 유지' },
   ]},
@@ -6697,6 +6700,7 @@ onValue(ref(db, 'gold'), (snapshot) => {
   migrateRelayBase();
   revertRelaySogeup();
   fixRelayBaseOnly();
+  autoCompensateRelayV1(); // v2.43.112~ 본인 데이터의 릴레이 누락 보상 자동 지급 (1회)
   if (matchesLoaded) updateMyInfoBar();
   renderShop();
   if (playersLoaded && matchesLoaded) seedGoldForAllPlayers();
@@ -15742,6 +15746,58 @@ async function fixRelayBaseOnly() {
       console.log(`[relayBase 초기화] ${data.name}: ${base}→0`);
     } catch(e) { console.error('[relayBase 초기화 실패]', data.name, e); }
   }
+}
+
+// 릴레이 누락 보상 자동 복구 (v2.43.112~)
+// 출석 시 relayProgress 갱신 누락된 사용자(attendanceHistory.relayStep 있음 + gold=0)에게
+// 누락 칸의 RELAY_REWARDS 보상(골드 + 마일스톤 아이템) 1회 지급. relayCompensationV1 플래그로 중복 방지.
+// 본인 계정에서만 본인 데이터 보정 (다른 사용자 데이터는 안 건드림 — race condition 방지)
+let _relayCompV1Done = false;
+async function autoCompensateRelayV1() {
+  if (_relayCompV1Done || !myName) return;
+  const key = getMyGoldKey();
+  if (!key) return;
+  const data = goldData[key];
+  if (!data) return;
+  if (data.relayCompensationV1) { _relayCompV1Done = true; return; } // 이미 보정/대상 아님
+  const hist = data[sField('attendanceHistory')] || [];
+  const relayHist = hist.filter(h => h && h.relayStep != null);
+  const rp = data[sField('relayProgress')] || 0;
+  const target = Math.min(30, relayHist.length);
+  if (target <= rp) {
+    // 정상 — 보정 불필요, 플래그만 마킹
+    _relayCompV1Done = true;
+    update(ref(db, 'gold/' + key), { relayCompensationV1: true }).catch(()=>{});
+    return;
+  }
+  // 안전 검증: relayHist 항목 모두 gold=0 (이중 지급 방지)
+  const allZero = relayHist.every(h => (h.gold || 0) === 0);
+  if (!allZero) {
+    console.warn('[autoCompensateRelayV1] gold>0 출석 발견 — 안전 위해 자동 보정 skip', data.name);
+    _relayCompV1Done = true;
+    return;
+  }
+  // 누락 보상 계산
+  const missing = RELAY_REWARDS.slice(rp, target);
+  const goldSum = missing.reduce((s, r) => s + (r.gold || 0), 0);
+  const newItems = (data[sField('items')] || []).concat(
+    missing.filter(r => r.itemId).map(r => ({ id: r.itemId, boughtAt: 0, active: false }))
+  );
+  const newLegacy = (data[sField('goldBonusLegacy')] || 0) + goldSum;
+  try {
+    await update(ref(db, 'gold/' + key), {
+      [sField('relayClaimed')]: target,
+      [sField('relayProgress')]: target,
+      [sField('goldBonusLegacy')]: newLegacy,
+      [sField('items')]: newItems,
+      relayCompensationV1: true,
+    });
+    _relayCompV1Done = true;
+    const itemCount = missing.filter(r => r.itemId).length;
+    if (typeof showS1Toast === 'function')
+      showS1Toast(`🎁 누락된 출석 보상 자동 지급 +${goldSum}G${itemCount ? ` · 아이템 ${itemCount}개` : ''}`);
+    console.log(`[autoCompensateRelayV1] ${data.name}: relay ${rp}→${target}, +${goldSum}G, items: ${missing.filter(r=>r.itemId).map(r=>r.itemId).join(',')}`);
+  } catch(e) { console.error('[autoCompensateRelayV1 실패]', e); }
 }
 function calcMagollaGold(history) {
   if (!Array.isArray(history)) return 0;
