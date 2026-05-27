@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.43.96
+- 현재 버전: v2.43.124
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -669,7 +669,138 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.43.x (2026-05-27) ← 최신
+### v2.43.x (2026-05-27 후속) ← 최신
+
+#### 스크래치 복권 풀 리워크 + 환불·보상 일괄 처리 (v2.43.97~124, 2026-05-27)
+
+이날 단일 세션에서 스크래치 복권 시스템 전반·릴레이 보상 정산·도구 환불·UI 다듬기까지 약 28개 패치 진행. 시간 순으로 요약:
+
+##### 비밀 퀘스트 토큰 race condition 정리 (v2.43.97)
+- `buyItem` 중복 가드 (신규회원임 case)
+
+##### 스크래치 복권 통합 진입점 + 테마/UX 빌드업 (v2.43.98~108)
+- v2.43.98: 상점 카드 단일 → 통합 hub 모달 진입점 신설
+- v2.43.99~101: 셀 디자인 (원형 동전, 그리드, 난이도 완화)
+- v2.43.102: 티어별 테마 차별화 시도 (1차) — 실제 복권 긁기 느낌(다중 라인 + 가루 파티클)
+- v2.43.103: matchCount 도입 — 일반 2매칭, 고급/프리미엄 3매칭. 보상 재밸런싱
+- v2.43.104~105: 단일 레이어 통일, "마지막!" 텍스트 제거, cover alpha 0.92~0.93
+- v2.43.106: 실시간 진행 상태 표시 (가장 많이 모인 심볼 카운트 + 해골 + net 금액)
+- v2.43.107: 치명 — `matchCount`가 `rollScratch` 스코프에만 있어서 결과 화면 안 뜨던 ReferenceError 수정 (showScratchModal 상단에 `const matchCount = activeTier.matchCount || 2` 추가)
+- v2.43.108: 해골 회피 매커닉 강화 (해골만 reveal 임계값 0.65로 고정 등)
+
+##### 출연 확률 시스템 + 7종 심볼 확장 (v2.43.109~111)
+- v2.43.109: prob(전체 당첨 확률) → appear(셀당 출연 확률) 시스템. 해골 reveal 임계값 분기 제거 (티 안 나게)
+- v2.43.110: 5종 → 7종 (⚔️ 검 + 🛡️ 방패 추가). 블랭크 제거 — 모든 슬롯에 무조건 심볼
+- v2.43.111: 매칭 완성 자동 종료 제거 (사용자가 더 긁어볼 수 있음), 보상 대폭 하향 (잭팟 일반 7000→1500G·고급 15000→6000G·프리미엄 30000→12000G, EV 100~115%)
+
+##### 출석 릴레이 보상 복구 (v2.43.112~113) — Firebase 직접 보정
+- v2.43.112: 5/21 릴레이 도입 후 출석은 됐지만 `relayProgress` 갱신 안 된 7명(신규회원임·울퉁쓰·브랜딩프로·맹독 벌꿀오소리·조조와빈찬합·나랑듀오해듀오·빛나는언즈) 자동 보정 코드 추가 (`autoCompensateRelayV1`). 누락 칸 RELAY_REWARDS 일괄 지급 (+2640G + s1_lp2x ×9)
+- v2.43.113: 치명 — v2.43.26에서 추가한 `revertRelaySogeup`이 매 onValue 호출 시 자동 보정값을 옛 값으로 되돌리던 문제. 영구 비활성화 (`_relayRollbackDone = true; return;`)
+- **추후 별도 패치**: 7명에 대해 `relayClaimed_s1`/`relayProgress_s1`을 target(6~10)으로 끌어올리되, calcRelayGold 증가분만큼 `goldBonusLegacy_s1`에서 차감 → **순 골드 0 변동**. items_s1 미터치 (이미 지급된 마일스톤 아이템 유지). 환불 스크립트 ([summary 참고](#))
+
+##### 스크래치 다중 매칭 방지 + 쪼는 맛 (v2.43.114~115)
+- v2.43.114: 일반 복권 동일 심볼 cap=2 (`tier.idx === 0`만) — 3·4·5개 겹쳐 보이는 시각 혼란 차단
+- v2.43.115: **쪼는 맛 강화** — 당첨이면 winSym 1개를 마지막 셀(cells-1)에 강제, 나머지는 앞쪽 셀 랜덤. cap=matchCount를 전 티어 확장 → winSym 정확히 matchCount 개 → 강제 배치 안정성
+
+##### 긁기 속도 슬로다운 (v2.43.116)
+- 메인 brush alpha 0.65→0.40, 가장자리 0.35→0.20·갯수 3→2, reveal 임계값 0.45→0.55, 도구 임계값 비례 조정
+
+##### 긁기 도구 시뮬레이션 토글 + 사전 구매분 환불 (v2.43.117)
+- 테스트 모드에서만 노출되는 [없음/🪙 동전/🔑 만능] 3버튼 토글 (Hub 모달 상단)
+- `_scratchTestTool` 모듈 변수, `scratch_tier` 구매 흐름에서 override
+- **환불 Firebase 직접 적용**: 브랜딩프로 만능 긁개 500G, 맹독 벌꿀오소리 동전+만능 700G → `goldBonusLegacy_s1`에 가산, `items_s1`에서 제거
+
+##### 스크래치 결과 액션 3종 (v2.43.118)
+- `#scard-confirm` 단독 → `#scard-actions` 그룹으로 교체
+- [← 뒤로][🔁 한 번 더 (-NG)][✓ 보유 NG · 확인] 3버튼
+- 뒤로: onComplete 후 `window.openLotteryHub()` / 한 번 더: onComplete 후 `window.buyItem(tierDef.id)` / 확인: 기존 동작
+- 테스트 모드는 2버튼 (한 번 더 없음 — 확인이 onNext = 다시 긁기)
+
+##### 비침·배치·도형 1차 (v2.43.119)
+- emoji opacity 0.13→0.22, blur 5px→3px, cover alpha 0.92→0.82 (peek-through 강화)
+- 일반 복권 5칸 한 줄 → 3+2 2행 (6컬럼 그리드, 각 셀 span 2, 셀 크기 tier1과 동일)
+- 프리미엄 셀 원형 → 육각형 (clip-path polygon)
+
+##### 비침·속도·도형 2차 + 모드 토글 제거 (v2.43.120)
+- emoji opacity 0.22→0.55, cover alpha 0.82→0.75 (더 강화 — 그러나 user 피드백: "긁기 전에 알면 안 됨" → v2.43.121에서 되돌림)
+- 메인 brush alpha 0.40→0.30, 가장자리 0.20→0.12, 픽셀 클리어 임계값 `d[i] < 200` → `< 120` (셀당 ~2배 스트로크)
+- 프리미엄 육각형 → 팔각형 (중앙 영역 넓힘) + 자식(.scard-sym/.scard-canvas) 명시적 클립
+- **드래그/홀드 토글 완전 제거** — `.scard-mode-tog`/`.scard-mode-btn` CSS, `scratchMode` 변수, `startHold/stopHold` 로직 일괄 삭제. pointer drag 단일화
+
+##### 비침 스포일러 차단 (v2.43.121) ← 중요 수정
+- v2.43.120의 cover alpha 0.75가 너무 투명해 긁기 전에 심볼 정체 노출되던 문제 (user 피드백: "긁기도 전에 알면 안 된다, 긁을수록 보여야")
+- cover alpha 0.75 → **0.94** 복구. emoji opacity 0.55는 유지 → 긁은 자리만 destination-out으로 픽셀 투명화될수록 점진 노출. 임계값 도달 시 sharp reveal
+
+##### 일반 복권 다중 매칭 방지 (v2.43.122)
+- 5칸 2매칭 구조 → 달2 + 클로버2 같은 다중 매칭 케이스 가능 → 결과 모호성
+- cap 통과 후 후처리: 매칭 심볼이 2종 이상이면 가장 가치 큰 것만 winner로 남기고, 다른 매칭 심볼은 1개 인스턴스를 cnt=0 싱글톤으로 교체 → 항상 단일 매칭
+- 고급·프리미엄은 6/7칸·3매칭 구조상 다중 매칭 불가능해 영향 없음
+
+##### 프리미엄 복권 셀 디자인 업그레이드 (v2.43.123)
+- 도형: 팔각형 → **12면 cushion-cut 보석체** `polygon(25% 0%, 75% 0%, 90% 8%, 100% 25%, 100% 75%, 90% 92%, 75% 100%, 25% 100%, 10% 92%, 0% 75%, 0% 25%, 10% 8%)`
+- 배경: 단일 라디얼 → 멀티 레이어 (핑크 하이라이트 + 보라 그림자 + 다크 보라 베이스)
+- 외곽 글로우: `filter:drop-shadow(0 0 6px rgba(232,121,249,0.35))` (clip-path 모양 따라 자연 렌더)
+- 당첨 셀 펄스: `scardGemPulse` 1.6s 사이클 drop-shadow 강도 펄싱
+- **커버 텍스처 차별화**: `_scardDrawCover(ctx, w, h, layerLeft, tierIdx)`로 인자 확장. 일반·고급은 황금 그라데이션 / 프리미엄은 핑크-퍼플-골드 멀티 그라데이션 + 십자 facet 광택선 + 흰 글리터 점
+
+##### 해골 확률 출현 (v2.43.124)
+- 기존: tier1=1개 / tier2=2개 고정 출현
+- 변경: `skullAppear` 가중치 필드 추가 — tier1=20 (~17% 셀당), tier2=40 (~29% 셀당). 셀별 독립 추첨 시 `심볼 100 + skullAppear`의 합산 가중치 풀에서 추첨
+- 평균 갯수는 기존과 동일 (1.0, 2.0) but 변동성 ↑ (운 좋으면 0개, 운 나쁘면 3개+)
+- Hub 확률표·모달 우측 당첨표·룰 텍스트·상점 카드 설명 모두 % 표시로 갱신
+- `rollScratch` 내부에서 `skulls` 참조 → `skullCount` 동적 변수로 교체
+
+#### 핵심 함수/상수 변화 정리
+
+```js
+// 추가/변경된 변수·상수
+let _scratchTestTool = null;                           // 테스트 도구 시뮬레이션 (v2.43.117~)
+const SCRATCH_TIERS[i].skullAppear = 0|20|40;         // 해골 가중치 (v2.43.124~)
+const SCRATCH_TIERS[i].matchCount = 2|3|3;            // 매칭 갯수 (v2.43.103~)
+
+// 변경된 함수 시그니처
+_scardDrawCover(ctx, w, h, layerLeft, tierIdx)        // tierIdx 추가 (v2.43.123)
+showScratchModal(result, gold, { tierDef, toolParams, onComplete, testMode, onNext })
+
+// 새 window 함수
+window._setScratchTestTool(toolId)                    // 토글 핸들러 (v2.43.117)
+window.openLotteryHub() / window.closeLotteryHub()    // Hub 모달
+window._lhBuyTier(id), window._lhBuyTool(id)          // Hub 내 버튼 핸들러
+
+// rollScratch 내부 로직 핵심
+- 셀당 독립 추첨 (심볼 + 해골 가중치 풀)
+- cap=matchCount: 같은 심볼 matchCount 초과 시 미달 심볼로 교체
+- 다중 매칭 방지 (tier 0): 가장 가치 큰 winner 외 다른 매칭 심볼은 cnt=0 싱글톤으로 교체
+- 쪼는 맛: 당첨이면 winSym 1개를 cells-1에 강제 배치, 나머지는 앞쪽 셀 랜덤
+```
+
+#### CSS 핵심 클래스 (v2.43.x)
+
+```
+.scard-overlay / .scard-modal.tier-0/1/2          /* 모달 컨테이너, 티어별 테마 */
+.scard-grid.tier-0  → 6컬럼 그리드, 3+2 배치 (v2.43.119)
+.scard-grid.tier-2  → 4컬럼, 5/6/7번 셀 재배치
+.scard-cell         → 원형 (tier 0/1), 12면 보석체 (tier 2, clip-path)
+.scard-sym-emoji    → opacity 0.55, blur 3px (긁힌 자리에서 점진 노출용)
+.scard-canvas       → tier 2 는 동일 clip-path 명시
+.scard-actions      → [뒤로/한 번 더/확인] 3버튼 그룹
+.scard-act-back / .scard-act-replay / .scard-act-confirm
+.lh-test-tool-row   → 테스트 도구 토글 노란 점선 박스
+@keyframes scardGemPulse  → 프리미엄 당첨 셀 펄스
+```
+
+#### 다음 작업 (미구현, 사용자 요청 보류)
+
+- **긁기 도구 의미 부여**: 현재 도구가 큰 차이 없음. 4가지 방안 제안 중:
+  - A: 브러시 alpha 자체 ↑ (coin 0.30→0.50, key 0.30→0.80)
+  - B: 픽셀 클리어 임계값 차등 (coin <170, key <220 → 한 번 닿으면 cleared)
+  - C: 도구별 고유 메커닉 (coin = 가루 폭발, key = 자동 미리보기)
+  - D: 결과 보너스 (coin = +10% 골드, key = +1 무료 reveal + +15% 골드)
+  - 추천: A+B 조합. 사용자 의사결정 대기 중
+
+---
+
+### v2.43.x (2026-05-27 전반)
 
 #### 챔피언 가챠 프리즘 카드 + 복권 개선 (v2.43.82~89, 2026-05-27)
 
