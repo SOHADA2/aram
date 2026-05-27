@@ -4643,7 +4643,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.123';
+const APP_VERSION = 'v2.43.124';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4652,6 +4652,9 @@ const APP_VERSION = 'v2.43.123';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.124', date: '2026-05-27', changes: [
+    { tag: 'improve', text: '해골도 확률 출현으로 변경 — 기존엔 고급 1개·프리미엄 2개 고정. 이제 다른 심볼과 같이 셀당 독립 가중치 추첨 (skullAppear 필드). 고급: 가중치 20 (~17% 셀당, 6칸 기댓값 1.0) / 프리미엄: 40 (~29% 셀당, 7칸 기댓값 2.0) → 평균 갯수는 기존과 동일하지만 변동성 ↑ (가끔 0개로 안전, 가끔 3개로 위험). Hub/모달 확률표·룰 텍스트도 "확률 출현 N%"로 갱신. 상점 카드 설명 동기화' },
+  ]},
   { ver: 'v2.43.123', date: '2026-05-27', changes: [
     { tag: 'improve', text: '프리미엄 복권 셀 디자인 업그레이드. (1) 도형 — 팔각형 → 12면 cushion-cut 보석체 polygon (corners 8% 더 부드러움). (2) 배경 — 단일 라디얼 → 멀티 레이어 (핑크 하이라이트 + 보라 그림자 + 다크 보라 베이스) → 보석 단면 느낌. (3) 외곽 글로우 — filter:drop-shadow(0 0 6px) 로 clip-path 모양 그대로 핑크 헤일로. (4) 당첨 셀 펄스 애니메이션 — scardGemPulse 1.6s 사이클로 drop-shadow 강도 펄스. (5) 커버 텍스처 차별화 — 일반/고급 황금 / 프리미엄은 핑크-퍼플 홀로그래픽 그라데이션 + 글리터 점 + 십자 facet 광택선. _scardDrawCover 에 tierIdx 인자 추가' },
   ]},
@@ -6048,9 +6051,9 @@ const S1_SHOP_ITEMS = [
   { id:'scratch_normal',   icon:ITEM_SVG_ICONS.lottery, name:'일반 복권',    color:'#f59e0b', price:100, type:'scratch_tier',
     desc:'5칸 긁기 · 꽝 32% · 클로버 50G ~ 왕관 800G · 한도 없음' },
   { id:'scratch_advanced', icon:ITEM_SVG_ICONS.lottery, name:'고급 복권',    color:'#a78bfa', price:300, type:'scratch_tier',
-    desc:'6칸 긁기 · 해골 1개 (완전공개 시 -200G 패널티) · 클로버 180G ~ 왕관 3500G' },
+    desc:'6칸 긁기 · 해골 평균 1개 (확률 출현, 각 -200G) · 클로버 180G ~ 왕관 3500G' },
   { id:'scratch_premium',  icon:ITEM_SVG_ICONS.lottery, name:'프리미엄 복권', color:'#e879f9', price:600, type:'scratch_tier',
-    desc:'7칸 긁기 · 해골 2개 (각 -400G 패널티) · 클로버 500G ~ 왕관 10000G' },
+    desc:'7칸 긁기 · 해골 평균 2개 (확률 출현, 각 -400G) · 클로버 500G ~ 왕관 10000G' },
   { id:'scratch_coin', icon:'<span style="font-size:18px;line-height:1">🪙</span>', name:'긁기 동전', color:'#94a3b8', price:200, type:'scratch_tool',
     desc:'스크래치 복권 긁기 시 브러시 크기 2배 · 영구 적용' },
   { id:'scratch_key',  icon:'<span style="font-size:18px;line-height:1">🔑</span>', name:'만능 긁개',  color:'#fbbf24', price:500, type:'scratch_tool',
@@ -17201,7 +17204,9 @@ const SCRATCH_SKULL = { id:'skull', emoji:'💀', name:'해골', gold:0 };
 // 평균 EV 약 100~115% 목표 / 잭팟 임팩트 유지 (×15~20)
 const SCRATCH_TIERS = [
   // 일반 5칸 — 2매칭 / 본전 100G / 잭팟 1500G
-  { idx:0, id:'scratch_normal',   price:100, cells:5, skulls:0, skullPenalty:0, matchCount:2,
+  // skullAppear: 셀당 해골 출현 가중치 (전체 appear 합 100 + skullAppear 기준). 0이면 해골 없음.
+  // v2.43.124~ 해골 확률 출현 — tier1: appear 20 (셀당 17%, 6칸 기댓값 1.0) / tier2: appear 40 (29%, 기댓값 2.0)
+  { idx:0, id:'scratch_normal',   price:100, cells:5, skulls:0, skullAppear:0,  skullPenalty:0, matchCount:2,
     symbols:[
       { id:'clover',  emoji:'🍀', name:'클로버', gold:100,  appear:30 },
       { id:'sword',   emoji:'⚔️', name:'검',     gold:120,  appear:22 },
@@ -17211,8 +17216,8 @@ const SCRATCH_TIERS = [
       { id:'diamond', emoji:'💎', name:'다이아', gold:700,  appear:6  },
       { id:'crown',   emoji:'👑', name:'왕관',   gold:1500, appear:2  },
     ]},
-  // 고급 6칸 — 3매칭 / 본전 300G / 잭팟 6000G
-  { idx:1, id:'scratch_advanced', price:300, cells:6, skulls:1, skullPenalty:200, matchCount:3,
+  // 고급 6칸 — 3매칭 / 본전 300G / 잭팟 6000G / 해골 평균 1개 (확률 출현)
+  { idx:1, id:'scratch_advanced', price:300, cells:6, skulls:1, skullAppear:20, skullPenalty:200, matchCount:3,
     symbols:[
       { id:'clover',  emoji:'🍀', name:'클로버', gold:300,  appear:30 },
       { id:'sword',   emoji:'⚔️', name:'검',     gold:400,  appear:22 },
@@ -17222,8 +17227,8 @@ const SCRATCH_TIERS = [
       { id:'diamond', emoji:'💎', name:'다이아', gold:2500, appear:5  },
       { id:'crown',   emoji:'👑', name:'왕관',   gold:6000, appear:3  },
     ]},
-  // 프리미엄 7칸 — 3매칭 / 본전 600G / 잭팟 12000G
-  { idx:2, id:'scratch_premium',  price:600, cells:7, skulls:2, skullPenalty:400, matchCount:3,
+  // 프리미엄 7칸 — 3매칭 / 본전 600G / 잭팟 12000G / 해골 평균 2개 (확률 출현)
+  { idx:2, id:'scratch_premium',  price:600, cells:7, skulls:2, skullAppear:40, skullPenalty:400, matchCount:3,
     symbols:[
       { id:'clover',  emoji:'🍀', name:'클로버', gold:600,   appear:28 },
       { id:'sword',   emoji:'⚔️', name:'검',     gold:800,   appear:22 },
@@ -17242,12 +17247,14 @@ const SCRATCH_TOOLS = {
 };
 
 // v2.43.110~ 출연 확률(appear) 독립 추첨 + 모든 슬롯 무조건 심볼 + 사후 매칭 판정
+// v2.43.124~ 해골도 확률 출현 — skullAppear 가중치로 셀당 독립 추첨 (고정 갯수 X)
 function rollScratch(tierIdx = 0) {
   const tier = SCRATCH_TIERS[tierIdx] || SCRATCH_TIERS[0];
-  const { symbols, cells, skulls } = tier;
+  const { symbols, cells } = tier;
+  const skullAppear = tier.skullAppear || 0;
   const matchCount = tier.matchCount || 2;
-  const symSlots = cells - skulls;
-  const totalAppear = symbols.reduce((s, x) => s + x.appear, 0); // 합 정규화 (보통 100)
+  const totalSymAppear = symbols.reduce((s, x) => s + x.appear, 0); // 보통 100
+  const totalAll = totalSymAppear + skullAppear;
   const pickWeighted = (pool) => {
     const total = pool.reduce((s, x) => s + x.appear, 0);
     const r = Math.random() * total;
@@ -17255,8 +17262,19 @@ function rollScratch(tierIdx = 0) {
     for (const sym of pool) { cumul += sym.appear; if (r < cumul) return sym; }
     return pool[pool.length - 1];
   };
-  const symArr = [];
-  for (let i = 0; i < symSlots; i++) symArr.push(pickWeighted(symbols));
+  // 각 셀 독립 추첨 — 심볼 영역 또는 해골 영역
+  const symArr = []; let skullCount = 0;
+  for (let i = 0; i < cells; i++) {
+    const r = Math.random() * totalAll;
+    if (r < totalSymAppear) {
+      // 심볼 영역 → 가중치로 심볼 선택
+      let cumul = 0, picked = symbols[symbols.length - 1];
+      for (const sym of symbols) { cumul += sym.appear; if (r < cumul) { picked = sym; break; } }
+      symArr.push(picked);
+    } else {
+      skullCount++;
+    }
+  }
   // cap = matchCount: 같은 심볼이 matchCount 초과로 모이면 미달 심볼들 가중치 재추첨해 교체.
   // (1) 시각 혼란 ↓ (2) winSym 인스턴스가 정확히 matchCount 개 → "쪼는 맛" 강제 배치 가능.
   // v2.43.114에서 tier 0만 적용 → v2.43.115에서 전 티어 확장.
@@ -17325,7 +17343,7 @@ function rollScratch(tierIdx = 0) {
     const winInst   = symArr.filter(s => s.id === winSym.id);
     const otherInst = shuffle([
       ...symArr.filter(s => s.id !== winSym.id),
-      ...Array(skulls).fill(SCRATCH_SKULL),
+      ...Array(skullCount).fill(SCRATCH_SKULL),
     ]);
     const winPos = new Set([cells - 1]);
     const earlyPos = shuffle([...Array(cells - 1).keys()]);
@@ -17334,7 +17352,7 @@ function rollScratch(tierIdx = 0) {
     let oi = 0;
     for (let i = 0; i < cells; i++) slots[i] = winPos.has(i) ? winSym : otherInst[oi++];
   } else {
-    slots = shuffle([...symArr, ...Array(skulls).fill(SCRATCH_SKULL)]);
+    slots = shuffle([...symArr, ...Array(skullCount).fill(SCRATCH_SKULL)]);
   }
   return { slots, win: winSym, tier };
 }
@@ -17747,9 +17765,9 @@ window.openLotteryHub = function() {
     { id:'scratch_normal',   name:'일반 복권',    price:100, color:'#f59e0b', emoji:'🎟',
       desc:'5칸 · 2개 매칭 시 당첨', tierIdx:0 },
     { id:'scratch_advanced', name:'고급 복권',    price:300, color:'#a78bfa', emoji:'🎫',
-      desc:'6칸 · 3개 매칭 시 당첨 · 해골 1개', tierIdx:1 },
+      desc:'6칸 · 3개 매칭 시 당첨 · 해골 평균 1개 (확률 출현)', tierIdx:1 },
     { id:'scratch_premium',  name:'프리미엄 복권', price:600, color:'#e879f9', emoji:'💎',
-      desc:'7칸 · 3개 매칭 시 당첨 · 해골 2개', tierIdx:2 },
+      desc:'7칸 · 3개 매칭 시 당첨 · 해골 평균 2개 (확률 출현)', tierIdx:2 },
   ];
   const TOOL_META = [
     { id:'scratch_coin', name:'긁기 동전', price:200, emoji:'🪙', color:'#94a3b8',
@@ -17761,21 +17779,24 @@ window.openLotteryHub = function() {
     const canBuy = myGold >= t.price;
     const tierDef = SCRATCH_TIERS[t.tierIdx];
     // v2.43.109~ appear (출연 확률) 기반 표시
+    // v2.43.124~ 해골도 확률 표시 — appear 비례 % 계산
     const symbols = [...tierDef.symbols].sort((a,b)=>b.appear-a.appear);
     const totalSymAppear = symbols.reduce((s,x)=>s+x.appear, 0);
-    const blankAppear = Math.max(0, 100 - totalSymAppear);
+    const skullAppear = tierDef.skullAppear || 0;
+    const totalAll = totalSymAppear + skullAppear;
+    const pctOf = (a) => totalAll > 0 ? Math.round(a / totalAll * 100) : 0;
     const probRows = symbols.map(s => `
       <div class="lh-prob-row">
         <span class="lh-prob-em">${s.emoji}</span>
         <span class="lh-prob-name">${escHtml(s.name)}</span>
-        <span class="lh-prob-pct">${s.appear}%</span>
+        <span class="lh-prob-pct">${pctOf(s.appear)}%</span>
         <span class="lh-prob-gold">+${s.gold}G</span>
       </div>`).join('');
-    const skullRow = tierDef.skulls > 0 ? `
+    const skullRow = skullAppear > 0 ? `
       <div class="lh-prob-row lh-prob-skull">
         <span class="lh-prob-em">💀</span>
-        <span class="lh-prob-name">해골 ${tierDef.skulls}개 (완전 공개)</span>
-        <span class="lh-prob-pct">-</span>
+        <span class="lh-prob-name">해골</span>
+        <span class="lh-prob-pct">${pctOf(skullAppear)}%</span>
         <span class="lh-prob-gold" style="color:#ef4444;">-${tierDef.skullPenalty}G</span>
       </div>` : '';
     const missRow = ''; // v2.43.110~ 블랭크 없음 — 모든 슬롯에 무조건 심볼
@@ -17904,7 +17925,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
               </div>`).join('')}
           </div>
           <div class="scard-bottom">
-            <div class="scard-rule">${activeTier.skulls > 0
+            <div class="scard-rule">${(activeTier.skullAppear || 0) > 0
               ? `같은 문양 ${activeTier.matchCount || 2}개 매칭 시 당첨 · 💀 해골 공개 시 -${activeTier.skullPenalty}G`
               : `같은 문양 ${activeTier.matchCount || 2}개 매칭 시 당첨`}</div>
             <div class="scard-hint" id="scard-hint">🖱 긁어서 문양을 확인하세요</div>
@@ -17920,18 +17941,24 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
           </div>
         </div>
         <div class="scard-right">
-          ${[...activeTier.symbols].sort((a,b)=>b.appear-a.appear).map(s => `
-            <div class="scard-table-row">
-              <div class="scard-table-em">${s.emoji}</div>
-              <div class="scard-table-pct2">${s.appear}%</div>
-              <div class="scard-table-gold">+${s.gold}G</div>
-            </div>`).join('')}
-          ${activeTier.skulls > 0 ? `
-            <div class="scard-table-row" style="border-top:1px dashed rgba(239,68,68,0.2);margin-top:4px;">
-              <div class="scard-table-em">💀</div>
-              <div class="scard-table-pct2" style="color:rgba(239,68,68,0.5);font-size:8px;">주의</div>
-              <div class="scard-table-gold" style="color:#ef4444;">-${activeTier.skullPenalty}G</div>
-            </div>` : ''}
+          ${(() => {
+            const skullAppear = activeTier.skullAppear || 0;
+            const totalAll = activeTier.symbols.reduce((s,x)=>s+x.appear,0) + skullAppear;
+            const pct = (a) => totalAll > 0 ? Math.round(a/totalAll*100) : 0;
+            const symRows = [...activeTier.symbols].sort((a,b)=>b.appear-a.appear).map(s => `
+              <div class="scard-table-row">
+                <div class="scard-table-em">${s.emoji}</div>
+                <div class="scard-table-pct2">${pct(s.appear)}%</div>
+                <div class="scard-table-gold">+${s.gold}G</div>
+              </div>`).join('');
+            const skullRow = skullAppear > 0 ? `
+              <div class="scard-table-row" style="border-top:1px dashed rgba(239,68,68,0.2);margin-top:4px;">
+                <div class="scard-table-em">💀</div>
+                <div class="scard-table-pct2" style="color:rgba(239,68,68,0.65);">${pct(skullAppear)}%</div>
+                <div class="scard-table-gold" style="color:#ef4444;">-${activeTier.skullPenalty}G</div>
+              </div>` : '';
+            return symRows + skullRow;
+          })()}
         </div>
       </div>
     </div>`;
