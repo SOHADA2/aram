@@ -1400,6 +1400,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .lot-entry-body{flex:1;min-width:0;}
 .lot-entry-title{font-size:14px;font-weight:700;color:#f5d1ff;display:flex;align-items:center;gap:6px;}
 .lot-entry-tool{font-size:14px;}
+.lot-entry-test{font-size:9.5px;color:#fde68a;background:rgba(245,158,11,0.22);border:1px solid rgba(245,158,11,0.5);border-radius:8px;padding:1px 7px;font-weight:700;letter-spacing:0.3px;margin-left:4px;}
 .lot-entry-desc{font-size:11px;color:rgba(245,209,255,0.65);margin-top:2px;}
 .lot-entry-arrow{font-size:22px;color:rgba(245,209,255,0.5);line-height:1;font-weight:700;}
 .lh-overlay{position:fixed;inset:0;z-index:3500;background:rgba(4,6,16,0.88);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px;animation:taFadeIn 0.2s ease;}
@@ -1408,6 +1409,8 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .lh-head-title{font-size:16px;font-weight:700;color:#f5d1ff;letter-spacing:0.5px;}
 .lh-close{padding:5px 10px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text);cursor:pointer;font-size:13px;line-height:1;}
 .lh-gold-row{font-size:12px;color:var(--gold);text-align:right;margin-bottom:10px;font-family:'JetBrains Mono',monospace;}
+.lh-test-banner{font-size:11.5px;color:#fde68a;background:linear-gradient(135deg,rgba(245,158,11,0.18),rgba(232,121,249,0.12));border:1px solid rgba(245,158,11,0.4);border-radius:7px;padding:8px 11px;margin-bottom:10px;text-align:center;letter-spacing:0.3px;}
+.lh-test-banner strong{color:#fff;font-weight:700;}
 .lh-section-title{font-size:12px;font-weight:700;color:rgba(245,209,255,0.85);margin-bottom:8px;letter-spacing:0.5px;}
 .lh-section-sub{font-size:10px;font-weight:400;color:rgba(245,209,255,0.45);margin-left:6px;}
 .lh-tier-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;}
@@ -4546,7 +4549,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.99';
+const APP_VERSION = 'v2.43.100';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4555,6 +4558,9 @@ const APP_VERSION = 'v2.43.99';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.100', date: '2026-05-27', changes: [
+    { tag: 'new', text: '스크래치 복권 테스트 모드 — SCRATCH_LOTTERY_TESTMODE=true 일 때 복권·긁기 도구 구매 시 골드 차감 X, 결과 저장 X. 팀원이 미완성 상태에서 시험해도 골드 손실 없음. Hub 모달 상단에 노란 배너 + 상점 진입 카드에 🧪 테스트 뱃지 + 도구 구매 토스트도 [테스트] 접두어 표시. 테스트 완료 후 해당 const 한 줄만 false 로 변경하면 즉시 정상 모드 (도구 보유는 영구라 유지됨)' },
+  ]},
   { ver: 'v2.43.99', date: '2026-05-27', changes: [
     { tag: 'improve', text: '스크래치 복권 3종 개선: (1) "바로 확인" 한 번에 긁기 버튼 완전 제거 — 모든 셀을 직접 긁어야 결과 확인 가능. skipAll 함수와 confirm fallback 도 정리. (2) 홀드 모드 로직 재작성 — 기존엔 자동 좌→우 zigzag 로 마우스 위치 무시하고 자동 reveal 까지 진행. 새 로직은 마우스 위치 주변 ±brushRadius*1.3 랜덤 오프셋으로 점진적 긁기 → 마우스 옮기면 그 자리 따라옴, 직접 다 긁어야 reveal. 긁기 동전(2x)·만능 긁개(3x) 도구 brushRadius 비례라 도구 효과 자동 반영. (3) Hub 모달 티어 카드 우측 상단에 ? 마크 추가 — 호버 시 확률표 팝오버(심볼별 확률·골드 + 해골 패널티 + 꽝 확률 자동 계산) 표시' },
   ]},
@@ -5857,6 +5863,13 @@ const S1_TIER_META = {
 };
 
 const SCRATCH_LOTTERY_LOCKED = false;
+// ─────────────────────────────────────────────────────────
+// 🧪 스크래치 복권 테스트 모드 (v2.43.100~)
+// true  → 골드 차감 X, 결과 저장 X, Hub 상단 배너 노출 (팀원 무료 체험 가능)
+// false → 정상 모드 (골드 차감, 결과 저장)
+// 테스트 완료 후 이 줄만 false 로 바꾸면 즉시 정상 모드 전환
+const SCRATCH_LOTTERY_TESTMODE = true;
+// ─────────────────────────────────────────────────────────
 // 잠금 해제 시 테스트 FAB 자동 숨김 (v2.43.79~) — FAB 디폴트 표시이므로 여기서 hide
 if (!SCRATCH_LOTTERY_LOCKED) {
   const _fab = document.getElementById('scratch-test-fab');
@@ -16825,12 +16838,13 @@ function _renderShopImmediate() {
   const _toolBadge = _hasKey ? '<span class="lot-entry-tool" title="만능 긁개 보유">🔑</span>'
                    : _hasCoin ? '<span class="lot-entry-tool" title="긁기 동전 보유">🪙</span>'
                    : '';
+  const _testBadge = SCRATCH_LOTTERY_TESTMODE ? '<span class="lot-entry-test">🧪 테스트</span>' : '';
   const lotteryEntryHtml = (CURRENT_SEASON >= 1 && shopCatTab === 'consume' && !SCRATCH_LOTTERY_LOCKED) ? `
     <div class="lot-entry-card" onclick="window.openLotteryHub()">
       <div class="lot-entry-icon">🎟</div>
       <div class="lot-entry-body">
-        <div class="lot-entry-title">스크래치 복권 ${_toolBadge}</div>
-        <div class="lot-entry-desc">일반·고급·프리미엄 티어 선택 + 긁기 도구 구매</div>
+        <div class="lot-entry-title">스크래치 복권 ${_toolBadge}${_testBadge}</div>
+        <div class="lot-entry-desc">${SCRATCH_LOTTERY_TESTMODE ? '🧪 테스트 모드 — 골드 차감 없이 자유 체험' : '일반·고급·프리미엄 티어 선택 + 긁기 도구 구매'}</div>
       </div>
       <div class="lot-entry-arrow">›</div>
     </div>` : '';
@@ -17513,12 +17527,16 @@ window.openLotteryHub = function() {
   const el = document.createElement('div');
   el.id = 'lottery-hub-overlay';
   el.className = 'lh-overlay';
+  const testBanner = SCRATCH_LOTTERY_TESTMODE
+    ? `<div class="lh-test-banner">🧪 <strong>테스트 모드</strong> — 골드 차감 없이 자유롭게 체험 (결과 저장 X)</div>`
+    : '';
   el.innerHTML = `
     <div class="lh-sheet" onclick="event.stopPropagation();">
       <div class="lh-head">
         <span class="lh-head-title">🎟 스크래치 복권</span>
         <button class="lh-close" onclick="window.closeLotteryHub()">✕</button>
       </div>
+      ${testBanner}
       <div class="lh-gold-row">🪙 보유 ${myGold}G</div>
       <div class="lh-section-title">티어 선택</div>
       <div class="lh-tier-grid">${tierCards}</div>
@@ -18031,10 +18049,14 @@ async function _buyItemImpl(itemId) {
     if (item.id === 'scratch_coin' && myItems2.some(it => it.id === 'scratch_key')) {
       showS1Toast('🔑 만능 긁개가 있으면 긁기 동전은 불필요해요'); return;
     }
-    const newGoldSpent = (data[spentKey] ?? 0) + item.price;
+    // 테스트 모드: 골드 차감 없이 보유만 추가 (v2.43.100~)
     const newItems2 = [...myItems2, { id: item.id, ts: Date.now() }];
-    await set(ref(db,'gold/'+key), { ...data, [spentKey]: newGoldSpent, [itemsKey]: newItems2 });
-    showS1Toast(`${item.name} 구매 완료! 이제 모든 복권 긁기에 자동 적용돼요 🎉`);
+    const updates = { [itemsKey]: newItems2 };
+    if (!SCRATCH_LOTTERY_TESTMODE) updates[spentKey] = (data[spentKey] ?? 0) + item.price;
+    await set(ref(db,'gold/'+key), { ...data, ...updates });
+    showS1Toast(SCRATCH_LOTTERY_TESTMODE
+      ? `🧪 [테스트] ${item.name} 구매 완료 (골드 차감 X)`
+      : `${item.name} 구매 완료! 이제 모든 복권 긁기에 자동 적용돼요 🎉`);
     renderShop();
     return;
   }
@@ -18044,11 +18066,17 @@ async function _buyItemImpl(itemId) {
     if (SCRATCH_LOTTERY_LOCKED) { showS1Toast('🔧 스크래치 복권 점검 중이에요!'); return; }
     const tierDef = SCRATCH_TIERS.find(t => t.id === item.id);
     if (!tierDef) return;
-    const newGoldSpent = (data[spentKey] ?? 0) + item.price;
     // 긁기 도구 체크 — 영구 소유, 소모 없음 (v2.43.96~)
     const myItemsArr = data[itemsKey] || [];
     const activeTool = ['scratch_key', 'scratch_coin'].map(tid => myItemsArr.find(it => it.id === tid)).find(Boolean);
     const toolParams = activeTool ? SCRATCH_TOOLS[activeTool.id] : null;
+    // 테스트 모드: 골드 차감·결과 저장 모두 skip (v2.43.100~)
+    if (SCRATCH_LOTTERY_TESTMODE) {
+      const result = rollScratch(tierDef.idx);
+      showScratchModal(result, currentGold, { tierDef, toolParams, onComplete: async () => {} });
+      return;
+    }
+    const newGoldSpent = (data[spentKey] ?? 0) + item.price;
     await set(ref(db,'gold/'+key), { ...data, [spentKey]: newGoldSpent });
     const result = rollScratch(tierDef.idx);
     const onComplete = async ({ winGold, skullPenalty }) => {
