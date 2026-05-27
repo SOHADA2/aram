@@ -4605,7 +4605,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.114';
+const APP_VERSION = 'v2.43.115';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4614,6 +4614,9 @@ const APP_VERSION = 'v2.43.114';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.115', date: '2026-05-27', changes: [
+    { tag: 'improve', text: '스크래치 복권 "쪼는 맛" 강화 — 당첨이면 winSym 1개를 마지막 셀에 고정, 나머지(matchCount-1)는 앞쪽 셀 랜덤 배치. 기존엔 셔플로 winSym 위치가 무작위 → 운 좋으면 앞 2~3개 셀에서 결판나서 뒷셀은 의미 없었음. 이제 매칭 완성은 항상 마지막 셀이 결정 → 끝까지 긁어야 결과 확정. 곁들여 v2.43.114의 cap=matchCount 보정을 전 티어로 확장 (winSym 인스턴스 정확히 matchCount 개 → 강제 배치 안정성). 패배 티켓은 그대로 shuffle (마지막 셀에 의미 부여 안 함)' },
+  ]},
   { ver: 'v2.43.114', date: '2026-05-27', changes: [
     { tag: 'improve', text: '스크래치 일반 복권(5칸·매칭=2) 동일 심볼 cap=2 보정. 독립 추첨이라 같은 심볼이 3·4·5개씩 나오는 케이스가 종종 발생 → 매칭(2)은 이미 결정됐는데 시각적으로 3·4·5개 겹쳐 보여 혼란 + 결과 해석 복잡. cap 초과 슬롯은 카운트 미달 심볼들 가중치로 재추첨해 교체. 매칭 자체는 그대로 성립(2매칭 유지). 고급·프리미엄(매칭=3)은 영향 없음 — 3매칭이 정상 동작이라 cap 불필요' },
   ]},
@@ -17188,9 +17191,10 @@ function rollScratch(tierIdx = 0) {
   };
   const symArr = [];
   for (let i = 0; i < symSlots; i++) symArr.push(pickWeighted(symbols));
-  // 일반 복권(tier 0)만: 같은 심볼이 matchCount(2)를 초과해서 나오면 정합성↑·시각 혼란↓ 위해 cap.
-  // 초과분은 cap 미달 심볼들로만 가중치 재추첨해 교체. 매칭 자체는 그대로 성립.
-  if (tier.idx === 0) {
+  // cap = matchCount: 같은 심볼이 matchCount 초과로 모이면 미달 심볼들 가중치 재추첨해 교체.
+  // (1) 시각 혼란 ↓ (2) winSym 인스턴스가 정확히 matchCount 개 → "쪼는 맛" 강제 배치 가능.
+  // v2.43.114에서 tier 0만 적용 → v2.43.115에서 전 티어 확장.
+  {
     const cap = matchCount;
     const cnt = {};
     for (let i = 0; i < symArr.length; i++) {
@@ -17217,7 +17221,24 @@ function rollScratch(tierIdx = 0) {
       if (sym && (!winSym || sym.gold > winSym.gold)) winSym = sym;
     }
   }
-  const slots = shuffle([...symArr, ...Array(skulls).fill(SCRATCH_SKULL)]);
+  // 쪼는 맛(v2.43.115~): 당첨이면 winSym 1개를 마지막 셀에 고정 + 나머지는 앞쪽 셀 랜덤.
+  // → 마지막 셀을 긁어야 매칭 완성. (cap 덕분에 winSym 정확히 matchCount 개)
+  let slots;
+  if (winSym) {
+    const winInst   = symArr.filter(s => s.id === winSym.id);
+    const otherInst = shuffle([
+      ...symArr.filter(s => s.id !== winSym.id),
+      ...Array(skulls).fill(SCRATCH_SKULL),
+    ]);
+    const winPos = new Set([cells - 1]);
+    const earlyPos = shuffle([...Array(cells - 1).keys()]);
+    for (let i = 0; i < winInst.length - 1; i++) winPos.add(earlyPos[i]);
+    slots = new Array(cells);
+    let oi = 0;
+    for (let i = 0; i < cells; i++) slots[i] = winPos.has(i) ? winSym : otherInst[oi++];
+  } else {
+    slots = shuffle([...symArr, ...Array(skulls).fill(SCRATCH_SKULL)]);
+  }
   return { slots, win: winSym, tier };
 }
 
