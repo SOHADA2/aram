@@ -1912,14 +1912,14 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .scard-right{width:142px;flex-shrink:0;padding:12px 14px 10px 12px;
   border-left:1px dashed rgba(200,168,75,0.2);
   background:rgba(200,168,75,0.03);}
-.scard-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.scard-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+/* 홀로 남는 마지막 셀 가운데 정렬 */
+.scard-grid > .scard-cell:last-child:nth-child(3n+1){grid-column:2;}
 /* 긁기 셀 — 복권 인쇄지 느낌 */
-.scard-cell{position:relative;height:80px;border-radius:6px;overflow:hidden;cursor:crosshair;
+.scard-cell{position:relative;height:72px;border-radius:6px;overflow:hidden;cursor:crosshair;
   background:linear-gradient(135deg,#2a2010,#1e1808);
   border:1px solid rgba(200,168,75,0.3);
   box-shadow:inset 0 1px 0 rgba(200,168,75,0.1),inset 0 -1px 0 rgba(0,0,0,0.4);}
-.scard-cell-bonus{grid-column:1/-1;height:56px;}
-.scard-grid.cols-3{grid-template-columns:1fr 1fr 1fr;}
 .scard-cell-skull{background:linear-gradient(135deg,#2d0a0a,#180404)!important;border-color:rgba(239,68,68,0.3)!important;}
 .scard-cell-skull .scard-sym-name{color:rgba(239,68,68,0.4);}
 .scard-cell-skull.skull-hit{border-color:rgba(239,68,68,0.85)!important;box-shadow:0 0 14px rgba(239,68,68,0.3),inset 0 0 8px rgba(239,68,68,0.06)!important;}
@@ -1927,8 +1927,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .scard-result.skull{color:#ef4444;background:linear-gradient(135deg,rgba(239,68,68,0.12),rgba(239,68,68,0.05));border:1px solid rgba(239,68,68,0.4);}
 .scard-tool-badge{font-size:9px;padding:2px 8px;border-radius:10px;background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.3);color:rgba(234,179,8,0.9);letter-spacing:0.3px;white-space:nowrap;}
 .scard-sym{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;pointer-events:none;user-select:none;}
-.scard-sym-emoji{font-size:30px;line-height:1;transform:scale(0.7);opacity:0;transition:transform 0.45s cubic-bezier(0.34,1.56,0.64,1),opacity 0.35s ease,filter 0.4s ease;filter:blur(10px) drop-shadow(0 2px 6px rgba(0,0,0,0.6));}
-.scard-cell-bonus .scard-sym-emoji{font-size:26px;}
+.scard-sym-emoji{font-size:26px;line-height:1;transform:scale(0.7);opacity:0;transition:transform 0.45s cubic-bezier(0.34,1.56,0.64,1),opacity 0.35s ease,filter 0.4s ease;filter:blur(10px) drop-shadow(0 2px 6px rgba(0,0,0,0.6));}
 .scard-sym-emoji.revealed{transform:scale(1);opacity:1;filter:drop-shadow(0 2px 8px rgba(0,0,0,0.6));}
 .scard-sym-name{font-size:9px;letter-spacing:0.3px;color:rgba(200,168,75,0.5);}
 /* BONUS 배지 */
@@ -4489,7 +4488,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.94';
+const APP_VERSION = 'v2.43.95';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -17347,8 +17346,6 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   const revealThreshold = toolParams?.threshold ?? 0.55; // 마지막 레이어 공개 임계값
   const CELL_LAYERS = activeTier.idx === 2 ? 4 : 3;     // 프리미엄 4겹, 나머지 3겹
   const LAYER_THRESHOLD = 0.40;                          // 중간 레이어 진행 임계값
-  const colsClass = totalCells >= 6 ? 'cols-3' : '';
-  const lastIsWide = totalCells === 5 || totalCells === 7;
   const titleMap = ['🎰 일반 복권', '🎰 고급 복권', '🎰 프리미엄 복권'];
   const toolLabel = toolParams
     ? `<span class="scard-tool-badge">${toolParams.threshold ? '🔑 만능 긁개 적용' : '🪙 긁기 동전 적용'}</span>`
@@ -17371,19 +17368,15 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
       ${toolLabel ? `<div style="text-align:center;padding:2px 12px 0;">${toolLabel}</div>` : ''}
       <div class="scard-body">
         <div class="scard-left">
-          <div class="scard-grid ${colsClass}" id="scard-grid">
-            ${slots.map((s, i) => {
-              const isSkull = s.id === 'skull';
-              const isBonus = lastIsWide && i === totalCells - 1;
-              const cls = `scard-cell${isSkull ? ' scard-cell-skull' : ''}${isBonus ? ' scard-cell-bonus' : ''}`;
-              return `<div class="${cls}" data-idx="${i}">
+          <div class="scard-grid" id="scard-grid">
+            ${slots.map((s, i) => `
+              <div class="scard-cell${s.id === 'skull' ? ' scard-cell-skull' : ''}" data-idx="${i}">
                 <div class="scard-sym">
                   <div class="scard-sym-emoji">${s.emoji}</div>
                   <div class="scard-sym-name">${s.name}</div>
                 </div>
                 <canvas class="scard-canvas"></canvas>
-              </div>`;
-            }).join('')}
+              </div>`).join('')}
           </div>
           <div class="scard-bottom">
             <div class="scard-rule">${activeTier.skulls > 0
@@ -17419,9 +17412,8 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     const canvas = cellEl.querySelector('canvas');
     const symEl  = cellEl.querySelector('.scard-sym-emoji');
     const sym    = slots[idx];
-    const isBonus = lastIsWide && idx === totalCells - 1;
-    canvas.width  = cellEl.offsetWidth  || (isBonus ? 220 : 110);
-    canvas.height = cellEl.offsetHeight || (isBonus ? 56  : 80);
+    canvas.width  = cellEl.offsetWidth  || 90;
+    canvas.height = cellEl.offsetHeight || 72;
     const ctx2d = canvas.getContext('2d', { willReadFrequently: true });
     _scardDrawCover(ctx2d, canvas.width, canvas.height, CELL_LAYERS);
     return { cellEl, canvas, ctx: ctx2d, symEl, sym, revealed: false, scratching: false,
