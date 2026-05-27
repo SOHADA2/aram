@@ -4590,7 +4590,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.102';
+const APP_VERSION = 'v2.43.103';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4599,6 +4599,9 @@ const APP_VERSION = 'v2.43.102';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.103', date: '2026-05-27', changes: [
+    { tag: 'improve', text: '스크래치 복권 매칭·확률·보상 재밸런싱. (1) 매칭 수 차별화 — 일반(5칸) 2개 매칭 / 고급(6칸)·프리미엄(7칸) 3개 매칭. SCRATCH_TIERS 에 matchCount 필드 추가, rollScratch 가 winSym 을 matchCount 만큼 슬롯에 채움(꽝 케이스도 matchCount 미달 보장). (2) 보상 재조정 — 모든 당첨 금액 ≥ 구매가 보장(불쾌감 방지). 일반: 클로버 50→150G·왕관 800→2000G. 고급: 클로버 180→400G·왕관 3500→8000G. 프리미엄: 클로버 500→800G·왕관 10000→20000G. 확률도 함께 조정해 EV 100~140% 범위로 균형. (3) 매칭 완성 자동 종료 — winSym 셀이 matchCount 만큼 reveal 되면 즉시 finishReveal → 다 안 긁어도 결과 확인 가능 (해골 회피 매커닉 부활). 꽝일 땐 모든 셀 다 긁어야 함. (4) UI 텍스트 동적 — "같은 문양 N개 매칭 시 당첨" 으로 티어별 자동 표시' },
+  ]},
   { ver: 'v2.43.102', date: '2026-05-27', changes: [
     { tag: 'improve', text: '스크래치 복권 3종 차별화 + 사실감 강화. (1) 티어별 테마 — 일반(클래식 골드) / 고급(보라·실버, 자색 그라데이션·실버 강조) / 프리미엄(핑크·홀로그래픽, 다채로운 그라데이션 + 외곽 글로우). 모달 배경·헤더·타이틀·가격 배지·셀 색상·당첨표·모드 토글까지 일관 적용. (2) 실제 복권 긁기 느낌 — 단일 라인 → 메인 라인(alpha 0.65 round cap) + 가장자리 거친 라인 3개(±brushRadius 랜덤 오프셋, alpha 0.35) 동시 긋기. 긁힌 자국이 너덜너덜 자연스럽고 한 번에 더 잘 풀림. 25% 확률로 작은 가루 파티클(2개씩) 떨어짐 (셀 위치에서 ±18px·380ms 페이드, 티어 컬러). (3) 도구 효과 차별화 — coin(브러시 2x + threshold 0.28) / key(브러시 3x + threshold 0.18). 기본 0.38 대비 의미있는 차이로 도구 보유 가치 명확화' },
   ]},
@@ -17041,30 +17044,35 @@ window.previewLottery = function(tier, premium) {
 // 3티어: 일반(5칸/해골0) · 고급(6칸/해골1) · 프리미엄(7칸/해골2)
 // 해골(💀)은 완전 공개(>=임계값) 시에만 패널티 — 살짝 긁어보고 멈추면 적용 안됨
 const SCRATCH_SKULL = { id:'skull', emoji:'💀', name:'해골', gold:0 };
+// v2.43.103~ matchCount 추가 + 모든 당첨 금액 > 구매가 보장 (불쾌감 방지)
+// 매칭 완성 시 다 안 긁어도 finishReveal → 해골 회피 가능, 다 긁어야 결과 X
 const SCRATCH_TIERS = [
-  { idx:0, id:'scratch_normal',   price:100, cells:5, skulls:0, skullPenalty:0,
+  // 일반 5칸 — 2매칭, 최소 1.5x 보상
+  { idx:0, id:'scratch_normal',   price:100, cells:5, skulls:0, skullPenalty:0, matchCount:2,
     symbols:[
-      { id:'clover',  emoji:'🍀', name:'클로버', gold:50,    prob:30 },
-      { id:'moon',    emoji:'🌙', name:'달',     gold:100,   prob:25 },
-      { id:'star',    emoji:'⭐', name:'별',     gold:200,   prob:8  },
-      { id:'diamond', emoji:'💎', name:'다이아', gold:400,   prob:4  },
-      { id:'crown',   emoji:'👑', name:'왕관',   gold:800,   prob:1  },
+      { id:'clover',  emoji:'🍀', name:'클로버', gold:150,   prob:20  },
+      { id:'moon',    emoji:'🌙', name:'달',     gold:250,   prob:15  },
+      { id:'star',    emoji:'⭐', name:'별',     gold:500,   prob:6   },
+      { id:'diamond', emoji:'💎', name:'다이아', gold:1000,  prob:2.5 },
+      { id:'crown',   emoji:'👑', name:'왕관',   gold:2000,  prob:0.7 },
     ]},
-  { idx:1, id:'scratch_advanced', price:300, cells:6, skulls:1, skullPenalty:200,
+  // 고급 6칸 — 3매칭, 최소 1.3x 보상 (3개 매칭 어려움 보상)
+  { idx:1, id:'scratch_advanced', price:300, cells:6, skulls:1, skullPenalty:200, matchCount:3,
     symbols:[
-      { id:'clover',  emoji:'🍀', name:'클로버', gold:180,   prob:22 },
-      { id:'moon',    emoji:'🌙', name:'달',     gold:550,   prob:15 },
-      { id:'star',    emoji:'⭐', name:'별',     gold:1100,  prob:6  },
-      { id:'diamond', emoji:'💎', name:'다이아', gold:1800,  prob:2  },
-      { id:'crown',   emoji:'👑', name:'왕관',   gold:3500,  prob:0.5},
+      { id:'clover',  emoji:'🍀', name:'클로버', gold:400,   prob:18  },
+      { id:'moon',    emoji:'🌙', name:'달',     gold:800,   prob:13  },
+      { id:'star',    emoji:'⭐', name:'별',     gold:1500,  prob:5   },
+      { id:'diamond', emoji:'💎', name:'다이아', gold:3500,  prob:2   },
+      { id:'crown',   emoji:'👑', name:'왕관',   gold:8000,  prob:0.5 },
     ]},
-  { idx:2, id:'scratch_premium',  price:600, cells:7, skulls:2, skullPenalty:400,
+  // 프리미엄 7칸 — 3매칭, 한방 큰 잭팟
+  { idx:2, id:'scratch_premium',  price:600, cells:7, skulls:2, skullPenalty:400, matchCount:3,
     symbols:[
-      { id:'clover',  emoji:'🍀', name:'클로버', gold:500,   prob:12 },
-      { id:'moon',    emoji:'🌙', name:'달',     gold:1500,  prob:8  },
-      { id:'star',    emoji:'⭐', name:'별',     gold:3000,  prob:4  },
-      { id:'diamond', emoji:'💎', name:'다이아', gold:6000,  prob:1.5},
-      { id:'crown',   emoji:'👑', name:'왕관',   gold:10000, prob:0.5},
+      { id:'clover',  emoji:'🍀', name:'클로버', gold:800,   prob:14  },
+      { id:'moon',    emoji:'🌙', name:'달',     gold:2000,  prob:10  },
+      { id:'star',    emoji:'⭐', name:'별',     gold:4500,  prob:4   },
+      { id:'diamond', emoji:'💎', name:'다이아', gold:9000,  prob:1.2 },
+      { id:'crown',   emoji:'👑', name:'왕관',   gold:20000, prob:0.4 },
     ]},
 ];
 // 긁기 도구: brushMult = 브러시 반지름 배율, threshold = 공개 임계값(기본 0.38)
@@ -17077,6 +17085,7 @@ const SCRATCH_TOOLS = {
 function rollScratch(tierIdx = 0) {
   const tier = SCRATCH_TIERS[tierIdx] || SCRATCH_TIERS[0];
   const { symbols, cells, skulls } = tier;
+  const matchCount = tier.matchCount || 2; // v2.43.103~ 티어별 매칭 수
   const symSlots = cells - skulls;
   // 당첨 심볼 결정 (확률 누적)
   const r = Math.random() * 100;
@@ -17085,13 +17094,24 @@ function rollScratch(tierIdx = 0) {
     cumul += sym.prob;
     if (r < cumul) { winSym = sym; break; }
   }
-  // 슬롯 구성: 당첨=쌍+나머지, 꽝=전종각1개
+  // 슬롯 구성: 당첨=matchCount개+나머지(다른 심볼, 매칭 안 되게 1개씩), 꽝=다양한 심볼 1~2개씩
   let symArr;
   if (winSym) {
-    const others = shuffle(symbols.filter(s => s.id !== winSym.id)).slice(0, symSlots - 2);
-    symArr = [winSym, winSym, ...others];
+    // 나머지 슬롯엔 다른 심볼들 (절대 matchCount 만큼 같은 게 안 들어가도록)
+    const others = shuffle(symbols.filter(s => s.id !== winSym.id)).slice(0, symSlots - matchCount);
+    symArr = [...Array(matchCount).fill(winSym), ...others];
   } else {
-    symArr = shuffle([...symbols]).slice(0, symSlots);
+    // 꽝: 같은 심볼이 matchCount 만큼 안 들어가도록 — 종류 다양하게 1개씩만 (필요 시 일부 중복 < matchCount-1)
+    const pool = shuffle([...symbols]);
+    symArr = [];
+    const counts = {};
+    let i = 0;
+    while (symArr.length < symSlots) {
+      const s = pool[i % pool.length]; i++;
+      if ((counts[s.id] || 0) < matchCount - 1) {
+        symArr.push(s); counts[s.id] = (counts[s.id] || 0) + 1;
+      }
+    }
   }
   const slots = shuffle([...symArr, ...Array(skulls).fill(SCRATCH_SKULL)]);
   return { slots, win: winSym, tier };
@@ -17503,11 +17523,11 @@ window.openLotteryHub = function() {
   const hasKey  = myItems.some(it => it.id === 'scratch_key');
   const TIER_META = [
     { id:'scratch_normal',   name:'일반 복권',    price:100, color:'#f59e0b', emoji:'🎟',
-      desc:'5칸 긁기 · 한도 없음', tierIdx:0 },
+      desc:'5칸 · 2개 매칭 시 당첨', tierIdx:0 },
     { id:'scratch_advanced', name:'고급 복권',    price:300, color:'#a78bfa', emoji:'🎫',
-      desc:'6칸 긁기 · 해골 1개', tierIdx:1 },
+      desc:'6칸 · 3개 매칭 시 당첨 · 해골 1개', tierIdx:1 },
     { id:'scratch_premium',  name:'프리미엄 복권', price:600, color:'#e879f9', emoji:'💎',
-      desc:'7칸 긁기 · 해골 2개', tierIdx:2 },
+      desc:'7칸 · 3개 매칭 시 당첨 · 해골 2개', tierIdx:2 },
   ];
   const TOOL_META = [
     { id:'scratch_coin', name:'긁기 동전', price:200, emoji:'🪙', color:'#94a3b8',
@@ -17653,8 +17673,8 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
           </div>
           <div class="scard-bottom">
             <div class="scard-rule">${activeTier.skulls > 0
-              ? `💀 해골 완전공개 시 -${activeTier.skullPenalty}G · 살짝만 긁으면 OK`
-              : '2개 이상 같은 문양 일치 시 당첨'}</div>
+              ? `같은 문양 ${activeTier.matchCount || 2}개 매칭 시 당첨 · 💀 해골 공개 시 -${activeTier.skullPenalty}G`
+              : `같은 문양 ${activeTier.matchCount || 2}개 매칭 시 당첨`}</div>
             <div class="scard-hint" id="scard-hint">🖱 긁어서 문양을 확인하세요</div>
             <div class="scard-result" id="scard-result"></div>
             <button class="scard-confirm" id="scard-confirm">${testMode ? '🔄 다시 긁기' : `🪙 현재 보유 ${remainingGold}G — 확인`}</button>
@@ -17825,7 +17845,13 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
       st.symEl.style.filter = ''; st.symEl.style.opacity = ''; st.symEl.style.transform = ''; st.symEl.style.transition = '';
       st.symEl.classList.add('revealed');
     }, 520);
-    if (++revealedCount === totalCells) setTimeout(finishReveal, 620);
+    revealedCount++;
+    // v2.43.103~ 매칭 완성(같은 winSym 셀이 matchCount 개 reveal) 또는 모든 셀 reveal 시 자동 종료
+    // → 다 안 긁어도 OK, 해골 회피 가능
+    const winRevealed = win ? cellState.filter(s => s.revealed && s.sym.id === win.id).length : 0;
+    if (winRevealed >= matchCount || revealedCount === totalCells) {
+      if (!allDone) setTimeout(finishReveal, 620);
+    }
   }
 
   function finishReveal() {
