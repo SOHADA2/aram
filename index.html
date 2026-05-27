@@ -4489,7 +4489,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.93';
+const APP_VERSION = 'v2.43.94';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -17344,7 +17344,9 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   const activeTier = tierDef || SCRATCH_TIERS[0];
   const totalCells = slots.length;
   const brushRadius = Math.round(12 * (toolParams?.brushMult ?? 1.0));
-  const revealThreshold = toolParams?.threshold ?? 0.55;
+  const revealThreshold = toolParams?.threshold ?? 0.55; // 마지막 레이어 공개 임계값
+  const CELL_LAYERS = activeTier.idx === 2 ? 4 : 3;     // 프리미엄 4겹, 나머지 3겹
+  const LAYER_THRESHOLD = 0.40;                          // 중간 레이어 진행 임계값
   const colsClass = totalCells >= 6 ? 'cols-3' : '';
   const lastIsWide = totalCells === 5 || totalCells === 7;
   const titleMap = ['🎰 일반 복권', '🎰 고급 복권', '🎰 프리미엄 복권'];
@@ -17421,10 +17423,10 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     canvas.width  = cellEl.offsetWidth  || (isBonus ? 220 : 110);
     canvas.height = cellEl.offsetHeight || (isBonus ? 56  : 80);
     const ctx2d = canvas.getContext('2d', { willReadFrequently: true });
-    _scardDrawCover(ctx2d, canvas.width, canvas.height);
-    // 심볼 초기 상태: CSS 기본값(opacity:0, blur) 유지 — 긁으면서 점진적 노출
+    _scardDrawCover(ctx2d, canvas.width, canvas.height, CELL_LAYERS);
     return { cellEl, canvas, ctx: ctx2d, symEl, sym, revealed: false, scratching: false,
-             tick: 0, prevX: undefined, prevY: undefined, lastX: undefined, lastY: undefined, holdTimer: null };
+             tick: 0, prevX: undefined, prevY: undefined, lastX: undefined, lastY: undefined,
+             holdTimer: null, stopHold: null, layersLeft: CELL_LAYERS };
   });
 
   let revealedCount = 0, revealedSkulls = 0, allDone = false, scratchMode = 'drag';
@@ -17471,20 +17473,40 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     let cleared = 0;
     for (let i = 3; i < d.length; i += 4) if (d[i] < 200) cleared++;
     const pct = cleared / (st.canvas.width * st.canvas.height);
-    // 점진적 노출 (긁을수록 심볼이 흐릿하게 비쳐 보임)
-    const isSkull = st.sym.id === 'skull';
-    const skullGlow = 'drop-shadow(0 0 5px rgba(239,68,68,0.5))';
-    if (pct >= 0.35) {
-      st.symEl.style.opacity = '0.82'; st.symEl.style.transform = 'scale(0.97)';
-      st.symEl.style.filter = `blur(2px) ${isSkull ? skullGlow : 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))'}`;
-    } else if (pct >= 0.18) {
-      st.symEl.style.opacity = '0.45'; st.symEl.style.transform = 'scale(0.87)';
-      st.symEl.style.filter = `blur(6px) ${isSkull ? skullGlow : ''}`;
-    } else if (pct >= 0.08) {
-      st.symEl.style.opacity = '0.2'; st.symEl.style.transform = 'scale(0.78)';
-      st.symEl.style.filter = 'blur(11px)';
+    // 마지막 레이어에서만 심볼 점진적 노출 (해골 피하기용 힌트)
+    if (st.layersLeft === 1) {
+      const isSkull = st.sym.id === 'skull';
+      const skullGlow = 'drop-shadow(0 0 5px rgba(239,68,68,0.5))';
+      if (pct >= 0.35) {
+        st.symEl.style.opacity = '0.82'; st.symEl.style.transform = 'scale(0.97)';
+        st.symEl.style.filter = `blur(2px) ${isSkull ? skullGlow : 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))'}`;
+      } else if (pct >= 0.18) {
+        st.symEl.style.opacity = '0.45'; st.symEl.style.transform = 'scale(0.87)';
+        st.symEl.style.filter = `blur(6px) ${isSkull ? skullGlow : ''}`;
+      } else if (pct >= 0.08) {
+        st.symEl.style.opacity = '0.2'; st.symEl.style.transform = 'scale(0.78)';
+        st.symEl.style.filter = 'blur(11px)';
+      }
     }
-    if (pct >= revealThreshold) revealCell(st);
+    const threshold = st.layersLeft > 1 ? LAYER_THRESHOLD : revealThreshold;
+    if (pct >= threshold) {
+      if (st.layersLeft > 1) {
+        // 다음 레이어로 전환
+        st.layersLeft--;
+        st.stopHold?.();
+        st.prevX = st.prevY = undefined; st.tick = 0;
+        const cv = st.canvas;
+        cv.style.transition = 'opacity 0.07s ease';
+        cv.style.opacity = '0.4';
+        setTimeout(() => {
+          st.ctx.clearRect(0, 0, cv.width, cv.height);
+          _scardDrawCover(st.ctx, cv.width, cv.height, st.layersLeft);
+          cv.style.opacity = '1'; cv.style.transition = '';
+        }, 85);
+      } else {
+        revealCell(st);
+      }
+    }
   }
 
   function revealCell(st, fromSkip = false) {
@@ -17597,6 +17619,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
       }, 16);
     }
     function stopHold() { clearInterval(st.holdTimer); st.holdTimer = null; }
+    st.stopHold = stopHold; // checkCellReveal에서 레이어 전환 시 홀드 중단용
 
     cv.addEventListener('pointerdown', e => {
       cv.setPointerCapture(e.pointerId);
@@ -17618,29 +17641,30 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   });
 }
 
-function _scardDrawCover(ctx, w, h) {
-  // 은박 메탈릭 배경
+function _scardDrawCover(ctx, w, h, layerLeft = 3) {
+  ctx.clearRect(0, 0, w, h);
+  // 레이어별 색상: 겹이 남을수록 어두움, 마지막 겹은 황금빛
+  let c0, c1, c2;
+  if      (layerLeft >= 4) { c0='#a0a8aa'; c1='#bec6c8'; c2='#9098a0'; } // 짙은 은
+  else if (layerLeft >= 3) { c0='#c8c8c8'; c1='#e8e8e8'; c2='#c0c0c0'; } // 표준 은
+  else if (layerLeft >= 2) { c0='#b8904a'; c1='#d4aa6a'; c2='#a88040'; } // 동/금빛
+  else                     { c0='#c89040'; c1='#f0c050'; c2='#b88030'; } // 밝은 황금
   const grad = ctx.createLinearGradient(0, 0, w, h);
-  grad.addColorStop(0,   '#c8c8c8');
-  grad.addColorStop(0.25,'#e8e8e8');
-  grad.addColorStop(0.5, '#b8b8b8');
-  grad.addColorStop(0.75,'#d8d8d8');
-  grad.addColorStop(1,   '#c0c0c0');
+  grad.addColorStop(0, c0); grad.addColorStop(0.5, c1); grad.addColorStop(1, c2);
   ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
-  // 대각선 광택 라인
-  ctx.strokeStyle = 'rgba(255,255,255,0.45)'; ctx.lineWidth = 1;
-  for (let i = -h; i < w + h; i += 7) {
-    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + h, h); ctx.stroke();
-  }
-  // 어두운 그물 결
+  // 대각선 광택
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1;
+  for (let i = -h; i < w + h; i += 7) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + h, h); ctx.stroke(); }
+  // 그물 결
   ctx.strokeStyle = 'rgba(0,0,0,0.06)'; ctx.lineWidth = 0.5;
-  for (let x = 0; x < w; x += 5) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
-  for (let y = 0; y < h; y += 5) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
-  // 중앙 텍스트
-  ctx.fillStyle = 'rgba(80,70,60,0.55)';
+  for (let x = 0; x < w; x += 5) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
+  for (let y = 0; y < h; y += 5) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
+  // 중앙 힌트 텍스트
+  const hint = layerLeft === 1 ? '마지막!' : layerLeft === 2 ? '한 번 더!' : '긁어주세요';
+  ctx.fillStyle = layerLeft <= 2 ? 'rgba(70,40,5,0.6)' : 'rgba(80,70,60,0.55)';
   ctx.font = `bold ${Math.min(w * 0.11, 11)}px "Noto Sans KR", sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('긁어주세요', w / 2, h / 2);
+  ctx.fillText(hint, w / 2, h / 2);
 }
 
 // ── 스크래치 복권 테스트 모드 (콘솔: scratchTest()) ──
