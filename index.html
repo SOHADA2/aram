@@ -4626,7 +4626,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.121';
+const APP_VERSION = 'v2.43.122';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4635,6 +4635,9 @@ const APP_VERSION = 'v2.43.121';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.122', date: '2026-05-27', changes: [
+    { tag: 'improve', text: '일반 복권 다중 매칭 방지 — 5칸·2매칭이라 달2+클로버2 동시 발생 가능했음 (결과 모호성·"진짜 당첨이 뭐지?" 혼란). cap 통과 후 추가 후처리: 매칭 심볼이 2종 이상이면 가장 가치 큰 것만 winner 로 남기고 다른 매칭 심볼은 1개 인스턴스를 다른 싱글톤(현재 cnt=0)으로 교체 → 항상 단일 매칭만 성립. 고급·프리미엄(3매칭)은 5칸/6칸 구조상 다중 매칭 불가능해 영향 없음' },
+  ]},
   { ver: 'v2.43.121', date: '2026-05-27', changes: [
     { tag: 'fix', text: '스크래치 비침 로직 재조정 — v2.43.120 cover alpha 0.75 가 너무 투명해 긁기 전에 심볼 정체 노출되던 문제 (스포일러 → 게임성 손상). cover alpha 0.94 로 복구 (긁기 전 ~3% 가시 = 거의 안 보임). emoji opacity 0.55 는 유지 → 긁은 자리만 destination-out 으로 픽셀 투명화될수록 점진 노출. 임계값 도달 시 sharp reveal 애니메이션' },
   ]},
@@ -17251,6 +17254,37 @@ function rollScratch(tierIdx = 0) {
           cnt[repl.id] = (cnt[repl.id] || 0) + 1;
           symArr[i] = repl;
         }
+      }
+    }
+  }
+  // v2.43.122~ 일반 복권만: 동시에 여러 심볼이 매칭(예: 달2+클로버2) 나오는 다중 매칭 방지.
+  // 가장 가치 큰 심볼만 winner 로 남기고, 다른 매칭 심볼들은 1개 인스턴스를 다른 싱글톤으로 교체.
+  // → 결과 모호성 제거, "이게 진짜 당첨? 아니면 다른 거?" 혼란 없애기.
+  if (tier.idx === 0) {
+    const cnt = {};
+    for (const s of symArr) cnt[s.id] = (cnt[s.id] || 0) + 1;
+    const matched = Object.keys(cnt).filter(id => cnt[id] >= matchCount);
+    if (matched.length > 1) {
+      // winner: 가장 가치 큰 심볼
+      const winnerId = matched.reduce((best, id) => {
+        const sym = symbols.find(s => s.id === id);
+        const bestSym = best ? symbols.find(s => s.id === best) : null;
+        return !bestSym || sym.gold > bestSym.gold ? id : best;
+      }, null);
+      // winner 이외의 매칭 심볼들 처리: 각 심볼에서 1개씩 빼서 다른 싱글톤으로 교체
+      for (const dupId of matched) {
+        if (dupId === winnerId) continue;
+        // 카운트 (matchCount - 1) 미만인 후보로 교체 → 새로운 듀얼 매칭 방지
+        const cap2 = matchCount - 1;
+        const candidates = symbols.filter(s => s.id !== winnerId && (cnt[s.id] || 0) < cap2);
+        if (!candidates.length) continue; // 안전망: 후보 없으면 스킵 (사실상 발생 X)
+        // dupId 첫 번째 인스턴스 위치 찾아 교체
+        const swapIdx = symArr.findIndex(s => s.id === dupId);
+        if (swapIdx < 0) continue;
+        const repl = pickWeighted(candidates);
+        cnt[dupId]--;
+        cnt[repl.id] = (cnt[repl.id] || 0) + 1;
+        symArr[swapIdx] = repl;
       }
     }
   }
