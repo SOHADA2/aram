@@ -4605,7 +4605,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.110';
+const APP_VERSION = 'v2.43.111';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4614,6 +4614,9 @@ const APP_VERSION = 'v2.43.110';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.111', date: '2026-05-27', changes: [
+    { tag: 'improve', text: '스크래치 복권 매칭 완성 자동 종료 제거 + 인플레 방지 보상 하향. (1) 매칭 완성 시 confirm 버튼 활성화만 — 자동 종료 없어서 사용자가 나머지 셀(특히 해골)도 자유롭게 긁어볼 수 있음. 추가 긁기로 해골 노출되면 progress 실시간 net 갱신. 사용자가 confirm 누르면 그 시점 최종 결과 저장 (해골 패널티 포함). (2) 보상 대폭 하향 — 7종 심볼 + 5칸 2매칭의 매칭률이 매우 높아 (~95%) 인플레 위험. 일반 잭팟 7000→1500G·고급 15000→6000G·프리미엄 30000→12000G. 평균 EV 100~115% 목표 (살짝 양수, 도전 매력 유지). 본전치기(클로버 = 구매가) 자주 + 잭팟은 ×15~20 임팩트 유지' },
+  ]},
   { ver: 'v2.43.110', date: '2026-05-27', changes: [
     { tag: 'improve', text: '스크래치 복권 심볼 7종 확장 + 블랭크 제거 — 모든 슬롯에 무조건 심볼이 출현. 5종(클로버/달/별/다이아/왕관) → 7종으로 확장하면서 LoL 테마 ⚔️ 검(저~중) + 🛡️ 방패(중) 추가. appear 합 정확히 100% 보장 → 블랭크 시각 어색함 해소. 매칭 확률 자연스러운 수준(일반 5칸 2매칭 ~65%, 고급 6칸 3매칭 ~30%, 프리미엄 7칸 3매칭 ~40%). 보상도 7종에 맞춰 재밸런싱 — 잭팟 일반 2000→7000G·고급 8500→15000G·프리미엄 22000→30000G. Hub 확률표·모달 우측 표의 "빈 무늬" 행 제거' },
   ]},
@@ -17083,41 +17086,42 @@ const SCRATCH_SKULL = { id:'skull', emoji:'💀', name:'해골', gold:0 };
 // v2.43.103~ matchCount 추가 + 모든 당첨 금액 > 구매가 보장 (불쾌감 방지)
 // 매칭 완성 시 다 안 긁어도 finishReveal → 해골 회피 가능, 다 긁어야 결과 X
 // v2.43.104~ 본전치기 확률 ↑ — 클로버 = 구매가 동일, 확률 인상 (스크래치 복권 특성: 자주 본전, 가끔 대박)
-// v2.43.110~ 심볼 7종 (LoL 테마 ⚔️🛡️ 추가) + 모든 슬롯 무조건 심볼 (블랭크 없음)
-// appear 합 = 100% 정확 / 같은 심볼 matchCount 이상 = 당첨 (가장 가치 큰 것 winSym)
+// v2.43.111~ 인플레이션 방지 보상 대폭 하향
+// 5칸 2매칭은 매칭률 ~95% 라 보상이 작아야 EV 균형
+// 평균 EV 약 100~115% 목표 / 잭팟 임팩트 유지 (×15~20)
 const SCRATCH_TIERS = [
-  // 일반 5칸 — 2매칭 / 본전 100G / 잭팟 7000G
+  // 일반 5칸 — 2매칭 / 본전 100G / 잭팟 1500G
   { idx:0, id:'scratch_normal',   price:100, cells:5, skulls:0, skullPenalty:0, matchCount:2,
     symbols:[
-      { id:'clover',  emoji:'🍀', name:'클로버', gold:100,   appear:28 },
-      { id:'sword',   emoji:'⚔️', name:'검',     gold:250,   appear:18 },
-      { id:'moon',    emoji:'🌙', name:'달',     gold:500,   appear:15 },
-      { id:'shield',  emoji:'🛡️', name:'방패',  gold:800,   appear:13 },
-      { id:'star',    emoji:'⭐', name:'별',     gold:1500,  appear:11 },
-      { id:'diamond', emoji:'💎', name:'다이아', gold:3000,  appear:10 },
-      { id:'crown',   emoji:'👑', name:'왕관',   gold:7000,  appear:5  },
+      { id:'clover',  emoji:'🍀', name:'클로버', gold:100,  appear:30 },
+      { id:'sword',   emoji:'⚔️', name:'검',     gold:120,  appear:22 },
+      { id:'moon',    emoji:'🌙', name:'달',     gold:150,  appear:17 },
+      { id:'shield',  emoji:'🛡️', name:'방패',  gold:200,  appear:13 },
+      { id:'star',    emoji:'⭐', name:'별',     gold:350,  appear:10 },
+      { id:'diamond', emoji:'💎', name:'다이아', gold:700,  appear:6  },
+      { id:'crown',   emoji:'👑', name:'왕관',   gold:1500, appear:2  },
     ]},
-  // 고급 6칸 — 3매칭 / 본전 300G / 잭팟 15000G
+  // 고급 6칸 — 3매칭 / 본전 300G / 잭팟 6000G
   { idx:1, id:'scratch_advanced', price:300, cells:6, skulls:1, skullPenalty:200, matchCount:3,
     symbols:[
-      { id:'clover',  emoji:'🍀', name:'클로버', gold:300,   appear:30 },
-      { id:'sword',   emoji:'⚔️', name:'검',     gold:500,   appear:22 },
-      { id:'moon',    emoji:'🌙', name:'달',     gold:1000,  appear:18 },
-      { id:'shield',  emoji:'🛡️', name:'방패',  gold:1800,  appear:12 },
-      { id:'star',    emoji:'⭐', name:'별',     gold:2800,  appear:8  },
-      { id:'diamond', emoji:'💎', name:'다이아', gold:5000,  appear:6  },
-      { id:'crown',   emoji:'👑', name:'왕관',   gold:15000, appear:4  },
+      { id:'clover',  emoji:'🍀', name:'클로버', gold:300,  appear:30 },
+      { id:'sword',   emoji:'⚔️', name:'검',     gold:400,  appear:22 },
+      { id:'moon',    emoji:'🌙', name:'달',     gold:550,  appear:18 },
+      { id:'shield',  emoji:'🛡️', name:'방패',  gold:800,  appear:13 },
+      { id:'star',    emoji:'⭐', name:'별',     gold:1300, appear:9  },
+      { id:'diamond', emoji:'💎', name:'다이아', gold:2500, appear:5  },
+      { id:'crown',   emoji:'👑', name:'왕관',   gold:6000, appear:3  },
     ]},
-  // 프리미엄 7칸 — 3매칭 / 본전 600G / 잭팟 30000G
+  // 프리미엄 7칸 — 3매칭 / 본전 600G / 잭팟 12000G
   { idx:2, id:'scratch_premium',  price:600, cells:7, skulls:2, skullPenalty:400, matchCount:3,
     symbols:[
       { id:'clover',  emoji:'🍀', name:'클로버', gold:600,   appear:28 },
-      { id:'sword',   emoji:'⚔️', name:'검',     gold:1200,  appear:22 },
-      { id:'moon',    emoji:'🌙', name:'달',     gold:2200,  appear:17 },
-      { id:'shield',  emoji:'🛡️', name:'방패',  gold:4000,  appear:13 },
-      { id:'star',    emoji:'⭐', name:'별',     gold:7000,  appear:10 },
-      { id:'diamond', emoji:'💎', name:'다이아', gold:12000, appear:6  },
-      { id:'crown',   emoji:'👑', name:'왕관',   gold:30000, appear:4  },
+      { id:'sword',   emoji:'⚔️', name:'검',     gold:800,   appear:22 },
+      { id:'moon',    emoji:'🌙', name:'달',     gold:1100,  appear:18 },
+      { id:'shield',  emoji:'🛡️', name:'방패',  gold:1700,  appear:13 },
+      { id:'star',    emoji:'⭐', name:'별',     gold:2800,  appear:10 },
+      { id:'diamond', emoji:'💎', name:'다이아', gold:5500,  appear:6  },
+      { id:'crown',   emoji:'👑', name:'왕관',   gold:12000, appear:3  },
     ]},
 ];
 // 긁기 도구: brushMult = 브러시 반지름 배율, threshold = 공개 임계값(기본 0.45)
@@ -17904,11 +17908,16 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     }, 520);
     revealedCount++;
     updateProgress(); // 셀 reveal 직후 진행 상태 갱신
-    // v2.43.103~ 매칭 완성(같은 winSym 셀이 matchCount 개 reveal) 또는 모든 셀 reveal 시 자동 종료
-    // → 다 안 긁어도 OK, 해골 회피 가능
+    // v2.43.111~ 매칭 완성 시 자동 종료 X → confirm 활성화만 (사용자가 더 긁기 가능, 해골 노출 시 net 갱신)
+    // 모든 셀 reveal 시에만 자동 finishReveal (꽝 케이스 + 끝까지 긁은 케이스)
     const winRevealed = win ? cellState.filter(s => s.revealed && s.sym.id === win.id).length : 0;
-    if (winRevealed >= matchCount || revealedCount === totalCells) {
-      if (!allDone) setTimeout(finishReveal, 620);
+    const matchDone = winRevealed >= matchCount;
+    if (matchDone && !allDone) {
+      // confirm 버튼 활성화 (자동 종료 X)
+      overlay.querySelector('#scard-confirm')?.classList.add('show');
+    }
+    if (revealedCount === totalCells && !allDone) {
+      setTimeout(finishReveal, 620);
     }
   }
 
@@ -17961,12 +17970,20 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     setTimeout(() => confirmEl.classList.add('show'), 300);
   }
 
-  // skip / skipAll 기능 제거 (v2.43.99~) — 모든 셀을 직접 긁어야 결과 확인 가능
+  // v2.43.111~ 매칭 완성 또는 모든 셀 reveal 시 확인 가능. 매칭 완성 후 사용자가 더 긁어도 OK
   overlay.querySelector('#scard-confirm').onclick = () => {
-    if (!allDone) return; // 아직 다 긁지 않았으면 무시
-    overlay.remove();
-    if (testMode && onNext) { onNext(); return; }
-    if (onComplete) onComplete({ winGold: win ? win.gold : 0, skullPenalty: activeTier.skullPenalty * revealedSkulls });
+    const winRevealed = win ? cellState.filter(s => s.revealed && s.sym.id === win.id).length : 0;
+    const matchDone = winRevealed >= matchCount;
+    // 매칭 완성도 안됐고 모든 셀 reveal도 안됐으면 무시
+    if (!allDone && !matchDone && revealedCount < totalCells) return;
+    // allDone 아니면 finishReveal 호출 (결과 메시지·사운드·onComplete)
+    if (!allDone) finishReveal();
+    // finishReveal 안의 setTimeout(300)에서 confirm.show 후 즉시 닫기는 어색 — 200ms 지연
+    setTimeout(() => {
+      overlay.remove();
+      if (testMode && onNext) { onNext(); return; }
+      if (onComplete) onComplete({ winGold: win ? win.gold : 0, skullPenalty: activeTier.skullPenalty * revealedSkulls });
+    }, 200);
   };
 
   cellState.forEach(st => {
