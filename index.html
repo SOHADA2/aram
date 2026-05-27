@@ -2045,6 +2045,15 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .scard-bottom{display:flex;flex-direction:column;gap:5px;}
 .scard-rule{text-align:center;font-size:9px;color:rgba(200,168,75,0.3);letter-spacing:1px;padding:1px 0;}
 .scard-hint{text-align:center;font-size:10px;color:rgba(200,168,75,0.35);letter-spacing:0.5px;animation:lscHintPulse 2s ease infinite;transition:opacity 0.3s;}
+/* 진행 상태 (v2.43.106~) — 셀 reveal 시 같은 심볼 카운트 + 해골 + net 금액 */
+.scard-progress{display:none;text-align:center;min-height:18px;font-size:11px;letter-spacing:0.3px;padding:3px 6px;border-radius:6px;line-height:1.5;}
+.scard-progress.show{display:block;}
+.scard-progress .pp-sym{font-weight:700;color:rgba(255,220,120,0.95);}
+.scard-progress.matched .pp-sym{color:#ffeb80;font-size:12.5px;}
+.scard-progress .pp-skull{color:#ef4444;font-weight:700;margin-left:8px;}
+.scard-progress .pp-net{font-weight:700;font-family:'JetBrains Mono',monospace;margin-left:6px;}
+.scard-progress .pp-net.win{color:#86efac;}
+.scard-progress .pp-net.loss{color:#ef4444;}
 .scard-result{display:none;text-align:center;padding:8px 12px;border-radius:7px;font-family:'Black Han Sans',sans-serif;font-size:14px;letter-spacing:0.5px;}
 .scard-result.show{display:block;}
 .scard-result.win{color:#f0c84a;background:linear-gradient(135deg,rgba(200,168,75,0.18),rgba(200,168,75,0.07));border:1px solid rgba(200,168,75,0.5);}
@@ -4591,7 +4600,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.105';
+const APP_VERSION = 'v2.43.106';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4600,6 +4609,9 @@ const APP_VERSION = 'v2.43.105';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.106', date: '2026-05-27', changes: [
+    { tag: 'new', text: '스크래치 복권 실시간 진행 상태 표시 — 셀 reveal 시마다 그리드 하단에 가장 많이 모인 심볼 카운트(예: "💎 2/3") + 노출된 해골 수·패널티(예: "💀 ×1 (-200G)") 표시. 매칭 완성 순간엔 "💎 ×3 매칭! +9000G" 골드 강조 + 해골 있으면 net 금액(-패널티 반영). 프리미엄(7칸 3매칭) 처럼 매칭 진행 중 해골 노출로 당첨금 변동되는 케이스를 사용자가 실시간 확인 가능. 결과 화면 뜨면 progress 자동 숨김' },
+  ]},
   { ver: 'v2.43.105', date: '2026-05-27', changes: [
     { tag: 'fix', text: '스크래치 복권 잔존 "마지막!" 텍스트 제거 — _scardDrawCover 함수에 layerLeft 별 "긁어주세요/한 번 더!/마지막!" 중앙 텍스트가 cover 위에 그려지던 게 원인. v2.43.104 의 CELL_LAYERS=1 변경 후에도 텍스트가 항상 "마지막!"로 노출. 다중 레이어 분기·텍스트·복잡한 그라데이션 모두 제거하고 단일 황금 동전 텍스처로 통합. cover alpha 1.0 → 0.92~0.93 으로 변경 → 긁기 전에도 뒤 emoji(opacity 0.13)가 어렴풋이 비쳐 보임. 인쇄 노이즈도 추가해서 실제 복권 표면 느낌' },
   ]},
@@ -17685,6 +17697,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
               ? `같은 문양 ${activeTier.matchCount || 2}개 매칭 시 당첨 · 💀 해골 공개 시 -${activeTier.skullPenalty}G`
               : `같은 문양 ${activeTier.matchCount || 2}개 매칭 시 당첨`}</div>
             <div class="scard-hint" id="scard-hint">🖱 긁어서 문양을 확인하세요</div>
+            <div class="scard-progress" id="scard-progress"></div>
             <div class="scard-result" id="scard-result"></div>
             <button class="scard-confirm" id="scard-confirm">${testMode ? '🔄 다시 긁기' : `🪙 현재 보유 ${remainingGold}G — 확인`}</button>
           </div>
@@ -17809,6 +17822,51 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     if (pct >= revealThreshold) revealCell(st);
   }
 
+  // v2.43.106~ 진행 상태 표시 — 같은 심볼 카운트 + 해골 노출 + net 잠재 금액
+  const progEl = overlay.querySelector('#scard-progress');
+  function updateProgress() {
+    if (!progEl || allDone) return;
+    // 같은 심볼별 reveal 카운트 (해골 제외)
+    const symCounts = {};
+    for (const s of cellState) {
+      if (!s.revealed || s.sym.id === 'skull') continue;
+      symCounts[s.sym.id] = (symCounts[s.sym.id] || 0) + 1;
+    }
+    const skullCount = revealedSkulls;
+    const skullLoss  = skullCount * activeTier.skullPenalty;
+    // 가장 많이 모인 심볼 (winSym 우선, 동률 시 임의)
+    let topSym = null, topCnt = 0;
+    for (const [id, cnt] of Object.entries(symCounts)) {
+      if (cnt > topCnt) { topCnt = cnt; topSym = id; }
+    }
+    if (!topSym && skullCount === 0) {
+      progEl.classList.remove('show', 'matched');
+      progEl.innerHTML = '';
+      return;
+    }
+    progEl.classList.add('show');
+    const symDef = topSym ? activeTier.symbols.find(s => s.id === topSym) : null;
+    let html = '';
+    if (symDef) {
+      const matched = topCnt >= matchCount;
+      progEl.classList.toggle('matched', matched);
+      if (matched) {
+        const net = symDef.gold - skullLoss;
+        const netCls = net >= 0 ? 'win' : 'loss';
+        html = `<span class="pp-sym">${symDef.emoji} ×${topCnt} 매칭!</span> <span class="pp-net ${netCls}">${net >= 0 ? '+' : ''}${net}G</span>`;
+        if (skullCount > 0) html += ` <span class="pp-skull">💀 ×${skullCount} (-${skullLoss}G)</span>`;
+      } else {
+        progEl.classList.remove('matched');
+        html = `<span class="pp-sym">${symDef.emoji} ${topCnt}/${matchCount}</span>`;
+        if (skullCount > 0) html += ` <span class="pp-skull">💀 ×${skullCount} (-${skullLoss}G)</span>`;
+      }
+    } else if (skullCount > 0) {
+      progEl.classList.remove('matched');
+      html = `<span class="pp-skull">💀 ×${skullCount} 노출 (-${skullLoss}G)</span>`;
+    }
+    progEl.innerHTML = html;
+  }
+
   function revealCell(st, fromSkip = false) {
     if (st.revealed) return;
     st.revealed = true;
@@ -17826,6 +17884,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
       st.symEl.classList.add('revealed');
     }, 520);
     revealedCount++;
+    updateProgress(); // 셀 reveal 직후 진행 상태 갱신
     // v2.43.103~ 매칭 완성(같은 winSym 셀이 matchCount 개 reveal) 또는 모든 셀 reveal 시 자동 종료
     // → 다 안 긁어도 OK, 해골 회피 가능
     const winRevealed = win ? cellState.filter(s => s.revealed && s.sym.id === win.id).length : 0;
@@ -17836,6 +17895,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
 
   function finishReveal() {
     allDone = true;
+    if (progEl) { progEl.classList.remove('show'); progEl.innerHTML = ''; } // 결과 화면에 자리 양보
     const resultEl  = overlay.querySelector('#scard-result');
     const confirmEl = overlay.querySelector('#scard-confirm');
     const skullPenalty = activeTier.skullPenalty * revealedSkulls;
