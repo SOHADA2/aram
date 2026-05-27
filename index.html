@@ -4605,7 +4605,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.109';
+const APP_VERSION = 'v2.43.110';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4614,6 +4614,9 @@ const APP_VERSION = 'v2.43.109';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.110', date: '2026-05-27', changes: [
+    { tag: 'improve', text: '스크래치 복권 심볼 7종 확장 + 블랭크 제거 — 모든 슬롯에 무조건 심볼이 출현. 5종(클로버/달/별/다이아/왕관) → 7종으로 확장하면서 LoL 테마 ⚔️ 검(저~중) + 🛡️ 방패(중) 추가. appear 합 정확히 100% 보장 → 블랭크 시각 어색함 해소. 매칭 확률 자연스러운 수준(일반 5칸 2매칭 ~65%, 고급 6칸 3매칭 ~30%, 프리미엄 7칸 3매칭 ~40%). 보상도 7종에 맞춰 재밸런싱 — 잭팟 일반 2000→7000G·고급 8500→15000G·프리미엄 22000→30000G. Hub 확률표·모달 우측 표의 "빈 무늬" 행 제거' },
+  ]},
   { ver: 'v2.43.109', date: '2026-05-27', changes: [
     { tag: 'improve', text: '스크래치 복권 출연 확률 시스템으로 전환 + 해골 균일 처리. (1) 해골 reveal 임계값 분기 제거 — 모든 셀이 동일한 revealThreshold(기본 0.45/coin 0.34/key 0.22) 사용. 해골만 어렵게 만들면 사용자가 "이거 해골인가?" 티 나서 노출 직전에 그만두는 메타 노출. 이제 모든 셀이 동일 속도로 풀려서 자연스러움. (2) 확률 시스템 재설계 — prob(미리 결정된 당첨 확률) → appear(셀당 출연 확률). 각 슬롯이 독립 추첨 → 같은 심볼이 matchCount 이상 모이면 매칭(가장 가치 큰 것이 winSym). 합 < 100 이면 잔여는 블랭크(·) — 자연스러운 빈 무늬. (3) Hub 확률표 + 모달 우측 당첨표: prob → appear, 꽝 → "빈 무늬" 표시 + "(셀당 출연 확률)" 라벨' },
   ]},
@@ -17080,39 +17083,41 @@ const SCRATCH_SKULL = { id:'skull', emoji:'💀', name:'해골', gold:0 };
 // v2.43.103~ matchCount 추가 + 모든 당첨 금액 > 구매가 보장 (불쾌감 방지)
 // 매칭 완성 시 다 안 긁어도 finishReveal → 해골 회피 가능, 다 긁어야 결과 X
 // v2.43.104~ 본전치기 확률 ↑ — 클로버 = 구매가 동일, 확률 인상 (스크래치 복권 특성: 자주 본전, 가끔 대박)
-// v2.43.109~ "출연 확률(appear)" 시스템 — 각 슬롯이 독립 추첨 (셀당 확률)
-// 합 < 100 이면 잔여는 블랭크(빈 무늬). 같은 심볼이 matchCount 이상 모이면 당첨 (가장 가치 큰 것)
-const SCRATCH_BLANK = { id:'blank', emoji:'·', name:'무늬', gold:0 };
+// v2.43.110~ 심볼 7종 (LoL 테마 ⚔️🛡️ 추가) + 모든 슬롯 무조건 심볼 (블랭크 없음)
+// appear 합 = 100% 정확 / 같은 심볼 matchCount 이상 = 당첨 (가장 가치 큰 것 winSym)
 const SCRATCH_TIERS = [
-  // 일반 5칸 — 2매칭 / 본전 100G / 잭팟 2000G
+  // 일반 5칸 — 2매칭 / 본전 100G / 잭팟 7000G
   { idx:0, id:'scratch_normal',   price:100, cells:5, skulls:0, skullPenalty:0, matchCount:2,
     symbols:[
-      { id:'clover',  emoji:'🍀', name:'클로버', gold:100,   appear:30  }, // 셀당 30%
-      { id:'moon',    emoji:'🌙', name:'달',     gold:250,   appear:18  },
-      { id:'star',    emoji:'⭐', name:'별',     gold:500,   appear:9   },
-      { id:'diamond', emoji:'💎', name:'다이아', gold:1000,  appear:4   },
-      { id:'crown',   emoji:'👑', name:'왕관',   gold:2000,  appear:1.5 },
-      // 잔여 37.5% = 블랭크
+      { id:'clover',  emoji:'🍀', name:'클로버', gold:100,   appear:28 },
+      { id:'sword',   emoji:'⚔️', name:'검',     gold:250,   appear:18 },
+      { id:'moon',    emoji:'🌙', name:'달',     gold:500,   appear:15 },
+      { id:'shield',  emoji:'🛡️', name:'방패',  gold:800,   appear:13 },
+      { id:'star',    emoji:'⭐', name:'별',     gold:1500,  appear:11 },
+      { id:'diamond', emoji:'💎', name:'다이아', gold:3000,  appear:10 },
+      { id:'crown',   emoji:'👑', name:'왕관',   gold:7000,  appear:5  },
     ]},
-  // 고급 6칸 — 3매칭 / 본전 300G / 잭팟 8500G (3개 모이기 어려운 만큼 출연 확률 ↑)
+  // 고급 6칸 — 3매칭 / 본전 300G / 잭팟 15000G
   { idx:1, id:'scratch_advanced', price:300, cells:6, skulls:1, skullPenalty:200, matchCount:3,
     symbols:[
-      { id:'clover',  emoji:'🍀', name:'클로버', gold:300,   appear:38  },
-      { id:'moon',    emoji:'🌙', name:'달',     gold:800,   appear:22  },
-      { id:'star',    emoji:'⭐', name:'별',     gold:1500,  appear:12  },
-      { id:'diamond', emoji:'💎', name:'다이아', gold:3500,  appear:5   },
-      { id:'crown',   emoji:'👑', name:'왕관',   gold:8500,  appear:2   },
-      // 잔여 21% = 블랭크
+      { id:'clover',  emoji:'🍀', name:'클로버', gold:300,   appear:30 },
+      { id:'sword',   emoji:'⚔️', name:'검',     gold:500,   appear:22 },
+      { id:'moon',    emoji:'🌙', name:'달',     gold:1000,  appear:18 },
+      { id:'shield',  emoji:'🛡️', name:'방패',  gold:1800,  appear:12 },
+      { id:'star',    emoji:'⭐', name:'별',     gold:2800,  appear:8  },
+      { id:'diamond', emoji:'💎', name:'다이아', gold:5000,  appear:6  },
+      { id:'crown',   emoji:'👑', name:'왕관',   gold:15000, appear:4  },
     ]},
-  // 프리미엄 7칸 — 3매칭 / 본전 600G / 잭팟 22000G
+  // 프리미엄 7칸 — 3매칭 / 본전 600G / 잭팟 30000G
   { idx:2, id:'scratch_premium',  price:600, cells:7, skulls:2, skullPenalty:400, matchCount:3,
     symbols:[
-      { id:'clover',  emoji:'🍀', name:'클로버', gold:600,   appear:36  },
-      { id:'moon',    emoji:'🌙', name:'달',     gold:2200,  appear:20  },
-      { id:'star',    emoji:'⭐', name:'별',     gold:5000,  appear:10  },
-      { id:'diamond', emoji:'💎', name:'다이아', gold:10000, appear:4   },
-      { id:'crown',   emoji:'👑', name:'왕관',   gold:22000, appear:1.5 },
-      // 잔여 28.5% = 블랭크
+      { id:'clover',  emoji:'🍀', name:'클로버', gold:600,   appear:28 },
+      { id:'sword',   emoji:'⚔️', name:'검',     gold:1200,  appear:22 },
+      { id:'moon',    emoji:'🌙', name:'달',     gold:2200,  appear:17 },
+      { id:'shield',  emoji:'🛡️', name:'방패',  gold:4000,  appear:13 },
+      { id:'star',    emoji:'⭐', name:'별',     gold:7000,  appear:10 },
+      { id:'diamond', emoji:'💎', name:'다이아', gold:12000, appear:6  },
+      { id:'crown',   emoji:'👑', name:'왕관',   gold:30000, appear:4  },
     ]},
 ];
 // 긁기 도구: brushMult = 브러시 반지름 배율, threshold = 공개 임계값(기본 0.45)
@@ -17122,26 +17127,26 @@ const SCRATCH_TOOLS = {
   scratch_key:  { brushMult: 3.0, threshold: 0.22 }, // 브러시 3배 + 훨씬 쉽게
 };
 
-// v2.43.109~ 출연 확률(appear) 기반 독립 추첨 + 사후 매칭 판정
+// v2.43.110~ 출연 확률(appear) 독립 추첨 + 모든 슬롯 무조건 심볼 + 사후 매칭 판정
 function rollScratch(tierIdx = 0) {
   const tier = SCRATCH_TIERS[tierIdx] || SCRATCH_TIERS[0];
   const { symbols, cells, skulls } = tier;
   const matchCount = tier.matchCount || 2;
   const symSlots = cells - skulls;
-  // 각 슬롯 독립 추첨 (appear 확률, 잔여 = 블랭크)
+  const totalAppear = symbols.reduce((s, x) => s + x.appear, 0); // 합 정규화 (보통 100)
   const symArr = [];
   for (let i = 0; i < symSlots; i++) {
-    const r = Math.random() * 100;
-    let cumul = 0, picked = null;
+    const r = Math.random() * totalAppear;
+    let cumul = 0, picked = symbols[symbols.length - 1]; // 부동소수점 안전망 = 마지막 심볼
     for (const sym of symbols) {
       cumul += sym.appear;
       if (r < cumul) { picked = sym; break; }
     }
-    symArr.push(picked || SCRATCH_BLANK);
+    symArr.push(picked);
   }
-  // 매칭 판정: 같은 심볼이 matchCount 이상 모인 것 중 가장 가치 큰 것이 winSym
+  // 매칭 판정: 같은 심볼이 matchCount 이상 모인 것 중 가장 가치 큰 것
   const counts = {};
-  for (const s of symArr) if (s.id !== 'blank') counts[s.id] = (counts[s.id] || 0) + 1;
+  for (const s of symArr) counts[s.id] = (counts[s.id] || 0) + 1;
   let winSym = null;
   for (const [id, cnt] of Object.entries(counts)) {
     if (cnt >= matchCount) {
@@ -17592,13 +17597,7 @@ window.openLotteryHub = function() {
         <span class="lh-prob-pct">-</span>
         <span class="lh-prob-gold" style="color:#ef4444;">-${tierDef.skullPenalty}G</span>
       </div>` : '';
-    const missRow = `
-      <div class="lh-prob-row lh-prob-miss">
-        <span class="lh-prob-em">·</span>
-        <span class="lh-prob-name">빈 무늬</span>
-        <span class="lh-prob-pct">${blankAppear.toFixed(1)}%</span>
-        <span class="lh-prob-gold">0G</span>
-      </div>`;
+    const missRow = ''; // v2.43.110~ 블랭크 없음 — 모든 슬롯에 무조건 심볼
     return `<div class="lh-tier-card${canBuy ? '' : ' disabled'}" style="--accent:${t.color};" onclick="${canBuy ? `window._lhBuyTier('${t.id}')` : ''}">
       <div class="lh-tier-header-row">
         <div class="lh-tier-emoji">${t.emoji}</div>
