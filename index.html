@@ -4591,7 +4591,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.104';
+const APP_VERSION = 'v2.43.105';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4600,6 +4600,9 @@ const APP_VERSION = 'v2.43.104';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.105', date: '2026-05-27', changes: [
+    { tag: 'fix', text: '스크래치 복권 잔존 "마지막!" 텍스트 제거 — _scardDrawCover 함수에 layerLeft 별 "긁어주세요/한 번 더!/마지막!" 중앙 텍스트가 cover 위에 그려지던 게 원인. v2.43.104 의 CELL_LAYERS=1 변경 후에도 텍스트가 항상 "마지막!"로 노출. 다중 레이어 분기·텍스트·복잡한 그라데이션 모두 제거하고 단일 황금 동전 텍스처로 통합. cover alpha 1.0 → 0.92~0.93 으로 변경 → 긁기 전에도 뒤 emoji(opacity 0.13)가 어렴풋이 비쳐 보임. 인쇄 노이즈도 추가해서 실제 복권 표면 느낌' },
+  ]},
   { ver: 'v2.43.104', date: '2026-05-27', changes: [
     { tag: 'improve', text: '스크래치 복권 4종 추가 개선. (1) 다중 레이어 시스템 제거 — CELL_LAYERS 일반 2/프리미엄 3 → 모두 1로 단일화. 마지막 레이어 점진 노출 코드(opacity/blur 단계별) 제거 → 코드 단순 + 자연스러움. (2) 심볼 비침 효과 — 초기 emoji opacity 0→0.13, blur 10→5px로 변경. 처음부터 어렴풋이 윤곽 보임 (스크래치 복권 실제 비침 흉내). 긁히면 100% 선명. (3) 긁기 효과음 추가 — 화이트 노이즈 + bandpass(3.5kHz) 60ms sscht 사운드. scratchAt 호출마다 80ms throttle 로 자연스러운 연속음. (4) 본전치기 확률 ↑ — 클로버 보상 = 구매가 동일(일반 100G/고급 300G/프리미엄 600G), 확률 28%/24%/22%로 인상. 스크래치 복권 특성(자주 본전, 가끔 대박) 반영. 잭팟도 미세 인상으로 EV 균형(일반 118%/고급 111%/프리미엄 119%)' },
   ]},
@@ -17927,30 +17930,22 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   });
 }
 
-function _scardDrawCover(ctx, w, h, layerLeft = 3) {
+function _scardDrawCover(ctx, w, h, layerLeft = 1) {
+  // v2.43.105~ 단일 레이어 + 살짝 투명해서 뒤 심볼 비침 + 텍스트 완전 제거
   ctx.clearRect(0, 0, w, h);
-  // 레이어별 색상: 겹이 남을수록 어두움, 마지막 겹은 황금빛
-  let c0, c1, c2;
-  if      (layerLeft >= 4) { c0='#a0a8aa'; c1='#bec6c8'; c2='#9098a0'; } // 짙은 은
-  else if (layerLeft >= 3) { c0='#c8c8c8'; c1='#e8e8e8'; c2='#c0c0c0'; } // 표준 은
-  else if (layerLeft >= 2) { c0='#b8904a'; c1='#d4aa6a'; c2='#a88040'; } // 동/금빛
-  else                     { c0='#c89040'; c1='#f0c050'; c2='#b88030'; } // 밝은 황금
-  const grad = ctx.createLinearGradient(0, 0, w, h);
-  grad.addColorStop(0, c0); grad.addColorStop(0.5, c1); grad.addColorStop(1, c2);
+  // 황금 동전 텍스처 (라디얼 + 약 0.93 alpha)
+  const grad = ctx.createRadialGradient(w*0.32, h*0.28, w*0.1, w*0.5, h*0.5, w*0.7);
+  grad.addColorStop(0,    'rgba(240,200,90,0.93)');
+  grad.addColorStop(0.55, 'rgba(200,144,64,0.92)');
+  grad.addColorStop(1,    'rgba(140,90,30,0.92)');
   ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
   // 대각선 광택
-  ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1;
-  for (let i = -h; i < w + h; i += 7) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + h, h); ctx.stroke(); }
-  // 그물 결
-  ctx.strokeStyle = 'rgba(0,0,0,0.06)'; ctx.lineWidth = 0.5;
-  for (let x = 0; x < w; x += 5) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
-  for (let y = 0; y < h; y += 5) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
-  // 중앙 힌트 텍스트
-  const hint = layerLeft === 1 ? '마지막!' : layerLeft === 2 ? '한 번 더!' : '긁어주세요';
-  ctx.fillStyle = layerLeft <= 2 ? 'rgba(70,40,5,0.6)' : 'rgba(80,70,60,0.55)';
-  ctx.font = `bold ${Math.min(w * 0.11, 11)}px "Noto Sans KR", sans-serif`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(hint, w / 2, h / 2);
+  ctx.strokeStyle = 'rgba(255,255,255,0.16)'; ctx.lineWidth = 1;
+  for (let i = -h; i < w + h; i += 8) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + h, h); ctx.stroke(); }
+  // 미세 노이즈 — 인쇄 텍스처
+  ctx.fillStyle = 'rgba(0,0,0,0.05)';
+  const noise = Math.floor((w * h) / 35);
+  for (let i = 0; i < noise; i++) ctx.fillRect(Math.random()*w, Math.random()*h, 1, 1);
 }
 
 // ── 스크래치 복권 테스트 모드 (콘솔: scratchTest()) ──
