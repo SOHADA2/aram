@@ -2026,9 +2026,10 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .scard-result.skull{color:#ef4444;background:linear-gradient(135deg,rgba(239,68,68,0.12),rgba(239,68,68,0.05));border:1px solid rgba(239,68,68,0.4);}
 .scard-tool-badge{font-size:9px;padding:2px 8px;border-radius:10px;background:rgba(234,179,8,0.12);border:1px solid rgba(234,179,8,0.3);color:rgba(234,179,8,0.9);letter-spacing:0.3px;white-space:nowrap;}
 .scard-sym{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;pointer-events:none;user-select:none;}
-.scard-sym-emoji{font-size:24px;line-height:1;transform:scale(0.7);opacity:0;transition:transform 0.45s cubic-bezier(0.34,1.56,0.64,1),opacity 0.35s ease,filter 0.4s ease;filter:blur(10px) drop-shadow(0 2px 6px rgba(0,0,0,0.6));}
+/* v2.43.104~ 심볼이 처음부터 살짝 비쳐 보임 (스크래치 복권 비침 효과 — opacity 0.13 + blur 5px) */
+.scard-sym-emoji{font-size:24px;line-height:1;transform:scale(0.92);opacity:0.13;transition:transform 0.45s cubic-bezier(0.34,1.56,0.64,1),opacity 0.35s ease,filter 0.4s ease;filter:blur(5px) drop-shadow(0 2px 6px rgba(0,0,0,0.6));}
 .scard-sym-emoji.revealed{transform:scale(1);opacity:1;filter:drop-shadow(0 2px 8px rgba(0,0,0,0.6));}
-.scard-sym-name{font-size:8.5px;letter-spacing:0.2px;color:rgba(200,168,75,0.5);}
+.scard-sym-name{font-size:8.5px;letter-spacing:0.2px;color:rgba(200,168,75,0.4);opacity:0.4;}
 /* 작은 셀(고급/프리미엄)은 이름 숨김 — 공간 부족 */
 .scard-grid.tier-1 .scard-sym-name, .scard-grid.tier-2 .scard-sym-name{display:none;}
 .scard-grid.tier-1 .scard-sym-emoji, .scard-grid.tier-2 .scard-sym-emoji{font-size:22px;}
@@ -4590,7 +4591,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.103';
+const APP_VERSION = 'v2.43.104';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4599,6 +4600,9 @@ const APP_VERSION = 'v2.43.103';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.104', date: '2026-05-27', changes: [
+    { tag: 'improve', text: '스크래치 복권 4종 추가 개선. (1) 다중 레이어 시스템 제거 — CELL_LAYERS 일반 2/프리미엄 3 → 모두 1로 단일화. 마지막 레이어 점진 노출 코드(opacity/blur 단계별) 제거 → 코드 단순 + 자연스러움. (2) 심볼 비침 효과 — 초기 emoji opacity 0→0.13, blur 10→5px로 변경. 처음부터 어렴풋이 윤곽 보임 (스크래치 복권 실제 비침 흉내). 긁히면 100% 선명. (3) 긁기 효과음 추가 — 화이트 노이즈 + bandpass(3.5kHz) 60ms sscht 사운드. scratchAt 호출마다 80ms throttle 로 자연스러운 연속음. (4) 본전치기 확률 ↑ — 클로버 보상 = 구매가 동일(일반 100G/고급 300G/프리미엄 600G), 확률 28%/24%/22%로 인상. 스크래치 복권 특성(자주 본전, 가끔 대박) 반영. 잭팟도 미세 인상으로 EV 균형(일반 118%/고급 111%/프리미엄 119%)' },
+  ]},
   { ver: 'v2.43.103', date: '2026-05-27', changes: [
     { tag: 'improve', text: '스크래치 복권 매칭·확률·보상 재밸런싱. (1) 매칭 수 차별화 — 일반(5칸) 2개 매칭 / 고급(6칸)·프리미엄(7칸) 3개 매칭. SCRATCH_TIERS 에 matchCount 필드 추가, rollScratch 가 winSym 을 matchCount 만큼 슬롯에 채움(꽝 케이스도 matchCount 미달 보장). (2) 보상 재조정 — 모든 당첨 금액 ≥ 구매가 보장(불쾌감 방지). 일반: 클로버 50→150G·왕관 800→2000G. 고급: 클로버 180→400G·왕관 3500→8000G. 프리미엄: 클로버 500→800G·왕관 10000→20000G. 확률도 함께 조정해 EV 100~140% 범위로 균형. (3) 매칭 완성 자동 종료 — winSym 셀이 matchCount 만큼 reveal 되면 즉시 finishReveal → 다 안 긁어도 결과 확인 가능 (해골 회피 매커닉 부활). 꽝일 땐 모든 셀 다 긁어야 함. (4) UI 텍스트 동적 — "같은 문양 N개 매칭 시 당첨" 으로 티어별 자동 표시' },
   ]},
@@ -17046,33 +17050,34 @@ window.previewLottery = function(tier, premium) {
 const SCRATCH_SKULL = { id:'skull', emoji:'💀', name:'해골', gold:0 };
 // v2.43.103~ matchCount 추가 + 모든 당첨 금액 > 구매가 보장 (불쾌감 방지)
 // 매칭 완성 시 다 안 긁어도 finishReveal → 해골 회피 가능, 다 긁어야 결과 X
+// v2.43.104~ 본전치기 확률 ↑ — 클로버 = 구매가 동일, 확률 인상 (스크래치 복권 특성: 자주 본전, 가끔 대박)
 const SCRATCH_TIERS = [
-  // 일반 5칸 — 2매칭, 최소 1.5x 보상
+  // 일반 5칸 — 2매칭. 본전(100G) 28% / 약대박 / 잭팟 2000G
   { idx:0, id:'scratch_normal',   price:100, cells:5, skulls:0, skullPenalty:0, matchCount:2,
     symbols:[
-      { id:'clover',  emoji:'🍀', name:'클로버', gold:150,   prob:20  },
-      { id:'moon',    emoji:'🌙', name:'달',     gold:250,   prob:15  },
-      { id:'star',    emoji:'⭐', name:'별',     gold:500,   prob:6   },
-      { id:'diamond', emoji:'💎', name:'다이아', gold:1000,  prob:2.5 },
-      { id:'crown',   emoji:'👑', name:'왕관',   gold:2000,  prob:0.7 },
+      { id:'clover',  emoji:'🍀', name:'클로버', gold:100,   prob:28  }, // 본전치기
+      { id:'moon',    emoji:'🌙', name:'달',     gold:250,   prob:13  },
+      { id:'star',    emoji:'⭐', name:'별',     gold:500,   prob:5   },
+      { id:'diamond', emoji:'💎', name:'다이아', gold:1000,  prob:2   },
+      { id:'crown',   emoji:'👑', name:'왕관',   gold:2000,  prob:0.6 },
     ]},
-  // 고급 6칸 — 3매칭, 최소 1.3x 보상 (3개 매칭 어려움 보상)
+  // 고급 6칸 — 3매칭. 본전(300G) 24% / 잭팟 8500G
   { idx:1, id:'scratch_advanced', price:300, cells:6, skulls:1, skullPenalty:200, matchCount:3,
     symbols:[
-      { id:'clover',  emoji:'🍀', name:'클로버', gold:400,   prob:18  },
-      { id:'moon',    emoji:'🌙', name:'달',     gold:800,   prob:13  },
-      { id:'star',    emoji:'⭐', name:'별',     gold:1500,  prob:5   },
-      { id:'diamond', emoji:'💎', name:'다이아', gold:3500,  prob:2   },
-      { id:'crown',   emoji:'👑', name:'왕관',   gold:8000,  prob:0.5 },
+      { id:'clover',  emoji:'🍀', name:'클로버', gold:300,   prob:24  }, // 본전치기
+      { id:'moon',    emoji:'🌙', name:'달',     gold:800,   prob:11  },
+      { id:'star',    emoji:'⭐', name:'별',     gold:1500,  prob:4.5 },
+      { id:'diamond', emoji:'💎', name:'다이아', gold:3500,  prob:1.8 },
+      { id:'crown',   emoji:'👑', name:'왕관',   gold:8500,  prob:0.5 },
     ]},
-  // 프리미엄 7칸 — 3매칭, 한방 큰 잭팟
+  // 프리미엄 7칸 — 3매칭. 본전(600G) 22% / 잭팟 22000G
   { idx:2, id:'scratch_premium',  price:600, cells:7, skulls:2, skullPenalty:400, matchCount:3,
     symbols:[
-      { id:'clover',  emoji:'🍀', name:'클로버', gold:800,   prob:14  },
-      { id:'moon',    emoji:'🌙', name:'달',     gold:2000,  prob:10  },
-      { id:'star',    emoji:'⭐', name:'별',     gold:4500,  prob:4   },
-      { id:'diamond', emoji:'💎', name:'다이아', gold:9000,  prob:1.2 },
-      { id:'crown',   emoji:'👑', name:'왕관',   gold:20000, prob:0.4 },
+      { id:'clover',  emoji:'🍀', name:'클로버', gold:600,   prob:22  }, // 본전치기
+      { id:'moon',    emoji:'🌙', name:'달',     gold:2200,  prob:9   },
+      { id:'star',    emoji:'⭐', name:'별',     gold:5000,  prob:3.5 },
+      { id:'diamond', emoji:'💎', name:'다이아', gold:10000, prob:1.2 },
+      { id:'crown',   emoji:'👑', name:'왕관',   gold:22000, prob:0.4 },
     ]},
 ];
 // 긁기 도구: brushMult = 브러시 반지름 배율, threshold = 공개 임계값(기본 0.38)
@@ -17634,11 +17639,12 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
 
   const activeTier = tierDef || SCRATCH_TIERS[0];
   const totalCells = slots.length;
-  // 난이도 완화 (v2.43.101~) — 셀이 작아진 만큼 임계값·레이어도 줄여 빠르게 긁힘
-  const brushRadius = Math.round(14 * (toolParams?.brushMult ?? 1.0));    // 12 → 14 (기본 brush 확대)
-  const revealThreshold = toolParams?.threshold ?? 0.38;                  // 0.55 → 0.38
-  const CELL_LAYERS = activeTier.idx === 2 ? 3 : 2;                       // 프리미엄 4→3, 나머지 3→2
-  const LAYER_THRESHOLD = 0.28;                                            // 0.40 → 0.28
+  // 난이도 완화 (v2.43.104~) — 단일 레이어로 통일, 마지막 레이어 점진 노출 제거 (스크래치 복권과 동떨어진 느낌)
+  // 대신 심볼이 처음부터 살짝 비쳐 보임 (CSS .scard-sym-emoji 기본 opacity 0.12 + blur)
+  const brushRadius = Math.round(14 * (toolParams?.brushMult ?? 1.0));
+  const revealThreshold = toolParams?.threshold ?? 0.38;
+  const CELL_LAYERS = 1; // 단일 레이어 (이전: 일반 2, 프리미엄 3)
+  const LAYER_THRESHOLD = 0.28; // 미사용 (CELL_LAYERS=1이라 항상 revealThreshold)
   const titleMap = ['🎰 일반 복권', '🎰 고급 복권', '🎰 프리미엄 복권'];
   const toolLabel = toolParams
     ? `<span class="scard-tool-badge">${toolParams.threshold ? '🔑 만능 긁개 적용' : '🪙 긁기 동전 적용'}</span>`
@@ -17772,12 +17778,16 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     }
   }
 
+  let _scratchSndAt = 0;
   function scratchAt(st, x, y) {
     if (st.revealed || allDone) return;
     hintEl.style.opacity = '0';
     scratchLine(st.ctx, st.prevX ?? x, st.prevY ?? y, x, y);
     // 1/4 빈도로 가루 파티클 (성능 + 너무 산만하지 않게)
     if (Math.random() < 0.25) spawnDust(st.canvas, x, y);
+    // 긁기 효과음 — 80ms throttle (너무 자주 울리지 않도록, v2.43.104~)
+    const _now = performance.now();
+    if (_now - _scratchSndAt > 80) { _scratchSndAt = _now; _lscPlaySound('scratch'); }
     st.prevX = x; st.prevY = y;
     if (++st.tick % 3 === 0) checkCellReveal(st);
   }
@@ -17793,40 +17803,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     let cleared = 0;
     for (let i = 3; i < d.length; i += 4) if (d[i] < 200) cleared++;
     const pct = cleared / (st.canvas.width * st.canvas.height);
-    // 마지막 레이어에서만 심볼 점진적 노출 (해골 피하기용 힌트)
-    if (st.layersLeft === 1) {
-      const isSkull = st.sym.id === 'skull';
-      const skullGlow = 'drop-shadow(0 0 5px rgba(239,68,68,0.5))';
-      if (pct >= 0.35) {
-        st.symEl.style.opacity = '0.82'; st.symEl.style.transform = 'scale(0.97)';
-        st.symEl.style.filter = `blur(2px) ${isSkull ? skullGlow : 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))'}`;
-      } else if (pct >= 0.18) {
-        st.symEl.style.opacity = '0.45'; st.symEl.style.transform = 'scale(0.87)';
-        st.symEl.style.filter = `blur(6px) ${isSkull ? skullGlow : ''}`;
-      } else if (pct >= 0.08) {
-        st.symEl.style.opacity = '0.2'; st.symEl.style.transform = 'scale(0.78)';
-        st.symEl.style.filter = 'blur(11px)';
-      }
-    }
-    const threshold = st.layersLeft > 1 ? LAYER_THRESHOLD : revealThreshold;
-    if (pct >= threshold) {
-      if (st.layersLeft > 1) {
-        // 다음 레이어로 전환
-        st.layersLeft--;
-        st.stopHold?.();
-        st.prevX = st.prevY = undefined; st.tick = 0;
-        const cv = st.canvas;
-        cv.style.transition = 'opacity 0.07s ease';
-        cv.style.opacity = '0.4';
-        setTimeout(() => {
-          st.ctx.clearRect(0, 0, cv.width, cv.height);
-          _scardDrawCover(st.ctx, cv.width, cv.height, st.layersLeft);
-          cv.style.opacity = '1'; cv.style.transition = '';
-        }, 85);
-      } else {
-        revealCell(st);
-      }
-    }
+    if (pct >= revealThreshold) revealCell(st);
   }
 
   function revealCell(st, fromSkip = false) {
@@ -18060,6 +18037,19 @@ function _lscPlaySound(type){
     if(!_lscAudioCtx) _lscAudioCtx=new(window.AudioContext||window.webkitAudioContext)();
     const ctx=_lscAudioCtx,now=ctx.currentTime;
     const master=ctx.createGain(); master.gain.value=0.4; master.connect(ctx.destination);
+    if(type==='scratch'){
+      // 짧은 sscht — 화이트 노이즈 60ms (v2.43.104~)
+      const dur = 0.06;
+      const buf = ctx.createBuffer(1, Math.floor(ctx.sampleRate * dur), ctx.sampleRate);
+      const ch = buf.getChannelData(0);
+      for (let i=0;i<ch.length;i++) ch[i] = (Math.random()*2-1) * (1 - i/ch.length); // decay
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const filt = ctx.createBiquadFilter(); filt.type='bandpass'; filt.frequency.value=3500; filt.Q.value=1.5;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.18,now); g.gain.exponentialRampToValueAtTime(0.001,now+dur);
+      src.connect(filt); filt.connect(g); g.connect(master);
+      src.start(now); src.stop(now+dur);
+      return;
+    }
     if(type==='lose'){
       const o=ctx.createOscillator(),g=ctx.createGain();
       o.type='sawtooth'; o.frequency.setValueAtTime(250,now); o.frequency.linearRampToValueAtTime(100,now+0.55);
