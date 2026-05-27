@@ -4605,7 +4605,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.113';
+const APP_VERSION = 'v2.43.114';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4614,6 +4614,9 @@ const APP_VERSION = 'v2.43.113';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.114', date: '2026-05-27', changes: [
+    { tag: 'improve', text: '스크래치 일반 복권(5칸·매칭=2) 동일 심볼 cap=2 보정. 독립 추첨이라 같은 심볼이 3·4·5개씩 나오는 케이스가 종종 발생 → 매칭(2)은 이미 결정됐는데 시각적으로 3·4·5개 겹쳐 보여 혼란 + 결과 해석 복잡. cap 초과 슬롯은 카운트 미달 심볼들 가중치로 재추첨해 교체. 매칭 자체는 그대로 성립(2매칭 유지). 고급·프리미엄(매칭=3)은 영향 없음 — 3매칭이 정상 동작이라 cap 불필요' },
+  ]},
   { ver: 'v2.43.113', date: '2026-05-27', changes: [
     { tag: 'fix', text: '치명 — v2.43.112 출석 보상 복구가 자꾸 옛 값으로 되돌아가던 문제. v2.43.26에서 추가한 revertRelaySogeup 함수가 일회성 롤백용이었지만 매번 onValue 호출 시 실행되면서 v2.43.112 autoCompensateRelayV1 보정값을 _RELAY_ROLLBACK 매핑(claimed=1 또는 2)으로 강제 복구하던 게 원인. revertRelaySogeup 영구 비활성화. _RELAY_ROLLBACK 매핑은 역사 보존 위해 코드에 남김' },
   ]},
@@ -17176,15 +17179,33 @@ function rollScratch(tierIdx = 0) {
   const matchCount = tier.matchCount || 2;
   const symSlots = cells - skulls;
   const totalAppear = symbols.reduce((s, x) => s + x.appear, 0); // 합 정규화 (보통 100)
+  const pickWeighted = (pool) => {
+    const total = pool.reduce((s, x) => s + x.appear, 0);
+    const r = Math.random() * total;
+    let cumul = 0;
+    for (const sym of pool) { cumul += sym.appear; if (r < cumul) return sym; }
+    return pool[pool.length - 1];
+  };
   const symArr = [];
-  for (let i = 0; i < symSlots; i++) {
-    const r = Math.random() * totalAppear;
-    let cumul = 0, picked = symbols[symbols.length - 1]; // 부동소수점 안전망 = 마지막 심볼
-    for (const sym of symbols) {
-      cumul += sym.appear;
-      if (r < cumul) { picked = sym; break; }
+  for (let i = 0; i < symSlots; i++) symArr.push(pickWeighted(symbols));
+  // 일반 복권(tier 0)만: 같은 심볼이 matchCount(2)를 초과해서 나오면 정합성↑·시각 혼란↓ 위해 cap.
+  // 초과분은 cap 미달 심볼들로만 가중치 재추첨해 교체. 매칭 자체는 그대로 성립.
+  if (tier.idx === 0) {
+    const cap = matchCount;
+    const cnt = {};
+    for (let i = 0; i < symArr.length; i++) {
+      const sid = symArr[i].id;
+      cnt[sid] = (cnt[sid] || 0) + 1;
+      if (cnt[sid] > cap) {
+        const candidates = symbols.filter(s => (cnt[s.id] || 0) < cap);
+        if (candidates.length) {
+          const repl = pickWeighted(candidates);
+          cnt[sid]--;
+          cnt[repl.id] = (cnt[repl.id] || 0) + 1;
+          symArr[i] = repl;
+        }
+      }
     }
-    symArr.push(picked);
   }
   // 매칭 판정: 같은 심볼이 matchCount 이상 모인 것 중 가장 가치 큰 것
   const counts = {};
