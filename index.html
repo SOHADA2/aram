@@ -1101,6 +1101,8 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .live-mode #tab-shop{display:none!important;}
 .live-mode .nav-tab-achievement{display:none!important;}
 .live-mode #tab-achievement{display:none!important;}
+.live-mode .nav-tab-gacha{display:none!important;}
+.live-mode #tab-gacha{display:none!important;}
 /* ── 팀원 모드 (일반 팀원이 닉네임 선택 시) ── */
 .member-mode #card-member-select,
 .member-mode #card-team-config,
@@ -3971,6 +3973,7 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
   <button class="nav-tab" onclick="showTab('tab-record',this)">📋<br>기록</button>
   <button class="nav-tab" onclick="showTab('tab-rank',this)">🏆<br>랭킹</button>
   <button class="nav-tab nav-tab-shop" onclick="showTab('tab-shop',this)">🛒<br>상점</button>
+  <button class="nav-tab nav-tab-gacha" onclick="showTab('tab-gacha',this)">🃏<br>가챠</button>
   <button class="nav-tab nav-tab-achievement" onclick="showTab('tab-achievement',this);renderAchievementsOrPass();">🎫<br>패스</button>
   <script>(function(){
     // 부팅 깜박임 완전 차단 (v2.43.56~) — 디폴트는 현재 시즌(S1) 라벨로 설정, S0 케이스에서만 즉시 교체
@@ -4251,6 +4254,15 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
   </div>
 </div>
 
+<div id="tab-gacha" class="tab-content">
+  <div id="gacha-no-user" style="text-align:center;padding:28px 20px;color:var(--text-dim);font-size:13px;">
+    위의 <strong style="color:var(--gold)">내 닉네임</strong>을 먼저 선택해주세요!
+  </div>
+  <div id="gacha-tab-body" style="display:none;">
+    <div id="gacha-tab-list"></div>
+  </div>
+</div>
+
 <div id="tab-shop" class="tab-content">
   <div id="shop-no-user" style="text-align:center;padding:28px 20px;color:var(--text-dim);font-size:13px;">
     위의 <strong style="color:var(--gold)">내 닉네임</strong>을 먼저 선택해주세요!
@@ -4280,7 +4292,6 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
         <button class="sp-cat-tab active" id="shop-cat-consume" onclick="switchShopCat('consume')">소비 아이템</button>
         <button class="sp-cat-tab" id="shop-cat-pass" onclick="switchShopCat('pass')">패스권</button>
         <button class="sp-cat-tab" id="shop-cat-equip" onclick="switchShopCat('equip')">장비 아이템</button>
-        <button class="sp-cat-tab" id="shop-cat-pet" onclick="switchShopCat('pet')">챔피언 가챠</button>
       </div>
       <div id="shop-list"></div>
     </div>
@@ -4471,7 +4482,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.89';
+const APP_VERSION = 'v2.43.90';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7517,6 +7528,7 @@ window.showTab = function(id, btn) {
   closeMyModal();
   if (window.closeRankSheet) window.closeRankSheet();
   if (window.closeGachaInvModal && document.getElementById('gacha-inv-overlay')?.classList.contains('show')) window.closeGachaInvModal();
+  if (id !== 'tab-gacha') stopGachaPreview?.();
   document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById(id).classList.add('active');
@@ -7524,6 +7536,7 @@ window.showTab = function(id, btn) {
   _currentTabId = id;
   // 상점 탭 진입 시 즉시 강제 렌더링 (백그라운드 동안 누락된 갱신 1회 동기화)
   if (id === 'tab-shop') renderShop();
+  if (id === 'tab-gacha') renderGachaTab();
   if (id === 'tab-rank') {
     setTimeout(() => {
       const meEl = document.querySelector('#tab-rank .me');
@@ -16565,17 +16578,10 @@ window.doAttendance = async function() {
 
 // 상점/인벤토리 카테고리 탭 전환
 window.switchShopCat = function(cat) {
-  // 가챠 탭 떠날 때 인벤 모달 안전 복귀 (DOM 일관성 보장, v2.43.49~)
-  if (cat !== 'pet' && document.getElementById('gacha-inv-overlay')?.classList.contains('show')) {
-    window.closeGachaInvModal?.();
-  }
   shopCatTab = cat;
   document.getElementById('shop-cat-consume')?.classList.toggle('active', cat==='consume');
   document.getElementById('shop-cat-pass')?.classList.toggle('active', cat==='pass');
   document.getElementById('shop-cat-equip')?.classList.toggle('active', cat==='equip');
-  document.getElementById('shop-cat-pet')?.classList.toggle('active', cat==='pet');
-  // 챔피언 가챠 모드: 우측 인벤 패널 숨기고 좌측 full-width (v2.43.49~)
-  document.getElementById('shop-panels')?.classList.toggle('gacha-fullwidth', cat==='pet');
   renderShop();
 };
 window.switchInvCat = function(cat) {
@@ -16635,6 +16641,70 @@ function renderShop() {
   }, 50);
 }
 
+function renderGachaTab() {
+  if (_currentTabId !== 'tab-gacha') return;
+  const noUser = document.getElementById('gacha-no-user');
+  const body   = document.getElementById('gacha-tab-body');
+  const list   = document.getElementById('gacha-tab-list');
+  if (!list) return;
+  if (!myName) { noUser.style.display='block'; body.style.display='none'; return; }
+  noUser.style.display='none'; body.style.display='block';
+
+  const totalOwned = GACHA_CHAMPS.filter(c => { const e = gachaGe(c.slug); return e.e1||e.e2||e.e3; }).length;
+  const tabHtml = `<div class="sp-cat-tabs" style="margin-bottom:10px;">
+    <button class="sp-cat-tab ${gachaCatTab==='pull'?'active':''}" onclick="window.switchGachaCat('pull')">뽑기</button>
+    <button class="sp-cat-tab ${gachaCatTab==='card'?'active':''}" onclick="window.switchGachaCat('card')">카드</button>
+    <button class="sp-cat-tab ${gachaCatTab==='dex'?'active':''}" onclick="window.switchGachaCat('dex')">도감 <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-dim)">${totalOwned}/${GACHA_CHAMPS.length}</span></button>
+  </div>`;
+
+  if (gachaCatTab === 'pull') {
+    list.innerHTML = tabHtml + `
+      <div style="display:flex;align-items:center;gap:6px;padding:7px 10px;margin-bottom:8px;background:rgba(200,168,75,0.06);border:1px solid rgba(200,168,75,0.18);border-radius:7px;">
+        <span style="font-size:10px;">🔧</span>
+        <span style="font-size:10px;color:rgba(200,168,75,0.7);font-weight:700;">뽑기 기능 준비 중 — 곧 오픈 예정이에요</span>
+      </div>
+      <div class="sli">
+        <div class="sli-icon" style="overflow:hidden;position:relative;">
+          <img id="gacha-preview-img" src="assets/pets/Yasuo/silver/default.png" style="width:100%;height:100%;object-fit:contain;filter:brightness(0) opacity(0.45)" onerror="this.style.opacity='0'">
+        </div>
+        <div class="sli-info">
+          <div class="sli-name">챔피언 가챠 × 1 <span class="sli-tip-wrap">?<div class="sli-tip">1성 87% · 2성 10% · 3성 3%<br>18종 챔피언 카드 · 중복 시 합성 재료 활용</div></span></div>
+        </div>
+        <div class="sli-right"><button class="sli-price sli-limit-hit" disabled>준비 중</button></div>
+      </div>
+      <div class="sli">
+        <div class="sli-icon" style="overflow:hidden;position:relative;">
+          <img id="gacha-preview-img10" src="assets/pets/Yasuo/silver/default.png" style="width:100%;height:100%;object-fit:contain;filter:brightness(0) opacity(0.45)" onerror="this.style.opacity='0'">
+          <span class="sli-icon-x10">×10</span>
+        </div>
+        <div class="sli-info">
+          <div class="sli-name">챔피언 가챠 × 10 <span class="sli-tip-wrap">?<div class="sli-tip">1회 뽑기 × 10 · 같은 챔피언 카드 3개 보유 시 상위 티어 합성 가능</div></span></div>
+        </div>
+        <div class="sli-right"><button class="sli-price sli-limit-hit" disabled>준비 중</button></div>
+      </div>`;
+    startGachaPreview();
+    return;
+  }
+  stopGachaPreview();
+  if (gachaCatTab === 'card') {
+    const starTabHtml = `<div class="sp-cat-tabs">
+      <button class="sp-cat-tab tier-silver ${gachaStar===1?'active':''}" onclick="window.switchGachaStar(1)">◇ 파편</button>
+      <button class="sp-cat-tab tier-gold ${gachaStar===2?'active':''}" onclick="window.switchGachaStar(2)">★★ GOLD</button>
+      <button class="sp-cat-tab tier-prism ${gachaStar===3?'active':''}" onclick="window.switchGachaStar(3)">★★★ PRISM</button>
+    </div>`;
+    const ownedCount = GACHA_CHAMPS.filter(({slug})=>(gachaGp(slug)[`s${gachaStar}`]||0)>0).length;
+    const cardsHtml = GACHA_CHAMPS.map(({slug,kr,role},idx) => _gachaCardHtml(slug,kr,role,gachaStar,idx)).join('');
+    list.innerHTML = tabHtml + starTabHtml + `
+      <div class="col-count-row" style="margin-top:10px;">
+        <span style="font-size:11px;color:var(--text-dim);">보유 카드</span>
+        <span class="col-count">${ownedCount} / ${GACHA_CHAMPS.length}</span>
+      </div>
+      <div class="pet-grid">${cardsHtml}</div>`;
+    return;
+  }
+  list.innerHTML = tabHtml + renderGachaDex();
+}
+
 function _renderShopImmediate() {
   const noUser  = document.getElementById('shop-no-user');
   const panels  = document.getElementById('shop-panels');
@@ -16647,72 +16717,6 @@ function _renderShopImmediate() {
 
   // 잠금 배너 (이미 wrapper 에서 갱신됐지만 안전망)
   updateLockBanner();
-
-  // ── 챔피언 가챠 탭 ───────────────────────────────────────
-  if (shopCatTab === 'pet') {
-    const STAR_CHARS = {1:'★',2:'★★',3:'★★★'};
-    const totalOwned = GACHA_CHAMPS.filter(c => { const e = gachaGe(c.slug); return e.e1||e.e2||e.e3; }).length;
-    const tabHtml = `<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-      <div class="sp-cat-tabs" style="margin-bottom:0;flex:1;min-width:0;">
-        <button class="sp-cat-tab ${gachaCatTab==='pull'?'active':''}" onclick="window.switchGachaCat('pull')">뽑기</button>
-        <button class="sp-cat-tab ${gachaCatTab==='card'?'active':''}" onclick="window.switchGachaCat('card')">카드</button>
-        <button class="sp-cat-tab ${gachaCatTab==='dex'?'active':''}" onclick="window.switchGachaCat('dex')">도감 <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-dim)">${totalOwned}/${GACHA_CHAMPS.length}</span></button>
-      </div>
-      <button class="gacha-inv-btn" onclick="window.openGachaInvModal()">🎒 내 아이템</button>
-    </div>`;
-    if (gachaCatTab === 'pull') {
-      document.getElementById('shop-list').innerHTML = tabHtml + `
-        <div style="display:flex;align-items:center;gap:6px;padding:7px 10px;margin-bottom:8px;background:rgba(200,168,75,0.06);border:1px solid rgba(200,168,75,0.18);border-radius:7px;">
-          <span style="font-size:10px;">🔧</span>
-          <span style="font-size:10px;color:rgba(200,168,75,0.7);font-weight:700;">뽑기 기능 준비 중 — 곧 오픈 예정이에요</span>
-        </div>
-        <div class="sli">
-          <div class="sli-icon" style="overflow:hidden;position:relative;">
-            <img id="gacha-preview-img" src="assets/pets/Yasuo/silver/default.png" style="width:100%;height:100%;object-fit:contain;filter:brightness(0) opacity(0.45)" onerror="this.style.opacity='0'">
-          </div>
-          <div class="sli-info">
-            <div class="sli-name">챔피언 가챠 × 1 <span class="sli-tip-wrap">?<div class="sli-tip">1성 87% · 2성 10% · 3성 3%<br>18종 챔피언 카드 · 중복 시 합성 재료 활용</div></span></div>
-          </div>
-          <div class="sli-right">
-            <button class="sli-price sli-limit-hit" disabled>준비 중</button>
-          </div>
-        </div>
-        <div class="sli">
-          <div class="sli-icon" style="overflow:hidden;position:relative;">
-            <img id="gacha-preview-img10" src="assets/pets/Yasuo/silver/default.png" style="width:100%;height:100%;object-fit:contain;filter:brightness(0) opacity(0.45)" onerror="this.style.opacity='0'">
-            <span class="sli-icon-x10">×10</span>
-          </div>
-          <div class="sli-info">
-            <div class="sli-name">챔피언 가챠 × 10 <span class="sli-tip-wrap">?<div class="sli-tip">1회 뽑기 × 10 · 같은 챔피언 카드 3개 보유 시 상위 티어 합성 가능</div></span></div>
-          </div>
-          <div class="sli-right">
-            <button class="sli-price sli-limit-hit" disabled>준비 중</button>
-          </div>
-        </div>`;
-      startGachaPreview();
-      return;
-    }
-    stopGachaPreview();
-    if (gachaCatTab === 'card') {
-      const starTabHtml = `<div class="sp-cat-tabs">
-        <button class="sp-cat-tab tier-silver ${gachaStar===1?'active':''}" onclick="window.switchGachaStar(1)">◇ 파편</button>
-        <button class="sp-cat-tab tier-gold ${gachaStar===2?'active':''}" onclick="window.switchGachaStar(2)">★★ GOLD</button>
-        <button class="sp-cat-tab tier-prism ${gachaStar===3?'active':''}" onclick="window.switchGachaStar(3)">★★★ PRISM</button>
-      </div>`;
-      const ownedCount = GACHA_CHAMPS.filter(({slug})=>(gachaGp(slug)[`s${gachaStar}`]||0)>0).length;
-      const cardsHtml = GACHA_CHAMPS.map(({slug,kr,role},idx) => _gachaCardHtml(slug,kr,role,gachaStar,idx)).join('');
-      document.getElementById('shop-list').innerHTML = tabHtml + starTabHtml + `
-        <div class="col-count-row" style="margin-top:10px;">
-          <span style="font-size:11px;color:var(--text-dim);">보유 카드</span>
-          <span class="col-count">${ownedCount} / ${GACHA_CHAMPS.length}</span>
-        </div>
-        <div class="pet-grid">${cardsHtml}</div>`;
-      return;
-    }
-    // dex tab
-    document.getElementById('shop-list').innerHTML = tabHtml + renderGachaDex();
-    return;
-  }
 
   // ── 상점 리스트 ─────────────────────────────────────────
   const _shopList = CURRENT_SEASON >= 1 ? S1_SHOP_ITEMS : SHOP_ITEMS;
@@ -20790,11 +20794,11 @@ function gachaRollStar() {
 window.switchGachaCat = function(cat) {
   if (gachaCatTab === 'card' && cat !== 'card') newGachaCards.clear();
   gachaCatTab = cat;
-  renderShop();
+  renderGachaTab();
 };
 window.switchGachaStar = function(s) {
   gachaStar = s;
-  renderShop();
+  renderGachaTab();
 };
 
 const _gachaImgExists = {};
