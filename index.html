@@ -4488,7 +4488,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.95';
+const APP_VERSION = 'v2.43.96';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5803,10 +5803,10 @@ const S1_SHOP_ITEMS = [
     desc:'6칸 긁기 · 해골 1개 (완전공개 시 -200G 패널티) · 클로버 180G ~ 왕관 3500G' },
   { id:'scratch_premium',  icon:ITEM_SVG_ICONS.lottery, name:'프리미엄 복권', color:'#e879f9', price:600, type:'scratch_tier',
     desc:'7칸 긁기 · 해골 2개 (각 -400G 패널티) · 클로버 500G ~ 왕관 10000G' },
-  { id:'scratch_coin', icon:'<span style="font-size:18px;line-height:1">🪙</span>', name:'긁기 동전', color:'#94a3b8', price:30, type:'oneshot',
-    desc:'다음 스크래치 복권 긁기 시 브러시 2배 크기 · 1회용 소모' },
-  { id:'scratch_key',  icon:'<span style="font-size:18px;line-height:1">🔑</span>', name:'만능 긁개',  color:'#fbbf24', price:80, type:'oneshot',
-    desc:'다음 스크래치 복권 긁기 시 브러시 3배 + 공개 임계값 완화 · 1회용 소모' },
+  { id:'scratch_coin', icon:'<span style="font-size:18px;line-height:1">🪙</span>', name:'긁기 동전', color:'#94a3b8', price:200, type:'scratch_tool',
+    desc:'스크래치 복권 긁기 시 브러시 크기 2배 · 영구 적용' },
+  { id:'scratch_key',  icon:'<span style="font-size:18px;line-height:1">🔑</span>', name:'만능 긁개',  color:'#fbbf24', price:500, type:'scratch_tool',
+    desc:'브러시 3배 + 레이어 공개 임계값 완화 · 긁기 동전보다 강력 · 영구 적용' },
   { id:'s1_promo_shield', icon:ITEM_SVG_ICONS.s1_promo_shield, name:'승급전 방어권', color:'#7dd3fc', price:100, type:'oneshot',
     desc:'승급전 중 패배 시 해당 판 기록 제외 · 승리 시 정상 기록' },
   { id:'s1_promo_win',    icon:ITEM_SVG_ICONS.s1_promo_win,    name:'승급전 승리권', color:'#ffd700', price:100, type:'oneshot',
@@ -16733,7 +16733,7 @@ function _renderShopImmediate() {
   // ── 상점 리스트 ─────────────────────────────────────────
   const _shopList = CURRENT_SEASON >= 1 ? S1_SHOP_ITEMS : SHOP_ITEMS;
   const isLotteryType = t => t === 'scratch_tier' || t === 'lottery' || t === 'lottery_premium';
-  const isConsumeType = t => t === 'oneshot' || t === 'secret_quest' || isLotteryType(t);
+  const isConsumeType = t => t === 'oneshot' || t === 'scratch_tool' || t === 'secret_quest' || isLotteryType(t);
   const shopFiltered = _shopList.filter(item => {
     if (item.relayOnly) return false; // 릴레이 전용 아이템은 상점 미표시
     if (shopCatTab === 'pass')    return item.type === 'pass';
@@ -16748,6 +16748,7 @@ function _renderShopImmediate() {
   // 비밀 퀘스트는 보유 자체로 중복 구매 차단 (한도 우회 방지)
   const sqOwnedActive     = (myShopData?.[sField('items')] || []).find(it => it.id === 'secret_quest');
   const sqAlreadyActive   = !!sqOwnedActive;
+  const myOwnedItems = myShopData?.[sField('items')] || [];
   document.getElementById('shop-list').innerHTML = shopFiltered.length === 0
     ? `<div class="sp-cat-empty">🔧 준비 중인 아이템이에요.<br>곧 장비 아이템이 추가될 예정이에요!</div>`
     : shopFiltered.map(item => {
@@ -16755,6 +16756,8 @@ function _renderShopImmediate() {
     const isLotteryLimitHit = (item.type === 'lottery_premium' && todayPremiumCount >= 3)
                            || (item.type === 'secret_quest' && todaySqCount >= SECRET_QUEST_DAILY_LIMIT);
     const isSqAlreadyActive = item.type === 'secret_quest' && sqAlreadyActive;
+    const isScratchToolOwned = item.type === 'scratch_tool' && myOwnedItems.some(it => it.id === item.id);
+    const isScratchCoinRedundant = item.id === 'scratch_coin' && myOwnedItems.some(it => it.id === 'scratch_key');
     const isPassType  = item.type === 'pass';
     const isThisPassOwned = item.id === 'battle_pass' ? !!(myShopData && myShopData.hasBattlePass_s1)
                           : item.id === 'support_pass' ? !!(myShopData && myShopData.hasSupportPass_s1)
@@ -16764,7 +16767,8 @@ function _renderShopImmediate() {
     const isSupportLocked = item.id === 'support_pass' && !isThisPassOwned && battlePassLv < 25;
     const isPassOwned = isThisPassOwned;
     const canBuy   = myGold >= item.price && !isLotteryLocked && !isLotteryLimitHit && !isSqAlreadyActive && !isPassOwned && !isSupportLocked
-                   && (isLotteryType(item.type) || isPassType || !isItemsEffectivelyLocked());
+                   && !isScratchToolOwned && !isScratchCoinRedundant
+                   && (isLotteryType(item.type) || item.type === 'scratch_tool' || isPassType || !isItemsEffectivelyLocked());
     const nameColor = item.color || 'var(--text)';
     let btnText, btnClass, btnClick;
     if (isLotteryLocked) {
@@ -16777,7 +16781,11 @@ function _renderShopImmediate() {
       btnText = sqOwnedActive?.active ? '다음 판 발동' : '보유 중'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
     } else if (isLotteryLimitHit) {
       btnText = `한도 소진 (${item.type === 'secret_quest' ? todaySqCount + '/' + SECRET_QUEST_DAILY_LIMIT : '3/3'})`; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
-    } else if (isItemsEffectivelyLocked() && !isLotteryType(item.type) && !isPassType) {
+    } else if (isScratchToolOwned) {
+      btnText = '✅ 보유 중'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
+    } else if (isScratchCoinRedundant) {
+      btnText = '🔑 긁개로 충분'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
+    } else if (isItemsEffectivelyLocked() && !isLotteryType(item.type) && item.type !== 'scratch_tool' && !isPassType) {
       btnText = '🔒'; btnClass = 'sli-price'; btnClick = `onclick="buyItem('${item.id}')"`;
     } else {
       btnText = '🪙' + item.price + 'G'; btnClass = 'sli-price'; btnClick = `onclick="buyItem('${item.id}')"`;
@@ -17812,7 +17820,7 @@ window.buyItem = async function(itemId) {
     showS1Toast?.('이 아이템은 상점에서 구매할 수 없어요'); return;
   }
   // v2.36.30~ 잠금 가드 — 복권은 매치 중에도 항상 허용, 그 외는 본인 참여 매치일 때만 차단
-  const _isLottery = item.type === 'scratch_tier' || item.type === 'lottery' || item.type === 'lottery_premium';
+  const _isLottery = item.type === 'scratch_tier' || item.type === 'scratch_tool' || item.type === 'lottery' || item.type === 'lottery_premium';
   if (!_isLottery && isItemsEffectivelyLocked()) {
     showGoldToast('🔒 팀 구성 후에는 구매할 수 없어요!'); return;
   }
@@ -17824,21 +17832,32 @@ window.buyItem = async function(itemId) {
   const spentKey = sField('goldSpent');
   const itemsKey = sField('items');
 
+  // 긁기 도구 — 영구 소유 아이템 (v2.43.96~)
+  if (item.type === 'scratch_tool') {
+    const myItems2 = data[itemsKey] || [];
+    if (myItems2.some(it => it.id === item.id)) { showS1Toast('이미 보유 중이에요!'); return; }
+    if (item.id === 'scratch_coin' && myItems2.some(it => it.id === 'scratch_key')) {
+      showS1Toast('🔑 만능 긁개가 있으면 긁기 동전은 불필요해요'); return;
+    }
+    const newGoldSpent = (data[spentKey] ?? 0) + item.price;
+    const newItems2 = [...myItems2, { id: item.id, ts: Date.now() }];
+    await set(ref(db,'gold/'+key), { ...data, [spentKey]: newGoldSpent, [itemsKey]: newItems2 });
+    showS1Toast(`${item.name} 구매 완료! 이제 모든 복권 긁기에 자동 적용돼요 🎉`);
+    renderShop();
+    return;
+  }
+
   // 스크래치 복권 3티어 (v2.43.91~: 가격 즉시 차감, 결과는 스크래치 확인 후 저장)
   if (item.type === 'scratch_tier') {
     if (SCRATCH_LOTTERY_LOCKED) { showS1Toast('🔧 스크래치 복권 점검 중이에요!'); return; }
     const tierDef = SCRATCH_TIERS.find(t => t.id === item.id);
     if (!tierDef) return;
     const newGoldSpent = (data[spentKey] ?? 0) + item.price;
-    // 긁기 도구 체크 — scratch_key 우선
-    let usedTool = null;
-    const newItems = [...(data[itemsKey] || [])];
-    for (const tid of ['scratch_key', 'scratch_coin']) {
-      const idx = newItems.findIndex(it => it.id === tid);
-      if (idx >= 0) { usedTool = newItems[idx]; newItems.splice(idx, 1); break; }
-    }
-    await set(ref(db,'gold/'+key), { ...data, [spentKey]: newGoldSpent, [itemsKey]: newItems });
-    const toolParams = usedTool ? SCRATCH_TOOLS[usedTool.id] : null;
+    // 긁기 도구 체크 — 영구 소유, 소모 없음 (v2.43.96~)
+    const myItemsArr = data[itemsKey] || [];
+    const activeTool = ['scratch_key', 'scratch_coin'].map(tid => myItemsArr.find(it => it.id === tid)).find(Boolean);
+    const toolParams = activeTool ? SCRATCH_TOOLS[activeTool.id] : null;
+    await set(ref(db,'gold/'+key), { ...data, [spentKey]: newGoldSpent });
     const result = rollScratch(tierDef.idx);
     const onComplete = async ({ winGold, skullPenalty }) => {
       const latestData = getMyGoldData();
