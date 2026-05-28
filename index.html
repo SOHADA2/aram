@@ -1436,6 +1436,29 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .lh-tier-help.show{display:block;}
 .lh-tier-attempts{font-size:10px;color:rgba(255,255,255,0.38);line-height:1.5;text-align:center;border-top:1px solid rgba(255,255,255,0.06);padding-top:5px;margin-top:1px;}
 .lh-tier-attempts b{color:rgba(255,255,255,0.72);font-weight:600;}
+/* 복권 로그 모달 */
+.lot-log-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9999;display:flex;align-items:flex-end;justify-content:center;}
+.lot-log-sheet{background:#131320;border-radius:18px 18px 0 0;width:100%;max-width:620px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;}
+.lot-log-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;border-bottom:1px solid rgba(255,255,255,0.08);}
+.lot-log-head h3{margin:0;font-size:15px;font-weight:700;color:#fff;letter-spacing:-0.3px;}
+.lot-log-close{background:none;border:none;color:rgba(255,255,255,0.45);font-size:20px;cursor:pointer;padding:2px 6px;line-height:1;}
+.lot-log-close:hover{color:#fff;}
+.lot-log-body{overflow-y:auto;padding:14px 16px 20px;display:flex;flex-direction:column;gap:14px;}
+.lot-log-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.lot-log-stat{background:rgba(255,255,255,0.05);border-radius:10px;padding:10px 8px;text-align:center;}
+.lot-log-stat .ls-label{font-size:10px;color:rgba(255,255,255,0.42);margin-bottom:4px;}
+.lot-log-stat .ls-val{font-size:16px;font-weight:700;color:#fff;}
+.lot-log-stat .ls-val.neg{color:#f87171;}
+.lot-log-stat .ls-val.pos{color:#34d399;}
+.lot-log-section-title{font-size:11px;font-weight:700;color:rgba(255,255,255,0.38);letter-spacing:0.6px;text-transform:uppercase;margin-bottom:4px;}
+.lot-log-tier-table,.lot-log-hist-table{width:100%;border-collapse:collapse;font-size:11.5px;}
+.lot-log-tier-table th,.lot-log-hist-table th{color:rgba(255,255,255,0.35);font-weight:600;padding:5px 6px;text-align:right;border-bottom:1px solid rgba(255,255,255,0.07);}
+.lot-log-tier-table th:first-child,.lot-log-hist-table th:first-child{text-align:left;}
+.lot-log-tier-table td,.lot-log-hist-table td{padding:5px 6px;color:rgba(255,255,255,0.75);text-align:right;border-bottom:1px solid rgba(255,255,255,0.04);}
+.lot-log-tier-table td:first-child,.lot-log-hist-table td:first-child{text-align:left;color:#fff;}
+.lot-log-hist-table td.win{color:#fbbf24;}
+.lot-log-hist-table td.neg{color:#f87171;}
+.lot-log-hist-table td.pos{color:#34d399;}
 .lh-prob-row{display:grid;grid-template-columns:18px 1fr auto auto;gap:6px;align-items:center;padding:3px 0;font-size:10.5px;}
 .lh-prob-em{font-size:13px;line-height:1;}
 .lh-prob-name{color:var(--text);}
@@ -4669,7 +4692,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.134';
+const APP_VERSION = 'v2.43.135';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6061,7 +6084,7 @@ const SCRATCH_LOTTERY_LOCKED = false;
 // true  → 골드 차감 X, 결과 저장 X, Hub 상단 배너 노출 (팀원 무료 체험 가능)
 // false → 정상 모드 (골드 차감, 결과 저장)
 // 테스트 완료 후 이 줄만 false 로 바꾸면 즉시 정상 모드 전환
-const SCRATCH_LOTTERY_TESTMODE = true;
+const SCRATCH_LOTTERY_TESTMODE = false;
 // 🧪 긁기 도구 시뮬레이션 — 테스트 모드에서만 적용. null | 'scratch_coin' | 'scratch_key'
 // Hub 모달 안 토글로 변경됨. 다음 티어 구매 시 toolParams override.
 let _scratchTestTool = null;
@@ -19253,6 +19276,119 @@ if (liveMode) {
   }
 })();
 
+// ── 복권 로그 (라이브 계정 전용) ───────────────────────────────
+window.openLotteryLog = function() {
+  // 모든 플레이어의 lotteryHistory 수집
+  const allEntries = [];
+  Object.values(goldData).forEach(d => {
+    if (!d.name) return;
+    (d.lotteryHistory || []).forEach(h => {
+      if (!h.scratch || typeof h.tierIdx !== 'number') return;
+      allEntries.push({ ...h, playerName: d.name });
+    });
+  });
+  allEntries.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+
+  // 티어별 집계
+  const tierStats = [0, 1, 2].map(idx => {
+    const tier = SCRATCH_TIERS[idx];
+    const entries = allEntries.filter(e => e.tierIdx === idx);
+    const wins = entries.filter(e => e.win);
+    const totalSpent = entries.length * tier.price;
+    // entry.gold = 당첨 순수익 (당첨금 - 해골패널티 - 구매가) 또는 패널티 합산 (미당첨)
+    // 플레이어 net = entry.gold (이미 구매비 차감된 값)
+    const totalNet = entries.reduce((s, e) => s + (e.gold || 0), 0);
+    const totalReceived = totalSpent + totalNet; // 당첨금 = 지출 + 순변동
+    return { idx, name: ['일반', '고급', '프리미엄'][idx], entries, wins, totalSpent, totalReceived, totalNet };
+  });
+
+  const grandSpent = tierStats.reduce((s, t) => s + t.totalSpent, 0);
+  const grandNet = tierStats.reduce((s, t) => s + t.totalNet, 0);
+  const grandReceived = grandSpent + grandNet;
+
+  function fmtTs(ts) {
+    if (!ts) return '-';
+    const d = new Date(ts);
+    return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  }
+  function fmtG(n) { return (n >= 0 ? '+' : '') + n + 'G'; }
+
+  const tierEmoji = ['🎟','🎫','💎'];
+  const tierRows = tierStats.map(t => {
+    const winRate = t.entries.length ? ((t.wins.length / t.entries.length) * 100).toFixed(1) : '-';
+    const netCls = t.totalNet >= 0 ? 'pos' : 'neg';
+    return `<tr>
+      <td>${tierEmoji[t.idx]} ${t.name}</td>
+      <td>${t.entries.length}회</td>
+      <td>${t.wins.length}회 (${winRate}%)</td>
+      <td>${t.totalSpent}G</td>
+      <td>${t.totalReceived}G</td>
+      <td class="${netCls}">${fmtG(t.totalNet)}</td>
+    </tr>`;
+  }).join('');
+
+  const recent = allEntries.slice(0, 50);
+  const histRows = recent.map(e => {
+    const tier = SCRATCH_TIERS[e.tierIdx];
+    const tierName = ['일반','고급','프리미엄'][e.tierIdx];
+    let resultTxt, resultCls;
+    if (e.win) {
+      const sym = tier.symbols.find(s => s.id === e.win);
+      resultTxt = sym ? `${sym.emoji} ${sym.name}` : e.win;
+      resultCls = 'win';
+    } else {
+      resultTxt = '꽝';
+      resultCls = '';
+    }
+    const netCls = e.gold >= 0 ? 'pos' : 'neg';
+    return `<tr>
+      <td>${fmtTs(e.ts)}</td>
+      <td>${escHtml(e.playerName)}</td>
+      <td>${tierEmoji[e.tierIdx]}</td>
+      <td class="${resultCls}">${resultTxt}</td>
+      <td class="${netCls}">${fmtG(e.gold)}</td>
+    </tr>`;
+  }).join('');
+
+  const netCls = grandNet >= 0 ? 'pos' : 'neg';
+  const html = `<div class="lot-log-overlay" id="lot-log-overlay" onclick="if(event.target===this)closeLotteryLog()">
+    <div class="lot-log-sheet">
+      <div class="lot-log-head">
+        <h3>🎟 복권 로그</h3>
+        <button class="lot-log-close" onclick="closeLotteryLog()">✕</button>
+      </div>
+      <div class="lot-log-body">
+        <div class="lot-log-stats">
+          <div class="lot-log-stat"><div class="ls-label">총 구매 비용</div><div class="ls-val neg">${grandSpent}G</div></div>
+          <div class="lot-log-stat"><div class="ls-label">총 당첨금 수령</div><div class="ls-val pos">${grandReceived}G</div></div>
+          <div class="lot-log-stat"><div class="ls-label">순 골드 유출입</div><div class="ls-val ${netCls}">${fmtG(grandNet)}</div></div>
+        </div>
+        <div>
+          <div class="lot-log-section-title">티어별 통계</div>
+          <table class="lot-log-tier-table">
+            <thead><tr><th>티어</th><th>시도</th><th>당첨</th><th>지출</th><th>당첨금</th><th>순변동</th></tr></thead>
+            <tbody>${tierRows}</tbody>
+          </table>
+        </div>
+        <div>
+          <div class="lot-log-section-title">최근 기록 (최대 50개)</div>
+          ${recent.length === 0 ? '<div style="color:rgba(255,255,255,0.3);font-size:12px;text-align:center;padding:12px">아직 기록 없음</div>' : `
+          <table class="lot-log-hist-table">
+            <thead><tr><th>시각</th><th>플레이어</th><th>티어</th><th>결과</th><th>순변동</th></tr></thead>
+            <tbody>${histRows}</tbody>
+          </table>`}
+        </div>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', html);
+};
+
+window.closeLotteryLog = function() {
+  const el = document.getElementById('lot-log-overlay');
+  if (el) el.remove();
+};
+
 // ── 시즌 어드민 (라이브 계정 전용) ───────────────────────────────
 function renderSeasonAdmin() {
   const wrap = document.getElementById('season-admin-wrap');
@@ -19262,6 +19398,7 @@ function renderSeasonAdmin() {
   wrap.innerHTML = `<div class="season-admin">
     <button class="season-admin-btn${CURRENT_SEASON===0?' active':''}" onclick="switchSeason(0)">S0</button>
     <button class="season-admin-btn${CURRENT_SEASON===1?' active':''}" onclick="switchSeason(1)">S1</button>
+    <button class="season-admin-btn" onclick="openLotteryLog()" style="border-left:1px solid rgba(200,168,75,0.2)">🎟 복권로그</button>
   </div>`;
 }
 
