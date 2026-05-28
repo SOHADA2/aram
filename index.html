@@ -4705,7 +4705,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.137';
+const APP_VERSION = 'v2.43.138';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6112,12 +6112,12 @@ if (!SCRATCH_LOTTERY_LOCKED) {
 
 // 시즌 1 전용 아이템
 const S1_SHOP_ITEMS = [
-  { id:'scratch_normal',   icon:ITEM_SVG_ICONS.lottery, name:'일반 복권',    color:'#f59e0b', price:100, type:'scratch_tier',
-    desc:'5칸 긁기 · 꽝 32% · 클로버 50G ~ 왕관 800G · 한도 없음' },
-  { id:'scratch_advanced', icon:ITEM_SVG_ICONS.lottery, name:'고급 복권',    color:'#a78bfa', price:300, type:'scratch_tier',
-    desc:'6칸 긁기 · 해골 평균 1개 (확률 출현, 각 -200G) · 클로버 180G ~ 왕관 3500G' },
-  { id:'scratch_premium',  icon:ITEM_SVG_ICONS.lottery, name:'프리미엄 복권', color:'#e879f9', price:600, type:'scratch_tier',
-    desc:'7칸 긁기 · 해골 평균 2개 (확률 출현, 각 -400G) · 클로버 500G ~ 왕관 10000G' },
+  { id:'scratch_normal',   icon:ITEM_SVG_ICONS.lottery, name:'일반 복권',    color:'#f59e0b', price:70,  type:'scratch_tier',
+    desc:'5칸 긁기 · 2개 매칭 시 당첨 · 클로버 70G ~ 왕관 1000G' },
+  { id:'scratch_advanced', icon:ITEM_SVG_ICONS.lottery, name:'고급 복권',    color:'#a78bfa', price:200, type:'scratch_tier',
+    desc:'6칸 긁기 · 3개 매칭 시 당첨 · 해골 평균 1개 (-150G) · 클로버 200G ~ 왕관 3000G' },
+  { id:'scratch_premium',  icon:ITEM_SVG_ICONS.lottery, name:'프리미엄 복권', color:'#e879f9', price:400, type:'scratch_tier',
+    desc:'7칸 긁기 · 3개 매칭 시 당첨 · 해골 평균 2개 (-250G) · 클로버 400G ~ 왕관 5000G' },
   { id:'scratch_coin', icon:'<span style="font-size:18px;line-height:1">🪙</span>', name:'긁기 동전', color:'#94a3b8', price:200, type:'scratch_tool',
     desc:'스크래치 복권 긁기 시 브러시 크기 2배 · 영구 적용' },
   { id:'scratch_key',  icon:'<span style="font-size:18px;line-height:1">🔑</span>', name:'만능 긁개',  color:'#fbbf24', price:500, type:'scratch_tool',
@@ -18634,7 +18634,8 @@ async function _buyItemImpl(itemId) {
     showGoldToast('🔒 팀 구성 후에는 구매할 수 없어요!'); return;
   }
   const currentGold = getMyGold(); // 경기 기록 기반 동적 계산
-  if (currentGold < item.price) {
+  // scratch_tier는 SCRATCH_TIERS.price 기준으로 분기 내부에서 별도 체크
+  if (item.type !== 'scratch_tier' && currentGold < item.price) {
     showGoldToast(`🪙 골드가 부족해요! (보유: ${currentGold} / 필요: ${item.price})`);
     return;
   }
@@ -18660,11 +18661,16 @@ async function _buyItemImpl(itemId) {
     return;
   }
 
-  // 스크래치 복권 3티어 (v2.43.91~: 가격 즉시 차감, 결과는 스크래치 확인 후 저장)
+  // 스크래치 복권 3티어 — 가격은 SCRATCH_TIERS 단일 출처 사용 (S1_SHOP_ITEMS.price 무시)
   if (item.type === 'scratch_tier') {
     if (SCRATCH_LOTTERY_LOCKED) { showS1Toast('🔧 스크래치 복권 점검 중이에요!'); return; }
     const tierDef = SCRATCH_TIERS.find(t => t.id === item.id);
     if (!tierDef) return;
+    const tierPrice = tierDef.price; // 단일 출처
+    if (currentGold < tierPrice) {
+      showGoldToast(`🪙 골드가 부족해요! (보유: ${currentGold} / 필요: ${tierPrice})`);
+      return;
+    }
     // 긁기 도구 체크 — 영구 소유, 소모 없음 (v2.43.96~)
     const myItemsArr = data[itemsKey] || [];
     let activeTool = ['scratch_key', 'scratch_coin'].map(tid => myItemsArr.find(it => it.id === tid)).find(Boolean);
@@ -18677,7 +18683,7 @@ async function _buyItemImpl(itemId) {
       showScratchModal(result, currentGold, { tierDef, toolParams, onComplete: async () => {} });
       return;
     }
-    const newGoldSpent = (data[spentKey] ?? 0) + item.price;
+    const newGoldSpent = (data[spentKey] ?? 0) + tierPrice;
     await set(ref(db,'gold/'+key), { ...data, [spentKey]: newGoldSpent });
     const result = rollScratch(tierDef.idx);
     const onComplete = async ({ winGold, skullPenalty }) => {
@@ -18692,10 +18698,10 @@ async function _buyItemImpl(itemId) {
     const onCancel = async () => {
       const latestData = getMyGoldData();
       if (!latestData) return;
-      await update(ref(db,'gold/'+key), { [spentKey]: Math.max(0, (latestData[spentKey] ?? 0) - item.price) });
-      showS1Toast?.(`↩️ ${item.price}G 환불됐어요`);
+      await update(ref(db,'gold/'+key), { [spentKey]: Math.max(0, (latestData[spentKey] ?? 0) - tierPrice) });
+      showS1Toast?.(`↩️ ${tierPrice}G 환불됐어요`);
     };
-    showScratchModal(result, currentGold - item.price, { tierDef, toolParams, onComplete, onCancel });
+    showScratchModal(result, currentGold - tierPrice, { tierDef, toolParams, onComplete, onCancel });
     return;
   }
 
