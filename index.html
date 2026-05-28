@@ -4705,7 +4705,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.138';
+const APP_VERSION = 'v2.43.139';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6843,6 +6843,7 @@ onValue(ref(db, 'gold'), (snapshot) => {
   revertRelaySogeup();
   fixRelayBaseOnly();
   autoCompensateRelayV1(); // v2.43.112~ 본인 데이터의 릴레이 누락 보상 자동 지급 (1회)
+  autoRefundLotteryOvercharge(); // v2.43.139~ 복권 구가격 과다차감 환불 (1회, 어드민 전용)
   if (matchesLoaded) updateMyInfoBar();
   renderShop();
   if (playersLoaded && matchesLoaded) seedGoldForAllPlayers();
@@ -15920,6 +15921,54 @@ async function autoCompensateRelayV1() {
     console.log(`[autoCompensateRelayV1] ${data.name}: relay ${rp}→${target}, +${goldSum}G, items: ${missing.filter(r=>r.itemId).map(r=>r.itemId).join(',')}`);
   } catch(e) { console.error('[autoCompensateRelayV1 실패]', e); }
 }
+
+// ── 복권 과다차감 환불 (v2.43.139~, 1회 자동 실행) ──────────────────
+// v2.43.135(실 모드 전환)~v2.43.138(가격 수정) 사이에 S1_SHOP_ITEMS 구가격(100/300/600G)으로
+// 차감됐던 금액과 실제 가격(70/200/400G) 차액을 goldSpent에서 되돌림
+// config/lotteryOverchargeRefundDone 플래그로 전 디바이스 1회 보장
+let _lotteryOverchargeRefundStarted = false;
+async function autoRefundLotteryOvercharge() {
+  if (_lotteryOverchargeRefundStarted) return;
+  _lotteryOverchargeRefundStarted = true;
+  try {
+    const flagSnap = await get(ref(db, 'config/lotteryOverchargeRefundDone'));
+    if (flagSnap.val()) return; // 이미 완료
+    if (!liveMode) return;      // 어드민만 전체 수정
+    const DIFF     = [30, 100, 200]; // tier별 환불액 (구가격 - 신가격)
+    const spentKey = sField('goldSpent');
+    const refunds  = [];
+    Object.entries(goldData).forEach(([key, d]) => {
+      if (!d.name) return;
+      const affected = (d.lotteryHistory || []).filter(
+        h => h.scratch && typeof h.tierIdx === 'number' && (h.ts || 0) >= SCRATCH_LAUNCH_TS
+      );
+      if (!affected.length) return;
+      const breakdown = [0, 0, 0];
+      let total = 0;
+      affected.forEach(h => { breakdown[h.tierIdx]++; total += DIFF[h.tierIdx]; });
+      if (total > 0) refunds.push({ key, name: d.name, total, breakdown, curSpent: d[spentKey] ?? 0 });
+    });
+    // 플래그 먼저 세팅 (중복 실행 방지)
+    await set(ref(db, 'config/lotteryOverchargeRefundDone'), true);
+    if (!refunds.length) {
+      console.log('[복권 과다차감 환불] 대상자 없음 — 모두 정상 처리됨');
+      return;
+    }
+    console.group(`[복권 과다차감 환불] ${refunds.length}명 처리`);
+    for (const r of refunds) {
+      const newSpent = Math.max(0, r.curSpent - r.total);
+      await update(ref(db, 'gold/' + r.key), { [spentKey]: newSpent });
+      console.log(
+        `✅ ${r.name}: +${r.total}G 환불` +
+        ` (goldSpent ${r.curSpent}→${newSpent})` +
+        ` | 일반 ${r.breakdown[0]}회·고급 ${r.breakdown[1]}회·프리미엄 ${r.breakdown[2]}회`
+      );
+    }
+    console.groupEnd();
+    const names = refunds.map(r => `${r.name} +${r.total}G`).join(', ');
+    showS1Toast?.(`↩️ 복권 과다차감 환불 완료 — ${names}`);
+  } catch(e) { console.error('[autoRefundLotteryOvercharge 실패]', e); }
+}
 function calcMagollaGold(history) {
   if (!Array.isArray(history)) return 0;
   return history.reduce((sum, e) => sum + (e.delta || 0), 0);
@@ -19426,7 +19475,10 @@ window.openLotteryLog = function() {
     <div class="lot-log-sheet">
       <div class="lot-log-head">
         <h3>🎟 복권 로그</h3>
-        <button class="lot-log-close" onclick="closeLotteryLog()">✕</button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button onclick="refundLotteryOvercharge()" style="font-size:11px;padding:4px 9px;border-radius:7px;border:1px solid rgba(251,191,36,0.35);background:rgba(251,191,36,0.08);color:#fbbf24;cursor:pointer;">↩️ 과다차감 환불</button>
+          <button class="lot-log-close" onclick="closeLotteryLog()">✕</button>
+        </div>
       </div>
       <div class="lot-log-body">
         <div class="lot-log-stats">
@@ -19458,6 +19510,45 @@ window.openLotteryLog = function() {
 window.closeLotteryLog = function() {
   const el = document.getElementById('lot-log-overlay');
   if (el) el.remove();
+};
+
+// 구가격(100/300/600G) → 신가격(70/200/400G) 전환 전 과다 차감분 환불
+// SCRATCH_LAUNCH_TS 이후 기록만 대상 (테스트 모드 기록은 저장 안 됐으므로 자동 제외)
+window.refundLotteryOvercharge = async function() {
+  const OLD_PRICES = [100, 300, 600];
+  const DIFF       = [30,  100, 200]; // OLD - NEW per tier
+  const spentKey   = sField('goldSpent');
+
+  const refunds = [];
+  Object.entries(goldData).forEach(([key, d]) => {
+    if (!d.name) return;
+    const hist = d.lotteryHistory || [];
+    const affected = hist.filter(h => h.scratch && typeof h.tierIdx === 'number' && (h.ts || 0) >= SCRATCH_LAUNCH_TS);
+    if (!affected.length) return;
+    const breakdown = [0, 0, 0];
+    let totalRefund = 0;
+    affected.forEach(h => { breakdown[h.tierIdx]++; totalRefund += DIFF[h.tierIdx]; });
+    if (totalRefund > 0) refunds.push({ key, name: d.name, totalRefund, breakdown, curSpent: d[spentKey] ?? 0 });
+  });
+
+  if (!refunds.length) {
+    alert('환불 대상 없음\n\n정식 오픈 이후 구매 기록이 없거나 이미 처리됐어요.');
+    return;
+  }
+
+  const lines = refunds.map(r =>
+    `${r.name}: +${r.totalRefund}G  (일반 ${r.breakdown[0]}회·고급 ${r.breakdown[1]}회·프리미엄 ${r.breakdown[2]}회)`
+  ).join('\n');
+  if (!confirm(`구 가격 과다 차감 환불 대상:\n\n${lines}\n\n적용하시겠습니까?`)) return;
+
+  for (const r of refunds) {
+    const newSpent = Math.max(0, r.curSpent - r.totalRefund);
+    await update(ref(db, 'gold/' + r.key), { [spentKey]: newSpent });
+    console.log(`✅ ${r.name} — ${r.totalRefund}G 환불 (${r.curSpent}G → ${newSpent}G)`);
+  }
+  showS1Toast?.(`↩️ 과다 차감 환불 완료 — ${refunds.length}명`);
+  closeLotteryLog();
+  openLotteryLog();
 };
 
 // ── 시즌 어드민 (라이브 계정 전용) ───────────────────────────────
