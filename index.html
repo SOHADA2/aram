@@ -1401,6 +1401,10 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .lot-entry-title{font-size:14px;font-weight:700;color:#f5d1ff;display:flex;align-items:center;gap:6px;}
 .lot-entry-tool{font-size:14px;}
 .lot-entry-test{font-size:9.5px;color:#fde68a;background:rgba(245,158,11,0.22);border:1px solid rgba(245,158,11,0.5);border-radius:8px;padding:1px 7px;font-weight:700;letter-spacing:0.3px;margin-left:4px;}
+/* v2.43.148~ 밸런스 패치 잠금 상태 — 카드는 노출하되 빛바랜 느낌 + 호버 효과 약화 */
+.lot-entry-card.lot-entry-locked{filter:grayscale(0.45) brightness(0.85);border-color:rgba(245,158,11,0.45);cursor:not-allowed;}
+.lot-entry-card.lot-entry-locked:hover{transform:none;border-color:rgba(245,158,11,0.55);box-shadow:0 0 0 1px rgba(245,158,11,0.25);}
+.lot-entry-card.lot-entry-locked:hover::before{transform:translateX(-100%);}
 .lot-entry-desc{font-size:11px;color:rgba(245,209,255,0.65);margin-top:2px;}
 .lot-entry-arrow{font-size:22px;color:rgba(245,209,255,0.5);line-height:1;font-weight:700;}
 .lh-overlay{position:fixed;inset:0;z-index:3500;background:rgba(4,6,16,0.88);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:20px;animation:taFadeIn 0.2s ease;}
@@ -4704,7 +4708,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.147';
+const APP_VERSION = 'v2.43.148';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4713,6 +4717,9 @@ const APP_VERSION = 'v2.43.147';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.148', date: '2026-05-28', changes: [
+    { tag: 'fix', text: '복권 잠금 UI 노출 정책 수정 + 테스트 FAB 영구 숨김. (1) v2.43.147 에서 상점 진입 카드 자체가 사라지던 문제 — 잠금 시에도 카드는 노출하고 클릭만 차단(토스트로 안내). 카드 라벨 "⚖️ 밸런스 패치 중" + 회색 톤(grayscale 0.45) + cursor:not-allowed. (2) 우측 하단 #scratch-test-fab — 정식 오픈(v2.43.135) 후에도 노출되던 잔재. SCRATCH_LOTTERY_LOCKED 분기 제거, 무조건 hide. 어드민 테스트는 콘솔 scratchTest() 사용' },
+  ]},
   { ver: 'v2.43.147', date: '2026-05-28', changes: [
     { tag: 'fix', text: '스크래치 복권 전체 임시 잠금 — 밸런스 패치 진행 중. SCRATCH_LOTTERY_LOCKED=true 로 일반·고급·프리미엄 + 긁기 도구까지 모두 구매 차단. Hub 진입 시 ⚖️ 토스트, 상점 카드 버튼은 "⚖️ 밸런스 패치 중" 표시. 정식 재오픈 시 false 로 되돌리면 즉시 복구' },
   ]},
@@ -6174,8 +6181,9 @@ const SCRATCH_LAUNCH_TS = new Date('2026-05-28T00:00:00+09:00').getTime();
 // Hub 모달 안 토글로 변경됨. 다음 티어 구매 시 toolParams override.
 let _scratchTestTool = null;
 // ─────────────────────────────────────────────────────────
-// 잠금 해제 시 테스트 FAB 자동 숨김 (v2.43.79~) — FAB 디폴트 표시이므로 여기서 hide
-if (!SCRATCH_LOTTERY_LOCKED) {
+// v2.43.148~ 정식 오픈 이후 테스트 FAB 영구 숨김 (테스트 단계 잔재).
+// 잠금 여부와 무관하게 항상 hide — 어드민이 테스트하려면 콘솔 scratchTest() 사용.
+{
   const _fab = document.getElementById('scratch-test-fab');
   if (_fab) _fab.style.display = 'none';
 }
@@ -17227,12 +17235,13 @@ function _renderShopImmediate() {
                    : _hasCoin ? '<span class="lot-entry-tool" title="긁기 동전 보유">🪙</span>'
                    : '';
   const _testBadge = SCRATCH_LOTTERY_TESTMODE ? '<span class="lot-entry-test">🧪 테스트</span>' : '';
-  const lotteryEntryHtml = (CURRENT_SEASON >= 1 && shopCatTab === 'consume' && !SCRATCH_LOTTERY_LOCKED) ? `
-    <div class="lot-entry-card" onclick="window.openLotteryHub()">
+  const _lockBadge = SCRATCH_LOTTERY_LOCKED ? '<span class="lot-entry-test" style="background:rgba(245,158,11,0.18);border-color:rgba(245,158,11,0.45);color:#fbbf24;">⚖️ 밸런스 패치 중</span>' : '';
+  const lotteryEntryHtml = (CURRENT_SEASON >= 1 && shopCatTab === 'consume') ? `
+    <div class="lot-entry-card${SCRATCH_LOTTERY_LOCKED ? ' lot-entry-locked' : ''}" onclick="${SCRATCH_LOTTERY_LOCKED ? `showS1Toast('⚖️ 스크래치 복권 밸런스 패치 중입니다!')` : 'window.openLotteryHub()'}">
       <div class="lot-entry-icon">🎟</div>
       <div class="lot-entry-body">
-        <div class="lot-entry-title">스크래치 복권 ${_toolBadge}${_testBadge}</div>
-        <div class="lot-entry-desc">${SCRATCH_LOTTERY_TESTMODE ? '🧪 테스트 모드 — 골드 차감 없이 자유 체험' : '일반·고급·프리미엄 티어 선택 + 긁기 도구 구매'}</div>
+        <div class="lot-entry-title">스크래치 복권 ${_toolBadge}${_lockBadge || _testBadge}</div>
+        <div class="lot-entry-desc">${SCRATCH_LOTTERY_LOCKED ? '⚖️ 밸런스 패치 진행 중 — 잠시만 기다려 주세요' : (SCRATCH_LOTTERY_TESTMODE ? '🧪 테스트 모드 — 골드 차감 없이 자유 체험' : '일반·고급·프리미엄 티어 선택 + 긁기 도구 구매')}</div>
       </div>
       <div class="lot-entry-arrow">›</div>
     </div>` : '';
