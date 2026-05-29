@@ -2874,7 +2874,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .ms2-team-card.lose .ms2-result-badge{background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.3);border:1px solid rgba(255,255,255,0.1);}
 .ms2-team-body{flex:1;padding:5px 6px 7px;display:flex;flex-direction:column;gap:3px;background:rgba(17,32,64,0.8);}
 .ms2-team-card.lose .ms2-team-body{background:rgba(255,255,255,0.012);}
-.ms2-pr{display:flex;align-items:center;gap:5px;padding:6px 7px;border-radius:7px;background:rgba(255,255,255,0.03);border-left:2px solid transparent;min-width:0;}
+.ms2-pr{display:flex;align-items:center;flex-wrap:wrap;gap:5px;padding:6px 7px;border-radius:7px;background:rgba(255,255,255,0.03);border-left:2px solid transparent;min-width:0;}
 .ms2-team-card.lose .ms2-pr{opacity:0.72;}
 .ms2-pr.me{background:rgba(200,168,75,0.09);border-left-color:rgba(200,168,75,0.5);}
 .ms2-team-card.lose .ms2-pr.me{background:rgba(96,165,250,0.07);border-left-color:rgba(96,165,250,0.45);}
@@ -4708,7 +4708,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.157';
+const APP_VERSION = 'v2.43.158';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4717,6 +4717,9 @@ const APP_VERSION = 'v2.43.157';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.158', date: '2026-05-29', changes: [
+    { tag: 'new', text: '정산창에 가챠 시너지 발동 표시 — 경기 정산 시 플레이어 행 아래에 "[아이콘] 시너지명 발동! +X LP / +XG / 강탈" 라인 추가. 미발동 시 "장착 · 미발동"으로 흐리게 표시. 발동 여부·효과를 한눈에 확인' },
+  ]},
   { ver: 'v2.43.157', date: '2026-05-29', changes: [
     { tag: 'improve', text: '가챠 추적성 보강(롤백 대비) — (1) 뽑기 소모를 gachaSpent_s1 누적 + gachaLog_s1 로그({ts,times,cost})로 별도 기록(기존엔 goldSpent에 섞여 분리 불가). (2) 시너지 LP 증감값을 matches/{key}.synergyEffects.lpDelta 에 기록해 감사·역산 가능. 시너지 골드/강탈은 이미 매치에 per-match 기록됨(파생계산)' },
   ]},
@@ -10898,6 +10901,9 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
   const winTeamLabel  = isWinnersTeamA ? '1팀' : '2팀';
   const loseTeamLabel = isWinnersTeamA ? '2팀' : '1팀';
 
+  // 가챠 시너지 발동 내역 (저장된 매치에서 조회 — lpDelta는 비동기 기록이라 동기화됐을 수 있음)
+  const synergyEffects = (typeof savedMatchKey === 'string' && savedMatchKey && matches[savedMatchKey]?.synergyEffects) || {};
+
   function playerRow(name, isWin) {
     const effects = itemEffects[normName(name)] || [];
     const iAmNewbie = isNewbie(name);
@@ -10969,6 +10975,28 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
     const isMe = myName && normName(name) === normName(myName);
     const meTag = isMe ? '<span class="ms2-me-tag">나</span>' : '';
     const itemChips = effects.map(id => `<span class="ms2-item-chip" title="${ITEM_NAMES[id]||id}">${ITEM_ICONS[id]||'📦'}</span>`).join('');
+
+    // 가챠 시너지 발동 라인 (있을 때만)
+    let synLine = '';
+    const _se = synergyEffects[normName(name)];
+    if (_se && _se.sid) {
+      const grp = GACHA_SYNERGY_GROUPS.find(g => g.sid === _se.sid);
+      if (grp) {
+        if (_se.procced) {
+          let fx = '';
+          if (typeof _se.lpDelta === 'number' && _se.lpDelta !== 0) fx = `${_se.lpDelta>0?'+':''}${_se.lpDelta} LP`;
+          if (grp.effType === 'win_gold') fx = (fx?fx+' · ':'') + `+${_se.goldDelta||0}G`;
+          else if (grp.effType === 'steal') fx = (fx?fx+' · ':'') + `강탈 +${(_se.steal?.per||0)*(_se.steal?.victims?.length||0)}G`;
+          else if (grp.special === 'unbreakable' && _se.goldDelta) fx = (fx?fx+' · ':'') + `위로금 +${_se.goldDelta}G`;
+          if (!fx) fx = grp.effType==='lp_block' || grp.effType==='risk_block' ? 'LP 방어 발동' : '효과 발동';
+          synLine = `<div style="flex-basis:100%;display:flex;align-items:center;gap:5px;margin-top:3px;font-size:10px;color:${grp.color};">
+            <span>${grp.icon}</span><span style="font-weight:800;">${grp.name} 발동!</span>
+            <span style="color:var(--rk-text-dim,#9aa0b4);font-weight:600;">${fx}</span></div>`;
+        } else {
+          synLine = `<div style="flex-basis:100%;margin-top:2px;font-size:9.5px;color:var(--rk-text-dim,#9aa0b4);opacity:0.65;">${grp.icon} ${grp.name} 장착 · 미발동</div>`;
+        }
+      }
+    }
     return `<div class="ms2-pr${isMe ? ' me' : ''}">
       <span class="ms2-pr-name">${escHtml(name)}</span>${meTag}
       <div class="ms2-pr-items">${itemChips}</div>
@@ -10976,6 +11004,7 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
         <span class="ms2-pr-lp ${ptClass}" data-v="${ptLabel}"></span>
         <span class="ms2-pr-gold" data-v="+${gold}G"></span>
       </div>
+      ${synLine}
     </div>`;
   }
 
