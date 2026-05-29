@@ -4708,7 +4708,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.156';
+const APP_VERSION = 'v2.43.157';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4717,6 +4717,9 @@ const APP_VERSION = 'v2.43.156';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.157', date: '2026-05-29', changes: [
+    { tag: 'improve', text: '가챠 추적성 보강(롤백 대비) — (1) 뽑기 소모를 gachaSpent_s1 누적 + gachaLog_s1 로그({ts,times,cost})로 별도 기록(기존엔 goldSpent에 섞여 분리 불가). (2) 시너지 LP 증감값을 matches/{key}.synergyEffects.lpDelta 에 기록해 감사·역산 가능. 시너지 골드/강탈은 이미 매치에 per-match 기록됨(파생계산)' },
+  ]},
   { ver: 'v2.43.156', date: '2026-05-29', changes: [
     { tag: 'fix', text: '가챠 뽑기 미리보기 실루엣 복원 — 챔피언 가챠 ×1/×10 이미지가 어떤 챔피언인지 보이던 것을 검은 실루엣으로 되돌림(뽑기 전 미공개). ×10에 "10% 할인" 뱃지 + 500G→450G 취소선 표시(단품 10회 대비 50G 저렴), 실루엣+×10로 무작위 10장 의미 전달' },
   ]},
@@ -19936,6 +19939,7 @@ async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = f
   if (synergyEffect && synergyEffect.sid) {
     const grp = GACHA_SYNERGY_GROUPS.find(g => g.sid === synergyEffect.sid);
     if (grp) {
+      const _gB = gain, _lB = lose; // 시너지 적용 전 스냅샷 (LP 델타 추적용)
       const t = synergyEffect.tier === 3 ? 3 : 2;
       const v = t === 3 ? grp.v3 : grp.v2;
       if (grp.effType === 'win_lp' && won && synergyEffect.procced) {
@@ -19954,6 +19958,11 @@ async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = f
         // procced = 손실 전액 방어 / 실패 = 추가 손실
         if (synergyEffect.procced) lose = 0;
         else lose += (t === 3 ? grp.failV3 : grp.failV2);
+      }
+      // 적용된 순 LP 델타 = (gain 증가) + (lose 감소). 매치에 기록(롤백/감사용)
+      const synLp = (gain - _gB) - (lose - _lB);
+      if (typeof savedMatchKey === 'string' && savedMatchKey) {
+        update(ref(db, 'matches/' + savedMatchKey + '/synergyEffects/' + key), { lpDelta: synLp }).catch(()=>{});
       }
     }
   }
@@ -22328,8 +22337,13 @@ window.doGachaPull = async function(times) {
   }
   try {
     const spentKey = sField('goldSpent');
+    // 가챠 소모 추적 (v2.43.157~) — 롤백/감사용. goldSpent 합산과 별도로 gachaSpent_s1 누적 + 로그 기록
+    const gachaLog = Array.isArray(data.gachaLog_s1) ? data.gachaLog_s1.slice() : [];
+    gachaLog.push({ ts: Date.now(), times, cost });
     await update(ref(db, 'gold/' + key), {
       [spentKey]: (data[spentKey] || 0) + cost,
+      gachaSpent_s1: (data.gachaSpent_s1 || 0) + cost,
+      gachaLog_s1: gachaLog,
       champCards_s1: cards,
       champCardLog_s1: log,
     });
