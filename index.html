@@ -1598,6 +1598,12 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .dex-syn-group-title{font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--text-dim);padding:0 2px 6px;text-transform:uppercase;}
 .syn-row{background:var(--surface);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:10px 12px;margin-bottom:6px;transition:border-color 0.2s;}
 .syn-row.syn-active{border-color:rgba(200,155,60,0.35);background:rgba(200,155,60,0.04);}
+/* 시너지 신규 완성 알림 */
+.nav-tab-gacha{position:relative;}
+.nav-tab-gacha.has-syn-new::after{content:'';position:absolute;top:5px;right:10px;width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 6px #4ade80,0 0 12px rgba(74,222,128,0.7);animation:synPulse 1.4s ease-in-out infinite;}
+.syn-new-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#4ade80;box-shadow:0 0 5px #4ade80;margin-left:5px;vertical-align:middle;animation:synPulse 1.4s ease-in-out infinite;}
+.syn-row.syn-new{border-color:rgba(74,222,128,0.55);box-shadow:0 0 10px rgba(74,222,128,0.22);}
+@keyframes synPulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.45;transform:scale(1.3);}}
 .syn-row-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
 .syn-icon{font-size:16px;flex-shrink:0;width:20px;text-align:center;}
 .syn-info{display:flex;flex-direction:column;gap:1px;min-width:72px;}
@@ -4708,7 +4714,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.161';
+const APP_VERSION = 'v2.43.162';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4717,6 +4723,9 @@ const APP_VERSION = 'v2.43.161';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.162', date: '2026-05-29', changes: [
+    { tag: 'new', text: '시너지 신규 완성 알림 — 멤버를 다 모아 활성화 가능해지면 가챠 네비 탭·컬렉션 탭에 초록 불(배지)이 들어오고, 해당 시너지 행도 글로우. 컬렉션 전체 뷰에서 확인하면 자동 꺼짐(localStorage seen 추적, 2성/3성 각각 알림). 뽑기·합성 직후 즉시 반영' },
+  ]},
   { ver: 'v2.43.161', date: '2026-05-29', changes: [
     { tag: 'improve', text: '시너지 효과 미공개 처리(수집 동기 부여) — 이름·멤버·분류는 노출하되 구체 효과는 "🔒 멤버 전원 모으면 효과 공개"로 가림. 해당 티어(2성/3성) 멤버를 전원 모으면 그 티어 효과가 공개됨. 미리보기 드롭다운·활성 표시 모두 공개 기준 일치' },
   ]},
@@ -17291,6 +17300,7 @@ let _renderShopTimer = null;
 function renderShop() {
   updateLockBanner();
   renderQuickItemBar(); // 팀 결과 퀵 아이템 바도 갱신
+  if (typeof updateGachaNavBadge === 'function') updateGachaNavBadge(); // 시너지 신규 완성 알림 (골드 변동 시 갱신)
   if (_currentTabId !== 'tab-shop') return; // 다른 탭에선 무거운 렌더 skip
   if (_renderShopTimer) return;              // 이미 예약됨
   _renderShopTimer = setTimeout(() => {
@@ -17335,9 +17345,10 @@ function renderGachaTab() {
   noUser.style.display='none'; body.style.display='block';
 
   const totalOwned = GACHA_CHAMPS.filter(c => { const e = gachaGe(c.slug); return e.e1||e.e2||e.e3; }).length;
+  const synNewCount = _newSynergies().length;
   const tabHtml = `<div class="sp-cat-tabs" style="margin-bottom:10px;">
     <button class="sp-cat-tab ${gachaCatTab==='pull'?'active':''}" onclick="window.switchGachaCat('pull')">🎲 뽑기</button>
-    <button class="sp-cat-tab ${gachaCatTab==='collection'?'active':''}" onclick="window.switchGachaCat('collection')">📖 컬렉션 <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-dim)">${totalOwned}/${GACHA_CHAMPS.length}</span></button>
+    <button class="sp-cat-tab ${gachaCatTab==='collection'?'active':''}" onclick="window.switchGachaCat('collection')">📖 컬렉션 <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-dim)">${totalOwned}/${GACHA_CHAMPS.length}</span>${synNewCount>0?'<span class="syn-new-dot"></span>':''}</button>
   </div>` + _activeSynergyBanner();
 
   if (gachaCatTab === 'pull') {
@@ -17375,6 +17386,8 @@ function renderGachaTab() {
   if (gachaStar === 0) {
     // 전체 = 통합 도감(챔프별 최고 티어) + 시너지
     list.innerHTML = tabHtml + filterHtml + renderGachaDex();
+    _markSynergiesSeen();   // 시너지 섹션을 확인했으니 신규 표시 해제
+    updateGachaNavBadge();
     return;
   }
   // 특정 티어 = 해당 티어 카드 그리드 (합성 가능)
@@ -22031,6 +22044,40 @@ function _synTierRevealed(grp, tier) {
   });
 }
 
+// ── 시너지 신규 완성 알림 (localStorage 'seen' 추적) ──
+// 활성화 가능(멤버 전원 보유)해진 시너지를 아직 안 본 것만 '신규'로 표시
+function _activatableSynergies() {
+  const cards = getMyGoldData()?.champCards_s1 || {};
+  const res = [];
+  for (const g of GACHA_SYNERGY_GROUPS) {
+    const all3 = g.members.every(s => ((cards[s]||{}).s3||0) >= 1);
+    const all2 = g.members.every(s => { const c = cards[s]||{}; return (c.s2||0)>=1 || (c.s3||0)>=1; });
+    if (all3) res.push({ sid:g.sid, tier:3 });
+    else if (all2) res.push({ sid:g.sid, tier:2 });
+  }
+  return res;
+}
+function _synSeenKey() { return 'aram_synSeen:' + normName(myName||''); }
+function _synSeen() { try { return JSON.parse(localStorage.getItem(_synSeenKey())||'{}'); } catch(e){ return {}; } }
+function _newSynergies() {
+  if (!myName) return [];
+  const seen = _synSeen();
+  return _activatableSynergies().filter(a => !seen[a.sid+':'+a.tier]);
+}
+function _isSynNew(grp) {
+  const a = _activatableSynergies().find(x => x.sid === grp.sid);
+  return a ? !_synSeen()[a.sid+':'+a.tier] : false;
+}
+function _markSynergiesSeen() {
+  const seen = _synSeen();
+  _activatableSynergies().forEach(a => { seen[a.sid+':'+a.tier] = 1; });
+  try { localStorage.setItem(_synSeenKey(), JSON.stringify(seen)); } catch(e){}
+}
+function updateGachaNavBadge() {
+  const btn = document.querySelector('.nav-tab-gacha');
+  if (btn) btn.classList.toggle('has-syn-new', _newSynergies().length > 0);
+}
+
 // 챔피언 카드 타입 분류 (펫 카드 표시용)
 function GACHA_PET_TYPE(role) {
   if (role === 'tank') return '방어형';
@@ -22234,11 +22281,12 @@ function _renderSynGroup(title, groups, activeSyn) {
       <div class="dex-syn-dd-menu">${ddItems}</div>
     </div>`;
 
-    return `<div class="syn-row${isActive?' syn-active':''}">
+    const isNew = !isActive && _isSynNew(grp);
+    return `<div class="syn-row${isActive?' syn-active':''}${isNew?' syn-new':''}">
       <div class="syn-row-head">
         <span class="syn-icon">${grp.icon}</span>
         <div class="syn-info">
-          <span class="syn-name" style="color:${grp.color}">${grp.name}</span>
+          <span class="syn-name" style="color:${grp.color}">${grp.name}${isNew?'<span class="syn-new-dot"></span>':''}</span>
           <span class="syn-label">${grp.label}</span>
         </div>
         <div class="syn-figs" id="gsy-scene-${grp.sid}">${figRow}</div>
@@ -22406,6 +22454,7 @@ window.doGachaPull = async function(times) {
     renderShop();
     return;
   }
+  if (typeof updateGachaNavBadge === 'function') updateGachaNavBadge(); // 새 시너지 완성 시 즉시 불 들어오게
   if (times === 1) {
     showGachaReveal(results[0], results[0].star);
   } else {
@@ -22429,6 +22478,7 @@ window.doGachaMerge = async function(slug, fromStar) {
     showGoldToast('❌ 합성 실패 — 다시 시도해주세요');
     return;
   }
+  if (typeof updateGachaNavBadge === 'function') updateGachaNavBadge();
   const c = GACHA_CHAMPS.find(c => c.slug === slug);
   showGachaMergeAnim(slug, fromStar, fromStar + 1, c.kr);
 };
