@@ -4718,7 +4718,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.170';
+const APP_VERSION = 'v2.43.171';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4727,6 +4727,9 @@ const APP_VERSION = 'v2.43.170';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.171', date: '2026-05-29', changes: [
+    { tag: 'fix', text: '합성 애니메이션 카드 이미지를 커스텀 아트로 — 합성 결과 카드(mgo-result-img)와 소스 카드가 ddragon 일반 일러스트를 쓰던 문제 수정. 결과=합성 후 등급(gold/prism), 소스=합성 전 등급 커스텀 아트(실패 시 ddragon 폴백). 카드 이미지 전수 검토 완료 — 카드 정체성 이미지는 모두 커스텀, 배경막/실루엣 순환/경기 투표카드만 ddragon(의도)' },
+  ]},
   { ver: 'v2.43.170', date: '2026-05-29', changes: [
     { tag: 'improve', text: '합성 버튼 시인성 개선 — 작고 흐릿하던 버튼(8px 반투명)을 밝은 보라 그라데이션 + 글로우 펄스 + 흰 글씨로 강조. 라벨도 "⬆ N성 합성"으로 명확하게. 합성 가능(3개 보유) 상태가 한눈에 보임' },
   ]},
@@ -22801,13 +22804,14 @@ function showGachaMergeAnim(slug, fromStar, toStar, krName) {
   ov.style.setProperty('--mgo-color', col.color);
   ov.style.setProperty('--mgo-glow', col.glow);
   const fromTc = {1:'#8ab4cc',2:'var(--gold)',3:'var(--purple-light)'};
-  const imgSrc = `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${slug}_0.jpg`;
+  const imgFallback = `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${slug}_0.jpg`;
+  const imgSrc = _gachaPetImg(slug, fromStar); // 소스 카드 = 합성 전 등급 커스텀 아트
   const POS = [{cx:'-118px',cy:'88px',cr:'-18deg'},{cx:'118px',cy:'88px',cr:'18deg'},{cx:'0px',cy:'-124px',cr:'-3deg'}];
   ['mgo-c1','mgo-c2','mgo-c3'].forEach((id,i) => {
     const el = document.getElementById(id);
     el.classList.remove('charge'); el.style.transition = 'none'; el.style.transform = ''; el.style.opacity = '0'; el.style.filter = ''; el.style.boxShadow = ''; el.style.borderColor = 'rgba(255,255,255,0.1)';
     el.style.setProperty('--cx', POS[i].cx); el.style.setProperty('--cy', POS[i].cy); el.style.setProperty('--cr', POS[i].cr);
-    el.querySelector('img').src = imgSrc;
+    const _cimg = el.querySelector('img'); _cimg.onerror = () => { _cimg.onerror = null; _cimg.src = imgFallback; }; _cimg.src = imgSrc;
     const t = document.getElementById(id.replace('mgo-c','mgo-ct'));
     t.textContent = GACHA_STAR_LABEL[fromStar]; t.style.color = fromTc[fromStar];
   });
@@ -22818,7 +22822,9 @@ function showGachaMergeAnim(slug, fromStar, toStar, krName) {
   ['mgo-ring1','mgo-ring2','mgo-ring3'].forEach(id => { const el=document.getElementById(id); el.classList.remove('pop'); void el.offsetWidth; });
   const flash = document.getElementById('mgo-flash'); flash.style.background = col.flash; flash.classList.remove('pop'); void flash.offsetWidth;
   document.getElementById('mgo-particles').innerHTML = '';
-  const ri = document.getElementById('mgo-result-img'); ri.style.display = ''; ri.src = `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${slug}_0.jpg`; ri.onerror = () => { ri.style.display='none'; };
+  const ri = document.getElementById('mgo-result-img'); ri.style.display = '';
+  ri.onerror = () => { ri.onerror = () => { ri.style.display='none'; }; ri.src = imgFallback; };
+  ri.src = _gachaPetImg(slug, toStar); // 결과 카드 = 합성 후 등급 커스텀 아트
   document.getElementById('mgo-result-card').className = 'mgo-result-card' + (toStar===3?' prism':'');
   const rt = document.getElementById('mgo-result-tier'); rt.textContent = GACHA_STAR_LABEL[toStar]; rt.className = `mgo-result-tier s${toStar}`;
   document.getElementById('mgo-champ-name').textContent = krName;
