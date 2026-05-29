@@ -4708,7 +4708,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.160';
+const APP_VERSION = 'v2.43.161';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4717,6 +4717,9 @@ const APP_VERSION = 'v2.43.160';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.161', date: '2026-05-29', changes: [
+    { tag: 'improve', text: '시너지 효과 미공개 처리(수집 동기 부여) — 이름·멤버·분류는 노출하되 구체 효과는 "🔒 멤버 전원 모으면 효과 공개"로 가림. 해당 티어(2성/3성) 멤버를 전원 모으면 그 티어 효과가 공개됨. 미리보기 드롭다운·활성 표시 모두 공개 기준 일치' },
+  ]},
   { ver: 'v2.43.160', date: '2026-05-29', changes: [
     { tag: 'improve', text: '가챠 상단 UI 정리 — 3탭(뽑기/카드/도감)을 2탭(🎲뽑기/📖컬렉션)으로 통합. 카드+도감을 컬렉션 한 탭에 합치고 티어를 작은 필터 칩(전체/◇파편/★★GOLD/★★★PRISM)으로 전환. "전체"=통합 도감+시너지, 티어 선택 시 해당 카드 그리드. 미장착 시 시너지 배너 숨김 → 탭 줄·버튼 수 대폭 감소' },
   ]},
@@ -22018,6 +22021,16 @@ function _synEffTxt(grp, tier) {
   return '';
 }
 
+// 시너지 효과 공개 여부 — 멤버 전원을 해당 티어로 모았을 때만 효과 공개 (수집 동기 부여)
+const SYN_LOCK_TXT = '🔒 멤버 전원 모으면 효과 공개';
+function _synTierRevealed(grp, tier) {
+  const cards = getMyGoldData()?.champCards_s1 || {};
+  return grp.members.every(slug => {
+    const c = cards[slug] || {};
+    return tier === 3 ? (c.s3||0) >= 1 : ((c.s2||0) >= 1 || (c.s3||0) >= 1);
+  });
+}
+
 // 챔피언 카드 타입 분류 (펫 카드 표시용)
 function GACHA_PET_TYPE(role) {
   if (role === 'tank') return '방어형';
@@ -22184,9 +22197,10 @@ function _renderSynGroup(title, groups, activeSyn) {
         <span class="syn-fig-name">${m.hasAny ? m.kr : '???'}</span>
       </div>`).join('');
 
-    // 효과 텍스트
+    // 효과 텍스트 — 활성(=이미 보유)이면 공개. 미보유 미리보기는 해당 티어 전원 모았을 때만 공개
     const effTxt = _synEffTxt(grp, activeTier || 2);
-    const previewEff = _synEffTxt(grp, previewTier);
+    const previewRevealed = previewTier === 3 ? canToggleS3 : canToggleS2;
+    const previewEff = previewRevealed ? _synEffTxt(grp, previewTier) : SYN_LOCK_TXT;
 
     // 토글 버튼
     let toggleHtml = '';
@@ -22265,7 +22279,7 @@ window.switchGachaSynTier = function(sid, star) {
   const grp = GACHA_SYNERGY_GROUPS.find(g=>g.sid===sid);
   if(!grp) return;
   const effTxtEl = document.getElementById(`gsy-efftxt-${sid}`);
-  if(effTxtEl) effTxtEl.textContent = _synEffTxt(grp, star);
+  if(effTxtEl) effTxtEl.textContent = _synTierRevealed(grp, star) ? _synEffTxt(grp, star) : SYN_LOCK_TXT;
 };
 
 window.toggleGachaSynergy = async function(sid, tier) {
