@@ -4737,7 +4737,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.183';
+const APP_VERSION = 'v2.43.184';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4746,8 +4746,11 @@ const APP_VERSION = 'v2.43.183';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.184', date: '2026-05-30', changes: [
+    { tag: 'improve', text: '🏴‍☠️ 해적의 보물 — 잭팟(확률 중첩) 폐기 → 연승 비례 골드로 변경. 발동 확률 안에 또 잭팟 확률을 두면 체감이 모호하다는 피드백 반영. 이제 승리 발동 시 기본 +40/60G + 직전 연승당 +15/20G (상한 +45/60G). 슈리마(LP 연승)의 골드판 — 연승 중일수록 더 많이 받음. 단순·명확. special:reign 의 streak 기록을 win_lp 와 공용' },
+  ]},
   { ver: 'v2.43.183', date: '2026-05-30', changes: [
-    { tag: 'new', text: '🏴‍☠️ 해적의 보물 — 잭팟형 골드 시너지로 재설계. 승리 발동 시 기본 +40/60G에 더해, 15%/20% 확률로 "💰대박 보물" +180/300G 추가. 강탈(남의 골드 뺏기) 완전 폐기 → 전부 시스템 지급이라 PvP 누수·음수 문제 없음. 정산창에 "💰대박!" 표시' },
+    { tag: 'new', text: '🏴‍☠️ 해적의 보물 — 골드 시너지로 재설계 (잭팟형, v184에서 연승형으로 재변경). 강탈(남의 골드 뺏기) 완전 폐기 → 전부 시스템 지급이라 PvP 누수·음수 문제 없음' },
     { tag: 'improve', text: '골드 시너지 상향 (실제 경제 규모 40만G 대비 시너지 골드 비중이 미미해 안전 — 데이터 확인 후 조정). 신성한 개입(서폿) 25/40 → 40/60G. 강철 심장(탱커) 위로금 15/25 → 30/50G. 강탈(steal) 시너지·레거시 코드 일괄 제거 (calcGoldFromMatches·정산창·매치 저장 빌더 3곳, 과거 매치 steal 데이터 0건 확인 후 안전 삭제)' },
   ]},
   { ver: 'v2.43.182', date: '2026-05-30', changes: [
@@ -11136,12 +11139,9 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
             _relevant = isWin;
             if (_proc && isWin && _se.goldDelta) { _fired = true; _fx = `+${_se.goldDelta}G`; }
             break;
-          case 'gold_jackpot':
+          case 'gold_streak':
             _relevant = isWin;
-            if (_proc && isWin && _se.goldDelta) {
-              _fired = true;
-              _fx = _se.jackpot ? `💰대박! +${_se.goldDelta}G` : `+${_se.goldDelta}G`;
-            }
+            if (_proc && isWin && _se.goldDelta) { _fired = true; _fx = `+${_se.goldDelta}G`; }
             break;
           case 'steal': { // 과거 매치 호환 (신규 비활성 — 해적의 보물로 교체됨)
             _relevant = isWin;
@@ -11662,15 +11662,14 @@ window.saveMatch = async function() {
         // 골드 결과 (calcGoldFromMatches가 읽음 — 전부 시스템 지급, 남의 골드 강탈 X)
         if (procced && won && grp.effType === 'win_gold') eff.goldDelta = v;
         if (procced && !won && grp.special === 'unbreakable') eff.goldDelta = (tier===3?grp.goldV3:grp.goldV2);
-        // gold_jackpot (해적의 보물) — 승리 발동 시 기본 골드 + 낮은 확률로 대박 잭팟 (v2.43.183~)
-        if (procced && won && grp.effType === 'gold_jackpot') {
-          let g = v; // 기본 골드
-          const jc = tier===3 ? grp.jackpotChance3 : grp.jackpotChance2;
-          if (Math.random() < jc) { g += (tier===3 ? grp.jackpotG3 : grp.jackpotG2); eff.jackpot = true; }
-          eff.goldDelta = g;
-        }
-        // 군림 연승 수 (저장 직전 = 이번 매치 직전까지)
+        // 군림 연승 수 (저장 직전 = 이번 매치 직전까지) — win_lp(슈리마)·gold_streak(해적의 보물) 공용
         if (grp.special === 'reign') eff.streak = _currentWinStreak(p.name);
+        // gold_streak (해적의 보물) — 승리 발동 시 기본 골드 + 직전 연승 비례 추가 (상한) (v2.43.184~)
+        if (procced && won && grp.effType === 'gold_streak') {
+          const step = tier===3 ? grp.goldStreakStep3 : grp.goldStreakStep2;
+          const smax = tier===3 ? grp.goldStreakMax3 : grp.goldStreakMax2;
+          eff.goldDelta = v + Math.min(smax, (eff.streak || 0) * step);
+        }
         _synergyEffects[pNorm] = eff;
       }
     }
@@ -22184,10 +22183,10 @@ function _synEffTxt(grp, tier) {
       return `패배 시 ${proc}% → LP +${v} 방어`;
     case 'win_gold':
       return `승리 시 ${proc}% → +${v}G`;
-    case 'gold_jackpot': {
-      const jc = tier === 3 ? grp.jackpotChance3 : grp.jackpotChance2;
-      const jg = tier === 3 ? grp.jackpotG3 : grp.jackpotG2;
-      return `승리 시 ${proc}% → +${v}G · ${Math.round(jc*100)}% 확률로 💰대박 +${jg}G`;
+    case 'gold_streak': {
+      const step = tier === 3 ? grp.goldStreakStep3 : grp.goldStreakStep2;
+      const smax = tier === 3 ? grp.goldStreakMax3 : grp.goldStreakMax2;
+      return `승리 시 ${proc}% → +${v}G (+연승당 ${step}G, 최대 +${smax}G)`;
     }
     case 'steal':
       return `승리 시 ${proc}% → 패배자 1인당 ${v}G 강탈 (제로섬)`;
@@ -22274,11 +22273,11 @@ const GACHA_SYNERGY_GROUPS = [
    special:'unbreakable', goldV2:30, goldV3:50},
   {sid:'demacia',  name:'여명의 의지', label:'데마시아', icon:'☀️',  color:'#ffeebb', category:'faction', archetype:'def',
    members:['Morgana','Poppy','Vayne'], effType:'lp_block', v2:1, v3:2},
-  // ── 💚 지원형 — v2.43.183 골드 상향 + 잭팟형 재설계 ──
-  // 해적의 보물: 승리 시 기본 골드 + 낮은 확률로 "대박 보물" 잭팟 (강탈 X, 시스템 지급)
+  // ── 💚 지원형 — v2.43.184 연승 비례 골드 ──
+  // 해적의 보물: 승리 시 기본 골드 + 직전 연승당 추가 골드 (상한). 강탈 X, 시스템 지급
   {sid:'bilgewater',name:'해적의 보물',  label:'빌지워터', icon:'🏴‍☠️', color:'#55ccaa', category:'faction', archetype:'sup',
-   members:['Fizz','Gangplank'], effType:'gold_jackpot', v2:40, v3:60,
-   jackpotChance2:0.15, jackpotChance3:0.20, jackpotG2:180, jackpotG3:300},
+   members:['Fizz','Gangplank'], effType:'gold_streak', v2:40, v3:60,
+   special:'reign', goldStreakStep2:15, goldStreakStep3:20, goldStreakMax2:45, goldStreakMax3:60},
   {sid:'support',  name:'신성한 개입', label:'서폿',     icon:'💚',  color:'#88ffcc', category:'role',    archetype:'sup',
    members:['Lulu','Morgana'], effType:'win_gold', v2:40, v3:60},
   // ── 💫 리스크형 ──
