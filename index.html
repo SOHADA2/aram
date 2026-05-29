@@ -1453,6 +1453,8 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .lh-tier-help.show{display:block;}
 .lh-tier-attempts{font-size:10px;color:rgba(255,255,255,0.38);line-height:1.5;text-align:center;border-top:1px solid rgba(255,255,255,0.06);padding-top:5px;margin-top:1px;}
 .lh-tier-attempts b{color:rgba(255,255,255,0.72);font-weight:600;}
+/* v2.43.194 무료 복권권 배지 */
+.lh-free-badge{position:absolute;top:6px;left:6px;font-size:9px;font-weight:800;letter-spacing:0.2px;padding:2px 6px;border-radius:8px;background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;box-shadow:0 0 8px rgba(34,197,94,0.5);}
 /* 복권 로그 모달 */
 .lot-log-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9999;display:flex;align-items:flex-end;justify-content:center;}
 .lot-log-sheet{background:#131320;border-radius:18px 18px 0 0;width:100%;max-width:620px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;}
@@ -4751,7 +4753,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.193';
+const APP_VERSION = 'v2.43.194';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4760,6 +4762,9 @@ const APP_VERSION = 'v2.43.193';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.194', date: '2026-05-30', changes: [
+    { tag: 'new', text: '🎟 무료 복권 이용권 시스템 + 롤백 보상 지급 — 복권 롤백으로 재미를 못 본 11명에게 "돌린 만큼" 무료권 지급(골드 직접 지급 X → 인플레 최소화, 음수 EV 복권으로 환원). freeScratch_s1 {티어:장수}. 복권 구매 시 해당 티어 무료권 있으면 골드 차감 없이 사용(당첨금은 순이득). Hub 티어 카드에 🎟 무료권 N장 배지 + "무료권 사용" 표시. 누진 감소 곡선(많이 긁은 사람일수록 한계 보상↓)으로 산정 — 럼블 48·맹독 38·신규 25장 등 총 153장. 무료권 긁기 취소 시 반환' },
+  ]},
   { ver: 'v2.43.193', date: '2026-05-30', changes: [
     { tag: 'improve', text: 'Hub 시도 횟수·최다 긁은 사람 표시 0부터 새 시작 — 재오픈(2026-05-30) 이후 기록만 집계(SCRATCH_REOPEN_TS). 이전 긁은 기록(lotteryHistory)은 그대로 보존 → 롤백 보상("돌린 만큼" 지급) 산정에 사용. 콘솔 scratchRollbackStats() 로 재오픈 전 유저별 시도 횟수·추정 지출 조회 가능' },
   ]},
@@ -18412,13 +18417,14 @@ window.openLotteryHub = function() {
   const myGold = getMyGold();
   const hasCoin = myItems.some(it => it.id === 'scratch_coin');
   const hasKey  = myItems.some(it => it.id === 'scratch_key');
+  const myFreeTickets = data?.[sField('freeScratch')] || {}; // 무료 복권권 (v2.43.194~) {0,1,2}
   const TIER_META = [
     { id:'scratch_normal',   name:'일반 복권',    price:70,  color:'#f59e0b', emoji:'🎟',
       desc:'4칸 · 11심볼 · 2개 매칭 시 당첨', tierIdx:0 },
     { id:'scratch_advanced', name:'고급 복권',    price:200, color:'#a78bfa', emoji:'🎫',
-      desc:'6칸 · 3개 매칭 시 당첨 · 해골 평균 1개 (-150G)', tierIdx:1 },
+      desc:'6칸 · 3개 매칭 시 당첨 · 해골 평균 1개 (-10G)', tierIdx:1 },
     { id:'scratch_premium',  name:'프리미엄 복권', price:400, color:'#e879f9', emoji:'💎',
-      desc:'7칸 · 3개 매칭 시 당첨 · 해골 평균 2개 (-250G)', tierIdx:2 },
+      desc:'7칸 · 3개 매칭 시 당첨 · 해골 평균 2개 (-10G)', tierIdx:2 },
   ];
   const TOOL_META = [
     { id:'scratch_coin', name:'긁기 동전', price:200, emoji:'🪙', color:'#94a3b8',
@@ -18440,7 +18446,8 @@ window.openLotteryHub = function() {
   });
   const tierCards = TIER_META.map(t => {
     const isTierLocked = SCRATCH_NORMAL_LOCKED && t.tierIdx === 0;
-    const canBuy = !isTierLocked && myGold >= t.price;
+    const freeCnt = myFreeTickets[t.tierIdx] || 0; // 이 티어 무료권 수
+    const canBuy = !isTierLocked && (freeCnt > 0 || myGold >= t.price);
     const tierDef = SCRATCH_TIERS[t.tierIdx];
     // v2.43.109~ appear (출연 확률) 기반 표시
     // v2.43.124~ 해골도 확률 표시 — appear 비례 % 계산
@@ -18481,9 +18488,10 @@ window.openLotteryHub = function() {
       <div class="lh-tier-header-row">
         <div class="lh-tier-emoji">${t.emoji}</div>
       </div>
+      ${freeCnt > 0 ? `<div class="lh-free-badge">🎟 무료권 ${freeCnt}장</div>` : ''}
       <div class="lh-tier-name">${escHtml(t.name)}</div>
       <div class="lh-tier-desc">${escHtml(t.desc)}</div>
-      <div class="lh-tier-price">${isTierLocked ? `<span style="color:#f87171">⚙️ 밸런스 조정 중</span>` : canBuy ? `🪙 ${t.price}G` : `<span style="color:#888">🪙 ${t.price}G (부족)</span>`}</div>
+      <div class="lh-tier-price">${isTierLocked ? `<span style="color:#f87171">⚙️ 밸런스 조정 중</span>` : freeCnt > 0 ? `<span style="color:#4ade80;font-weight:800;">🎟 무료권 사용</span>` : canBuy ? `🪙 ${t.price}G` : `<span style="color:#888">🪙 ${t.price}G (부족)</span>`}</div>
       ${attemptHtml}
       <div class="lh-tier-help">
         ${descRows}
@@ -18585,7 +18593,7 @@ window._lhBuyTool = async function(itemId) {
 function showScratchModal(scratchResult, remainingGold, opts = {}) {
   const { slots, win, tier: scratchTier } = scratchResult;
   const { testMode = false, testStats = null, onNext = null,
-          tierDef = null, toolParams = null, onComplete = null, onCancel = null } = opts;
+          tierDef = null, toolParams = null, onComplete = null, onCancel = null, freeTicket = false } = opts;
 
   const activeTier = tierDef || SCRATCH_TIERS[0];
   const totalCells = slots.length;
@@ -19257,7 +19265,10 @@ async function _buyItemImpl(itemId) {
     const tierDef = SCRATCH_TIERS.find(t => t.id === item.id);
     if (!tierDef) return;
     const tierPrice = tierDef.price; // 단일 출처
-    if (currentGold < tierPrice) {
+    // 무료 복권 이용권 (v2.43.194~) — 해당 티어 무료권 보유 시 골드 차감 없이 사용
+    const freeTickets = data[sField('freeScratch')] || {};
+    const useFree = (freeTickets[tierDef.idx] || 0) > 0;
+    if (!useFree && currentGold < tierPrice) {
       showGoldToast(`🪙 골드가 부족해요! (보유: ${currentGold} / 필요: ${tierPrice})`);
       return;
     }
@@ -19271,6 +19282,32 @@ async function _buyItemImpl(itemId) {
     if (SCRATCH_LOTTERY_TESTMODE) {
       const result = rollScratch(tierDef.idx);
       showScratchModal(result, currentGold, { tierDef, toolParams, onComplete: async () => {} });
+      return;
+    }
+    if (useFree) {
+      // 무료권 사용: 골드 차감 X, 티켓 1장 소모. 당첨금은 순이득(goldSpent 안 늘어남)
+      const ft = { ...(data[sField('freeScratch')] || {}) };
+      ft[tierDef.idx] = Math.max(0, (ft[tierDef.idx] || 0) - 1);
+      await update(ref(db,'gold/'+key), { [sField('freeScratch')]: ft });
+      const result = rollScratch(tierDef.idx);
+      const onComplete = async ({ winGold, skullPenalty }) => {
+        const latestData = getMyGoldData();
+        const lotteryHistory = [...(latestData?.lotteryHistory || []), {
+          ts: Date.now(), date: getLocalDateKey(), scratch: true, free: true,
+          tierIdx: tierDef.idx, win: result.win?.id ?? null,
+          gold: winGold - skullPenalty,
+        }];
+        await update(ref(db,'gold/'+key), { lotteryHistory });
+      };
+      const onCancel = async () => {
+        // 무료권 환불 (한 획도 안 긁고 취소)
+        const latestData = getMyGoldData();
+        const ft2 = { ...(latestData?.[sField('freeScratch')] || {}) };
+        ft2[tierDef.idx] = (ft2[tierDef.idx] || 0) + 1;
+        await update(ref(db,'gold/'+key), { [sField('freeScratch')]: ft2 });
+        showS1Toast?.('↩️ 무료권이 반환됐어요');
+      };
+      showScratchModal(result, currentGold, { tierDef, toolParams, onComplete, onCancel, freeTicket: true });
       return;
     }
     const newGoldSpent = (data[spentKey] ?? 0) + tierPrice;
