@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.43.151
+- 현재 버전: v2.43.174
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -669,7 +669,27 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.43.x (2026-05-28) — 스크래치 복권 정식 오픈 + 전면 롤백 ← 최신
+### v2.43.152~174 (2026-05-29) — 챔피언 가챠 시스템 가동 + UI 다듬기 ← 최신
+
+이날 단일 세션에서 가챠를 "껍데기만 있던 상태"에서 실제 작동까지 끌어올리고 UI를 대폭 다듬음.
+
+**핵심 — 가챠 시너지 정식 가동 (v152~153)**
+- `GACHA_SYNERGY_GROUPS` 11개를 **4분류(공격/방어/지원/리스크)** 재편. effType: win_lp/lp_block/win_gold/steal/risk_win/risk_block. 2성/3성 효과값 차등(v2/v3), 발동확률 `SYN_PROC`{2:30,3:50}
+- 특수: 군림(연승)·불굴(방어+위로금)·약탈(상대 골드 강탈, 제로섬)·유레카/공허(반전 도박)
+- **뽑기/합성 스텁 해제** (doGachaPull 50G/450G, doGachaMerge 3개→상위)
+- 경기 결과 연결: saveMatch에서 시너지 발동 1회 롤 → `matches/{key}.synergyEffects` 기록(보유검증·도박권억제·군림 연승 스냅샷). `s1ApplyMatchResult`가 LP 적용(정규전 한정), `calcGoldFromMatches`가 골드/강탈 정산
+- 활성 시너지 = `gold/{key}.activeSynergy_s1={sid,tier}`. 카드: `champCards_s1[slug]={s1,s2,s3}`, 도감 `champCardLog_s1`
+
+**추적성 (v157, 롤백 대비)**: `gachaSpent_s1`+`gachaLog_s1`(뽑기 소모), `synergyEffects.lpDelta`(시너지 LP), 시너지 골드/강탈은 매치에 per-match 기록
+
+**UI 다듬기 (v155~174)**: 2탭(🎲뽑기/📖컬렉션), 컬렉션 등급탭(◇파편/★★2성/★★★3성), 시너지 신규완성 알림(네비 초록배지+localStorage seen), 시너지 효과 미공개(전원 모으면 공개), 활성화 직관 버튼(드롭다운 제거), 카드 상세 = 서사 글귀(`GACHA_CHAMP_LORE` b[티어별]+모스트 「{p}」 실시간), 미보유 카드도 클릭 가능, 합성 버튼 톤·하단 이동, 대기화면/정산창 시너지 표시
+- reveal/카드 이미지 = 티어별 커스텀 아트 `assets/pets/{slug}/{silver|gold|prism}/default.png` (전 18챔프 존재). 배경막·고속실루엣·경기투표카드만 ddragon(의도)
+
+**⚠️ v166 치명 사고 + 교훈**: v165 CHANGELOG 편집 시 v164 항목 `{ver,changes:[}` 래퍼를 빠뜨려 **인라인 스크립트 전체 SyntaxError → 사이트 먹통**(연결중 멈춤·테스트FAB노출·버튼 동작X). 원인이 캐시인 줄 알고 헤맴. **교훈: `node --check`를 `<script type="module">`뿐 아니라 모든 `<script>` 블록(CHANGELOG가 든 인라인 포함)에 돌릴 것.** 검증 스니펫: `const re=/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g`
+
+**미검증**: 가챠 LP/골드 경로 실경기 테스트는 아직 (node --check 구문만). 복권은 여전히 `SCRATCH_LOTTERY_LOCKED=true` 잠금.
+
+### v2.43.x (2026-05-28) — 스크래치 복권 정식 오픈 + 전면 롤백
 
 오전~오후: 다른 컴퓨터에서 v2.43.125~146 진행 (프리미엄 셀 디자인·Hub UX·정식 오픈·가격/잭팟 재조정·구당첨금 소급 회수).
 저녁: 인플레 문제로 전체 잠금 → 전 사용자 완전 pre-v135 상태 롤백 (v2.43.147~151).
