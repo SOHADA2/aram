@@ -4708,7 +4708,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.153';
+const APP_VERSION = 'v2.43.154';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4717,6 +4717,11 @@ const APP_VERSION = 'v2.43.153';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.154', date: '2026-05-29', changes: [
+    { tag: 'new', text: '가챠 시너지 장착 상태 배너 — 가챠 전 탭(뽑기/카드/도감) 상단에 "장착 중 · [시너지] ✕해제" 표시. 미장착/멤버 미보유 시 안내. 어디서든 현재 장착 시너지 한눈에 확인·해제' },
+    { tag: 'fix', text: '시너지 혼합 티어 잠금 버그 수정 — 멤버 일부를 3성 합성(2성 카드 소진)하면 2성·3성 시너지 둘 다 못 켜지던 사각지대. 2성 조건을 "2성 이상 보유(3성 포함)"로 통일(도감·토글검증·저장 빌더 3곳)' },
+    { tag: 'fix', text: '시너지 토글 후 화면 미갱신 수정 — renderShop(다른 탭 가드) → renderGachaTab 호출. 또 activeSynergy 저장을 set(전체 덮어쓰기) → update(해당 필드만)로 변경해 데이터 유실 위험 제거' },
+  ]},
   { ver: 'v2.43.153', date: '2026-05-29', changes: [
     { tag: 'new', text: '챔피언 가챠 정식 가동 — 뽑기(50G/450G)·합성 활성화. 시너지가 실제 경기 LP·골드에 반영됨. 멤버 전원 보유 시 활성(2성 30%/3성 50% 발동), 한 번에 1개, 승급전·배치 제외, 도박권 사용 시 억제. 시너지 발동은 경기 저장 시 1회 롤해 매치에 기록(재계산 시 고정)' },
     { tag: 'new', text: '시너지 4분류 — ⚔️공격형(승리 LP+), 🛡️방어형(패배 LP방어+위로금), 💚지원형(승리 골드/제로섬 강탈), 💫리스크형(반전 도박). 특수: 군림(연승 가속)·불굴(LP방어+위로금)·약탈(상대 골드 강탈)·유레카(고위험)·공허(전액방어 도박)' },
@@ -11424,7 +11429,7 @@ window.saveMatch = async function() {
         const cards = gdata.champCards_s1 || {};
         const owns = grp.members.every(slug => {
           const c = cards[slug] || {};
-          return tier === 3 ? (c.s3||0)>=1 : (c.s2||0)>=1;
+          return tier === 3 ? (c.s3||0)>=1 : ((c.s2||0)>=1 || (c.s3||0)>=1);
         });
         if (!owns) continue;
         // 도박권 활성 시 시너지 억제
@@ -17217,6 +17222,34 @@ function renderShop() {
   }, 50);
 }
 
+// 현재 장착 시너지 배너 (가챠 전 탭 공통 헤더) — 장착/미장착/멤버미보유 명확 표시
+function _activeSynergyBanner() {
+  const data = getMyGoldData();
+  const act = data?.[sField('activeSynergy')] || null;
+  const base = 'display:flex;align-items:center;gap:10px;padding:9px 12px;margin-bottom:10px;border-radius:9px;font-size:12px;';
+  if (!act || !act.sid) {
+    return `<div style="${base}background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.16);color:var(--text-dim);">⚡ 장착된 시너지 없음 — 도감 탭에서 시너지를 장착하세요</div>`;
+  }
+  const grp = GACHA_SYNERGY_GROUPS.find(g => g.sid === act.sid);
+  if (!grp) return '';
+  const tier = act.tier === 3 ? 3 : 2;
+  // 멤버 보유 검증 (유효하지 않으면 경고)
+  const cards = data.champCards_s1 || {};
+  const owned = grp.members.every(slug => {
+    const c = cards[slug] || {};
+    return tier === 3 ? (c.s3||0)>=1 : ((c.s2||0)>=1 || (c.s3||0)>=1);
+  });
+  const warn = owned ? '' : `<span style="color:#ffb86b;font-size:10px;font-weight:700;">⚠ 멤버 미보유 — 효과 미적용</span>`;
+  return `<div style="${base}background:${grp.color}14;border:1px solid ${grp.color}55;">
+    <span style="font-size:20px;">${grp.icon}</span>
+    <div style="display:flex;flex-direction:column;gap:1px;flex:1;min-width:0;">
+      <span style="font-weight:800;color:${grp.color};">장착 중 · ${grp.name} <span style="font-size:10px;opacity:0.85;">${tier}성</span> ${warn}</span>
+      <span style="font-size:10.5px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_synEffTxt(grp, tier)}</span>
+    </div>
+    <button onclick="window.toggleGachaSynergy('${grp.sid}',${tier})" style="background:rgba(255,80,80,0.14);border:1px solid rgba(255,120,120,0.4);color:#ff9b9b;border-radius:7px;padding:5px 11px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">✕ 해제</button>
+  </div>`;
+}
+
 function renderGachaTab() {
   if (_currentTabId !== 'tab-gacha') return;
   const noUser = document.getElementById('gacha-no-user');
@@ -17231,7 +17264,7 @@ function renderGachaTab() {
     <button class="sp-cat-tab ${gachaCatTab==='pull'?'active':''}" onclick="window.switchGachaCat('pull')">뽑기</button>
     <button class="sp-cat-tab ${gachaCatTab==='card'?'active':''}" onclick="window.switchGachaCat('card')">카드</button>
     <button class="sp-cat-tab ${gachaCatTab==='dex'?'active':''}" onclick="window.switchGachaCat('dex')">도감 <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-dim)">${totalOwned}/${GACHA_CHAMPS.length}</span></button>
-  </div>`;
+  </div>` + _activeSynergyBanner();
 
   if (gachaCatTab === 'pull') {
     list.innerHTML = tabHtml + `
@@ -22045,7 +22078,7 @@ function _renderSynGroup(title, groups, activeSyn) {
     // 각 멤버별 보유 현황
     const memberStatus = members.map(({slug, kr}) => {
       const p = gachaGp(slug);
-      const hasS2 = (p.s2||0) >= 1, hasS3 = (p.s3||0) >= 1;
+      const hasS3 = (p.s3||0) >= 1, hasS2 = (p.s2||0) >= 1 || hasS3; // 2성 = 2성 이상 보유(3성 포함)
       const hasAny = (p.s1||0)>0 || hasS2 || hasS3;
       const tier = hasS3 ? 3 : hasS2 ? 2 : hasAny ? 1 : 0;
       const src = _gachaLoadingImg(slug);
@@ -22163,13 +22196,14 @@ window.toggleGachaSynergy = async function(sid, tier) {
     const cards = data.champCards_s1 || {};
     const ok = grp.members.every(slug => {
       const p = cards[slug] || {};
-      return tier === 3 ? (p.s3||0) >= 1 : (p.s2||0) >= 1;
+      return tier === 3 ? (p.s3||0) >= 1 : ((p.s2||0) >= 1 || (p.s3||0) >= 1);
     });
     if (!ok) { showGoldToast(`🔒 ${grp.name} — 멤버 ${tier}성 카드를 모두 모아야 활성화돼요`); return; }
   }
   const newVal = turningOff ? null : {sid, tier};
-  await set(ref(db, 'gold/' + key), {...data, [sField('activeSynergy')]: newVal});
-  renderShop();
+  // update 사용 (set 전체 덮어쓰기 회피) — null 이면 필드 삭제(해제)
+  await update(ref(db, 'gold/' + key), { [sField('activeSynergy')]: newVal });
+  renderGachaTab();
 };
 document.addEventListener('click', e => {
   if(!e.target.closest('.dex-syn-dd'))
