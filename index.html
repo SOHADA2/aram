@@ -1520,7 +1520,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .pc-pet-img{max-width:100%;max-height:100%;object-fit:contain;filter:drop-shadow(0 4px 16px rgba(0,0,0,0.9));}
 .pet-card.locked .pc-pet-img{filter:brightness(0) opacity(0.18);}
 .pc-bottom{position:relative;z-index:2;padding:5px 10px 11px;display:flex;flex-direction:column;gap:2px;}
-.pc-name{font-size:13px;font-weight:700;color:#fff;text-shadow:0 1px 7px rgba(0,0,0,0.95);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;}
+.pc-name{font-size:clamp(10px,2.7vw,13px);font-weight:700;color:#fff;text-shadow:0 1px 7px rgba(0,0,0,0.95);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;}
 .pet-card.locked .pc-name{color:rgba(255,255,255,0.16);}
 .pc-role{font-size:8.5px;color:rgba(255,255,255,0.4);letter-spacing:0.8px;text-shadow:0 1px 3px rgba(0,0,0,0.85);}
 .pc-stars{font-size:11px;letter-spacing:2.5px;line-height:1;margin-top:3px;text-shadow:0 1px 4px rgba(0,0,0,0.9);}
@@ -4716,7 +4716,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.167';
+const APP_VERSION = 'v2.43.168';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4725,6 +4725,9 @@ const APP_VERSION = 'v2.43.167';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.168', date: '2026-05-29', changes: [
+    { tag: 'improve', text: '컬렉션 도감 개편 — 최고등급만 보이던 통합 그리드 제거, 등급 탭(◇파편/★★2성/★★★3성)으로 각 등급의 18챔프를 깔끔한 그리드(정렬 고정)로 표시. 시너지 섹션은 항상 아래 노출. 모바일 챔피언 이름 잘림 수정(폰트 반응형 clamp)' },
+  ]},
   { ver: 'v2.43.167', date: '2026-05-29', changes: [
     { tag: 'improve', text: '도감 시너지 멤버 아이콘을 보유 티어별 커스텀 아트로 — ddragon 일반 일러스트 대신 2성 gold / 3성 prism / 그 외 silver 아트 표시(실패 시 ddragon 폴백). 미보유 멤버는 기존처럼 실루엣' },
   ]},
@@ -17393,29 +17396,23 @@ function renderGachaTab() {
     return;
   }
   stopGachaPreview();
-  // ── 컬렉션 탭 (카드+도감 통합) — 티어 필터 칩: 전체(통합 도감+시너지) / 파편 / GOLD / PRISM ──
-  const _filt = [[0,'전체',''],[1,'◇ 파편','#bcd7e8'],[2,'★★ GOLD','#e8b93c'],[3,'★★★ PRISM','#d49bff']];
-  const filterHtml = `<div style="display:flex;gap:6px;margin-bottom:10px;">` + _filt.map(([v,l,col])=>{
+  // ── 컬렉션 탭 — 등급 탭(파편/2성/3성)으로 각 등급의 챔프 그리드 + 시너지 섹션(항상 표시) ──
+  if (![1,2,3].includes(gachaStar)) gachaStar = 1; // 전체(통합) 뷰 제거 → 기본 파편
+  const _tiers = [[1,'◇ 파편','#bcd7e8'],[2,'★★ 2성','#e8b93c'],[3,'★★★ 3성','#d49bff']];
+  const tierTabs = `<div style="display:flex;gap:6px;margin-bottom:10px;">` + _tiers.map(([v,l,col])=>{
     const on = gachaStar===v;
-    return `<button onclick="window.switchGachaStar(${v})" style="flex:1;padding:6px 4px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;border:1px solid ${on?'rgba(200,168,75,0.55)':'rgba(255,255,255,0.1)'};background:${on?'rgba(200,168,75,0.16)':'rgba(255,255,255,0.03)'};color:${on?(col||'var(--gold-light,#e8c95a)'):'var(--text-dim,#9aa0b4)'};">${l}</button>`;
+    return `<button onclick="window.switchGachaStar(${v})" style="flex:1;padding:7px 4px;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;border:1px solid ${on?col+'88':'rgba(255,255,255,0.1)'};background:${on?col+'22':'rgba(255,255,255,0.03)'};color:${on?col:'var(--text-dim,#9aa0b4)'};">${l}</button>`;
   }).join('') + `</div>`;
-
-  if (gachaStar === 0) {
-    // 전체 = 통합 도감(챔프별 최고 티어) + 시너지
-    list.innerHTML = tabHtml + filterHtml + renderGachaDex();
-    _markSynergiesSeen();   // 시너지 섹션을 확인했으니 신규 표시 해제
-    updateGachaNavBadge();
-    return;
-  }
-  // 특정 티어 = 해당 티어 카드 그리드 (합성 가능)
   const ownedCount = GACHA_CHAMPS.filter(({slug})=>(gachaGp(slug)[`s${gachaStar}`]||0)>0).length;
   const cardsHtml = GACHA_CHAMPS.map(({slug,kr,role},idx) => _gachaCardHtml(slug,kr,role,gachaStar,idx)).join('');
-  list.innerHTML = tabHtml + filterHtml + `
-    <div class="col-count-row" style="margin-top:4px;">
+  list.innerHTML = tabHtml + tierTabs + `
+    <div class="col-count-row" style="margin-top:2px;">
       <span style="font-size:11px;color:var(--text-dim);">보유 카드</span>
       <span class="col-count">${ownedCount} / ${GACHA_CHAMPS.length}</span>
     </div>
-    <div class="pet-grid">${cardsHtml}</div>`;
+    <div class="pet-grid">${cardsHtml}</div>` + renderGachaDex();
+  _markSynergiesSeen();   // 시너지 섹션을 확인했으니 신규 표시 해제
+  updateGachaNavBadge();
 }
 
 function _renderShopImmediate() {
@@ -22199,38 +22196,15 @@ function _gachaDexFigure(slug, kr, topStar) {
   </div>`;
 }
 
+// 시너지 섹션만 렌더 (수집 도감 그리드는 등급 탭의 카드 그리드가 담당, v2.43.168~)
 function renderGachaDex() {
-  // 챔프별 최고 획득 티어로 통합 (도감 = ever obtained 기준). 티어별 상세는 '카드' 탭에서 확인
-  let cP=0, cG=0, cR=0; // 파편(1성↑)·GOLD(2성↑)·PRISM(3성) 보유 챔프 수
-  const figures = GACHA_CHAMPS.map(({slug,kr}) => {
-    const e = gachaGe(slug), p = gachaGp(slug);
-    const has1 = e.e1 || (p.s1||0)>0;
-    const has2 = e.e2 || (p.s2||0)>0;
-    const has3 = e.e3 || (p.s3||0)>0;
-    if (has1||has2||has3) cP++;
-    if (has2||has3) cG++;
-    if (has3) cR++;
-    const top = has3 ? 3 : has2 ? 2 : has1 ? 1 : 0;
-    return _gachaDexFigure(slug, kr, top);
-  }).join('');
-  const totalObtained = cP;
-  const tierHtml = `<div class="dex-section">
-    <div class="dex-sec-head t3">
-      <span class="dex-sec-title">수집 도감</span>
-      <span class="dex-sec-count">◇ ${cP} · <span style="color:#e8b93c">★★ ${cG}</span> · <span style="color:#d49bff">★★★ ${cR}</span> / ${GACHA_CHAMPS.length}</span>
-    </div>
-    <div class="dex-scene">${figures}</div>
-  </div>`;
   const activeSyn = getMyGoldData()?.[sField('activeSynergy')] || null; // {sid, tier}
   const synHtml =
     _renderSynGroup('⚔️ 공격형', GACHA_SYNERGY_GROUPS.filter(g => g.archetype === 'atk'), activeSyn) +
     _renderSynGroup('🛡️ 방어형', GACHA_SYNERGY_GROUPS.filter(g => g.archetype === 'def'), activeSyn) +
     _renderSynGroup('💚 지원형', GACHA_SYNERGY_GROUPS.filter(g => g.archetype === 'sup'), activeSyn) +
     _renderSynGroup('💫 리스크형', GACHA_SYNERGY_GROUPS.filter(g => g.archetype === 'risk'), activeSyn);
-  return `<div class="dex-count-row">
-    <span style="font-size:11px;color:var(--text-dim);">발견한 챔피언</span>
-    <span class="dex-count">${totalObtained} / ${GACHA_CHAMPS.length}</span>
-  </div>` + tierHtml + `<div class="dex-cat-sep">◈ 시너지</div>` + synHtml;
+  return `<div class="dex-cat-sep" style="margin-top:14px;">◈ 시너지</div>` + synHtml;
 }
 
 function _renderSynGroup(title, groups, activeSyn) {
@@ -22377,7 +22351,7 @@ document.addEventListener('click', e => {
 });
 
 let gachaCatTab = 'pull';
-let gachaStar = 0; // 컬렉션 필터: 0=전체(통합 도감+시너지) / 1·2·3=티어별 카드
+let gachaStar = 1; // 컬렉션 등급 탭: 1=파편 / 2=2성 / 3=3성
 let _gachaPreviewIdx = 0;
 let _gachaPreviewTimer = null;
 let _gRvPending = null;
