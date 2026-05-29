@@ -4737,7 +4737,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.184';
+const APP_VERSION = 'v2.43.185';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4746,6 +4746,9 @@ const APP_VERSION = 'v2.43.184';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.185', date: '2026-05-30', changes: [
+    { tag: 'new', text: '⚔️ 공격형 시너지 역할별 차별화 — 기존 전사·원딜·암살자가 효과가 똑같아 고를 이유가 없던 문제. 이제 브릿지 participants 스탯으로 "조건 달성 시 발동". 검을 뽑아라(전사)=조건 없는 안정형 LP +2/3. 탄환 세례(원딜)=딜량 35,000+ 달성 시 LP +3/5. 그림자 주자(암살자)=킬 8+ 달성 시 LP +3/5. 조건형은 빈도는 낮지만 LP를 더 받음. 발동 확률은 셋 다 50% 통일(2성/3성 동일 — 헷갈림 방지). 조건 미달 시 정산창에 "○○ 미달 — 미발동" 안내. participants 없는 수동 저장 경기는 조건형 미발동(안전)' },
+  ]},
   { ver: 'v2.43.184', date: '2026-05-30', changes: [
     { tag: 'improve', text: '🏴‍☠️ 해적의 보물 — 잭팟(확률 중첩) 폐기 → 연승 비례 골드로 변경. 발동 확률 안에 또 잭팟 확률을 두면 체감이 모호하다는 피드백 반영. 이제 승리 발동 시 기본 +40/60G + 직전 연승당 +15/20G (상한 +45/60G). 슈리마(LP 연승)의 골드판 — 연승 중일수록 더 많이 받음. 단순·명확. special:reign 의 streak 기록을 win_lp 와 공용' },
   ]},
@@ -11174,7 +11177,10 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
             <span>${grp.icon}</span><span style="font-weight:800;">${grp.name} 발동!</span>
             <span style="color:var(--rk-text-dim,#9aa0b4);font-weight:600;">${_fx}</span></div>`;
         } else if (isMe && (_relevant || _backfire)) {
-          const _msg = _backfire ? `시너지 역효과 ${_fx}` : '시너지 발동 실패';
+          // 조건부 시너지(원딜·암살자) 조건 미달이면 그렇게 안내, 아니면 확률 미스
+          const _msg = _backfire ? `시너지 역효과 ${_fx}`
+                     : (_se.condFail && grp.cond) ? `${grp.cond.label} 미달 — 미발동`
+                     : '시너지 발동 실패';
           synLine = `<div style="flex-basis:100%;margin-top:2px;font-size:9.5px;color:var(--rk-text-dim,#9aa0b4);opacity:0.7;">${grp.icon} ${grp.name} 장착 · ${_msg}</div>`;
         }
       }
@@ -11656,9 +11662,20 @@ window.saveMatch = async function() {
         const activeItems = (gdata[sField('items')]||[]).filter(it=>it.active).map(it=>it.id);
         if (activeItems.includes('s1_gamble')) continue;
         const won = winSet.has(pNorm);
-        const procced = Math.random() < (SYN_PROC[tier] / 100);
+        // 발동 확률 — procFixed(공격형 50% 통일) 우선, 없으면 SYN_PROC 티어별 (v2.43.185~)
+        const procRate = grp.procFixed || SYN_PROC[tier];
+        let procced = Math.random() < (procRate / 100);
+        // 조건부 시너지(원딜 딜량·암살자 킬) — 브릿지 participants 스탯 판정 (v2.43.185~)
+        // 조건 미달이면 발동 안 함. participants 없는 수동 저장 경기에선 판정 불가 → 미발동(안전)
+        let condFail = false;
+        if (procced && grp.cond) {
+          const pData = currentMatchParticipants[pNorm];
+          const statVal = pData ? (pData[grp.cond.stat] || 0) : null;
+          if (statVal === null || statVal < grp.cond.min) { procced = false; condFail = true; }
+        }
         const v = tier===3 ? grp.v3 : grp.v2;
         const eff = { sid:grp.sid, tier, archetype:grp.archetype, effType:grp.effType, procced };
+        if (condFail) eff.condFail = true; // 정산창 "조건 미달" 구분용
         // 골드 결과 (calcGoldFromMatches가 읽음 — 전부 시스템 지급, 남의 골드 강탈 X)
         if (procced && won && grp.effType === 'win_gold') eff.goldDelta = v;
         if (procced && !won && grp.special === 'unbreakable') eff.goldDelta = (tier===3?grp.goldV3:grp.goldV2);
@@ -22166,10 +22183,13 @@ const GACHA_RARITY = {
 const SYN_PROC = {2:30, 3:50};
 // 시너지 효과 텍스트 헬퍼 — (grp, tier) → 효과 설명
 function _synEffTxt(grp, tier) {
-  const proc = SYN_PROC[tier] || SYN_PROC[2];
+  const proc = grp.procFixed || SYN_PROC[tier] || SYN_PROC[2];
   const v = tier === 3 ? grp.v3 : grp.v2;
+  // 조건부 시너지 prefix (원딜 딜량·암살자 킬)
+  const condPre = grp.cond ? `${grp.cond.label} 달성 시 ` : '';
   switch (grp.effType) {
     case 'win_lp':
+      if (grp.cond) return `${condPre}승리 ${proc}% → LP +${v}`;
       if (grp.special === 'reign') {
         const smax = tier === 3 ? grp.streakMax3 : grp.streakMax2;
         return `승리 시 ${proc}% → LP +${v} (+연승당 ${grp.streakStep}, 최대 +${smax})`;
@@ -22255,13 +22275,16 @@ function GACHA_PET_TYPE(role) {
 // v2/v3 = 2성/3성 효과값. special: reign(군림)·unbreakable(불굴)
 // 강탈(steal)은 v2.43.177에서 비활성화 → 해적의 보물(win_gold)로 교체. steal 코드는 과거 매치 호환용 잔존
 const GACHA_SYNERGY_GROUPS = [
-  // ── ⚔️ 공격형 (win_lp) — v2.43.176 대폭 추가 하향 ──
+  // ── ⚔️ 공격형 (win_lp) — v2.43.185 역할별 차별화 (확률 50% 통일, 2성/3성 동일) ──
+  // 전사=조건 없는 안정형 / 원딜=딜량 조건 / 암살자=킬 조건 (조건형은 LP↑, 브릿지 participants 스탯으로 판정)
   {sid:'warrior',  name:'검을 뽑아라', label:'전사',     icon:'⚔️',  color:'#ff8855', category:'role',    archetype:'atk',
-   members:['DrMundo','Gangplank','Yasuo'], effType:'win_lp', v2:2, v3:3},
+   members:['DrMundo','Gangplank','Yasuo'], effType:'win_lp', v2:2, v3:3, procFixed:50},
   {sid:'marksman', name:'탄환 세례',  label:'원딜',     icon:'🎯',  color:'#ffdd55', category:'role',    archetype:'atk',
-   members:['Akshan','Jhin','Vayne'], effType:'win_lp', v2:2, v3:3},
+   members:['Akshan','Jhin','Vayne'], effType:'win_lp', v2:3, v3:5, procFixed:50,
+   cond:{stat:'damage', min:35000, label:'딜량 35,000+'}},
   {sid:'assassin', name:'그림자 주자',label:'암살자',   icon:'🌑',  color:'#cc88ff', category:'role',    archetype:'atk',
-   members:['Fizz','Khazix','Naafiri'], effType:'win_lp', v2:2, v3:3},
+   members:['Fizz','Khazix','Naafiri'], effType:'win_lp', v2:3, v3:5, procFixed:50,
+   cond:{stat:'kills', min:8, label:'킬 8+'}},
   {sid:'ionia',    name:'검무',        label:'아이오니아',icon:'🌸', color:'#ffaacc', category:'faction', archetype:'atk',
    members:['Jhin','Yasuo'], effType:'win_lp', v2:1, v3:2},
   {sid:'shurima',  name:'나는 왕이다', label:'슈리마',   icon:'👑',  color:'#ffdd66', category:'faction', archetype:'atk',
