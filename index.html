@@ -4753,7 +4753,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.194';
+const APP_VERSION = 'v2.43.195';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4762,6 +4762,9 @@ const APP_VERSION = 'v2.43.194';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.195', date: '2026-05-30', changes: [
+    { tag: 'fix', text: '무료권 보유 시 구매 확인 팝업도 "무료권 사용"으로 표시 — 기존엔 무료권이 있어도 "NG가 차감됩니다"라고 떠서 혼란. 해당 티어 무료권 보유 시 "🎟 무료권 사용 (보유 N장) · 골드 차감 없음"으로 갱신, 버튼도 "🎟 무료권 사용"' },
+  ]},
   { ver: 'v2.43.194', date: '2026-05-30', changes: [
     { tag: 'new', text: '🎟 무료 복권 이용권 시스템 + 롤백 보상 지급 — 복권 롤백으로 재미를 못 본 11명에게 "돌린 만큼" 무료권 지급(골드 직접 지급 X → 인플레 최소화, 음수 EV 복권으로 환원). freeScratch_s1 {티어:장수}. 복권 구매 시 해당 티어 무료권 있으면 골드 차감 없이 사용(당첨금은 순이득). Hub 티어 카드에 🎟 무료권 N장 배지 + "무료권 사용" 표시. 누진 감소 곡선(많이 긁은 사람일수록 한계 보상↓)으로 산정 — 럼블 48·맹독 38·신규 25장 등 총 153장. 무료권 긁기 취소 시 반환' },
   ]},
@@ -18558,15 +18561,21 @@ window._lhBuyTier = function(itemId) {
     { name:'고급 복권', emoji:'🎫', color:'#a78bfa', fg:'#fff' },
     { name:'프리미엄 복권', emoji:'💎', color:'#e879f9', fg:'#fff' },
   ][tierDef.idx];
+  // 무료 복권권 보유 시 골드 차감 없이 사용 (v2.43.195~)
+  const _freeCnt = (getMyGoldData()?.[sField('freeScratch')] || {})[tierDef.idx] || 0;
+  const useFree = _freeCnt > 0;
   const confirmEl = document.createElement('div');
   confirmEl.className = 'scard-buy-confirm-overlay';
+  const bodyHtml = useFree
+    ? `<p><span class="scard-buy-confirm-price" style="color:#4ade80">🎟 무료권 사용</span> (보유 ${_freeCnt}장)<br>골드 차감 없이 긁어요! 긁기 전 X로 취소하면 반환됩니다.</p>`
+    : `<p><span class="scard-buy-confirm-price" style="color:${tierMeta.color}">${tierDef.price}G</span>가 차감됩니다.<br>긁기 전에는 X로 취소하고 환불받을 수 있어요.</p>`;
   confirmEl.innerHTML = `
     <div class="scard-buy-confirm-box">
       <h4>${tierMeta.emoji} ${tierMeta.name}</h4>
-      <p><span class="scard-buy-confirm-price" style="color:${tierMeta.color}">${tierDef.price}G</span>가 차감됩니다.<br>긁기 전에는 X로 취소하고 환불받을 수 있어요.</p>
+      ${bodyHtml}
       <div class="scard-buy-confirm-btns">
         <button class="scard-buy-confirm-cancel">취소</button>
-        <button class="scard-buy-confirm-ok" style="background:${tierMeta.color};color:${tierMeta.fg}">구매하기</button>
+        <button class="scard-buy-confirm-ok" style="background:${useFree?'#22c55e':tierMeta.color};color:#fff">${useFree?'🎟 무료권 사용':'구매하기'}</button>
       </div>
     </div>`;
   document.body.appendChild(confirmEl);
