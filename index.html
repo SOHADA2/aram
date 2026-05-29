@@ -4708,7 +4708,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.151';
+const APP_VERSION = 'v2.43.152';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -21773,51 +21773,77 @@ const GACHA_RARITY = {
   2:{main:'rgba(200,155,60,0.9)', dim:'rgba(200,140,20,0.25)',ray:'rgba(200,155,60,0.09)', burst:'rgba(255,220,80,0.85)', btnClass:''},
   3:{main:'rgba(180,138,255,0.9)',dim:'rgba(150,90,255,0.25)',ray:'rgba(180,138,255,0.09)',burst:'rgba(200,160,255,0.85)',btnClass:'prism-btn'},
 };
-// 시너지 효과 텍스트 헬퍼 (발동확률은 2성=10%, 3성=20%)
-function _synEffTxt(effType, effVal, rate) {
-  if (effType === 'win_lp')   return `승리 시 ${rate}% → LP +${effVal}`;
-  if (effType === 'loss_lp')  return `패배 시 ${rate}% → LP -${effVal} 방어`;
-  if (effType === 'attend_g') return `출석 시 ${rate}% → +${effVal}G`;
+// 발동확률 (2성 30%, 3성 50%)
+const SYN_PROC = {2:30, 3:50};
+// 시너지 효과 텍스트 헬퍼 — (grp, tier) → 효과 설명
+function _synEffTxt(grp, tier) {
+  const proc = SYN_PROC[tier] || SYN_PROC[2];
+  const v = tier === 3 ? grp.v3 : grp.v2;
+  switch (grp.effType) {
+    case 'win_lp':
+      if (grp.special === 'reign') {
+        const smax = tier === 3 ? grp.streakMax3 : grp.streakMax2;
+        return `승리 시 ${proc}% → LP +${v} (+연승당 ${grp.streakStep}, 최대 +${smax})`;
+      }
+      return `승리 시 ${proc}% → LP +${v}`;
+    case 'lp_block':
+      if (grp.special === 'unbreakable') {
+        const g = tier === 3 ? grp.goldV3 : grp.goldV2;
+        return `패배 시 ${proc}% → LP +${v} 방어 + 위로금 ${g}G`;
+      }
+      return `패배 시 ${proc}% → LP +${v} 방어`;
+    case 'win_gold':
+      return `승리 시 ${proc}% → +${v}G`;
+    case 'steal':
+      return `승리 시 ${proc}% → 패배자 1인당 ${v}G 강탈 (제로섬)`;
+    case 'risk_win':
+      return `승리 시 ${proc}% → LP +${v} / 패배 시 ${proc}% → LP −${grp.lossV} 추가`;
+    case 'risk_block': {
+      const fail = tier === 3 ? grp.failV3 : grp.failV2;
+      return `패배 시 ${proc}% 손실 전액 방어 / 실패 시 LP −${fail} 추가`;
+    }
+  }
   return '';
 }
 
-// 11개 시너지 그룹 (역할 6개 + 진영 5개)
+// 챔피언 카드 타입 분류 (펫 카드 표시용)
+function GACHA_PET_TYPE(role) {
+  if (role === 'tank') return '방어형';
+  if (role === 'support') return '지원형';
+  return '공격형'; // fighter/marksman/assassin/mage
+}
+
+// 11개 시너지 — 4분류(공격/방어/지원/리스크), 발동확률 2성 30%/3성 50%
+// v2/v3 = 2성/3성 효과값. special: reign(군림)·unbreakable(불굴)·plunder(약탈)
 const GACHA_SYNERGY_GROUPS = [
-  // ── 역할 시너지 ──
-  {sid:'warrior',    name:'검을 뽑아라', label:'전사',     icon:'⚔️',  color:'#ff8855', category:'role',
-   members:['DrMundo','Gangplank','Yasuo'],
-   effType:'win_lp',  effVal:6},
-  {sid:'support',    name:'신성한 개입', label:'서폿',     icon:'💚',  color:'#88ffcc', category:'role',
-   members:['Lulu','Morgana'],
-   effType:'loss_lp', effVal:3},
-  {sid:'marksman',   name:'탄환 세례',  label:'원딜',     icon:'🎯',  color:'#ffdd55', category:'role',
-   members:['Akshan','Jhin','Vayne'],
-   effType:'win_lp',  effVal:6},
-  {sid:'assassin',   name:'그림자 주자',label:'암살자',   icon:'🌑',  color:'#cc88ff', category:'role',
-   members:['Fizz','Khazix','Naafiri'],
-   effType:'attend_g',effVal:12},
-  {sid:'tank',       name:'강철 심장',  label:'탱커',     icon:'🛡️', color:'#77beff', category:'role',
-   members:['Amumu','Malphite','Poppy','Rammus'],
-   effType:'loss_lp', effVal:8},
-  {sid:'mage',       name:'유레카',     label:'마법사',   icon:'💫',  color:'#aaddff', category:'role',
-   members:['Brand','Malzahar','Mel'],
-   effType:'attend_g',effVal:12},
-  // ── 진영 시너지 ──
-  {sid:'ionia',      name:'검무',        label:'아이오니아',icon:'🌸', color:'#ffaacc', category:'faction',
-   members:['Jhin','Yasuo'],
-   effType:'win_lp',  effVal:4},
-  {sid:'void',       name:'공허 균열',   label:'공허',     icon:'🟣',  color:'#9955ff', category:'faction',
-   members:['Khazix','Malzahar'],
-   effType:'loss_lp', effVal:3},
-  {sid:'bilgewater', name:'골드 강탈',   label:'빌지워터', icon:'🏴‍☠️', color:'#55ccaa', category:'faction',
-   members:['Fizz','Gangplank'],
-   effType:'attend_g',effVal:8},
-  {sid:'demacia',    name:'여명의 의지', label:'데마시아', icon:'☀️',  color:'#ffeebb', category:'faction',
-   members:['Morgana','Poppy','Vayne'],
-   effType:'win_lp',  effVal:6},
-  {sid:'shurima',    name:'나는 왕이다', label:'슈리마',   icon:'👑',  color:'#ffdd66', category:'faction',
-   members:['Akshan','Amumu','Naafiri','Rammus'],
-   effType:'win_lp',  effVal:9},
+  // ── ⚔️ 공격형 (win_lp) ──
+  {sid:'warrior',  name:'검을 뽑아라', label:'전사',     icon:'⚔️',  color:'#ff8855', category:'role',    archetype:'atk',
+   members:['DrMundo','Gangplank','Yasuo'], effType:'win_lp', v2:5, v3:7},
+  {sid:'marksman', name:'탄환 세례',  label:'원딜',     icon:'🎯',  color:'#ffdd55', category:'role',    archetype:'atk',
+   members:['Akshan','Jhin','Vayne'], effType:'win_lp', v2:5, v3:7},
+  {sid:'assassin', name:'그림자 주자',label:'암살자',   icon:'🌑',  color:'#cc88ff', category:'role',    archetype:'atk',
+   members:['Fizz','Khazix','Naafiri'], effType:'win_lp', v2:5, v3:7},
+  {sid:'ionia',    name:'검무',        label:'아이오니아',icon:'🌸', color:'#ffaacc', category:'faction', archetype:'atk',
+   members:['Jhin','Yasuo'], effType:'win_lp', v2:4, v3:5},
+  {sid:'shurima',  name:'나는 왕이다', label:'슈리마',   icon:'👑',  color:'#ffdd66', category:'faction', archetype:'atk',
+   members:['Akshan','Amumu','Naafiri','Rammus'], effType:'win_lp', v2:6, v3:8,
+   special:'reign', streakStep:2, streakMax2:4, streakMax3:6},
+  // ── 🛡️ 방어형 (lp_block) ──
+  {sid:'tank',     name:'강철 심장',  label:'탱커',     icon:'🛡️', color:'#77beff', category:'role',    archetype:'def',
+   members:['Amumu','Malphite','Poppy','Rammus'], effType:'lp_block', v2:8, v3:12,
+   special:'unbreakable', goldV2:20, goldV3:40},
+  {sid:'demacia',  name:'여명의 의지', label:'데마시아', icon:'☀️',  color:'#ffeebb', category:'faction', archetype:'def',
+   members:['Morgana','Poppy','Vayne'], effType:'lp_block', v2:4, v3:6},
+  // ── 💚 지원형 ──
+  {sid:'bilgewater',name:'골드 강탈',  label:'빌지워터', icon:'🏴‍☠️', color:'#55ccaa', category:'faction', archetype:'sup',
+   members:['Fizz','Gangplank'], effType:'steal', v2:15, v3:25, special:'plunder'},
+  {sid:'support',  name:'신성한 개입', label:'서폿',     icon:'💚',  color:'#88ffcc', category:'role',    archetype:'sup',
+   members:['Lulu','Morgana'], effType:'win_gold', v2:120, v3:180},
+  // ── 💫 리스크형 ──
+  {sid:'mage',     name:'유레카',     label:'마법사',   icon:'🎲',  color:'#aaddff', category:'role',    archetype:'risk',
+   members:['Brand','Malzahar','Mel'], effType:'risk_win', v2:12, v3:16, lossV:6},
+  {sid:'void',     name:'공허 균열',   label:'공허',     icon:'🌀',  color:'#9955ff', category:'faction', archetype:'risk',
+   members:['Khazix','Malzahar'], effType:'risk_block', failV2:6, failV3:4},
 ];
 const GACHA_ROLE_KR = {marksman:'원딜',mage:'마법사',assassin:'암살자',tank:'탱커',support:'서폿',fighter:'전사'};
 const GACHA_TIER_PATH = ['','silver','gold','prism'];
@@ -21903,10 +21929,11 @@ function renderGachaDex() {
     </div>`;
   }).join('');
   const activeSyn = getMyGoldData()?.[sField('activeSynergy')] || null; // {sid, tier}
-  const roleSyns    = GACHA_SYNERGY_GROUPS.filter(g => g.category === 'role');
-  const factionSyns = GACHA_SYNERGY_GROUPS.filter(g => g.category === 'faction');
-  const synHtml = _renderSynGroup('역할 시너지', roleSyns, activeSyn) +
-                  _renderSynGroup('진영 시너지', factionSyns, activeSyn);
+  const synHtml =
+    _renderSynGroup('⚔️ 공격형', GACHA_SYNERGY_GROUPS.filter(g => g.archetype === 'atk'), activeSyn) +
+    _renderSynGroup('🛡️ 방어형', GACHA_SYNERGY_GROUPS.filter(g => g.archetype === 'def'), activeSyn) +
+    _renderSynGroup('💚 지원형', GACHA_SYNERGY_GROUPS.filter(g => g.archetype === 'sup'), activeSyn) +
+    _renderSynGroup('💫 리스크형', GACHA_SYNERGY_GROUPS.filter(g => g.archetype === 'risk'), activeSyn);
   return `<div class="dex-count-row">
     <span style="font-size:11px;color:var(--text-dim);">전체 수집 현황</span>
     <span class="dex-count">${totalObtained} / ${GACHA_CHAMPS.length * 3}</span>
@@ -21942,10 +21969,8 @@ function _renderSynGroup(title, groups, activeSyn) {
       </div>`).join('');
 
     // 효과 텍스트
-    const rate = activeTier === 3 ? 20 : 10;
-    const effTxt = _synEffTxt(grp.effType, grp.effVal, rate);
-    const previewRate = previewTier === 3 ? 20 : 10;
-    const previewEff = _synEffTxt(grp.effType, grp.effVal, previewRate);
+    const effTxt = _synEffTxt(grp, activeTier || 2);
+    const previewEff = _synEffTxt(grp, previewTier);
 
     // 토글 버튼
     let toggleHtml = '';
@@ -22023,18 +22048,28 @@ window.switchGachaSynTier = function(sid, star) {
   gachaDexSynTiers[sid] = star;
   const grp = GACHA_SYNERGY_GROUPS.find(g=>g.sid===sid);
   if(!grp) return;
-  const rate = star === 3 ? 20 : 10;
   const effTxtEl = document.getElementById(`gsy-efftxt-${sid}`);
-  if(effTxtEl) effTxtEl.textContent = _synEffTxt(grp.effType, grp.effVal, rate);
+  if(effTxtEl) effTxtEl.textContent = _synEffTxt(grp, star);
 };
 
 window.toggleGachaSynergy = async function(sid, tier) {
   if (!myName) { showGoldToast('먼저 내 이름을 선택해주세요'); return; }
   const key = getMyGoldKey(), data = getMyGoldData();
   if (!key || !data) return;
+  const grp = GACHA_SYNERGY_GROUPS.find(g => g.sid === sid);
+  if (!grp) return;
   const cur = data[sField('activeSynergy')] || null;
-  // 이미 이 시너지 이 티어가 켜져 있으면 끄기, 아니면 켜기
-  const newVal = (cur?.sid === sid && cur?.tier === tier) ? null : {sid, tier};
+  const turningOff = (cur?.sid === sid && cur?.tier === tier);
+  // 켜는 경우: 멤버 전원이 해당 티어 카드를 보유했는지 검증 (도감 표시와 동일 기준)
+  if (!turningOff) {
+    const cards = data.champCards_s1 || {};
+    const ok = grp.members.every(slug => {
+      const p = cards[slug] || {};
+      return tier === 3 ? (p.s3||0) >= 1 : (p.s2||0) >= 1;
+    });
+    if (!ok) { showGoldToast(`🔒 ${grp.name} — 멤버 ${tier}성 카드를 모두 모아야 활성화돼요`); return; }
+  }
+  const newVal = turningOff ? null : {sid, tier};
   await set(ref(db, 'gold/' + key), {...data, [sField('activeSynergy')]: newVal});
   renderShop();
 };
