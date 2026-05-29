@@ -4708,7 +4708,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.159';
+const APP_VERSION = 'v2.43.160';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4717,6 +4717,9 @@ const APP_VERSION = 'v2.43.159';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.160', date: '2026-05-29', changes: [
+    { tag: 'improve', text: '가챠 상단 UI 정리 — 3탭(뽑기/카드/도감)을 2탭(🎲뽑기/📖컬렉션)으로 통합. 카드+도감을 컬렉션 한 탭에 합치고 티어를 작은 필터 칩(전체/◇파편/★★GOLD/★★★PRISM)으로 전환. "전체"=통합 도감+시너지, 티어 선택 시 해당 카드 그리드. 미장착 시 시너지 배너 숨김 → 탭 줄·버튼 수 대폭 감소' },
+  ]},
   { ver: 'v2.43.159', date: '2026-05-29', changes: [
     { tag: 'improve', text: '도감 스크롤 대폭 단축 — 파편/GOLD/PRISM 3섹션(54개 피규어)을 챔프별 최고 티어만 보여주는 통합 1그리드(18개)로 압축. 헤더에 ◇/★★/★★★ 보유 수 요약. 티어별 상세는 카드 탭에서 확인(중복 제거)' },
   ]},
@@ -17298,9 +17301,7 @@ function _activeSynergyBanner() {
   const data = getMyGoldData();
   const act = data?.[sField('activeSynergy')] || null;
   const base = 'display:flex;align-items:center;gap:10px;padding:9px 12px;margin-bottom:10px;border-radius:9px;font-size:12px;';
-  if (!act || !act.sid) {
-    return `<div style="${base}background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.16);color:var(--text-dim);">⚡ 장착된 시너지 없음 — 도감 탭에서 시너지를 장착하세요</div>`;
-  }
+  if (!act || !act.sid) return ''; // 미장착 시 배너 숨김 (빈 줄 클러터 제거)
   const grp = GACHA_SYNERGY_GROUPS.find(g => g.sid === act.sid);
   if (!grp) return '';
   const tier = act.tier === 3 ? 3 : 2;
@@ -17332,9 +17333,8 @@ function renderGachaTab() {
 
   const totalOwned = GACHA_CHAMPS.filter(c => { const e = gachaGe(c.slug); return e.e1||e.e2||e.e3; }).length;
   const tabHtml = `<div class="sp-cat-tabs" style="margin-bottom:10px;">
-    <button class="sp-cat-tab ${gachaCatTab==='pull'?'active':''}" onclick="window.switchGachaCat('pull')">뽑기</button>
-    <button class="sp-cat-tab ${gachaCatTab==='card'?'active':''}" onclick="window.switchGachaCat('card')">카드</button>
-    <button class="sp-cat-tab ${gachaCatTab==='dex'?'active':''}" onclick="window.switchGachaCat('dex')">도감 <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-dim)">${totalOwned}/${GACHA_CHAMPS.length}</span></button>
+    <button class="sp-cat-tab ${gachaCatTab==='pull'?'active':''}" onclick="window.switchGachaCat('pull')">🎲 뽑기</button>
+    <button class="sp-cat-tab ${gachaCatTab==='collection'?'active':''}" onclick="window.switchGachaCat('collection')">📖 컬렉션 <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-dim)">${totalOwned}/${GACHA_CHAMPS.length}</span></button>
   </div>` + _activeSynergyBanner();
 
   if (gachaCatTab === 'pull') {
@@ -17362,23 +17362,27 @@ function renderGachaTab() {
     return;
   }
   stopGachaPreview();
-  if (gachaCatTab === 'card') {
-    const starTabHtml = `<div class="sp-cat-tabs">
-      <button class="sp-cat-tab tier-silver ${gachaStar===1?'active':''}" onclick="window.switchGachaStar(1)">◇ 파편</button>
-      <button class="sp-cat-tab tier-gold ${gachaStar===2?'active':''}" onclick="window.switchGachaStar(2)">★★ GOLD</button>
-      <button class="sp-cat-tab tier-prism ${gachaStar===3?'active':''}" onclick="window.switchGachaStar(3)">★★★ PRISM</button>
-    </div>`;
-    const ownedCount = GACHA_CHAMPS.filter(({slug})=>(gachaGp(slug)[`s${gachaStar}`]||0)>0).length;
-    const cardsHtml = GACHA_CHAMPS.map(({slug,kr,role},idx) => _gachaCardHtml(slug,kr,role,gachaStar,idx)).join('');
-    list.innerHTML = tabHtml + starTabHtml + `
-      <div class="col-count-row" style="margin-top:10px;">
-        <span style="font-size:11px;color:var(--text-dim);">보유 카드</span>
-        <span class="col-count">${ownedCount} / ${GACHA_CHAMPS.length}</span>
-      </div>
-      <div class="pet-grid">${cardsHtml}</div>`;
+  // ── 컬렉션 탭 (카드+도감 통합) — 티어 필터 칩: 전체(통합 도감+시너지) / 파편 / GOLD / PRISM ──
+  const _filt = [[0,'전체',''],[1,'◇ 파편','#bcd7e8'],[2,'★★ GOLD','#e8b93c'],[3,'★★★ PRISM','#d49bff']];
+  const filterHtml = `<div style="display:flex;gap:6px;margin-bottom:10px;">` + _filt.map(([v,l,col])=>{
+    const on = gachaStar===v;
+    return `<button onclick="window.switchGachaStar(${v})" style="flex:1;padding:6px 4px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;border:1px solid ${on?'rgba(200,168,75,0.55)':'rgba(255,255,255,0.1)'};background:${on?'rgba(200,168,75,0.16)':'rgba(255,255,255,0.03)'};color:${on?(col||'var(--gold-light,#e8c95a)'):'var(--text-dim,#9aa0b4)'};">${l}</button>`;
+  }).join('') + `</div>`;
+
+  if (gachaStar === 0) {
+    // 전체 = 통합 도감(챔프별 최고 티어) + 시너지
+    list.innerHTML = tabHtml + filterHtml + renderGachaDex();
     return;
   }
-  list.innerHTML = tabHtml + renderGachaDex();
+  // 특정 티어 = 해당 티어 카드 그리드 (합성 가능)
+  const ownedCount = GACHA_CHAMPS.filter(({slug})=>(gachaGp(slug)[`s${gachaStar}`]||0)>0).length;
+  const cardsHtml = GACHA_CHAMPS.map(({slug,kr,role},idx) => _gachaCardHtml(slug,kr,role,gachaStar,idx)).join('');
+  list.innerHTML = tabHtml + filterHtml + `
+    <div class="col-count-row" style="margin-top:4px;">
+      <span style="font-size:11px;color:var(--text-dim);">보유 카드</span>
+      <span class="col-count">${ownedCount} / ${GACHA_CHAMPS.length}</span>
+    </div>
+    <div class="pet-grid">${cardsHtml}</div>`;
 }
 
 function _renderShopImmediate() {
@@ -22292,7 +22296,7 @@ document.addEventListener('click', e => {
 });
 
 let gachaCatTab = 'pull';
-let gachaStar = 1;
+let gachaStar = 0; // 컬렉션 필터: 0=전체(통합 도감+시너지) / 1·2·3=티어별 카드
 let _gachaPreviewIdx = 0;
 let _gachaPreviewTimer = null;
 let _gRvPending = null;
@@ -22315,7 +22319,7 @@ function gachaRollStar() {
 }
 
 window.switchGachaCat = function(cat) {
-  if (gachaCatTab === 'card' && cat !== 'card') newGachaCards.clear();
+  if (gachaCatTab === 'collection' && cat !== 'collection') newGachaCards.clear();
   gachaCatTab = cat;
   renderGachaTab();
 };
