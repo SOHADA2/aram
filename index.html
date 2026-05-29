@@ -494,13 +494,20 @@ select option{background:var(--surface2);}
 .team-b .team-header{background:linear-gradient(135deg,rgba(26,20,4,0.92),rgba(18,13,2,0.88));border-bottom:1px solid rgba(232,200,74,0.12);color:#e8c84a;}
 .team-count-badge{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--text-dim);background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.07);border-radius:4px;padding:1px 6px;}
 .team-players{background:var(--rk-card);flex:1;}
-.team-player{display:flex;flex-direction:column;padding:9px 16px;border-bottom:1px solid var(--rk-border);}
+/* 팀 결과 플레이어 행 — 통일된 2줄 그리드 (v2.43.181): 1줄 이름+연승+티어배지 / 2줄 LP바+수치(우측정렬) */
+.team-player{display:flex;flex-direction:column;gap:6px;padding:10px 16px;border-bottom:1px solid var(--rk-border);}
 .team-player:last-child{border-bottom:none;}
-.tp-main-row{display:flex;align-items:center;gap:8px;}
-.tp-lp-row{display:flex;align-items:center;gap:6px;margin-top:5px;}
-.team-player-name{flex:1;font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
-.tc-lp-num{font-size:9px;font-weight:600;color:rgba(255,255,255,0.35);font-family:'JetBrains Mono',monospace;white-space:nowrap;flex-shrink:0;}
-.tc-lp-chall{font-size:11px;font-weight:700;color:#ffe040;font-family:'JetBrains Mono',monospace;white-space:nowrap;letter-spacing:0.3px;}
+.tp-top{display:flex;align-items:center;gap:7px;min-height:20px;}
+.tp-name{flex:1;min-width:0;font-weight:700;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tp-top .streak-inline,.tp-top .tier-badge{flex-shrink:0;}
+.tp-top .tier-badge{min-width:60px;text-align:center;}
+.tp-bot{display:flex;align-items:center;gap:9px;}
+.tp-bar{flex:1;height:4px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;}
+.tp-fill{height:100%;border-radius:2px;transition:width 0.5s cubic-bezier(0.25,1,0.5,1);}
+.tp-lp{font-size:10.5px;font-weight:700;color:rgba(255,255,255,0.5);font-family:'JetBrains Mono',monospace;white-space:nowrap;flex-shrink:0;min-width:66px;text-align:right;letter-spacing:0.2px;}
+.tp-lp.chall{color:#ffe040;font-size:11px;}
+.tp-lp.promo{color:#7fd9ff;}
+.tp-lp.placement{color:rgba(255,255,255,0.42);font-weight:600;}
 /* 팀 결과 활성 아이템 뱃지 */
 .qib-active-bar{display:flex;align-items:center;gap:8px;padding:7px 0 3px;flex-wrap:wrap;}
 .qib-active-badge{display:flex;align-items:center;gap:5px;padding:4px 10px 4px 7px;border-radius:6px;background:rgba(79,195,247,0.08);border:1px solid rgba(79,195,247,0.28);font-size:11px;font-weight:700;color:#4fc3f7;white-space:nowrap;}
@@ -4730,7 +4737,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.180';
+const APP_VERSION = 'v2.43.181';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4739,6 +4746,9 @@ const APP_VERSION = 'v2.43.180';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.181', date: '2026-05-30', changes: [
+    { tag: 'improve', text: '팀 결과 플레이어 행 레이아웃 정렬·시인성 개선 — 기존엔 챌린저는 LP가 1줄에 인라인, 일반/승급전은 2번째 줄에 바로 떠서 행마다 높이·정렬이 제각각이고 정보가 산재됐음. 모든 티어 상태를 동일한 2줄 그리드로 통일: 1줄=이름+연승배지+티어배지(우측 고정폭 정렬), 2줄=LP 진행바+수치(우측 정렬 고정폭). 챌린저=풀 골드바, 승급전=N승N패, 배치=배치 N/M 으로 구분 표시' },
+  ]},
   { ver: 'v2.43.180', date: '2026-05-30', changes: [
     { tag: 'fix', text: '팀 결과 섹션 슬램 등장 애니메이션 제거 — 첫 팀짜기 시 뜨는 팀 발표 오버레이 연출과 중복되고, renderResult가 LP·아이템 갱신마다 재호출될 때마다 슬램·플래시·흔들기·효과음이 반복 재생되던 문제. 결과 섹션은 정적 표시로 전환, 화려한 등장 연출은 팀 발표 팝업에만 유지(분리)' },
   ]},
@@ -10639,6 +10649,8 @@ function promoSubHtml(promo) {
 }
 
 function teamCard(title,cls,members) {
+  // 2줄 행의 2번째 줄(LP 바 + 우측 수치) 생성 헬퍼 — 모든 티어 상태에서 동일 구조로 정렬 일관성 확보
+  const _line2=(pct,color,text,mod)=>'<div class="tp-bot"><div class="tp-bar"><div class="tp-fill" style="width:'+Math.max(0,Math.min(100,pct))+'%;background:'+color+';"></div></div><span class="tp-lp'+(mod?' '+mod:'')+'">'+text+'</span></div>';
   const rows=members.map(p=>{
     const t=TIERS[p.tier]||TIERS.unranked;
     const streak = calcStreak(p.name);
@@ -10654,29 +10666,34 @@ function teamCard(title,cls,members) {
     const _tcTierRow=(()=>{
       if(CURRENT_SEASON>=1){
         const _d=season1Data[normName(p.name)];
-        if(!_d||!_d.placementDone) return {badge:'<span class="tier-badge s1t-unranked">배치</span>',bar:''};
+        if(!_d||!_d.placementDone){
+          const _g=(_d&&_d.placementGames)||0;
+          return {badge:'<span class="tier-badge s1t-unranked">배치</span>',
+            line2:_line2(_g/S1_PLACEMENT_GAMES*100,'rgba(150,160,180,0.55)','배치 '+_g+'/'+S1_PLACEMENT_GAMES,'placement')};
+        }
         if(_d.promoActive){
           const _m=S1_TIER_META[_d.tier]||S1_TIER_META.bronze;
-          const _pct=Math.min(100,Math.round((_d.promoWins||0)/2*100));
-          const _label=`${_d.promoWins||0}W / ${_d.promoLosses||0}L`;
-          return {badge:'<span class="tier-badge '+_m.cls+'">승급전</span>',bar:'<div class="tp-lp-row"><div class="tc-lp-bar"><div class="sp-lp-fill" style="width:'+_pct+'%;background:'+_m.color+';"></div></div><span class="tc-lp-num">'+_label+'</span></div>'};
+          return {badge:'<span class="tier-badge '+_m.cls+'">승급전</span>',
+            line2:_line2(Math.round((_d.promoWins||0)/2*100),_m.color,(_d.promoWins||0)+'승 '+(_d.promoLosses||0)+'패','promo')};
         }
         const _m=S1_TIER_META[_d.tier]||S1_TIER_META.unranked;
         const _lp=(_d.lp)||0;
         if(_d.tier==='challenger'){
-          return {badge:'<span class="tier-badge '+_m.cls+'">'+_m.label+'</span>',bar:'',lpBefore:'<span class="tc-lp-chall">'+_lp+' LP</span>'};
+          return {badge:'<span class="tier-badge '+_m.cls+'">'+_m.label+'</span>',
+            line2:_line2(100,_m.color,_lp+' LP','chall')};
         }
-        const _pct=Math.min(100,_lp);
-        return {badge:'<span class="tier-badge '+_m.cls+'">'+_m.label+'</span>',bar:'<div class="tp-lp-row"><div class="tc-lp-bar"><div class="sp-lp-fill" style="width:'+_pct+'%;background:'+_m.color+';"></div></div><span class="tc-lp-num">'+_lp+' LP</span></div>'};
+        return {badge:'<span class="tier-badge '+_m.cls+'">'+_m.label+'</span>',
+          line2:_line2(Math.min(100,_lp),_m.color,_lp+' LP','')};
       }
-      return {badge:'<span class="tier-badge '+t.cls+'">'+t.label+'</span>',bar:''};
+      return {badge:'<span class="tier-badge '+t.cls+'">'+t.label+'</span>',line2:''};
     })();
     return`<div class="team-player${isMe?' is-me':''}">
-      <div class="tp-main-row">
-        <div class="team-player-name">${nameHtml(p.name)}${nBadge}${rBadge}${isMe?'&nbsp;<span class="me-badge">나</span>':''}</div>
-        <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">${streakHtml}${_tcTierRow.lpBefore||''}${_tcTierRow.badge}</div>
+      <div class="tp-top">
+        <span class="tp-name">${nameHtml(p.name)}${nBadge}${rBadge}${isMe?'&nbsp;<span class="me-badge">나</span>':''}</span>
+        ${streakHtml}
+        ${_tcTierRow.badge}
       </div>
-      ${_tcTierRow.bar}
+      ${_tcTierRow.line2}
     </div>`;
   }).join('');
   return`<div class="team-card ${cls}" id="tc-${cls}">
