@@ -4751,7 +4751,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.189';
+const APP_VERSION = 'v2.43.190';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4760,6 +4760,9 @@ const APP_VERSION = 'v2.43.189';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.190', date: '2026-05-30', changes: [
+    { tag: 'improve', text: '스크래치 복권 음수 EV 재밸런스 (골드 sink화) — 지난 인플레(실제 회수율 121%)의 근본 원인은 해골 있는 티어가 "매칭 후 멈춰 해골 회피 시 회수율 128~155%"였던 것. 실제 rollScratch 로직을 그대로 N=30만 시뮬해 당첨금을 재산정. 회수율 일반 78.9% / 고급 79.8% / 프리미엄 81.0% (목표 75~85% sink). 해골 티어는 욕심내서 다 긁으면 폭락(고급 4.6%·프리미엄 -44%) → 추가 sink. 잭팟(왕관) 일반 670·고급 5200·프리미엄 8580G. 한도 없음 — 많이 살수록 골드가 빠지는 구조라 EV로만 제어' },
+  ]},
   { ver: 'v2.43.189', date: '2026-05-30', changes: [
     { tag: 'fix', text: '미보유 카드 상세가 다 보이던 문제 수정 — v2.43.174에서 미보유도 클릭 시 상세를 열었는데, 안 가진 카드의 서사·시너지·아트가 노출돼 수집 동기가 사라졌음. 이제 미보유(보유 0) 카드 클릭 시 상세를 막고 "🔒 아직 보유하지 않은 카드 — 뽑기·합성으로 획득하세요" 안내 토스트만. 보유 카드만 상세 열람 가능' },
   ]},
@@ -6368,11 +6371,11 @@ let _scratchTestTool = null;
 // 시즌 1 전용 아이템
 const S1_SHOP_ITEMS = [
   { id:'scratch_normal',   icon:ITEM_SVG_ICONS.lottery, name:'일반 복권',    color:'#f59e0b', price:70,  type:'scratch_tier',
-    desc:'4칸 긁기 · 2개 매칭 시 당첨 · 해골 없음 · 11심볼 · 클로버 80G ~ 왕관 820G' },
+    desc:'4칸 긁기 · 2개 매칭 시 당첨 · 해골 없음 · 11심볼 · 클로버 65G ~ 왕관 670G' },
   { id:'scratch_advanced', icon:ITEM_SVG_ICONS.lottery, name:'고급 복권',    color:'#a78bfa', price:200, type:'scratch_tier',
-    desc:'6칸 긁기 · 3개 매칭 시 당첨 · 해골 평균 1개 (-150G) · 클로버 560G ~ 왕관 8400G' },
+    desc:'6칸 긁기 · 3개 매칭 시 당첨 · 해골 평균 1개 (-150G·다 긁지 마세요!) · 클로버 350G ~ 왕관 5200G' },
   { id:'scratch_premium',  icon:ITEM_SVG_ICONS.lottery, name:'프리미엄 복권', color:'#e879f9', price:400, type:'scratch_tier',
-    desc:'7칸 긁기 · 3개 매칭 시 당첨 · 해골 평균 2개 (-250G) · 클로버 1320G ~ 왕관 16500G' },
+    desc:'7칸 긁기 · 3개 매칭 시 당첨 · 해골 평균 2개 (-250G·매칭 후 멈추세요!) · 클로버 690G ~ 왕관 8580G' },
   { id:'scratch_coin', icon:'<span style="font-size:18px;line-height:1">🪙</span>', name:'긁기 동전', color:'#94a3b8', price:200, type:'scratch_tool',
     desc:'스크래치 복권 긁기 시 브러시 크기 2배 · 영구 적용' },
   { id:'scratch_key',  icon:'<span style="font-size:18px;line-height:1">🔑</span>', name:'만능 긁개',  color:'#fbbf24', price:500, type:'scratch_tool',
@@ -17816,43 +17819,43 @@ const SCRATCH_SKULL = { id:'skull', emoji:'💀', name:'해골', gold:0 };
 // v2.43.144~ 전 티어 밸런스 재조정
 // 일반: 4칸 2매칭 9심볼, 수익률 ~92% / 고급: 상금 ×2.5 + 해골패 60G, 수익률 ~98% / 프리미엄: 상금 ×2.5 + 해골패 100G, 수익률 ~91%
 const SCRATCH_TIERS = [
-  // 일반 4칸 — 2매칭 / 해골 없음 / 잭팟 700G / 당첨률 ~60% / 수익률 ~92%
-  // v2.43.146~ 11심볼 — 당첨률 ~52%, 수익률 ~96%
+  // v2.43.190 음수 EV 재밸런스 — 회수율 ~79% (골드 sink). 실제 rollScratch N=30만 시뮬 검증.
+  // 일반 4칸 2매칭 / 해골 없음 / 당첨률 ~52% / 회수율 78.9% (해골 없어 안정적)
   { idx:0, id:'scratch_normal',   price:70, cells:4, skulls:0, skullAppear:0,  skullPenalty:0, matchCount:2,
     symbols:[
-      { id:'clover',    emoji:'🍀', name:'클로버', gold:80,  appear:16 },
-      { id:'snowflake', emoji:'❄️', name:'눈꽃',   gold:80,  appear:14 },
-      { id:'flame',     emoji:'🔥', name:'불꽃',   gold:90,  appear:13 },
-      { id:'sword',     emoji:'⚔️', name:'검',     gold:95,  appear:12 },
-      { id:'lightning', emoji:'⚡', name:'번개',   gold:105, appear:11 },
-      { id:'moon',      emoji:'🌙', name:'달',     gold:120, appear:9  },
-      { id:'shield',    emoji:'🛡️', name:'방패',  gold:165, appear:8  },
-      { id:'star',      emoji:'⭐', name:'별',     gold:270, appear:7  },
-      { id:'gem',       emoji:'💠', name:'보석',   gold:380, appear:5  },
-      { id:'diamond',   emoji:'💎', name:'다이아', gold:520, appear:5  },
-      { id:'crown',     emoji:'👑', name:'왕관',   gold:820, appear:3  },
+      { id:'clover',    emoji:'🍀', name:'클로버', gold:65,  appear:16 },
+      { id:'snowflake', emoji:'❄️', name:'눈꽃',   gold:65,  appear:14 },
+      { id:'flame',     emoji:'🔥', name:'불꽃',   gold:75,  appear:13 },
+      { id:'sword',     emoji:'⚔️', name:'검',     gold:80,  appear:12 },
+      { id:'lightning', emoji:'⚡', name:'번개',   gold:85,  appear:11 },
+      { id:'moon',      emoji:'🌙', name:'달',     gold:100, appear:9  },
+      { id:'shield',    emoji:'🛡️', name:'방패',  gold:135, appear:8  },
+      { id:'star',      emoji:'⭐', name:'별',     gold:220, appear:7  },
+      { id:'gem',       emoji:'💠', name:'보석',   gold:310, appear:5  },
+      { id:'diamond',   emoji:'💎', name:'다이아', gold:425, appear:5  },
+      { id:'crown',     emoji:'👑', name:'왕관',   gold:670, appear:3  },
     ]},
-  // 고급 6칸 — 3매칭 / 해골 평균 1개 / 해골패 150G / 잭팟 8400G / 수익률 ~90%
+  // 고급 6칸 3매칭 / 해골 평균 1개 / 해골패 150G / 회수율 79.8%(해골회피) · 다긁으면 폭락(추가 sink)
   { idx:1, id:'scratch_advanced', price:200, cells:6, skulls:1, skullAppear:20, skullPenalty:150, matchCount:3,
     symbols:[
-      { id:'clover',  emoji:'🍀', name:'클로버', gold:560,  appear:30 },
-      { id:'sword',   emoji:'⚔️', name:'검',     gold:760,  appear:22 },
-      { id:'moon',    emoji:'🌙', name:'달',     gold:1040, appear:18 },
-      { id:'shield',  emoji:'🛡️', name:'방패',  gold:1480, appear:13 },
-      { id:'star',    emoji:'⭐', name:'별',     gold:2440, appear:9  },
-      { id:'diamond', emoji:'💎', name:'다이아', gold:4760, appear:5  },
-      { id:'crown',   emoji:'👑', name:'왕관',   gold:8400, appear:3  },
+      { id:'clover',  emoji:'🍀', name:'클로버', gold:350,  appear:30 },
+      { id:'sword',   emoji:'⚔️', name:'검',     gold:470,  appear:22 },
+      { id:'moon',    emoji:'🌙', name:'달',     gold:640,  appear:18 },
+      { id:'shield',  emoji:'🛡️', name:'방패',  gold:920,  appear:13 },
+      { id:'star',    emoji:'⭐', name:'별',     gold:1510, appear:9  },
+      { id:'diamond', emoji:'💎', name:'다이아', gold:2950, appear:5  },
+      { id:'crown',   emoji:'👑', name:'왕관',   gold:5200, appear:3  },
     ]},
-  // 프리미엄 7칸 — 3매칭 / 해골 평균 2개 / 해골패 250G / 잭팟 16500G / 수익률 ~90%
+  // 프리미엄 7칸 3매칭 / 해골 평균 2개 / 해골패 250G / 회수율 81.0%(해골회피) · 다긁으면 대폭락(강한 sink)
   { idx:2, id:'scratch_premium',  price:400, cells:7, skulls:2, skullAppear:40, skullPenalty:250, matchCount:3,
     symbols:[
-      { id:'clover',  emoji:'🍀', name:'클로버', gold:1320,  appear:28 },
-      { id:'sword',   emoji:'⚔️', name:'검',     gold:1750,  appear:22 },
-      { id:'moon',    emoji:'🌙', name:'달',     gold:2410,  appear:18 },
-      { id:'shield',  emoji:'🛡️', name:'방패',  gold:3630,  appear:13 },
-      { id:'star',    emoji:'⭐', name:'별',     gold:5940,  appear:10 },
-      { id:'diamond', emoji:'💎', name:'다이아', gold:11550, appear:6  },
-      { id:'crown',   emoji:'👑', name:'왕관',   gold:16500, appear:3  },
+      { id:'clover',  emoji:'🍀', name:'클로버', gold:690,   appear:28 },
+      { id:'sword',   emoji:'⚔️', name:'검',     gold:910,   appear:22 },
+      { id:'moon',    emoji:'🌙', name:'달',     gold:1250,  appear:18 },
+      { id:'shield',  emoji:'🛡️', name:'방패',  gold:1890,  appear:13 },
+      { id:'star',    emoji:'⭐', name:'별',     gold:3090,  appear:10 },
+      { id:'diamond', emoji:'💎', name:'다이아', gold:6000,  appear:6  },
+      { id:'crown',   emoji:'👑', name:'왕관',   gold:8580,  appear:3  },
     ]},
 ];
 // 긁기 도구: brushMult = 브러시 반지름 배율, threshold = 공개 임계값(기본 0.45)
