@@ -1518,7 +1518,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .pc-num{font-size:7.5px;color:rgba(255,255,255,0.2);}
 .pc-pet-wrap{position:relative;z-index:2;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:4px 10px;overflow:hidden;}
 .pc-pet-img{max-width:100%;max-height:100%;object-fit:contain;filter:drop-shadow(0 4px 16px rgba(0,0,0,0.9));}
-.pet-card.locked .pc-pet-img{filter:grayscale(0.55) brightness(0.62);opacity:0.62;}
+.pet-card.locked .pc-pet-img{filter:brightness(0) opacity(0.18);}
 .pc-bottom{position:relative;z-index:2;padding:5px 10px 11px;display:flex;flex-direction:column;gap:2px;}
 .pc-name{font-size:13px;font-weight:700;color:#fff;text-shadow:0 1px 7px rgba(0,0,0,0.95);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;}
 .pet-card.locked .pc-name{color:rgba(255,255,255,0.16);}
@@ -4716,7 +4716,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.164';
+const APP_VERSION = 'v2.43.165';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4725,7 +4725,9 @@ const APP_VERSION = 'v2.43.164';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
-  { ver: 'v2.43.164', date: '2026-05-29', changes: [
+  { ver: 'v2.43.165', date: '2026-05-29', changes: [
+    { tag: 'fix', text: '뽑기 reveal 카드 이미지 수정 — 단일/10연 뽑기 시 ddragon 일반 일러스트 대신 티어별 커스텀 아트(1성 silver/2성 gold/3성 prism) 표시. 2·3성 뽑으면 직접 만든 골드/프리즘 아트가 나옴(실패 시 ddragon 폴백). 잠긴 컬렉션 카드는 다시 실루엣으로 복원(미리보기 취소)' },
+  ]},
     { tag: 'fix', text: '카드/시너지 표시 개선 — (1) 잠긴 골드/프리즘 카드도 커스텀 아트를 어둡게 미리보기 노출(기존엔 brightness(0)로 완전히 숨겨 "안 보임"). (2) 시너지 멤버 표시: 파편(1성)만 보유 시 어둡게+◇로 "미기여" 표시(시너지는 2성 GOLD부터 발동인데 파편이 켜진 것처럼 보이던 혼란 제거). 2성+ 멤버만 밝게' },
   ]},
   { ver: 'v2.43.163', date: '2026-05-29', changes: [
@@ -22680,8 +22682,12 @@ function showGachaReveal(c, starLevel) {
   document.getElementById('rv-no-img').style.display = 'none';
   const img = document.getElementById('rv-img');
   img.style.display = ''; img.onerror = null;
-  img.src = `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${c.slug}_0.jpg`;
-  img.onerror = () => { img.style.display = 'none'; document.getElementById('rv-no-img').style.display = 'block'; };
+  // 티어별 커스텀 아트 (1성 silver / 2성 gold / 3성 prism). 실패 시 ddragon 일러스트로 폴백
+  img.src = _gachaPetImg(c.slug, starLevel);
+  img.onerror = () => {
+    img.onerror = () => { img.style.display = 'none'; document.getElementById('rv-no-img').style.display = 'block'; };
+    img.src = `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${c.slug}_0.jpg`;
+  };
   const SC = {1:'◇ 파편',2:'★★',3:'★★★'};
   document.getElementById('rv-front-stars').textContent = SC[starLevel];
   document.getElementById('rv-splash').style.backgroundImage = `url('https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${c.slug}_0.jpg')`;
@@ -22749,7 +22755,7 @@ function showGachaTenPopup(results) {
   results.forEach((c,i) => {
     const s = c.star||1, rareCls = s===2?'gold-face':s===3?'prism-face':'';
     const div = document.createElement('div'); div.className = 'tc'; div.id = `tc-wrap${i}`;
-    div.innerHTML = `<div class="tc-inner" id="tc${i}" data-star="${s}" data-slug="${c.slug}" onclick="onGachaTenCardClick(${i})"><div class="tc-back"><div class="tc-back-pattern"></div><span>✦</span></div><div class="tc-front ${rareCls}"><div class="tc-splash" style="background-image:url('https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${c.slug}_0.jpg')"></div><div class="tc-glow-layer"></div><div class="tc-img-area"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${c.slug}_0.jpg" alt="" onerror="this.style.opacity='0'"></div><div class="tc-info"><div class="tc-name">${c.kr}</div><div class="tc-stars">${SC[s]}</div></div></div></div>`;
+    div.innerHTML = `<div class="tc-inner" id="tc${i}" data-star="${s}" data-slug="${c.slug}" onclick="onGachaTenCardClick(${i})"><div class="tc-back"><div class="tc-back-pattern"></div><span>✦</span></div><div class="tc-front ${rareCls}"><div class="tc-splash" style="background-image:url('https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${c.slug}_0.jpg')"></div><div class="tc-glow-layer"></div><div class="tc-img-area"><img src="${_gachaPetImg(c.slug,s)}" alt="" onerror="this.onerror=null;this.src='https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${c.slug}_0.jpg';this.onerror=()=>this.style.opacity='0'"></div><div class="tc-info"><div class="tc-name">${c.kr}</div><div class="tc-stars">${SC[s]}</div></div></div></div>`;
     grid.appendChild(div);
   });
   document.getElementById('ten-popup').classList.add('show');
