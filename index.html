@@ -1518,7 +1518,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .pc-num{font-size:7.5px;color:rgba(255,255,255,0.2);}
 .pc-pet-wrap{position:relative;z-index:2;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:4px 10px;overflow:hidden;}
 .pc-pet-img{max-width:100%;max-height:100%;object-fit:contain;filter:drop-shadow(0 4px 16px rgba(0,0,0,0.9));}
-.pet-card.locked .pc-pet-img{filter:brightness(0) opacity(0.18);}
+.pet-card.locked .pc-pet-img{filter:grayscale(0.55) brightness(0.62);opacity:0.62;}
 .pc-bottom{position:relative;z-index:2;padding:5px 10px 11px;display:flex;flex-direction:column;gap:2px;}
 .pc-name{font-size:13px;font-weight:700;color:#fff;text-shadow:0 1px 7px rgba(0,0,0,0.95);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.2;}
 .pet-card.locked .pc-name{color:rgba(255,255,255,0.16);}
@@ -1613,6 +1613,8 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .syn-fig{display:flex;flex-direction:column;align-items:center;width:30px;}
 .syn-fig img{width:28px;height:28px;object-fit:cover;object-position:top center;border-radius:50%;background:rgba(255,255,255,0.04);}
 .syn-fig.locked img{filter:brightness(0) opacity(0.3);}
+.syn-fig.shard img{filter:brightness(0.4) saturate(0.5) opacity(0.5);}
+.syn-fig.shard .syn-fig-name{color:rgba(160,200,225,0.45);}
 .syn-fig.owned.t2 img{filter:drop-shadow(0 0 4px rgba(200,155,50,0.5));}
 .syn-fig.owned.t3 img{filter:drop-shadow(0 0 5px rgba(180,90,255,0.6));}
 .syn-fig-name{font-size:6.5px;color:rgba(255,255,255,0.25);text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;margin-top:2px;}
@@ -4714,7 +4716,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.163';
+const APP_VERSION = 'v2.43.164';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4723,6 +4725,9 @@ const APP_VERSION = 'v2.43.163';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.164', date: '2026-05-29', changes: [
+    { tag: 'fix', text: '카드/시너지 표시 개선 — (1) 잠긴 골드/프리즘 카드도 커스텀 아트를 어둡게 미리보기 노출(기존엔 brightness(0)로 완전히 숨겨 "안 보임"). (2) 시너지 멤버 표시: 파편(1성)만 보유 시 어둡게+◇로 "미기여" 표시(시너지는 2성 GOLD부터 발동인데 파편이 켜진 것처럼 보이던 혼란 제거). 2성+ 멤버만 밝게' },
+  ]},
   { ver: 'v2.43.163', date: '2026-05-29', changes: [
     { tag: 'fix', text: '모바일 10연 뽑기 팝업 잘림 수정 — 카드 5열 고정폭(84px·총 484px)이 모바일 화면을 넘던 문제. 카드를 유동(1fr·aspect-ratio)으로 전환하고 그리드 max-width(min(96vw,480px)) 적용. 데스크톱 모양 유지, 모바일에선 카드가 화면에 맞게 축소' },
   ]},
@@ -22227,11 +22232,12 @@ function _renderSynGroup(title, groups, activeSyn) {
     const memberStatus = members.map(({slug, kr}) => {
       const p = gachaGp(slug);
       const hasS3 = (p.s3||0) >= 1, hasS2 = (p.s2||0) >= 1 || hasS3; // 2성 = 2성 이상 보유(3성 포함)
-      const hasAny = (p.s1||0)>0 || hasS2 || hasS3;
-      const tier = hasS3 ? 3 : hasS2 ? 2 : hasAny ? 1 : 0;
+      const shardOnly = !hasS2 && (p.s1||0) > 0; // 파편만 보유 — 시너지엔 미기여(2성부터 발동)
+      const tier = hasS3 ? 3 : hasS2 ? 2 : 0;
       const src = _gachaLoadingImg(slug);
-      const cls = tier > 0 ? `owned t${tier}` : 'locked';
-      return {slug, kr, hasS2, hasS3, hasAny, tier, src, cls};
+      // 시너지 기여 = 2성 이상만 'owned'. 파편만 있으면 'shard'(미기여), 없으면 'locked'
+      const cls = hasS2 ? `owned t${tier}` : shardOnly ? 'shard' : 'locked';
+      return {slug, kr, hasS2, hasS3, shardOnly, tier, src, cls};
     });
     const canToggleS2 = memberStatus.every(m => m.hasS2);
     const canToggleS3 = memberStatus.every(m => m.hasS3);
@@ -22240,11 +22246,11 @@ function _renderSynGroup(title, groups, activeSyn) {
     const isActive = isActiveS2 || isActiveS3;
     const activeTier = isActiveS2 ? 2 : isActiveS3 ? 3 : null;
 
-    // 멤버 실루엣 줄
+    // 멤버 실루엣 줄 — 2성+ = 밝게(기여), 파편만 = 어둡게+◇(미기여), 미보유 = 실루엣 ???
     const figRow = memberStatus.map(m => `
-      <div class="syn-fig ${m.cls}" title="${m.kr}">
+      <div class="syn-fig ${m.cls}" title="${m.kr}${m.shardOnly?' (파편 보유 · GOLD부터 시너지 적용)':''}">
         <img src="${m.src}" alt="" onerror="this.onerror=null;this.style.opacity='0'">
-        <span class="syn-fig-name">${m.hasAny ? m.kr : '???'}</span>
+        <span class="syn-fig-name">${m.cls==='locked' ? '???' : (m.shardOnly ? '◇'+m.kr : m.kr)}</span>
       </div>`).join('');
 
     // 효과 텍스트 — 활성(=이미 보유)이면 공개. 미보유 미리보기는 해당 티어 전원 모았을 때만 공개
