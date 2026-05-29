@@ -1788,6 +1788,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .czd-type-chip.sup{color:#88ffcc;background:rgba(60,220,120,0.15);border:1px solid rgba(60,220,120,0.3);}
 .czd-eff-txt{font-size:9px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;letter-spacing:0.2px;text-align:right;}
 .czd-desc{font-size:10px;color:rgba(170,195,220,0.55);line-height:1.65;border-left:2px solid rgba(255,255,255,0.08);padding-left:9px;}
+.czd-lore{font-size:10.5px;font-style:italic;color:rgba(195,210,230,0.72);border-left-color:rgba(200,168,75,0.35);}
 .czd-divider{height:1px;background:rgba(255,255,255,0.06);}
 .czd-stats{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid rgba(255,255,255,0.07);border-radius:8px;overflow:hidden;}
 .czd-stat{display:flex;flex-direction:column;gap:1px;padding:8px 10px;}
@@ -4729,7 +4730,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.172';
+const APP_VERSION = 'v2.43.173';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4738,6 +4739,9 @@ const APP_VERSION = 'v2.43.172';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.173', date: '2026-05-29', changes: [
+    { tag: 'improve', text: '카드 상세 챔피언 설명을 서사 글귀로 — 딱딱한 통계 노출(모스트·딜량 수치) 대신 챔피언 설정 + 실제 모스트 팀원을 자연스럽게 엮은 문장으로 표시(예: "화약통으로 전장을 뒤엎는 해적왕. 이 거친 화약은 「브랜딩프로」의 손에서 가장 잘 다뤄지는 것으로 전해진다"). 모스트 팀원은 경기 기록 기반 실시간 갱신, 기록 없으면 lore만' },
+  ]},
   { ver: 'v2.43.172', date: '2026-05-29', changes: [
     { tag: 'new', text: '카드 상세에 내전 실전 기록 추가 — 카드 클릭 시 "🏆 모스트(가장 많이 플레이한 팀원·판수·승률)", "💥 최고 딜량(팀원·수치)"을 matches 데이터 기반으로 표시' },
     { tag: 'improve', text: '카드 상세 합성 버튼을 카드 하단 풀폭 버튼으로 이동 + 톤앤매너 정리(합성 대상 등급 색=2성 골드/3성 프리즘). 도감 그리드 합성 버튼도 차분한 골드톤으로 변경(번쩍이는 펄스 제거)' },
@@ -22494,6 +22498,27 @@ function renderGachaSetStatus() {
   }).join('');
 }
 
+// 챔피언별 서사 글귀 — b(기본 lore) + h(모스트 팀원 「{p}」 삽입) + n(기록 없을 때). 카드 상세 설명용
+const GACHA_CHAMP_LORE = {
+  Gangplank:{b:'화약통으로 전장을 뒤엎는 해적왕.',h:'이 거친 화약은 「{p}」의 손에서 가장 잘 다뤄지는 것으로 전해진다.',n:'아직 이 화약을 길들인 소환사는 없다.'},
+  DrMundo:{b:'문도는 마음대로 처방한다.',h:'허나 「{p}」의 손에 들리면 그 처방은 단 한 번도 빗나가지 않았다.',n:'아직 이 처방을 감당한 소환사는 없다.'},
+  Yasuo:{b:'바람과 함께 검을 휘두르는 추방된 검사.',h:'「{p}」의 칼끝에서 바람은 결코 멈추지 않는다.',n:'아직 이 바람을 길들인 소환사는 없다.'},
+  Akshan:{b:'갈고리를 타고 나는 정의의 사격수.',h:'「{p}」의 손에서 그 갈고리는 오차 없이 적을 꿰뚫는다.',n:'아직 이 갈고리를 잡은 소환사는 없다.'},
+  Jhin:{b:'네 발의 총알로 예술을 완성하는 학살자.',h:'「{p}」의 마지막 탄환은 늘 가장 치명적인 곳에 박힌다.',n:'아직 이 예술을 완성한 소환사는 없다.'},
+  Vayne:{b:'어둠 속 악을 쫓는 밤의 추적자.',h:'「{p}」의 세 번째 은화살은 거구마저 무너뜨린다.',n:'아직 이 은화살을 다룬 소환사는 없다.'},
+  Fizz:{b:'물살을 가르는 바다의 악동.',h:'「{p}」와 함께라면 상어는 언제나 정확한 순간에 떠오른다.',n:'아직 이 악동과 헤엄친 소환사는 없다.'},
+  Khazix:{b:'고립된 먹잇감을 노리는 허공의 사냥꾼.',h:'「{p}」와 함께 카직스는 진화를 멈추지 않는다.',n:'아직 이 사냥꾼을 진화시킨 소환사는 없다.'},
+  Naafiri:{b:'무리를 이끄는 달하운드.',h:'「{p}」의 곁에서 그 무리는 싸울수록 거세진다.',n:'아직 이 무리를 이끈 소환사는 없다.'},
+  Amumu:{b:'친구를 찾아 헤매는 슬픈 미라.',h:'「{p}」만큼은 이 미라의 눈물을 승리로 바꿔낸다.',n:'아직 이 미라의 친구가 되어준 소환사는 없다.'},
+  Malphite:{b:'굴러오는 화강암 덩어리.',h:'「{p}」가 산을 굴리면 적 팀은 통째로 하늘을 난다.',n:'아직 이 산을 굴린 소환사는 없다.'},
+  Poppy:{b:'망치 한 자루의 작은 영웅.',h:'「{p}」의 망치 앞에 돌진하는 자는 벽에 박힌다.',n:'아직 이 망치를 든 소환사는 없다.'},
+  Rammus:{b:'OK. 구르고 되받아치는 갑주 아르마딜로.',h:'「{p}」가 구르면 받은 피해는 고스란히 되돌아간다.',n:'아직 이 갑주를 두른 소환사는 없다.'},
+  Brand:{b:'모든 것을 태우는 불사의 악령.',h:'「{p}」가 불을 지피면 전장은 연쇄 폭발의 바다가 된다.',n:'아직 이 불꽃을 피운 소환사는 없다.'},
+  Malzahar:{b:'허공의 목소리를 전하는 예언자.',h:'「{p}」의 부름에 허공의 군단이 답한다.',n:'아직 이 예언을 들은 소환사는 없다.'},
+  Mel:{b:'반사와 흡수의 닐라 귀족.',h:'「{p}」 앞에서는 적의 스킬마저 부메랑이 된다.',n:'아직 이 귀족을 모신 소환사는 없다.'},
+  Lulu:{b:'아군을 키우고 적을 다람쥐로 만드는 엉뚱한 요정.',h:'「{p}」의 마법은 동료를 거인으로 만든다.',n:'아직 이 요정과 함께한 소환사는 없다.'},
+  Morgana:{b:'속박과 방패의 타락 천사.',h:'「{p}」의 암흑 방패는 그 어떤 속박도 무력화한다.',n:'아직 이 방패를 두른 소환사는 없다.'},
+};
 // 챔피언 실전 통계 (matches participants 기반) — 카드 상세용. participant.champion = ddragon slug
 function _champPlayStats(slug) {
   const byPlayer = {}; let top = { dmg:0, name:'' };
@@ -22548,16 +22573,14 @@ window.showGachaCardZoom = function(slug, star, cnt) {
   } else {
     mergeSection = `<div class="czd-max-badge">✦ 최고 등급 달성</div>`;
   }
-  // 챔피언 내전 실전 통계
+  // 챔피언 서사 글귀 — lore + 모스트 팀원(실시간). 기록 없으면 lore만
   const cs = _champPlayStats(slug);
-  let champStatsHtml = `<div class="czd-divider"></div>`;
-  if (cs) {
-    const mw = cs.most.games ? Math.round(cs.most.wins / cs.most.games * 100) : 0;
-    champStatsHtml += `<div class="czd-cs-title">📊 내전 기록</div>
-      <div class="czd-cs-row"><span class="czd-cs-k">🏆 모스트</span><span class="czd-cs-v"><b>${escHtml(cs.most.name)}</b> ${cs.most.games}판 · ${mw}%</span></div>
-      ${cs.top.dmg>0?`<div class="czd-cs-row"><span class="czd-cs-k">💥 최고 딜량</span><span class="czd-cs-v"><b>${escHtml(cs.top.name)}</b> ${cs.top.dmg.toLocaleString()}</span></div>`:''}`;
+  const lore = GACHA_CHAMP_LORE[slug];
+  let loreText;
+  if (lore) {
+    loreText = cs ? `${lore.b} ${lore.h.replace('{p}', escHtml(cs.most.name))}` : `${lore.b} ${lore.n}`;
   } else {
-    champStatsHtml += `<div class="czd-cs-empty">아직 이 챔피언으로 한 내전 기록이 없어요</div>`;
+    loreText = desc || '';
   }
   const petWrapZoom = !isShard ? `
     <div class="pc-pet-wrap">
@@ -22586,7 +22609,7 @@ window.showGachaCardZoom = function(slug, star, cnt) {
       <span class="czd-type-chip ${typeClass}">${typeLabel}</span>
       <span class="czd-eff-txt">${GACHA_EFFECT_TXT[typeLabel][star]}</span>
     </div>`:'<div class="czd-type-row" style="color:var(--rk-text-dim);font-size:11px;">파편 3개 합성 → 2성 카드 획득</div>'}
-    ${desc?`<div class="czd-desc">${desc}</div>`:''}
+    ${loreText?`<div class="czd-desc czd-lore">${loreText}</div>`:''}
     <div class="czd-divider"></div>
     <div class="czd-stats">
       <div class="czd-stat">
@@ -22598,7 +22621,6 @@ window.showGachaCardZoom = function(slug, star, cnt) {
         <span class="czd-stat-val" style="color:${tierCol.val};font-size:12px;">${GACHA_TIER_LABEL[star]}</span>
       </div>
     </div>
-    ${champStatsHtml}
   `;
   document.getElementById('cz-merge-host').innerHTML = mergeSection;
   document.getElementById('card-zoom-overlay').classList.add('show');
