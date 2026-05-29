@@ -4708,7 +4708,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.158';
+const APP_VERSION = 'v2.43.159';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4717,6 +4717,9 @@ const APP_VERSION = 'v2.43.158';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.159', date: '2026-05-29', changes: [
+    { tag: 'improve', text: '도감 스크롤 대폭 단축 — 파편/GOLD/PRISM 3섹션(54개 피규어)을 챔프별 최고 티어만 보여주는 통합 1그리드(18개)로 압축. 헤더에 ◇/★★/★★★ 보유 수 요약. 티어별 상세는 카드 탭에서 확인(중복 제거)' },
+  ]},
   { ver: 'v2.43.158', date: '2026-05-29', changes: [
     { tag: 'new', text: '정산창에 가챠 시너지 발동 표시 — 경기 정산 시 플레이어 행 아래에 "[아이콘] 시너지명 발동! +X LP / +XG / 강탈" 라인 추가. 미발동 시 "장착 · 미발동"으로 흐리게 표시. 발동 여부·효과를 한눈에 확인' },
   ]},
@@ -22102,37 +22105,41 @@ function _gachaCardHtml(slug, kr, role, star, idx) {
   </div>`;
 }
 
-function _gachaDexFigure(slug, kr, star, hasEver) {
-  const src = _gachaPetImg(slug, hasEver ? star : 1);
-  return `<div class="dex-figure ${hasEver?'owned t'+star:'locked'}">
+// 통합 도감 피규어 — 챔프별 최고 획득 티어 1개만 표시 (3섹션 → 1그리드로 압축)
+function _gachaDexFigure(slug, kr, topStar) {
+  const owned = topStar > 0;
+  const src = _gachaPetImg(slug, owned ? topStar : 1);
+  const starChar = {1:'◇',2:'★★',3:'★★★'}[topStar] || '';
+  return `<div class="dex-figure ${owned?'owned t'+topStar:'locked'}">
     <div class="dex-fig-img-wrap">
       <img class="dex-fig-img" src="${src}" alt="" onerror="this.onerror=null;this.style.opacity='0'">
     </div>
-    <div class="dex-fig-name">${hasEver?kr:'???'}</div>
+    <div class="dex-fig-name">${owned ? `<span style="font-size:8px;opacity:0.85;">${starChar}</span> ${escHtml(kr)}` : '???'}</div>
   </div>`;
 }
 
 function renderGachaDex() {
-  const TIER_STAR = {1:'◇',2:'★★',3:'★★★'};
-  const TIER_NAME = {1:'파편',2:'GOLD',3:'PRISM'};
-  let totalObtained = 0;
-  const tierHtml = [1,2,3].map(s => {
-    const eKey = `e${s}`;
-    let cnt = 0;
-    const figures = GACHA_CHAMPS.map(({slug,kr}) => {
-      const hasEver = gachaGe(slug)[eKey] || (gachaGp(slug)[`s${s}`]||0) > 0;
-      if(hasEver){ cnt++; totalObtained++; }
-      return _gachaDexFigure(slug, kr, s, hasEver);
-    }).join('');
-    return `<div class="dex-section">
-      <div class="dex-sec-head t${s}">
-        <span class="dex-sec-star">${TIER_STAR[s]}</span>
-        <span class="dex-sec-title">${TIER_NAME[s]}</span>
-        <span class="dex-sec-count">${cnt} / ${GACHA_CHAMPS.length}</span>
-      </div>
-      <div class="dex-scene">${figures}</div>
-    </div>`;
+  // 챔프별 최고 획득 티어로 통합 (도감 = ever obtained 기준). 티어별 상세는 '카드' 탭에서 확인
+  let cP=0, cG=0, cR=0; // 파편(1성↑)·GOLD(2성↑)·PRISM(3성) 보유 챔프 수
+  const figures = GACHA_CHAMPS.map(({slug,kr}) => {
+    const e = gachaGe(slug), p = gachaGp(slug);
+    const has1 = e.e1 || (p.s1||0)>0;
+    const has2 = e.e2 || (p.s2||0)>0;
+    const has3 = e.e3 || (p.s3||0)>0;
+    if (has1||has2||has3) cP++;
+    if (has2||has3) cG++;
+    if (has3) cR++;
+    const top = has3 ? 3 : has2 ? 2 : has1 ? 1 : 0;
+    return _gachaDexFigure(slug, kr, top);
   }).join('');
+  const totalObtained = cP;
+  const tierHtml = `<div class="dex-section">
+    <div class="dex-sec-head t3">
+      <span class="dex-sec-title">수집 도감</span>
+      <span class="dex-sec-count">◇ ${cP} · <span style="color:#e8b93c">★★ ${cG}</span> · <span style="color:#d49bff">★★★ ${cR}</span> / ${GACHA_CHAMPS.length}</span>
+    </div>
+    <div class="dex-scene">${figures}</div>
+  </div>`;
   const activeSyn = getMyGoldData()?.[sField('activeSynergy')] || null; // {sid, tier}
   const synHtml =
     _renderSynGroup('⚔️ 공격형', GACHA_SYNERGY_GROUPS.filter(g => g.archetype === 'atk'), activeSyn) +
@@ -22140,8 +22147,8 @@ function renderGachaDex() {
     _renderSynGroup('💚 지원형', GACHA_SYNERGY_GROUPS.filter(g => g.archetype === 'sup'), activeSyn) +
     _renderSynGroup('💫 리스크형', GACHA_SYNERGY_GROUPS.filter(g => g.archetype === 'risk'), activeSyn);
   return `<div class="dex-count-row">
-    <span style="font-size:11px;color:var(--text-dim);">전체 수집 현황</span>
-    <span class="dex-count">${totalObtained} / ${GACHA_CHAMPS.length * 3}</span>
+    <span style="font-size:11px;color:var(--text-dim);">발견한 챔피언</span>
+    <span class="dex-count">${totalObtained} / ${GACHA_CHAMPS.length}</span>
   </div>` + tierHtml + `<div class="dex-cat-sep">◈ 시너지</div>` + synHtml;
 }
 
