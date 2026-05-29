@@ -4751,7 +4751,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.192';
+const APP_VERSION = 'v2.43.193';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4760,6 +4760,9 @@ const APP_VERSION = 'v2.43.192';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.193', date: '2026-05-30', changes: [
+    { tag: 'improve', text: 'Hub 시도 횟수·최다 긁은 사람 표시 0부터 새 시작 — 재오픈(2026-05-30) 이후 기록만 집계(SCRATCH_REOPEN_TS). 이전 긁은 기록(lotteryHistory)은 그대로 보존 → 롤백 보상("돌린 만큼" 지급) 산정에 사용. 콘솔 scratchRollbackStats() 로 재오픈 전 유저별 시도 횟수·추정 지출 조회 가능' },
+  ]},
   { ver: 'v2.43.192', date: '2026-05-30', changes: [
     { tag: 'new', text: '🎟 스크래치 복권 재오픈 — 음수 EV 재밸런스 검증 완료(실질 회수율 일반 78.9%·고급 75.7%·프리미엄 76.3%, 골드 sink). 실제 rollScratch 로직으로 N=30만 시뮬 + 분포(100장 사면 88~95% 손해) + 해골 회피 가능성까지 실측해 함정 제거. 한도 없음 — 많이 살수록 골드 빠짐. SCRATCH_LOTTERY_LOCKED=false' },
   ]},
@@ -6363,6 +6366,9 @@ const SCRATCH_NORMAL_LOCKED = false;
 const SCRATCH_LOTTERY_TESTMODE = false;
 // 정식 오픈 시각 — 이 시각 이후 기록만 집계 표시에 반영
 const SCRATCH_LAUNCH_TS = new Date('2026-05-28T00:00:00+09:00').getTime();
+// v2.43.193 재오픈 기준 — Hub 시도 횟수/최다 긁은 사람 집계는 이 시각 이후만 (0부터 새 시작).
+// lotteryHistory 기록 자체는 보존 → 이전(롤백분) 긁은 횟수는 보상 계산에 그대로 사용 가능.
+const SCRATCH_REOPEN_TS = new Date('2026-05-30T00:00:00+09:00').getTime();
 // 🧪 긁기 도구 시뮬레이션 — 테스트 모드에서만 적용. null | 'scratch_coin' | 'scratch_key'
 // Hub 모달 안 토글로 변경됨. 다음 티어 구매 시 toolParams override.
 let _scratchTestTool = null;
@@ -16166,6 +16172,25 @@ window.lotteryStats = function() {
   console.log(`하우스 수익: ${totalSpent}G 수금 - ${totalGot}G 지급 = ${totalSpent - totalGot >= 0 ? '+' : ''}${totalSpent - totalGot}G`);
 };
 
+// 롤백 보상용 — 재오픈 전(SCRATCH_LAUNCH_TS ~ SCRATCH_REOPEN_TS) 스크래치 시도 횟수·지출 집계 (v2.43.193)
+// "돌린 만큼 보상" 산정 시 사용. lotteryHistory 는 보존되므로 언제든 재조회 가능.
+window.scratchRollbackStats = function() {
+  const PRICE = { 0:70, 1:200, 2:400 };  // 재오픈 시점 가격 기준
+  const rows = Object.values(goldData).filter(d => d.name).map(d => {
+    const pre = (d.lotteryHistory||[]).filter(h =>
+      h.scratch && typeof h.tierIdx === 'number'
+      && (h.ts||0) >= SCRATCH_LAUNCH_TS && (h.ts||0) < SCRATCH_REOPEN_TS);
+    if (!pre.length) return null;
+    const cnt = [0,0,0]; let spent = 0;
+    pre.forEach(h => { cnt[h.tierIdx]++; spent += (PRICE[h.tierIdx]||0); });
+    return { 이름:d.name, 총시도:pre.length, 일반:cnt[0], 고급:cnt[1], 프리미엄:cnt[2], 추정지출:spent };
+  }).filter(Boolean).sort((a,b)=>b.총시도-a.총시도);
+  console.log('━━━ 재오픈 전 스크래치 시도 (롤백 보상 산정용) ━━━');
+  console.table(rows);
+  console.log(`총 시도 ${rows.reduce((s,r)=>s+r.총시도,0)}회 · 총 추정지출 ${rows.reduce((s,r)=>s+r.추정지출,0)}G`);
+  return rows;
+};
+
 // 복권 환불 팝업 — 버그 수정 전 구매자 대상 구매비 환불
 function checkLotteryRefund() {
   if (!myName || CURRENT_SEASON < 1) return;
@@ -18407,7 +18432,7 @@ window.openLotteryHub = function() {
     Object.values(goldData).forEach(d => {
       if (!d.name) return;
       const hist = d.lotteryHistory || [];
-      const cnt = hist.filter(h => h.scratch && h.tierIdx === idx && (h.ts || 0) >= SCRATCH_LAUNCH_TS).length;
+      const cnt = hist.filter(h => h.scratch && h.tierIdx === idx && (h.ts || 0) >= SCRATCH_REOPEN_TS).length;
       total += cnt;
       if (cnt > topCount) { topCount = cnt; topName = d.name; }
     });
