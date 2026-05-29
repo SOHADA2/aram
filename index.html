@@ -4708,7 +4708,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.154';
+const APP_VERSION = 'v2.43.155';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4717,6 +4717,9 @@ const APP_VERSION = 'v2.43.154';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.155', date: '2026-05-29', changes: [
+    { tag: 'new', text: '대기 화면(팀 구성 후) LP 카드에 장착 시너지 뱃지 — 경기 직전 "내 시너지가 이번 판에 적용됨"을 [아이콘] 시너지명 N성 · 효과로 확인. 멤버 미보유 시 ⚠ 미적용 경고' },
+  ]},
   { ver: 'v2.43.154', date: '2026-05-29', changes: [
     { tag: 'new', text: '가챠 시너지 장착 상태 배너 — 가챠 전 탭(뽑기/카드/도감) 상단에 "장착 중 · [시너지] ✕해제" 표시. 미장착/멤버 미보유 시 안내. 어디서든 현재 장착 시너지 한눈에 확인·해제' },
     { tag: 'fix', text: '시너지 혼합 티어 잠금 버그 수정 — 멤버 일부를 3성 합성(2성 카드 소진)하면 2성·3성 시너지 둘 다 못 켜지던 사각지대. 2성 조건을 "2성 이상 보유(3성 포함)"로 통일(도감·토글검증·저장 빌더 3곳)' },
@@ -16578,6 +16581,35 @@ async function renderS1WaitingCard(el) {
 
   const tierEmoji = { unranked:'🔒', bronze:'🥉', silver:'🥈', gold:'🥇', platinum:'💎', diamond:'💠', master:'👑', grandmaster:'🔴', challenger:'⚡' };
 
+  // 장착 시너지 뱃지 (경기 직전 적용 확인용) — v2.43.155~
+  let synBadgeHtml = '';
+  {
+    const act = myGoldData?.[sField('activeSynergy')] || null;
+    if (act && act.sid) {
+      const grp = GACHA_SYNERGY_GROUPS.find(g => g.sid === act.sid);
+      if (grp) {
+        const tier = act.tier === 3 ? 3 : 2;
+        const cards = myGoldData.champCards_s1 || {};
+        const owned = grp.members.every(slug => {
+          const c = cards[slug] || {};
+          return tier === 3 ? (c.s3||0)>=1 : ((c.s2||0)>=1 || (c.s3||0)>=1);
+        });
+        if (owned) {
+          synBadgeHtml = `<div style="display:flex;align-items:center;gap:6px;margin:6px 0 2px;padding:5px 9px;border-radius:7px;border:1px solid ${grp.color}55;background:${grp.color}12;font-size:11px;flex-wrap:wrap;">
+            <span style="font-size:14px;">${grp.icon}</span>
+            <span style="color:${grp.color};font-weight:700;">${grp.name} ${tier}성</span>
+            <span style="color:var(--rk-text-dim);font-size:10px;">${_synEffTxt(grp, tier)}</span>
+          </div>`;
+        } else {
+          synBadgeHtml = `<div style="display:flex;align-items:center;gap:6px;margin:6px 0 2px;padding:5px 9px;border-radius:7px;border:1px solid rgba(255,184,107,0.4);background:rgba(255,184,107,0.08);font-size:11px;">
+            <span style="font-size:14px;">⚠</span>
+            <span style="color:#ffb86b;font-weight:700;">${grp.name} — 멤버 미보유로 미적용</span>
+          </div>`;
+        }
+      }
+    }
+  }
+
   el.innerHTML = `
 <div style="display:flex;flex-direction:column;gap:8px;">
   <div class="wm-mid-row">
@@ -16592,6 +16624,7 @@ async function renderS1WaitingCard(el) {
       <div class="wm-bar"><div class="wm-bar-fill" id="wm-lp-bar" style="background:linear-gradient(90deg,${meta.color},#7c3aed);box-shadow:0 0 9px ${meta.color}66;"></div></div>
       ${ctxTips.length > 0 ? `<div class="wm-ctx-tip" id="wm-ctx-tip">${escHtml(ctxTips[0])}</div>` : ''}
       ${(d.newlyPromoted||d.masterShield)?`<div style="margin:5px 0 2px;display:flex;gap:5px;flex-wrap:wrap;">${(d.newlyPromoted&&d.masterShield)?'<span class="s1-shield-badge first-chance">⏳ 첫판 보호</span>':''}<span class="s1-shield-badge zero-lp">🛡️ 0LP 방어막</span></div>`:''}
+      ${synBadgeHtml}
       <div class="wm-stat-strip">
         <div class="wm-stat-item"><span class="wm-sv win" id="wm-sv-win">0</span><span class="wm-sk">승</span></div>
         <div class="wm-stat-item"><span class="wm-sv loss" id="wm-sv-loss">0</span><span class="wm-sk">패</span></div>
