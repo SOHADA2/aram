@@ -4708,7 +4708,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.152';
+const APP_VERSION = 'v2.43.153';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4717,6 +4717,13 @@ const APP_VERSION = 'v2.43.152';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.153', date: '2026-05-29', changes: [
+    { tag: 'new', text: '챔피언 가챠 정식 가동 — 뽑기(50G/450G)·합성 활성화. 시너지가 실제 경기 LP·골드에 반영됨. 멤버 전원 보유 시 활성(2성 30%/3성 50% 발동), 한 번에 1개, 승급전·배치 제외, 도박권 사용 시 억제. 시너지 발동은 경기 저장 시 1회 롤해 매치에 기록(재계산 시 고정)' },
+    { tag: 'new', text: '시너지 4분류 — ⚔️공격형(승리 LP+), 🛡️방어형(패배 LP방어+위로금), 💚지원형(승리 골드/제로섬 강탈), 💫리스크형(반전 도박). 특수: 군림(연승 가속)·불굴(LP방어+위로금)·약탈(상대 골드 강탈)·유레카(고위험)·공허(전액방어 도박)' },
+  ]},
+  { ver: 'v2.43.152', date: '2026-05-29', changes: [
+    { tag: 'improve', text: '가챠 시너지 데이터·도감 재편 (1/2) — 역할/진영 → 공격/방어/지원/리스크 4분류 그룹핑. 2성/3성 효과값 차등. 시너지 활성화에 멤버 전원 보유 검증 추가(무단 활성 차단). 카드 확대 ReferenceError(GACHA_PET_TYPE 미정의) 수정' },
+  ]},
   { ver: 'v2.43.151', date: '2026-05-28', changes: [
     { tag: 'fix', text: '스크래치 도구 아이템 전원 환불·회수 — 긁기 동전(200G) / 만능 긁개(500G) 보유자 5명의 items_s1 에서 해당 아이템 제거 후 가격만큼 goldBonusLegacy_s1 에 가산. 럼블 700G(동전+만능)·신규 700G(동전+만능)·맹독/애긔/ap렉사이 각 500G(만능). 총 2,900G 환불. 잔여 0개 검증 완료' },
   ]},
@@ -6648,6 +6655,16 @@ function calcGoldFromMatches(name, season = CURRENT_SEASON) {
     }
     if (!inA && !inB) return;
     const won = (m.winner==='blue'&&inA)||(m.winner==='red'&&inB);
+    // 가챠 시너지 골드 (v2.43.153~) — win_gold/위로금 goldDelta + 강탈(제로섬) 정산
+    if (m.synergyEffects) {
+      const myEff = m.synergyEffects[key];
+      if (myEff && myEff.goldDelta) gold += myEff.goldDelta;
+      for (const [thiefKey, eff] of Object.entries(m.synergyEffects)) {
+        if (!eff || !eff.steal) continue;
+        if (thiefKey === key) gold += (eff.steal.per || 0) * (eff.steal.victims?.length || 0);
+        else if (eff.steal.victims?.includes(key)) gold -= (eff.steal.per || 0);
+      }
+    }
     // 퀘스트 이벤트 매치: 상금만 적용, MVP/뉴비/매너 보너스 없음
     if (m.questEvent) {
       gold += won ? m.questEvent.bonusGold : 0;
@@ -6669,6 +6686,22 @@ function calcGoldFromMatches(name, season = CURRENT_SEASON) {
     }
   });
   return gold;
+}
+
+// 현재 연승 수 (이번 매치 직전까지) — 가챠 시너지 '군림'용 (v2.43.153~)
+function _currentWinStreak(name) {
+  const key = normName(name);
+  const ms = Object.values(matches)
+    .filter(m => (m.season ?? 0) === CURRENT_SEASON &&
+      ((m.teamA||[]).some(n=>normName(n)===key) || (m.teamB||[]).some(n=>normName(n)===key)))
+    .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
+  let streak = 0;
+  for (const m of ms) {
+    const inA = (m.teamA||[]).some(n=>normName(n)===key);
+    const won = (m.winner==='blue'&&inA)||(m.winner==='red'&&!inA);
+    if (won) streak++; else break;
+  }
+  return streak;
 }
 
 // goldSpent = 현재 보유 아이템 가격 합산 (경기 기록 기반 계산과 일치시키기 위함)
@@ -11372,6 +11405,48 @@ window.saveMatch = async function() {
     // giveMatchGold 가 읽도록 모듈 스코프에 노출 (이 saveMatch 호출 한정)
     window._preservedSqPlayersForThisMatch = _preservedSqPlayers;
 
+    // ── 가챠 시너지 (v2.43.153~) — 발동 1회 롤 후 매치에 기록 (재계산 시 재롤 방지) ──
+    // 정규전만 의미 있음(s1ApplyMatchResult가 배치·승급전에선 무시), 도박권 활성 시 억제
+    const _synergyEffects = {};
+    if (CURRENT_SEASON >= 1) {
+      const winSet = new Set(winners.map(normName));
+      const loserNorms = losers.map(normName);
+      for (const p of allPlayers) {
+        const pNorm = normName(p.name);
+        const entry = Object.entries(goldData).find(([,g])=>normName(g.name)===pNorm);
+        if (!entry) continue;
+        const gdata = entry[1];
+        const act = gdata[sField('activeSynergy')];
+        if (!act || !act.sid) continue;
+        const grp = GACHA_SYNERGY_GROUPS.find(g=>g.sid===act.sid);
+        if (!grp) continue;
+        const tier = act.tier === 3 ? 3 : 2;
+        const cards = gdata.champCards_s1 || {};
+        const owns = grp.members.every(slug => {
+          const c = cards[slug] || {};
+          return tier === 3 ? (c.s3||0)>=1 : (c.s2||0)>=1;
+        });
+        if (!owns) continue;
+        // 도박권 활성 시 시너지 억제
+        const activeItems = (gdata[sField('items')]||[]).filter(it=>it.active).map(it=>it.id);
+        if (activeItems.includes('s1_gamble')) continue;
+        const won = winSet.has(pNorm);
+        const procced = Math.random() < (SYN_PROC[tier] / 100);
+        const v = tier===3 ? grp.v3 : grp.v2;
+        const eff = { sid:grp.sid, tier, archetype:grp.archetype, effType:grp.effType, procced };
+        // 골드 결과 (calcGoldFromMatches가 읽음)
+        if (procced && won && grp.effType === 'win_gold') eff.goldDelta = v;
+        if (procced && !won && grp.special === 'unbreakable') eff.goldDelta = (tier===3?grp.goldV3:grp.goldV2);
+        if (procced && won && grp.effType === 'steal' && loserNorms.length) {
+          eff.steal = { per: v, victims: loserNorms.slice() };
+        }
+        // 군림 연승 수 (저장 직전 = 이번 매치 직전까지)
+        if (grp.special === 'reign') eff.streak = _currentWinStreak(p.name);
+        _synergyEffects[pNorm] = eff;
+      }
+    }
+    if (Object.keys(_synergyEffects).length > 0) matchData.synergyEffects = _synergyEffects;
+
     // ── 관전자 결과 헬퍼 (다중 관전자 지원) ─────────────────────
     const _buildSpecResults = () => {
       if (!currentSpectators.length) return null;
@@ -11560,7 +11635,7 @@ window.saveMatch = async function() {
       await _normalizeActiveS1Items(allMatchPlayers, s1LpBefore);
     }
     try {
-      await s1ApplyAllMatchResults(winners, losers, matchData.newbies || null, currentSpectators.map(s => s.name), matchData.secretQuests || null);
+      await s1ApplyAllMatchResults(winners, losers, matchData.newbies || null, currentSpectators.map(s => s.name), matchData.secretQuests || null, matchData.synergyEffects || null);
       await giveMatchGold(winners, losers, matchTimestamp);
     } finally {
       // 청소 — 다음 saveMatch 호출 누수 방지 (에러 케이스에서도 항상 실행)
@@ -17160,28 +17235,24 @@ function renderGachaTab() {
 
   if (gachaCatTab === 'pull') {
     list.innerHTML = tabHtml + `
-      <div style="display:flex;align-items:center;gap:6px;padding:7px 10px;margin-bottom:8px;background:rgba(200,168,75,0.06);border:1px solid rgba(200,168,75,0.18);border-radius:7px;">
-        <span style="font-size:10px;">🔧</span>
-        <span style="font-size:10px;color:rgba(200,168,75,0.7);font-weight:700;">뽑기 기능 준비 중 — 곧 오픈 예정이에요</span>
-      </div>
       <div class="sli">
         <div class="sli-icon" style="overflow:hidden;position:relative;">
-          <img id="gacha-preview-img" src="assets/pets/Yasuo/silver/default.png" style="width:100%;height:100%;object-fit:contain;filter:brightness(0) opacity(0.45)" onerror="this.style.opacity='0'">
+          <img id="gacha-preview-img" src="assets/pets/Yasuo/silver/default.png" style="width:100%;height:100%;object-fit:contain" onerror="this.style.opacity='0'">
         </div>
         <div class="sli-info">
           <div class="sli-name">챔피언 가챠 × 1 <span class="sli-tip-wrap">?<div class="sli-tip">1성 87% · 2성 10% · 3성 3%<br>18종 챔피언 카드 · 중복 시 합성 재료 활용</div></span></div>
         </div>
-        <div class="sli-right"><button class="sli-price sli-limit-hit" disabled>준비 중</button></div>
+        <div class="sli-right"><button id="gacha-btn1" class="sli-price" onclick="window.doGachaPull(1)">50G</button></div>
       </div>
       <div class="sli">
         <div class="sli-icon" style="overflow:hidden;position:relative;">
-          <img id="gacha-preview-img10" src="assets/pets/Yasuo/silver/default.png" style="width:100%;height:100%;object-fit:contain;filter:brightness(0) opacity(0.45)" onerror="this.style.opacity='0'">
+          <img id="gacha-preview-img10" src="assets/pets/Yasuo/silver/default.png" style="width:100%;height:100%;object-fit:contain" onerror="this.style.opacity='0'">
           <span class="sli-icon-x10">×10</span>
         </div>
         <div class="sli-info">
           <div class="sli-name">챔피언 가챠 × 10 <span class="sli-tip-wrap">?<div class="sli-tip">1회 뽑기 × 10 · 같은 챔피언 카드 3개 보유 시 상위 티어 합성 가능</div></span></div>
         </div>
-        <div class="sli-right"><button class="sli-price sli-limit-hit" disabled>준비 중</button></div>
+        <div class="sli-right"><button id="gacha-btn10" class="sli-price" onclick="window.doGachaPull(10)">450G</button></div>
       </div>`;
     startGachaPreview();
     return;
@@ -19717,7 +19788,7 @@ function s1PromoFail(d) {
 
 // ── 단일 플레이어 경기 결과 적용 ─────────────────────────────────
 // hasNewbieTeammate/iAmNewbie 는 뉴비 보너스 적용 여부 (v2.31.5~)
-async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = false, iAmNewbie = false, secretQuestProtect = 0) {
+async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = false, iAmNewbie = false, secretQuestProtect = 0, synergyEffect = null) {
   const key = normName(name);
   let d = season1Data[key] ? { ...season1Data[key] } : s1DefaultPlayer();
   const isMe = myName && normName(name) === normName(myName);
@@ -19790,6 +19861,32 @@ async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = f
   // s1ApplyAllMatchResults에서 호출 시 secretQuestProtect 값 0~14 전달
   if (!won && secretQuestProtect > 0 && !iAmNewbie && !useGamble) {
     lose = Math.max(0, lose - secretQuestProtect);
+  }
+
+  // ── 가챠 시너지 LP (v2.43.153~) — 정규전 한정(위에서 배치·승급전 early return), 도박권 시 builder에서 억제됨 ──
+  if (synergyEffect && synergyEffect.sid) {
+    const grp = GACHA_SYNERGY_GROUPS.find(g => g.sid === synergyEffect.sid);
+    if (grp) {
+      const t = synergyEffect.tier === 3 ? 3 : 2;
+      const v = t === 3 ? grp.v3 : grp.v2;
+      if (grp.effType === 'win_lp' && won && synergyEffect.procced) {
+        let add = v;
+        if (grp.special === 'reign') {
+          const smax = t === 3 ? grp.streakMax3 : grp.streakMax2;
+          add += Math.min(smax, (synergyEffect.streak || 0) * grp.streakStep);
+        }
+        gain += add;
+      } else if (grp.effType === 'lp_block' && !won && synergyEffect.procced) {
+        lose = Math.max(0, lose - v);
+      } else if (grp.effType === 'risk_win') {
+        if (won && synergyEffect.procced) gain += v;
+        else if (!won && synergyEffect.procced) lose += grp.lossV;
+      } else if (grp.effType === 'risk_block' && !won) {
+        // procced = 손실 전액 방어 / 실패 = 추가 손실
+        if (synergyEffect.procced) lose = 0;
+        else lose += (t === 3 ? grp.failV3 : grp.failV2);
+      }
+    }
   }
 
   const isChallenger = d.tier === 'challenger';
@@ -19877,7 +19974,7 @@ async function _normalizeActiveS1Items(players, preMatchState) {
 
 // ── saveMatch 훅: 전체 플레이어 S1 결과 일괄 적용 ────────────────
 // newbiesAtMatch: 경기 당시 뉴비 normName 배열 (재시뮬레이션 시 m.newbies 전달, 현재 경기는 null → 현재 상태 사용)
-async function s1ApplyAllMatchResults(winners, losers, newbiesAtMatch = null, spectators = [], secretQuestData = null) {
+async function s1ApplyAllMatchResults(winners, losers, newbiesAtMatch = null, spectators = [], secretQuestData = null, synergyData = null) {
   if (CURRENT_SEASON < 1) return;
   const allPlayers = [...winners, ...losers];
   const itemsKey = sField('items');
@@ -19912,7 +20009,8 @@ async function s1ApplyAllMatchResults(winners, losers, newbiesAtMatch = null, sp
     }
     // 비밀 퀘스트 LP 보호 (v2.43.39~) — matchData.secretQuests[pNorm].lpProtect 활용
     const sqProtect = secretQuestData?.[normName(p)]?.lpProtect || 0;
-    const newD = await s1ApplyMatchResult(p, isWin, activeS1Item, hasNewbieTeammate, iAmNewbie, sqProtect);
+    const synEff = synergyData?.[normName(p)] || null;
+    const newD = await s1ApplyMatchResult(p, isWin, activeS1Item, hasNewbieTeammate, iAmNewbie, sqProtect, synEff);
     results.push({ name: p, preTier: preTiers[normName(p)], newTier: newD?.tier || preTiers[normName(p)] });
   }
 
@@ -22137,7 +22235,6 @@ function startGachaPreview() {
 function stopGachaPreview() { clearInterval(_gachaPreviewTimer); _gachaPreviewTimer = null; }
 
 window.doGachaPull = async function(times) {
-  showGoldToast('🔧 뽑기 기능 준비 중이에요!'); return;
   if (!myName) { showGoldToast('먼저 내 이름을 선택해주세요'); return; }
   const cost = times === 1 ? 50 : 450;
   const currentGold = getMyGold();
@@ -22179,7 +22276,6 @@ window.doGachaPull = async function(times) {
 };
 
 window.doGachaMerge = async function(slug, fromStar) {
-  showGoldToast('🔧 합성 기능 준비 중이에요!'); return;
   if (!myName) return;
   const key = getMyGoldKey(), data = getMyGoldData();
   if (!key || !data) return;
