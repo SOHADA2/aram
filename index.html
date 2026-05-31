@@ -534,6 +534,8 @@ select option{background:var(--surface2);}
 .qib-chip-new[data-chip-tip]:hover::after{content:attr(data-chip-tip);position:absolute;bottom:calc(100% + 13px);left:50%;transform:translateX(-50%);background:rgba(13,11,28,0.97);border:1px solid rgba(255,255,255,0.12);border-radius:7px;padding:7px 10px;font-size:10.5px;color:#e2d9f3;white-space:pre;z-index:100;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,0.6);line-height:1.6;min-width:140px;max-width:220px;white-space:pre-wrap;}
 .qib-chip-new.sq-chip[data-chip-tip]:hover::before{border-top-color:rgba(167,139,250,0.4);}
 .qib-chip-new.sq-chip[data-chip-tip]:hover::after{border-color:rgba(167,139,250,0.35);}
+.qib-chip-new.sq-chip{cursor:pointer;background:rgba(167,139,250,0.12);border-color:rgba(167,139,250,0.4);}
+.qib-chip-new.sq-chip:active{transform:scale(0.96);}
 .team-player.is-me{background:rgba(200,168,75,0.06);}
 .team-a .team-player.is-me{border-left:2px solid rgba(56,217,192,0.65);padding-left:14px;}
 .team-b .team-player.is-me{border-left:2px solid rgba(232,200,74,0.65);padding-left:14px;}
@@ -4824,7 +4826,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.204';
+const APP_VERSION = 'v2.43.205';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4833,6 +4835,9 @@ const APP_VERSION = 'v2.43.204';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.205', date: '2026-05-31', changes: [
+    { tag: 'fix', text: '팀 결과 활성 아이템 바의 비밀 퀘스트 토큰 — 호버 툴팁이 안 뜨던 문제 수정. 툴팁이 부모 바(.qib-new-bar/.qib-new-chips)의 overflow:hidden에 잘려 보이지 않았음. 이제 칩을 클릭/탭하면 현재 퀘스트 상세(이름·설명·난이도·보상·LP 보호)가 모달로 표시됨(모바일 포함). 칩 라벨도 "🔍 보기"로 변경해 클릭 유도' },
+  ]},
   { ver: 'v2.43.204', date: '2026-05-31', changes: [
     { tag: 'improve', text: '시너지 효과 설명 직관화 — "승리 시 30% → LP +2" 같은 화살표식 표기를 "승리하면 30% 확률로 LP +2 추가 획득"처럼 풀어서 설명. 방어형은 "패배해도 30% 확률로 LP를 N 덜 잃음"(기존 "LP 방어"가 모호), 리스크형은 [양날의 검]/[도박] 라벨로 도박성 명시, 골드는 "골드 +N 획득"으로 명확화. 효과 텍스트가 잘리지 않고 줄바꿈되도록 표시 영역 조정' },
   ]},
@@ -10657,16 +10662,22 @@ function _qibRender(elId, allowBuy) {
     const chipsHtml2 = activeItems.map(({ raw, def }) => {
       let tipContent = def.desc || '';
       let extraCls = '';
+      let clickAttr = '';
+      let onLabel = '● ON';
       if (raw.id === 'secret_quest' && raw.questId) {
         const q = getSecretQuestById(raw.questId);
         if (q) {
           const diffLabel = { easy:'쉬움', mid:'보통', hard:'어려움' }[q.diff] || '';
           tipContent = `${q.name}\n${q.desc}\n승리 +${q.reward}G · LP -14→-${14 - q.protect} · ${diffLabel}`;
           extraCls = ' sq-chip';
+          // 호버 툴팁은 부모(.qib-new-bar/.qib-new-chips)의 overflow:hidden에 잘려 안 보임 →
+          // 클릭/탭 시 상세 모달로 확인 (모바일 포함). 라벨도 "보기"로 클릭 유도
+          clickAttr = ` onclick="window._viewActiveSecretQuest('${escHtml(raw.questId)}')"`;
+          onLabel = '🔍 보기';
         }
       }
       const tipAttr = tipContent ? ` data-chip-tip="${escHtml(tipContent)}"` : '';
-      return `<div class="qib-chip-new${extraCls}"${tipAttr}><span class="chip-icon">${def.icon}</span><span class="chip-name">${escHtml(def.name)}</span><span class="chip-on">● ON</span></div>`;
+      return `<div class="qib-chip-new${extraCls}"${tipAttr}${clickAttr}><span class="chip-icon">${def.icon}</span><span class="chip-name">${escHtml(def.name)}</span><span class="chip-on">${onLabel}</span></div>`;
     }).join('');
     el.innerHTML = `<div class="qib-new-bar"><span class="qib-new-label">⚡ 활성 아이템</span><div class="qib-new-divider"></div><div class="qib-new-chips">${chipsHtml2}</div></div>`;
     return;
@@ -18360,6 +18371,13 @@ window.showSecretQuestModal = function showSecretQuestModal(quest) {
   // ESC 닫기
   const escClose = ev => { if (ev.key === 'Escape') { el.remove(); document.removeEventListener('keydown', escClose, true); } };
   document.addEventListener('keydown', escClose, true);
+};
+
+// 활성 아이템 바의 비밀 퀘스트 칩 클릭 → 현재 활성 퀘스트 상세 모달 재오픈 (v2.43.205)
+// 호버 툴팁(data-chip-tip)이 부모 overflow:hidden에 잘려 안 보이던 문제 대응 + 모바일(터치) 지원
+window._viewActiveSecretQuest = function(questId) {
+  const q = getSecretQuestById(questId);
+  if (q) window.showSecretQuestModal(q);
 };
 
 // ── 비밀 퀘스트 토큰 — 구매 시 안내 모달 (v2.43.43~) ──────────
