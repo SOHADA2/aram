@@ -4790,7 +4790,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.199';
+const APP_VERSION = 'v2.43.200';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4799,6 +4799,9 @@ const APP_VERSION = 'v2.43.199';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.200', date: '2026-05-31', changes: [
+    { tag: 'fix', text: '파편 뽑을 때 챔피언 아트가 나오던 문제 — 파편(1성)은 배경만 있고 캐릭터 누끼는 없는 게 원칙(도감과 동일)인데, 단일·10연 뽑기 reveal에서 silver 커스텀 아트를 표시했음. 파편이면 캐릭터 이미지 영역을 비우고 배경 스플래시만 보이도록 수정' },
+  ]},
   { ver: 'v2.43.199', date: '2026-05-31', changes: [
     { tag: 'new', text: '🎬 뽑기 연출 강화 — 카드 공개 시 (1) 챔피언 명대사 타이핑 연출(예: 야스오 "죽음은 바람과 같다 — 늘 곁에 있지", 람머스 "오케이.") 한 글자씩 + 깜빡이는 커서, 2성 금빛/3성 프리즘 색. (2) 스플래시 아트 켄 번스 시네마틱 — 배경이 6초간 서서히 줌인되며 밝아짐. 18챔프 전원 고유 대사' },
   ]},
@@ -23110,13 +23113,20 @@ function showGachaReveal(c, starLevel) {
   _gStartSilCycle();
   document.getElementById('rv-no-img').style.display = 'none';
   const img = document.getElementById('rv-img');
-  img.style.display = ''; img.onerror = null;
-  // 티어별 커스텀 아트 (1성 silver / 2성 gold / 3성 prism). 실패 시 ddragon 일러스트로 폴백
-  img.src = _gachaPetImg(c.slug, starLevel);
-  img.onerror = () => {
-    img.onerror = () => { img.style.display = 'none'; document.getElementById('rv-no-img').style.display = 'block'; };
-    img.src = `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${c.slug}_0.jpg`;
-  };
+  img.onerror = null;
+  if (starLevel === 1) {
+    // 파편 — 캐릭터 아트 없음(도감과 동일), 배경 스플래시만 표시 (v2.43.200)
+    img.removeAttribute('src');
+    img.style.display = 'none';
+  } else {
+    img.style.display = '';
+    // 티어별 커스텀 아트 (2성 gold / 3성 prism). 실패 시 ddragon 일러스트로 폴백
+    img.src = _gachaPetImg(c.slug, starLevel);
+    img.onerror = () => {
+      img.onerror = () => { img.style.display = 'none'; document.getElementById('rv-no-img').style.display = 'block'; };
+      img.src = `https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${c.slug}_0.jpg`;
+    };
+  }
   const SC = {1:'◇ 파편',2:'★★',3:'★★★'};
   document.getElementById('rv-front-stars').textContent = SC[starLevel];
   document.getElementById('rv-splash').style.backgroundImage = `url('https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${c.slug}_0.jpg')`;
@@ -23213,7 +23223,11 @@ function showGachaTenPopup(results) {
   results.forEach((c,i) => {
     const s = c.star||1, rareCls = s===2?'gold-face':s===3?'prism-face':'';
     const div = document.createElement('div'); div.className = 'tc'; div.id = `tc-wrap${i}`;
-    div.innerHTML = `<div class="tc-inner" id="tc${i}" data-star="${s}" data-slug="${c.slug}" onclick="onGachaTenCardClick(${i})"><div class="tc-back"><div class="tc-back-pattern"></div><span>✦</span></div><div class="tc-front ${rareCls}"><div class="tc-splash" style="background-image:url('https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${c.slug}_0.jpg')"></div><div class="tc-glow-layer"></div><div class="tc-img-area"><img src="${_gachaPetImg(c.slug,s)}" alt="" onerror="this.onerror=null;this.src='https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${c.slug}_0.jpg';this.onerror=()=>this.style.opacity='0'"></div><div class="tc-info"><div class="tc-name">${c.kr}</div><div class="tc-stars">${SC[s]}</div></div></div></div>`;
+    // 파편(s=1)은 캐릭터 아트 없이 배경만 (도감과 동일, v2.43.200)
+    const imgArea = s === 1
+      ? `<div class="tc-img-area"></div>`
+      : `<div class="tc-img-area"><img src="${_gachaPetImg(c.slug,s)}" alt="" onerror="this.onerror=null;this.src='https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${c.slug}_0.jpg';this.onerror=()=>this.style.opacity='0'"></div>`;
+    div.innerHTML = `<div class="tc-inner" id="tc${i}" data-star="${s}" data-slug="${c.slug}" onclick="onGachaTenCardClick(${i})"><div class="tc-back"><div class="tc-back-pattern"></div><span>✦</span></div><div class="tc-front ${rareCls}"><div class="tc-splash" style="background-image:url('https://ddragon.leagueoflegends.com/cdn/img/champion/splash/${c.slug}_0.jpg')"></div><div class="tc-glow-layer"></div>${imgArea}<div class="tc-info"><div class="tc-name">${c.kr}</div><div class="tc-stars">${SC[s]}</div></div></div></div>`;
     grid.appendChild(div);
   });
   document.getElementById('ten-popup').classList.add('show');
