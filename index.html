@@ -4826,7 +4826,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.210';
+const APP_VERSION = 'v2.43.211';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4835,6 +4835,9 @@ const APP_VERSION = 'v2.43.210';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.211', date: '2026-05-31', changes: [
+    { tag: 'improve', text: '10연차 뽑기에도 챔피언 명대사 음성 적용 — 기존엔 1연차에서만 나왔음. 카드를 한 장씩 클릭해 열면 각 챔피언 음성 재생(다음 카드 클릭 시 이전 음성 자동 중단), "모두 열기"는 그중 가장 높은 등급 1장만 음성 재생(10개 동시 재생 방지). 팝업 닫으면 음성 중단' },
+  ]},
   { ver: 'v2.43.210', date: '2026-05-31', changes: [
     { tag: 'improve', text: '가챠 명대사 텍스트를 실제 영어 픽 음성에 맞게 전면 교체 — 기존엔 임의의 한국어 대사라 음성과 따로 놀았음(예: 갱플랭크 음성은 "Neither the flames nor the depths could claim me"인데 텍스트는 "닻을 올려라"). 17챔프 모두 실제 픽 보이스를 그대로 옮긴 한국어 자막으로 맞춤(잰 "학살 속에서 나는 피어난다…", 피즈 "내가 혼쭐내주지!" 등). 한국어 더빙 음성 파일은 공개 소스가 없어 영어 원본 음성 유지' },
   ]},
@@ -23615,23 +23618,39 @@ function showGachaTenPopup(results) {
   results.forEach((_,i) => { setTimeout(() => { const inner = document.getElementById('tc'+i); if (inner) { inner.style.transition = 'opacity 0.3s ease, transform 0.3s ease'; inner.classList.add('entered'); } }, i*60); });
 }
 
-function flipGachaTenCard(i) {
+function flipGachaTenCard(i, playVoice = true) {
   const inner = document.getElementById('tc'+i); if (!inner||inner.classList.contains('flipped')) return;
   inner.classList.add('flipped');
   const wrap = inner.closest('.tc'); if (wrap) { wrap.classList.remove('popping'); void wrap.offsetWidth; wrap.classList.add('popping'); }
   const s = parseInt(inner.dataset.star||'1');
   _gSfx.flip();
   if (s >= 2) setTimeout(() => { gachaTriggerRareEffect(s); _gSfx.rareCard(s); }, 280);
+  // 챔피언 명대사 음성 (v2.43.211) — 카드 뒤집을 때. 한 장씩 열면 각 음성(이전 음성 자동 중단),
+  // "모두 열기"는 가장 높은 등급 1장만 playVoice=true 로 전달돼 겹침 방지
+  if (playVoice) { const slug = inner.dataset.slug; setTimeout(() => _gachaPlayVoice(slug, GACHA_CHAMP_QUOTE[slug] || '', s), 200); }
   _gTenFlipped++;
   if (_gTenFlipped >= _gTenTotal) { setTimeout(() => { document.getElementById('ten-btn').classList.add('show'); const ob = document.querySelector('.ten-open-all'); if (ob) ob.style.display = 'none'; }, 400); }
 }
 
+// 모두 열기 — 미오픈 카드 중 가장 높은 등급 1장만 음성(겹침 방지), 나머지는 효과음만
+function _tenRarestUnflipped() {
+  let idx = -1, maxStar = 0;
+  for (let i = 0; i < _gTenTotal; i++) {
+    const inner = document.getElementById('tc'+i);
+    if (!inner || inner.classList.contains('flipped')) continue;
+    const s = parseInt(inner.dataset.star||'1');
+    if (s > maxStar) { maxStar = s; idx = i; }
+  }
+  return idx;
+}
 window.openAllTen = function() {
+  const voiceIdx = _tenRarestUnflipped();
   let delay = 0;
-  for (let i = 0; i < _gTenTotal; i++) { const inner = document.getElementById('tc'+i); if (inner&&!inner.classList.contains('flipped')) { setTimeout(() => flipGachaTenCard(i), delay); delay += 160; } }
+  for (let i = 0; i < _gTenTotal; i++) { const inner = document.getElementById('tc'+i); if (inner&&!inner.classList.contains('flipped')) { const vi = i; setTimeout(() => flipGachaTenCard(vi, vi === voiceIdx), delay); delay += 160; } }
 };
 function openAllInstant() {
-  for (let i = 0; i < _gTenTotal; i++) { const inner = document.getElementById('tc'+i); if (inner&&!inner.classList.contains('flipped')) flipGachaTenCard(i); }
+  const voiceIdx = _tenRarestUnflipped();
+  for (let i = 0; i < _gTenTotal; i++) { const inner = document.getElementById('tc'+i); if (inner&&!inner.classList.contains('flipped')) flipGachaTenCard(i, i === voiceIdx); }
 }
 
 function gachaTriggerRareEffect(s) {
@@ -23640,6 +23659,7 @@ function gachaTriggerRareEffect(s) {
 }
 
 window.closeTenPopup = function() {
+  _gachaStopVoice(); // 명대사 음성 중단 (v2.43.211)
   document.getElementById('ten-popup').classList.remove('show');
   renderShop();
 };
