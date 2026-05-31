@@ -4753,7 +4753,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.195';
+const APP_VERSION = 'v2.43.196';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4762,6 +4762,9 @@ const APP_VERSION = 'v2.43.195';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.196', date: '2026-05-30', changes: [
+    { tag: 'fix', text: '시너지 활성 조건 재검증 — 3성 시너지가 3성 카드 전원 없이도 활성 상태로 남던 문제. toggleGachaSynergy 는 켤 때만 검증하고 이후 카드 구성이 바뀌면 재검증을 안 해서, 조건 미달 활성(stale)이 표시될 수 있었음. renderGachaTab 진입 시 _pruneInvalidSynergy 로 활성 시너지의 멤버 보유 조건을 재검증 → 미달이면 자동 해제 + 안내. (매치 발동·정산은 이미 보유 검증이 있어 실제 효과는 적용 안 됐지만, 표시상 혼란 제거)' },
+  ]},
   { ver: 'v2.43.195', date: '2026-05-30', changes: [
     { tag: 'fix', text: '무료권 보유 시 구매 확인 팝업도 "무료권 사용"으로 표시 — 기존엔 무료권이 있어도 "NG가 차감됩니다"라고 떠서 혼란. 해당 티어 무료권 보유 시 "🎟 무료권 사용 (보유 N장) · 골드 차감 없음"으로 갱신, 버튼도 "🎟 무료권 사용"' },
   ]},
@@ -17604,6 +17607,7 @@ function renderGachaTab() {
   if (!list) return;
   if (!myName) { noUser.style.display='block'; body.style.display='none'; return; }
   noUser.style.display='none'; body.style.display='block';
+  _pruneInvalidSynergy(); // v2.43.196 — 보유 조건 미달 활성 시너지 자동 해제 (stale 방지)
 
   const totalOwned = GACHA_CHAMPS.filter(c => { const e = gachaGe(c.slug); return e.e1||e.e2||e.e3; }).length;
   const synNewCount = _newSynergies().length;
@@ -22596,6 +22600,32 @@ window.switchGachaSynTier = function(sid, star) {
   const effTxtEl = document.getElementById(`gsy-efftxt-${sid}`);
   if(effTxtEl) effTxtEl.textContent = _synTierRevealed(grp, star) ? _synEffTxt(grp, star) : SYN_LOCK_TXT;
 };
+
+// 활성 시너지 보유 조건 재검증 — 미달이면 자동 해제 (v2.43.196)
+// toggleGachaSynergy 는 켤 때만 검증하므로, 이후 카드 구성이 바뀌어 조건 미달이 된
+// stale 활성(예: 3성 활성인데 3성 일부 미보유)을 렌더 시점에 정리한다.
+let _pruningSynergy = false;
+async function _pruneInvalidSynergy() {
+  if (_pruningSynergy) return; // 재진입/루프 방지
+  const key = getMyGoldKey(), data = getMyGoldData();
+  if (!key || !data) return;
+  const act = data[sField('activeSynergy')];
+  if (!act || !act.sid) return;
+  const grp = GACHA_SYNERGY_GROUPS.find(g => g.sid === act.sid);
+  const cards = data.champCards_s1 || {};
+  const ok = grp && grp.members.every(slug => {
+    const c = cards[slug] || {};
+    return act.tier === 3 ? (c.s3||0) >= 1 : ((c.s2||0) >= 1 || (c.s3||0) >= 1);
+  });
+  if (!ok) {
+    _pruningSynergy = true;
+    try {
+      await update(ref(db, 'gold/' + key), { [sField('activeSynergy')]: null });
+      showGoldToast(`🔒 ${grp?.name || '시너지'} 해제됨 — ${act.tier}성 카드를 모두 보유하지 않았어요`);
+    } catch (e) {}
+    _pruningSynergy = false;
+  }
+}
 
 window.toggleGachaSynergy = async function(sid, tier) {
   if (!myName) { showGoldToast('먼저 내 이름을 선택해주세요'); return; }
