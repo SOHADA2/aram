@@ -4826,7 +4826,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.211';
+const APP_VERSION = 'v2.43.212';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4835,6 +4835,9 @@ const APP_VERSION = 'v2.43.211';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.212', date: '2026-05-31', changes: [
+    { tag: 'new', text: '챔피언 명대사 음성 ON/OFF 토글 추가 — 가챠 "뽑기" 화면 하단에 음성 스위치. 음성을 듣고 싶지 않은 사람은 끌 수 있고, 설정은 기기에 저장돼 새로고침 후에도 유지(기존 콘솔 gachaVoiceToggle()의 UI 버전)' },
+  ]},
   { ver: 'v2.43.211', date: '2026-05-31', changes: [
     { tag: 'improve', text: '10연차 뽑기에도 챔피언 명대사 음성 적용 — 기존엔 1연차에서만 나왔음. 카드를 한 장씩 클릭해 열면 각 챔피언 음성 재생(다음 카드 클릭 시 이전 음성 자동 중단), "모두 열기"는 그중 가장 높은 등급 1장만 음성 재생(10개 동시 재생 방지). 팝업 닫으면 음성 중단' },
   ]},
@@ -17941,7 +17944,7 @@ function renderGachaTab() {
           <div class="sli-name">챔피언 가챠 × 10 <span style="display:inline-block;margin-left:4px;padding:1px 6px;border-radius:6px;background:rgba(248,113,113,0.16);border:1px solid rgba(248,113,113,0.4);color:#fca5a5;font-size:9px;font-weight:800;vertical-align:middle;">10% 할인</span> <span class="sli-tip-wrap">?<div class="sli-tip">한 번에 10연 뽑기 · 실루엣 = 무작위 챔피언 10장<br>같은 챔피언 카드 3개 보유 시 상위 티어 합성 가능<br>단품 10회(500G) 대비 50G 저렴</div></span></div>
         </div>
         <div class="sli-right"><button id="gacha-btn10" class="sli-price" onclick="window.doGachaPull(10)"><span style="text-decoration:line-through;opacity:0.5;font-weight:400;font-size:10px;margin-right:3px;">500G</span>450G</button></div>
-      </div>`;
+      </div>` + _gachaVoiceToggleHtml();
     startGachaPreview();
     return;
   }
@@ -23514,6 +23517,22 @@ window.gachaVoiceToggle = function(on) {
   if (!_gachaVoiceOn) _gachaStopVoice();
   console.log('🔊 가챠 명대사 음성:', _gachaVoiceOn ? 'ON' : 'OFF');
   return _gachaVoiceOn;
+};
+
+// 가챠 뽑기 화면 음성 ON/OFF 스위치 UI (v2.43.212)
+function _gachaVoiceToggleHtml() {
+  const on = _gachaVoiceOn;
+  return `<div class="gacha-voice-row" style="display:flex;align-items:center;justify-content:space-between;margin-top:12px;padding:10px 13px;border-radius:9px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);">
+    <span style="font-size:12px;color:var(--text,#e8eaf0);display:flex;align-items:center;gap:7px;">${on?'🔊':'🔇'} 챔피언 명대사 음성 <span style="font-size:10px;color:var(--text-dim,#9aa0b4);">${on?'켜짐':'꺼짐'}</span></span>
+    <button id="gacha-voice-toggle" onclick="window.toggleGachaVoiceUI()" role="switch" aria-checked="${on}" title="챔피언 명대사 음성 켜기/끄기" style="position:relative;width:46px;height:25px;border-radius:13px;border:none;cursor:pointer;transition:background 0.2s;background:${on?'#4ade80':'rgba(255,255,255,0.18)'};flex-shrink:0;">
+      <span style="position:absolute;top:3px;left:${on?'24px':'3px'};width:19px;height:19px;border-radius:50%;background:#fff;transition:left 0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></span>
+    </button>
+  </div>`;
+}
+window.toggleGachaVoiceUI = function() {
+  window.gachaVoiceToggle();         // 토글 + localStorage 저장 + OFF 시 재생 중단
+  const row = document.querySelector('.gacha-voice-row');
+  if (row) row.outerHTML = _gachaVoiceToggleHtml(); // 스위치 시각 갱신
 };
 
 // ── 가챠 음성/리빌 미리보기 (검수용 콘솔 함수, v2.43.209) ──────────
