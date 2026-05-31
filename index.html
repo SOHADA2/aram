@@ -4826,7 +4826,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.206';
+const APP_VERSION = 'v2.43.207';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4835,6 +4835,9 @@ const APP_VERSION = 'v2.43.206';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.207', date: '2026-05-31', changes: [
+    { tag: 'new', text: '🔊 가챠 명대사 음성 — 1연차 카드 공개 시 챔피언 명대사가 타이핑되며 한국어 음성으로 읽힘(브라우저 내장 TTS, 음성 파일 없이 동작). 등급별 톤 차등(3성 또렷·1성 낮게). 끄려면 콘솔에서 gachaVoiceToggle() (설정 유지). 한국어 보이스가 없는 기기는 기본 보이스로 폴백' },
+  ]},
   { ver: 'v2.43.206', date: '2026-05-31', changes: [
     { tag: 'improve', text: '긁기 도구 단일화 — 긁기 동전(브러시 2배)·만능 긁개(3배)가 중첩되지 않고 만능 긁개가 동전을 완전 상위호환하던 문제. 긁기 동전을 판매 종료하고 만능 긁개 하나로 통합. 기존 긁기 동전 보유자(빛나는언즈·애블린)는 우편으로 200G씩 환불 처리' },
   ]},
@@ -23414,6 +23417,46 @@ window.flipRevealCard = function() {
   setTimeout(() => { const btn = document.getElementById('rv-close-btn'); btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }, 820);
 };
 
+// ── 챔피언 명대사 음성 (v2.43.207) ──────────────────────────────
+// Web Speech API(브라우저 내장 TTS)로 한국어 명대사를 읽어줌 — 음성 파일 호스팅 불필요.
+// 보이스 목록은 비동기 로드라 미리 워밍업해서 한국어 보이스를 캐시.
+let _gachaVoiceOn = (() => { try { return localStorage.getItem('aram_gachaVoice') !== 'off'; } catch(e){ return true; } })();
+let _gachaKoVoice = null;
+function _gachaWarmVoices() {
+  const synth = window.speechSynthesis; if (!synth) return;
+  const pick = () => {
+    const vs = synth.getVoices() || [];
+    _gachaKoVoice = vs.find(v => /ko[-_]?KR/i.test(v.lang)) || vs.find(v => /korean|한국/i.test(v.name)) || null;
+  };
+  pick();
+  synth.addEventListener?.('voiceschanged', pick);
+}
+if (typeof window !== 'undefined' && window.speechSynthesis) _gachaWarmVoices();
+function _gachaSpeakQuote(text, starLevel) {
+  if (!_gachaVoiceOn || !text) return;
+  const synth = window.speechSynthesis;
+  if (!synth || typeof SpeechSynthesisUtterance === 'undefined') return;
+  try {
+    synth.cancel(); // 이전 음성 중단(중첩 방지)
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ko-KR';
+    if (_gachaKoVoice) u.voice = _gachaKoVoice;
+    // 등급별 약간의 연출 차등 (3성=살짝 높고 또렷, 1성=낮게)
+    u.rate = 0.97;
+    u.pitch = starLevel === 3 ? 1.08 : starLevel === 2 ? 1.0 : 0.94;
+    u.volume = 1.0;
+    synth.speak(u);
+  } catch (e) { /* TTS 미지원 환경 무시 */ }
+}
+// 콘솔/설정 토글 — gachaVoiceToggle() 로 on/off, 새로고침 후에도 유지
+window.gachaVoiceToggle = function(on) {
+  _gachaVoiceOn = on === undefined ? !_gachaVoiceOn : on !== false;
+  try { localStorage.setItem('aram_gachaVoice', _gachaVoiceOn ? 'on' : 'off'); } catch(e){}
+  if (!_gachaVoiceOn && window.speechSynthesis) window.speechSynthesis.cancel();
+  console.log('🔊 가챠 명대사 음성:', _gachaVoiceOn ? 'ON' : 'OFF');
+  return _gachaVoiceOn;
+};
+
 // 명대사 타이핑 효과 (v2.43.199) — 한 글자씩 + 깜빡이는 커서, 등급별 색
 let _rvQuoteTimer = null;
 function _rvTypeQuote(text, starLevel) {
@@ -23426,6 +23469,7 @@ function _rvTypeQuote(text, starLevel) {
   if (!text) { el.textContent = ''; el.classList.add('empty'); return; }
   el.classList.remove('empty');
   el.textContent = '';
+  _gachaSpeakQuote(text, starLevel); // 명대사 음성 재생 (타이핑과 동시, v2.43.207)
   const cursor = '<span class="rv-quote-cursor"></span>';
   let i = 0;
   const tick = () => {
@@ -23453,6 +23497,7 @@ function gachaSpawnParticles(starLevel, color) {
 }
 
 window.closeReveal = function() {
+  if (window.speechSynthesis) window.speechSynthesis.cancel(); // 명대사 음성 중단 (v2.43.207)
   document.getElementById('rv-overlay').className = 'rv-overlay';
   renderShop();
 };
