@@ -1759,7 +1759,19 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .rv-back-sil-wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;overflow:hidden;}
 .rv-back-sil{width:90px;height:90px;object-fit:cover;object-position:50% 8%;filter:brightness(0) opacity(0.55);display:block;}
 .rv-front{transform:rotateY(180deg);align-items:stretch;background:rgba(5,11,20,0.98);border:2px solid rgba(154,184,208,0.3);}
-.rv-splash{position:absolute;inset:0;z-index:0;border-radius:inherit;background-size:cover;background-position:50% 15%;filter:brightness(0.28) saturate(1.3);}
+.rv-splash{position:absolute;inset:0;z-index:0;border-radius:inherit;background-size:cover;background-position:50% 15%;filter:brightness(0.28) saturate(1.3);transform:scale(1);}
+/* v2.43.199 — 스플래시 켄 번스(서서히 줌인) 시네마틱, 카드 공개 시 발동 */
+.rv-flip-inner.flipped .rv-splash{animation:rvKenBurns 6s ease-out forwards;}
+@keyframes rvKenBurns{0%{transform:scale(1.18);filter:brightness(0.10) saturate(1.3);}100%{transform:scale(1);filter:brightness(0.30) saturate(1.35);}}
+/* 명대사 — 타이핑 후 표시 */
+.rv-quote{font-size:12px;font-style:italic;color:rgba(220,228,240,0.82);text-align:center;line-height:1.5;margin:5px 14px 2px;min-height:18px;letter-spacing:0.2px;text-shadow:0 1px 4px rgba(0,0,0,0.6);}
+.rv-quote::before{content:'“';opacity:0.5;margin-right:1px;}
+.rv-quote::after{content:'”';opacity:0.5;margin-left:1px;}
+.rv-quote.empty::before,.rv-quote.empty::after{content:'';}
+.rv-quote .rv-quote-cursor{display:inline-block;width:2px;height:13px;background:currentColor;margin-left:2px;vertical-align:middle;animation:rvCaret 0.6s step-end infinite;}
+@keyframes rvCaret{50%{opacity:0;}}
+.gold-face ~ * .rv-quote,.rv-info.gold-q .rv-quote{color:#f3d98c;text-shadow:0 0 8px rgba(220,170,50,0.4),0 1px 4px rgba(0,0,0,0.7);}
+.rv-info.prism-q .rv-quote{color:#dcb6ff;text-shadow:0 0 10px rgba(180,110,255,0.55),0 1px 4px rgba(0,0,0,0.7);}
 .rv-front-glow{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse 80% 60% at 50% 30%,rgba(80,130,180,0.10) 0%,transparent 70%);}
 .rv-img-area{flex:1;display:flex;align-items:center;justify-content:center;position:relative;z-index:2;padding:16px 12px 10px;}
 .rv-front-img{width:100%;height:100%;object-fit:cover;object-position:50% 8%;}
@@ -4778,7 +4790,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.198';
+const APP_VERSION = 'v2.43.199';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4787,6 +4799,9 @@ const APP_VERSION = 'v2.43.198';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.199', date: '2026-05-31', changes: [
+    { tag: 'new', text: '🎬 뽑기 연출 강화 — 카드 공개 시 (1) 챔피언 명대사 타이핑 연출(예: 야스오 "죽음은 바람과 같다 — 늘 곁에 있지", 람머스 "오케이.") 한 글자씩 + 깜빡이는 커서, 2성 금빛/3성 프리즘 색. (2) 스플래시 아트 켄 번스 시네마틱 — 배경이 6초간 서서히 줌인되며 밝아짐. 18챔프 전원 고유 대사' },
+  ]},
   { ver: 'v2.43.198', date: '2026-05-31', changes: [
     { tag: 'improve', text: '공격형 시너지 발동 확률 원복 — 2성 30% / 3성 50% (다른 시너지와 동일). v2.43.185에서 전사·원딜·암살자만 "2성/3성이 한 줄로 보여 헷갈린다"는 이유로 50% 통일했었는데, v2.43.197에서 2성/3성이 분리 표시되며 그 이유가 해소됨 → procFixed 제거. 이제 전 시너지가 일관되게 2성 30%·3성 50%. 효과 텍스트·매치 발동 모두 SYN_PROC 자동 반영' },
   ]},
@@ -22832,6 +22847,27 @@ function renderGachaSetStatus() {
 }
 
 // 챔피언별 서사 글귀 — b[1성,2성,3성] 티어별 lore + h(모스트 「{p}」) + n(기록 없을 때)
+// 챔피언 명대사 — 뽑기 공개 시 타이핑 연출 (v2.43.199)
+const GACHA_CHAMP_QUOTE = {
+  Akshan:'정의가 죽었다고? 내가 되살리지.',
+  Amumu:'친구... 되어줄래?',
+  Brand:'잿더미가 될 때까지 태워주마.',
+  DrMundo:'문도는 가고 싶은 데로 간다!',
+  Fizz:'잡을 수 있으면 잡아보시지!',
+  Gangplank:'닻을 올려라, 이놈들아!',
+  Jhin:'넷. 완벽한 숫자지.',
+  Khazix:'진화는... 멈추지 않는다.',
+  Lulu:'핌, 같이 놀자!',
+  Malphite:'바위가... 굴러간다.',
+  Malzahar:'공허가 너를 부른다.',
+  Mel:'우아함이 곧 힘이지.',
+  Morgana:'고통은 나의 선물이다.',
+  Naafiri:'무리는 굶주렸다.',
+  Poppy:'영웅에겐 망치가 필요하지!',
+  Rammus:'오케이.',
+  Vayne:'어둠은 나의 사냥터.',
+  Yasuo:'죽음은 바람과 같다 — 늘 곁에 있지.',
+};
 const GACHA_CHAMP_LORE = {
   Gangplank:{b:['녹슨 화약통 한 조각 — 아직은 작은 불씨다.','화약통으로 전장을 뒤엎는 빌지워터의 해적.','한 발의 포격으로 전장을 가르는 전설의 해적왕.'],h:'이 화약은 「{p}」의 손에서 가장 잘 다뤄지는 것으로 전해진다.',n:'아직 이 화약을 길들인 소환사는 없다.'},
   DrMundo:{b:['수상한 약병 조각 — 효능은 아직 미지수다.','얻어맞을수록 강해지는 불굴의 돌격대, 문도.','그 무엇도 쓰러뜨릴 수 없다 — 문도는 마음대로 처방한다.'],h:'그 처방은 「{p}」의 손에서 단 한 번도 빗나가지 않았다.',n:'아직 이 처방을 감당한 소환사는 없다.'},
@@ -23089,7 +23125,8 @@ function showGachaReveal(c, starLevel) {
   badge.textContent = GACHA_TIER_KR[starLevel] + ' 카드'; badge.style.borderColor = rc.main; badge.style.color = rc.main;
   document.getElementById('rv-flavor').textContent = GACHA_STAR_FLAVOR[starLevel];
   document.getElementById('rv-hint').style.opacity = '1';
-  const info = document.getElementById('rv-info'); info.classList.remove('show'); info.style.animation = '';
+  const _q = document.getElementById('rv-quote'); _q.textContent = ''; _q.classList.add('empty'); // 대사 초기화 (v2.43.199)
+  const info = document.getElementById('rv-info'); info.classList.remove('show','gold-q','prism-q'); info.style.animation = '';
   const btn = document.getElementById('rv-close-btn'); btn.className = 'rv-close-btn ' + rc.btnClass; btn.style.opacity = '0'; btn.style.pointerEvents = 'none';
   document.getElementById('rv-stage').classList.remove('show','flipped');
   document.getElementById('rv-particles').innerHTML = '';
@@ -23116,8 +23153,36 @@ window.flipRevealCard = function() {
   const ov = document.getElementById('rv-overlay'); ov.classList.remove('flashing'); void ov.offsetWidth; ov.classList.add('flashing'); setTimeout(() => ov.classList.remove('flashing'), 400);
   gachaSpawnParticles(starLevel, GACHA_RARITY[starLevel].main);
   setTimeout(() => { const info = document.getElementById('rv-info'); info.classList.add('show'); info.style.animation = 'info-up 0.45s cubic-bezier(0.22,1,0.4,1) both'; }, 520);
+  // 명대사 타이핑 연출 (v2.43.199)
+  setTimeout(() => _rvTypeQuote(GACHA_CHAMP_QUOTE[c.slug] || '', starLevel), 720);
   setTimeout(() => { const btn = document.getElementById('rv-close-btn'); btn.style.opacity = '1'; btn.style.pointerEvents = 'auto'; }, 820);
 };
+
+// 명대사 타이핑 효과 (v2.43.199) — 한 글자씩 + 깜빡이는 커서, 등급별 색
+let _rvQuoteTimer = null;
+function _rvTypeQuote(text, starLevel) {
+  const el = document.getElementById('rv-quote');
+  const info = document.getElementById('rv-info');
+  if (_rvQuoteTimer) { clearTimeout(_rvQuoteTimer); _rvQuoteTimer = null; }
+  info.classList.remove('gold-q','prism-q');
+  if (starLevel === 2) info.classList.add('gold-q');
+  else if (starLevel === 3) info.classList.add('prism-q');
+  if (!text) { el.textContent = ''; el.classList.add('empty'); return; }
+  el.classList.remove('empty');
+  el.textContent = '';
+  const cursor = '<span class="rv-quote-cursor"></span>';
+  let i = 0;
+  const tick = () => {
+    if (i < text.length) {
+      i++;
+      el.innerHTML = escHtml(text.slice(0, i)) + (i < text.length ? cursor : '');
+      _rvQuoteTimer = setTimeout(tick, 48);
+    } else {
+      el.innerHTML = escHtml(text); // 커서 제거
+    }
+  };
+  tick();
+}
 
 function gachaSpawnParticles(starLevel, color) {
   const cont = document.getElementById('rv-particles'); cont.innerHTML = '';
@@ -23396,6 +23461,7 @@ window.closeMergeAnim = function() {
     <div class="rv-info" id="rv-info">
       <div class="rv-champ-name" id="rv-champ-name"></div>
       <div class="rv-tier-badge" id="rv-tier-badge"></div>
+      <div class="rv-quote" id="rv-quote"></div>
       <div class="rv-flavor" id="rv-flavor"></div>
     </div>
     <button class="rv-close-btn" id="rv-close-btn" onclick="closeReveal()">확인</button>
