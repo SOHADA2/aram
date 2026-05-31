@@ -4824,7 +4824,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.202';
+const APP_VERSION = 'v2.43.203';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4833,6 +4833,9 @@ const APP_VERSION = 'v2.43.202';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.203', date: '2026-05-31', changes: [
+    { tag: 'fix', text: '우편 수령 후 모달 먹통 수정 — 수령 직후 openMailbox 재렌더 시 goldData(onValue)가 아직 갱신 전이라 여전히 미수령으로 보이고 모달이 멈춰있던 문제. 수령 시 로컬 goldData 즉시 반영(낙관적 업데이트) → 모달이 바로 "✅ 수령 완료"(회색)로 갱신. 받은 우편 없으면 "📭 받은 우편이 없어요" 표시(기존 정상)' },
+  ]},
   { ver: 'v2.43.202', date: '2026-05-31', changes: [
     { tag: 'improve', text: '우편 보상 추적성 강화 (역계산 가능) — (1) 수령 시 mailClaimed_s1[mailId]에 보상 스냅샷{at,title,rewards} 기록 → 우편을 deleteMail로 삭제해도 누가 무엇을 받았는지 영구 보존. (2) 우편 골드를 goldBonusLegacy에 섞지 않고 mailGold_s1 별도 필드로 분리 누적 → 정산 시 우편으로 풀린 골드만 역산 가능(calcPlayerGoldEarned에 합산). (3) 아이템에 fromMail 태그. (4) 콘솔 mailStats()로 발송 우편·유저별 수령 현황·총 풀린 골드/무료권/아이템 한눈에 조회' },
   ]},
@@ -15143,8 +15146,13 @@ window.claimMail = async function(mailId) {
     updates[sField('items')] = items;
   }
   await update(ref(db, 'gold/' + key), updates);
+  // 로컬 즉시 반영 (onValue 갱신 대기 없이 모달이 '수령 완료'로 바로 바뀌도록 — 먹통 방지, v2.43.203)
+  if (goldData[key]) {
+    const cf = sField('mailClaimed');
+    goldData[key][cf] = { ...(goldData[key][cf] || {}), [mailId]: { at: _now, title: mail.title || '', rewards: rw } };
+  }
   showGoldToast(`📬 보상을 받았어요! ${_mailRewardChips(rw).replace(/<[^>]+>/g,' ').trim()}`);
-  openMailbox(); // 갱신
+  openMailbox(); // 즉시 재렌더 — 수령한 우편은 회색 '수령 완료'로 표시
   updateMailBadge();
 };
 
