@@ -4824,7 +4824,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.201';
+const APP_VERSION = 'v2.43.202';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4833,6 +4833,9 @@ const APP_VERSION = 'v2.43.201';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.202', date: '2026-05-31', changes: [
+    { tag: 'improve', text: '우편 보상 추적성 강화 (역계산 가능) — (1) 수령 시 mailClaimed_s1[mailId]에 보상 스냅샷{at,title,rewards} 기록 → 우편을 deleteMail로 삭제해도 누가 무엇을 받았는지 영구 보존. (2) 우편 골드를 goldBonusLegacy에 섞지 않고 mailGold_s1 별도 필드로 분리 누적 → 정산 시 우편으로 풀린 골드만 역산 가능(calcPlayerGoldEarned에 합산). (3) 아이템에 fromMail 태그. (4) 콘솔 mailStats()로 발송 우편·유저별 수령 현황·총 풀린 골드/무료권/아이템 한눈에 조회' },
+  ]},
   { ver: 'v2.43.201', date: '2026-05-31', changes: [
     { tag: 'new', text: '📬 우편함 시스템 — "출석체크 이벤트" 버튼을 좌(출석)/우(📬 우편함)로 분리. 어드민이 콘솔 sendMail({title, desc, gold, freeScratch:{0,1,2}, items:[], target:\'all\'|[이름...]})로 보상 발송 → 유저가 우편함에서 "보상 받기"로 수령 시 실제 골드/무료권/아이템 지급. 안 읽은 우편 빨간 배지. 중복 수령 방지(mailClaimed_s1), 대상 검증. 골드 직접 지급보다 선별적이고 무료권·아이템도 줄 수 있어 인플레 통제 용이. deleteMail(id)로 회수' },
   ]},
@@ -15122,9 +15125,11 @@ window.claimMail = async function(mailId) {
   const claimed = data[sField('mailClaimed')] || {};
   if (claimed[mailId]) { showGoldToast('이미 수령한 우편이에요'); return; }
   const rw = mail.rewards || {};
-  const updates = { [`${sField('mailClaimed')}/${mailId}`]: true };
-  // 골드 → goldBonusLegacy 가산
-  if (rw.gold) updates[sField('goldBonusLegacy')] = (data[sField('goldBonusLegacy')] || 0) + rw.gold;
+  const _now = Date.now();
+  // 수령 이력 — 보상 스냅샷 함께 기록 (우편 삭제돼도 역계산 가능, v2.43.202)
+  const updates = { [`${sField('mailClaimed')}/${mailId}`]: { at: _now, title: mail.title || '', rewards: rw } };
+  // 골드 → mailGold 별도 필드 누적 (goldBonusLegacy 와 분리 — 정산 시 우편 골드만 역산 가능)
+  if (rw.gold) updates[sField('mailGold')] = (data[sField('mailGold')] || 0) + rw.gold;
   // 무료 복권권 → freeScratch 병합
   if (rw.freeScratch) {
     const ft = { ...(data[sField('freeScratch')] || {}) };
@@ -15134,7 +15139,7 @@ window.claimMail = async function(mailId) {
   // 아이템 → items 배열 추가
   if (Array.isArray(rw.items) && rw.items.length) {
     const items = [...(data[sField('items')] || [])];
-    rw.items.forEach(id => items.push({ id, ts: Date.now() }));
+    rw.items.forEach(id => items.push({ id, ts: _now, fromMail: mailId }));
     updates[sField('items')] = items;
   }
   await update(ref(db, 'gold/' + key), updates);
@@ -15156,10 +15161,46 @@ window.sendMail = async function(opts = {}) {
   console.log(`✅ 우편 발송 완료 (id: ${r.key})`, mail);
   return r.key;
 };
-// 우편 삭제 (콘솔) — deleteMail(mailId)
+// 우편 삭제 (콘솔) — deleteMail(mailId). 수령 이력은 각 유저 mailClaimed_s1 에 스냅샷으로 보존됨
 window.deleteMail = async function(mailId) {
   await remove(ref(db, 'mailbox/' + mailId));
-  console.log(`🗑 우편 삭제: ${mailId}`);
+  console.log(`🗑 우편 삭제: ${mailId} (수령 이력은 유저별 mailClaimed_s1 에 보존)`);
+};
+
+// 우편 정산 조회 (콘솔) — mailStats()
+// 발송된 우편 + 누가 무엇을 수령했는지 + 우편으로 풀린 골드/무료권 총량 역계산
+window.mailStats = function() {
+  const cf = sField('mailClaimed'), gf = sField('mailGold');
+  console.log('━━━ 📬 발송된 우편 (현재 /mailbox) ━━━');
+  const sent = Object.entries(mailboxData).map(([id, m]) => ({
+    id, 제목: m.title, 대상: m.target === 'all' ? '전체' : (m.target||[]).join(','),
+    보상: JSON.stringify(m.rewards),
+  }));
+  console.table(sent);
+
+  console.log('━━━ 👤 유저별 우편 수령 현황 ━━━');
+  let totGold = 0, totFree = [0,0,0], totItems = 0, claimCount = 0;
+  const rows = [];
+  for (const v of Object.values(goldData)) {
+    if (!v.name) continue;
+    const claimed = v[cf] || {};
+    const ids = Object.keys(claimed);
+    if (!ids.length) continue;
+    let g = 0, fr = [0,0,0], it = 0;
+    ids.forEach(id => {
+      const c = claimed[id]; if (!c || typeof c !== 'object') return; // 구버전 true 는 스킵
+      const rw = c.rewards || {};
+      if (rw.gold) g += rw.gold;
+      if (rw.freeScratch) [0,1,2].forEach(t => { if (rw.freeScratch[t]) fr[t] += rw.freeScratch[t]; });
+      if (Array.isArray(rw.items)) it += rw.items.length;
+      claimCount++;
+    });
+    totGold += g; [0,1,2].forEach(t => totFree[t] += fr[t]); totItems += it;
+    rows.push({ 이름: v.name, 수령우편: ids.length, 골드: g, 일반권: fr[0], 고급권: fr[1], 프미권: fr[2], 아이템: it, 'mailGold필드': v[gf]||0 });
+  }
+  console.table(rows.sort((a,b)=>b.골드-a.골드));
+  console.log(`총 수령 ${claimCount}건 · 우편 골드 ${totGold.toLocaleString()}G · 무료권 일반 ${totFree[0]}·고급 ${totFree[1]}·프미 ${totFree[2]} · 아이템 ${totItems}개`);
+  return rows;
 };
 
 function openRelayModal() {
@@ -16536,7 +16577,8 @@ function calcPlayerGoldEarned(name, data) {
   const relayBase   = data[sField('relayBase')] || 0;
   const relayGold   = CURRENT_SEASON >= 1 ? calcRelayGold(data[sField('relayClaimed')], relayBase) : 0;
   const secretQuestGold = CURRENT_SEASON >= 1 ? calcSecretQuestGold(name) : 0;
-  return calcGoldFromMatches(name) + bonusLegacy + attendGold + achieveGold + passGold + lotteryGold + witnessGold + magollaGold + relayGold + secretQuestGold;
+  const mailGold    = CURRENT_SEASON >= 1 ? (data[sField('mailGold')] || 0) : 0; // 우편 보상 골드 (v2.43.202)
+  return calcGoldFromMatches(name) + bonusLegacy + attendGold + achieveGold + passGold + lotteryGold + witnessGold + magollaGold + relayGold + secretQuestGold + mailGold;
 }
 function calcRelayGold(claimed, base) {
   if (!claimed) return 0;
