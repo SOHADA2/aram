@@ -4826,7 +4826,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.208';
+const APP_VERSION = 'v2.43.209';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4835,6 +4835,9 @@ const APP_VERSION = 'v2.43.208';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.209', date: '2026-05-31', changes: [
+    { tag: 'improve', text: '가챠 음성 검수용 콘솔 도구 추가 — gachaPreviewReveal("Yasuo") 로 특정 챔피언 리빌을 그대로 띄워 연출+음성 확인, gachaVoicePreview("Yasuo") 로 음성만, gachaVoiceAll() 로 전 챔피언 순차 재생(중단 gachaVoiceAllStop())' },
+  ]},
   { ver: 'v2.43.208', date: '2026-05-31', changes: [
     { tag: 'new', text: '🎙 가챠 명대사 — 실제 챔피언 성우 음성 적용. 1연차 카드 공개 시 해당 챔피언의 픽 대사 원본 음성(LoL 위키 CDN)을 재생(17챔프). 음성 파일이 없는 Mel과 .ogg 미지원 기기(iOS Safari)·재생 실패 시 자동으로 TTS 음성으로 폴백. gachaVoiceToggle() 로 on/off' },
   ]},
@@ -23503,6 +23506,41 @@ window.gachaVoiceToggle = function(on) {
   if (!_gachaVoiceOn) _gachaStopVoice();
   console.log('🔊 가챠 명대사 음성:', _gachaVoiceOn ? 'ON' : 'OFF');
   return _gachaVoiceOn;
+};
+
+// ── 가챠 음성/리빌 미리보기 (검수용 콘솔 함수, v2.43.209) ──────────
+// gachaPreviewReveal('Yasuo'[, star]) : 실제 리빌 UI를 띄움 → 카드를 클릭하면 연출+음성 그대로 재생
+window.gachaPreviewReveal = function(slugOrKr, star = 3) {
+  const c = GACHA_CHAMPS.find(x => x.slug === slugOrKr || x.kr === slugOrKr || x.slug.toLowerCase() === String(slugOrKr).toLowerCase());
+  if (!c) { console.warn('❌ 못 찾음:', slugOrKr, '\n사용 가능 slug:', GACHA_CHAMPS.map(x=>x.slug).join(', ')); return; }
+  showGachaReveal({ ...c, star }, star);
+  console.log('🎴 리빌:', c.kr + ' (' + c.slug + ', ' + star + '성) — 카드를 클릭해서 공개하세요');
+};
+// gachaVoicePreview('Yasuo') : 음성만 즉시 재생 (연출 없이 빠르게 확인)
+window.gachaVoicePreview = function(slugOrKr) {
+  const c = GACHA_CHAMPS.find(x => x.slug === slugOrKr || x.kr === slugOrKr || x.slug.toLowerCase() === String(slugOrKr).toLowerCase());
+  const slug = c ? c.slug : slugOrKr;
+  console.log('🔊', (c ? c.kr : slug), '(' + slug + ')', GACHA_CHAMP_VOICE[slug] ? '[성우]' : '[TTS]', '—', GACHA_CHAMP_QUOTE[slug] || '(대사없음)');
+  _gachaPlayVoice(slug, GACHA_CHAMP_QUOTE[slug] || '', 3);
+};
+// gachaVoiceAll([간격ms]) : 전 챔피언 음성 순차 재생. 중단: gachaVoiceAllStop()
+window.gachaVoiceAll = function(gapMs = 4500) {
+  const list = GACHA_CHAMPS.slice();
+  console.log('🎧 전 ' + list.length + '챔프 순차 재생 (' + (gapMs / 1000) + '초 간격). 중단: gachaVoiceAllStop()');
+  let i = 0;
+  const tick = () => {
+    if (i >= list.length) { window._gachaVoiceAllTimer = null; console.log('✅ 재생 완료'); return; }
+    const c = list[i++];
+    console.log('  ' + i + '/' + list.length + ' 🔊 ' + c.kr + ' (' + c.slug + ') ' + (GACHA_CHAMP_VOICE[c.slug] ? '[성우]' : '[TTS]') + ' — ' + (GACHA_CHAMP_QUOTE[c.slug] || ''));
+    _gachaPlayVoice(c.slug, GACHA_CHAMP_QUOTE[c.slug] || '', 3);
+    window._gachaVoiceAllTimer = setTimeout(tick, gapMs);
+  };
+  tick();
+};
+window.gachaVoiceAllStop = function() {
+  if (window._gachaVoiceAllTimer) { clearTimeout(window._gachaVoiceAllTimer); window._gachaVoiceAllTimer = null; }
+  _gachaStopVoice();
+  console.log('⏹ 음성 미리보기 중단');
 };
 
 // 명대사 타이핑 효과 (v2.43.199) — 한 글자씩 + 깜빡이는 커서, 등급별 색
