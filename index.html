@@ -4954,7 +4954,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.235';
+const APP_VERSION = 'v2.43.236';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4963,6 +4963,9 @@ const APP_VERSION = 'v2.43.235';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.236', date: '2026-06-01', changes: [
+    { tag: 'fix', text: '🛡️ 아이템 유실 버그 근본 수정 (중요) — 구매한 아이템이 드물게 사라지던 원인을 찾아 고쳤어요. 골드/아이템 저장이 set(전체 덮어쓰기)으로 돼 있어, 직전에 산 아이템이 반영되기 전의 옛 스냅샷으로 경기 저장·출석·복권 등이 데이터를 통째로 덮어쓰면 그 아이템이 유실될 수 있었어요. 모든 핵심 저장을 update(바뀐 필드만 병합)로 전환 — 이제 한 동작이 다른 동작의 결과를 절대 덮어쓰지 않아요. 특히 매 경기 저장·출석이 범인이었음. 이전 patch의 구매 로그(purchaseLog)와 함께 신뢰성 대폭 강화' },
+  ]},
   { ver: 'v2.43.235', date: '2026-06-01', changes: [
     { tag: 'new', text: '📒 상점 구매/판매 로그 추가 — 그동안 일반 상점 구매(만능 긁개·패스·일회성 아이템 등)는 goldSpent 누적값만 올려 개별 거래를 역추적할 수 없었어요(가챠·복권만 로그 있었음). 이제 모든 상점 구매·되팔기가 purchaseLog_s1에 {시각·아이템·금액}으로 영구 기록돼 감사·역산이 가능해요. ※ 이번 패치 이후 거래분부터 기록되며, 과거 구매는 소급되지 않아요' },
   ]},
@@ -11005,7 +11008,8 @@ window.quickToggleItem = async function(idx) {
   }
 
   items[idx] = {...items[idx], active: !isActive};
-  await set(ref(db, 'gold/'+key), {...data, [itemsKey]: items});
+  // v2.43.236 신뢰성 — set({...data}) 통짜 덮어쓰기 금지. update로 items 필드만 갱신(다른 필드 클로버 방지)
+  await update(ref(db, 'gold/'+key), {[itemsKey]: items});
   const toastFn = S1_SHOP_ITEMS.some(s => s.id===items[idx].id) ? showS1Toast : showGoldToast;
   toastFn(items[idx].active ? `${def?.icon} ${def?.name} 활성화!` : `${def?.icon} ${def?.name} 비활성화됨`);
   renderQuickItemBar();
@@ -11027,8 +11031,7 @@ window.quickBuyItem = async function(itemId) {
   const itemsKey = sField('items');
   const items = [...(data[itemsKey] || [])];
   items.push({ id: itemId, active: false });
-  await set(ref(db, 'gold/'+key), {
-    ...data,
+  await update(ref(db, 'gold/'+key), {
     [itemsKey]: items,
     [spentKey]: (data[spentKey] || 0) + item.price,
   });
@@ -16752,8 +16755,7 @@ window.applyLotteryRefund = async function(key) {
     gold: refundGold,
     isRefund: true,
   };
-  await set(ref(db, 'gold/' + key), {
-    ...data,
+  await update(ref(db, 'gold/' + key), {
     lotteryHistory: [refundEntry],
     lotteryRefundApplied: true,
   });
@@ -18145,8 +18147,8 @@ window.doAttendance = async function() {
   const histKey    = sField('attendanceHistory');
   const newHistory = [...(data[histKey] || []), { date: todayKey, gold: baseAttendGold, ts: Date.now(), slot, relayStep: newRelayP }];
 
+  // v2.43.236 신뢰성 — {...data} 통짜 set 제거. 바뀐 필드만 update (출석이 stale 스냅샷으로 items 등을 덮어쓰던 문제 차단)
   const updates = {
-    ...data,
     [histKey]: newHistory,
     [sField('attendanceCount')]: (data[sField('attendanceCount')] ?? 0) + 1,
     [relayPKey]:       newRelayP,
@@ -18158,7 +18160,7 @@ window.doAttendance = async function() {
   else            updates.lastAttendance2 = todayKey;
 
   try {
-    await set(ref(db, 'gold/' + key), updates);
+    await update(ref(db, 'gold/' + key), updates);
     showAttendPopup(slot, totalGoldGain, newSteps);
     updateAttendQuickBtn();
     const rmBody = document.getElementById('relay-modal-body');
@@ -18878,7 +18880,7 @@ window._maybeShowSecretQuestModal = async function() {
   const _deactivateSq = (item) => { const it = { ...item, active: false }; delete it.questId; delete it.activatedAt; return it; };
   if (!myS1?.placementDone || myS1?.promoActive) {
     items[idx] = _deactivateSq(items[idx]);
-    await set(ref(db, 'gold/'+fbKey), { ...gData, [itemsKey]: items });
+    await update(ref(db, 'gold/'+fbKey), { [itemsKey]: items });
     _notifySqPreserved(myS1?.promoActive
       ? '⚠ 승급전 진입으로 비밀 퀘스트 자동 비활성화 — 인벤토리에 보존됨'
       : '⚠ 배치고사 중 비밀 퀘스트 자동 비활성화 — 인벤토리에 보존됨');
@@ -18886,7 +18888,7 @@ window._maybeShowSecretQuestModal = async function() {
   }
   if (items.some(it => it.active && it.id === 's1_gamble')) {
     items[idx] = _deactivateSq(items[idx]);
-    await set(ref(db, 'gold/'+fbKey), { ...gData, [itemsKey]: items });
+    await update(ref(db, 'gold/'+fbKey), { [itemsKey]: items });
     _notifySqPreserved('⚠ 도박권 활성 중 — 비밀 퀘스트 자동 비활성화 (인벤토리에 보존됨)');
     return;
   }
@@ -18902,7 +18904,7 @@ window._maybeShowSecretQuestModal = async function() {
   const quest = existingQuest || pickRandomSecretQuest();
   if (!existingQuest) {
     items[idx] = { ...items[idx], questId: quest.id, activatedAt: Date.now() };
-    await set(ref(db, 'gold/'+fbKey), { ...gData, [itemsKey]: items });
+    await update(ref(db, 'gold/'+fbKey), { [itemsKey]: items });
   }
   if (_currentTeamsFormedAt) _shownSqForTeamTs = _currentTeamsFormedAt;
   showSecretQuestModal(quest);
@@ -20180,7 +20182,7 @@ async function _buyItemImpl(itemId) {
       updates[spentKey] = (data[spentKey] ?? 0) + item.price;
       updates.purchaseLog_s1 = _appendPurchaseLog(data, item); // 📒 만능 긁개 구매 기록
     }
-    await set(ref(db,'gold/'+key), { ...data, ...updates });
+    await update(ref(db,'gold/'+key), updates); // v2.43.236 — 통짜 set 금지(아이템 유실 방지)
     showS1Toast(SCRATCH_LOTTERY_TESTMODE
       ? `🧪 [테스트] ${item.name} 구매 완료 (골드 차감 X)`
       : `${item.name} 구매 완료! 이제 모든 복권 긁기에 자동 적용돼요 🎉`);
@@ -20241,7 +20243,7 @@ async function _buyItemImpl(itemId) {
       return;
     }
     const newGoldSpent = (data[spentKey] ?? 0) + tierPrice;
-    await set(ref(db,'gold/'+key), { ...data, [spentKey]: newGoldSpent });
+    await update(ref(db,'gold/'+key), { [spentKey]: newGoldSpent });
     const result = rollScratch(tierDef.idx);
     const onComplete = async ({ winGold, skullPenalty }) => {
       const latestData = getMyGoldData();
@@ -20273,7 +20275,7 @@ async function _buyItemImpl(itemId) {
       ts: Date.now(), date: today, scratch: true,
       win: result.win ? result.win.id : null, gold: winGold,
     }];
-    await set(ref(db,'gold/'+key), { ...data, [spentKey]: newGoldSpent, lotteryHistory });
+    await update(ref(db,'gold/'+key), { [spentKey]: newGoldSpent, lotteryHistory });
     showScratchModal(result, currentGold - item.price + winGold, { tierDef: SCRATCH_TIERS[0] });
     return;
   }
@@ -20297,8 +20299,7 @@ async function _buyItemImpl(itemId) {
       gold: result.gold,
       premium: true,
     }];
-    await set(ref(db,'gold/'+key), {
-      ...data,
+    await update(ref(db,'gold/'+key), {
       [spentKey]: newGoldSpent,
       lotteryPremiumDate: today,
       lotteryPremiumCount: premCount + 1,
@@ -20368,8 +20369,7 @@ async function _buyItemImpl(itemId) {
     const newGoldSpent = (data[spentKey] ?? 0) + item.price;
     // 구매 즉시 active:true — 다음 매치 시작 시 _maybeShowSecretQuestModal 자동 발동
     const newItems = [...existingItems, {id:itemId, boughtAt:Date.now(), active:true, activatedAt:Date.now()}];
-    await set(ref(db,'gold/'+key), {
-      ...data,
+    await update(ref(db,'gold/'+key), {
       [spentKey]: newGoldSpent,
       [itemsKey]: newItems,
       secretQuestDate: today,
@@ -20384,7 +20384,7 @@ async function _buyItemImpl(itemId) {
 
   const newGoldSpent = (data[spentKey] ?? 0) + item.price;
   const newItems = [...(data[itemsKey]||[]), {id:itemId, boughtAt:Date.now(), active:false}];
-  await set(ref(db,'gold/'+key), {...data, [spentKey]:newGoldSpent, [itemsKey]:newItems, purchaseLog_s1:_appendPurchaseLog(data, item)});
+  await update(ref(db,'gold/'+key), {[spentKey]:newGoldSpent, [itemsKey]:newItems, purchaseLog_s1:_appendPurchaseLog(data, item)});
   showGoldToast(`${item.icon} ${item.name} 구매! 🪙${currentGold - item.price} 남음`);
 };
 
@@ -20475,7 +20475,7 @@ window.toggleItemActive = async function(idx) {
   // 비밀 퀘스트 토큰 활성화 (v2.43.43~) — active만 토글, questId·모달은 매치 시작 시점에 부여
   if (!isActive && items[idx].id === 'secret_quest') {
     items[idx] = {...items[idx], active: true, questId: null, activatedAt: Date.now()};
-    await set(ref(db,'gold/'+key), {...data, [itemsKey]: items});
+    await update(ref(db,'gold/'+key), {[itemsKey]: items});
     showS1Toast('🤫 비밀 퀘스트 토큰 활성화! 다음 매치 시작 시 퀘스트가 부여됩니다');
     return;
   }
@@ -20485,12 +20485,12 @@ window.toggleItemActive = async function(idx) {
     const next = {...items[idx], active: false};
     delete next.questId; delete next.activatedAt;
     items[idx] = next;
-    await set(ref(db,'gold/'+key), {...data, [itemsKey]: items});
+    await update(ref(db,'gold/'+key), {[itemsKey]: items});
     showS1Toast('🤫 비밀 퀘스트 토큰 비활성화 (보존됨) — 다시 활성화하면 새 퀘스트 부여');
     return;
   }
   items[idx] = {...items[idx], active: !isActive};
-  await set(ref(db,'gold/'+key), {...data, [itemsKey]: items});
+  await update(ref(db,'gold/'+key), {[itemsKey]: items});
   const isS1Item = S1_SHOP_ITEMS.some(s => s.id === items[idx].id);
   const toastFn = isS1Item ? showS1Toast : showGoldToast;
   if (def?.type === 'scratch_tool') {
@@ -20551,7 +20551,7 @@ window.sellItem = async function(id) {
   fresh.splice(fi, 1);
   const resell = (goldData[key]?.resellGold_s1 || 0) + sellValue;
   const pLog = _appendPurchaseLog(goldData[key], def, { type: 'sell', price: sellValue }); // 📒 판매도 기록
-  await set(ref(db, 'gold/' + key), { ...goldData[key], [itemsKey]: fresh, resellGold_s1: resell, purchaseLog_s1: pLog });
+  await update(ref(db, 'gold/' + key), { [itemsKey]: fresh, resellGold_s1: resell, purchaseLog_s1: pLog });
   showGoldToast(`💰 ${def.name} 판매 +${sellValue}G (정가의 5%)`);
   if (typeof renderShop === 'function') renderShop();
 };
@@ -20614,8 +20614,10 @@ async function giveMatchGold(winners, losers, matchTimestamp) {
       return { ...item, active: false };
     });
 
-    await set(ref(db,'gold/'+k), {
-      ...d, [itemsKey]: items,
+    // v2.43.236 신뢰성 핵심 — 매 경기 저장 시 {...d} 통짜 set이 직전 구매(아이템·골드)를 덮어쓰던 문제.
+    // 바뀐 필드(items 소모 + lastMatch)만 update → 구매한 아이템이 경기 저장에 유실되지 않음
+    await update(ref(db,'gold/'+k), {
+      [itemsKey]: items,
       lastMatch: { isWinner, at: Date.now() }
     });
   };
