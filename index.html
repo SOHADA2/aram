@@ -1842,6 +1842,9 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .czd-header{display:flex;align-items:center;justify-content:space-between;gap:6px;}
 .czd-role-chip{font-size:9px;font-weight:700;padding:2px 9px;border-radius:20px;letter-spacing:0.8px;white-space:nowrap;}
 .czd-stars{font-size:17px;letter-spacing:3px;line-height:1;}
+.czd-voice-btn{flex-shrink:0;font-size:10px;font-weight:700;padding:4px 9px;border-radius:20px;cursor:pointer;white-space:nowrap;color:var(--gold-light,#e8c95a);background:rgba(200,168,75,0.14);border:1px solid rgba(200,168,75,0.45);font-family:'Noto Sans KR',sans-serif;transition:background .12s,transform .1s;}
+.czd-voice-btn:hover{background:rgba(200,168,75,0.28);}
+.czd-voice-btn:active{transform:scale(0.94);}
 .czd-type-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}
 .czd-type-chip{font-size:9px;font-weight:700;letter-spacing:0.5px;padding:2px 9px;border-radius:20px;white-space:nowrap;}
 .czd-type-chip.atk{color:#ffaa77;background:rgba(255,100,50,0.15);border:1px solid rgba(255,100,50,0.3);}
@@ -4828,7 +4831,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.216';
+const APP_VERSION = 'v2.43.217';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4837,6 +4840,9 @@ const APP_VERSION = 'v2.43.216';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.217', date: '2026-05-31', changes: [
+    { tag: 'new', text: '카드 상세에 "🔊 음성" 버튼 — 도감에서 카드 클릭 시 상세 헤더에 음성 듣기 버튼. 누르면 해당 챔피언 실제 성우 명대사 재생(자동재생 ON/OFF 토글과 무관하게 강제 재생, Mel은 TTS). 미보유 카드도 들어볼 수 있음' },
+  ]},
   { ver: 'v2.43.216', date: '2026-05-31', changes: [
     { tag: 'improve', text: '가챠 명대사 음성을 모든 기기에서 실제 성우로 재생 — 기존 위키 .ogg 핫링크가 iOS Safari(아이폰)에서 미지원이라 TTS로 들리던 문제. 17챔프 음성을 mp3로 변환해 저장소(assets/voice/)에 직접 호스팅 → 아이폰 포함 전 브라우저에서 실제 성우 음성 재생. Mel은 음원 없어 TTS 유지' },
   ]},
@@ -23323,8 +23329,11 @@ window.showGachaCardZoom = function(slug, star, cnt) {
   </div>`;
   document.getElementById('cz-detail').innerHTML = `
     <div class="czd-header">
-      ${!isShard?`<span class="czd-role-chip" style="color:${tierCol.chip};background:${tierCol.chipBg};border:1px solid ${tierCol.chipBd}">● ${roleText}</span>`:''}
-      <span class="czd-stars" style="color:${tierCol.stars}">${STAR_CHARS[star]||'◇'}</span>
+      <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+        ${!isShard?`<span class="czd-role-chip" style="color:${tierCol.chip};background:${tierCol.chipBg};border:1px solid ${tierCol.chipBd}">● ${roleText}</span>`:''}
+        <span class="czd-stars" style="color:${tierCol.stars}">${STAR_CHARS[star]||'◇'}</span>
+      </div>
+      <button class="czd-voice-btn" onclick="event.stopPropagation();window.gachaPlayCardVoice('${slug}')" title="${escHtml(kr)} 명대사 듣기">🔊 음성</button>
     </div>
     ${!isShard?`<div class="czd-type-row">
       <span class="czd-type-chip ${typeClass}">${typeLabel}</span>
@@ -23564,6 +23573,23 @@ function _gachaPlayVoice(slug, text, starLevel) {
     a.play().catch(fallback);             // 자동재생 거부 → TTS
   } catch (e) { _gachaSpeakQuote(text, starLevel); }
 }
+// 카드 상세 "음성 듣기" — 명시적 클릭이므로 자동재생 토글과 무관하게 강제 재생
+window.gachaPlayCardVoice = function(slug) {
+  _gachaStopVoice();
+  const text = GACHA_CHAMP_QUOTE[slug] || '';
+  const url = GACHA_CHAMP_VOICE[slug];
+  const speak = () => {
+    const synth = window.speechSynthesis;
+    if (!synth || typeof SpeechSynthesisUtterance === 'undefined' || !text) return;
+    try { synth.cancel(); const u = new SpeechSynthesisUtterance(text); u.lang='ko-KR'; if(_gachaKoVoice) u.voice=_gachaKoVoice; u.rate=0.97; u.volume=1; synth.speak(u); } catch(e){}
+  };
+  if (!url) { speak(); return; } // 음원 없는 챔프(Mel) → TTS
+  try {
+    const a = new Audio(url); a.volume = 0.9; _gachaVoiceAudio = a;
+    const fb = () => { if (_gachaVoiceAudio === a) _gachaVoiceAudio = null; speak(); };
+    a.onerror = fb; a.play().catch(fb);
+  } catch(e){ speak(); }
+};
 // 콘솔/설정 토글 — gachaVoiceToggle() 로 on/off, 새로고침 후에도 유지
 window.gachaVoiceToggle = function(on) {
   _gachaVoiceOn = on === undefined ? !_gachaVoiceOn : on !== false;
