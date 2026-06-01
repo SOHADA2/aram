@@ -5012,7 +5012,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.257';
+const APP_VERSION = 'v2.43.258';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5021,6 +5021,9 @@ const APP_VERSION = 'v2.43.257';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.258', date: '2026-06-02', changes: [
+    { tag: 'fix', text: '🔑 만능 긁개가 경기 후 사라지던 치명적 버그 수정 — 장비 아이템으로 옮기면서 "장착 = active" 상태가 됐는데, 경기 정산 로직이 active 아이템을 일회용처럼 소모(삭제)하는 catch-all에 걸려 장착한 만능 긁개가 한 판만 하면 인벤토리에서 사라졌어요. 이제 장비형 도구(scratch_tool)는 소모 대상에서 제외하고 장착 상태도 그대로 유지됩니다. ※ 이 버그로 사라진 보유자는 환불/복구 처리 예정' },
+  ]},
   { ver: 'v2.43.257', date: '2026-06-01', changes: [
     { tag: 'fix', text: '🔧 정산창 시너지 LP 표시 누락 수정 — 시너지가 발동했는데도 정산창 LP 숫자엔 반영되지 않던 문제 해결. 예: 공허 균열 "손실 전액 방어"가 떴는데 LP가 -14로 표시되던 버그(실제 LP는 정상적으로 0 적용됨). 이제 공격형(+LP)·방어형(손실 완화)·리스크형(반전)·전액 방어까지 실제 적용된 LP와 정산창 표시가 정확히 일치. (실제 적립 LP는 처음부터 올바르게 적용돼 있었고, 표시만 어긋났던 것)' },
     { tag: 'fix', text: '👀 관전자 중복 표시 수정 — 같은 사람이 관전자 칸에 두 번 뜨거나, 이미 팀에 들어간 사람이 관전자로도 표시되던 경우를 방지(이름 기준 중복 제거 + 팀 소속자 제외). 표시·동기화 양쪽에 가드 적용' },
@@ -20956,11 +20959,17 @@ async function giveMatchGold(winners, losers, matchTimestamp) {
           && window._preservedSqPlayersForThisMatch?.has(normName(name))) {
         return true; // 보존 — active 유지
       }
+      // 🔑 장비형 도구(scratch_tool · 만능 긁개)는 소모 대상이 아님 — 인벤토리 보존 (v2.43.258)
+      const _toolDef = [...SHOP_ITEMS, ...S1_SHOP_ITEMS].find(s => s.id === item.id);
+      if (_toolDef && _toolDef.type === 'scratch_tool') return true;
       return false; // 그 외 active 아이템도 소모
     }).map(item => {
       // 보존된 비밀 퀘스트 토큰은 active=true 유지 (다음 매치 재시도용)
       if (item.id === 'secret_quest' && item.active
           && window._preservedSqPlayersForThisMatch?.has(normName(name))) return item;
+      // 🔑 만능 긁개 등 장비형 도구는 장착(active) 상태 그대로 유지 (경기해도 해제 안 됨)
+      const _mDef = [...SHOP_ITEMS, ...S1_SHOP_ITEMS].find(s => s.id === item.id);
+      if (_mDef && _mDef.type === 'scratch_tool') return item;
       return { ...item, active: false };
     });
 
