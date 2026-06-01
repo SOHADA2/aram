@@ -4883,7 +4883,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.222';
+const APP_VERSION = 'v2.43.223';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4892,6 +4892,9 @@ const APP_VERSION = 'v2.43.222';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.223', date: '2026-06-01', changes: [
+    { tag: 'fix', text: '일정 달력 — 라이브 계정·이름 미선택 시 날짜를 누르면 "이름 선택" 안내 대신 그 날 참여 가능자 명단이 바로 보이도록(보기 전용). 본인 일정 체크는 이름 선택한 일반 팀원만 토글' },
+  ]},
   { ver: 'v2.43.222', date: '2026-06-01', changes: [
     { tag: 'improve', text: '일정 표시 방식 변경 — 팀구성 화면의 별도 "오늘 참여 가능" 패널 제거하고, 대신 좌상단 📅 일정 버튼을 누르면 모달 맨 위에 금일 참여 가능 인원이 바로 보이도록(달력은 그 아래). 화면 더 깔끔해지고 모든 계정 동일 동작' },
   ]},
@@ -17857,7 +17860,8 @@ window.schedNavMonth = function(d) {
 };
 window.schedToggleDay = async function(dateKey) {
   _schedSel = dateKey;
-  if (!myName) { if (typeof showGoldToast === 'function') showGoldToast('먼저 우상단 계정변경에서 이름을 선택하세요'); _renderSchedule(); return; }
+  // 라이브 계정·이름 미선택 → 토글 없이 그 날 명단만 보기 (호스트/관전용)
+  if (liveMode || !myName) { _renderSchedule(); return; }
   const k = normName(myName);
   const mine = !!(_scheduleData[dateKey] && _scheduleData[dateKey][k]);
   if (!_scheduleData[dateKey]) _scheduleData[dateKey] = {};
@@ -17871,9 +17875,11 @@ function _renderSchedule() {
   const { y, m } = _schedView;
   document.getElementById('sched-monthlabel').textContent = `${y}년 ${m+1}월`;
   const sub = document.getElementById('sched-sub');
-  if (sub) sub.innerHTML = myName
-    ? `<b style="color:var(--gold-light,#e8c95a)">${escHtml(myName)}</b> 님 — 참여 가능한 날짜를 탭해 체크 (다시 탭하면 해제)`
-    : '먼저 우상단 <b>계정변경</b>에서 이름을 선택하면 체크할 수 있어요';
+  if (sub) sub.innerHTML = liveMode
+    ? '날짜를 눌러 그 날 참여 가능자를 확인하세요'
+    : myName
+      ? `<b style="color:var(--gold-light,#e8c95a)">${escHtml(myName)}</b> 님 — 참여 가능한 날짜를 탭해 체크 (다시 탭하면 해제)`
+      : '날짜를 눌러 가능자 확인 · 본인 일정을 체크하려면 우상단 <b>계정변경</b>에서 이름 선택';
   const todayKey = getLocalDateKey();
   const myk = myName ? normName(myName) : null;
   const dow = ['일','월','화','수','목','금','토'];
