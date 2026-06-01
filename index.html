@@ -4831,7 +4831,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.218';
+const APP_VERSION = 'v2.43.219';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4840,6 +4840,9 @@ const APP_VERSION = 'v2.43.218';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.219', date: '2026-05-31', changes: [
+    { tag: 'improve', text: '가챠 UI 정리 — 컬렉션 "18/18" 카운트 제거(탭 버튼·보유카드 행 둘 다). 장식용 이모지 정리: 탭 아이콘(🎲📖), ✦ 스파클(재조합·최고등급), 역할칩 ● 불릿 제거. 의미 있는 아이콘(티어 ◇★, 분류 ⚔️🛡️💚💫, 🔒미보유, 🔊음성)은 유지' },
+  ]},
   { ver: 'v2.43.218', date: '2026-05-31', changes: [
     { tag: 'fix', text: '카드 상세 음성 버튼이 3성(★★★) 별과 겹치던 문제 — 좁은 헤더에서 빼서 설명 글귀 아래 독립 줄("🔊 명대사 듣기", 좌측 정렬)로 이동' },
   ]},
@@ -17944,8 +17947,8 @@ function renderGachaTab() {
   const totalOwned = GACHA_CHAMPS.filter(c => { const e = gachaGe(c.slug); return e.e1||e.e2||e.e3; }).length;
   const synNewCount = _newSynergies().length;
   const tabHtml = `<div class="sp-cat-tabs" style="margin-bottom:10px;">
-    <button class="sp-cat-tab ${gachaCatTab==='pull'?'active':''}" onclick="window.switchGachaCat('pull')">🎲 뽑기</button>
-    <button class="sp-cat-tab ${gachaCatTab==='collection'?'active':''}" onclick="window.switchGachaCat('collection')">📖 컬렉션 <span style="font-family:'JetBrains Mono',monospace;font-size:9px;color:var(--text-dim)">${totalOwned}/${GACHA_CHAMPS.length}</span>${synNewCount>0?'<span class="syn-new-dot"></span>':''}</button>
+    <button class="sp-cat-tab ${gachaCatTab==='pull'?'active':''}" onclick="window.switchGachaCat('pull')">뽑기</button>
+    <button class="sp-cat-tab ${gachaCatTab==='collection'?'active':''}" onclick="window.switchGachaCat('collection')">컬렉션${synNewCount>0?'<span class="syn-new-dot"></span>':''}</button>
   </div>` + _activeSynergyBanner();
 
   if (gachaCatTab === 'pull') {
@@ -17980,23 +17983,16 @@ function renderGachaTab() {
     const on = gachaStar===v;
     return `<button onclick="window.switchGachaStar(${v})" style="flex:1;padding:7px 4px;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;border:1px solid ${on?col+'88':'rgba(255,255,255,0.1)'};background:${on?col+'22':'rgba(255,255,255,0.03)'};color:${on?col:'var(--text-dim,#9aa0b4)'};">${l}</button>`;
   }).join('') + `</div>`;
-  const ownedCount = GACHA_CHAMPS.filter(({slug})=>(gachaGp(slug)[`s${gachaStar}`]||0)>0).length;
   const cardsHtml = GACHA_CHAMPS.map(({slug,kr,role},idx) => _gachaCardHtml(slug,kr,role,gachaStar,idx)).join('');
   // 3성 탭 — 남는(중복) 3성 2장 → 랜덤 3성 재조합 (미보유 우선)
   let recombineHtml = '';
   if (gachaStar === 3) {
     const surplus3 = GACHA_CHAMPS.reduce((s,c)=> s + Math.max(0,(gachaGp(c.slug).s3||0)-1), 0);
     recombineHtml = surplus3 >= 2
-      ? `<button class="cz-merge-action" style="background:linear-gradient(135deg,#6d3bbf,#a878f0);border-color:rgba(205,165,255,0.65);margin:2px 0 10px;" onclick="window.doGachaRecombine3()">✦ 남는 3성 2장 → 랜덤 3성 <span style="opacity:0.82;font-weight:600;font-size:11px;">· 잉여 ${surplus3}장</span></button>`
+      ? `<button class="cz-merge-action" style="background:linear-gradient(135deg,#6d3bbf,#a878f0);border-color:rgba(205,165,255,0.65);margin:2px 0 10px;" onclick="window.doGachaRecombine3()">남는 3성 2장 → 랜덤 3성 <span style="opacity:0.82;font-weight:600;font-size:11px;">· 잉여 ${surplus3}장</span></button>`
       : `<div class="czd-merge-hint" style="margin:2px 0 10px;background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.12);border-radius:8px;padding:9px;">중복된 3성 2장이 모이면 랜덤 3성으로 재조합할 수 있어요 (미보유 챔프 우선)</div>`;
   }
-  list.innerHTML = tabHtml + tierTabs + `
-    <div class="col-count-row" style="margin-top:2px;">
-      <span style="font-size:11px;color:var(--text-dim);">보유 카드</span>
-      <span class="col-count">${ownedCount} / ${GACHA_CHAMPS.length}</span>
-    </div>
-    ${recombineHtml}
-    <div class="pet-grid">${cardsHtml}</div>` + renderGachaDex();
+  list.innerHTML = tabHtml + tierTabs + recombineHtml + `<div class="pet-grid">${cardsHtml}</div>` + renderGachaDex();
   _markSynergiesSeen();   // 시너지 섹션을 확인했으니 신규 표시 해제
   updateGachaNavBadge();
 }
@@ -23300,7 +23296,7 @@ window.showGachaCardZoom = function(slug, star, cnt) {
       mergeSection = `<div class="czd-merge-hint">${GACHA_TIER_LABEL[star+1]} 합성까지 <b style="color:var(--text)">${mergeLeft}개</b> 더 필요</div>`;
     }
   } else {
-    mergeSection = `<div class="czd-max-badge">✦ 최고 등급 달성</div>`;
+    mergeSection = `<div class="czd-max-badge">최고 등급 달성</div>`;
   }
   // 챔피언 서사 글귀 — lore + 모스트 팀원(실시간). 기록 없으면 lore만
   const cs = _champPlayStats(slug);
@@ -23332,7 +23328,7 @@ window.showGachaCardZoom = function(slug, star, cnt) {
   </div>`;
   document.getElementById('cz-detail').innerHTML = `
     <div class="czd-header">
-      ${!isShard?`<span class="czd-role-chip" style="color:${tierCol.chip};background:${tierCol.chipBg};border:1px solid ${tierCol.chipBd}">● ${roleText}</span>`:''}
+      ${!isShard?`<span class="czd-role-chip" style="color:${tierCol.chip};background:${tierCol.chipBg};border:1px solid ${tierCol.chipBd}">${roleText}</span>`:''}
       <span class="czd-stars" style="color:${tierCol.stars}">${STAR_CHARS[star]||'◇'}</span>
     </div>
     ${!isShard?`<div class="czd-type-row">
