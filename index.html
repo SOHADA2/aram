@@ -4828,7 +4828,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.214';
+const APP_VERSION = 'v2.43.215';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4837,6 +4837,10 @@ const APP_VERSION = 'v2.43.214';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.215', date: '2026-05-31', changes: [
+    { tag: 'new', text: '남는 3성 재조합 — 컬렉션 ★★★ 3성 탭에서 중복(잉여) 3성 2장을 합쳐 랜덤 3성 1장 획득. 아직 3성이 없는 챔프 우선(컬렉션 빈칸 채우기), 전부 보유 시 18종 랜덤. 같은 챔프 마지막 1장은 보호해 시너지가 깨지지 않음. 결과는 3성 리빌 연출로 공개. (남는 3성 활용처 추가 + 3성 sink)' },
+    { tag: 'fix', text: '뽑기·재조합 리빌 닫기 후 가챠 카드 그리드가 옛 상태로 남던 문제 — closeReveal이 renderShop(상점 전용)만 호출하던 것을 renderGachaTab도 호출하도록 수정' },
+  ]},
   { ver: 'v2.43.214', date: '2026-05-31', changes: [
     { tag: 'fix', text: '10연 뽑기 결과 카드에 챔피언 이름이 안 보이던 버그 수정 — 카드 이름 클래스(.tc-name)가 "티어 변동" 행 컴포넌트의 동명 클래스(flex:1 1 0)와 충돌해 세로 높이 0으로 접혀 있었음. #ten-grid 스코프로 덮어써 이름 정상 표시(등급 ★ 옆에 챔피언명)' },
   ]},
@@ -17966,11 +17970,20 @@ function renderGachaTab() {
   }).join('') + `</div>`;
   const ownedCount = GACHA_CHAMPS.filter(({slug})=>(gachaGp(slug)[`s${gachaStar}`]||0)>0).length;
   const cardsHtml = GACHA_CHAMPS.map(({slug,kr,role},idx) => _gachaCardHtml(slug,kr,role,gachaStar,idx)).join('');
+  // 3성 탭 — 남는(중복) 3성 2장 → 랜덤 3성 재조합 (미보유 우선)
+  let recombineHtml = '';
+  if (gachaStar === 3) {
+    const surplus3 = GACHA_CHAMPS.reduce((s,c)=> s + Math.max(0,(gachaGp(c.slug).s3||0)-1), 0);
+    recombineHtml = surplus3 >= 2
+      ? `<button class="cz-merge-action" style="background:linear-gradient(135deg,#6d3bbf,#a878f0);border-color:rgba(205,165,255,0.65);margin:2px 0 10px;" onclick="window.doGachaRecombine3()">✦ 남는 3성 2장 → 랜덤 3성 <span style="opacity:0.82;font-weight:600;font-size:11px;">· 잉여 ${surplus3}장</span></button>`
+      : `<div class="czd-merge-hint" style="margin:2px 0 10px;background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.12);border-radius:8px;padding:9px;">중복된 3성 2장이 모이면 랜덤 3성으로 재조합할 수 있어요 (미보유 챔프 우선)</div>`;
+  }
   list.innerHTML = tabHtml + tierTabs + `
     <div class="col-count-row" style="margin-top:2px;">
       <span style="font-size:11px;color:var(--text-dim);">보유 카드</span>
       <span class="col-count">${ownedCount} / ${GACHA_CHAMPS.length}</span>
     </div>
+    ${recombineHtml}
     <div class="pet-grid">${cardsHtml}</div>` + renderGachaDex();
   _markSynergiesSeen();   // 시너지 섹션을 확인했으니 신규 표시 해제
   updateGachaNavBadge();
@@ -23110,6 +23123,36 @@ window.doGachaMerge = async function(slug, fromStar) {
   showGachaMergeAnim(slug, fromStar, fromStar + 1, c.kr);
 };
 
+// 남는(중복) 3성 2장 → 랜덤 3성 1장 (미보유 챔프 우선). 마지막 1장은 보호 → 시너지 안 깨짐
+window.doGachaRecombine3 = async function() {
+  if (!myName) { showGoldToast('먼저 내 이름을 선택해주세요'); return; }
+  const key = getMyGoldKey(), data = getMyGoldData();
+  if (!key || !data) return;
+  const cards = JSON.parse(JSON.stringify(data.champCards_s1 || {}));
+  const log   = JSON.parse(JSON.stringify(data.champCardLog_s1 || {}));
+  const sur = slug => Math.max(0, (cards[slug]?.s3||0) - 1); // 잉여(중복) 3성 수
+  if (GACHA_CHAMPS.reduce((s,c)=>s+sur(c.slug),0) < 2) { showGoldToast('남는 3성이 부족해요 (같은 카드 중복 2장 필요)'); return; }
+  // 잉여 가장 많은 챔프부터 2장 소모 (마지막 1장은 보호)
+  for (let i=0;i<2;i++){
+    let best=null, bestSur=0;
+    for (const c of GACHA_CHAMPS){ const s=sur(c.slug); if(s>bestSur){bestSur=s;best=c.slug;} }
+    if (!best) { showGoldToast('남는 3성이 부족해요'); return; }
+    cards[best].s3 -= 1;
+  }
+  // 결과 — 아직 3성 없는 챔프 우선, 없으면 전체 18종 랜덤
+  const unowned = GACHA_CHAMPS.filter(c => (cards[c.slug]?.s3||0) === 0);
+  const pool = unowned.length ? unowned : GACHA_CHAMPS;
+  const result = pool[Math.floor(Math.random()*pool.length)];
+  const prev = cards[result.slug] || {s1:0,s2:0,s3:0};
+  cards[result.slug] = {...prev, s3:(prev.s3||0)+1};
+  log[result.slug] = {...(log[result.slug]||{}), e3:true};
+  try {
+    await update(ref(db,'gold/'+key), { champCards_s1: cards, champCardLog_s1: log });
+  } catch(e){ showGoldToast('❌ 재조합 실패 — 다시 시도해주세요'); return; }
+  if (typeof updateGachaNavBadge === 'function') updateGachaNavBadge();
+  showGachaReveal(result, 3); // 결과 리빌 (3성 연출)
+};
+
 function renderGachaSetStatus() {
   return Object.entries(GACHA_SET_CFG).map(([type,cfg]) => {
     const cnt = GACHA_CHAMPS.filter(c => { const e=gachaGe(c.slug); return GACHA_PET_TYPE(c.role)===type&&(e.e1||e.e2||e.e3); }).length;
@@ -23626,6 +23669,8 @@ function gachaSpawnParticles(starLevel, color) {
 window.closeReveal = function() {
   _gachaStopVoice(); // 명대사 음성(성우/TTS) 중단 (v2.43.207~208)
   document.getElementById('rv-overlay').className = 'rv-overlay';
+  // 뽑기·재조합은 가챠 탭에서 일어나므로 가챠 탭 갱신 (renderShop은 상점 전용 — 카드 그리드 옛 상태 잔존 방지)
+  if (typeof renderGachaTab === 'function') renderGachaTab();
   renderShop();
 };
 
