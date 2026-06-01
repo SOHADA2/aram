@@ -4920,7 +4920,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.225';
+const APP_VERSION = 'v2.43.226';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4929,6 +4929,9 @@ const APP_VERSION = 'v2.43.225';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.226', date: '2026-06-01', changes: [
+    { tag: 'improve', text: '🗑️ 쓰레기통 밸런스 조정 — 하루 횟수 제한을 없애 언제든 뒤질 수 있게 바꾸는 대신, ① 뒤지는 품을 빡세게(드래그 620→1100px) ② 골드를 푼돈만 나오게 대폭 축소(1회 평균 1.4G→0.25G, 최대 10G→5G) ③ 무료 복권권은 하루 1장으로 고정. 무한정 뒤져도 동전 푼돈만 쌓이고 무료권은 하루 한 장이라 경제에 영향이 거의 없어요(완전 재미용)' },
+  ]},
   { ver: 'v2.43.225', date: '2026-06-01', changes: [
     { tag: 'new', text: '🗑️ 쓰레기통 뒤지기 — 복권 Hub 하단에 재미용 미니 기능 추가! 손 넣고 직접 드래그(뒤적뒤적)해서 쓰레기통을 뒤지면, 대부분은 바나나 껍질·생선뼈 같은 쓰레기지만 가끔 1~10G 동전이, 아주 드물게 누군가 안 긁은 무료 복권권(일반)이 나와요. 골드는 따로 안 들고 공짜. 단 하루 4번 제한 + 충분히 뒤적여야 나오게 해서 무한 파밍 방지. 평균 푼돈 수준이라 경제 영향 거의 없음(재미용)' },
   ]},
@@ -18948,11 +18951,13 @@ window.closeLotteryHub = function() {
   document.getElementById('lottery-hub-overlay')?.remove();
 };
 
-/* ── 🗑️ 쓰레기통 뒤지기 (v2.43.225) — 재미용 미니 기능 ──
-   직접 드래그(뒤적뒤적)로 뒤져 가끔 1~10G 푼돈, 드물게 무료 복권권(일반). 하루 횟수 제한으로 farming 방지.
-   골드는 trashGold_s1(누적, calcPlayerGoldEarned 합산), 무료권은 freeScratch[0]. 일일 횟수는 trashDig_s1={date,count}. */
-const TRASH_DAILY_LIMIT = 4;
-const TRASH_DIG_THRESHOLD = 620; // 누적 드래그 거리(px) — 한 번 뒤지는 데 필요한 뒤적임 양
+/* ── 🗑️ 쓰레기통 뒤지기 (v2.43.225~) — 재미용 미니 기능 ──
+   직접 드래그(뒤적뒤적)로 뒤짐. 횟수 제한 없음(언제든) 대신:
+   ① 빡센 드래그 임계값(1100px)으로 한 번 뒤지는 데 품이 들고
+   ② 골드는 거의 푼돈(1회 EV ~0.25G)이라 많이 뒤져도 의미 없으며
+   ③ 무료 복권권(일반)은 하루 1장으로 고정(trashFreeDate_s1) → 무한 파밍 방지.
+   골드는 trashGold_s1(누적, calcPlayerGoldEarned 합산), 무료권은 freeScratch[0]. */
+const TRASH_DIG_THRESHOLD = 1100; // 누적 드래그 거리(px) — 한 번 뒤지는 데 필요한 뒤적임 양 (빡세게)
 const TRASH_JUNK = [
   {e:'🍌',n:'바나나 껍질'},{e:'🐟',n:'생선 뼈'},{e:'🥫',n:'찌그러진 깡통'},
   {e:'📄',n:'구겨진 영수증'},{e:'🧦',n:'한 짝뿐인 양말'},{e:'🍕',n:'식은 피자 조각'},
@@ -18963,27 +18968,20 @@ const TRASH_JUNK_LINE = [
   '음… 그냥 쓰레기네요.','이건 좀 아니다.','으, 냄새.','꽝! 다음 기회에…',
   '쓸 만한 건 없군요.','이런 걸 왜 줍고 있지…','퉤, 손만 더러워졌다.','휴… 다음 칸을 뒤져보자.',
 ];
-let _trashDragging = false, _trashDist = 0, _trashBusy = false, _trashLastX = 0, _trashLastY = 0, _trashLeft = 0;
-function _trashDigsLeftStored() {
-  const data = getMyGoldData();
-  const today = getLocalDateKey();
-  const d = data?.trashDig_s1;
-  const used = (d && d.date === today) ? (d.count || 0) : 0;
-  return Math.max(0, TRASH_DAILY_LIMIT - used);
-}
+let _trashDragging = false, _trashDist = 0, _trashBusy = false, _trashLastX = 0, _trashLastY = 0, _trashGotFreeToday = false;
 function _trashPickReward() {
   const r = Math.random();
-  if (r < 0.025) return { type:'free' };                                    // 2.5% 무료 복권권
-  if (r < 0.065) return { type:'gold', val: 8 + Math.floor(Math.random()*3) };  // 4%  8~10G
-  if (r < 0.165) return { type:'gold', val: 4 + Math.floor(Math.random()*4) };  // 10% 4~7G
-  if (r < 0.400) return { type:'gold', val: 1 + Math.floor(Math.random()*3) };  // 23.5% 1~3G
-  return { type:'junk' };                                                   // 60% 그냥 쓰레기
+  if (r < 0.025) return { type:'free' };                                    // 2.5% 무료 복권권 (하루 1장 캡)
+  if (r < 0.050) return { type:'gold', val: 3 + Math.floor(Math.random()*3) };  // 2.5% 3~5G
+  if (r < 0.150) return { type:'gold', val: 1 + Math.floor(Math.random()*2) };  // 10%  1~2G
+  return { type:'junk' };                                                   // 85% 그냥 쓰레기
 }
 window.openTrashCan = function() {
   if (!myName) { showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
   document.getElementById('trash-overlay')?.remove();
   _trashDragging = false; _trashDist = 0; _trashBusy = false;
-  _trashLeft = _trashDigsLeftStored();
+  const data = getMyGoldData();
+  _trashGotFreeToday = (data?.trashFreeDate_s1 === getLocalDateKey());
   const junkHtml = ['🍌','🥫','🐟','📄','🦴','🧦','🍕'].map(e => `<span class="trash-junk">${e}</span>`).join('');
   const el = document.createElement('div');
   el.id = 'trash-overlay'; el.className = 'trash-overlay';
@@ -18993,7 +18991,7 @@ window.openTrashCan = function() {
         <span class="trash-title">🗑️ 뒷골목 쓰레기통</span>
         <button class="trash-close" onclick="window.closeTrashCan()">✕</button>
       </div>
-      <div class="trash-sub">손을 넣고 <b>이리저리 뒤적뒤적</b> 해보세요.<br>운이 좋으면 동전이나 안 긁은 무료 복권이…?</div>
+      <div class="trash-sub">손을 넣고 <b>이리저리 한참 뒤적뒤적</b> 해보세요.<br>대부분은 쓰레기… 운이 좋으면 동전이나 무료 복권이?</div>
       <div class="trash-digs" id="trash-digs"></div>
       <div class="trash-can" id="trash-can">
         <div class="trash-fly" style="top:12px;left:28px;">🪰</div>
@@ -19019,18 +19017,16 @@ window.closeTrashCan = function() {
 };
 function _trashRenderDigs() {
   const el = document.getElementById('trash-digs');
-  if (el) el.innerHTML = _trashLeft > 0
-    ? `오늘 남은 뒤지기 <b>${_trashLeft}</b> / ${TRASH_DAILY_LIMIT}회`
-    : `🧹 오늘은 다 뒤졌어요! 내일 다시 와요`;
-  const hint = document.getElementById('trash-hint');
-  if (_trashLeft <= 0 && hint) hint.textContent = '쓰레기통이 깨끗해졌어요…';
+  if (el) el.innerHTML = _trashGotFreeToday
+    ? `🎟 오늘 무료권은 이미 찾았어요! · 동전은 계속 나와요`
+    : `🎟 무료 복권권은 하루 1장까지 · 동전은 언제든 OK`;
 }
 function _trashBindDrag() {
   const zone = document.getElementById('trash-dig');
   const can = document.getElementById('trash-can');
   if (!zone) return;
   const start = (x, y) => {
-    if (_trashBusy || _trashLeft <= 0) return;
+    if (_trashBusy) return;
     _trashDragging = true; _trashLastX = x; _trashLastY = y;
     can?.classList.add('digging');
   };
@@ -19055,30 +19051,34 @@ function _trashBindDrag() {
 async function _trashReveal() {
   if (_trashBusy) return;
   _trashBusy = true;
-  const reward = _trashPickReward();
+  let reward = _trashPickReward();
+  // 무료권은 하루 1장만 — 이미 오늘 받았으면 푼돈으로 강등
+  if (reward.type === 'free' && _trashGotFreeToday) {
+    reward = { type: 'gold', val: 1 + Math.floor(Math.random()*3), consolation: true };
+  }
   const key = getMyGoldKey();
   const data = getMyGoldData() || {};
   const today = getLocalDateKey();
-  const dd = (data.trashDig_s1 && data.trashDig_s1.date === today)
-    ? { date: today, count: (data.trashDig_s1.count || 0) + 1 }
-    : { date: today, count: 1 };
-  const updates = { trashDig_s1: dd };
+  const updates = {};
   let resHtml = '';
   if (reward.type === 'free') {
     const ft = { ...(data[sField('freeScratch')] || {}) };
     ft[0] = (ft[0] || 0) + 1;
     updates[sField('freeScratch')] = ft;
-    resHtml = `<span class="tr-emoji">🎟</span>대박! 안 긁은 <b style="color:#4ade80">무료 복권권</b>을 주웠다!<br><span style="font-size:11px;color:#9ca3af;font-weight:400;">(일반 복권 무료권 +1)</span>`;
+    updates.trashFreeDate_s1 = today;
+    _trashGotFreeToday = true;
+    resHtml = `<span class="tr-emoji">🎟</span>대박! 안 긁은 <b style="color:#4ade80">무료 복권권</b>을 주웠다!<br><span style="font-size:11px;color:#9ca3af;font-weight:400;">(일반 복권 무료권 +1 · 오늘 1장 끝)</span>`;
   } else if (reward.type === 'gold') {
     updates.trashGold_s1 = (data.trashGold_s1 || 0) + reward.val;
-    resHtml = `<span class="tr-emoji">🪙</span>오! 동전을 주웠다! <b style="color:#fbbf24">+${reward.val}G</b>`;
+    resHtml = reward.consolation
+      ? `<span class="tr-emoji">🪙</span>또 복권이…? 어 이미 주머니가 꽉 찼네. 동전이나 챙기자 <b style="color:#fbbf24">+${reward.val}G</b>`
+      : `<span class="tr-emoji">🪙</span>오! 동전을 주웠다! <b style="color:#fbbf24">+${reward.val}G</b>`;
   } else {
     const j = TRASH_JUNK[Math.floor(Math.random() * TRASH_JUNK.length)];
     const line = TRASH_JUNK_LINE[Math.floor(Math.random() * TRASH_JUNK_LINE.length)];
     resHtml = `<span class="tr-emoji">${j.e}</span><b style="color:#cdbfa0">${j.n}</b>… ${line}`;
   }
-  if (key) { try { await update(ref(db, 'gold/' + key), updates); } catch(_){} }
-  _trashLeft = Math.max(0, _trashLeft - 1);
+  if (key && Object.keys(updates).length) { try { await update(ref(db, 'gold/' + key), updates); } catch(_){} }
   _trashDist = 0;
   const f = document.getElementById('trash-progress-fill');
   if (f) f.style.width = '0%';
@@ -19086,7 +19086,7 @@ async function _trashReveal() {
   if (r) r.innerHTML = resHtml;
   _trashRenderDigs();
   const hint = document.getElementById('trash-hint');
-  if (hint && _trashLeft > 0) hint.textContent = '계속 뒤져볼까요? 다시 드래그!';
+  if (hint) hint.textContent = '계속 뒤져볼까요? 다시 한참 드래그!';
   _trashBusy = false;
 }
 window.openLotteryHub = function() {
@@ -19225,7 +19225,7 @@ window.openLotteryHub = function() {
       <div class="lh-section-title">긁기 도구 <span class="lh-section-sub">한 번 구매 시 영구 적용</span></div>
       <div class="lh-tool-grid">${toolCards}</div>
       <div class="lh-divider"></div>
-      <div class="lh-section-title">🗑️ 뒷골목 <span class="lh-section-sub">공짜로 뒤적뒤적 · 하루 ${TRASH_DAILY_LIMIT}번</span></div>
+      <div class="lh-section-title">🗑️ 뒷골목 <span class="lh-section-sub">공짜로 뒤적뒤적 · 언제든</span></div>
       <div class="lh-trash-entry" onclick="window.openTrashCan()">
         <span class="lh-trash-emoji">🗑️</span>
         <div class="lh-trash-txt">
