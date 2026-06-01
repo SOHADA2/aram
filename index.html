@@ -280,6 +280,14 @@ header{text-align:center;padding:48px 0 24px;position:relative;}
 .sched-name{font-size:11px;padding:3px 9px;border-radius:14px;background:rgba(74,222,128,0.14);border:1px solid rgba(74,222,128,0.35);color:#a7e8c0;}
 .sched-name.me{background:rgba(200,168,75,0.18);border-color:rgba(200,168,75,0.5);color:var(--gold-light,#e8c95a);}
 .sched-empty-names{font-size:11px;color:var(--text-dim,#9aa0b4);}
+/* 라이브 계정 — 오늘 참여 가능 명단 패널 */
+.live-roster{background:linear-gradient(160deg,rgba(40,32,8,0.5),rgba(20,16,6,0.4));border:1px solid rgba(200,168,75,0.3);border-radius:13px;padding:12px 14px;margin-bottom:14px;}
+.live-roster-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;gap:8px;}
+.live-roster-title{font-weight:800;font-size:13.5px;color:var(--gold-light,#e8c95a);letter-spacing:0.3px;}
+.live-roster-cnt{flex-shrink:0;font-size:12px;font-weight:800;color:var(--gold,#e8c95a);background:rgba(200,168,75,0.16);border:1px solid rgba(200,168,75,0.4);border-radius:14px;padding:2px 11px;}
+.live-roster-names{display:flex;flex-wrap:wrap;gap:6px;}
+.live-roster-name{font-size:13px;font-weight:700;padding:5px 13px;border-radius:16px;background:rgba(74,222,128,0.16);border:1px solid rgba(74,222,128,0.42);color:#b7f0cc;}
+.live-roster-empty{font-size:11px;color:var(--text-dim,#9aa0b4);line-height:1.5;}
 .version-badge.unseen{
   color:var(--gold-light);
   border-color:rgba(200,168,75,0.55);
@@ -4391,6 +4399,9 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 <!-- ===== TAB: 팀 구성 ===== -->
 <div id="tab-team" class="tab-content active">
 
+  <!-- 라이브 계정 전용: 오늘 참여 가능 명단 (한눈에) -->
+  <div id="live-sched-roster" class="live-roster" style="display:none;"></div>
+
   <!-- 팀원 모드 대기 메시지 (일반 팀원 & 팀 미구성 시) -->
   <div id="member-waiting"></div>
 
@@ -4883,7 +4894,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.220';
+const APP_VERSION = 'v2.43.221';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4892,6 +4903,9 @@ const APP_VERSION = 'v2.43.220';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.221', date: '2026-06-01', changes: [
+    { tag: 'new', text: '라이브 계정 — 팀구성 화면 상단에 "오늘 참여 가능" 명단 패널 상시 표시. 호스트가 일정 모달 안 열어도 오늘 누가 가능한지 이름 칩으로 한눈에 확인(실시간 갱신). 일반 팀원 화면엔 미표시(좌상단 📅 일정 모달로 확인)' },
+  ]},
   { ver: 'v2.43.220', date: '2026-06-01', changes: [
     { tag: 'new', text: '내전 일정(달력) 기능 — 좌상단에 📅 일정 버튼 추가. 달력에서 본인이 참여 가능한 날짜를 탭해 체크(다시 탭하면 해제), 각 날짜에 가능자 수가 뜨고 날짜를 누르면 그 날 참여 가능자 명단 표시. 오늘 가능자 수는 일정 버튼에 배지로 노출. 카카오톡 일정 투표를 사이트로! (명예의전당 버튼도 우측 sync바 → 좌상단 코너로 이동)' },
   ]},
@@ -17667,6 +17681,7 @@ function setLiveMode(enabled) {
   document.body.classList.toggle('member-mode', !enabled && !!myName);
   document.documentElement.classList.toggle('live-mode', enabled);
   document.documentElement.classList.toggle('member-mode', !enabled && !!myName);
+  if (typeof _renderLiveRoster === 'function') _renderLiveRoster(); // 라이브 오늘 참여 명단 갱신
   document.getElementById('live-mode-bar').style.display = enabled ? 'flex' : 'none';
   if (enabled) {
     document.getElementById('my-info-bar').style.display = 'none';
@@ -17826,8 +17841,29 @@ let _schedSel = null;     // 선택 날짜키
 onValue(ref(db, 'availability'), (snap) => {
   _scheduleData = snap.val() || {};
   updateScheduleBadge();
+  _renderLiveRoster();
   if (document.getElementById('sched-overlay')?.classList.contains('show')) _renderSchedule();
 });
+// 라이브 계정 전용 — 오늘 참여 가능 명단을 팀구성 화면 상단에 항상 표시
+function _renderLiveRoster() {
+  const el = document.getElementById('live-sched-roster');
+  if (!el) return;
+  if (!liveMode) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  const todayKey = getLocalDateKey();
+  const avail = _scheduleData[todayKey] || {};
+  const names = Object.keys(avail).filter(k => avail[k]);
+  const p = todayKey.split('-');
+  el.style.display = '';
+  el.innerHTML = `
+    <div class="live-roster-head">
+      <span class="live-roster-title">📅 오늘(${+p[1]}/${+p[2]}) 참여 가능</span>
+      <span class="live-roster-cnt">${names.length}명</span>
+    </div>
+    ${names.length
+      ? `<div class="live-roster-names">${names.map(n=>`<span class="live-roster-name">${escHtml(n)}</span>`).join('')}</div>`
+      : `<div class="live-roster-empty">아직 오늘 참여 가능 체크한 팀원이 없어요 · 좌상단 📅 일정에서 체크할 수 있어요</div>`}
+  `;
+}
 function updateScheduleBadge() {
   const btn = document.getElementById('sched-badge-btn');
   if (!btn) return;
