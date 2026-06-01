@@ -4982,7 +4982,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.247';
+const APP_VERSION = 'v2.43.248';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4991,6 +4991,9 @@ const APP_VERSION = 'v2.43.247';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.248', date: '2026-06-01', changes: [
+    { tag: 'improve', text: '🐱 유미 무료권 = 직접 1시간 뒤진 것과 동일 — 1회 파견(1시간)이면 그날 남은 무료권 등급을 캡까지 모두 캐옴(별도 확률 게이트 제거). 하루 총 3장은 직접 뒤지기와 공유라, 첫 파견에 남은 걸 다 캐고 이후엔 동전만. 직접 한 시간 뒤지는 걸 그대로 자동화한 셈' },
+  ]},
   { ver: 'v2.43.247', date: '2026-06-01', changes: [
     { tag: 'fix', text: '🐱 유미가 캐오는 무료권도 직접 뒤지기와 하루 캡(등급별 1장·총 3장) 공유 — 오늘 아직 안 받은 등급에서만 캐오고, 3장 다 받았으면 동전만 가져옴. 유미+직접 합쳐 무료권은 하루 3장으로 고정(무한 파밍 방지). 동전은 그대로 130~230G' },
   ]},
@@ -19273,17 +19276,14 @@ window.collectYuumi = async function() {
   const f = { cooldownUntil: Date.now() + YUUMI_COOLDOWN_MS };
   const newGold = (data.trashGold_s1 || 0) + coins;
   const updates = { trashGold_s1: newGold, yuumiForage_s1: f };
-  // 무료권 — 직접 뒤지기와 동일한 하루 캡(등급별 1장, 총 3장) 공유. 오늘 아직 안 받은 등급에서만 캐옴
+  // 무료권 — 직접 1시간 뒤진 것과 동일: 오늘 남은 등급을 캡까지 모두 캐옴 (등급별 1장·총 3장, 직접 뒤지기와 공유)
   const today = getLocalDateKey();
   const gotToday = (data.trashFree_s1 && data.trashFree_s1.date === today) ? { ...(data.trashFree_s1.got || {}) } : {};
-  const avail = [0, 1, 2].filter(t => !gotToday[t]);
-  let ticketTier = -1;
-  if (avail.length && Math.random() < 0.9) {        // 남은 등급 있으면 90% 확률로 1장 캐옴(가중)
-    ticketTier = _trashPickFreeTier(avail);
+  const got = [0, 1, 2].filter(t => !gotToday[t]);
+  if (got.length) {
     const ft = { ...(data[sField('freeScratch')] || {}) };
-    ft[ticketTier] = (ft[ticketTier] || 0) + 1;
+    for (const t of got) { ft[t] = (ft[t] || 0) + 1; gotToday[t] = true; }
     updates[sField('freeScratch')] = ft;
-    gotToday[ticketTier] = true;
     updates.trashFree_s1 = { date: today, got: gotToday };
   }
   try { await update(ref(db, 'gold/' + key), updates); } catch(_) { return; }
@@ -19292,9 +19292,10 @@ window.collectYuumi = async function() {
     if (updates[sField('freeScratch')]) goldData[key][sField('freeScratch')] = updates[sField('freeScratch')];
     if (updates.trashFree_s1) goldData[key].trashFree_s1 = updates.trashFree_s1;
   }
-  if (ticketTier >= 0) { _trashFreeGot[ticketTier] = true; _trashRenderDigs(); } // 열린 모달의 남은 무료권 표시 동기화
-  const tName = ticketTier >= 0 ? `${TRASH_FREE_TIERS[ticketTier].n} 무료권 1장`
-              : (avail.length ? '무료권은 허탕' : '무료권은 오늘치 다 캐서 동전만');
+  if (got.length) { got.forEach(t => _trashFreeGot[t] = true); _trashRenderDigs(); } // 열린 모달의 남은 무료권 표시 동기화
+  const tName = got.length
+    ? got.map(t => TRASH_FREE_TIERS[t].short).join('·') + ` 무료권 ${got.length}장`
+    : '무료권은 오늘치 다 캐서 동전만';
   showGoldToast(`🐱 유미가 캐왔어요! +${coins}G · ${tName}`);
   _renderYuumiPanel();
 };
