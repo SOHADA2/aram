@@ -4982,7 +4982,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.246';
+const APP_VERSION = 'v2.43.247';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4991,6 +4991,9 @@ const APP_VERSION = 'v2.43.246';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.247', date: '2026-06-01', changes: [
+    { tag: 'fix', text: '🐱 유미가 캐오는 무료권도 직접 뒤지기와 하루 캡(등급별 1장·총 3장) 공유 — 오늘 아직 안 받은 등급에서만 캐오고, 3장 다 받았으면 동전만 가져옴. 유미+직접 합쳐 무료권은 하루 3장으로 고정(무한 파밍 방지). 동전은 그대로 130~230G' },
+  ]},
   { ver: 'v2.43.246', date: '2026-06-01', changes: [
     { tag: 'improve', text: '🐱 유미 파견 보상 상향 — 1회(1시간) 동전 40~80G → 130~230G(평균 180G). 무료 복권권까지 더하면 1회 ~280G 상당이라 직접 손으로 뒤지는 것보다 효율 좋게. AFK라 손도 안 가고 무료권은 별개로 캐옴' },
   ]},
@@ -19252,15 +19255,6 @@ function _yuumiState(data) {
   if (f.cooldownUntil && now < f.cooldownUntil) return { st:'cooldown', endAt: f.cooldownUntil };
   return { st:'ready' };
 }
-function _yuumiForageReward() {
-  const coins = 130 + Math.floor(Math.random() * 101); // 130~230G (직접 뒤지기보다 효율 좋게, v2.43.246)
-  let ticketTier = -1;
-  const r = Math.random();
-  if (r < 0.50) ticketTier = 0;       // 일반 50%
-  else if (r < 0.75) ticketTier = 1;  // 고급 25%
-  else if (r < 0.87) ticketTier = 2;  // 프미 12% (나머지 13% 무료권 없음)
-  return { coins, ticketTier };
-}
 window.deployYuumi = async function() {
   const key = getMyGoldKey(), data = getMyGoldData();
   if (!key || !_ownsYuumi(data)) return;
@@ -19275,19 +19269,33 @@ window.collectYuumi = async function() {
   const key = getMyGoldKey(), data = getMyGoldData();
   if (!key) return;
   if (_yuumiState(data).st !== 'done') { showGoldToast('아직 수령할 수 없어요'); return; }
-  const rew = _yuumiForageReward();
+  const coins = 130 + Math.floor(Math.random() * 101); // 130~230G
   const f = { cooldownUntil: Date.now() + YUUMI_COOLDOWN_MS };
-  const newGold = (data.trashGold_s1 || 0) + rew.coins;
+  const newGold = (data.trashGold_s1 || 0) + coins;
   const updates = { trashGold_s1: newGold, yuumiForage_s1: f };
-  if (rew.ticketTier >= 0) {
+  // 무료권 — 직접 뒤지기와 동일한 하루 캡(등급별 1장, 총 3장) 공유. 오늘 아직 안 받은 등급에서만 캐옴
+  const today = getLocalDateKey();
+  const gotToday = (data.trashFree_s1 && data.trashFree_s1.date === today) ? { ...(data.trashFree_s1.got || {}) } : {};
+  const avail = [0, 1, 2].filter(t => !gotToday[t]);
+  let ticketTier = -1;
+  if (avail.length && Math.random() < 0.9) {        // 남은 등급 있으면 90% 확률로 1장 캐옴(가중)
+    ticketTier = _trashPickFreeTier(avail);
     const ft = { ...(data[sField('freeScratch')] || {}) };
-    ft[rew.ticketTier] = (ft[rew.ticketTier] || 0) + 1;
+    ft[ticketTier] = (ft[ticketTier] || 0) + 1;
     updates[sField('freeScratch')] = ft;
+    gotToday[ticketTier] = true;
+    updates.trashFree_s1 = { date: today, got: gotToday };
   }
   try { await update(ref(db, 'gold/' + key), updates); } catch(_) { return; }
-  if (goldData[key]) { goldData[key].yuumiForage_s1 = f; goldData[key].trashGold_s1 = newGold; if (updates[sField('freeScratch')]) goldData[key][sField('freeScratch')] = updates[sField('freeScratch')]; }
-  const tName = rew.ticketTier >= 0 ? `${TRASH_FREE_TIERS[rew.ticketTier].n} 무료권 1장` : '무료권은 못 구함';
-  showGoldToast(`🐱 유미가 캐왔어요! +${rew.coins}G · ${tName}`);
+  if (goldData[key]) {
+    goldData[key].yuumiForage_s1 = f; goldData[key].trashGold_s1 = newGold;
+    if (updates[sField('freeScratch')]) goldData[key][sField('freeScratch')] = updates[sField('freeScratch')];
+    if (updates.trashFree_s1) goldData[key].trashFree_s1 = updates.trashFree_s1;
+  }
+  if (ticketTier >= 0) { _trashFreeGot[ticketTier] = true; _trashRenderDigs(); } // 열린 모달의 남은 무료권 표시 동기화
+  const tName = ticketTier >= 0 ? `${TRASH_FREE_TIERS[ticketTier].n} 무료권 1장`
+              : (avail.length ? '무료권은 허탕' : '무료권은 오늘치 다 캐서 동전만');
+  showGoldToast(`🐱 유미가 캐왔어요! +${coins}G · ${tName}`);
   _renderYuumiPanel();
 };
 let _yuumiTimer = null;
