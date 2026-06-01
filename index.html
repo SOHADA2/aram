@@ -265,7 +265,7 @@ header{text-align:center;padding:48px 0 24px;position:relative;}
 .sched-monthnav span{font-weight:800;font-size:14px;min-width:120px;text-align:center;color:var(--text,#e8eaf0);}
 .sched-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
 .sched-dow{text-align:center;font-size:10px;padding:3px 0;font-weight:700;}
-.sched-cell{aspect-ratio:1;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;transition:border-color .12s,background .12s;}
+.sched-cell{position:relative;aspect-ratio:1;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;transition:border-color .12s,background .12s;}
 .sched-cell.empty{border:none;background:none;cursor:default;}
 .sched-cell:not(.empty):hover{border-color:rgba(255,255,255,0.25);}
 .sched-cell.today{border-color:rgba(200,168,75,0.6);}
@@ -280,6 +280,18 @@ header{text-align:center;padding:48px 0 24px;position:relative;}
 .sched-name{font-size:11px;padding:3px 9px;border-radius:14px;background:rgba(74,222,128,0.14);border:1px solid rgba(74,222,128,0.35);color:#a7e8c0;}
 .sched-name.me{background:rgba(200,168,75,0.18);border-color:rgba(200,168,75,0.5);color:var(--gold-light,#e8c95a);}
 .sched-empty-names{font-size:11px;color:var(--text-dim,#9aa0b4);}
+/* 일정 편집 모드 (v2.43.229) */
+.sched-cell.editing.mine{background:rgba(74,222,128,0.30);border-color:rgba(74,222,128,0.9);box-shadow:inset 0 0 0 1px rgba(74,222,128,0.45);}
+.sched-cell.noedit{opacity:0.3;cursor:not-allowed;}
+.sched-check{position:absolute;top:2px;right:3px;font-size:9px;color:#4ade80;font-weight:900;line-height:1;}
+.sched-actions{display:flex;gap:8px;margin-top:14px;}
+.sched-actions button{flex:1;padding:11px;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;border:1px solid transparent;transition:filter .12s;}
+.sched-actions button:hover{filter:brightness(1.12);}
+.sched-edit-btn{background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;border-color:rgba(120,180,255,0.4);}
+.sched-confirm{background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;}
+.sched-cancel{background:rgba(255,255,255,0.06);color:var(--text,#e8eaf0);border-color:rgba(255,255,255,0.15);}
+.sched-edit-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px;}
+.sched-edit-chip{font-size:10.5px;padding:3px 8px;border-radius:12px;background:rgba(74,222,128,0.16);border:1px solid rgba(74,222,128,0.4);color:#a7e8c0;}
 .version-badge.unseen{
   color:var(--gold-light);
   border-color:rgba(200,168,75,0.55);
@@ -4256,6 +4268,7 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
       <button onclick="schedNavMonth(1)">▶</button>
     </div>
     <div class="sched-cal" id="sched-cal"></div>
+    <div class="sched-actions" id="sched-actions"></div>
   </div>
 </div>
 <header>
@@ -4919,7 +4932,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.228';
+const APP_VERSION = 'v2.43.229';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4928,6 +4941,9 @@ const APP_VERSION = 'v2.43.228';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.229', date: '2026-06-01', changes: [
+    { tag: 'improve', text: '📅 내전 일정 — 보기/편집 모드 분리. 이제 ① 날짜를 누르면 그 날 참여자가 누구누구인지 명단으로 바로 보이고(보기 모드), ② 하단 "✏️ 내 참여 일정 체크하기"를 누르면 편집 모드로 들어가 참여 가능한 날들을 클릭클릭 골라(초록 체크✓) 맨 아래 확정/취소로 한 번에 저장해요. 편집 중엔 고른 날이 상단에 칩으로 보이고, 확정 전까지 저장 안 됨. 지난 날짜는 편집 불가' },
+  ]},
   { ver: 'v2.43.228', date: '2026-06-01', changes: [
     { tag: 'improve', text: '🗑️ 쓰레기통 무료권 — 이제 일반·고급·프미 세 등급이 다 나와요! 단 등급별로 하루 1장씩(총 3장)으로 제한. 프미 무료권이 제일 희귀(일반 흔함→프미 귀함). 모달 상단에 오늘 남은 등급(일반·고급·프미)이 표시되고, 받은 등급은 줄이 그어져요. 다 받으면 동전만 계속 나옴 — farming 방지 유지' },
   ]},
@@ -17884,6 +17900,8 @@ function getLocalDateKey() {
 let _scheduleData = {};   // {dateKey: {normName: true}}
 let _schedView = null;    // {y, m(0-index)}
 let _schedSel = null;     // 선택 날짜키
+let _schedMode = 'view';  // 'view'(날짜 클릭=명단보기) | 'edit'(내 참여일 체크 스테이징)
+let _schedEditSet = null; // 편집 중 내가 고른 날짜키 Set (확정 전까지 로컬)
 onValue(ref(db, 'availability'), (snap) => {
   _scheduleData = snap.val() || {};
   updateScheduleBadge();
@@ -17900,6 +17918,7 @@ window.openSchedule = function() {
   const t = new Date();
   if (!_schedView) _schedView = { y: t.getFullYear(), m: t.getMonth() };
   _schedSel = getLocalDateKey(); // 열 때마다 오늘로 초점
+  _schedMode = 'view'; _schedEditSet = null; // 항상 보기 모드로 시작
   document.getElementById('sched-overlay').classList.add('show');
   _renderSchedule();
 };
@@ -17910,28 +17929,64 @@ window.schedNavMonth = function(d) {
   _schedView = { y, m };
   _renderSchedule();
 };
-window.schedToggleDay = async function(dateKey) {
+function _schedCanEdit() { return !!myName && !liveMode; }
+// 날짜 클릭 — 편집 모드면 내 참여일 토글(스테이징), 보기 모드면 그 날 명단 보기
+window.schedDayClick = function(dateKey) {
+  if (_schedMode === 'edit') {
+    if (dateKey < getLocalDateKey()) return; // 지난 날짜는 편집 불가
+    if (_schedEditSet.has(dateKey)) _schedEditSet.delete(dateKey);
+    else _schedEditSet.add(dateKey);
+  }
   _schedSel = dateKey;
-  // 라이브 계정·이름 미선택 → 토글 없이 그 날 명단만 보기 (호스트/관전용)
-  if (liveMode || !myName) { _renderSchedule(); return; }
+  _renderSchedule();
+};
+// 편집 모드 진입 — 현재 내 참여일을 작업본(Set)으로 복사
+window.schedEnterEdit = function() {
+  if (!_schedCanEdit()) return;
   const k = normName(myName);
-  const mine = !!(_scheduleData[dateKey] && _scheduleData[dateKey][k]);
-  if (!_scheduleData[dateKey]) _scheduleData[dateKey] = {};
-  if (mine) delete _scheduleData[dateKey][k]; else _scheduleData[dateKey][k] = true; // 로컬 즉시 반영
+  _schedEditSet = new Set();
+  Object.keys(_scheduleData).forEach(dk => { if (_scheduleData[dk] && _scheduleData[dk][k]) _schedEditSet.add(dk); });
+  _schedMode = 'edit';
+  _renderSchedule();
+};
+window.schedCancelEdit = function() {
+  _schedMode = 'view'; _schedEditSet = null;
+  _renderSchedule();
+};
+// 확정 — 원본 대비 추가/제거만 Firebase 멀티패스 업데이트
+window.schedConfirmEdit = async function() {
+  if (!_schedCanEdit() || !_schedEditSet) return;
+  const k = normName(myName);
+  const orig = new Set();
+  Object.keys(_scheduleData).forEach(dk => { if (_scheduleData[dk] && _scheduleData[dk][k]) orig.add(dk); });
+  const updates = {};
+  _schedEditSet.forEach(dk => { if (!orig.has(dk)) updates['availability/'+dk+'/'+k] = true; });
+  orig.forEach(dk => { if (!_schedEditSet.has(dk)) updates['availability/'+dk+'/'+k] = null; });
+  // 로컬 즉시 반영
+  _schedEditSet.forEach(dk => { if (!_scheduleData[dk]) _scheduleData[dk] = {}; _scheduleData[dk][k] = true; });
+  orig.forEach(dk => { if (!_schedEditSet.has(dk) && _scheduleData[dk]) delete _scheduleData[dk][k]; });
+  const changed = Object.keys(updates).length;
+  _schedMode = 'view'; _schedEditSet = null;
   _renderSchedule(); updateScheduleBadge();
-  try { await update(ref(db, 'availability/' + dateKey), { [k]: mine ? null : true }); }
-  catch (e) { if (typeof showGoldToast === 'function') showGoldToast('저장 실패 — 다시 시도해주세요'); }
+  if (!changed) { if (typeof showGoldToast === 'function') showGoldToast('변경된 내용이 없어요'); return; }
+  try {
+    await update(ref(db), updates);
+    if (typeof showGoldToast === 'function') showGoldToast('✓ 참여 일정이 저장됐어요');
+  } catch (e) { if (typeof showGoldToast === 'function') showGoldToast('저장 실패 — 다시 시도해주세요'); }
 };
 function _renderSchedule() {
   const cal = document.getElementById('sched-cal'); if (!cal) return;
   const { y, m } = _schedView;
+  const editing = _schedMode === 'edit';
   document.getElementById('sched-monthlabel').textContent = `${y}년 ${m+1}월`;
   const sub = document.getElementById('sched-sub');
-  if (sub) sub.innerHTML = liveMode
-    ? '날짜를 눌러 그 날 참여 가능자를 확인하세요'
-    : myName
-      ? `<b style="color:var(--gold-light,#e8c95a)">${escHtml(myName)}</b> 님 — 참여 가능한 날짜를 탭해 체크 (다시 탭하면 해제)`
-      : '날짜를 눌러 가능자 확인 · 본인 일정을 체크하려면 우상단 <b>계정변경</b>에서 이름 선택';
+  if (sub) sub.innerHTML = editing
+    ? '참여 가능한 날짜를 모두 탭한 뒤 아래 <b style="color:#4ade80">확정</b>을 누르세요 (다시 탭하면 해제)'
+    : _schedCanEdit()
+      ? '날짜를 눌러 그 날 참여자를 확인 · 아래 <b style="color:#7aa8ff">내 참여 일정 체크</b>로 본인 일정 등록'
+      : liveMode
+        ? '날짜를 눌러 그 날 참여 가능자를 확인하세요'
+        : '날짜를 눌러 가능자 확인 · 본인 일정을 체크하려면 우상단 <b>계정변경</b>에서 이름 선택';
   const todayKey = getLocalDateKey();
   const myk = myName ? normName(myName) : null;
   const dow = ['일','월','화','수','목','금','토'];
@@ -17941,21 +17996,63 @@ function _renderSchedule() {
   for (let i=0;i<first;i++) cells += `<div class="sched-cell empty"></div>`;
   for (let day=1; day<=days; day++) {
     const dk = `${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    const cnt = Object.values(_scheduleData[dk] || {}).filter(Boolean).length;
-    const mine = myk && _scheduleData[dk] && _scheduleData[dk][myk];
-    const cls = ['sched-cell', dk===todayKey?'today':'', mine?'mine':'', dk===_schedSel?'sel':'', dk<todayKey?'past':''].filter(Boolean).join(' ');
-    cells += `<div class="${cls}" onclick="window.schedToggleDay('${dk}')"><span class="sched-daynum">${day}</span>${cnt>0?`<span class="sched-cnt">${cnt}</span>`:''}</div>`;
+    const data = _scheduleData[dk] || {};
+    let cnt = Object.values(data).filter(Boolean).length;
+    const isPast = dk < todayKey;
+    let mineOn;
+    if (editing) {
+      const committedMine = !!(myk && data[myk]);
+      mineOn = _schedEditSet.has(dk);
+      if (committedMine && !mineOn) cnt -= 1;   // 카운트를 스테이징 값으로 보정
+      if (!committedMine && mineOn) cnt += 1;
+    } else {
+      mineOn = !!(myk && data[myk]);
+    }
+    const cls = ['sched-cell',
+      dk===todayKey?'today':'', mineOn?'mine':'', dk===_schedSel?'sel':'',
+      isPast?'past':'', editing?'editing':'', (editing&&isPast)?'noedit':''
+    ].filter(Boolean).join(' ');
+    cells += `<div class="${cls}" onclick="window.schedDayClick('${dk}')">`
+      + `<span class="sched-daynum">${day}</span>`
+      + (cnt>0?`<span class="sched-cnt">${cnt}</span>`:'')
+      + (editing && mineOn?`<span class="sched-check">✓</span>`:'')
+      + `</div>`;
   }
   cal.innerHTML = cells;
-  const avail = _scheduleData[_schedSel] || {};
-  const names = Object.keys(avail).filter(k=>avail[k]);
-  const p = _schedSel.split('-');
-  const isToday = _schedSel === todayKey;
-  let html = `<div class="sched-list-date">${isToday?'오늘 · ':''}${+p[1]}월 ${+p[2]}일 참여 가능 (${names.length}명)</div>`;
-  html += names.length
-    ? `<div class="sched-names">${names.map(n=>`<span class="sched-name${myk===normName(n)?' me':''}">${escHtml(n)}</span>`).join('')}</div>`
-    : `<div class="sched-empty-names">아직 이 날 참여 가능자가 없어요.</div>`;
-  document.getElementById('sched-list').innerHTML = html;
+
+  // 상단 리스트 영역: 편집 모드 → 내가 고른 날 칩 / 보기 모드 → 선택 날짜 참여 명단
+  const listEl = document.getElementById('sched-list');
+  if (editing) {
+    const picked = [..._schedEditSet].filter(dk => dk >= todayKey).sort();
+    let html = `<div class="sched-list-date">✏️ 내가 고른 참여 가능일 (${picked.length}일)</div>`;
+    html += picked.length
+      ? `<div class="sched-edit-chips">${picked.map(dk=>{const q=dk.split('-');return `<span class="sched-edit-chip">${+q[1]}/${+q[2]}</span>`;}).join('')}</div>`
+      : `<div class="sched-empty-names">아직 고른 날이 없어요. 달력에서 참여 가능한 날을 눌러주세요.</div>`;
+    listEl.innerHTML = html;
+  } else {
+    const avail = _scheduleData[_schedSel] || {};
+    const names = Object.keys(avail).filter(k=>avail[k]);
+    const p = _schedSel.split('-');
+    const isToday = _schedSel === todayKey;
+    let html = `<div class="sched-list-date">${isToday?'오늘 · ':''}${+p[1]}월 ${+p[2]}일 참여 가능 (${names.length}명)</div>`;
+    html += names.length
+      ? `<div class="sched-names">${names.map(n=>`<span class="sched-name${myk===normName(n)?' me':''}">${escHtml(n)}</span>`).join('')}</div>`
+      : `<div class="sched-empty-names">아직 이 날 참여 가능자가 없어요.</div>`;
+    listEl.innerHTML = html;
+  }
+
+  // 하단 액션 바
+  const act = document.getElementById('sched-actions');
+  if (act) {
+    if (editing) {
+      act.innerHTML = `<button class="sched-cancel" onclick="window.schedCancelEdit()">취소</button>`
+                    + `<button class="sched-confirm" onclick="window.schedConfirmEdit()">✓ 확정</button>`;
+    } else if (_schedCanEdit()) {
+      act.innerHTML = `<button class="sched-edit-btn" onclick="window.schedEnterEdit()">✏️ 내 참여 일정 체크하기</button>`;
+    } else {
+      act.innerHTML = '';
+    }
+  }
 }
 
 // 현재 출석 슬롯 반환 (1: 자정~정오 = 오전 출첵, 2: 정오~자정 = 오후 출첵)
