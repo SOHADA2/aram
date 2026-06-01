@@ -246,6 +246,40 @@ header{text-align:center;padding:48px 0 24px;position:relative;}
   transition:color 0.2s, border-color 0.2s, background 0.2s;
 }
 .version-badge:hover{color:rgba(200,230,255,0.9);border-color:rgba(100,160,220,0.5);}
+/* 좌상단 코너 배지 (명예의전당·일정) — version-badge와 동일 톤 */
+.corner-badges-left{position:fixed;top:8px;left:10px;z-index:999;display:flex;gap:6px;}
+.corner-badge{font-size:9px;color:rgba(100,140,200,0.6);cursor:pointer;letter-spacing:0.5px;font-family:'Noto Sans KR',sans-serif;background:rgba(6,13,24,0.7);border:1px solid rgba(30,60,110,0.3);border-radius:3px;padding:3px 8px;backdrop-filter:blur(4px);transition:color .2s,border-color .2s;}
+.corner-badge:hover{color:rgba(200,230,255,0.95);border-color:rgba(100,160,220,0.5);}
+#sched-badge-btn.has-today{color:var(--gold-light,#e8c95a);border-color:rgba(200,168,75,0.5);}
+/* 일정(달력) 모달 */
+.sched-overlay{display:none;position:fixed;inset:0;z-index:2100;background:rgba(4,9,20,0.86);backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:16px;}
+.sched-overlay.show{display:flex;}
+.sched-sheet{width:100%;max-width:420px;max-height:88vh;overflow-y:auto;background:var(--rk-card,#1a1d27);border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:16px;box-shadow:0 20px 60px rgba(0,0,0,0.5);}
+.sched-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;}
+.sched-title{font-family:'Black Han Sans',sans-serif;font-size:18px;letter-spacing:0.5px;color:var(--gold,#e8c95a);}
+.sched-close{background:none;border:none;color:var(--text-dim,#9aa0b4);font-size:18px;cursor:pointer;line-height:1;}
+.sched-sub{font-size:11px;color:var(--text-dim,#9aa0b4);margin-bottom:11px;line-height:1.4;}
+.sched-monthnav{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:9px;}
+.sched-monthnav button{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:var(--text,#e8eaf0);border-radius:7px;width:30px;height:28px;cursor:pointer;font-size:12px;}
+.sched-monthnav button:hover{background:rgba(255,255,255,0.1);}
+.sched-monthnav span{font-weight:800;font-size:14px;min-width:120px;text-align:center;color:var(--text,#e8eaf0);}
+.sched-cal{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+.sched-dow{text-align:center;font-size:10px;padding:3px 0;font-weight:700;}
+.sched-cell{aspect-ratio:1;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;transition:border-color .12s,background .12s;}
+.sched-cell.empty{border:none;background:none;cursor:default;}
+.sched-cell:not(.empty):hover{border-color:rgba(255,255,255,0.25);}
+.sched-cell.today{border-color:rgba(200,168,75,0.6);}
+.sched-cell.mine{background:rgba(74,222,128,0.16);border-color:rgba(74,222,128,0.5);}
+.sched-cell.sel{box-shadow:0 0 0 2px rgba(120,180,255,0.65);}
+.sched-cell.past{opacity:0.42;}
+.sched-daynum{font-size:13px;font-weight:700;color:var(--text,#e8eaf0);}
+.sched-cnt{font-size:9px;color:var(--gold-light,#e8c95a);font-weight:800;line-height:1;}
+.sched-list{margin-top:12px;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);}
+.sched-list-date{font-size:12px;font-weight:800;color:var(--text,#e8eaf0);margin-bottom:7px;}
+.sched-names{display:flex;flex-wrap:wrap;gap:5px;}
+.sched-name{font-size:11px;padding:3px 9px;border-radius:14px;background:rgba(74,222,128,0.14);border:1px solid rgba(74,222,128,0.35);color:#a7e8c0;}
+.sched-name.me{background:rgba(200,168,75,0.18);border-color:rgba(200,168,75,0.5);color:var(--gold-light,#e8c95a);}
+.sched-empty-names{font-size:11px;color:var(--text-dim,#9aa0b4);}
 .version-badge.unseen{
   color:var(--gold-light);
   border-color:rgba(200,168,75,0.55);
@@ -4168,6 +4202,26 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 <div class="wrapper">
 
 <div class="version-badge" id="version-badge" onclick="showChangelog()"></div>
+<div class="corner-badges-left">
+  <button class="corner-badge" onclick="showHallOfFame()">🏛 명예의전당</button>
+  <button class="corner-badge" id="sched-badge-btn" onclick="openSchedule()">📅 일정</button>
+</div>
+<div class="sched-overlay" id="sched-overlay" onclick="closeSchedule()">
+  <div class="sched-sheet" onclick="event.stopPropagation()">
+    <div class="sched-head">
+      <span class="sched-title">📅 내전 일정</span>
+      <button class="sched-close" onclick="closeSchedule()">✕</button>
+    </div>
+    <div class="sched-sub" id="sched-sub"></div>
+    <div class="sched-monthnav">
+      <button onclick="schedNavMonth(-1)">◀</button>
+      <span id="sched-monthlabel"></span>
+      <button onclick="schedNavMonth(1)">▶</button>
+    </div>
+    <div class="sched-cal" id="sched-cal"></div>
+    <div class="sched-list" id="sched-list"></div>
+  </div>
+</div>
 <header>
   <div class="logo-badge">칼바람 내전</div>
   <h1>무작위 총력전 아수라장 내전</h1>
@@ -4210,8 +4264,6 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
   <div class="bridge-status-wrap">
     <div class="sync-dot err" id="bridge-dot" title="LCU 브릿지 연결 상태"></div>
     <span id="bridge-msg" style="font-size:10px;">브릿지 없음</span>
-    <button id="hof-access-btn" onclick="showHallOfFame()">🏛 명예의전당</button>
-    <span style="color:rgba(255,255,255,0.12);margin:0 2px;">|</span>
     <button class="account-change-btn" onclick="openMyModal()">계정변경</button>
   </div>
 </div>
@@ -4831,7 +4883,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.219';
+const APP_VERSION = 'v2.43.220';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4840,6 +4892,9 @@ const APP_VERSION = 'v2.43.219';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.220', date: '2026-06-01', changes: [
+    { tag: 'new', text: '내전 일정(달력) 기능 — 좌상단에 📅 일정 버튼 추가. 달력에서 본인이 참여 가능한 날짜를 탭해 체크(다시 탭하면 해제), 각 날짜에 가능자 수가 뜨고 날짜를 누르면 그 날 참여 가능자 명단 표시. 오늘 가능자 수는 일정 버튼에 배지로 노출. 카카오톡 일정 투표를 사이트로! (명예의전당 버튼도 우측 sync바 → 좌상단 코너로 이동)' },
+  ]},
   { ver: 'v2.43.219', date: '2026-05-31', changes: [
     { tag: 'improve', text: '가챠 UI 정리 — 컬렉션 "18/18" 카운트 제거(탭 버튼·보유카드 행 둘 다). 장식용 이모지 정리: 탭 아이콘(🎲📖), ✦ 스파클(재조합·최고등급), 역할칩 ● 불릿 제거. 의미 있는 아이콘(티어 ◇★, 분류 ⚔️🛡️💚💫, 🔒미보유, 🔊음성)은 유지' },
   ]},
@@ -17762,6 +17817,81 @@ window.selectMyName = async function(name) {
 function getLocalDateKey() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ── 내전 일정(달력) — 참여 가능일 체크 + 날짜별 가능자 명단 (v2.43.220) ──
+let _scheduleData = {};   // {dateKey: {normName: true}}
+let _schedView = null;    // {y, m(0-index)}
+let _schedSel = null;     // 선택 날짜키
+onValue(ref(db, 'availability'), (snap) => {
+  _scheduleData = snap.val() || {};
+  updateScheduleBadge();
+  if (document.getElementById('sched-overlay')?.classList.contains('show')) _renderSchedule();
+});
+function updateScheduleBadge() {
+  const btn = document.getElementById('sched-badge-btn');
+  if (!btn) return;
+  const cnt = Object.values(_scheduleData[getLocalDateKey()] || {}).filter(Boolean).length;
+  btn.textContent = cnt > 0 ? `📅 일정 ${cnt}` : '📅 일정';
+  btn.classList.toggle('has-today', cnt > 0);
+}
+window.openSchedule = function() {
+  const t = new Date();
+  if (!_schedView) _schedView = { y: t.getFullYear(), m: t.getMonth() };
+  _schedSel = getLocalDateKey(); // 열 때마다 오늘로 초점
+  document.getElementById('sched-overlay').classList.add('show');
+  _renderSchedule();
+};
+window.closeSchedule = function() { document.getElementById('sched-overlay')?.classList.remove('show'); };
+window.schedNavMonth = function(d) {
+  let m = _schedView.m + d, y = _schedView.y;
+  if (m < 0) { m = 11; y--; } else if (m > 11) { m = 0; y++; }
+  _schedView = { y, m };
+  _renderSchedule();
+};
+window.schedToggleDay = async function(dateKey) {
+  _schedSel = dateKey;
+  if (!myName) { if (typeof showGoldToast === 'function') showGoldToast('먼저 우상단 계정변경에서 이름을 선택하세요'); _renderSchedule(); return; }
+  const k = normName(myName);
+  const mine = !!(_scheduleData[dateKey] && _scheduleData[dateKey][k]);
+  if (!_scheduleData[dateKey]) _scheduleData[dateKey] = {};
+  if (mine) delete _scheduleData[dateKey][k]; else _scheduleData[dateKey][k] = true; // 로컬 즉시 반영
+  _renderSchedule(); updateScheduleBadge();
+  try { await update(ref(db, 'availability/' + dateKey), { [k]: mine ? null : true }); }
+  catch (e) { if (typeof showGoldToast === 'function') showGoldToast('저장 실패 — 다시 시도해주세요'); }
+};
+function _renderSchedule() {
+  const cal = document.getElementById('sched-cal'); if (!cal) return;
+  const { y, m } = _schedView;
+  document.getElementById('sched-monthlabel').textContent = `${y}년 ${m+1}월`;
+  const sub = document.getElementById('sched-sub');
+  if (sub) sub.innerHTML = myName
+    ? `<b style="color:var(--gold-light,#e8c95a)">${escHtml(myName)}</b> 님 — 참여 가능한 날짜를 탭해 체크 (다시 탭하면 해제)`
+    : '먼저 우상단 <b>계정변경</b>에서 이름을 선택하면 체크할 수 있어요';
+  const todayKey = getLocalDateKey();
+  const myk = myName ? normName(myName) : null;
+  const dow = ['일','월','화','수','목','금','토'];
+  const first = new Date(y, m, 1).getDay();
+  const days = new Date(y, m+1, 0).getDate();
+  let cells = dow.map((d,i)=>`<div class="sched-dow" style="color:${i===0?'#f87171':i===6?'#7aa8ff':'var(--text-dim,#9aa0b4)'}">${d}</div>`).join('');
+  for (let i=0;i<first;i++) cells += `<div class="sched-cell empty"></div>`;
+  for (let day=1; day<=days; day++) {
+    const dk = `${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const cnt = Object.values(_scheduleData[dk] || {}).filter(Boolean).length;
+    const mine = myk && _scheduleData[dk] && _scheduleData[dk][myk];
+    const cls = ['sched-cell', dk===todayKey?'today':'', mine?'mine':'', dk===_schedSel?'sel':'', dk<todayKey?'past':''].filter(Boolean).join(' ');
+    cells += `<div class="${cls}" onclick="window.schedToggleDay('${dk}')"><span class="sched-daynum">${day}</span>${cnt>0?`<span class="sched-cnt">${cnt}</span>`:''}</div>`;
+  }
+  cal.innerHTML = cells;
+  const avail = _scheduleData[_schedSel] || {};
+  const names = Object.keys(avail).filter(k=>avail[k]);
+  const p = _schedSel.split('-');
+  const isToday = _schedSel === todayKey;
+  let html = `<div class="sched-list-date">${isToday?'오늘 · ':''}${+p[1]}월 ${+p[2]}일 참여 가능 (${names.length}명)</div>`;
+  html += names.length
+    ? `<div class="sched-names">${names.map(n=>`<span class="sched-name${myk===normName(n)?' me':''}">${escHtml(n)}</span>`).join('')}</div>`
+    : `<div class="sched-empty-names">아직 이 날 참여 가능자가 없어요.</div>`;
+  document.getElementById('sched-list').innerHTML = html;
 }
 
 // 현재 출석 슬롯 반환 (1: 자정~정오 = 오전 출첵, 2: 정오~자정 = 오후 출첵)
