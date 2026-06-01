@@ -5012,7 +5012,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.256';
+const APP_VERSION = 'v2.43.257';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5021,6 +5021,9 @@ const APP_VERSION = 'v2.43.256';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.257', date: '2026-06-01', changes: [
+    { tag: 'fix', text: '🔧 정산창 시너지 LP 표시 누락 수정 — 시너지가 발동했는데도 정산창 LP 숫자엔 반영되지 않던 문제 해결. 예: 공허 균열 "손실 전액 방어"가 떴는데 LP가 -14로 표시되던 버그(실제 LP는 정상적으로 0 적용됨). 이제 공격형(+LP)·방어형(손실 완화)·리스크형(반전)·전액 방어까지 실제 적용된 LP와 정산창 표시가 정확히 일치. (실제 적립 LP는 처음부터 올바르게 적용돼 있었고, 표시만 어긋났던 것)' },
+  ]},
   { ver: 'v2.43.256', date: '2026-06-01', changes: [
     { tag: 'improve', text: '🗑️ 쓰레기통 효과음 추가 — 뒤적일 때 사각사각, 결과에 따라 꽝(둔탁)·동전(밝은 띵)·무료권(반짝 팡파레) 사운드. 가볍게 Web Audio로 합성(파일 없음)' },
   ]},
@@ -11580,6 +11583,25 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
               // 비밀 퀘스트 적중+패배 LP 차감 완화 반영 (s1ApplyMatchResult와 동일: 뉴비·도박권 제외)
               const _sq = secretQuests?.[normName(name)];
               if (_sq && _sq.success && !_sq.won && _sq.lpProtect > 0) _lp = -Math.max(0, (-_lp) - _sq.lpProtect);
+            }
+          }
+          // 가챠 시너지 LP 반영 (s1ApplyMatchResult와 동일) — 실제 적용된 LP와 정산 표시 일치 (v2.43.257)
+          const _seLp = synergyEffects[normName(name)];
+          if (_seLp && _seLp.sid) {
+            const _g = GACHA_SYNERGY_GROUPS.find(x => x.sid === _seLp.sid);
+            if (_g) {
+              const _t = _seLp.tier === 3 ? 3 : 2, _v = _t === 3 ? _g.v3 : _g.v2, _pr = !!_seLp.procced;
+              if (_g.effType === 'win_lp' && isWin && _pr) {
+                let _add = _v;
+                if (_g.special === 'reign') { const _sm = _t === 3 ? _g.streakMax3 : _g.streakMax2; _add += Math.min(_sm, (_seLp.streak || 0) * _g.streakStep); }
+                _lp += _add;
+              } else if (_g.effType === 'lp_block' && !isWin && _pr) {
+                _lp = -Math.max(0, (-_lp) - _v);
+              } else if (_g.effType === 'risk_win') {
+                if (isWin && _pr) _lp += _v; else if (!isWin && _pr) _lp -= _g.lossV;
+              } else if (_g.effType === 'risk_block' && !isWin) {
+                if (_pr) _lp = 0; else _lp -= (_t === 3 ? _g.failV3 : _g.failV2);
+              }
             }
           }
           ptLabel = (_lp > 0 ? '+' : '') + _lp + ' LP';
