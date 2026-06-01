@@ -1539,6 +1539,21 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .trash-result{margin-top:10px;min-height:22px;font-size:13px;font-weight:700;line-height:1.55;color:#e8dcc0;}
 .trash-result .tr-emoji{font-size:40px;display:block;margin-bottom:4px;animation:trashPop .42s ease;}
 @keyframes trashPop{0%{transform:scale(0.2) translateY(20px);opacity:0;}60%{transform:scale(1.2);}100%{transform:scale(1);opacity:1;}}
+/* 🐱 유미 파견 패널 (v2.43.245) */
+#yuumi-panel{margin:0 0 12px;}
+.yuumi-inner{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:11px;background:linear-gradient(135deg,rgba(150,110,220,0.18),rgba(90,70,150,0.10));border:1px solid rgba(180,140,255,0.42);}
+.yuumi-cat{font-size:27px;line-height:1;flex-shrink:0;}
+.yuumi-body{flex:1;min-width:0;text-align:left;}
+.yuumi-title{font-size:12px;font-weight:800;color:#d8c2ff;margin-bottom:7px;display:flex;align-items:center;gap:6px;}
+.yuumi-secret{font-size:8px;font-weight:800;letter-spacing:1.2px;color:#1a1030;background:linear-gradient(90deg,#e0b3ff,#b98cff);padding:1.5px 5px;border-radius:4px;}
+.yuumi-status{font-size:12px;color:#cdb8f0;line-height:1.4;}
+.yuumi-status.cd{color:#9aa0b4;}
+.yuumi-status b{color:#fff;font-family:'JetBrains Mono',monospace;}
+.yuumi-btn{width:100%;padding:9px;border-radius:8px;border:none;cursor:pointer;font-size:12.5px;font-weight:800;color:#fff;transition:transform .12s;}
+.yuumi-btn.go{background:linear-gradient(135deg,#7c4dd6,#a878f0);box-shadow:0 3px 12px rgba(150,90,255,0.32);}
+.yuumi-btn.collect{background:linear-gradient(135deg,#c8821f,#fbbf24);color:#1a1200;box-shadow:0 3px 14px rgba(220,160,40,0.42);animation:yuumiPulse 1.4s ease-in-out infinite;}
+@keyframes yuumiPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.035);}}
+.yuumi-btn:active{transform:scale(0.97);}
 /* 복권 로그 모달 */
 .lot-log-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:9999;display:flex;align-items:flex-end;justify-content:center;}
 .lot-log-sheet{background:#131320;border-radius:18px 18px 0 0;width:100%;max-width:620px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;}
@@ -4967,7 +4982,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.244';
+const APP_VERSION = 'v2.43.245';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4976,6 +4991,9 @@ const APP_VERSION = 'v2.43.244';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.245', date: '2026-06-01', changes: [
+    { tag: 'new', text: '🐱 시크릿 챔피언 "유미" 추가 — 일반 뽑기 매우 희귀(0.5%) + 3성 재조합 8%로 등장(시크릿 등급, 2성 없음). 보유 시 쓰레기통 모달에 유미 파견 패널이 생겨요: "유미 보내기" → 1시간 동안 자동으로 쓰레기통을 뒤짐 → 1시간 뒤 주워온 동전(40~80G)+무료 복권권을 수령 → 수령 후 1시간 쿨다운 → 다시 출동. 직접 안 뒤져도 유미가 대신 캐옴(파견 시각은 서버 기준이라 새로고침·다른 기기 무관)' },
+  ]},
   { ver: 'v2.43.244', date: '2026-06-01', changes: [
     { tag: 'improve', text: '🗑️ 쓰레기통 드립 대량 추가 — 주워지는 쓰레기 종류 12종→36종(제어와드·룬페이지·오렌지정수·포로 침방울·바론 둥지 음식물 등 롤/칼바람 드립 포함), 반응 멘트 8개→38개("정글 갱은 안 오고 쓰레기만 오네", "핑와 박을 시간에 이걸 줍다니", "바론 스틸 당한 기분이다" 등). 뒤질 때마다 더 다양하고 웃긴 멘트가 떠요' },
   ]},
@@ -19209,6 +19227,114 @@ function _trashPickFreeTier(avail) {
   for (const t of avail) { r -= TRASH_FREE_TIERS[t].w; if (r < 0) return t; }
   return avail[avail.length - 1];
 }
+// ── 🐱 유미 (시크릿) — 파견형 자동 쓰레기 줍기 (v2.43.245) ──────────
+// 보유 시 쓰레기통 모달에서 "유미 보내기" → 1시간 자동 파밍 → 수령 → 1시간 쿨다운.
+// Firebase 시각 기준(실시간 경과)이라 새로고침·다른 기기 무관. 동전 trashGold_s1, 무료권 freeScratch.
+const YUUMI = { slug:'Yuumi', kr:'유미', role:'support', desc:'쓰레기통을 대신 뒤져주는 시크릿 고양이. 무료 복권권과 동전을 캐온다.' };
+const YUUMI_FORAGE_MS = 60 * 60 * 1000;    // 1시간 파견
+const YUUMI_COOLDOWN_MS = 60 * 60 * 1000;  // 수령 후 1시간 쿨다운
+const YUUMI_PULL_RATE = 0.005;             // 일반 뽑기 0.5% (매우 희귀)
+const YUUMI_RECOMBINE_RATE = 0.08;         // 3성 재조합 8%
+function _ownsYuumi(data) { data = data || getMyGoldData(); return !!(data && data.secretYuumi_s1); }
+// 'none'(미보유)|'ready'(출동 가능)|'foraging'(뒤지는 중)|'done'(수령 가능)|'cooldown'(휴식)
+function _yuumiState(data) {
+  data = data || getMyGoldData();
+  if (!_ownsYuumi(data)) return { st:'none' };
+  const f = data.yuumiForage_s1 || {};
+  const now = Date.now();
+  if (f.startAt && !f.cooldownUntil) {
+    if (now < f.startAt + YUUMI_FORAGE_MS) return { st:'foraging', endAt: f.startAt + YUUMI_FORAGE_MS };
+    return { st:'done' };
+  }
+  if (f.cooldownUntil && now < f.cooldownUntil) return { st:'cooldown', endAt: f.cooldownUntil };
+  return { st:'ready' };
+}
+function _yuumiForageReward() {
+  const coins = 40 + Math.floor(Math.random() * 41); // 40~80G
+  let ticketTier = -1;
+  const r = Math.random();
+  if (r < 0.50) ticketTier = 0;       // 일반 50%
+  else if (r < 0.75) ticketTier = 1;  // 고급 25%
+  else if (r < 0.87) ticketTier = 2;  // 프미 12% (나머지 13% 무료권 없음)
+  return { coins, ticketTier };
+}
+window.deployYuumi = async function() {
+  const key = getMyGoldKey(), data = getMyGoldData();
+  if (!key || !_ownsYuumi(data)) return;
+  if (_yuumiState(data).st !== 'ready') { showGoldToast('지금은 유미를 보낼 수 없어요'); return; }
+  const f = { startAt: Date.now() };
+  try { await update(ref(db, 'gold/' + key), { yuumiForage_s1: f }); } catch(_) { return; }
+  if (goldData[key]) goldData[key].yuumiForage_s1 = f; // 즉시 반영
+  _renderYuumiPanel();
+  showGoldToast('🐱 유미를 쓰레기통으로 보냈어요! 1시간 뒤 수령하세요');
+};
+window.collectYuumi = async function() {
+  const key = getMyGoldKey(), data = getMyGoldData();
+  if (!key) return;
+  if (_yuumiState(data).st !== 'done') { showGoldToast('아직 수령할 수 없어요'); return; }
+  const rew = _yuumiForageReward();
+  const f = { cooldownUntil: Date.now() + YUUMI_COOLDOWN_MS };
+  const newGold = (data.trashGold_s1 || 0) + rew.coins;
+  const updates = { trashGold_s1: newGold, yuumiForage_s1: f };
+  if (rew.ticketTier >= 0) {
+    const ft = { ...(data[sField('freeScratch')] || {}) };
+    ft[rew.ticketTier] = (ft[rew.ticketTier] || 0) + 1;
+    updates[sField('freeScratch')] = ft;
+  }
+  try { await update(ref(db, 'gold/' + key), updates); } catch(_) { return; }
+  if (goldData[key]) { goldData[key].yuumiForage_s1 = f; goldData[key].trashGold_s1 = newGold; if (updates[sField('freeScratch')]) goldData[key][sField('freeScratch')] = updates[sField('freeScratch')]; }
+  const tName = rew.ticketTier >= 0 ? `${TRASH_FREE_TIERS[rew.ticketTier].n} 무료권 1장` : '무료권은 못 구함';
+  showGoldToast(`🐱 유미가 캐왔어요! +${rew.coins}G · ${tName}`);
+  _renderYuumiPanel();
+};
+let _yuumiTimer = null;
+function _renderYuumiPanel() {
+  const el = document.getElementById('yuumi-panel');
+  if (!el) return;
+  const s = _yuumiState();
+  if (_yuumiTimer) { clearInterval(_yuumiTimer); _yuumiTimer = null; }
+  if (s.st === 'none') { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'block';
+  const fmt = ms => { const t = Math.max(0, Math.ceil(ms/1000)); return Math.floor(t/60) + '분 ' + String(t%60).padStart(2,'0') + '초'; };
+  let body = '';
+  if (s.st === 'ready')         body = `<button class="yuumi-btn go" onclick="window.deployYuumi()">🐱 유미 보내기 · 1시간 자동 뒤지기</button>`;
+  else if (s.st === 'foraging') body = `<div class="yuumi-status">🐱 유미가 뒤지는 중… <b id="yuumi-timer">${fmt(s.endAt - Date.now())}</b> 남음</div>`;
+  else if (s.st === 'done')     body = `<button class="yuumi-btn collect" onclick="window.collectYuumi()">🎁 유미가 주워온 것 수령!</button>`;
+  else if (s.st === 'cooldown') body = `<div class="yuumi-status cd">😴 유미가 쉬는 중… <b id="yuumi-timer">${fmt(s.endAt - Date.now())}</b> 뒤 재출동</div>`;
+  el.innerHTML = `<div class="yuumi-inner"><span class="yuumi-cat">🐱</span><div class="yuumi-body"><div class="yuumi-title">유미 — 자동 쓰레기 줍기 <span class="yuumi-secret">SECRET</span></div>${body}</div></div>`;
+  if (s.st === 'foraging' || s.st === 'cooldown') {
+    _yuumiTimer = setInterval(() => {
+      const ns = _yuumiState();
+      if (ns.st !== s.st) { _renderYuumiPanel(); return; }
+      const tEl = document.getElementById('yuumi-timer');
+      if (tEl) tEl.textContent = fmt(ns.endAt - Date.now());
+    }, 1000);
+  }
+}
+// 콘솔 테스트 — grantYuumi()(보유 지급) / yuumiSkip()(진행·쿨다운 즉시 완료) / resetYuumi()(파견 초기화)
+window.grantYuumi = async function() {
+  const k = getMyGoldKey(); if (!k) return;
+  await update(ref(db,'gold/'+k), { secretYuumi_s1: true });
+  if (goldData[k]) goldData[k].secretYuumi_s1 = true;
+  _renderYuumiPanel(); console.log('🐱 유미 지급 완료 — 쓰레기통 열어보세요');
+};
+window.yuumiSkip = async function() {
+  const k = getMyGoldKey(), d = getMyGoldData(); if (!k || !d) return;
+  const f = d.yuumiForage_s1 || {};
+  let nf;
+  if (f.startAt && !f.cooldownUntil) nf = { startAt: Date.now() - YUUMI_FORAGE_MS - 1000 }; // 파밍 즉시 완료
+  else if (f.cooldownUntil) nf = { cooldownUntil: Date.now() - 1000 };                       // 쿨다운 즉시 해제
+  else { console.log('⚠ 진행/쿨다운 중이 아니에요'); return; }
+  await update(ref(db,'gold/'+k), { yuumiForage_s1: nf });
+  if (goldData[k]) goldData[k].yuumiForage_s1 = nf;
+  _renderYuumiPanel(); console.log('⏩ 유미 타이머 즉시 완료');
+};
+window.resetYuumi = async function() {
+  const k = getMyGoldKey(); if (!k) return;
+  await update(ref(db,'gold/'+k), { yuumiForage_s1: null });
+  if (goldData[k]) goldData[k].yuumiForage_s1 = null;
+  _renderYuumiPanel(); console.log('🔄 유미 파견 상태 초기화');
+};
 window.openTrashCan = function() {
   if (!myName) { showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
   document.getElementById('trash-overlay')?.remove();
@@ -19227,6 +19353,7 @@ window.openTrashCan = function() {
         <button class="trash-close" onclick="window.closeTrashCan()">✕</button>
       </div>
       <div class="trash-sub">손을 넣고 <b>이리저리 한참 뒤적뒤적</b> 해보세요.<br>대부분은 쓰레기… 운이 좋으면 동전이나 무료 복권이?</div>
+      <div id="yuumi-panel" style="display:none;"></div>
       <div class="trash-digs" id="trash-digs"></div>
       <div class="trash-can" id="trash-can">
         <div class="trash-fly" style="top:42px;left:30px;">🪰</div>
@@ -19246,6 +19373,7 @@ window.openTrashCan = function() {
   _trashRenderDigs();
   _trashLayoutJunk();
   _trashBindDrag();
+  _renderYuumiPanel(); // 🐱 유미 보유 시 파견 패널 표시
 };
 // 쓰레기 더미를 dig 영역 안에 무작위로 흩뿌려 배치 (드래그하면 밀려남)
 function _trashLayoutJunk() {
@@ -19281,6 +19409,7 @@ function _trashRustle(px, py) {
 }
 window.closeTrashCan = function() {
   _trashDragging = false;
+  if (_yuumiTimer) { clearInterval(_yuumiTimer); _yuumiTimer = null; }
   document.getElementById('trash-overlay')?.remove();
 };
 function _trashRenderDigs() {
@@ -23816,7 +23945,15 @@ window.doGachaPull = async function(times) {
   const cards = JSON.parse(JSON.stringify(data.champCards_s1 || {}));
   const log   = JSON.parse(JSON.stringify(data.champCardLog_s1 || {}));
   const results = [];
+  let gotYuumi = false;
+  const alreadyYuumi = _ownsYuumi(data);
   for (let i = 0; i < times; i++) {
+    // 🐱 시크릿 유미 — 매우 희귀(0.5%), 미보유 시 1회만. 일반 카드풀과 분리(컬렉션/시너지 미오염)
+    if (!alreadyYuumi && !gotYuumi && Math.random() < YUUMI_PULL_RATE) {
+      gotYuumi = true;
+      results.push({ ...YUUMI, star: 3, secret: true });
+      continue;
+    }
     const c = GACHA_CHAMPS[Math.floor(Math.random() * GACHA_CHAMPS.length)];
     const s = gachaRollStar();
     const prev = cards[c.slug] || {s1:0,s2:0,s3:0};
@@ -23836,7 +23973,9 @@ window.doGachaPull = async function(times) {
       gachaLog_s1: gachaLog,
       champCards_s1: cards,
       champCardLog_s1: log,
+      ...(gotYuumi ? { secretYuumi_s1: true } : {}),
     });
+    if (gotYuumi && goldData[key]) goldData[key].secretYuumi_s1 = true; // 즉시 반영
   } catch(e) {
     showGoldToast('❌ 뽑기 실패 — 다시 시도해주세요');
     renderShop();
@@ -23886,6 +24025,16 @@ window.doGachaRecombine3 = async function() {
     for (const c of GACHA_CHAMPS){ const s=sur(c.slug); if(s>bestSur){bestSur=s;best=c.slug;} }
     if (!best) { showGoldToast('남는 3성이 부족해요'); return; }
     cards[best].s3 -= 1;
+  }
+  // 🐱 시크릿 유미 — 3성 재조합 시 8%(미보유 시). 소모한 카드는 저장하고 유미로 리빌
+  if (!_ownsYuumi(data) && Math.random() < YUUMI_RECOMBINE_RATE) {
+    try {
+      await update(ref(db,'gold/'+key), { champCards_s1: cards, secretYuumi_s1: true });
+    } catch(e){ showGoldToast('❌ 재조합 실패 — 다시 시도해주세요'); return; }
+    if (goldData[key]) goldData[key].secretYuumi_s1 = true;
+    if (typeof updateGachaNavBadge === 'function') updateGachaNavBadge();
+    showGachaReveal({ ...YUUMI, star: 3, secret: true }, 3);
+    return;
   }
   // 결과 — 아직 3성 없는 챔프 우선, 없으면 전체 18종 랜덤
   const unowned = GACHA_CHAMPS.filter(c => (cards[c.slug]?.s3||0) === 0);
