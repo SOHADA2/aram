@@ -5012,7 +5012,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.255';
+const APP_VERSION = 'v2.43.256';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5021,6 +5021,9 @@ const APP_VERSION = 'v2.43.255';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.256', date: '2026-06-01', changes: [
+    { tag: 'improve', text: '🗑️ 쓰레기통 효과음 추가 — 뒤적일 때 사각사각, 결과에 따라 꽝(둔탁)·동전(밝은 띵)·무료권(반짝 팡파레) 사운드. 가볍게 Web Audio로 합성(파일 없음)' },
+  ]},
   { ver: 'v2.43.255', date: '2026-06-01', changes: [
     { tag: 'new', text: '🤫 어딘가에 시크릿이 숨어 있어요 — 아주 운이 좋아야 만날 수 있는 특별한 존재를 추가했어요. 정체와 능력은… 직접 찾아보세요!' },
   ]},
@@ -19257,6 +19260,42 @@ function _trashPickFreeTier(avail) {
   for (const t of avail) { r -= TRASH_FREE_TIERS[t].w; if (r < 0) return t; }
   return avail[avail.length - 1];
 }
+// ── 🗑️ 쓰레기통 효과음 (v2.43.256) — Web Audio 합성, 가볍게 ──
+let _trashActx = null, _trashLastRustleT = 0;
+function _trashAC() {
+  if (!_trashActx) _trashActx = new (window.AudioContext || window.webkitAudioContext)();
+  if (_trashActx.state === 'suspended') _trashActx.resume();
+  return _trashActx;
+}
+const _trashSfx = {
+  rustle() { try {                                   // 뒤적이는 소리 — 짧은 노이즈 버스트
+    const c=_trashAC(), t=c.currentTime, dur=0.11, n=Math.floor(c.sampleRate*dur);
+    const buf=c.createBuffer(1,n,c.sampleRate), d=buf.getChannelData(0);
+    for (let i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);
+    const s=c.createBufferSource(); s.buffer=buf;
+    const bp=c.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=2800; bp.Q.value=0.6;
+    const g=c.createGain(); g.gain.setValueAtTime(0.09,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    s.connect(bp); bp.connect(g); g.connect(c.destination); s.start(t); s.stop(t+dur);
+  } catch(e){} },
+  junk() { try {                                     // 꽝 — 둔탁한 저음 thud
+    const c=_trashAC(), t=c.currentTime, o=c.createOscillator(), g=c.createGain();
+    o.type='square'; o.frequency.setValueAtTime(170,t); o.frequency.exponentialRampToValueAtTime(68,t+0.18);
+    g.gain.setValueAtTime(0.15,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.2);
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+0.22);
+  } catch(e){} },
+  coin() { try {                                     // 동전 — 밝은 띵 상승 아르페지오
+    const c=_trashAC();
+    [[880,0],[1175,0.06],[1568,0.12]].forEach(([f,dl])=>{ const t=c.currentTime+dl, o=c.createOscillator(), g=c.createGain();
+      o.type='sine'; o.frequency.value=f; g.gain.setValueAtTime(0.2,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.25);
+      o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+0.26); });
+  } catch(e){} },
+  free() { try {                                     // 무료권 대박 — 반짝 팡파레
+    const c=_trashAC();
+    [[784,0],[988,0.09],[1318,0.18],[1760,0.28]].forEach(([f,dl])=>{ const t=c.currentTime+dl, o=c.createOscillator(), g=c.createGain();
+      o.type='triangle'; o.frequency.value=f; g.gain.setValueAtTime(0.17,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.32);
+      o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+0.34); });
+  } catch(e){} },
+};
 // ── 🐱 유미 (시크릿) — 파견형 자동 쓰레기 줍기 (v2.43.245) ──────────
 // 보유 시 쓰레기통 모달에서 "유미 보내기" → 1시간 자동 파밍 → 수령 → 1시간 쿨다운.
 // Firebase 시각 기준(실시간 경과)이라 새로고침·다른 기기 무관. 동전 trashGold_s1, 무료권 freeScratch.
@@ -19317,6 +19356,7 @@ window.collectYuumi = async function() {
   const tName = got.length
     ? got.map(t => TRASH_FREE_TIERS[t].short).join('·') + ` 무료권 ${got.length}장`
     : '무료권은 오늘치 다 캐서 동전만';
+  _trashSfx.coin(); if (got.length) setTimeout(() => _trashSfx.free(), 240); // 수령 효과음
   showGoldToast(`🐱 유미가 캐왔어요! +${coins}G · ${tName}`);
   _renderYuumiPanel();
 };
@@ -19482,6 +19522,8 @@ function _trashRustle(px, py) {
     const jit = () => (Math.random() - 0.5) * 5;
     j.el.style.transform = `translate(${ox + jit()}px,${oy + jit()}px) rotate(${(Math.random()-0.5)*34}deg)`;
   }
+  const _now = performance.now();                    // 뒤적이는 소리 (스로틀 ~150ms)
+  if (_now - _trashLastRustleT > 150) { _trashLastRustleT = _now; _trashSfx.rustle(); }
 }
 window.closeTrashCan = function() {
   _trashDragging = false;
@@ -19571,6 +19613,7 @@ async function _trashReveal() {
   if (f) f.style.width = '0%';
   const r = document.getElementById('trash-result');
   if (r) r.innerHTML = resHtml;
+  _trashSfx[reward.type === 'free' ? 'free' : reward.type === 'gold' ? 'coin' : 'junk'](); // 결과 효과음
   _trashRenderDigs();
   _trashLayoutJunk(); // 다음 뒤지기용으로 쓰레기 더미 새로 흩뿌리기
   const hint = document.getElementById('trash-hint');
