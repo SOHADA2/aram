@@ -1794,6 +1794,10 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .mgo-result.show{pointer-events:auto;animation:mgo-result-enter 0.6s cubic-bezier(0.22,1.4,0.35,1) forwards;}
 @keyframes mgo-result-enter{from{transform:translate(-50%,-50%) scale(0.1);opacity:0;filter:brightness(6);}55%{filter:brightness(1.4);}to{transform:translate(-50%,-50%) scale(1);opacity:1;filter:brightness(1);}}
 .mgo-result-wrap{position:relative;width:126px;height:164px;}
+/* 3성 합성 = LoR식 각성 배너 (v2.43.232) */
+.mgo-ascend{position:absolute;top:-52px;left:50%;transform:translateX(-50%) scale(0.4);opacity:0;font-family:'Black Han Sans',sans-serif;font-size:27px;letter-spacing:5px;white-space:nowrap;pointer-events:none;color:#ecdcff;text-shadow:0 0 12px rgba(210,170,255,0.95),0 0 30px rgba(180,138,255,0.8);transition:opacity .32s ease,transform .32s cubic-bezier(0.34,1.56,0.64,1);z-index:3;}
+.mgo-ascend.show{opacity:1;transform:translateX(-50%) scale(1);animation:mgoAscendPulse 1.5s ease-in-out infinite;}
+@keyframes mgoAscendPulse{0%,100%{text-shadow:0 0 10px rgba(210,170,255,0.7),0 0 22px rgba(180,138,255,0.55);}50%{text-shadow:0 0 16px rgba(230,200,255,1),0 0 40px rgba(200,150,255,0.95);}}
 .mgo-result-glow{position:absolute;inset:-18px;border-radius:24px;pointer-events:none;background:radial-gradient(ellipse at center,var(--mgo-glow,rgba(200,155,60,0.55)) 0%,transparent 65%);animation:mgo-glow-pulse 2.2s ease-in-out infinite;}
 @keyframes mgo-glow-pulse{0%,100%{opacity:0.8;transform:scale(1);}50%{opacity:1;transform:scale(1.1);}}
 .mgo-result-card{position:absolute;inset:0;border-radius:14px;overflow:hidden;background:var(--surface2);border:2px solid var(--mgo-color,rgba(200,155,60,0.8));box-shadow:0 0 28px var(--mgo-glow);display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;padding-bottom:12px;animation:mgo-float 3.2s ease-in-out infinite;}
@@ -4948,7 +4952,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.231';
+const APP_VERSION = 'v2.43.232';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4957,6 +4961,9 @@ const APP_VERSION = 'v2.43.231';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.232', date: '2026-06-01', changes: [
+    { tag: 'improve', text: '✨ 3성 합성 = 각성 연출 — 파편/2성을 3성으로 합성하면 LoR식 "⚡ 각 성 ⚡" 배너가 프리즘 빛으로 떠오르고, 가챠 음성이 켜져 있으면 해당 챔피언의 실제 성우 명대사가 재생돼요(레벨업 보이스 느낌). 2성 합성은 기존 연출 유지' },
+  ]},
   { ver: 'v2.43.231', date: '2026-06-01', changes: [
     { tag: 'new', text: '🗺️ 챔피언 도감에 LoR 지역 체계 추가 — 18챔프 전원을 룬테라 9개 지역(슈리마·데마시아·빌지워터·아이오니아·공허·무소속·자운·녹서스·밴들시티)으로 분류. 컬렉션 하단에 지역별 수집 현황(예: 슈리마 3/4)과 정체성 글귀가 뜨고, 지역 챔프를 다 모으면 "👑 정복" 뱃지. 카드 상세에는 지역 문장 + LoR식 키워드 태그(은신·약탈·포식·진화 등)가 칩으로 표시돼 설정 디테일 강화' },
   ]},
@@ -24390,6 +24397,7 @@ function showGachaMergeAnim(slug, fromStar, toStar, krName) {
     t.textContent = GACHA_STAR_LABEL[fromStar]; t.style.color = fromTc[fromStar];
   });
   const result = document.getElementById('mgo-result'); result.classList.remove('show'); result.style.pointerEvents = 'none';
+  document.getElementById('mgo-ascend')?.classList.remove('show'); // 각성 배너 초기화
   const rays = document.getElementById('mgo-rays');
   rays.style.background = `repeating-conic-gradient(from 0deg,${col.ray} 0deg 6deg,transparent 6deg 20deg)`;
   rays.classList.remove('show');
@@ -24452,7 +24460,14 @@ function showGachaMergeAnim(slug, fromStar, toStar, krName) {
     ['mgo-ring1','mgo-ring2','mgo-ring3'].forEach((id,i) => { setTimeout(() => { const el=document.getElementById(id); el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }, i*110); });
     _gMgoSparks(toStar, col);
   }, 1200);
-  setTimeout(() => { rays.classList.remove('show'); result.style.pointerEvents = 'auto'; result.classList.add('show'); _gSfx.mergeReveal(toStar); }, 1430);
+  setTimeout(() => {
+    rays.classList.remove('show'); result.style.pointerEvents = 'auto'; result.classList.add('show'); _gSfx.mergeReveal(toStar);
+    // 3성 합성 = 각성: 배너 표시 + 챔피언 명대사 음성(음성 토글 ON일 때만)
+    if (toStar === 3) {
+      document.getElementById('mgo-ascend')?.classList.add('show');
+      setTimeout(() => { try { _gachaPlayVoice(slug, GACHA_CHAMP_QUOTE[slug] || '', 3); } catch(e){} }, 320);
+    }
+  }, 1430);
 }
 
 function _gMgoSparks(toStar, col) {
@@ -24506,6 +24521,7 @@ window.closeMergeAnim = function() {
   <div class="mgo-flash" id="mgo-flash"></div>
   <div class="mgo-result" id="mgo-result">
     <div class="mgo-result-wrap">
+      <div class="mgo-ascend" id="mgo-ascend">⚡ 각 성 ⚡</div>
       <div class="mgo-result-glow"></div>
       <div class="mgo-result-card" id="mgo-result-card">
         <img id="mgo-result-img" src="" alt="" onerror="this.style.display='none'">
