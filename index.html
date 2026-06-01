@@ -5023,6 +5023,7 @@ const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
   { ver: 'v2.43.257', date: '2026-06-01', changes: [
     { tag: 'fix', text: '🔧 정산창 시너지 LP 표시 누락 수정 — 시너지가 발동했는데도 정산창 LP 숫자엔 반영되지 않던 문제 해결. 예: 공허 균열 "손실 전액 방어"가 떴는데 LP가 -14로 표시되던 버그(실제 LP는 정상적으로 0 적용됨). 이제 공격형(+LP)·방어형(손실 완화)·리스크형(반전)·전액 방어까지 실제 적용된 LP와 정산창 표시가 정확히 일치. (실제 적립 LP는 처음부터 올바르게 적용돼 있었고, 표시만 어긋났던 것)' },
+    { tag: 'fix', text: '👀 관전자 중복 표시 수정 — 같은 사람이 관전자 칸에 두 번 뜨거나, 이미 팀에 들어간 사람이 관전자로도 표시되던 경우를 방지(이름 기준 중복 제거 + 팀 소속자 제외). 표시·동기화 양쪽에 가드 적용' },
   ]},
   { ver: 'v2.43.256', date: '2026-06-01', changes: [
     { tag: 'improve', text: '🗑️ 쓰레기통 효과음 추가 — 뒤적일 때 사각사각, 결과에 따라 꽝(둔탁)·동전(밝은 띵)·무료권(반짝 팡파레) 사운드. 가볍게 Web Audio로 합성(파일 없음)' },
@@ -7640,7 +7641,8 @@ function applySessionData(data) {
   mode          = data.mode      || mode;
   isEventMatch  = !!data.isEventMatch;
   currentSpectator  = data.spectator ? { name: data.spectator } : null;
-  currentSpectators = (data.spectators || (data.spectator ? [data.spectator] : [])).map(n => ({ name: n }));
+  currentSpectators = (data.spectators || (data.spectator ? [data.spectator] : [])).map(n => ({ name: n }))
+    .filter((s, i, arr) => arr.findIndex(x => normName(x.name) === normName(s.name)) === i); // 관전자 중복 제거 (v2.43.257)
   allSpectatorPicks = data.spectatorPicks || {};
   allSpectatorBets  = data.spectatorBets  || {};
   // session 에 teamsFormedAt 가 있으면 우선 사용, 없으면 현재 시각 (다른 기기와 동기화 위해)
@@ -10796,14 +10798,22 @@ function renderResult() {
 
   // 관전자 표시
   const spectatorEl = document.getElementById('spectator-section');
-  if (currentSpectators.length > 0 && !isEventMatch) {
-    const boxes = currentSpectators.map(s => {
+  // 관전자 표시 가드 — 같은 이름 중복·이미 팀에 속한 사람 제거 (v2.43.257)
+  const _teamNorms = new Set([...currentTeamA, ...currentTeamB].map(p => normName(p.name)));
+  const _seenSpec = new Set();
+  const _uniqSpecs = currentSpectators.filter(s => {
+    const n = normName(s.name);
+    if (!n || _seenSpec.has(n) || _teamNorms.has(n)) return false;
+    _seenSpec.add(n); return true;
+  });
+  if (_uniqSpecs.length > 0 && !isEventMatch) {
+    const boxes = _uniqSpecs.map(s => {
       const sNorm    = normName(s.name);
       const myPick   = allSpectatorPicks[sNorm];
       const pickLabel = myPick === 'blue' ? '1팀 승리' : myPick === 'red' ? '2팀 승리' : null;
       return `<div class="spectator-box">
         <span style="font-size:16px;">👀</span>
-        <span class="spectator-label">${currentSpectators.length > 1 ? '관전자' : '이번 게임 관전자'}</span>
+        <span class="spectator-label">${_uniqSpecs.length > 1 ? '관전자' : '이번 게임 관전자'}</span>
         <span class="spectator-name">${escHtml(s.name)}</span>
         ${pickLabel ? `<span style="font-size:12px;color:var(--gold);margin-left:4px;">🔮 ${pickLabel}</span>` : ''}
       </div>`;
@@ -19458,7 +19468,7 @@ window.showYuumiDetail = function() {
     <div class="yuumi-detail-sub">${owned ? '✅ 보유 중' : '🔒 미보유'} · 시크릿 등급 (3성 분류, 2성 없음)</div>
     <div class="yuumi-detail-box">
       <div class="yuumi-detail-h">✨ 특수 능력 · 쓰레기통 대신 뒤지기</div>
-      <div class="yuumi-detail-lead">유미를 쓰레기통에 보내두면, 내가 직접 안 뒤져도 <b>알아서 대신 주워와요.</b></div>
+      <div class="yuumi-detail-lead">${owned ? '유미를' : '???를'} 쓰레기통에 보내두면, 내가 직접 안 뒤져도 <b>알아서 대신 주워와요.</b></div>
       <ul class="yuumi-detail-ul">
         <li><b>① 보내기</b> — ${owned ? '유미' : '???'}를 쓰레기통에 보내면 <b>1시간</b> 동안 혼자 뒤져요</li>
         <li><b>② 받기</b> — 1시간 뒤 주워온 <b>동전 130~230G</b> + <b>무료 복권 이용권</b>을 받아요</li>
