@@ -4954,7 +4954,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.234';
+const APP_VERSION = 'v2.43.235';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4963,6 +4963,9 @@ const APP_VERSION = 'v2.43.234';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.235', date: '2026-06-01', changes: [
+    { tag: 'new', text: '📒 상점 구매/판매 로그 추가 — 그동안 일반 상점 구매(만능 긁개·패스·일회성 아이템 등)는 goldSpent 누적값만 올려 개별 거래를 역추적할 수 없었어요(가챠·복권만 로그 있었음). 이제 모든 상점 구매·되팔기가 purchaseLog_s1에 {시각·아이템·금액}으로 영구 기록돼 감사·역산이 가능해요. ※ 이번 패치 이후 거래분부터 기록되며, 과거 구매는 소급되지 않아요' },
+  ]},
   { ver: 'v2.43.234', date: '2026-06-01', changes: [
     { tag: 'new', text: '💰 소비 아이템 되팔기 — 내 아이템 "소비" 탭의 일회성 아이템(승급전권·도박권·비밀퀘스트 토큰 등) 슬롯 좌상단 💰 버튼으로 정가의 5%에 되팔 수 있어요. ⚠️ 주의: 환불이 아니라 헐값 처분이라 돌려받는 골드가 매우 적고, 한 번 팔면 되돌릴 수 없어요(판매 전 확인창에서 안내). 활성화(사용 대기) 중인 아이템은 먼저 취소해야 판매 가능' },
     { tag: 'improve', text: '🔑 만능 긁개를 장비 아이템으로 이동 — 소비 탭에 있던 만능 긁개를 "장비" 탭으로 옮기고 장착/해제 토글로 변경. 장착했을 때만 복권 긁기 보정(브러시 3배)이 적용돼요. ※ 기존 보유자는 장비 탭에서 한 번 "장착"을 눌러주세요(장착 전엔 보정 미적용)' },
@@ -20106,6 +20109,26 @@ function _lscDoong(ctx,master,t0,f,vol){
   ns.connect(nf);nf.connect(ng);ng.connect(master); ns.start(now);ns.stop(now+0.06);
 }
 
+// 📒 상점 구매/판매 로그 (v2.43.235) — goldSpent 숫자만 올리던 일반 상점 구매를 개별 거래로 영구 기록 → 역추적 가능.
+// (가챠는 gachaLog_s1, 복권은 lotteryHistory 에 이미 기록되므로 purchaseLog 는 그 외 상점 아이템 전용)
+function _appendPurchaseLog(data, item, extra) {
+  const entry = { ts: Date.now(), id: item.id, name: item.name, price: item.price };
+  if (extra) Object.assign(entry, extra);
+  return [...(data.purchaseLog_s1 || []), entry];
+}
+// 호스트 감사용 콘솔 헬퍼 — purchaseLogOf('브랜딩프로')
+window.purchaseLogOf = function(name) {
+  const e = Object.values(goldData).find(d => d && d.name && normName(d.name) === normName(name));
+  if (!e) { console.log('해당 이름 없음:', name); return; }
+  const log = e.purchaseLog_s1 || [];
+  console.log(`📒 ${e.name} 상점 구매/판매 로그 — ${log.length}건`);
+  log.slice().sort((a,b)=>a.ts-b.ts).forEach(p => {
+    const sign = p.type === 'sell' ? `+${Math.abs(p.price)}G(판매)` : `-${p.price}G`;
+    console.log(`  ${new Date(p.ts).toLocaleString()} · ${p.name} (${p.id}) ${sign}`);
+  });
+  return log;
+};
+
 // buyItem 동기 잠금 (v2.43.97~) — 빠른 연속 클릭 시 Firebase onValue 캐시 지연으로 race condition 발생하던 문제
 // 특히 scratch_tool 같은 영구 소유 아이템이 중복 구매되던 케이스 차단
 let _buyItemInProgress = false;
@@ -20153,7 +20176,10 @@ async function _buyItemImpl(itemId) {
     // 테스트 모드: 골드 차감 없이 보유만 추가 (v2.43.100~)
     const newItems2 = [...myItems2, { id: item.id, ts: Date.now() }];
     const updates = { [itemsKey]: newItems2 };
-    if (!SCRATCH_LOTTERY_TESTMODE) updates[spentKey] = (data[spentKey] ?? 0) + item.price;
+    if (!SCRATCH_LOTTERY_TESTMODE) {
+      updates[spentKey] = (data[spentKey] ?? 0) + item.price;
+      updates.purchaseLog_s1 = _appendPurchaseLog(data, item); // 📒 만능 긁개 구매 기록
+    }
     await set(ref(db,'gold/'+key), { ...data, ...updates });
     showS1Toast(SCRATCH_LOTTERY_TESTMODE
       ? `🧪 [테스트] ${item.name} 구매 완료 (골드 차감 X)`
@@ -20302,7 +20328,7 @@ async function _buyItemImpl(itemId) {
       }
     }
     const newGoldSpent2 = (data[spentKey] ?? 0) + item.price;
-    await update(ref(db, 'gold/' + key), { [spentKey]: newGoldSpent2, [ownedField]: Date.now() });
+    await update(ref(db, 'gold/' + key), { [spentKey]: newGoldSpent2, [ownedField]: Date.now(), purchaseLog_s1: _appendPurchaseLog(data, item) });
     showPassActivated(item);
     renderShop();
     updateMyInfoBar();
@@ -20348,6 +20374,7 @@ async function _buyItemImpl(itemId) {
       [itemsKey]: newItems,
       secretQuestDate: today,
       secretQuestCount: sqCount + 1,
+      purchaseLog_s1: _appendPurchaseLog(data, item),
     });
     renderShop();
     // 안내 모달 — 구매 즉시 다음 매치 자동 적용 명시
@@ -20357,7 +20384,7 @@ async function _buyItemImpl(itemId) {
 
   const newGoldSpent = (data[spentKey] ?? 0) + item.price;
   const newItems = [...(data[itemsKey]||[]), {id:itemId, boughtAt:Date.now(), active:false}];
-  await set(ref(db,'gold/'+key), {...data, [spentKey]:newGoldSpent, [itemsKey]:newItems});
+  await set(ref(db,'gold/'+key), {...data, [spentKey]:newGoldSpent, [itemsKey]:newItems, purchaseLog_s1:_appendPurchaseLog(data, item)});
   showGoldToast(`${item.icon} ${item.name} 구매! 🪙${currentGold - item.price} 남음`);
 };
 
@@ -20523,7 +20550,8 @@ window.sellItem = async function(id) {
   if (fi < 0) { showS1Toast('판매할 수 있는 아이템이 없어요'); return; }
   fresh.splice(fi, 1);
   const resell = (goldData[key]?.resellGold_s1 || 0) + sellValue;
-  await set(ref(db, 'gold/' + key), { ...goldData[key], [itemsKey]: fresh, resellGold_s1: resell });
+  const pLog = _appendPurchaseLog(goldData[key], def, { type: 'sell', price: sellValue }); // 📒 판매도 기록
+  await set(ref(db, 'gold/' + key), { ...goldData[key], [itemsKey]: fresh, resellGold_s1: resell, purchaseLog_s1: pLog });
   showGoldToast(`💰 ${def.name} 판매 +${sellValue}G (정가의 5%)`);
   if (typeof renderShop === 'function') renderShop();
 };
