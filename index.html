@@ -4954,7 +4954,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.236';
+const APP_VERSION = 'v2.43.237';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -4963,6 +4963,9 @@ const APP_VERSION = 'v2.43.236';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.237', date: '2026-06-01', changes: [
+    { tag: 'improve', text: '💰 소비 아이템 되팔기 가격 정정 — "정가의 5%"가 아니라 "정가에서 수수료 5%만 떼고 95% 환급"으로 변경. 예) 승급전권 100G → 95G, 비밀퀘스트 토큰 200G → 190G 환급. 거의 본전이라 잘못 산 아이템을 부담 없이 정리할 수 있어요(수수료만 약간). 되돌릴 수 없는 건 동일' },
+  ]},
   { ver: 'v2.43.236', date: '2026-06-01', changes: [
     { tag: 'fix', text: '🛡️ 아이템 유실 버그 근본 수정 (중요) — 구매한 아이템이 드물게 사라지던 원인을 찾아 고쳤어요. 골드/아이템 저장이 set(전체 덮어쓰기)으로 돼 있어, 직전에 산 아이템이 반영되기 전의 옛 스냅샷으로 경기 저장·출석·복권 등이 데이터를 통째로 덮어쓰면 그 아이템이 유실될 수 있었어요. 모든 핵심 저장을 update(바뀐 필드만 병합)로 전환 — 이제 한 동작이 다른 동작의 결과를 절대 덮어쓰지 않아요. 특히 매 경기 저장·출석이 범인이었음. 이전 patch의 구매 로그(purchaseLog)와 함께 신뢰성 대폭 강화' },
   ]},
@@ -18477,10 +18480,10 @@ function _renderShopImmediate() {
       const actLabel = isTool ? (isActive ? '해제' : '장착') : (isActive ? '취소' : '사용');
       // 소비 일회성 아이템 5% 되팔기 (정가>0, 잠금 아닐 때)
       const sellable  = invCatTab === 'consume' && def.price > 0 && !isItemsEffectivelyLocked();
-      const sellValue = Math.max(1, Math.round(def.price * 0.05));
+      const sellValue = Math.max(1, Math.round(def.price * 0.95)); // 정가에서 5% 수수료 제외
       slots.push(`<div class="inv-slot${isActive?' inv-active':''}${lockedCls}" ${clickAttr} title="${def.name}">
         ${ownedCount > 1 ? `<div class="inv-count-badge">${ownedCount}개</div>` : ''}
-        ${sellable ? `<button class="inv-sell-btn" onclick="event.stopPropagation();window.sellItem('${def.id}')" title="${sellValue}G에 되팔기 (정가 ${def.price}G의 5%)">💰${sellValue}</button>` : ''}
+        ${sellable ? `<button class="inv-sell-btn" onclick="event.stopPropagation();window.sellItem('${def.id}')" title="${sellValue}G에 되팔기 (정가 ${def.price}G − 수수료 5%)">💰${sellValue}</button>` : ''}
         <div class="inv-slot-icon" style="color:${nameColor};">${def.icon}</div>
         <div class="inv-slot-name">${def.name}</div>
         <div class="inv-slot-action ${isActive?'inv-action-cancel':'inv-action-use'}">${actLabel}</div>
@@ -20504,7 +20507,7 @@ window.toggleItemActive = async function(idx) {
   }
 };
 
-// 💰 소비 아이템 5% 되팔기 (정가의 5%로 헐값 처분 — 환불 아님)
+// 💰 소비 아이템 되팔기 — 정가에서 수수료 5%만 떼고 95% 환급 (되돌릴 수 없음)
 function _confirmSell(def, sellValue, ownedCnt) {
   return new Promise(resolve => {
     document.getElementById('sell-confirm-overlay')?.remove();
@@ -20515,8 +20518,8 @@ function _confirmSell(def, sellValue, ownedCnt) {
       <div class="scard-buy-confirm-box">
         <h4>💰 ${escHtml(def.name)} 되팔기</h4>
         <p><span class="scard-buy-confirm-price" style="color:#fbbf24">+${sellValue}G</span>
-        정가 ${def.price}G의 <b>5%</b>로 처분돼요.<br>
-        <span style="color:#f87171;font-size:11.5px;">⚠️ 환불이 아니라 <b>헐값 판매</b>예요. 되돌릴 수 없어요!</span><br>
+        정가 ${def.price}G에서 <b>수수료 5%</b>만 떼고 돌려받아요.<br>
+        <span style="color:#f87171;font-size:11.5px;">⚠️ 판매하면 <b>되돌릴 수 없어요!</b> (수수료 ${def.price - sellValue}G 차감)</span><br>
         <span style="font-size:11px;color:#9aa0b4;">보유 ${ownedCnt}개 중 1개가 사라져요.</span></p>
         <div class="scard-buy-confirm-btns">
           <button class="scard-buy-confirm-cancel" id="sell-no">취소</button>
@@ -20540,7 +20543,7 @@ window.sellItem = async function(id) {
   // 비활성 인스턴스 우선 — 활성화(사용 대기) 중인 건 보호
   let sellIdx = items.findIndex(it => it.id === id && !it.active);
   if (sellIdx < 0) { showS1Toast('활성화된 아이템은 먼저 "취소"한 뒤 판매하세요'); return; }
-  const sellValue = Math.max(1, Math.round(def.price * 0.05));
+  const sellValue = Math.max(1, Math.round(def.price * 0.95)); // 정가에서 5% 수수료 제외
   const ownedCnt = items.filter(it => it.id === id).length;
   const ok = await _confirmSell(def, sellValue, ownedCnt);
   if (!ok) return;
@@ -20552,7 +20555,7 @@ window.sellItem = async function(id) {
   const resell = (goldData[key]?.resellGold_s1 || 0) + sellValue;
   const pLog = _appendPurchaseLog(goldData[key], def, { type: 'sell', price: sellValue }); // 📒 판매도 기록
   await update(ref(db, 'gold/' + key), { [itemsKey]: fresh, resellGold_s1: resell, purchaseLog_s1: pLog });
-  showGoldToast(`💰 ${def.name} 판매 +${sellValue}G (정가의 5%)`);
+  showGoldToast(`💰 ${def.name} 판매 +${sellValue}G (정가 −5% 수수료)`);
   if (typeof renderShop === 'function') renderShop();
 };
 
