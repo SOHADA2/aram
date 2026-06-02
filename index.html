@@ -1537,6 +1537,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .trash-progress-fill{height:100%;width:0%;background:linear-gradient(90deg,#a16207,#fbbf24);transition:width .08s;}
 .trash-hint{font-size:11px;color:rgba(214,199,154,0.72);min-height:16px;}
 .trash-result{margin-top:10px;min-height:22px;font-size:13px;font-weight:700;line-height:1.55;color:#e8dcc0;}
+.trash-earned{display:none;margin-top:9px;font-size:11.5px;font-weight:600;color:rgba(214,199,154,0.85);background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.2);border-radius:8px;padding:5px 10px;}
 /* 🦝 이스터에그 발동 연출 */
 .trash-result.egg{color:#fcd34d;text-shadow:0 0 12px rgba(252,211,77,0.55);animation:trashEggPulse 0.55s ease;}
 .trash-result.egg .tr-emoji{font-size:52px;animation:trashEggBounce 0.7s cubic-bezier(0.34,1.56,0.64,1);}
@@ -5017,7 +5018,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.259';
+const APP_VERSION = 'v2.43.260';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5026,6 +5027,9 @@ const APP_VERSION = 'v2.43.259';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.260', date: '2026-06-02', changes: [
+    { tag: 'improve', text: '🗑️ 쓰레기통에 "이번에 주운 동전" 누적 표시 — 쓰레기통을 켠 뒤 계속 뒤지면서 모은 동전(과 무료권) 총합이 모달 하단에 실시간으로 떠요. 닫았다 다시 켜면 0부터 다시 카운트' },
+  ]},
   { ver: 'v2.43.259', date: '2026-06-02', changes: [
     { tag: 'new', text: '🗑️ 쓰레기통 깊은 곳에 무언가 더 숨겨뒀어요… 진짜 진심으로 뒤지는 사람만 발견할 수 있을지도? 🦝' },
   ]},
@@ -19283,6 +19287,7 @@ const TRASH_JUNK_LINE = [
 ];
 let _trashDragging = false, _trashDist = 0, _trashBusy = false, _trashLastX = 0, _trashLastY = 0, _trashFreeGot = {}, _trashJunkEls = [];
 let _trashDigStartTs = 0, _trashFastStreak = 0; // 🦝 멀티터치 고속채굴 감지(이스터에그)
+let _trashSessionGold = 0, _trashSessionFree = 0; // 이번에 켰을 때 주운 누적(동전·무료권)
 // 쓰레기통 무료권 등급 정보 + 등급별 발견 가중치(일반 흔함 → 프미 희귀)
 const TRASH_FREE_TIERS = [
   { n:'일반 복권',    short:'일반', c:'#fbbf24', e:'🎟', w:0.62 },
@@ -19499,6 +19504,7 @@ window.openTrashCan = function() {
   if (!myName) { showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
   document.getElementById('trash-overlay')?.remove();
   _trashDragging = false; _trashDist = 0; _trashBusy = false;
+  _trashSessionGold = 0; _trashSessionFree = 0; // 켤 때마다 이번 판 수익 초기화
   const data = getMyGoldData();
   const _tf = data?.trashFree_s1;
   const _gotToday = (_tf && _tf.date === getLocalDateKey()) ? (_tf.got || {}) : {};
@@ -19527,10 +19533,12 @@ window.openTrashCan = function() {
       <div class="trash-progress"><div class="trash-progress-fill" id="trash-progress-fill"></div></div>
       <div class="trash-hint" id="trash-hint">쓰레기통 안을 드래그해서 뒤져보세요</div>
       <div class="trash-result" id="trash-result"></div>
+      <div class="trash-earned" id="trash-earned"></div>
     </div>`;
   el.addEventListener('click', ev => { if (ev.target === el) window.closeTrashCan(); });
   document.body.appendChild(el);
   _trashRenderDigs();
+  _trashRenderEarned();
   _trashLayoutJunk();
   _trashBindDrag();
   _renderYuumiPanel(); // 🐱 유미 보유 시 파견 패널 표시
@@ -19587,6 +19595,16 @@ function _trashRenderDigs() {
     : `<span style="color:${t.c};">${t.short}</span>`);
   el.innerHTML = `🎟 오늘 남은 무료권 ${parts.join('·')} <span style="opacity:.6;font-weight:400;">(등급별 하루 1장)</span>`;
 }
+// 이번에 켰을 때 주운 누적 표시 (동전 + 무료권)
+function _trashRenderEarned() {
+  const el = document.getElementById('trash-earned');
+  if (!el) return;
+  if (_trashSessionGold <= 0 && _trashSessionFree <= 0) { el.innerHTML = ''; el.style.display = 'none'; return; }
+  el.style.display = 'block';
+  let s = `이번에 주운 동전 <b style="color:#fbbf24">🪙 ${_trashSessionGold}G</b>`;
+  if (_trashSessionFree > 0) s += ` <span style="opacity:.75">· 🎫 무료권 ${_trashSessionFree}장</span>`;
+  el.innerHTML = s;
+}
 function _trashBindDrag() {
   const zone = document.getElementById('trash-dig');
   const can = document.getElementById('trash-can');
@@ -19638,6 +19656,7 @@ async function _trashReveal(elapsed) {
     updates.trashGold_s1 = (data.trashGold_s1 || 0) + 300;     // A) 일회성 +300G
     updates.trashFrenzyEgg_s1 = true;                          // 1회성 잠금
     updates.trashMaster_s1 = true;                             // C) 숨겨진 칭호
+    _trashSessionGold += 300; _trashSessionFree += 1;          // 이번 판 수익 누적
     sfxKey = 'free';
     resHtml = `<span class="tr-emoji">🦝</span><b style="color:#fcd34d">쓰레기통의 지배자</b> 칭호 획득!`
       + `<br><span style="font-size:12px;color:#e8dcc0;">쓰레기 더미 깊은 곳에서 누가 잃어버린 지갑을 발견했다!</span>`
@@ -19659,10 +19678,12 @@ async function _trashReveal(elapsed) {
       prevGot[freeTier] = true;
       updates.trashFree_s1 = { date: today, got: prevGot };
       _trashFreeGot[freeTier] = true;
+      _trashSessionFree += 1; // 이번 판 무료권 누적
       sfxKey = 'free';
       resHtml = `<span class="tr-emoji">${ti.e}</span>대박! 안 긁은 <b style="color:${ti.c}">${ti.n} 무료권</b>을 주웠다!<br><span style="font-size:11px;color:#9ca3af;font-weight:400;">(${ti.short} 무료권 +1 · 오늘 이 등급 끝)</span>`;
     } else if (reward.type === 'gold') {
       updates.trashGold_s1 = (data.trashGold_s1 || 0) + reward.val;
+      _trashSessionGold += reward.val; // 이번 판 동전 누적
       sfxKey = 'coin';
       resHtml = reward.consolation
         ? `<span class="tr-emoji">🪙</span>또 복권이…? 어 이미 주머니가 꽉 찼네. 동전이나 챙기자 <b style="color:#fbbf24">+${reward.val}G</b>`
@@ -19685,6 +19706,7 @@ async function _trashReveal(elapsed) {
     if (tt && !/지배자/.test(tt.textContent)) tt.innerHTML = '🗑️ 뒷골목 쓰레기통 <span style="color:#fcd34d;font-size:11px;">· 🦝 지배자</span>';
   }
   _trashRenderDigs();
+  _trashRenderEarned();
   _trashLayoutJunk(); // 다음 뒤지기용으로 쓰레기 더미 새로 흩뿌리기
   const hint = document.getElementById('trash-hint');
   if (hint) hint.textContent = eggTrigger ? '🦝 당신은 쓰레기통의 지배자!' : '계속 뒤져볼까요? 다시 한참 드래그!';
