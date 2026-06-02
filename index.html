@@ -5018,7 +5018,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.260';
+const APP_VERSION = 'v2.43.261';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5027,6 +5027,9 @@ const APP_VERSION = 'v2.43.260';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.261', date: '2026-06-02', changes: [
+    { tag: 'fix', text: '🎟 복권 Hub 잔액·무료권 실시간 반영 — 긁어서 번 골드나 새로 얻은 무료권이 열려있는 복권 화면에 바로 안 보이고 껐다 켜야 반영되던 문제 수정. 이제 골드/무료권이 바뀌면 열린 복권 Hub가 자동으로 갱신돼요(긁는 중에는 방해 안 하고 끝난 뒤 반영)' },
+  ]},
   { ver: 'v2.43.260', date: '2026-06-02', changes: [
     { tag: 'improve', text: '🗑️ 쓰레기통에 "이번에 주운 동전" 누적 표시 — 쓰레기통을 켠 뒤 계속 뒤지면서 모은 동전(과 무료권) 총합이 모달 하단에 실시간으로 떠요. 닫았다 다시 켜면 0부터 다시 카운트' },
   ]},
@@ -7573,6 +7576,13 @@ onValue(ref(db, 'gold'), (snapshot) => {
   autoRefundLotteryOvercharge(); // v2.43.139~ 복권 구가격 과다차감 환불 (1회, 어드민 전용)
   if (matchesLoaded) updateMyInfoBar();
   renderShop();
+  // 열려있는 복권 Hub 잔액·무료권 실시간 갱신 (긁기/획득 후 껐다 켜야 반영되던 문제, v2.43.261)
+  // 단, 긁기/구매확인 모달이 위에 떠 있으면 그 동작이 끝난 뒤 갱신되도록 skip (Hub는 뒤에 가려져 있음)
+  if (document.getElementById('lottery-hub-overlay')
+      && !document.querySelector('.scard-overlay, .scard-buy-confirm-overlay')
+      && typeof window.openLotteryHub === 'function') {
+    try { window.openLotteryHub(); } catch(_){}
+  }
   if (playersLoaded && matchesLoaded) seedGoldForAllPlayers();
   checkLotteryRefund();
   updateLiveHouseGold();
