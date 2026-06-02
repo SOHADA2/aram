@@ -1537,6 +1537,11 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .trash-progress-fill{height:100%;width:0%;background:linear-gradient(90deg,#a16207,#fbbf24);transition:width .08s;}
 .trash-hint{font-size:11px;color:rgba(214,199,154,0.72);min-height:16px;}
 .trash-result{margin-top:10px;min-height:22px;font-size:13px;font-weight:700;line-height:1.55;color:#e8dcc0;}
+/* 🦝 이스터에그 발동 연출 */
+.trash-result.egg{color:#fcd34d;text-shadow:0 0 12px rgba(252,211,77,0.55);animation:trashEggPulse 0.55s ease;}
+.trash-result.egg .tr-emoji{font-size:52px;animation:trashEggBounce 0.7s cubic-bezier(0.34,1.56,0.64,1);}
+@keyframes trashEggPulse{0%{transform:scale(0.85);opacity:0.2;}100%{transform:scale(1);opacity:1;}}
+@keyframes trashEggBounce{0%{transform:scale(0.2) rotate(-25deg);}60%{transform:scale(1.35) rotate(12deg);}100%{transform:scale(1) rotate(0);}}
 .trash-result .tr-emoji{font-size:40px;display:block;margin-bottom:4px;animation:trashPop .42s ease;}
 @keyframes trashPop{0%{transform:scale(0.2) translateY(20px);opacity:0;}60%{transform:scale(1.2);}100%{transform:scale(1);opacity:1;}}
 /* 🐱 유미 파견 패널 (v2.43.245) */
@@ -5012,7 +5017,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.258';
+const APP_VERSION = 'v2.43.259';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5021,6 +5026,9 @@ const APP_VERSION = 'v2.43.258';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.43.259', date: '2026-06-02', changes: [
+    { tag: 'new', text: '🗑️ 쓰레기통 깊은 곳에 무언가 더 숨겨뒀어요… 진짜 진심으로 뒤지는 사람만 발견할 수 있을지도? 🦝' },
+  ]},
   { ver: 'v2.43.258', date: '2026-06-02', changes: [
     { tag: 'fix', text: '🔑 만능 긁개가 경기 후 사라지던 치명적 버그 수정 — 장비 아이템으로 옮기면서 "장착 = active" 상태가 됐는데, 경기 정산 로직이 active 아이템을 일회용처럼 소모(삭제)하는 catch-all에 걸려 장착한 만능 긁개가 한 판만 하면 인벤토리에서 사라졌어요. 이제 장비형 도구(scratch_tool)는 소모 대상에서 제외하고 장착 상태도 그대로 유지됩니다. ※ 이 버그로 사라진 보유자는 환불/복구 처리 예정' },
   ]},
@@ -19274,6 +19282,7 @@ const TRASH_JUNK_LINE = [
   '"잘 가~" 핑 찍고 싶어진다.','버스 타고 싶다… 이런 거 말고.',
 ];
 let _trashDragging = false, _trashDist = 0, _trashBusy = false, _trashLastX = 0, _trashLastY = 0, _trashFreeGot = {}, _trashJunkEls = [];
+let _trashDigStartTs = 0, _trashFastStreak = 0; // 🦝 멀티터치 고속채굴 감지(이스터에그)
 // 쓰레기통 무료권 등급 정보 + 등급별 발견 가중치(일반 흔함 → 프미 희귀)
 const TRASH_FREE_TIERS = [
   { n:'일반 복권',    short:'일반', c:'#fbbf24', e:'🎟', w:0.62 },
@@ -19500,7 +19509,7 @@ window.openTrashCan = function() {
   el.innerHTML = `
     <div class="trash-sheet" onclick="event.stopPropagation();">
       <div class="trash-head">
-        <span class="trash-title">🗑️ 뒷골목 쓰레기통</span>
+        <span class="trash-title">🗑️ 뒷골목 쓰레기통${data?.trashMaster_s1 ? ' <span style="color:#fcd34d;font-size:11px;">· 🦝 지배자</span>' : ''}</span>
         <button class="trash-close" onclick="window.closeTrashCan()">✕</button>
       </div>
       <div class="trash-sub">손을 넣고 <b>이리저리 한참 뒤적뒤적</b> 해보세요.<br>대부분은 쓰레기… 운이 좋으면 동전이나 무료 복권이?</div>
@@ -19589,6 +19598,7 @@ function _trashBindDrag() {
   };
   const move = (x, y) => {
     if (!_trashDragging) return;
+    if (_trashDist === 0) _trashDigStartTs = performance.now(); // 이번 뒤지기 시작 시각
     _trashDist += Math.hypot(x - _trashLastX, y - _trashLastY);
     _trashLastX = x; _trashLastY = y;
     _trashRustle(x, y);
@@ -19596,8 +19606,9 @@ function _trashBindDrag() {
     const f = document.getElementById('trash-progress-fill');
     if (f) f.style.width = pct + '%';
     if (_trashDist >= TRASH_DIG_THRESHOLD) {
+      const elapsed = performance.now() - _trashDigStartTs; // 이번 뒤지기 소요 시간(ms)
       _trashDragging = false; can?.classList.remove('digging');
-      _trashReveal();
+      _trashReveal(elapsed);
     }
   };
   const end = () => { if (_trashDragging) { _trashDragging = false; can?.classList.remove('digging'); } };
@@ -19606,53 +19617,77 @@ function _trashBindDrag() {
   zone.onpointerup = end;
   zone.onpointercancel = end;
 }
-async function _trashReveal() {
+async function _trashReveal(elapsed) {
   if (_trashBusy) return;
   _trashBusy = true;
-  let reward = _trashPickReward();
   const today = getLocalDateKey();
-  // 무료권은 등급별 하루 1장 — 오늘 아직 안 받은 등급만 대상. 다 받았으면 푼돈으로 강등
-  let freeTier = -1;
-  if (reward.type === 'free') {
-    const avail = [0, 1, 2].filter(t => !_trashFreeGot[t]);
-    if (!avail.length) reward = { type: 'gold', val: 1 + Math.floor(Math.random()*3), consolation: true };
-    else freeTier = _trashPickFreeTier(avail);
-  }
   const key = getMyGoldKey();
   const data = getMyGoldData() || {};
+  // 🦝 멀티터치 고속채굴 감지 — 0.2초 미만 뒤지기가 연속 3회면 한 손가락으론 불가 = 진심러
+  if (typeof elapsed === 'number' && elapsed < 200) _trashFastStreak++; else _trashFastStreak = 0;
+  const eggTrigger = _trashFastStreak >= 3 && !data.trashFrenzyEgg_s1;
+
   const updates = {};
-  let resHtml = '';
-  if (reward.type === 'free') {
-    const ti = TRASH_FREE_TIERS[freeTier];
+  let resHtml = '', sfxKey = 'junk';
+  if (eggTrigger) {
+    // 🥚 이스터에그 ABC 합본 — 일회성(trashFrenzyEgg_s1 잠금)
+    _trashFastStreak = 0;
     const ft = { ...(data[sField('freeScratch')] || {}) };
-    ft[freeTier] = (ft[freeTier] || 0) + 1;
+    ft[2] = (ft[2] || 0) + 1;                                  // B) 프리미엄 무료권 +1
     updates[sField('freeScratch')] = ft;
-    const prevGot = (data.trashFree_s1 && data.trashFree_s1.date === today) ? { ...(data.trashFree_s1.got || {}) } : {};
-    prevGot[freeTier] = true;
-    updates.trashFree_s1 = { date: today, got: prevGot };
-    _trashFreeGot[freeTier] = true;
-    resHtml = `<span class="tr-emoji">${ti.e}</span>대박! 안 긁은 <b style="color:${ti.c}">${ti.n} 무료권</b>을 주웠다!<br><span style="font-size:11px;color:#9ca3af;font-weight:400;">(${ti.short} 무료권 +1 · 오늘 이 등급 끝)</span>`;
-  } else if (reward.type === 'gold') {
-    updates.trashGold_s1 = (data.trashGold_s1 || 0) + reward.val;
-    resHtml = reward.consolation
-      ? `<span class="tr-emoji">🪙</span>또 복권이…? 어 이미 주머니가 꽉 찼네. 동전이나 챙기자 <b style="color:#fbbf24">+${reward.val}G</b>`
-      : `<span class="tr-emoji">🪙</span>오! 동전을 주웠다! <b style="color:#fbbf24">+${reward.val}G</b>`;
+    updates.trashGold_s1 = (data.trashGold_s1 || 0) + 300;     // A) 일회성 +300G
+    updates.trashFrenzyEgg_s1 = true;                          // 1회성 잠금
+    updates.trashMaster_s1 = true;                             // C) 숨겨진 칭호
+    sfxKey = 'free';
+    resHtml = `<span class="tr-emoji">🦝</span><b style="color:#fcd34d">쓰레기통의 지배자</b> 칭호 획득!`
+      + `<br><span style="font-size:12px;color:#e8dcc0;">쓰레기 더미 깊은 곳에서 누가 잃어버린 지갑을 발견했다!</span>`
+      + `<br><span style="font-size:11px;color:#9ca3af;">+300G · 🎫 프리미엄 무료권 +1 · 🦝 숨겨진 칭호</span>`;
   } else {
-    const j = TRASH_JUNK[Math.floor(Math.random() * TRASH_JUNK.length)];
-    const line = TRASH_JUNK_LINE[Math.floor(Math.random() * TRASH_JUNK_LINE.length)];
-    resHtml = `<span class="tr-emoji">${j.e}</span><b style="color:#cdbfa0">${j.n}</b>… ${line}`;
+    let reward = _trashPickReward();
+    let freeTier = -1;
+    if (reward.type === 'free') {
+      const avail = [0, 1, 2].filter(t => !_trashFreeGot[t]);
+      if (!avail.length) reward = { type: 'gold', val: 1 + Math.floor(Math.random()*3), consolation: true };
+      else freeTier = _trashPickFreeTier(avail);
+    }
+    if (reward.type === 'free') {
+      const ti = TRASH_FREE_TIERS[freeTier];
+      const ft = { ...(data[sField('freeScratch')] || {}) };
+      ft[freeTier] = (ft[freeTier] || 0) + 1;
+      updates[sField('freeScratch')] = ft;
+      const prevGot = (data.trashFree_s1 && data.trashFree_s1.date === today) ? { ...(data.trashFree_s1.got || {}) } : {};
+      prevGot[freeTier] = true;
+      updates.trashFree_s1 = { date: today, got: prevGot };
+      _trashFreeGot[freeTier] = true;
+      sfxKey = 'free';
+      resHtml = `<span class="tr-emoji">${ti.e}</span>대박! 안 긁은 <b style="color:${ti.c}">${ti.n} 무료권</b>을 주웠다!<br><span style="font-size:11px;color:#9ca3af;font-weight:400;">(${ti.short} 무료권 +1 · 오늘 이 등급 끝)</span>`;
+    } else if (reward.type === 'gold') {
+      updates.trashGold_s1 = (data.trashGold_s1 || 0) + reward.val;
+      sfxKey = 'coin';
+      resHtml = reward.consolation
+        ? `<span class="tr-emoji">🪙</span>또 복권이…? 어 이미 주머니가 꽉 찼네. 동전이나 챙기자 <b style="color:#fbbf24">+${reward.val}G</b>`
+        : `<span class="tr-emoji">🪙</span>오! 동전을 주웠다! <b style="color:#fbbf24">+${reward.val}G</b>`;
+    } else {
+      const j = TRASH_JUNK[Math.floor(Math.random() * TRASH_JUNK.length)];
+      const line = TRASH_JUNK_LINE[Math.floor(Math.random() * TRASH_JUNK_LINE.length)];
+      resHtml = `<span class="tr-emoji">${j.e}</span><b style="color:#cdbfa0">${j.n}</b>… ${line}`;
+    }
   }
   if (key && Object.keys(updates).length) { try { await update(ref(db, 'gold/' + key), updates); } catch(_){} }
   _trashDist = 0;
   const f = document.getElementById('trash-progress-fill');
   if (f) f.style.width = '0%';
   const r = document.getElementById('trash-result');
-  if (r) r.innerHTML = resHtml;
-  _trashSfx[reward.type === 'free' ? 'free' : reward.type === 'gold' ? 'coin' : 'junk'](); // 결과 효과음
+  if (r) { r.innerHTML = resHtml; r.classList.toggle('egg', eggTrigger); }
+  try { _trashSfx[sfxKey](); } catch(_){} // 결과 효과음
+  if (eggTrigger) {
+    const tt = document.querySelector('#trash-overlay .trash-title');
+    if (tt && !/지배자/.test(tt.textContent)) tt.innerHTML = '🗑️ 뒷골목 쓰레기통 <span style="color:#fcd34d;font-size:11px;">· 🦝 지배자</span>';
+  }
   _trashRenderDigs();
   _trashLayoutJunk(); // 다음 뒤지기용으로 쓰레기 더미 새로 흩뿌리기
   const hint = document.getElementById('trash-hint');
-  if (hint) hint.textContent = '계속 뒤져볼까요? 다시 한참 드래그!';
+  if (hint) hint.textContent = eggTrigger ? '🦝 당신은 쓰레기통의 지배자!' : '계속 뒤져볼까요? 다시 한참 드래그!';
   _trashBusy = false;
 }
 window.openLotteryHub = function() {
