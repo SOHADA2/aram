@@ -1184,6 +1184,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .member-mode .winner-btns,
 .member-mode #winner-selected-msg,
 .member-mode #save-btn,
+.member-mode #open-vote-btn,
 .member-mode .save-done-panel,
 .member-mode #event-no-save-notice{display:none!important;}
 #member-waiting{display:none;}
@@ -4733,8 +4734,8 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
       <!-- 매너왕 투표 섹션 -->
       <div id="manner-section" class="mvp-section" style="display:none;"></div>
       <div class="winner-btns">
-        <button class="winner-btn blue" id="wb-blue" onclick="selectWinner('blue')">🔵 1팀 승리</button>
-        <button class="winner-btn red" id="wb-red" onclick="selectWinner('red')">🟡 2팀 승리</button>
+        <button class="winner-btn blue" id="wb-blue" onclick="selectWinner('blue', true)">🔵 1팀 승리</button>
+        <button class="winner-btn red" id="wb-red" onclick="selectWinner('red', true)">🟡 2팀 승리</button>
       </div>
       <div id="winner-selected-msg" style="font-size:12px;color:var(--text-dim);margin-bottom:6px;min-height:18px;"></div>
       <button id="open-vote-btn" onclick="openVoteManually()" style="width:100%;justify-content:center;margin-bottom:8px;display:none;padding:11px;border-radius:8px;border:1px solid var(--gold);background:rgba(200,168,75,0.08);color:var(--gold-light);font-weight:700;cursor:pointer;font-size:13px;">🏆 MVP·매너왕 투표창 열기</button>
@@ -5062,7 +5063,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.270';
+const APP_VERSION = 'v2.43.271';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5072,6 +5073,9 @@ const APP_VERSION = 'v2.43.270';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
   // ⚠️ 팀원용 "주요 업데이트"는 CHANGELOG_MAJOR(아래 별도 배열)에만 큰 기능을 추가. 여기는 상세 개발 로그.
+  { ver: 'v2.43.271', date: '2026-06-03', changes: [
+    { tag: 'new', text: '🏆 브릿지 없이도 수동으로 투표 진행 가능 — 브릿지가 게임 종료를 못 잡아도, 라이브 계정에서 결과 페이지의 승리팀(🔵 1팀 / 🟡 2팀) 버튼을 누르면 브릿지와 똑같이 전 팀원 기기에 MVP·매너왕 투표창이 자동으로 떠요. 전원 투표 완료 → 자동 저장 → 정산창까지 기존과 동일하게 진행됩니다. (브릿지 미연결이라 투표 카드엔 KDA 없이 이름만 표시) ※ "투표창 열기" 버튼은 라이브 계정 전용으로 정리(팀원에겐 자동으로 뜸)' },
+  ]},
   { ver: 'v2.43.270', date: '2026-06-03', changes: [
     { tag: 'new', text: '🏆 "투표창 열기" 버튼 추가 — 브릿지가 끊겨 MVP·매너왕 투표 팝업이 자동으로 안 떠도, 결과 페이지에서 이 버튼으로 언제든 수동으로 투표창을 띄울 수 있어요(승리팀을 먼저 선택하면 활성). 실수로 닫았을 때 다시 열 수도 있어요' },
   ]},
@@ -8138,14 +8142,15 @@ function closeEogOverlay() {
 window.showEogOverlay = showEogOverlay;
 window.closeEogOverlay = closeEogOverlay;
 
-// 브릿지 끊겨도 수동으로 MVP·매너왕 투표창을 띄우는 버튼 핸들러 (v2.43.270)
+// 브릿지 끊겨도 라이브 계정이 수동으로 MVP·매너왕 투표창을 (재)띄우는 버튼 핸들러 (v2.43.270~271)
+// 라이브 계정 전용(멤버는 CSS로 숨김). 전 팀원 기기에도 브로드캐스트.
 window.openVoteManually = function() {
   if (isEventMatch) { showGoldToast('🎉 이벤트 매치는 MVP·매너왕 투표가 없어요'); return; }
   if (!currentTeamA.length || !currentTeamB.length) { showGoldToast('팀 구성 후에 가능해요'); return; }
   if (matchSaved) { showGoldToast('이미 저장된 경기예요'); return; }
-  if (document.getElementById('eog-overlay')) return; // 이미 열려 있음
   if (!selectedWinner) { showGoldToast('🏆 먼저 승리팀(🔵/🟡)을 선택해주세요'); return; }
-  showEogOverlay(selectedWinner);
+  if (liveMode) update(ref(db, 'session'), { manualEog: { winSide: selectedWinner, at: Date.now() } }).catch(()=>{});
+  if (!document.getElementById('eog-overlay')) showEogOverlay(selectedWinner);
 };
 
 // ── 투표 완료 시 자동 저장 (liveMode 기기에서만) ─────────────────────
@@ -8279,6 +8284,29 @@ onValue(ref(db, 'bridge/matchData'), async (snap) => {
     selectWinner(data.winSide);
   }
   showEogOverlay(data.winSide);
+});
+
+// ── 수동 EOG 브로드캐스트 (v2.43.271) ────────────────────────────────
+// 브릿지가 게임 종료를 못 잡았을 때: 라이브 계정이 승리팀을 수동 선택하면
+// session/manualEog 로 전 팀원 기기에 MVP·매너왕 투표창을 띄움 (브릿지 matchData 대체).
+// 참가자 KDA 데이터는 없으므로 카드엔 이름만 표시(기존 미연결 폴백과 동일).
+let _lastManualEog;
+function _applyManualEog(v) {
+  if (magollaState === 'active') return;
+  if (!currentTeamA.length || !currentTeamB.length) return;
+  if (matchSaved) return;
+  if (document.getElementById('eog-overlay')) return; // 이미 떠 있음(브릿지 등)
+  if (v.winSide && !selectedWinner) selectedWinner = v.winSide; // 저장 일관성용(라이브)
+  showEogOverlay(v.winSide);
+}
+onValue(ref(db, 'session/manualEog'), (snap) => {
+  const v = snap.val();
+  if (!v || !v.at) { _lastManualEog = null; return; }
+  const fresh = Date.now() - v.at < 30000;
+  if (_lastManualEog === undefined) { _lastManualEog = v.at; if (fresh) _applyManualEog(v); return; } // 첫 로드(늦게 접속한 팀원도 표시)
+  if (v.at === _lastManualEog) return;
+  _lastManualEog = v.at;
+  if (fresh) _applyManualEog(v);
 });
 
 // ── BRIDGE: 챔프 셀렉 데이터 캐시 (InProgress 직후 사용 대비) ─────────
@@ -10299,6 +10327,7 @@ window.makeTeams = function() {
     spectatorPick:  null,
     spectatorPicks: null,
     spectatorBets:  null,
+    manualEog: null,          // 수동 투표창 브로드캐스트 초기화 (v2.43.271)
     teamsFormedAt: _currentTeamsFormedAt,
     mvp: { active: true },    // MVP 초기화 통합 → onValue 이중 발화 방지
     manner: { active: true }, // 매너왕 초기화
@@ -11378,13 +11407,17 @@ function checkSaveReady() {
   btn.textContent = '💾 결과 저장하기';
 }
 
-window.selectWinner = function(side) {
+window.selectWinner = function(side, manual) {
   selectedWinner = side;
   document.getElementById('wb-blue').className = 'winner-btn blue' + (side==='blue'?' selected-blue':'');
   document.getElementById('wb-red').className  = 'winner-btn red'  + (side==='red'?' selected-red':'');
   document.getElementById('winner-selected-msg').textContent = side==='blue'?'🔵 1팀 승리 선택됨':'🟡 2팀 승리 선택됨';
   checkSaveReady();
-  // 브릿지 미연결 등으로 EOG 투표 팝업이 자동으로 안 뜬 경우, 수동 승리팀 선택으로도 MVP·매너왕 투표창 표시 (v2.43.259)
+  // 라이브 계정이 수동으로 승리팀을 고르면, 브릿지처럼 전 팀원 기기에 MVP·매너왕 투표창을 띄움 (v2.43.271)
+  if (manual && liveMode && !isEventMatch && !matchSaved) {
+    update(ref(db, 'session'), { manualEog: { winSide: side, at: Date.now() } }).catch(()=>{});
+  }
+  // 클릭한 기기는 즉시 표시 (브릿지 미연결 폴백)
   if (!isEventMatch && !matchSaved && !document.getElementById('eog-overlay')) showEogOverlay(side);
 };
 
