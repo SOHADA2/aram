@@ -3235,6 +3235,8 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 @keyframes msConfettiFall{0%{opacity:1;transform:translateY(0) rotate(0deg) scale(1);}80%{opacity:0.6;}100%{opacity:0;transform:translateY(130px) rotate(800deg) scale(0.4);}}
 .ms-confetti{position:absolute;border-radius:2px;top:-10px;opacity:0;pointer-events:none;z-index:2;animation:msConfettiFall 2.2s linear forwards;}
 .eog-overlay{position:fixed;inset:0;z-index:2800;background:rgba(10,14,26,0.97);display:flex;flex-direction:column;align-items:center;overflow-y:auto;padding:20px 16px 40px;animation:taFadeIn 0.3s ease;}
+.eog-close-x{position:absolute;top:14px;right:16px;z-index:5;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.18);color:#cdd3df;font-size:16px;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;transition:background 0.15s;}
+.eog-close-x:hover{background:rgba(255,255,255,0.16);color:#fff;}
 .promo-notif-backdrop{position:fixed;inset:0;z-index:3100;background:rgba(0,0,0,0.78);display:flex;align-items:center;justify-content:center;animation:taFadeIn 0.25s ease;overflow:hidden;}
 .promo-notif-card{position:relative;background:linear-gradient(160deg,#161b22 0%,#0d1117 100%);border:1px solid #30363d;border-radius:18px;padding:36px 28px 24px;width:min(360px,92vw);text-align:center;animation:promoCardIn 0.45s cubic-bezier(.34,1.56,.64,1);overflow:hidden;}
 .promo-notif-card.celebrate{border:2px solid currentColor;box-shadow:0 0 60px currentColor,0 0 120px rgba(255,255,255,0.12),0 18px 60px rgba(0,0,0,.6);}
@@ -5059,7 +5061,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.268';
+const APP_VERSION = 'v2.43.269';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5069,6 +5071,9 @@ const APP_VERSION = 'v2.43.268';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
   // ⚠️ 팀원용 "주요 업데이트"는 CHANGELOG_MAJOR(아래 별도 배열)에만 큰 기능을 추가. 여기는 상세 개발 로그.
+  { ver: 'v2.43.269', date: '2026-06-03', changes: [
+    { tag: 'fix', text: '🏆 브릿지 미연결 시 MVP·매너왕 투표창이 안 뜨던 문제 보완 — 기존엔 게임 종료 투표 팝업(EOG)이 브릿지 자동 결과로만 떴어요. 이제 브릿지가 연결 안 돼도 결과 페이지에서 승리팀 버튼(🔵/🟡)을 누르면 투표창이 바로 떠요. 투표창에 ✕ 닫기 버튼도 추가(승리팀 잘못 눌렀을 때 닫고 다시 선택 가능)' },
+  ]},
   { ver: 'v2.43.268', date: '2026-06-03', changes: [
     { tag: 'fix', text: '릴레이 보드 "다음 받을 칸"에 ✓완료가 잘못 떠서 진행도가 +1 많아 보이던 문제 — 오늘 출석을 마치면(canAttend X) 다음 받을 칸(예: 26 완료 시 Day 27)에 "✓ 완료" 배지가 붙어 27칸까지 완료한 것처럼 보였음(실제 진행도는 26). 이 배지는 "오늘 출석 완료"를 뜻한 거지 칸 수령이 아님. "다음 차례"(중립색)로 바꿔 칸 완료(✓)와 명확히 구분. 진행도 숫자(26/30)는 처음부터 정확했음' },
   ]},
@@ -8093,6 +8098,7 @@ function showEogOverlay(winSide) {
   overlay.id = 'eog-overlay';
   overlay.className = 'eog-overlay';
   overlay.innerHTML = `
+    <button class="eog-close-x" onclick="closeEogOverlay()" title="닫기" aria-label="닫기">✕</button>
     <div class="eog-win-banner">
       <div class="eog-win-title ${isBlue ? 'blue' : 'red'}">${isBlue ? '🔵 1팀 승리!' : '🟡 2팀 승리!'}</div>
       <div class="eog-win-sub">MVP · MMP 투표 후 자동 저장됩니다</div>
@@ -11362,6 +11368,8 @@ window.selectWinner = function(side) {
   document.getElementById('wb-red').className  = 'winner-btn red'  + (side==='red'?' selected-red':'');
   document.getElementById('winner-selected-msg').textContent = side==='blue'?'🔵 1팀 승리 선택됨':'🟡 2팀 승리 선택됨';
   checkSaveReady();
+  // 브릿지 미연결 등으로 EOG 투표 팝업이 자동으로 안 뜬 경우, 수동 승리팀 선택으로도 MVP·매너왕 투표창 표시 (v2.43.259)
+  if (!isEventMatch && !matchSaved && !document.getElementById('eog-overlay')) showEogOverlay(side);
 };
 
 function renderMvpSection() {
