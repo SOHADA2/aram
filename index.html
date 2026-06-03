@@ -4737,6 +4737,7 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
         <button class="winner-btn red" id="wb-red" onclick="selectWinner('red')">🟡 2팀 승리</button>
       </div>
       <div id="winner-selected-msg" style="font-size:12px;color:var(--text-dim);margin-bottom:6px;min-height:18px;"></div>
+      <button id="open-vote-btn" onclick="openVoteManually()" style="width:100%;justify-content:center;margin-bottom:8px;display:none;padding:11px;border-radius:8px;border:1px solid var(--gold);background:rgba(200,168,75,0.08);color:var(--gold-light);font-weight:700;cursor:pointer;font-size:13px;">🏆 MVP·매너왕 투표창 열기</button>
       <button class="btn btn-green" id="save-btn" onclick="saveMatch()" style="width:100%;justify-content:center;" disabled>💾 결과 저장하기</button>
       <!-- 저장 완료 패널 -->
       <div class="save-done-panel" id="save-done-panel">
@@ -5061,7 +5062,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.269';
+const APP_VERSION = 'v2.43.270';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5071,6 +5072,9 @@ const APP_VERSION = 'v2.43.269';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
   // ⚠️ 팀원용 "주요 업데이트"는 CHANGELOG_MAJOR(아래 별도 배열)에만 큰 기능을 추가. 여기는 상세 개발 로그.
+  { ver: 'v2.43.270', date: '2026-06-03', changes: [
+    { tag: 'new', text: '🏆 "투표창 열기" 버튼 추가 — 브릿지가 끊겨 MVP·매너왕 투표 팝업이 자동으로 안 떠도, 결과 페이지에서 이 버튼으로 언제든 수동으로 투표창을 띄울 수 있어요(승리팀을 먼저 선택하면 활성). 실수로 닫았을 때 다시 열 수도 있어요' },
+  ]},
   { ver: 'v2.43.269', date: '2026-06-03', changes: [
     { tag: 'fix', text: '🏆 브릿지 미연결 시 MVP·매너왕 투표창이 안 뜨던 문제 보완 — 기존엔 게임 종료 투표 팝업(EOG)이 브릿지 자동 결과로만 떴어요. 이제 브릿지가 연결 안 돼도 결과 페이지에서 승리팀 버튼(🔵/🟡)을 누르면 투표창이 바로 떠요. 투표창에 ✕ 닫기 버튼도 추가(승리팀 잘못 눌렀을 때 닫고 다시 선택 가능)' },
   ]},
@@ -8134,6 +8138,16 @@ function closeEogOverlay() {
 window.showEogOverlay = showEogOverlay;
 window.closeEogOverlay = closeEogOverlay;
 
+// 브릿지 끊겨도 수동으로 MVP·매너왕 투표창을 띄우는 버튼 핸들러 (v2.43.270)
+window.openVoteManually = function() {
+  if (isEventMatch) { showGoldToast('🎉 이벤트 매치는 MVP·매너왕 투표가 없어요'); return; }
+  if (!currentTeamA.length || !currentTeamB.length) { showGoldToast('팀 구성 후에 가능해요'); return; }
+  if (matchSaved) { showGoldToast('이미 저장된 경기예요'); return; }
+  if (document.getElementById('eog-overlay')) return; // 이미 열려 있음
+  if (!selectedWinner) { showGoldToast('🏆 먼저 승리팀(🔵/🟡)을 선택해주세요'); return; }
+  showEogOverlay(selectedWinner);
+};
+
 // ── 투표 완료 시 자동 저장 (liveMode 기기에서만) ─────────────────────
 function _tryAutoSave() {
   if (!liveMode) return;
@@ -10917,11 +10931,13 @@ function renderResult() {
     document.getElementById('save-btn').disabled=true;
     document.getElementById('save-btn').style.opacity='0.3';
     document.getElementById('save-btn').title='이벤트 매치는 저장되지 않아요';
+    document.getElementById('open-vote-btn').style.display='none'; // 이벤트 매치는 투표 없음
   } else {
     document.getElementById('handicap-section').innerHTML='';
     document.getElementById('event-no-save-notice').style.display='none';
     document.getElementById('save-btn').style.opacity='';
     document.getElementById('save-btn').title='';
+    document.getElementById('open-vote-btn').style.display=''; // 브릿지 끊겨도 수동 투표창 열기 (v2.43.270)
   }
   const sc=arr=>arr.reduce((s,p)=>s+getWinRateScore(p.name),0);
   const avg=arr=>(sc(arr)/arr.length*100).toFixed(1)+'%';
@@ -12588,6 +12604,7 @@ window.saveMatch = async function() {
     document.querySelector('.winner-btns').style.display='none';
     document.getElementById('winner-selected-msg').style.display='none';
     document.getElementById('save-btn').style.display='none';
+    document.getElementById('open-vote-btn').style.display='none';
 
     // ── 티어 변동 렌더 ───────────────────────────────────────────
     const tcRow = document.getElementById('tier-changes-row');
