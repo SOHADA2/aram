@@ -5056,7 +5056,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.266';
+const APP_VERSION = 'v2.43.267';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5066,6 +5066,9 @@ const APP_VERSION = 'v2.43.266';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
   // ⚠️ 팀원용 "주요 업데이트"는 CHANGELOG_MAJOR(아래 별도 배열)에만 큰 기능을 추가. 여기는 상세 개발 로그.
+  { ver: 'v2.43.267', date: '2026-06-03', changes: [
+    { tag: 'fix', text: '릴레이 보드 팀원 현황 실시간 갱신 — 다른 팀원이 출석체크해도 열려있는 릴레이 보드의 팀원 현황에 바로 반영 안 되고 모달을 껐다 켜야 보이던 문제. onValue(gold) 갱신 시 릴레이 보드가 열려있으면 자동 재렌더하도록 추가 (복권 Hub와 동일 처리)' },
+  ]},
   { ver: 'v2.43.266', date: '2026-06-03', changes: [
     { tag: 'fix', text: '출석 진행도 손실 긴급 복구 + 재발 방지 — 7명(신규회원임·울퉁쓰·브랜딩프로·맹독 벌꿀오소리·조조와빈찬합·나랑듀오해듀오·빛나는언즈)의 릴레이 진행도가 옛 값으로 되돌려진 사고. 옛 캐시 버전의 _RELAY_ROLLBACK 재적용이 원인으로 추정. 출석 이력(attendanceHistory.relayStep)으로 정확히 복구(신규15·울퉁23·브랜딩18·맹독18·조조16·나랑23·빛나13). 재발 방지: (1) 위험한 revertRelaySogeup 호출 제거, (2) autoFixRelayShrink 안전장치 추가 — 출석 이력보다 진행도가 작으면 자동 복구하므로 어떤 경로로 줄어도 즉시 되돌아옴' },
   ]},
@@ -7680,6 +7683,11 @@ onValue(ref(db, 'gold'), (snapshot) => {
   checkLotteryRefund();
   updateLiveHouseGold();
   updateMailBadge(); // 우편함 배지 (수령 여부 반영)
+  // 열려있는 릴레이 보드(팀원 현황) 실시간 갱신 — 다른 팀원 출석이 바로 반영되도록 (v2.43.267)
+  const _rmBody = document.getElementById('relay-modal-body');
+  if (_rmBody && document.getElementById('relay-modal-overlay')?.classList.contains('open')) {
+    try { _rmBody.innerHTML = renderRelayBoardHtml(); } catch(_){}
+  }
 });
 
 // 우편함 실시간 동기화 (v2.43.201)
