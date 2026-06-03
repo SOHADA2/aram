@@ -755,6 +755,10 @@ select option{background:var(--surface2);}
 .rk-season-wrap{position:relative;display:flex;align-items:center;}
 .rk-season-wrap .rk-season-dd{top:calc(100% + 4px);right:0;}
 .rk-season-btn{padding:4px 8px;border-radius:10px;background:rgba(200,168,75,.13);color:var(--rk-gold);border:1px solid rgba(200,168,75,.35);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.12em;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:4px;line-height:1;}
+/* v2.43.272 — 기록 탭 "내 경기" 필터 버튼 */
+.rc-mine-btn{padding:4px 9px;border-radius:10px;background:rgba(255,255,255,0.05);color:var(--rk-text-dim,#9aa0b4);border:1px solid rgba(255,255,255,0.12);font-size:10.5px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s;line-height:1;}
+.rc-mine-btn:hover{background:rgba(255,255,255,0.09);}
+.rc-mine-btn.on{background:rgba(56,217,192,0.14);border-color:rgba(56,217,192,0.5);color:#5ee0cf;box-shadow:0 0 8px rgba(56,217,192,0.25);}
 .rk-season-btn .caret{font-size:8px;transition:transform .12s;}
 .rk-season-btn.open .caret{transform:rotate(180deg);}
 .rk-season-dd{position:absolute;top:calc(100% + 4px);right:16px;z-index:30;background:var(--rk-card);border:1px solid var(--rk-border-strong);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);min-width:124px;overflow:hidden;display:none;}
@@ -4760,6 +4764,7 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
     <div class="rc-header-row">
       <div class="rc-title">경기<span class="rc-title-dot">·</span>기록</div>
       <div class="rc-header-actions">
+        <button class="rc-mine-btn" id="rc-mine-btn" onclick="toggleMineOnly()">👤 내 경기</button>
         <div class="rk-season-wrap">
           <button class="rk-season-btn" id="season-selector-btn" onclick="toggleSeasonDropdown()">
             <span id="season-selector-label">S0</span>
@@ -4985,6 +4990,7 @@ const TIERS = {
 // ── SEASON ────────────────────────────────────────────────────
 let CURRENT_SEASON = parseInt(localStorage.getItem('aram_season') || '0', 10); // Firebase 로드 전 캐시값으로 초기화
 let viewSeason = 0;     // 현재 경기 기록 탭에서 보고 있는 시즌 (숫자=일반경기, 'magolla'=막고라)
+let _recordMineOnly = false; // 기록 탭 "내 경기만" 필터 (v2.43.272)
 let magollaMatches = {};  // Firebase /magolla_matches 전체 캐시
 // 시즌별 Firebase 필드명 (season 0은 기존 필드명 유지, 이후부터 _s1, _s2 ...)
 function seasonSuffix(s) { return s === 0 ? '' : '_s' + s; }
@@ -5063,7 +5069,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.271';
+const APP_VERSION = 'v2.43.272';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5073,6 +5079,9 @@ const APP_VERSION = 'v2.43.271';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
   // ⚠️ 팀원용 "주요 업데이트"는 CHANGELOG_MAJOR(아래 별도 배열)에만 큰 기능을 추가. 여기는 상세 개발 로그.
+  { ver: 'v2.43.272', date: '2026-06-03', changes: [
+    { tag: 'new', text: '기록 탭 "👤 내 경기" 필터 — 기본은 전체 시간순이고, 버튼을 켜면 본인(선택한 닉네임)이 1팀/2팀에 참여한 경기만 모아서 봄. 다시 누르면 전체로 복귀. 시즌 드롭다운과 함께 동작(현재 시즌 안에서 내 경기). 닉네임 미선택 시 버튼 숨김' },
+  ]},
   { ver: 'v2.43.271', date: '2026-06-03', changes: [
     { tag: 'new', text: '🏆 브릿지 없이도 수동으로 투표 진행 가능 — 브릿지가 게임 종료를 못 잡아도, 라이브 계정에서 결과 페이지의 승리팀(🔵 1팀 / 🟡 2팀) 버튼을 누르면 브릿지와 똑같이 전 팀원 기기에 MVP·매너왕 투표창이 자동으로 떠요. 전원 투표 완료 → 자동 저장 → 정산창까지 기존과 동일하게 진행됩니다. (브릿지 미연결이라 투표 카드엔 KDA 없이 이름만 표시) ※ "투표창 열기" 버튼은 라이브 계정 전용으로 정리(팀원에겐 자동으로 뜸)' },
   ]},
@@ -12794,6 +12803,13 @@ function renderSeasonSelector() {
   dropdown.innerHTML = seasonItems + magollaItem;
 }
 
+// 기록 탭 "내 경기만" 토글 (v2.43.272)
+window.toggleMineOnly = function() {
+  if (!myName) { showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
+  _recordMineOnly = !_recordMineOnly;
+  renderMatchHistory();
+};
+
 window.toggleSeasonDropdown = function() {
   const btn = document.getElementById('season-selector-btn');
   const dropdown = document.getElementById('season-dropdown');
@@ -12826,15 +12842,26 @@ window.selectViewSeason = function(s) {
 // ── MATCH HISTORY ─────────────────────────────────────────────
 function renderMatchHistory() {
   renderSeasonSelector();
+  // "내 경기" 버튼 상태 동기화 (닉네임 없으면 비활성)
+  const _mineBtn = document.getElementById('rc-mine-btn');
+  if (_mineBtn) {
+    if (!myName) { _mineBtn.style.display = 'none'; _recordMineOnly = false; }
+    else { _mineBtn.style.display = ''; _mineBtn.classList.toggle('on', _recordMineOnly); }
+  }
   if (viewSeason === 'magolla') { renderMagollaHistory(); return; }
   const el=document.getElementById('match-history-list');
+  const _myNorm = normName(myName || '');
   const matchArr = Object.entries(matches)
     .map(([key,m])=>({key,...m}))
     .filter(m => (m.season ?? 0) === viewSeason)
+    // "내 경기만" 필터 — 본인이 1팀/2팀에 포함된 경기만 (v2.43.272)
+    .filter(m => !_recordMineOnly || !_myNorm
+      || (m.teamA||[]).some(n=>normName(n)===_myNorm)
+      || (m.teamB||[]).some(n=>normName(n)===_myNorm))
     .sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
   document.getElementById('match-count-badge').textContent=matchArr.length;
 
-if(matchArr.length===0){el.innerHTML='<div class="empty-state"><div class="icon">📋</div>아직 기록된 경기가 없어요</div>';return;}
+if(matchArr.length===0){el.innerHTML=`<div class="empty-state"><div class="icon">📋</div>${_recordMineOnly?'참여한 경기가 없어요':'아직 기록된 경기가 없어요'}</div>`;return;}
   el.innerHTML=matchArr.map(m=>{
     const isBlueWin = m.winner==='blue';
 
