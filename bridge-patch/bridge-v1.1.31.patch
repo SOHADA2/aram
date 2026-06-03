@@ -1,0 +1,131 @@
+From d5328cf2f1b8a7f8537fb7061c551c637c784059 Mon Sep 17 00:00:00 2001
+From: SOHADA2 <shm2644@gmail.com>
+Date: Wed, 3 Jun 2026 17:40:09 +0000
+Subject: [PATCH] =?UTF-8?q?fix:=20=EB=A1=A4=20=ED=81=B4=EB=9D=BC=EC=9D=B4?=
+ =?UTF-8?q?=EC=96=B8=ED=8A=B8=20=EC=9E=AC=EC=8B=9C=EC=9E=91=20=EC=8B=9C=20?=
+ =?UTF-8?q?=EC=9E=AC=EC=97=B0=EA=B2=B0=20=EC=8B=A4=ED=8C=A8=20=EC=88=98?=
+ =?UTF-8?q?=EC=A0=95=20(v1.1.31)?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+문제: 롤 비정상 종료 → lockfile 남음 → 재시작 시 새 port로 덮어써지는데
+_connected=true라 새 port를 무시하고 옛 연결로 헛요청만 함 (멈춤).
+
+- _poll에서 lockfile port 변경 감지 → disconnect 후 새 port로 재연결
+- LCU 응답 연속 4회 실패 시 forceReset() → stale lockfile 상태도 복구
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+---
+ CLAUDE.md    |  1 +
+ index.js     | 43 +++++++++++++++++++++++++++++++++++++------
+ package.json |  2 +-
+ 3 files changed, 39 insertions(+), 7 deletions(-)
+
+diff --git a/CLAUDE.md b/CLAUDE.md
+index 2ca32a0..cc7dbd4 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -80,3 +80,4 @@ gh release create vX.X.X dist/aram-bridge-vX.X.X.zip dist/aram-bridge-vX.X.X.exe
+ | v1.1.28 | (reverted) 빠른 로비 이탈 EOG 시도 — gameId 가드 없어 이전 게임 오저장 위험으로 되돌림 |
+ | v1.1.29 | 비정상 종료(Reconnect/InProgress→None 점프) 시 EOG 자동 캡처 + activeGameId 가드로 이전 게임 오저장 방지 (v1.1.28 재시도, 안전화) |
+ | v1.1.30 | gameId 가드를 **비정상 경로에만** 적용(정상 저장 보호) + lastSavedGameId 가드 추가(직전 게임 재캡처 차단, gameId 캡처 실패해도 안전) |
++| v1.1.31 | **롤 클라이언트 재시작 시 재연결 실패 수정** — (1) lockfile port 변경 감지: 비정상 종료로 lockfile 이 남아있다가 재시작 시 새 port 로 덮어써지면, 기존엔 `_connected=true` 라 새 port 를 무시하고 옛 연결로 헛요청만 했음. port 가 바뀌면 disconnect 후 재연결. (2) LCU 응답 연속 4회 실패 시 `forceReset()` — stale lockfile(롤 죽었는데 파일 남음) 상태에서도 강제 해제 후 재연결 시도 |
+diff --git a/index.js b/index.js
+index 2f9b0b3..b1f15fe 100644
+--- a/index.js
++++ b/index.js
+@@ -9,7 +9,7 @@ const { execSync }     = require('child_process');
+ 
+ // ── lockfile 기반 LCU 커넥터 (wmic 없이 동작) ────────────────────
+ class LockfileConnector extends EventEmitter {
+-  constructor() { super(); this._connected = false; this._timer = null; }
++  constructor() { super(); this._connected = false; this._timer = null; this._curPort = null; }
+ 
+   start() { this._poll(); this._timer = setInterval(() => this._poll(), 3000); }
+ 
+@@ -40,14 +40,34 @@ class LockfileConnector extends EventEmitter {
+     if (lfPath) {
+       try {
+         const [, , port, password, protocol] = fs.readFileSync(lfPath, 'utf8').trim().split(':');
+-        if (port && password && !this._connected) {
+-          this._connected = true;
+-          this.emit('connect', { username: 'riot', password, port, protocol: protocol || 'https' });
++        if (port && password) {
++          // v1.1.31~ 롤 클라이언트 재시작 감지: 비정상 종료로 lockfile 이 남아있다가
++          // 재시작 시 새 port 로 덮어써지는 경우, 이전엔 _connected=true 라서 새 port 를 무시했음.
++          // → port 가 바뀌면 먼저 disconnect 후 새 정보로 재연결한다.
++          if (this._connected && this._curPort !== port) {
++            this._connected = false;
++            this._curPort = null;
++            this.emit('disconnect'); // 옛 연결 정리 (baseUrl/타이머 등)
++          }
++          if (!this._connected) {
++            this._connected = true;
++            this._curPort = port;
++            this.emit('connect', { username: 'riot', password, port, protocol: protocol || 'https' });
++          }
+         }
+         return;
+       } catch (_) {}
+     }
+-    if (this._connected) { this._connected = false; this.emit('disconnect'); }
++    if (this._connected) { this._connected = false; this._curPort = null; this.emit('disconnect'); }
++  }
++
++  // LCU 응답이 계속 없으면(죽은 lockfile 등) 외부에서 강제로 연결 해제 → 다음 _poll 이 재연결 시도 (v1.1.31~)
++  forceReset() {
++    if (this._connected) {
++      this._connected = false;
++      this._curPort = null;
++      this.emit('disconnect');
++    }
+   }
+ }
+ 
+@@ -525,10 +545,12 @@ async function handleEndOfGame(abnormal = false) {
+ }
+ 
+ // ── 게임 페이즈 폴링 (3초 간격) ───────────────────────────────────
++let _pollFailCount = 0; // LCU 응답 연속 실패 카운트 (v1.1.31~)
+ async function poll() {
+   if (!baseUrl) return;
+   try {
+     const phase = await lcu('/lol-gameflow/v1/gameflow-phase');
++    _pollFailCount = 0; // 응답 성공 → 카운트 리셋
+ 
+     if (phase !== lastPhase) {
+       log(`페이즈 변경: ${lastPhase ?? '-'} → ${phase}`);
+@@ -608,7 +630,16 @@ async function poll() {
+       await handleEndOfGame(phase === 'Reconnect');
+     }
+ 
+-  } catch (_) {}
++  } catch (_) {
++    // LCU 응답 없음 — 롤이 죽었는데 lockfile 이 stale 로 남은 경우 등.
++    // 연속 4회(약 12초) 실패하면 강제 연결 해제 → 다음 _poll 이 lockfile 재확인 후 재연결 (v1.1.31~)
++    _pollFailCount++;
++    if (_pollFailCount >= 4) {
++      _pollFailCount = 0;
++      log('⚠️ LCU 응답 없음(연속) — 연결 재설정 시도');
++      connector.forceReset();
++    }
++  }
+ }
+ 
+ // ── LCU 연결 이벤트 ──────────────────────────────────────────────
+diff --git a/package.json b/package.json
+index 155b810..24d86cb 100644
+--- a/package.json
++++ b/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "aram-bridge",
+-  "version": "1.1.30",
++  "version": "1.1.31",
+   "description": "ARAM 내전 LCU 브릿지 — 롤 클라이언트 데이터를 Firebase로 전송",
+   "main": "index.js",
+   "bin": "index.js",
+-- 
+2.49.0
+
