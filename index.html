@@ -5056,7 +5056,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.264';
+const APP_VERSION = 'v2.43.265';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5066,6 +5066,9 @@ const APP_VERSION = 'v2.43.264';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
   // ⚠️ 팀원용 "주요 업데이트"는 CHANGELOG_MAJOR(아래 별도 배열)에만 큰 기능을 추가. 여기는 상세 개발 로그.
+  { ver: 'v2.43.265', date: '2026-06-03', changes: [
+    { tag: 'fix', text: '출석체크 "실패" 오표시 수정 — 출석 시 Firebase 저장은 성공했는데도, 직후 UI 갱신(우편 배지 등)에서 에러가 나면 catch로 떨어져 "❌ 출석 체크 실패" 토스트가 뜨던 문제. doAttendance에서 저장과 UI 갱신을 분리(저장 성공=출석 완료, UI 에러는 격리) + updateMailBadge 를 try-catch로 방어. 출석 데이터는 정상 저장돼 있었음(표시만 오류)' },
+  ]},
   { ver: 'v2.43.264', date: '2026-06-02', changes: [
     { tag: 'fix', text: '업데이트 노트에서 시크릿 챔피언 이름 노출 제거 — 주요 업데이트 카드와 상세 로그 모두에서 스포일러가 될 수 있는 이름을 중립 표현으로 교체' },
   ]},
@@ -15531,13 +15534,15 @@ function _myMails() {
 }
 
 function updateMailBadge() {
-  const btn = document.getElementById('mailbox-btn');
-  const badge = document.getElementById('mb-badge');
-  if (!btn || !badge) return;
-  const unread = _myMails().filter(m => !m.claimed).length;
-  btn.classList.toggle('has-mail', unread > 0);
-  badge.style.display = unread > 0 ? 'flex' : 'none';
-  badge.textContent = unread > 9 ? '9+' : String(unread);
+  try {
+    const btn = document.getElementById('mailbox-btn');
+    const badge = document.getElementById('mb-badge');
+    if (!btn || !badge) return;
+    const unread = _myMails().filter(m => !m.claimed).length;
+    btn.classList.toggle('has-mail', unread > 0);
+    badge.style.display = unread > 0 ? 'flex' : 'none';
+    badge.textContent = unread > 9 ? '9+' : String(unread);
+  } catch (e) { console.warn('우편 배지 갱신 오류:', e); } // 다른 흐름(출석 등) 막지 않도록 격리
 }
 
 // 보상 텍스트 (칩 표시용)
@@ -18400,8 +18405,16 @@ window.doAttendance = async function() {
   if (slot === 1) updates.lastAttendance  = todayKey;
   else            updates.lastAttendance2 = todayKey;
 
+  // Firebase 저장(=출석 성공)과 UI 갱신을 분리 — UI 에러가 "출석 실패"로 오표시되지 않도록 (v2.43.265)
   try {
     await update(ref(db, 'gold/' + key), updates);
+  } catch (e) {
+    try { updateAttendQuickBtn(); } catch (_) {}
+    showGoldToast('❌ 출석 체크 실패 — 다시 시도해주세요');
+    throw e;
+  }
+  // 여기 도달 = 저장 성공 = 출석 완료. 이후 UI 갱신 에러는 출석 성공을 가리지 않음
+  try {
     showAttendPopup(slot, totalGoldGain, newSteps);
     updateAttendQuickBtn();
     const rmBody = document.getElementById('relay-modal-body');
@@ -18409,9 +18422,7 @@ window.doAttendance = async function() {
       rmBody.innerHTML = renderRelayBoardHtml();
     }
   } catch (e) {
-    updateAttendQuickBtn();
-    showGoldToast('❌ 출석 체크 실패 — 다시 시도해주세요');
-    throw e;
+    console.warn('출석 UI 갱신 중 오류 (출석 자체는 정상 완료됨):', e);
   }
 };
 
