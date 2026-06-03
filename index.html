@@ -5056,7 +5056,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.265';
+const APP_VERSION = 'v2.43.266';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5066,6 +5066,9 @@ const APP_VERSION = 'v2.43.265';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
   // ⚠️ 팀원용 "주요 업데이트"는 CHANGELOG_MAJOR(아래 별도 배열)에만 큰 기능을 추가. 여기는 상세 개발 로그.
+  { ver: 'v2.43.266', date: '2026-06-03', changes: [
+    { tag: 'fix', text: '출석 진행도 손실 긴급 복구 + 재발 방지 — 7명(신규회원임·울퉁쓰·브랜딩프로·맹독 벌꿀오소리·조조와빈찬합·나랑듀오해듀오·빛나는언즈)의 릴레이 진행도가 옛 값으로 되돌려진 사고. 옛 캐시 버전의 _RELAY_ROLLBACK 재적용이 원인으로 추정. 출석 이력(attendanceHistory.relayStep)으로 정확히 복구(신규15·울퉁23·브랜딩18·맹독18·조조16·나랑23·빛나13). 재발 방지: (1) 위험한 revertRelaySogeup 호출 제거, (2) autoFixRelayShrink 안전장치 추가 — 출석 이력보다 진행도가 작으면 자동 복구하므로 어떤 경로로 줄어도 즉시 되돌아옴' },
+  ]},
   { ver: 'v2.43.265', date: '2026-06-03', changes: [
     { tag: 'fix', text: '출석체크 "실패" 오표시 수정 — 출석 시 Firebase 저장은 성공했는데도, 직후 UI 갱신(우편 배지 등)에서 에러가 나면 catch로 떨어져 "❌ 출석 체크 실패" 토스트가 뜨던 문제. doAttendance에서 저장과 UI 갱신을 분리(저장 성공=출석 완료, UI 에러는 격리) + updateMailBadge 를 try-catch로 방어. 출석 데이터는 정상 저장돼 있었음(표시만 오류)' },
   ]},
@@ -7659,8 +7662,9 @@ onValue(ref(db, 'gold'), (snapshot) => {
   goldData = snapshot.val() || {};
   goldLoaded = true;
   migrateRelayBase();
-  revertRelaySogeup();
+  // revertRelaySogeup() 호출 제거 (v2.43.266) — _RELAY_ROLLBACK 재적용이 출석 손실 사고를 일으킴
   fixRelayBaseOnly();
+  autoFixRelayShrink();    // v2.43.266~ 출석 이력보다 진행도가 작으면 자동 복구 (손실 방지)
   autoCompensateRelayV1(); // v2.43.112~ 본인 데이터의 릴레이 누락 보상 자동 지급 (1회)
   autoRefundLotteryOvercharge(); // v2.43.139~ 복권 구가격 과다차감 환불 (1회, 어드민 전용)
   if (matchesLoaded) updateMyInfoBar();
@@ -17121,6 +17125,35 @@ async function fixRelayBaseOnly() {
 // 출석 시 relayProgress 갱신 누락된 사용자(attendanceHistory.relayStep 있음 + gold=0)에게
 // 누락 칸의 RELAY_REWARDS 보상(골드 + 마일스톤 아이템) 1회 지급. relayCompensationV1 플래그로 중복 방지.
 // 본인 계정에서만 본인 데이터 보정 (다른 사용자 데이터는 안 건드림 — race condition 방지)
+// v2.43.266 — 릴레이 진행도 손실 자동 복구 안전장치.
+// 출석 이력(attendanceHistory.relayStep)보다 relayProgress 가 작으면 = 손실로 간주하고 복구.
+// (옛 캐시 버전의 _RELAY_ROLLBACK 재적용 등으로 진행도가 되돌려지는 사고 방지)
+// 본인 데이터만 건드림(race 방지). 줄었을 때만 복구 → 무한 루프 없음.
+let _fixingRelayShrink = false;
+async function autoFixRelayShrink() {
+  if (_fixingRelayShrink || !myName) return;
+  const key = getMyGoldKey();
+  if (!key) return;
+  const data = goldData[key];
+  if (!data) return;
+  const hist = data[sField('attendanceHistory')] || [];
+  const steps = hist.filter(h => h && h.relayStep).map(h => h.relayStep);
+  if (!steps.length) return;
+  const maxStep = Math.min(30, Math.max(...steps));
+  const rp = data[sField('relayProgress')] || 0;
+  if (rp >= maxStep) return; // 정상
+  _fixingRelayShrink = true;
+  try {
+    const rc = Math.max(maxStep, data[sField('relayClaimed')] || 0);
+    await update(ref(db, 'gold/' + key), {
+      [sField('relayProgress')]: maxStep,
+      [sField('relayClaimed')]: rc,
+    });
+    console.warn(`[릴레이 진행도 자동 복구] ${data.name}: relayProgress ${rp} → ${maxStep} (출석 이력 기준)`);
+  } catch (e) { console.error('[릴레이 자동 복구 실패]', e); }
+  _fixingRelayShrink = false;
+}
+
 let _relayCompV1Done = false;
 async function autoCompensateRelayV1() {
   if (_relayCompV1Done || !myName) return;
