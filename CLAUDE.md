@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.44.2 (브릿지 aram-bridge v1.1.31 릴리즈 완료)
+- 현재 버전: v2.44.3 (시즌2 엠블럼 강화 + 패스 재편 구현 완료 / 브릿지 aram-bridge v1.1.31 릴리즈 완료)
 - ⚠️ **시즌2 작업 중** — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 필독 (진행상황·확정정책·신규콘텐츠 기획 전부 정리됨)
 
 ## 기술 스택
@@ -553,7 +553,14 @@
 - **프리뷰 툴 (v277)**: 콘솔 `previewSeason(2)`/`previewSeasonOff()` — 이 브라우저만 CURRENT_SEASON 오버라이드(localStorage `aram_season_preview`), 라이브 config·Firebase 안 건드림. 미리보기 중 자동쓰기(seed/migrate/autoCompensate) `__SEASON_PREVIEW` 가드로 차단, switchSeason도 차단. **S2 작업 검증은 이걸로.**
 - **헥스텍 테마 (v278~283)**: `season-2` 클래스(CURRENT_SEASON===2 토글, renderHeaderSeasonLabel). `s1-active`(>=1, 동작 22곳)는 유지하고 `.season-2`가 시각을 덮음(.s1-active 뒤 배치). 블랙+골드 팔레트 + `--purple-light` 골드 remap. `body.season-2::before`(블랙+골드모트)/`::after`(골드글로우). `renderSeasonBackground()`+`_buildHexfield(cls,id)`가 육각회로 SVG 주입(육각 변 따라 **랜덤워크 골드펄스**, 중앙편향). 보라 스트래글러 ~35개 `.season-2` 스코프로 골드(비막고라)/레드(막고라) 덮음. 막고라="S2 컨셉의 레드"(메타UI 보라→레드 + 아레나 `#magolla-modal`에 `ensureMagollaHexBg()`로 레드 헥스필드 `.mg-hexfield` 주입). 전적색 정제: `--green/red/blue` remap(승=골드·패=회색·중립=화이트), W/L점·우편함 골드. (목업파일 `시즌2-헥스텍-목업.html`/`막고라-레드헥스텍-목업.html`은 gitignore 로컬전용)
 
-### 🎮 S2 신규 콘텐츠 기획 (구현 대기) — "마법공학 엠블럼 강화"
+### 🎮 S2 신규 콘텐츠 — "엠블럼 강화 + 패스 재편" (✅ v2.44.0~1 구현 완료 / 일반패스 적립만 브릿지 대기)
+> **✅ 구현 완료** — 상세 코드맵·확정수치는 **`SEASON2.md §4` 상단 박스** 참조(완전판). 전부 `CURRENT_SEASON===2` 게이트라 라이브 S1 무영향, `previewSeason(2)`로만 검증.
+> - **엠블럼**(index.html ~L7269): `EMBLEM_TICKETS`·`emblemEnhance`·`emblemSellPrice`·`openEmblemModal`/`renderEmblemBody`·연출 `_emblemPlayFx`. 효과: 출석 `doAttendance` · 복권A안 `_applyEmblemLotteryBoost` · 광채 `emblemShineHtml`. 데이터 `emblem_s2`/`emblemTickets_s2`/`emblemSellG_s2`. 판매환급 ~60%.
+> - **패스**(엠블럼 블록 뒤): `PASS_TRACKS`·`calcCustomPassPts`(내전 자동)·`claimPassLevel`·`renderS2Pass`/`doClaimPass`(라우터 S2 분기). 데이터 `passCustom_s2`/`passNormal_s2`/`normalGamePts_s2`/`passGold_s2`/`passTitle_s2`. 비밀퀘 토큰 S2 OFF.
+> - **⏳ 남은 것**: 일반게임 패스 포인트 적립 = 브릿지 `isCustomGame` 분리 후 `normalGamePts_s2` 적립(현재 `__addNormalPassPts` 디버그 훅만). 내전 패스는 이미 자동.
+>
+> *(아래 기획 원문은 레퍼런스로 보존)*
+
 **루프**: 일반 증바람 플레이 → 퀘스트(브릿지 검증) → 강화재화 → 엠블럼 강화 → 효과/추격. 골드·재화 싱크로 챌린저 골드고임 해결.
 
 **1) 엠블럼 강화 (메이플 주문서식, 수치 확정)**
@@ -563,12 +570,12 @@
 - **효과(성능 비례)**: 복권 당첨확률 성능×0.2%p(캡+8%p), 출석골드 성능×3G, 광채 성능 1~9실버/10~24골드/25+프리즈매틱+칭호.
 - **복권 부스트=A안(꽝→본전)**: 결과는 긁기 전 확률표에서 확정(긁기는 연출), 엠블럼이 꽝 슬라이스를 +X%p 떼서 **본전**으로 이전(잭팟 인플레X, 손실완화). 회수율~80% 싱크 보호.
 - **상점가(제안)**: 베이스 엠블럼 150G·안정 40·정밀 100·과부하 250G. **비용감**: 안정路 +5 확정 350G(성능5), 올과부하 +5=~57만G·1/411(0.3^5, 성능30 프리즈매틱).
-- **판매**: 강화 엠블럼 판매→골드 환급(성능 높을수록↑) [공식 미정].
+- **판매**: ✅ `emblemSellPrice` = 베이스150×0.5 + 투입강화권가×0.35 + 성능²×2. 환급률 ~60%(흑자확률 거의0, 저강화 확정이익=인플레라 금지).
 
 **2) 패스 재편 (확정)**
 - 🤫 **비밀퀘스트 토큰 → 제거** (S2 UI 게이트 OFF). 잃는것: 패배 LP완화 안전망(수용).
 - 🎫 **패스: 전투/지원 → 게임타입별 2종**(둘다 무료): **일반게임 패스**(증바람으로 채움→강화권·엠블럼·소량골드=성장) + **내전게임 패스**(내전으로 채움→골드·칭호/코스메틱·소량강화권=경쟁). 역할분리: 내전=경쟁, 일반=성장.
-- **각 10레벨**, 레벨당 200p, 활동으로 포인트 적립(일반: 증바람 1판+10p/승+5p/일일퀘+20~40p · 내전: 1판+15p/승+10p/MVP·매너+10p). 레벨별 보상트랙 초안 있음(미확정).
+- **각 10레벨**, 레벨당 200p, 활동으로 포인트 적립(일반: 증바람 1판+10p/승+5p/일일퀘+20~40p · 내전: 1판+15p/승+10p/MVP·매너+10p). ✅ 보상트랙 확정 = `PASS_TRACKS`.
 
 **3) 브릿지 확장 (전제)**
 - 일반게임 eog를 내전 흐름과 **분리**: LCU `/lol-gameflow/v1/session`의 **`gameData.isCustomGame`**(브릿지가 이미 이 엔드포인트 읽음, 필드 하나 추가)로 판정 — true=내전(기존 매치저장/투표), false=일반(퀘스트 로그/엠블럼 재화). 보조검증=등록팀원 구성. 6/11에 증바람 일반 queueId 확인.
@@ -577,7 +584,8 @@
 ### ⏭️ 남은 작업 + 미정
 - **switchSeason S2 버튼**: 현재 S0/S1만. 6/11 임박 시 추가(누르면 전원 즉시 S2 — 신중). 그 전엔 previewSeason(2)로만.
 - **S1 읽기전용 열람 재라우팅**: sField/season1Data가 CURRENT_SEASON 전역 → S2 중 viewSeason=1로 S1 LP랭킹/컬렉션 보려면 읽기 경로가 viewSeason 타게 손봐야(전적은 match.season 필터로 됨).
-- **엠블럼/패스 구현**: 데이터스키마·UI·강화연출·판매가공식·일일퀘 항목 확정.
+- **~~엠블럼/패스 구현~~ ✅ 완료 (v2.44.0~1)**. 일일퀘 항목·보상량은 실플레이 후 튜닝.
+- **일반게임 패스 적립 연결**: 브릿지 `isCustomGame` 분리 후 일반 eog 수신 시 `normalGamePts_s2` 적립 핸들러 추가(현재 `__addNormalPassPts` 디버그 훅만).
 - **6/11 확인**: 증바람 일반 queueId, 일반게임 augment가 공개 match-v5에도 오는지(현재 augment는 브릿지 LCU에서만 받음).
 
 ## LCU 브릿지 (aram-bridge)
@@ -722,12 +730,32 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.44.0~2 (2026-06-04~05) — 시즌2 엠블럼 강화 + S2 배경/UI 폴리시 ← 최신
+### v2.44.0~3 (2026-06-04~05) — 🌌 시즌2 엠블럼 강화 + 패스 재편 + S2 UI 폴리시 ← 최신
 
-- **v2.44.0 (다른 컴퓨터)**: 🔷 마법공학 엠블럼 강화 시스템 도입 — 베이스 엠블럼(150G)+강화권 3종(안정/정밀/과부하), 5칸 슬롯, 레벨(+N)/성능 분리, 강화 모달·연출, 효과(출석골드·복권 꽝→본전·광채). 전부 `season===2` 게이트. **상세는 SEASON2.md "4. S2 신규 콘텐츠" 참조**.
-- **v2.44.1 (이 세션)**: 📬 우편함 버튼 — 📬 이모지 → 라인 봉투 SVG 아이콘 교체(전 시즌 공통). S2에선 has-mail 시 봉투·배지 골드 통일(빨강 제거, `.season-2 .mb-badge`/`.mailbox-btn.has-mail color`). 엠블럼 슬롯 투명 배경 → 불투명(`.emblem-slot` background 추가).
-- **v2.44.2 (이 세션)**: 🌨️ **S2 배경 겹침 수정** — 시즌1 칼바람 눈보라(`.sf` 파티클, z-index:1)가 S2 헥스텍 배경 위로 흩날려 겹쳐 보이던 것 → `body.season-2 .sf{display:none}` 로 S2에선 눈 숨김(CSS 토글 자동). S1은 그대로.
-- ⏭️ **다음**: SEASON2.md "5. 남은 작업" — switchSeason S2 버튼(6/11), S1 읽기전용 열람 재라우팅, 엠블럼/패스 구현 마무리, 6/11 증바람 queueId·augment 확인. previewSeason(2)로 검증.
+> 상세 코드맵·확정 수치는 **SEASON2.md §4 상단 박스**(완전판). 전부 `CURRENT_SEASON===2` 게이트라 라이브 S1 무영향. `previewSeason(2)`로만 검증. 시즌2 미오픈이라 팀원엔 안 보임.
+
+#### v2.44.0 — 마법공학 엠블럼 강화 (4단계, index.html ~L7269 블록)
+- **1단계 스키마/코어**: `EMBLEM_TICKETS`(🟢안정100%/+1·40G · 🟡정밀60%/+3·100G · 🔴과부하30%/+6·250G), 슬롯5(시도마다1소모·LOCK), 레벨(+N)=성공수·성능=성공칸 기여합 분리. `emblemEnhance`/`emblemBuyBase`/`emblemBuyTicket`/`emblemSellPrice`. 데이터: `emblem_s2{slots:[{t,ok}],createdAt}`·`emblemTickets_s2`·`emblemSellG_s2`(`calcPlayerGoldEarned` 합산)
+- **2단계 UI**: 상점 진입카드(season2 소비탭) → `openEmblemModal`/`renderEmblemBody`(5칸 시각화·강화권 구매·강화·판매). CSS `.emblem-*`
+- **3단계 연출**: `_emblemPlayFx`(차징1초→성공 골드파티클/실패 흔들림, `_gSfx.mergeCharge/mergeImpact/reveal`). CSS `.emfx-*`
+- **4단계 효과 연결**: 출석 `doAttendance`(`emblemAttendBonus`=성능×3G) · 복권 A안 `_applyEmblemLotteryBoost`(꽝→본전, 성능×0.2%p·캡8%, 4지점: 헬퍼+유료경로+onComplete gold+모달 결과표시) · 광채 `emblemShineHtml`/`emblemGlowMeta`(💠실버/🔶골드/🌈프리즈매틱, 성능25+ "마법공학 장인" 칭호 — 랭킹 hero/mini·프로필 pm-s1-name·대기화면 배지). CSS `.em-shine`/`.em-title`
+- **판매공식 결정 (사용자와 논의)**: 환급률 ~60%로 확정. **핵심 교훈: 저강화 확정이익은 절대 금지**(안정 100%라 무한 골드머신=복권 인플레 재현). 운좋아 고성능이면 흑자(도박성·OK). 200만회 몬테카를로로 환급률·흑자확률(거의0) 검증
+
+#### v2.44.1~2 — S2 UI 폴리시 (다른 컴퓨터)
+- **v2.44.1**: 📬 우편함 버튼 이모지 → 라인 봉투 SVG(전 시즌 공통). S2에선 has-mail 봉투·배지 골드 통일(빨강 제거, `.season-2 .mb-badge`/`.mailbox-btn.has-mail`). + 엠블럼 슬롯 투명배경 → 불투명(`.emblem-slot` background)
+- **v2.44.2**: 🌨️ S2 배경 겹침 — 시즌1 눈보라(`.sf`, z:1)가 헥스텍 위로 흩날리던 것 `body.season-2 .sf{display:none}`로 숨김. S1은 그대로
+
+#### v2.44.3 — 패스 재편 (P1~P4)
+- **2종 패스**(무료): 🎮일반게임(증바람·성장)/⚔️내전게임(내전·경쟁), 각10레벨·레벨당200p. `PASS_META`·`PASS_TRACKS`·`PASS_PT_PER_LEVEL=200`·`PASS_MAX_LEVEL=10`
+- **포인트**: 내전=`calcCustomPassPts`(S2 매치 순회 자동계산, 1판15·승10·MVP/매너10) / 일반=`calcNormalPassPts`(`normalGamePts_s2` 누적, 브릿지 전제)
+- **클레임/UI**: `claimPassLevel`(직전레벨+도달 가드, 강화권/엠블럼/골드/칭호 지급) · `renderS2Pass`/`switchS2Pass`/`doClaimPass`(라우터 `renderAchievementsOrPass` S2 분기). 데이터 `passNormal_s2`/`passCustom_s2{claimed}`·`passGold_s2`(합산)·`passTitle_s2`. 탭배지 `_isS2PassClaimable`. CSS `.s2p-*`
+- **비밀퀘 토큰 S2 OFF**: 상점 필터 + `_maybeShowSecretQuestModal` early return
+- **보상트랙**: SEASON2.md §4-2 초안 그대로 확정. 10강 칭호 "마법공학 견습"(일반)/"내전의 지배자"(내전)
+
+#### ⏳ 다음 작업 (다른 컴퓨터에서 이어서)
+- **일반게임 패스 적립 연결**: 브릿지 `isCustomGame` 분리(SEASON2.md §4-3) 후, 일반 eog 수신 시 `normalGamePts_s2` 적립 핸들러 추가. 현재 `__addNormalPassPts(n)` 디버그 훅만 있음
+- **switchSeason S2 버튼 / S1 읽기전용 재라우팅**: 6/11 임박 시 (SEASON2.md §5)
+- **6/11 확인**: 증바람 일반 queueId, 일반게임 augment 공개 match-v5 여부
 
 ### v2.43.265~272 (2026-06-03) — 출석 버그 긴급 수정 + 브릿지 재연결 패치 + 기록 필터
 

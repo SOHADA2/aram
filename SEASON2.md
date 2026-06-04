@@ -39,8 +39,14 @@
 - 전적색 정제(v282~283): `--green/red/blue` remap → 승=골드(#e8c860)·패=회색(#9a8f88)·중립=화이트(#cfd2da). W/L점·우편함 골드(mbGlowGold). "색 변종 최소화, 골드만 도드라지게".
 - 목업파일 `시즌2-헥스텍-목업.html`/`막고라-레드헥스텍-목업.html`은 gitignore 로컬전용(실제 테마는 index.html에 있음, previewSeason(2)로 확인).
 
-## 4. 🎮 S2 신규 콘텐츠 — "마법공학 엠블럼 강화" (기획, 구현 대기)
+## 4. 🎮 S2 신규 콘텐츠 — "마법공학 엠블럼 강화 + 패스 재편" (✅ v2.44.0~1 구현 완료 / 일반패스 브릿지 적립만 대기)
 **루프**: 일반 증바람 플레이 → 퀘스트(브릿지 검증) → 강화재화 → 엠블럼 강화 → 효과/추격. 골드·재화 싱크로 챌린저 골드고임 해결.
+
+> **✅ 구현 완료 (v2.44.0 엠블럼 · v2.44.1 패스). 전부 `CURRENT_SEASON===2` 게이트라 라이브 S1 무영향. `previewSeason(2)`로만 검증.**
+> - **엠블럼 (index.html, ~L7269 블록)**: 상수/헬퍼/강화코어 `EMBLEM_TICKETS`·`emblemEnhance`·`emblemSellPrice`·`emblemEffects`. 모달 `openEmblemModal`/`renderEmblemBody`(5칸 시각화·구매·판매), 연출 `_emblemPlayFx`(차징→성공/실패). 효과연결: 출석 `doAttendance`(`emblemAttendBonus`) · 복권 A안 `_applyEmblemLotteryBoost`(꽝→본전, 4지점: 헬퍼+유료경로+onComplete+모달) · 광채 `emblemShineHtml`/`emblemGlowMeta`(랭킹 hero/mini·프로필 pm-s1-name·대기화면 배지). 데이터: `emblem_s2{slots:[{t,ok}],createdAt}` · `emblemTickets_s2{stable,precise,overload}` · `emblemSellG_s2`(판매환급, `calcPlayerGoldEarned` 합산).
+> - **패스 (index.html, 엠블럼 블록 뒤)**: `PASS_META`·`PASS_TRACKS`(보상)·`PASS_PT_PER_LEVEL=200`·`PASS_MAX_LEVEL=10`. `calcCustomPassPts`(내전=매치순회 자동) · `calcNormalPassPts`(일반=`normalGamePts_s2` 누적) · `claimPassLevel` · UI `renderS2Pass`/`switchS2Pass`/`doClaimPass`(라우터 `renderAchievementsOrPass`에 S2 분기). 데이터: `passNormal_s2`/`passCustom_s2{claimed:{lv:true}}` · `normalGamePts_s2` · `passGold_s2`(합산) · `passTitle_s2`. 비밀퀘 토큰 S2 OFF(상점 필터+`_maybeShowSecretQuestModal` early return).
+> - **검증 콘솔**: `previewSeason(2)` → 상점 "🔷 마법공학 엠블럼" 카드 / 🎫 패스 탭. `__emblemDiag()`, `emblemBuyTicket('overload',5)`, `__addNormalPassPts(450)`(일반패스 포인트 테스트), `previewSeasonOff()`.
+> - **⏳ 유일한 미연결**: 일반게임 패스 포인트 적립 = 브릿지 `isCustomGame` 분리(§4-3) 후 `normalGamePts_s2`에 적립해야 채워짐. 내전 패스는 이미 자동(매치 순회).
 
 ### 4-1. 엠블럼 강화 (메이플 주문서식, 수치 확정)
 - 엠블럼 1개(단일장비, 구매/판매 가능). **슬롯=5**(강화가능수치): 성공/실패 무관 시도마다 1차감, 성공=레벨+1·실패=레벨유지(슬롯만 날림), 5칸 다쓰면 LOCK. 최종레벨=성공횟수. **5칸 시각화**(어떤 강화권 성공/실패).
@@ -51,13 +57,13 @@
 - **상점가(제안)**: 베이스 엠블럼 150G · 안정 40 · 정밀 100 · 과부하 250G.
 - **비용감**: 안정路 +5 확정 350G(성능5). 올과부하 +5 = ~57만G·1/411(0.3^5, 성능30 프리즈매틱). 정밀주력+과부하혼합이 더 효율적.
 - **효과 min~max 표 (5강)**: +1 성능1~6 / +2 2~12 / +3 3~18 / +4 4~24 / +5 5~30. (min=전부안정, max=전부과부하)
-- **판매**: 강화 엠블럼 판매 → 골드 환급(성능 높을수록↑) [공식 미정].
+- **판매 (✅ 확정 공식 `emblemSellPrice`)**: 베이스150×0.5 + 투입강화권가합×0.35 + 성능²×2. 보편 강화(안정·정밀) 환급률 **~56~63%(들인 돈의 ~60%)**, 과부하도배 42%. 흑자확률 거의0 — 저강화 확정이익은 인플레라 금지(안정 100%면 무한 골드머신), 운좋아 고성능이면 흑자(도박성·OK). 200만회 몬테카를로 검증.
 
 ### 4-2. 패스 재편 (확정)
 - 🤫 **비밀퀘스트 토큰 → 제거**(S2 UI 게이트 OFF). 잃는것: 패배 LP완화 안전망(수용).
 - 🎫 **패스: 전투/지원 → 게임타입별 2종**(둘다 무료): **일반게임 패스**(증바람→강화권·엠블럼·소량골드=성장) + **내전게임 패스**(내전→골드·칭호/코스메틱·소량강화권=경쟁). 역할분리: 내전=경쟁, 일반=성장.
 - 각 **10레벨, 레벨당 200p**. 포인트: 일반=증바람1판+10p/승+5p/일일퀘+20~40p · 내전=1판+15p/승+10p/MVP·매너+10p.
-- **보상트랙 초안(미확정)**:
+- **보상트랙 (✅ 확정 — `PASS_TRACKS`)**:
   - 일반게임: 1안정×2·2골드100·3안정×3·4정밀×1·**5베이스엠블럼×1**·6정밀×2·7골드200·8과부하×1·9정밀×3·10과부하×2+칭호"마법공학 견습".
   - 내전게임: 1골드100·2안정×2·3골드150·4정밀×1·5골드300+안정×3·6골드200·7정밀×2·8골드300·9과부하×1·10골드500+칭호"내전의 지배자".
   - 완주합산: 일반=안정5/정밀6/과부하3+엠블럼1+골드300 · 내전=골드~1550+안정5/정밀3/과부하1. 두 패스 완주해도 과부하 총4장 → 만렙 엠블럼(57만G상당) 여전히 멀어 추격 유지.
@@ -70,5 +76,6 @@
 ## 5. ⏭️ 남은 작업 + 미정
 - **switchSeason S2 버튼**: 현재 S0/S1만. 6/11 임박 시 추가(누르면 전원 즉시 S2 — 신중). 그 전엔 previewSeason(2)로만.
 - **S1 읽기전용 열람 재라우팅**: sField/season1Data가 CURRENT_SEASON 전역 → S2 중 viewSeason=1로 S1 LP랭킹/컬렉션 보려면 읽기 경로가 viewSeason 타게 손봐야.
-- **엠블럼/패스 구현**: 데이터스키마·UI·강화연출·판매가공식·일일퀘 항목·보상량 최종 튜닝.
+- **~~엠블럼/패스 구현~~ ✅ 완료 (v2.44.0~1, §4 상단 박스 참조)**. 남은 튜닝: 보상량/일일퀘 항목은 실제 S2 플레이 데이터 보고 조정.
+- **일반게임 패스 적립 연결**: 브릿지 `isCustomGame` 분리(§4-3) 완료 후, 일반게임 eog 수신 시 `normalGamePts_s2`에 적립(1판+10·승+5)하는 핸들러 추가. 현재는 `__addNormalPassPts` 디버그 훅만.
 - **6/11 확인**: 증바람 일반 queueId, 일반게임 augment가 공개 match-v5에도 오는지(현재 augment는 브릿지 LCU에서만 받음).
