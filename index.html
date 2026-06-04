@@ -5083,7 +5083,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.275';
+const APP_VERSION = 'v2.43.276';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5093,6 +5093,9 @@ const APP_VERSION = 'v2.43.275';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
   // ⚠️ 팀원용 "주요 업데이트"는 CHANGELOG_MAJOR(아래 별도 배열)에만 큰 기능을 추가. 여기는 상세 개발 로그.
+  { ver: 'v2.43.276', date: '2026-06-04', changes: [
+    { tag: 'fix', text: '🩹 [시즌2 준비 1c] 복권 골드 시즌 누수 차단 — calcLotteryGold가 시즌 무관 공유배열 lotteryHistory(전 시즌 당첨금)를 합산하면서 차감하는 롤백 필드만 sField(_s2)였던 비대칭 버그. S2 전환 시 S1 복권 당첨금이 S2 earned 골드로 새어들 수 있었음(누수 감사 워크플로우로 발견). 복권 항목에 season 태그 추가 + calcLotteryGold에서 (season ?? 1)===CURRENT_SEASON 필터(복권은 S1 전용이라 레거시 무태그=S1). S1 동작 동일(무회귀), S2는 S2 당첨금만 계산.' },
+  ] },
   { ver: 'v2.43.275', date: '2026-06-04', changes: [
     { tag: 'improve', text: '🧹 [시즌2 준비 1b] season1/ 노드 경로(LP·티어·마일스톤)를 seasonNode() 헬퍼로 전환. LP/티어 구독(season1/players)과 마일스톤 리스너(season1/milestones)를 재구독 가능한 함수로 감싸고, config/currentSeason 전환 시 새 시즌 노드로 자동 재구독 → S2 토글 시 season2/players·season2/milestones로 깔끔하게 분리(LP/티어/첫 챌린저 기록 리셋). 현재 S1에선 seasonNode("players")==="season1/players" 라 동작 100% 동일(무회귀). 이로써 작업1(누수 차단) 완료 — 남은 작업: S1 읽기전용 열람(viewSeason 데이터 재라우팅), 토글 테스트' },
   ] },
@@ -16953,7 +16956,9 @@ function calcAchievementGold(claimed) {
 }
 function calcLotteryGold(data) {
   if (!data?.lotteryHistory) return 0;
-  const raw = data.lotteryHistory.reduce((sum, h) => sum + (h.gold || 0), 0);
+  // 복권은 S1 전용 기능이라 무태그 레거시 항목은 S1로 간주(season ?? 1). 시즌 골드 격리:
+  // 현재 시즌 항목만 합산해야 S2에서 S1 당첨금이 누수되지 않음(롤백 필드는 이미 sField로 _s2).
+  const raw = data.lotteryHistory.reduce((sum, h) => sum + (((h.season ?? 1) === CURRENT_SEASON) ? (h.gold || 0) : 0), 0);
   // v2.43.142~ 일반 복권 밸런스 조정 소급: 구 당첨금 회수분 차감
   const rollback = data[sField('lotteryNormalRollbackG')] || 0;
   // v2.43.149~ 정식 오픈(5/28) 후 전 티어 롤백: 구매비+당첨금 전액 환불 net 조정값.
@@ -21005,7 +21010,7 @@ async function _buyItemImpl(itemId) {
         const lotteryHistory = [...(latestData?.lotteryHistory || []), {
           ts: Date.now(), date: getLocalDateKey(), scratch: true, free: true,
           tierIdx: tierDef.idx, win: result.win?.id ?? null,
-          gold: winGold - skullPenalty,
+          gold: winGold - skullPenalty, season: CURRENT_SEASON,
         }];
         await update(ref(db,'gold/'+key), { lotteryHistory });
       };
@@ -21028,7 +21033,7 @@ async function _buyItemImpl(itemId) {
       const lotteryHistory = [...(latestData?.lotteryHistory || []), {
         ts: Date.now(), date: getLocalDateKey(), scratch: true,
         tierIdx: tierDef.idx, win: result.win?.id ?? null,
-        gold: winGold - skullPenalty,
+        gold: winGold - skullPenalty, season: CURRENT_SEASON,
       }];
       await update(ref(db,'gold/'+key), { lotteryHistory });
     };
@@ -21051,7 +21056,7 @@ async function _buyItemImpl(itemId) {
     const newGoldSpent = (data[spentKey] ?? 0) + item.price;
     const lotteryHistory = [...(data.lotteryHistory || []), {
       ts: Date.now(), date: today, scratch: true,
-      win: result.win ? result.win.id : null, gold: winGold,
+      win: result.win ? result.win.id : null, gold: winGold, season: CURRENT_SEASON,
     }];
     await update(ref(db,'gold/'+key), { [spentKey]: newGoldSpent, lotteryHistory });
     showScratchModal(result, currentGold - item.price + winGold, { tierDef: SCRATCH_TIERS[0] });
@@ -21076,6 +21081,7 @@ async function _buyItemImpl(itemId) {
       name: result.name,
       gold: result.gold,
       premium: true,
+      season: CURRENT_SEASON,
     }];
     await update(ref(db,'gold/'+key), {
       [spentKey]: newGoldSpent,
