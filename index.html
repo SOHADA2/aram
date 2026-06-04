@@ -5006,6 +5006,9 @@ let magollaMatches = {};  // Firebase /magolla_matches 전체 캐시
 // 시즌별 Firebase 필드명 (season 0은 기존 필드명 유지, 이후부터 _s1, _s2 ...)
 function seasonSuffix(s) { return s === 0 ? '' : '_s' + s; }
 function sField(field) { return field + seasonSuffix(CURRENT_SEASON); }
+// 시즌별 Firebase 노드 경로 (LP/티어·마일스톤). season1/players, season2/players …
+// ⚠️ CURRENT_SEASON 전역 기준 — 시즌 전환 시 구독 재설정 필요(subscribeSeasonPlayers)
+function seasonNode(sub) { return 'season' + (CURRENT_SEASON || 0) + '/' + sub; }
 // 헤더 부제 "⚙️ SEASON N" — 시즌 전환 시 갱신
 function renderHeaderSeasonLabel() {
   const el = document.getElementById('header-season-label');
@@ -5080,7 +5083,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.274';
+const APP_VERSION = 'v2.43.275';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5090,6 +5093,9 @@ const APP_VERSION = 'v2.43.274';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
   // ⚠️ 팀원용 "주요 업데이트"는 CHANGELOG_MAJOR(아래 별도 배열)에만 큰 기능을 추가. 여기는 상세 개발 로그.
+  { ver: 'v2.43.275', date: '2026-06-04', changes: [
+    { tag: 'improve', text: '🧹 [시즌2 준비 1b] season1/ 노드 경로(LP·티어·마일스톤)를 seasonNode() 헬퍼로 전환. LP/티어 구독(season1/players)과 마일스톤 리스너(season1/milestones)를 재구독 가능한 함수로 감싸고, config/currentSeason 전환 시 새 시즌 노드로 자동 재구독 → S2 토글 시 season2/players·season2/milestones로 깔끔하게 분리(LP/티어/첫 챌린저 기록 리셋). 현재 S1에선 seasonNode("players")==="season1/players" 라 동작 100% 동일(무회귀). 이로써 작업1(누수 차단) 완료 — 남은 작업: S1 읽기전용 열람(viewSeason 데이터 재라우팅), 토글 테스트' },
+  ] },
   { ver: 'v2.43.274', date: '2026-06-04', changes: [
     { tag: 'improve', text: '🧹 [시즌2 준비 1a] gold 노드의 _s1 하드코딩 ~140곳을 전부 sField() 라우팅으로 전환 — champCards/champCardLog/gachaSpent/gachaLog/secretYuumi/seasonPass·battlePass·supportPass 관련/trashGold·trashFree·trashFrenzyEgg·trashMaster/yuumiForage/복권롤백/resellGold/purchaseLog/magollaHistory/witnessGold/goldBonus. 시즌 전환 시 옛 시즌 데이터를 잘못 읽던 누수 차단(S0→S1 때 문제 재발 방지). 현재 S1에선 sField(X)===X_s1 이라 동작 100% 동일(무회귀). 다음 1b: season1/ 노드 경로(LP/티어) seasonNode 처리' },
   ] },
@@ -7542,6 +7548,9 @@ onValue(ref(db, 'config/currentSeason'), (snapshot) => {
   const val = snapshot.val();
   CURRENT_SEASON = (val !== null && val !== undefined) ? Number(val) : 0;
   localStorage.setItem('aram_season', String(CURRENT_SEASON));
+  // 시즌이 바뀌었으면 LP/티어·마일스톤 구독을 새 시즌 노드로 재설정 (season1/* → season2/*)
+  if (_seasonPlayersSubSeason !== CURRENT_SEASON) subscribeSeasonPlayers();
+  if (typeof subscribeMilestones === 'function' && _milestoneSubSeason !== CURRENT_SEASON) subscribeMilestones();
   viewSeason = CURRENT_SEASON;
   rankViewSeason = CURRENT_SEASON;
   if (!seasonLoaded) { seasonLoaded = true; renderAllWhenReady(); }
@@ -7696,12 +7705,20 @@ function _renderPromoBanner({ name, type, fromTier, toTier, isMe }) {
   }
 };
 
-onValue(ref(db, 'season1/players'), (snapshot) => {
-  season1Data  = snapshot.val() || {};
-  s1DataLoaded = true;
-  if (CURRENT_SEASON >= 1) { renderRanking(); updateMemberModeDisplay(); renderSessionPlayers(); }
-  _detectAllS1Changes();
-});
+// 현재 시즌 LP/티어 데이터 구독 — 시즌 전환 시 재구독(아래 config/currentSeason 핸들러)
+let _seasonPlayersUnsub = null;
+let _seasonPlayersSubSeason = null; // 현재 구독 중인 시즌 번호
+function subscribeSeasonPlayers() {
+  if (_seasonPlayersUnsub) { try { _seasonPlayersUnsub(); } catch(_){} }
+  _seasonPlayersSubSeason = CURRENT_SEASON;
+  _seasonPlayersUnsub = onValue(ref(db, seasonNode('players')), (snapshot) => {
+    season1Data  = snapshot.val() || {};
+    s1DataLoaded = true;
+    if (CURRENT_SEASON >= 1) { renderRanking(); updateMemberModeDisplay(); renderSessionPlayers(); }
+    _detectAllS1Changes();
+  });
+}
+subscribeSeasonPlayers();
 
 // Riot API 호출 헬퍼 — Worker 설정 시 프록시 경유, 없으면 직접 호출(CORS 실패 가능)
 function riotFetch(region, path) {
@@ -9703,7 +9720,7 @@ window.s1Resimulate = async function(dryRun = false) {
 
   // Firebase 덮어쓰기
   const updates = {};
-  Object.entries(state).forEach(([key, d]) => { updates[`season1/players/${key}`] = d; });
+  Object.entries(state).forEach(([key, d]) => { updates[seasonNode('players/'+key)] = d; });
   await fbUpdate(dbRef(db,'/'), updates);
   console.log(`\n✅ ${Object.keys(state).length}명 LP 재시뮬레이션 완료 → Firebase 반영됨`);
   return state;
@@ -21931,7 +21948,7 @@ function s1GetPlayer(name) {
   return season1Data[normName(name)] || null;
 }
 async function s1SavePlayer(name, data) {
-  await set(ref(db, `season1/players/${normName(name)}`), data);
+  await set(ref(db, seasonNode('players/'+normName(name))), data);
 }
 
 // ── 배치고사 결과 계산 ──────────────────────────────────────────
@@ -22291,7 +22308,7 @@ const TIER_GOLD_SUFFIX = {
 
 async function s1TriggerMilestone(tier, participants, achieverName) {
   const key = tier.charAt(0).toUpperCase() + tier.slice(1);
-  const path = `season1/milestones/first${key}`;
+  const path = seasonNode('milestones/first'+key);
   const snap = await get(ref(db, path));
   if (snap.exists()) return;
   await set(ref(db, path), { achievedBy: achieverName, participants: participants.map(p => p), at: Date.now(), tier });
@@ -22305,9 +22322,12 @@ async function s1TriggerMilestone(tier, participants, achieverName) {
 
 const _milestoneShownAt = { master:0, grandmaster:0, challenger:0 };
 
+const _milestoneUnsubs = {};
+let _milestoneSubSeason = null;
 function registerMilestoneListener(tier) {
   const key = tier.charAt(0).toUpperCase() + tier.slice(1);
-  onValue(ref(db, `season1/milestones/first${key}`), snapshot => {
+  if (_milestoneUnsubs[tier]) { try { _milestoneUnsubs[tier](); } catch(_){} }
+  _milestoneUnsubs[tier] = onValue(ref(db, seasonNode('milestones/first'+key)), snapshot => {
     const data = snapshot.val();
     if (!data) return;
     if (_milestoneShownAt[tier] === data.at) return;
@@ -22317,9 +22337,12 @@ function registerMilestoneListener(tier) {
     }
   });
 }
-registerMilestoneListener('master');
-registerMilestoneListener('grandmaster');
-registerMilestoneListener('challenger');
+// 시즌 전환 시 재구독(season1/milestones → season2/milestones) — config/currentSeason 핸들러에서 호출
+function subscribeMilestones() {
+  _milestoneSubSeason = CURRENT_SEASON;
+  ['master','grandmaster','challenger'].forEach(registerMilestoneListener);
+}
+subscribeMilestones();
 
 // 콘솔에서 수동 실행용 (type="module" 스코프 우회)
 // 승급전 아이템 사용 여부 진단 (콘솔용)
@@ -22365,14 +22388,14 @@ window.fixMilestone = async function(tier = 'master') {
   const achiever = participants.find(p => season1Data[normName(p)]?.tier === tier);
   if (!achiever) { console.error('달성자 없음:', participants.map(p=>({name:p,tier:season1Data[normName(p)]?.tier}))); return; }
   const key = tier.charAt(0).toUpperCase() + tier.slice(1);
-  const snap = await get(ref(db, `season1/milestones/first${key}`));
+  const snap = await get(ref(db, seasonNode('milestones/first'+key)));
   if (!snap.exists()) {
     await s1TriggerMilestone(tier, participants, achiever);
     console.log('✅ 골드 지급+기록 완료:', achiever, participants);
   } else {
     console.log('이미 기록됨, 팝업만 표시');
   }
-  const snap2 = await get(ref(db, `season1/milestones/first${key}`));
+  const snap2 = await get(ref(db, seasonNode('milestones/first'+key)));
   showMilestonePopup(snap2.val(), tier);
 };
 
