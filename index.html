@@ -5447,7 +5447,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.3';
+const APP_VERSION = 'v2.44.4';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5457,6 +5457,9 @@ const APP_VERSION = 'v2.44.3';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
   // ⚠️ 팀원용 "주요 업데이트"는 CHANGELOG_MAJOR(아래 별도 배열)에만 큰 기능을 추가. 여기는 상세 개발 로그.
+  { ver: 'v2.44.4', date: '2026-06-04', changes: [
+    { tag: 'fix', text: '🔷🎫 [시즌2] 엠블럼/패스 코드 리뷰 수정 3종 — (1) 패스 칭호(passTitle_s2)가 저장만 되고 어디에도 안 보이던 것 → 프로필에 골드 칭호 배지 표시. (2) 패스 LV5 엠블럼 보상을 이미 엠블럼 보유 중에 수령하면 보상이 증발하던 것 → 베이스가 150G 환급으로 대체. (3) 강화 연출 중 Firebase 갱신이 결과를 미리 노출하던 스포일러 → 연출(_emblemFxBusy) 중에는 모달 재렌더 스킵. 전부 season===2 게이트라 라이브 무영향' },
+  ] },
   { ver: 'v2.44.3', date: '2026-06-04', changes: [
     { tag: 'new', text: '🎫 [시즌2] 패스 재편 — 전투/지원 패스 → 게임타입별 2종(둘다 무료): 🎮 일반게임 패스(증바람→강화권·엠블럼·골드, 성장) + ⚔️ 내전게임 패스(내전→골드·강화권·칭호, 경쟁). 각 10레벨·레벨당 200p. 포인트: 내전=1판+15·승+10·MVP/매너+10(매치 순회 자동계산) / 일반=1판+10·승+5·일일퀘(브릿지 연결 시 적립, 6/11). 보상=강화권/베이스엠블럼/골드/칭호("마법공학 견습"·"내전의 지배자"). 패스 탭(🎫)에 2종 탭+레벨 트랙+진행바+수령 버튼. 🤫 비밀 퀘스트 토큰은 S2 제거(상점 숨김+모달 비활성). passGold_s2 역계산. 전부 CURRENT_SEASON===2 게이트라 라이브 S1 무영향' },
   ] },
@@ -7572,6 +7575,15 @@ function emblemShineHtml(name, withTitle){
 }
 window.emblemGlowMeta = emblemGlowMeta;
 window.emblemShineHtml = emblemShineHtml;
+// 🏷️ 패스 칭호 — 이름으로 passTitle_s2 조회 → 골드 배지 (시즌2 전용, emblemShineHtml 옆에 표시)
+function s2TitleHtml(name){
+  if (CURRENT_SEASON !== 2 || !name) return '';
+  let d = null;
+  for (const k in goldData){ if (goldData[k] && normName(goldData[k].name) === normName(name)) { d = goldData[k]; break; } }
+  const t = d?.[sField('passTitle')];
+  return t ? `<span class="em-title" style="background:linear-gradient(90deg,#ffd24a,#e0a52e);" title="시즌2 패스 칭호">${escHtml(t)}</span>` : '';
+}
+window.s2TitleHtml = s2TitleHtml;
 
 // ════════════════════════════════════════════════════════════════
 // ████  시즌2 패스 재편 (v2.44.1~, 기획=SEASON2.md §4-2)  ████████████
@@ -7661,10 +7673,14 @@ async function claimPassLevel(passType, level){
   updates[node] = { ...(data[node]||{}), claimed };
   if (reward.gold)    { const gk=sField('passGold'); updates[gk] = (data[gk] ?? 0) + reward.gold; }
   if (reward.tickets) { const tk=getEmblemTickets(data); for (const t in reward.tickets) tk[t]=(tk[t]||0)+reward.tickets[t]; updates[emblemTicketsField()] = tk; }
-  if (reward.emblem)  { if (!getEmblem(data)) updates[emblemField()] = { slots:[], createdAt: Date.now() }; }
+  const alreadyHadEmblem = !!(reward.emblem && getEmblem(data));
+  if (reward.emblem)  {
+    if (!alreadyHadEmblem) updates[emblemField()] = { slots:[], createdAt: Date.now() };
+    else { const gk=sField('passGold'); updates[gk] = (updates[gk] ?? data[gk] ?? 0) + EMBLEM_BASE_PRICE; } // 이미 보유 → 베이스가 150G 환급 (보상 증발 방지)
+  }
   if (reward.title)   { updates[sField('passTitle')] = reward.title; }
   await update(ref(db,'gold/'+key), updates);
-  return { passType, level, reward, alreadyHadEmblem: !!(reward.emblem && getEmblem(data)) };
+  return { passType, level, reward, alreadyHadEmblem };
 }
 window.claimPassLevel = claimPassLevel;
 window.calcCustomPassPts = calcCustomPassPts;
@@ -7753,7 +7769,7 @@ window.doClaimPass = async function(pv, lv){
   const parts = [];
   if (r.reward.gold) parts.push(`🪙 ${r.reward.gold}G`);
   if (r.reward.tickets) for (const t in r.reward.tickets) parts.push(`${_PASS_TICKET_IC[t]}×${r.reward.tickets[t]}`);
-  if (r.reward.emblem) parts.push('🔷 엠블럼');
+  if (r.reward.emblem) parts.push(r.alreadyHadEmblem ? '🔷 150G 환급(엠블럼 보유 중)' : '🔷 엠블럼');
   if (r.reward.title) parts.push(`🏷️ "${r.reward.title}"`);
   showS1Toast(`🎫 LV${lv} 보상 수령! ${parts.join(' · ')}`);
   try { _gSfx.reveal(2); } catch(_){}
@@ -8679,7 +8695,8 @@ onValue(ref(db, 'gold'), (snapshot) => {
     try { window.openLotteryHub(); } catch(_){}
   }
   // 열려있는 엠블럼 모달 잔액·상태 실시간 갱신 (강화/구매/판매 후 반영, v2.44.0)
-  if (document.getElementById('emblem-overlay') && typeof renderEmblemBody === 'function') {
+  // 단, 강화 연출(_emblemFxBusy) 중에는 스킵 — onValue가 FX 끝나기 전 결과를 미리 노출하는 스포일러 방지 (v2.44.3 리뷰)
+  if (document.getElementById('emblem-overlay') && typeof renderEmblemBody === 'function' && !_emblemFxBusy) {
     try { renderEmblemBody(); } catch(_){}
   }
   if (playersLoaded && matchesLoaded) seedGoldForAllPlayers();
@@ -14876,7 +14893,7 @@ async function _openS1ProfileModal(fbKey, player) {
       <div class="pm-s1-header">
         <div class="pm-s1-avatar ${avatarCls}" style="border-color:${tc};">${avatarContent}</div>
         <div class="pm-s1-info">
-          <div class="pm-s1-name">${nameHtml(name)}${emblemShineHtml(name, true)}${player.isNewbie ? ' <span class="newbie-badge">🌱</span>' : ''}</div>
+          <div class="pm-s1-name">${nameHtml(name)}${emblemShineHtml(name, true)}${s2TitleHtml(name)}${player.isNewbie ? ' <span class="newbie-badge">🌱</span>' : ''}</div>
           <div class="pm-s1-meta">${s1TierBadgeHtml(s1d.tier, 'mid')}${posIcons}</div>
         </div>
         <div class="pm-s1-actions">
@@ -21968,6 +21985,7 @@ async function _buyItemImpl(itemId) {
       ft[tierDef.idx] = Math.max(0, (ft[tierDef.idx] || 0) - 1);
       await update(ref(db,'gold/'+key), { [sField('freeScratch')]: ft });
       const result = rollScratch(tierDef.idx);
+      // 무료권은 구매비 0이라 "본전 환급" 개념이 없음 → 엠블럼 복권 부스트 미적용 (의도, v2.44.3 리뷰)
       const onComplete = async ({ winGold, skullPenalty }) => {
         const latestData = getMyGoldData();
         const lotteryHistory = [...(latestData?.lotteryHistory || []), {
