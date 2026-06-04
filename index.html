@@ -4999,7 +4999,14 @@ const TIERS = {
 };
 
 // ── SEASON ────────────────────────────────────────────────────
-let CURRENT_SEASON = parseInt(localStorage.getItem('aram_season') || '0', 10); // Firebase 로드 전 캐시값으로 초기화
+// 🧪 개발용 로컬 시즌 미리보기 오버라이드 (이 브라우저에서만 적용, 라이브 config 무관)
+//   콘솔에서 previewSeason(2) 로 켜고 previewSeasonOff() 로 끔. 절대 Firebase에 쓰지 않음.
+//   미리보기 중에는 자동 데이터 마이그레이션/보정 쓰기를 차단(__SEASON_PREVIEW 가드)해 S2 데이터가 실수로 생기지 않게 함.
+function _seasonPreviewOverride() {
+  try { const v = localStorage.getItem('aram_season_preview'); return (v === null || v === '') ? null : Number(v); } catch (_) { return null; }
+}
+window.__SEASON_PREVIEW = _seasonPreviewOverride() !== null;
+let CURRENT_SEASON = _seasonPreviewOverride() ?? parseInt(localStorage.getItem('aram_season') || '0', 10); // Firebase 로드 전 캐시값으로 초기화 (미리보기 오버라이드 우선)
 let viewSeason = 0;     // 현재 경기 기록 탭에서 보고 있는 시즌 (숫자=일반경기, 'magolla'=막고라)
 let _recordMineOnly = false; // 기록 탭 "내 경기만" 필터 (v2.43.272)
 let magollaMatches = {};  // Firebase /magolla_matches 전체 캐시
@@ -5083,7 +5090,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.276';
+const APP_VERSION = 'v2.43.277';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5093,6 +5100,9 @@ const APP_VERSION = 'v2.43.276';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
   // ⚠️ 팀원용 "주요 업데이트"는 CHANGELOG_MAJOR(아래 별도 배열)에만 큰 기능을 추가. 여기는 상세 개발 로그.
+  { ver: 'v2.43.277', date: '2026-06-04', changes: [
+    { tag: 'improve', text: '🧪 [시즌2 준비] 개발용 로컬 시즌 미리보기 도구 추가 — 콘솔 previewSeason(2)/previewSeasonOff(). 이 브라우저에서만 CURRENT_SEASON을 오버라이드해 S2 전환을 미리 확인(라이브 config·Firebase 데이터 안 건드림, 팀원 영향 0). config/currentSeason 핸들러가 오버라이드를 우선 적용해 라이브 값에 안 덮어쓰임. 미리보기 중 자동 마이그레이션/보정 쓰기(seedGoldForAllPlayers·migrateGoldBonusToLegacy·autoCompensateRelayV1)는 __SEASON_PREVIEW 가드로 차단, switchSeason도 미리보기 중 실제 전환 차단. 6/11 실제 오픈 전 안전 검증용.' },
+  ] },
   { ver: 'v2.43.276', date: '2026-06-04', changes: [
     { tag: 'fix', text: '🩹 [시즌2 준비 1c] 복권 골드 시즌 누수 차단 — calcLotteryGold가 시즌 무관 공유배열 lotteryHistory(전 시즌 당첨금)를 합산하면서 차감하는 롤백 필드만 sField(_s2)였던 비대칭 버그. S2 전환 시 S1 복권 당첨금이 S2 earned 골드로 새어들 수 있었음(누수 감사 워크플로우로 발견). 복권 항목에 season 태그 추가 + calcLotteryGold에서 (season ?? 1)===CURRENT_SEASON 필터(복권은 S1 전용이라 레거시 무태그=S1). S1 동작 동일(무회귀), S2는 S2 당첨금만 계산.' },
   ] },
@@ -7493,6 +7503,7 @@ function calcGoldSpentFromItems(items) {
 
 // 등록된 모든 플레이어를 gold/에 자동 시딩 + 구버전 데이터 마이그레이션
 async function seedGoldForAllPlayers() {
+  if (window.__SEASON_PREVIEW) return; // 🧪 미리보기 중 쓰기 차단
   const allNames = Object.values(registeredPlayers).map(p=>p.name);
   for (const name of allNames) {
     const entry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(name));
@@ -7549,8 +7560,11 @@ onValue(ref(db, 'config/riotWorkerUrl'), (snapshot) => {
 });
 onValue(ref(db, 'config/currentSeason'), (snapshot) => {
   const val = snapshot.val();
-  CURRENT_SEASON = (val !== null && val !== undefined) ? Number(val) : 0;
-  localStorage.setItem('aram_season', String(CURRENT_SEASON));
+  const liveSeason = (val !== null && val !== undefined) ? Number(val) : 0;
+  // 🧪 로컬 미리보기 오버라이드가 켜져 있으면 라이브 config 값으로 덮어쓰지 않음
+  const _ovr = _seasonPreviewOverride();
+  CURRENT_SEASON = _ovr ?? liveSeason;
+  localStorage.setItem('aram_season', String(liveSeason)); // 캐시는 항상 진짜 라이브 값으로 유지
   // 시즌이 바뀌었으면 LP/티어·마일스톤 구독을 새 시즌 노드로 재설정 (season1/* → season2/*)
   if (_seasonPlayersSubSeason !== CURRENT_SEASON) subscribeSeasonPlayers();
   if (typeof subscribeMilestones === 'function' && _milestoneSubSeason !== CURRENT_SEASON) subscribeMilestones();
@@ -9378,6 +9392,7 @@ window.showSpectatorPickModal = function showSpectatorPickModal(seconds = 15) {
 // 기존 goldBonus(출석 누적합)를 goldBonusLegacy로 이름 바꾸고 attendanceHistory 방식으로 전환
 // 자동 실행: 앱 로드 시 goldBonus가 있고 goldBonusLegacy가 없는 항목에만 적용
 async function migrateGoldBonusToLegacy() {
+  if (window.__SEASON_PREVIEW) return; // 🧪 미리보기 중 쓰기 차단
   const seasons = [0, 1];
   for (const [key, data] of Object.entries(goldData)) {
     const updates = {};
@@ -17341,6 +17356,7 @@ async function autoFixRelayShrink() {
 
 let _relayCompV1Done = false;
 async function autoCompensateRelayV1() {
+  if (window.__SEASON_PREVIEW) return; // 🧪 미리보기 중 쓰기 차단
   if (_relayCompV1Done || !myName) return;
   const key = getMyGoldKey();
   if (!key) return;
@@ -21925,10 +21941,28 @@ function renderSeasonAdmin() {
 }
 
 window.switchSeason = async function(s) {
+  if (window.__SEASON_PREVIEW) { alert('🧪 미리보기 모드 중에는 실제 전환을 막습니다. 먼저 previewSeasonOff() 로 미리보기를 끄세요.'); return; }
   if (s === CURRENT_SEASON) return;
   const label = s === 0 ? '시즌 0 (기존)' : '시즌 1 (신규 LP 시스템)';
   if (!confirm(`${label}으로 전환할까요?\n\n전환 즉시 모든 디바이스에 반영됩니다.`)) return;
   await set(ref(db, 'config/currentSeason'), s);
+};
+
+// 🧪 개발용 로컬 시즌 미리보기 (이 브라우저만, 라이브 config·Firebase 데이터 안 건드림)
+//   previewSeason(2) → 새로고침하며 S2로 미리보기. previewSeasonOff() → 라이브 시즌 복귀.
+//   미리보기 중 자동 마이그레이션/보정 쓰기는 __SEASON_PREVIEW 가드로 차단됨.
+//   ⚠️ 미리보기 중 출석/경기/구매 등 "쓰기" 동작은 하지 말 것(실수로 S2 데이터 생성 방지). 열람 전용.
+window.previewSeason = function(n) {
+  if (n === undefined || n === null) { console.log('🧪 현재 미리보기 오버라이드:', _seasonPreviewOverride(), '/ 라이브 시즌:', localStorage.getItem('aram_season')); return; }
+  localStorage.setItem('aram_season_preview', String(n));
+  console.log(`🧪 시즌 ${n} 미리보기 ON (이 브라우저만). 라이브 config는 그대로 S${localStorage.getItem('aram_season')}. 새로고침합니다…`);
+  console.warn('⚠️ 미리보기 중 출석/경기/구매 등 쓰기 동작 금지(실수로 S2 데이터 생성 방지). 끄려면 previewSeasonOff()');
+  setTimeout(() => location.reload(), 700);
+};
+window.previewSeasonOff = function() {
+  localStorage.removeItem('aram_season_preview');
+  console.log('🧪 시즌 미리보기 OFF — 라이브 시즌으로 복귀. 새로고침합니다…');
+  setTimeout(() => location.reload(), 400);
 };
 
 // ═══════════════════════════════════════════════════════════════
