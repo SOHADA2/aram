@@ -168,6 +168,15 @@ body.season-2::after{
   animation:hexFlow linear infinite;
 }
 @keyframes hexFlow{ from{stroke-dashoffset:100;} to{stroke-dashoffset:0;} }
+/* 막고라 아레나(#magolla-modal) 내부 헥스 회로 — 레드. 모달 배경 위·컨텐츠 아래(z:0) */
+.mg-hexfield{position:fixed; inset:0; z-index:0; pointer-events:none; width:100%; height:100%;
+  -webkit-mask-image:radial-gradient(ellipse 115% 100% at 50% 30%, #000 60%, transparent 100%);
+  mask-image:radial-gradient(ellipse 115% 100% at 50% 30%, #000 60%, transparent 100%);}
+.mg-hexfield .hex-grid-path{fill:none; stroke:rgba(210,180,180,0.06); stroke-width:1;}
+.mg-hexfield .route-wire{fill:none; stroke:rgba(255,77,77,0.10); stroke-width:1.1;}
+.mg-hexfield .route-node{fill:rgba(255,77,77,0.20);}
+.mg-hexfield .route-pulse{fill:none; stroke:#ff5a4a; stroke-width:1.8; stroke-linecap:round;
+  stroke-dasharray:9 91; filter:drop-shadow(0 0 5px rgba(255,90,74,0.9)); animation:hexFlow linear infinite;}
 /* 컴포넌트 오버라이드 (.s1-active 대응 9종의 S2판) */
 .season-2 .logo-badge{
   border-color:rgba(240,192,96,0.45); color:var(--gold);
@@ -5163,13 +5172,9 @@ function renderHeaderSeasonLabel() {
   if (typeof renderSeasonBackground === 'function') renderSeasonBackground();
 }
 
-// ── 시즌2 헥스텍 배경 (육각 회로 + 흐르는 골드 펄스) 생성/제거 ──
-//   season===2 일 때만 SVG 회로 격자 주입. 펄스는 실제 육각 변(상단 지그재그)을 타고 흐름.
-function renderSeasonBackground() {
-  const existing = document.getElementById('season-hexfield');
-  if (CURRENT_SEASON !== 2) { if (existing) existing.remove(); return; }
-  if (existing) return; // 이미 생성됨
-  if (!document.body) return;
+// ── 헥스텍 배경 빌더 (육각 회로 + 육각 변 따라 랜덤워크 펄스) ──
+//   재사용: S2 본체 배경(골드) + 막고라 아레나(레드, .mg-hexfield 스코프로 색만 다름)
+function _buildHexfield(className, id) {
   const NS = 'http://www.w3.org/2000/svg';
   const VB_W = 900, VB_H = 1300;
   const R = 30, w = R * 0.8660254, dy = 1.5 * R, dx = 2 * w;
@@ -5177,11 +5182,10 @@ function renderSeasonBackground() {
   const V = (cx, cy) => ({ top:[cx,cy-R], ur:[cx+w,cy-R/2], lr:[cx+w,cy+R/2], bot:[cx,cy+R], ll:[cx-w,cy+R/2], ul:[cx-w,cy-R/2] });
   const cxcy = (i, j) => [ i*dx + ((j&1) ? w : 0), j*dy ];
   const svg = document.createElementNS(NS, 'svg');
-  svg.setAttribute('class', 'hexfield');
-  svg.id = 'season-hexfield';
+  svg.setAttribute('class', className); svg.id = id;
   svg.setAttribute('preserveAspectRatio', 'xMidYMid slice');
   svg.setAttribute('viewBox', `0 0 ${VB_W} ${VB_H}`);
-  // 1) 전체 육각 격자 (희미한 그레이) + 변(edge) 인접 그래프
+  // 1) 육각 격자 + 변(edge) 인접 그래프
   const kkey = p => Math.round(p[0]) + ',' + Math.round(p[1]);
   const coord = {}, adj = {};
   const addEdge = (a,b) => { const ka=kkey(a), kb=kkey(b); coord[ka]=a; coord[kb]=b;
@@ -5195,7 +5199,7 @@ function renderSeasonBackground() {
   const grid = document.createElementNS(NS,'path');
   grid.setAttribute('class','hex-grid-path'); grid.setAttribute('d', gridD);
   svg.appendChild(grid);
-  // 2) 에너지 펄스 — 육각 변을 따라 랜덤 워크(가로·세로·대각). 시작점은 화면 중앙으로 편향
+  // 2) 펄스 — 육각 변 따라 랜덤 워크(가로·세로·대각), 시작점 중앙 편향
   const cx0 = VB_W*0.5, cy0 = VB_H*0.32, rxv = VB_W*0.40, ryv = VB_H*0.40;
   const central = key => { const c=coord[key]; const nx=(c[0]-cx0)/rxv, ny=(c[1]-cy0)/ryv; return nx*nx+ny*ny <= 1; };
   const starts = Object.keys(adj).filter(central);
@@ -5212,7 +5216,7 @@ function renderSeasonBackground() {
   };
   if (starts.length){
     for (let n=0; n<8; n++){
-      const path = walk(6 + Math.floor(Math.random()*6)); // 6~11 스텝
+      const path = walk(6 + Math.floor(Math.random()*6));
       if (path.length < 3) continue;
       const d = 'M' + path.map(p=>p.join(',')).join('L');
       const wire = document.createElementNS(NS,'path'); wire.setAttribute('class','route-wire'); wire.setAttribute('d', d); svg.appendChild(wire);
@@ -5223,7 +5227,25 @@ function renderSeasonBackground() {
       path.forEach(p => { const c=document.createElementNS(NS,'circle'); c.setAttribute('class','route-node'); c.setAttribute('cx',p[0]); c.setAttribute('cy',p[1]); c.setAttribute('r','1.7'); svg.appendChild(c); });
     }
   }
-  document.body.insertBefore(svg, document.body.firstChild);
+  return svg;
+}
+
+// ── 시즌2 헥스텍 배경(본체) 생성/제거 — season===2 일 때만 ──
+function renderSeasonBackground() {
+  const existing = document.getElementById('season-hexfield');
+  if (CURRENT_SEASON !== 2) { if (existing) existing.remove(); return; }
+  if (existing || !document.body) return;
+  document.body.insertBefore(_buildHexfield('hexfield', 'season-hexfield'), document.body.firstChild);
+}
+
+// ── 막고라 아레나 헥스 배경(레드) — S2에서만, 모달 표시 시 주입 ──
+function ensureMagollaHexBg(modal) {
+  modal = modal || document.getElementById('magolla-modal');
+  if (!modal) return;
+  const existing = modal.querySelector('#magolla-hexfield');
+  if (CURRENT_SEASON !== 2) { if (existing) existing.remove(); return; }
+  if (existing) return;
+  modal.insertBefore(_buildHexfield('mg-hexfield', 'magolla-hexfield'), modal.firstChild);
 }
 
 // ── STATE ─────────────────────────────────────────────────────
@@ -5292,7 +5314,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.280';
+const APP_VERSION = 'v2.43.281';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5302,6 +5324,9 @@ const APP_VERSION = 'v2.43.280';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
   // ⚠️ 팀원용 "주요 업데이트"는 CHANGELOG_MAJOR(아래 별도 배열)에만 큰 기능을 추가. 여기는 상세 개발 로그.
+  { ver: 'v2.43.281', date: '2026-06-04', changes: [
+    { tag: 'improve', text: '🎨 [시즌2 준비] 막고라 아레나에 레드 헥스 회로 배경 — 헥스필드 생성기를 _buildHexfield()로 추출해 재사용. S2에서 막고라 매치 모달(#magolla-modal) 열 때 ensureMagollaHexBg()가 레드 육각 회로+펄스(.mg-hexfield)를 주입(모달 배경 위·컨텐츠 아래). 핏빛 글로우 위에 회로가 흐르며 S2(골드)와 완전히 같은 헥스텍 컨셉의 레드 버전 완성. S2에서만 발현(season===2)' },
+  ] },
   { ver: 'v2.43.280', date: '2026-06-04', changes: [
     { tag: 'improve', text: '🎨 [시즌2 준비] 시즌 정체성 스코핑 — S1 보라가 ~35개 컴포넌트(출석 릴레이판/모달, 베팅 증강버튼, 정산, 막고라 메타, HOF, 토스트 등)에 시즌 무관하게 하드코딩돼 있던 것을 .season-2 스코프로 덮음. S2 본체 = 골드, 막고라 = "S2와 동일 컨셉의 레드"(메타 UI 보라→레드, 아레나 핏빛 유지). 마일스톤 펄스도 골드(rlbPulseGold)로 스왑. 전부 .season-2 게이트라 라이브 S1은 1px도 안 변함 — previewSeason(2)로 확인' },
   ] },
@@ -23842,6 +23867,7 @@ function updateMaketeamsBtn() {
 async function openMagollaModal(existingMatchId) {
   const modal=document.getElementById('magolla-modal');
   if (!modal) return;
+  ensureMagollaHexBg(modal); // S2: 아레나에 레드 헥스 회로 배경 주입
   if (existingMatchId) {
     if (currentMagollaId===existingMatchId) { modal.style.display='block'; return; }
     currentMagollaId=existingMatchId; magollaState='active';
