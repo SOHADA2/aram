@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.44.3 (시즌2 엠블럼 강화 + 패스 재편 구현 완료 / 브릿지 aram-bridge v1.1.31 릴리즈 완료)
+- 현재 버전: v2.44.7 (시즌2 엠블럼=🔨오른 대장간 드래그 강화 재설계 + 패스 재편 구현 완료 / 브릿지 aram-bridge v1.1.31 릴리즈 완료)
 - ⚠️ **시즌2 작업 중** — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 필독 (진행상황·확정정책·신규콘텐츠 기획 전부 정리됨)
 
 ## 기술 스택
@@ -730,9 +730,18 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.44.0~3 (2026-06-04~05) — 🌌 시즌2 엠블럼 강화 + 패스 재편 + S2 UI 폴리시 ← 최신
+### v2.44.0~7 (2026-06-04~05) — 🌌 시즌2 엠블럼 강화(→오른 대장간 재설계) + 패스 재편 + S2 폴리시 ← 최신
 
-> 상세 코드맵·확정 수치는 **SEASON2.md §4 상단 박스**(완전판). 전부 `CURRENT_SEASON===2` 게이트라 라이브 S1 무영향. `previewSeason(2)`로만 검증. 시즌2 미오픈이라 팀원엔 안 보임.
+> 상세 코드맵·확정 수치는 **SEASON2.md §4 상단 박스**(완전판). 전부 `CURRENT_SEASON===2` 게이트라 라이브 S1 무영향. `previewSeason(2)` 또는 태블릿 URL `?preview=2`로 검증. 시즌2 미오픈이라 팀원엔 안 보임.
+
+#### v2.44.4~7 (2026-06-05, 검증·재설계 라운드) — ⭐ 내일 이어서 작업 시 여기부터
+- **v2.44.4 — 엠블럼/패스 코드리뷰 수정 3종**: 독립 에이전트 리뷰로 (1) 패스 칭호 `passTitle_s2` 저장만 되고 미표시 → `s2TitleHtml`로 프로필 배지 표시 (2) 패스 LV5 엠블럼 보상 이미 보유 시 증발 → 베이스가 150G 환급 폴백 (3) 강화 연출 중 onValue 선갱신 스포일러 → `_emblemFxBusy` 중 재렌더 스킵. **리뷰 결론: 골드 누수·시즌게이트·클레임 가드 모두 견고**(어뷰즈 없음 확인)
+- **v2.44.5 — 태블릿 검증 도구**: 콘솔 없이 (1) URL `?preview=2`/`?preview=off` 진입·해제(`_urlSeasonPreview`) (2) 미리보기 활성 시 우하단 🧪 디버그 패널(`renderSeasonDebugPanel`/`window.__s2dbg`: 테스트 골드·일반패스 포인트·S2 데이터 초기화·끄기). `__SEASON_PREVIEW` 활성 시에만 표시
+- **v2.44.6 — 부동소수점 표시 수정**: 복권확률 "+0.6000000000000001%p" → 정수연산 `Math.round(power*2)/10`
+- **v2.44.7 — 🔨오른 대장간 드래그 강화 전면 재설계** (사용자 요청, 메이플 주문서식): 추상 "엠블럼" 배지 → **롤 아이템 이미지**(ddragon, 광채등급별 진화 도란링→로켓벨트→존야→라바돈) 모루 위 배치. **강화권을 인벤토리에서 모루로 드래그**(pointer·터치지원)하거나 탭 → 강화. 연출은 **모루 위 인플레이스**(망치질3+불꽃, 풀스크린 제거). 코드: `renderEmblemBody`(대장간), `_forgeItemMeta`/`_forgeItemImg`, `_bindForgeDrag`/`_forgeDragState`/`_isOverAnvil`, `_emblemForge`/`_forgeSparks`, CSS `.forge-*`
+- **⏭️ 대장간 후속(사용자 피드백 대기)**: 아이템 종류 변경·연출 속도/강도·오른 본인 초상화 추가 등. 실테스트 후 조정 예정
+
+#### v2.44.0~3 (원래 구현)
 
 #### v2.44.0 — 마법공학 엠블럼 강화 (4단계, index.html ~L7269 블록)
 - **1단계 스키마/코어**: `EMBLEM_TICKETS`(🟢안정100%/+1·40G · 🟡정밀60%/+3·100G · 🔴과부하30%/+6·250G), 슬롯5(시도마다1소모·LOCK), 레벨(+N)=성공수·성능=성공칸 기여합 분리. `emblemEnhance`/`emblemBuyBase`/`emblemBuyTicket`/`emblemSellPrice`. 데이터: `emblem_s2{slots:[{t,ok}],createdAt}`·`emblemTickets_s2`·`emblemSellG_s2`(`calcPlayerGoldEarned` 합산)
