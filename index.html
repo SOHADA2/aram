@@ -4606,6 +4606,14 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .s2p-state{font-size:11px;font-weight:700;color:var(--rk-text-dim,#9aa0b4);white-space:nowrap;}
 .s2p-state.done{color:#4ade80;}
 .s2p-state.lock{opacity:0.6;}
+/* 🧪 시즌2 검증 디버그 패널 (미리보기 전용) */
+#s2-debug-panel{position:fixed;right:12px;bottom:84px;z-index:4000;display:flex;flex-direction:column;align-items:flex-end;gap:8px;}
+#s2dbg-toggle{padding:9px 14px;border:1px solid rgba(255,210,74,0.5);border-radius:20px;background:rgba(20,18,10,0.95);color:#ffd24a;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.5);}
+#s2dbg-body{display:none;flex-direction:column;gap:6px;padding:12px;border:1px solid rgba(255,210,74,0.35);border-radius:12px;background:rgba(14,13,10,0.97);box-shadow:0 8px 28px rgba(0,0,0,0.6);min-width:200px;}
+#s2dbg-body .s2dbg-note{font-size:10px;line-height:1.5;color:#b9bcc6;text-align:center;margin-bottom:4px;}
+#s2dbg-body .s2dbg-note b{color:#ffd24a;}
+#s2dbg-body button{padding:10px 12px;border:1px solid rgba(255,255,255,0.14);border-radius:9px;background:rgba(255,255,255,0.05);color:#e8eaf0;font-size:12px;font-weight:700;cursor:pointer;text-align:left;}
+#s2dbg-body button:hover{background:rgba(255,255,255,0.1);}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
 </head>
@@ -5282,6 +5290,22 @@ const TIERS = {
 function _seasonPreviewOverride() {
   try { const v = localStorage.getItem('aram_season_preview'); return (v === null || v === '') ? null : Number(v); } catch (_) { return null; }
 }
+// 🧪 URL 파라미터로 미리보기 진입 (태블릿/모바일 — 콘솔 없이): ?preview=2 / ?preview=off
+(function _urlSeasonPreview(){
+  try {
+    const p = new URLSearchParams(location.search).get('preview');
+    if (p === null) return;
+    const cur = localStorage.getItem('aram_season_preview');
+    const clean = () => history.replaceState(null, '', location.pathname); // URL 정리(새로고침 루프 방지)
+    if (p === 'off') {
+      if (cur !== null) { localStorage.removeItem('aram_season_preview'); clean(); location.reload(); }
+      else clean();
+    } else if (['0','1','2'].includes(p)) {
+      if (cur !== p) { localStorage.setItem('aram_season_preview', p); clean(); location.reload(); }
+      else clean();
+    }
+  } catch (_) {}
+})();
 window.__SEASON_PREVIEW = _seasonPreviewOverride() !== null;
 let CURRENT_SEASON = _seasonPreviewOverride() ?? parseInt(localStorage.getItem('aram_season') || '0', 10); // Firebase 로드 전 캐시값으로 초기화 (미리보기 오버라이드 우선)
 let viewSeason = 0;     // 현재 경기 기록 탭에서 보고 있는 시즌 (숫자=일반경기, 'magolla'=막고라)
@@ -5447,7 +5471,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.4';
+const APP_VERSION = 'v2.44.5';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5457,6 +5481,9 @@ const APP_VERSION = 'v2.44.4';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
   // ⚠️ 팀원용 "주요 업데이트"는 CHANGELOG_MAJOR(아래 별도 배열)에만 큰 기능을 추가. 여기는 상세 개발 로그.
+  { ver: 'v2.44.5', date: '2026-06-04', changes: [
+    { tag: 'improve', text: '🧪 [개발] 태블릿/모바일 시즌2 검증 도구 — 콘솔 없이: (1) URL `?preview=2` / `?preview=off` 로 미리보기 진입·해제, (2) 미리보기 활성 시 우하단 🧪 디버그 패널(테스트 골드 +5000/+50000G · 일반패스 +450/+2000p · S2 테스트 데이터 초기화 · 미리보기 끄기). `__SEASON_PREVIEW` 활성 시에만 표시라 일반 팀원에겐 안 보임. 라이브 S1 무영향' },
+  ] },
   { ver: 'v2.44.4', date: '2026-06-04', changes: [
     { tag: 'fix', text: '🔷🎫 [시즌2] 엠블럼/패스 코드 리뷰 수정 3종 — (1) 패스 칭호(passTitle_s2)가 저장만 되고 어디에도 안 보이던 것 → 프로필에 골드 칭호 배지 표시. (2) 패스 LV5 엠블럼 보상을 이미 엠블럼 보유 중에 수령하면 보상이 증발하던 것 → 베이스가 150G 환급으로 대체. (3) 강화 연출 중 Firebase 갱신이 결과를 미리 노출하던 스포일러 → 연출(_emblemFxBusy) 중에는 모달 재렌더 스킵. 전부 season===2 게이트라 라이브 무영향' },
   ] },
@@ -22931,6 +22958,56 @@ window.previewSeasonOff = function() {
   console.log('🧪 시즌 미리보기 OFF — 라이브 시즌으로 복귀. 새로고침합니다…');
   setTimeout(() => location.reload(), 400);
 };
+
+// ── 🧪 태블릿/모바일 검증용 디버그 패널 (미리보기 활성 시에만 표시) ──
+window.__s2dbg = {
+  async gold(n){
+    const k = getMyGoldKey(); if (!k) { alert('닉네임을 먼저 선택하세요'); return; }
+    const d = goldData[k]; const f = sField('goldBonusLegacy');
+    await update(ref(db,'gold/'+k), { [f]: (d?.[f]||0) + n });
+    showS1Toast?.(`🧪 테스트 골드 +${n}G`);
+  },
+  async passPts(n){
+    const k = getMyGoldKey(); if (!k) { alert('닉네임을 먼저 선택하세요'); return; }
+    const d = goldData[k]; const f = sField('normalGamePts');
+    await update(ref(db,'gold/'+k), { [f]: (d?.[f]||0) + n });
+    showS1Toast?.(`🧪 일반패스 +${n}p`);
+  },
+  async reset(){
+    if (!confirm('내 시즌2 테스트 데이터(엠블럼·패스·테스트골드)를 모두 초기화할까요?\n(라이브 S1 데이터는 안 건드립니다)')) return;
+    const k = getMyGoldKey(); if (!k) return;
+    await update(ref(db,'gold/'+k), {
+      [sField('emblem')]:null, [sField('emblemTickets')]:null, [sField('emblemSellG')]:0,
+      [sField('passNormal')]:null, [sField('passCustom')]:null, [sField('passGold')]:0,
+      [sField('passTitle')]:null, [sField('normalGamePts')]:0, [sField('goldBonusLegacy')]:0,
+    });
+    showS1Toast?.('🧪 시즌2 테스트 데이터 초기화 완료');
+  },
+  off(){ window.previewSeasonOff(); },
+  toggle(){ const b=document.getElementById('s2dbg-body'); if (b) b.style.display = b.style.display==='none' ? 'flex' : 'none'; },
+};
+function renderSeasonDebugPanel(){
+  let p = document.getElementById('s2-debug-panel');
+  if (!window.__SEASON_PREVIEW) { p?.remove(); return; }
+  if (!p) { p = document.createElement('div'); p.id = 's2-debug-panel'; document.body.appendChild(p); }
+  p.innerHTML = `
+    <button id="s2dbg-toggle" onclick="window.__s2dbg.toggle()">🧪 S${CURRENT_SEASON} 검증</button>
+    <div id="s2dbg-body" style="display:none;">
+      <div class="s2dbg-note">미리보기 — 실제 Firebase에 기록됨.<br>끝나면 <b>초기화</b> 권장(S1 무영향)</div>
+      <button onclick="window.__s2dbg.gold(5000)">💰 테스트 골드 +5000G</button>
+      <button onclick="window.__s2dbg.gold(50000)">💰 +50000G (만렙강화 시험)</button>
+      <button onclick="window.__s2dbg.passPts(450)">🎫 일반패스 +450p (→LV2)</button>
+      <button onclick="window.__s2dbg.passPts(2000)">🎫 일반패스 +2000p (→완주)</button>
+      <button onclick="window.__s2dbg.reset()" style="color:#fca5a5;">🔄 S2 테스트 데이터 초기화</button>
+      <button onclick="window.__s2dbg.off()" style="color:#7dd3fc;">✕ 미리보기 끄기</button>
+    </div>`;
+}
+window.renderSeasonDebugPanel = renderSeasonDebugPanel;
+if (window.__SEASON_PREVIEW) {
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', renderSeasonDebugPanel);
+  else renderSeasonDebugPanel();
+  setTimeout(renderSeasonDebugPanel, 1800); // 앱 렌더 후 보강
+}
 
 // ═══════════════════════════════════════════════════════════════
 // ████████████  시즌 1 LP 시스템 로직  ████████████████████████████
