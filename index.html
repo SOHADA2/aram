@@ -157,8 +157,8 @@ body.season-2::after{
 @keyframes s2Glow{ 0%,100%{opacity:.5;} 40%{opacity:1;} 70%{opacity:.72;} }
 /* 육각 회로 격자 + 펄스 (JS 생성 SVG) */
 .hexfield{position:fixed; inset:0; z-index:-2; pointer-events:none; width:100%; height:100%;
-  -webkit-mask-image:radial-gradient(ellipse 105% 95% at 50% 28%, #000 42%, transparent 100%);
-  mask-image:radial-gradient(ellipse 105% 95% at 50% 28%, #000 42%, transparent 100%);}
+  -webkit-mask-image:radial-gradient(ellipse 115% 100% at 50% 32%, #000 60%, transparent 100%);
+  mask-image:radial-gradient(ellipse 115% 100% at 50% 32%, #000 60%, transparent 100%);}
 .hexfield .hex-grid-path{fill:none; stroke:rgba(196,196,210,0.06); stroke-width:1;}
 .hexfield .route-wire{fill:none; stroke:rgba(240,192,96,0.10); stroke-width:1.1;}
 .hexfield .route-node{fill:rgba(240,192,96,0.18);}
@@ -5119,33 +5119,48 @@ function renderSeasonBackground() {
   svg.id = 'season-hexfield';
   svg.setAttribute('preserveAspectRatio', 'xMidYMid slice');
   svg.setAttribute('viewBox', `0 0 ${VB_W} ${VB_H}`);
-  // 1) 전체 육각 격자 (희미한 그레이)
+  // 1) 전체 육각 격자 (희미한 그레이) + 변(edge) 인접 그래프
+  const kkey = p => Math.round(p[0]) + ',' + Math.round(p[1]);
+  const coord = {}, adj = {};
+  const addEdge = (a,b) => { const ka=kkey(a), kb=kkey(b); coord[ka]=a; coord[kb]=b;
+    (adj[ka] = adj[ka] || new Set()).add(kb); (adj[kb] = adj[kb] || new Set()).add(ka); };
   let gridD = '';
   for (let j=-1; j<rows; j++) for (let i=-1; i<cols; i++){
     const [cx,cy] = cxcy(i,j); const v = V(cx,cy);
     gridD += `M${v.top}L${v.ur}L${v.lr}L${v.bot}L${v.ll}L${v.ul}Z`;
+    addEdge(v.top,v.ur); addEdge(v.ur,v.lr); addEdge(v.lr,v.bot); addEdge(v.bot,v.ll); addEdge(v.ll,v.ul); addEdge(v.ul,v.top);
   }
   const grid = document.createElementNS(NS,'path');
   grid.setAttribute('class','hex-grid-path'); grid.setAttribute('d', gridD);
   svg.appendChild(grid);
-  // 2) 에너지 루트 — 특정 행의 상단 지그재그(인접 육각과 꼭짓점 공유, 끊김 없음)
-  const rowZig = (j) => {
-    let pts = [];
-    for (let i=-1; i<cols; i++){ const [cx,cy] = cxcy(i,j); const v = V(cx,cy); pts.push(v.ul, v.top, v.ur); }
-    return 'M' + pts.map(p=>p.join(',')).join('L');
-  };
-  const routes = [ {j:3,dur:5.2,delay:0}, {j:7,dur:6.6,delay:1.6}, {j:11,dur:5.8,delay:3.0}, {j:15,dur:7.0,delay:0.8}, {j:19,dur:6.2,delay:2.3} ];
-  routes.forEach(r => {
-    const d = rowZig(r.j);
-    const wire = document.createElementNS(NS,'path'); wire.setAttribute('class','route-wire'); wire.setAttribute('d', d); svg.appendChild(wire);
-    const pulse = document.createElementNS(NS,'path'); pulse.setAttribute('class','route-pulse'); pulse.setAttribute('d', d);
-    pulse.setAttribute('pathLength','100'); pulse.style.animationDuration = r.dur + 's'; pulse.style.animationDelay = r.delay + 's';
-    svg.appendChild(pulse);
-    for (let i=0; i<cols; i++){ const [cx,cy] = cxcy(i,r.j); const v = V(cx,cy);
-      const c = document.createElementNS(NS,'circle'); c.setAttribute('class','route-node');
-      c.setAttribute('cx', v.top[0]); c.setAttribute('cy', v.top[1]); c.setAttribute('r','1.7'); svg.appendChild(c);
+  // 2) 에너지 펄스 — 육각 변을 따라 랜덤 워크(가로·세로·대각). 시작점은 화면 중앙으로 편향
+  const cx0 = VB_W*0.5, cy0 = VB_H*0.32, rxv = VB_W*0.40, ryv = VB_H*0.40;
+  const central = key => { const c=coord[key]; const nx=(c[0]-cx0)/rxv, ny=(c[1]-cy0)/ryv; return nx*nx+ny*ny <= 1; };
+  const starts = Object.keys(adj).filter(central);
+  const walk = (steps) => {
+    let cur = starts[Math.floor(Math.random()*starts.length)], prev = null;
+    const path = [coord[cur]];
+    for (let s=0; s<steps; s++){
+      const nbrs = [...adj[cur]].filter(x => x !== prev);
+      if (!nbrs.length) break;
+      const nx = nbrs[Math.floor(Math.random()*nbrs.length)];
+      prev = cur; cur = nx; path.push(coord[cur]);
     }
-  });
+    return path;
+  };
+  if (starts.length){
+    for (let n=0; n<8; n++){
+      const path = walk(6 + Math.floor(Math.random()*6)); // 6~11 스텝
+      if (path.length < 3) continue;
+      const d = 'M' + path.map(p=>p.join(',')).join('L');
+      const wire = document.createElementNS(NS,'path'); wire.setAttribute('class','route-wire'); wire.setAttribute('d', d); svg.appendChild(wire);
+      const pulse = document.createElementNS(NS,'path'); pulse.setAttribute('class','route-pulse'); pulse.setAttribute('d', d); pulse.setAttribute('pathLength','100');
+      pulse.style.animationDuration = (4.5 + Math.random()*3).toFixed(2) + 's';
+      pulse.style.animationDelay = (Math.random()*3).toFixed(2) + 's';
+      svg.appendChild(pulse);
+      path.forEach(p => { const c=document.createElementNS(NS,'circle'); c.setAttribute('class','route-node'); c.setAttribute('cx',p[0]); c.setAttribute('cy',p[1]); c.setAttribute('r','1.7'); svg.appendChild(c); });
+    }
+  }
   document.body.insertBefore(svg, document.body.firstChild);
 }
 
@@ -5215,7 +5230,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.43.278';
+const APP_VERSION = 'v2.43.279';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5225,6 +5240,9 @@ const APP_VERSION = 'v2.43.278';
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
   // ⚠️ 팀원용 "주요 업데이트"는 CHANGELOG_MAJOR(아래 별도 배열)에만 큰 기능을 추가. 여기는 상세 개발 로그.
+  { ver: 'v2.43.279', date: '2026-06-04', changes: [
+    { tag: 'improve', text: '🎨 [시즌2 준비] 헥스텍 배경 펄스를 정형 가로 지그재그 → 육각 변 따라 랜덤 워크(가로·세로·대각)로 변경. 시작점을 화면 중앙으로 편향 + 워크 단축 + 마스크 완화로 잘 보이는 영역에서 흐르게. season-2 게이트라 라이브 영향 0' },
+  ] },
   { ver: 'v2.43.278', date: '2026-06-04', changes: [
     { tag: 'new', text: '🎨 [시즌2 준비] 헥스텍/마법공학 테마 1차 이식 — season-2 클래스(CURRENT_SEASON===2 시 토글, s1-active 동작은 유지)로 블랙+골드 팔레트 스왑 + 육각 회로 배경(흐르는 골드 펄스가 실제 육각 변을 타고 흐름) + 골드 에너지 글로우 펄스. 보라 액센트(--purple-light) 골드 remap으로 앱 전반 자동 적용 + 핵심 컴포넌트 9종 오버라이드. renderSeasonBackground()가 season===2일 때만 SVG 회로 주입(전환 시 제거/재생성). 전부 season-2 게이트라 현재 S1엔 영향 0 — 6/11 토글 시 자동 발현. 디테일(보라 잔존 등)은 previewSeason(2)로 점검 예정' },
   ] },
