@@ -81,3 +81,14 @@
 - **~~엠블럼/패스 구현~~ ✅ 완료 (v2.44.0~1, §4 상단 박스 참조)**. 남은 튜닝: 보상량/일일퀘 항목은 실제 S2 플레이 데이터 보고 조정.
 - **일반게임 패스 적립 연결**: 브릿지 `isCustomGame` 분리(§4-3) 완료 후, 일반게임 eog 수신 시 `normalGamePts_s2`에 적립(1판+10·승+5)하는 핸들러 추가. 현재는 `__addNormalPassPts` 디버그 훅만.
 - **6/11 확인**: 증바람 일반 queueId, 일반게임 augment가 공개 match-v5에도 오는지(현재 augment는 브릿지 LCU에서만 받음).
+
+## 6. 🔨 대장간(강철심장 강화) 목업 — 다른 컴퓨터 핸드오프
+**`대장간-목업.html` 이 새 대장간 디자인의 SOURCE OF TRUTH.** index.html v2.44.8의 인라인 엠블럼 디자인을 이걸로 교체 예정(아직 미포팅). 확정되면 index.html에 포팅.
+
+- **열기**: 3D가 CORS로 `file://` 불가 → `python -m http.server 8765` (aram 폴더) 후 `http://localhost:8765/대장간-목업.html`.
+- **구조(확정)**: 좌=**작업대**(`forgeItem` = 올려두면 **장착**되어 효과 발동 + 강화 대상, 장착 슬롯 별도 없음) + 효과(복권 당첨률·출석 골드) · 우=**인벤토리 패널**(장비=강철심장 6칸 / 소비=강화권) · 하단=**상점**(강철심장·강화권 구매). 드래그/더블클릭으로 이동.
+- **아이템**: 강철심장 ddragon **3084** → prismatic 도달 시 **거인의 결의 223084**(오른 걸작). 강화권 3종(안정 100%/+1·정밀 60%/+3·과부하 30%/+6) = `assets/forge/anvil.png` + CSS hue-rotate 3색(실제 모루 220008/9/10 대신 커스텀).
+- **3D 오른**(three.js 0.160 ESM, `assets/forge/`): `ornn-idle1`+`ornn-idle2`(대기 반복·랜덤 교체) / `ornn-forge`(성공 망치질) / `ornn-fail`(실패 반응). 평소 idle, 강화 시작=항상 forge 망치질(땅·땅·땅·탕 2.2s) → 실패면 끝에 fail. `object-fit:contain`으로 비율보존. **glb 4×~10MB=41MB 커밋됨 → production 포팅 전 경량화 필수(Draco+애니 합쳐 1파일).** (중복 `ornn.glb`·미사용 `ornn.webp`는 .gitignore 유지)
+- **사운드**: glb엔 오디오 없음. 현재 합성 `anvilClang`(WebAudio) 임시. 진짜 오른 Forge SFX는 **롤 설치된 PC에서** `Ornn.wad.client` 추출(Obsidian→bnk-extract→vgmstream)해야 함 — CommunityDragon엔 오디오 미러 없음(확인됨).
+- **톤**: S2 블랙+골드(#070708 / #f0c060·#ffe39a), 화로빛은 단조 박스 안에만.
+- **다음 작업**: 목업 디자인 최종 확정 → index.html 포팅(.gitignore 이미 `assets/forge/*` 화이트리스트 처리) → glb 경량화 → 사운드 결합.
