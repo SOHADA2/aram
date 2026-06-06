@@ -5681,7 +5681,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.17';
+const APP_VERSION = 'v2.44.18';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5690,6 +5690,9 @@ const APP_VERSION = 'v2.44.17';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.18', date: '2026-06-07', changes: [
+    { tag: 'improve', text: '🔨 [시즌2] 대장간 강화 연출 속도 완화 — 망치 소리·오른 모션이 너무 빠르던 문제. 단조 타이밍을 약 1.2초→2.2초로 늘려 "땅…땅…땅…탕!" 여유있게 퍼지게 하고, 오른 망치질/실패 모션도 자연 속도 이하(절대 빠르지 않게)로 재생' },
+  ] },
   { ver: 'v2.44.17', date: '2026-06-07', changes: [
     { tag: 'improve', text: '🔨 [시즌2] 대장간 시인성 개선 — 오른이 너무 작던 문제 수정. 작업대 높이 280→380px·오른 영역 130→240px로 키우고 3D 카메라를 더 가까이(1.78→1.24배) 당겨 오른을 약 2배 크게. 강철심장 아이콘도 62→78px로 키우고 모루 박스 80→96px로 확대해 비율 정리' },
   ] },
@@ -8441,14 +8444,17 @@ function _emblemForge(r){
     const anvil = document.getElementById('emblem-anvil');
     if (!anvil){ resolve(); return; }
     const col = r.def.color;
+    const TOTAL = 2200;  // 전체 단조 시간 — 땅…땅…땅…탕! 여유있게 (과거 너무 빨랐음)
     const fD = (window.ornn3d?.durationOf?.('forge')||0)*1000;
-    try { window.ornn3d?.playForge?.(fD>0 ? fD/1400 : 0.6); } catch(_){}   // 🔥 오른 망치질 (땅땅 구간에 맞춤)
+    const ts = fD>0 ? Math.max(0.55, Math.min(1.0, fD/TOTAL)) : 0.6;  // 자연 속도 이하(절대 빠르지 않게)
+    try { window.ornn3d?.playForge?.(ts); } catch(_){}   // 🔥 오른 망치질 — 느긋하게
     const stage = document.getElementById('forge-stage');
-    const clang = (big=false)=>{ try { _gSfx.mergeImpact(2); } catch(_){} try { window.ornn3d?.flare?.(); } catch(_){} anvilClang(big); anvil.classList.remove('clang'); void anvil.offsetWidth; anvil.classList.add('clang'); if(big&&stage){ stage.classList.add('struck'); setTimeout(()=>stage.classList.remove('struck'),200); } };
-    clang(); _forgeSparks(anvil, col, 6);                       // 땅
+    const clang = (big=false)=>{ try { _gSfx.mergeImpact(big?3:2); } catch(_){} try { window.ornn3d?.flare?.(); } catch(_){} anvilClang(big); anvil.classList.remove('clang'); void anvil.offsetWidth; anvil.classList.add('clang'); if(big&&stage){ stage.classList.add('struck'); setTimeout(()=>stage.classList.remove('struck'),200); } };
+    // 땅 … 땅 … 땅 (여유있게 퍼진 망치질)
+    [0.20, 0.42, 0.62].forEach(f => setTimeout(()=>{ clang(false); _forgeSparks(anvil, col, 6); }, f*TOTAL));
+    // 탕! (마지막 큰 일격) → 결과 반영
     setTimeout(()=>{
-      clang(); _forgeSparks(anvil, col, 6);                     // 땅
-      setTimeout(()=>{
+      {
         clang(true);                                             // 탕! 큰 일격
         anvil.classList.remove('clang');
         if (r.ok){
@@ -8473,12 +8479,12 @@ function _emblemForge(r){
         } else {
           anvil.classList.add('forge-fail');
           try { _gSfx.mergeImpact(1); } catch(_){}
-          try { const failD=(window.ornn3d?.durationOf?.('fail')||0)*1000; window.ornn3d?.playFail?.(failD>0?Math.max(0.95,failD/1700):1.0); } catch(_){}  // 🔥 오른 실패 반응
+          try { const failD=(window.ornn3d?.durationOf?.('fail')||0)*1000; window.ornn3d?.playFail?.(failD>0?Math.min(1.0,Math.max(0.7,failD/1900)):0.9); } catch(_){}  // 🔥 오른 실패 반응 — 느긋하게
           showS1Toast(`💢 단조 실패… 성능 ${r.power} 유지 (슬롯 ${r.slotsUsed}/${EMBLEM_SLOTS})`);
         }
-        setTimeout(()=>{ anvil.classList.remove('forge-success','forge-fail','forge-up','forge-final'); resolve(); }, 780);
-      }, 190);
-    }, 190);
+        setTimeout(()=>{ anvil.classList.remove('forge-success','forge-fail','forge-up','forge-final'); resolve(); }, 820);
+      }
+    }, TOTAL*0.84);
   });
 }
 
