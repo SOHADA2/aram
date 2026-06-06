@@ -5681,7 +5681,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.18';
+const APP_VERSION = 'v2.44.19';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5690,6 +5690,9 @@ const APP_VERSION = 'v2.44.18';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.19', date: '2026-06-07', changes: [
+    { tag: 'improve', text: '🔨 [시즌2] 대장간 망치 소리를 오른 모션에 정렬 — 기존엔 고정 타임라인(2200ms)이라 오른의 마지막 망치질과 어긋났음. 이제 오른 망치질 실제 재생시간(playMs) 기준으로 땅(18%)·땅(40%)·땅(62%)·탕!(88%, 마지막 내려치는 순간)을 배치해 큰 일격이 마지막 망치질에 딱 떨어짐' },
+  ] },
   { ver: 'v2.44.18', date: '2026-06-07', changes: [
     { tag: 'improve', text: '🔨 [시즌2] 대장간 강화 연출 속도 완화 — 망치 소리·오른 모션이 너무 빠르던 문제. 단조 타이밍을 약 1.2초→2.2초로 늘려 "땅…땅…땅…탕!" 여유있게 퍼지게 하고, 오른 망치질/실패 모션도 자연 속도 이하(절대 빠르지 않게)로 재생' },
   ] },
@@ -8444,15 +8447,16 @@ function _emblemForge(r){
     const anvil = document.getElementById('emblem-anvil');
     if (!anvil){ resolve(); return; }
     const col = r.def.color;
-    const TOTAL = 2200;  // 전체 단조 시간 — 땅…땅…땅…탕! 여유있게 (과거 너무 빨랐음)
+    const TOTAL = 2200;  // 기준 단조 시간 — 땅…땅…땅…탕! 여유있게 (과거 너무 빨랐음)
     const fD = (window.ornn3d?.durationOf?.('forge')||0)*1000;
     const ts = fD>0 ? Math.max(0.55, Math.min(1.0, fD/TOTAL)) : 0.6;  // 자연 속도 이하(절대 빠르지 않게)
+    const playMs = fD>0 ? fD/ts : TOTAL;  // 🔨 오른 망치질 실제 재생시간 — 소리/일격을 여기에 맞춤
     try { window.ornn3d?.playForge?.(ts); } catch(_){}   // 🔥 오른 망치질 — 느긋하게
     const stage = document.getElementById('forge-stage');
     const clang = (big=false)=>{ try { _gSfx.mergeImpact(big?3:2); } catch(_){} try { window.ornn3d?.flare?.(); } catch(_){} anvilClang(big); anvil.classList.remove('clang'); void anvil.offsetWidth; anvil.classList.add('clang'); if(big&&stage){ stage.classList.add('struck'); setTimeout(()=>stage.classList.remove('struck'),200); } };
-    // 땅 … 땅 … 땅 (여유있게 퍼진 망치질)
-    [0.20, 0.42, 0.62].forEach(f => setTimeout(()=>{ clang(false); _forgeSparks(anvil, col, 6); }, f*TOTAL));
-    // 탕! (마지막 큰 일격) → 결과 반영
+    // 땅 … 땅 … 땅 (앞~중반 가벼운 망치질, 오른 모션에 맞춤)
+    [0.18, 0.40, 0.62].forEach(f => setTimeout(()=>{ clang(false); _forgeSparks(anvil, col, 6); }, f*playMs));
+    // 탕! (오른의 마지막 망치 내려치는 끝에 맞춘 큰 일격) → 결과 반영
     setTimeout(()=>{
       {
         clang(true);                                             // 탕! 큰 일격
@@ -8484,7 +8488,7 @@ function _emblemForge(r){
         }
         setTimeout(()=>{ anvil.classList.remove('forge-success','forge-fail','forge-up','forge-final'); resolve(); }, 820);
       }
-    }, TOTAL*0.84);
+    }, playMs*0.88);  // 오른 망치질 막바지 = 마지막 내려치는 순간
   });
 }
 
