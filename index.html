@@ -4783,8 +4783,9 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .fg2-rack-tip b{color:#f0c060;}
 .fg2-forge-guide{margin-top:12px;text-align:center;font-size:11px;line-height:1.5;color:#b9bcc6;background:rgba(240,192,96,0.06);border:1px dashed rgba(240,192,96,0.22);border-radius:9px;padding:9px 10px;}
 .fg2-forge-guide b{color:#f0c060;}
-.inv-slot.inv-ench-src{cursor:grab;}
+.inv-slot.inv-ench-src{cursor:grab;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;}
 .inv-slot.inv-ench-src:active{cursor:grabbing;}
+.inv-slot.inv-ench-src img{-webkit-user-drag:none;-webkit-touch-callout:none;pointer-events:none;}
 .inv-slot.inv-ench-src.ench-pressing{transform:scale(1.08);border-color:#ffd27a;box-shadow:0 0 16px rgba(255,175,75,0.5);z-index:3;}
 .fg2-shopbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:#141416;border:1px solid #24242c;border-radius:12px;padding:11px 13px;margin-top:2px;}
 .fg2-shop-tag{font-size:11.5px;font-weight:800;color:#ffe39a;flex-shrink:0;}
@@ -5680,7 +5681,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.15';
+const APP_VERSION = 'v2.44.16';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5689,6 +5690,9 @@ const APP_VERSION = 'v2.44.15';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.16', date: '2026-06-06', changes: [
+    { tag: 'fix', text: '🔨 [시즌2] 모바일에서 강화권을 꾹 누르면 브라우저 "이미지 저장/다운로드" 메뉴가 뜨던 문제 차단 — 강화권 슬롯/이미지에 -webkit-touch-callout:none·user-drag:none·draggable=false + contextmenu preventDefault. 이제 롱프레스가 드래그로만 동작' },
+  ] },
   { ver: 'v2.44.15', date: '2026-06-06', changes: [
     { tag: 'fix', text: '🔨 [시즌2] 대장간 3종 개선 — (1) 오른 재로딩 버그 수정: 강화 때마다 "오른을 부르는 중"이 다시 뜨던 렉의 원인 = 작업대 재렌더 시 3D 캔버스가 통째로 파괴되던 것(목업의 "캔버스 대피" 단계 누락). 이제 재렌더 전 캔버스를 holder로 대피→즉시 재부착해 끊김 없이 유지(40MB 재로딩 없음). (2) 클릭/탭만으로 강화되던 오발동 제거 — 이제 강화권을 꾹 눌러(터치 260ms·마우스는 살짝 끌면) 드래그한 뒤 강철심장 위에 놓아야만 단조. 작업대 밖에 놓거나 짧은 탭은 강화 안 됨. (3) 길게 누르면 햅틱+칩 확대 피드백' },
   ] },
@@ -8090,7 +8094,7 @@ function _forgeItemImg(power){
 }
 // 강화권 = 모루 이미지(anvil.png) + 색상 필터 (목업과 동일)
 function _emblemTkAnvilImg(t, size){
-  return `<img src="${EMBLEM_ANVIL_IMG}" style="width:${size}px;height:${size}px;border-radius:6px;display:block;filter:${t.filter};" alt="">`;
+  return `<img src="${EMBLEM_ANVIL_IMG}" draggable="false" style="width:${size}px;height:${size}px;border-radius:6px;display:block;filter:${t.filter};-webkit-user-drag:none;-webkit-touch-callout:none;" alt="">`;
 }
 
 // 🔨 대장간 작업대 (모달 전용). 강철심장·강화권 구매/보유는 상점·내 아이템 패널에서, 여기선 "강화"만.
@@ -8251,6 +8255,7 @@ function _bindEnchInventoryDrag(){
   if (CURRENT_SEASON !== 2) return;
   document.querySelectorAll('.inv-slot.inv-ench-src[data-ench]').forEach(slot=>{
     const type = slot.dataset.ench; if (!type) return;
+    slot.oncontextmenu = e=>{ e.preventDefault(); return false; };  // 모바일 롱프레스 이미지 저장/다운로드 메뉴 차단
     slot.onpointerdown = e=>{
       if (_emblemFxBusy) return;
       const isTouch = e.pointerType === 'touch';
