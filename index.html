@@ -5681,7 +5681,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.19';
+const APP_VERSION = 'v2.44.20';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5690,6 +5690,9 @@ const APP_VERSION = 'v2.44.19';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.20', date: '2026-06-07', changes: [
+    { tag: 'fix', text: '🔨 [시즌2] 내 아이템에서 강화권을 누른 채 다른 슬롯/탭을 누르면 우측 패널이 리셋되던 문제 수정 — (1) 짧은 탭 시 호출되던 gotoForgeTab(전체 재렌더)을 제거(이제 안내 토스트만, 화면 안 바뀜). (2) 포인터 캡처를 "꾹 눌러 드래그 확정" 후에만 잡도록 변경 → 누르는 도중 소비/장비 탭·다른 슬롯이 정상 동작. (3) 드래그 정리 로직(_cancelForgeDrag) 통합 + 탭 전환·연속 누름 시 잔류 고스트 제거' },
+  ] },
   { ver: 'v2.44.19', date: '2026-06-07', changes: [
     { tag: 'improve', text: '🔨 [시즌2] 대장간 망치 소리를 오른 모션에 정렬 — 기존엔 고정 타임라인(2200ms)이라 오른의 마지막 망치질과 어긋났음. 이제 오른 망치질 실제 재생시간(playMs) 기준으로 땅(18%)·땅(40%)·땅(62%)·탕!(88%, 마지막 내려치는 순간)을 배치해 큰 일격이 마지막 망치질에 딱 떨어짐' },
   ] },
@@ -8249,8 +8252,21 @@ function _emblemInvSlotsHtml(cat){
 //   탭/클릭만으로는 강화 안 됨(오발동 방지). 터치=롱프레스(260ms) 후 드래그 / 마우스=살짝 끌면 드래그.
 //   드래그를 작업대(강철심장) 위에 놓아야만 단조됨.
 const _ENCH_HOLD_TOUCH = 260, _ENCH_HOLD_MOUSE = 130;
+// 진행 중인 강화권 드래그 정리 (고스트·타이머·캡처·하이라이트 모두 해제)
+function _cancelForgeDrag(){
+  const st = _forgeDragState; if (!st) return;
+  _forgeDragState = null;
+  clearTimeout(st.timer);
+  if (st.ghost) st.ghost.remove();
+  try { st.src?.classList.remove('ench-pressing'); } catch(_){}
+  try { st.src?.releasePointerCapture?.(st.pid); } catch(_){}
+  document.getElementById('forge-stage')?.classList.remove('drop-ok');
+}
+window._cancelForgeDrag = _cancelForgeDrag;
 function _armForgeDrag(st){
+  if (!st.src.isConnected){ _forgeDragState=null; return; }  // 재렌더로 슬롯 사라졌으면 취소(고스트 안 뜸)
   st.armed = true;
+  try { st.src.setPointerCapture(st.pid); } catch(_){}        // ⚠️ 캡처는 "드래그 확정 후"에만 — 그 전엔 탭/다른 버튼 정상 동작
   st.src.classList.add('ench-pressing');
   const t = EMBLEM_TICKETS[st.type];
   const g=document.createElement('div'); g.className='forge-ghost';
@@ -8267,11 +8283,12 @@ function _bindEnchInventoryDrag(){
     slot.oncontextmenu = e=>{ e.preventDefault(); return false; };  // 모바일 롱프레스 이미지 저장/다운로드 메뉴 차단
     slot.onpointerdown = e=>{
       if (_emblemFxBusy) return;
+      if (_forgeDragState) _cancelForgeDrag();  // 이전 드래그 잔재 정리 (멀티터치/연속 누름 안전)
       const isTouch = e.pointerType === 'touch';
-      _forgeDragState = { type, src:slot, ghost:null, armed:false, sx:e.clientX, sy:e.clientY, lx:e.clientX, ly:e.clientY, isTouch, timer:null };
+      _forgeDragState = { type, src:slot, ghost:null, armed:false, sx:e.clientX, sy:e.clientY, lx:e.clientX, ly:e.clientY, isTouch, pid:e.pointerId, timer:null };
       const st=_forgeDragState;
       st.timer = setTimeout(()=>{ if(_forgeDragState===st && !st.armed) _armForgeDrag(st); }, isTouch ? _ENCH_HOLD_TOUCH : _ENCH_HOLD_MOUSE);
-      try { slot.setPointerCapture(e.pointerId); } catch(_){}
+      // 캡처 안 함 → arm(롱프레스/끌기) 후 _armForgeDrag에서만 캡처. 그 전엔 소비/장비 탭·다른 슬롯 정상 클릭.
     };
     slot.onpointermove = e=>{
       const st=_forgeDragState; if(!st||st.src!==slot) return;
@@ -8279,9 +8296,9 @@ function _bindEnchInventoryDrag(){
       const dist = Math.hypot(e.clientX-st.sx, e.clientY-st.sy);
       if(!st.armed){
         if(st.isTouch){
-          if(dist > 12){ clearTimeout(st.timer); _forgeDragState=null; }  // 누르자마자 크게 움직임=스크롤 의도 → 취소
+          if(dist > 12){ _cancelForgeDrag(); }  // 누르자마자 크게 움직임=스크롤 의도 → 취소
         } else {
-          if(dist > 6){ clearTimeout(st.timer); _armForgeDrag(st); }       // 마우스: 살짝 끌면 즉시 드래그
+          if(dist > 6){ _armForgeDrag(st); }     // 마우스: 살짝 끌면 즉시 드래그
         }
         return;
       }
@@ -8291,22 +8308,17 @@ function _bindEnchInventoryDrag(){
     };
     const finish = e=>{
       const st=_forgeDragState; if(!st||st.src!==slot) return;
-      clearTimeout(st.timer);
-      _forgeDragState = null;
-      slot.classList.remove('ench-pressing');
-      if(st.ghost) st.ghost.remove();
-      document.getElementById('forge-stage')?.classList.remove('drop-ok');
-      if(st.armed){
-        if(_isOverForge(e.clientX, e.clientY)) _enchFromInventory(type);   // 작업대 위에 놓아야만 강화
-        // 작업대 밖에 놓음 = 취소 (강화 안 함)
+      const wasArmed = st.armed, ox=e.clientX, oy=e.clientY;
+      _cancelForgeDrag();
+      if(wasArmed){
+        if(_isOverForge(ox, oy)) _enchFromInventory(type);   // 작업대 위에 놓아야만 강화 (밖이면 취소)
       } else {
-        // 짧은 탭/클릭 = 강화 안 함. 대장간 탭이 아니면 이동시켜 주고, 맞으면 끌라고 안내.
-        if(shopCatTab === 'pass' && document.getElementById('forge-stage')) showS1Toast('🔨 강화권을 꾹 눌러 강철심장 위로 끌어오세요');
-        else window.gotoForgeTab();
+        // 짧은 탭 = 강화 안 함 + 화면 리셋 안 함(과거 gotoForgeTab가 우측 패널 리셋시키던 버그). 안내만.
+        showS1Toast('🔨 강화권을 꾹 눌러 강철심장 위로 끌어오세요');
       }
     };
     slot.onpointerup = finish;
-    slot.onpointercancel = ()=>{ const st=_forgeDragState; if(st&&st.src===slot){ clearTimeout(st.timer); if(st.ghost)st.ghost.remove(); slot.classList.remove('ench-pressing'); _forgeDragState=null; document.getElementById('forge-stage')?.classList.remove('drop-ok'); } };
+    slot.onpointercancel = ()=>{ if(_forgeDragState && _forgeDragState.src===slot) _cancelForgeDrag(); };
   });
 }
 // 강화 실행 — 드래그를 작업대에 드롭했을 때만 호출됨
@@ -20222,6 +20234,7 @@ window.doAttendance = async function() {
 
 // 상점/인벤토리 카테고리 탭 전환
 window.switchShopCat = function(cat) {
+  try { window._cancelForgeDrag?.(); } catch(_){}  // 탭 전환 시 진행 중 강화권 드래그 정리(고스트 잔류 방지)
   shopCatTab = cat;
   document.getElementById('shop-cat-consume')?.classList.toggle('active', cat==='consume');
   document.getElementById('shop-cat-pass')?.classList.toggle('active', cat==='pass');
@@ -20229,6 +20242,7 @@ window.switchShopCat = function(cat) {
   renderShop();
 };
 window.switchInvCat = function(cat) {
+  try { window._cancelForgeDrag?.(); } catch(_){}  // 탭 전환 시 진행 중 강화권 드래그 정리
   invCatTab = cat;
   document.getElementById('inv-cat-consume')?.classList.toggle('active', cat==='consume');
   document.getElementById('inv-cat-equip')?.classList.toggle('active', cat==='equip');
