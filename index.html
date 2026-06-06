@@ -2,6 +2,12 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.1/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.1/examples/jsm/"
+} }
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>무작위총력전 아수라장 내전</title>
 <script>(function(){
@@ -4726,6 +4732,13 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .fg2-buy{padding:11px;border:none;border-radius:10px;background:linear-gradient(135deg,#ffb867,#e08a2e);color:#1a1206;font-size:13px;font-weight:800;cursor:pointer;}
 .fg2-buy.dim{opacity:.4;pointer-events:none;}
 
+/* 🔥 3D 오른 (대장간) */
+.fg2-ornn{position:relative;display:flex;justify-content:center;height:228px;margin-bottom:4px;}
+#ornn-mount{width:200px;height:228px;}
+#ornn-mount>canvas,#ornn3d{width:200px;height:228px;display:block;}
+.fg2-ornn-load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;color:rgba(255,180,120,0.75);pointer-events:none;animation:fg2OrnnLoadPulse 1.4s ease-in-out infinite;}
+.fg2-ornn:has(#ornn-mount>canvas) .fg2-ornn-load{display:none;}
+@keyframes fg2OrnnLoadPulse{0%,100%{opacity:0.5;}50%{opacity:1;}}
 /* 🧪 시즌2 검증 디버그 패널 (미리보기 전용) */
 #s2-debug-panel{position:fixed;right:12px;bottom:84px;z-index:4000;display:flex;flex-direction:column;align-items:flex-end;gap:8px;}
 #s2dbg-toggle{padding:9px 14px;border:1px solid rgba(255,210,74,0.5);border-radius:20px;background:rgba(20,18,10,0.95);color:#ffd24a;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,0.5);}
@@ -5591,7 +5604,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.8';
+const APP_VERSION = 'v2.44.9';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5600,6 +5613,9 @@ const APP_VERSION = 'v2.44.8';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.9', date: '2026-06-05', changes: [
+    { tag: 'improve', text: '🔥 [시즌2] 대장간에 3D 오른 등장 — three.js로 오른 모델(대기/망치질/실패 반응) 통합. 대장간 첫 진입 시 lazy 로드(glb 약 40MB), 강화하면 오른이 망치질(playForge)·실패 시 반응(playFail)·화로 번쩍(flare). 목업 디자인 1단계 포팅(3D 오른+연출 연동). 데이터는 기존 단일 emblem 유지(다중 인벤토리는 2단계). season===2 게이트' },
+  ] },
   { ver: 'v2.44.8', date: '2026-06-05', changes: [
     { tag: 'improve', text: '⚒️ [시즌2] 엠블럼 강화 → "강철심장 강화"로 전면 개편. (1) 명칭 "마법공학 엠블럼" 제거 → 롤 아이템 강철심장(ddragon 3084) 강화, 최종(프리즈매틱)엔 오른 걸작 거인의 결의(223084)로 변신. 범용 "대장간" 구조라 나중에 아이템 추가 가능. (2) 별도 모달 폐지 → 상점 장비 탭 상단에 인라인(대장간 좌·강화권 우·상점 목록 아래). 강화권을 모루로 드래그/탭 강화. (3) 강화권을 동그라미→모루 모양 칩 3종으로 재디자인. (4) 연출: 망치 이모지 제거, 소리 "땅·땅" 중심 + 강화 단계 도달마다 강철심장이 강해지는 플래시("더 강해졌다!"/거인의 결의 변신). 전부 season===2 게이트' },
   ] },
@@ -8018,6 +8034,7 @@ function renderEmblemBody(){
   }).join('');
   body.innerHTML = `
     <div class="fg2-head"><span class="fg2-head-ic">⚒️</span><span>대장간</span><span class="fg2-head-glow" style="color:${glow.color};">${glow.label}</span></div>
+    <div class="fg2-ornn"><div id="ornn-mount"></div><div class="fg2-ornn-load">🔥 오른을 부르는 중…</div></div>
     <div class="fg2-top">
       <div class="fg2-anvil ${eff.glow}" id="emblem-anvil">
         <div class="fg2-coals"></div>
@@ -8046,10 +8063,72 @@ function renderEmblemBody(){
       <span class="fg2-gold">보유 ${gold.toLocaleString()}G</span>
     </div>`;
   if (!locked) _bindForgeDrag();
+  _mountOrnn();  // 🔥 3D 오른 등장 (캔버스 이동)
 }
 
 window.emblemDoBuyBase   = async function(){ if (await emblemBuyBase()) renderEmblemBody(); };
 window.emblemDoBuyTicket = async function(type){ if (await emblemBuyTicket(type)) renderEmblemBody(); };
+// 🔥 3D 오른 (대장간) — lazy init. three.js dynamic import + glb 40MB는 대장간 첫 진입 때만 로드.
+let _ornnInit = false;
+async function ensureOrnn3d(){
+  if (_ornnInit) return;
+  _ornnInit = true;
+  try {
+    const THREE = await import('three');
+    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    let holder = document.getElementById('ornn-holder');
+    if (!holder){ holder=document.createElement('div'); holder.id='ornn-holder'; holder.style.cssText='position:absolute;left:-9999px;top:0;width:0;height:0;overflow:hidden;'; document.body.appendChild(holder); }
+    let canvas = document.getElementById('ornn3d');
+    if (!canvas){ canvas=document.createElement('canvas'); canvas.id='ornn3d'; holder.appendChild(canvas); }
+    const W=300,H=340;
+    const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true});
+    renderer.setPixelRatio(Math.min(devicePixelRatio||1,2)); renderer.setSize(W,H,false);
+    renderer.outputColorSpace=THREE.SRGBColorSpace;
+    renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.28;
+    const scene=new THREE.Scene();
+    const camera=new THREE.PerspectiveCamera(30,W/H,0.1,5000);
+    scene.add(new THREE.AmbientLight(0xffe8d0,0.55));
+    const keyL=new THREE.DirectionalLight(0xfff1dc,2.3); keyL.position.set(4,6,5); scene.add(keyL);
+    const rim=new THREE.DirectionalLight(0xffc879,1.45); rim.position.set(-5,3,-4); scene.add(rim);
+    const cool=new THREE.DirectionalLight(0x7e8cae,0.45); cool.position.set(-4,-1,2); scene.add(cool);
+    let forge, flareT=0; const clock=new THREE.Clock();
+    const STATES=[{key:'idle1',file:'ornn-idle1.glb',loop:true},{key:'idle2',file:'ornn-idle2.glb',loop:true},{key:'forge',file:'ornn-forge.glb',loop:false},{key:'fail',file:'ornn-fail.glb',loop:false}];
+    const M={}; let active=null, fitted=false; const loader=new GLTFLoader();
+    function hideAll(){ for(const k in M){ M[k].model.visible=false; if(M[k].action)M[k].action.stop(); } }
+    function showState(key,ts){ const m=M[key]; if(!m)return false; hideAll(); m.model.visible=true; active=key; if(m.action){m.action.reset();m.action.timeScale=ts||1;m.action.paused=false;m.action.play();} return true; }
+    function showIdle(){ const have=['idle1','idle2'].filter(k=>M[k]); if(!have.length)return; showState(have[(Math.random()*have.length)|0],1); if(showIdle._t)clearTimeout(showIdle._t); showIdle._t=setTimeout(()=>{ if(active==='idle1'||active==='idle2')showIdle(); },7000+Math.random()*5000); }
+    function playOnce(key,ts){ let k=M[key]?key:(M['forge']?'forge':null); if(!k)return; showState(k,ts); const dur=(M[k].dur||1)/(ts||1); if(playOnce._t)clearTimeout(playOnce._t); playOnce._t=setTimeout(()=>showIdle(),dur*1000+150); }
+    STATES.forEach(st=>{
+      loader.load('assets/forge/'+st.file, g=>{
+        const model=g.scene; model.visible=false; scene.add(model);
+        const box=new THREE.Box3().setFromObject(model);
+        const ctr=box.getCenter(new THREE.Vector3()); model.position.sub(ctr);
+        const sph=box.getBoundingSphere(new THREE.Sphere());
+        if(!fitted){ fitted=true; const fov=camera.fov*Math.PI/180;
+          camera.position.set(0,0,(sph.radius/Math.sin(fov/2))*1.78); camera.lookAt(0,0,0);
+          forge=new THREE.PointLight(0xff7320,2.6,sph.radius*7,2); forge.position.set(0,-sph.radius*0.7,sph.radius*1.2); scene.add(forge); }
+        model.traverse(o=>{ if(o.isMesh&&o.material){ const m=o.material; if('roughness'in m)m.roughness=Math.min(m.roughness??0.7,0.78); if('metalness'in m)m.metalness=Math.max(m.metalness??0.1,0.25); m.needsUpdate=true; } });
+        const mixer=new THREE.AnimationMixer(model), clip=(g.animations||[])[0];
+        let action=null,dur=0;
+        if(clip){ dur=clip.duration; action=mixer.clipAction(clip); if(st.loop)action.setLoop(THREE.LoopRepeat); else{action.setLoop(THREE.LoopOnce);action.clampWhenFinished=true;} }
+        M[st.key]={model,mixer,action,dur,loop:st.loop};
+        if(!active) showIdle();
+      }, undefined, err=>console.error('오른 로드 실패 '+st.file,err));
+    });
+    window.ornn3d={ playForge:(ts)=>playOnce('forge',ts), playFail:(ts)=>playOnce('fail',ts), idle:()=>showIdle(), durationOf:(key)=>M[key]?M[key].dur:0, flare:()=>{flareT=1;} };
+    (function loop(){ requestAnimationFrame(loop); const dt=clock.getDelta(); for(const k in M){ if(M[k].mixer&&M[k].model.visible)M[k].mixer.update(dt); } if(forge){ if(flareT>0)flareT=Math.max(0,flareT-dt*2.4); forge.intensity=2.6+flareT*7; } renderer.render(scene,camera); })();
+  } catch(e){ console.error('3D 오른 init 실패:',e); _ornnInit=false; }
+}
+window.ensureOrnn3d = ensureOrnn3d;
+// 대장간 렌더 후 3D 오른 캔버스를 마운트 지점으로 이동 (캔버스는 1개 유지)
+function _mountOrnn(){
+  if (CURRENT_SEASON !== 2) return;
+  ensureOrnn3d().then(()=>{
+    const cv=document.getElementById('ornn3d'), mt=document.getElementById('ornn-mount');
+    if (cv && mt && cv.parentElement !== mt) mt.appendChild(cv);
+  });
+}
+
 let _emblemFxBusy = false;
 window.emblemDoEnhance   = async function(type){
   if (_emblemFxBusy) return;
@@ -8088,7 +8167,9 @@ function _emblemForge(r){
     const anvil = document.getElementById('emblem-anvil');
     if (!anvil){ resolve(); return; }
     const col = r.def.color;
-    const clang = ()=>{ try { _gSfx.mergeImpact(2); } catch(_){} anvil.classList.remove('clang'); void anvil.offsetWidth; anvil.classList.add('clang'); };
+    const fD = (window.ornn3d?.durationOf?.('forge')||0)*1000;
+    try { window.ornn3d?.playForge?.(fD>0 ? fD/1400 : 0.6); } catch(_){}   // 🔥 오른 망치질 (땅땅 구간에 맞춤)
+    const clang = ()=>{ try { _gSfx.mergeImpact(2); } catch(_){} try { window.ornn3d?.flare?.(); } catch(_){} anvil.classList.remove('clang'); void anvil.offsetWidth; anvil.classList.add('clang'); };
     clang(); _forgeSparks(anvil, col, 6);                       // 땅
     setTimeout(()=>{
       clang(); _forgeSparks(anvil, col, 6);                     // 땅
@@ -8116,6 +8197,7 @@ function _emblemForge(r){
         } else {
           anvil.classList.add('forge-fail');
           try { _gSfx.mergeImpact(1); } catch(_){}
+          try { const failD=(window.ornn3d?.durationOf?.('fail')||0)*1000; window.ornn3d?.playFail?.(failD>0?Math.max(0.95,failD/1700):1.0); } catch(_){}  // 🔥 오른 실패 반응
           showS1Toast(`💢 단조 실패… 성능 ${r.power} 유지 (슬롯 ${r.slotsUsed}/${EMBLEM_SLOTS})`);
         }
         setTimeout(()=>{ anvil.classList.remove('forge-success','forge-fail','forge-up','forge-final'); resolve(); }, 780);
