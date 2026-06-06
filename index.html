@@ -5678,7 +5678,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.10';
+const APP_VERSION = 'v2.44.11';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5687,6 +5687,9 @@ const APP_VERSION = 'v2.44.10';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.11', date: '2026-06-06', changes: [
+    { tag: 'fix', text: '⚒️ [시즌2] 대장간을 표준 상점 패턴으로 통합 — 2겹 상점/인벤토리 혼란 해결. (1) 강철심장=상점 "장비" 탭 일반 카드, 강화권=상점 "소비" 탭 일반 카드로 구매 → 산 게 바로 "내 아이템"에 보임. (2) 내 아이템 "장비"의 강철심장 클릭(🔨강화) 또는 "소비"의 강화권 클릭 → 대장간 모달 열림(오른+모루+강화권 랙만, 자체 상점/인벤 제거). (3) 모달 제목 "🔨 대장간 · 강철심장 강화". 이전엔 "장비 아이템" 탭이 통째로 대장간이 되고 그 안에 또 상점·인벤이 중첩돼 구매가 내 아이템에 안 보였음' },
+  ] },
   { ver: 'v2.44.10', date: '2026-06-06', changes: [
     { tag: 'improve', text: '⚒️ [시즌2] 대장간 2단 레이아웃 포팅 — 좌:작업대(3D오른+forge-box+강철심장)+효과패널+미드라인, 우:장비인벤(6칸)+강화권랙. 하단 상점바(강철심장+강화권 구매). anvilClang 금속 타격음 추가, 강화권 탭→탕! 큰 일격 연출. 드래그 타겟 forge-stage 전체로 확장. season===2 게이트' },
   ] },
@@ -8042,7 +8045,7 @@ window.openEmblemModal = function(){
   el.className = 'emblem-overlay' + (CURRENT_SEASON === 2 ? ' season-2' : '');
   el.innerHTML = `<div class="emblem-sheet" onclick="event.stopPropagation()">
     <button class="emblem-close" onclick="window.closeEmblemModal()">✕</button>
-    <div class="emblem-modal-title">🔷 마법공학 엠블럼</div>
+    <div class="emblem-modal-title">🔨 대장간 · 강철심장 강화</div>
     <div id="emblem-body"></div>
   </div>`;
   document.body.appendChild(el);
@@ -8064,6 +8067,7 @@ function _forgeItemImg(power){
   return `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/item/${_forgeItemMeta(power).id}.png`;
 }
 
+// 🔨 대장간 작업대 (모달 전용). 강철심장·강화권 구매/보유는 상점·내 아이템 패널에서, 여기선 "강화"만.
 function renderEmblemBody(){
   const body = document.getElementById('emblem-body');
   if (!body) return;
@@ -8072,60 +8076,14 @@ function renderEmblemBody(){
   const gold = getMyGold();
   const em = getEmblem(data);
   const tickets = getEmblemTickets(data);
-  const heartImg = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/item/3084.png`;
 
-  // 강화권 칩 (드래그 소스 — 구매 버튼 없음, 상점바에서 별도)
-  const buildRackHtml = (emblem) => EMBLEM_TICKET_ORDER.map(tid=>{
-    const t=EMBLEM_TICKETS[tid], cnt=tickets[tid]||0;
-    const canEnh=cnt>0 && emblem && !emblemLocked(emblem);
-    return `<div class="fg2-tk${canEnh?' draggable':''}" data-ench="${canEnh?tid:''}" style="--tc:${t.color};border-color:${t.color}40;background:${t.color}12;${canEnh?'':'opacity:.5;'}" title="${t.name} · ${Math.round(t.chance*100)}% 성공 · 성능 +${t.power}">
-      <div class="fg2-tk-anvil" style="background:${t.color};"><span class="fg2-tk-cnt">${cnt}</span></div>
-      <div class="fg2-tk-name">${t.name.replace(' 강화권','')}</div>
-      <div class="fg2-tk-stat">${Math.round(t.chance*100)}% · +${t.power}</div>
-    </div>`;
-  }).join('');
-
-  // 상점바 강화권 구매 버튼
-  const shopTkHtml = EMBLEM_TICKET_ORDER.map(tid=>{
-    const t=EMBLEM_TICKETS[tid], canBuy=gold>=t.price;
-    return `<button class="fg2-buy-tk${canBuy?'':' dim'}" style="--tc:${t.color};" onclick="window.emblemDoBuyTicket('${tid}')"><b style="color:${t.color};">${t.name.replace(' 강화권','')}</b> ${t.price}G</button>`;
-  }).join('');
-
-  // 불씨
-  const embers = `<div class="fg2-embers">${[[16,3.4,0,6],[34,4.1,0.7,-9],[52,3.0,1.4,5],[70,4.6,0.4,11],[88,3.6,2.1,-7],[120,4.0,1.0,8]].map(([l,d,dl,ex])=>`<i style="left:${l}px;--ex:${ex}px;animation-duration:${d}s;animation-delay:${dl}s;"></i>`).join('')}</div>`;
-
-  // 미보유 상태
+  // 강철심장 미보유 → 안전망 (보통 내 아이템에서 보유 시에만 열림)
   if (!em){
     body.innerHTML = `
       <div class="fg2-head"><span class="fg2-head-ic">⚒️</span><span>대장간</span></div>
-      <div class="fg2-work">
-        <div class="fg2-work-left">
-          <div class="fg2-stage empty" id="forge-stage">
-            <div class="fg2-slot-ph">강철심장을 구매해<br>대장간에서 강화하세요</div>
-          </div>
-          <div class="fg2-equip-note">강철심장을 올리면 <b>장착</b>되어 효과 발동</div>
-          <div class="fg2-effs off">
-            <div class="fg2-eff-row"><span class="fg2-eff-lbl">복권 당첨률</span><span class="fg2-eff-num">+0.0<span class="unit">%p</span></span></div>
-            <div class="fg2-eff-row"><span class="fg2-eff-lbl">출석 골드</span><span class="fg2-eff-num">+0<span class="unit">G</span></span></div>
-          </div>
-        </div>
-        <div class="fg2-work-right">
-          <div class="fg2-sec">
-            <div class="fg2-sec-hd"><span>⬡ 장비 · 강철심장</span><span class="cnt">0/1</span></div>
-            <div class="fg2-inv-grid">${'<div class="fg2-inv-cell"></div>'.repeat(6)}</div>
-          </div>
-          <div class="fg2-sec">
-            <div class="fg2-sec-hd">⚒ 소비 · 강화권</div>
-            <div class="fg2-rack-new">${buildRackHtml(null)}</div>
-            <div class="fg2-rack-tip">강화권을 <b>작업대로 끌어</b> 단조</div>
-          </div>
-        </div>
-      </div>
-      <div class="fg2-shopbar">
-        <span class="fg2-shop-tag">⬡ 상점</span>
-        <button class="fg2-buy-heart${gold<EMBLEM_BASE_PRICE?' dim':''}" onclick="window.emblemDoBuyBase()"><img src="${heartImg}" alt="">강철심장 ${EMBLEM_BASE_PRICE}G</button>
-        ${shopTkHtml}
-        <span class="fg2-gold2">보유 <b>${gold.toLocaleString()}</b>G</span>
+      <div style="text-align:center;padding:26px 16px;display:flex;flex-direction:column;gap:14px;align-items:center;">
+        <div class="fg2-empty-txt">강철심장이 없어요.<br><b>상점 · 장비 탭</b>에서 강철심장을 구매한 뒤<br>여기서 강화권으로 단조하세요.</div>
+        <button class="fg2-buy ${gold<EMBLEM_BASE_PRICE?'dim':''}" onclick="window.emblemDoBuyBase()">강철심장 가져오기 · ${EMBLEM_BASE_PRICE}G</button>
       </div>`;
     return;
   }
@@ -8135,7 +8093,7 @@ function renderEmblemBody(){
   const glow = _EMBLEM_GLOW_META[eff.glow] || _EMBLEM_GLOW_META.none;
   const item = _forgeItemMeta(power);
 
-  // 슬롯 도트 (원형 sdot)
+  // 슬롯 도트
   let sdots = '';
   for (let i=0;i<EMBLEM_SLOTS;i++){
     const s = em.slots?.[i];
@@ -8144,60 +8102,118 @@ function renderEmblemBody(){
     else sdots += `<span class="fg2-sdot fail"></span>`;
   }
 
+  // 강화권 랙 (드래그 소스). 0개면 상점 안내.
+  const totalTk = tickets.stable + tickets.precise + tickets.overload;
+  const rackHtml = locked
+    ? `<div class="fg2-lock">🔒 강화 슬롯 ${EMBLEM_SLOTS}/${EMBLEM_SLOTS} 소진.<br>판매 후 새로 도전!</div>`
+    : (totalTk === 0
+        ? `<div class="fg2-lock" style="color:#9a9aa6;border-color:rgba(255,255,255,0.14);background:rgba(255,255,255,0.03);">강화권이 없어요.<br><b>상점 · 소비 탭</b>에서 구매하세요.</div>`
+        : EMBLEM_TICKET_ORDER.map(tid=>{
+            const t=EMBLEM_TICKETS[tid], cnt=tickets[tid]||0, canEnh=cnt>0;
+            return `<div class="fg2-tk${canEnh?' draggable':''}" data-ench="${canEnh?tid:''}" style="--tc:${t.color};border-color:${t.color}40;background:${t.color}12;${canEnh?'':'opacity:.4;'}" title="${t.name} · ${Math.round(t.chance*100)}% 성공 · 성능 +${t.power}">
+              <div class="fg2-tk-anvil" style="background:${t.color};"><span class="fg2-tk-cnt">${cnt}</span></div>
+              <div class="fg2-tk-name">${t.name.replace(' 강화권','')}</div>
+              <div class="fg2-tk-stat">${Math.round(t.chance*100)}% · +${t.power}</div>
+            </div>`;
+          }).join(''));
+
+  const embers = `<div class="fg2-embers">${[[16,3.4,0,6],[34,4.1,0.7,-9],[52,3.0,1.4,5],[70,4.6,0.4,11],[88,3.6,2.1,-7],[120,4.0,1.0,8]].map(([l,d,dl,ex])=>`<i style="left:${l}px;--ex:${ex}px;animation-duration:${d}s;animation-delay:${dl}s;"></i>`).join('')}</div>`;
+
   body.innerHTML = `
     <div class="fg2-head"><span class="fg2-head-ic">⚒️</span><span>대장간</span><span class="fg2-head-glow" style="color:${glow.color};">${glow.label}</span></div>
-    <div class="fg2-work">
-      <div class="fg2-work-left">
-        <div class="fg2-stage" id="forge-stage">
-          <div class="fg2-ornn-area">
-            ${embers}
-            <div id="ornn-mount"></div>
-            <div class="fg2-ornn-load">🔥 오른을 부르는 중…</div>
-          </div>
-          <div class="fg2-forge-box" id="emblem-anvil">
-            <div class="fg2-coals"></div>
-            <div class="fg2-item-wrap2">
-              <div class="fg2-aura" style="--glow:${glow.color};"></div>
-              <img class="fg2-item-img" src="${_forgeItemImg(power)}" onerror="this.style.display='none'" alt="${item.kr}">
-              <div class="fg2-lvl" style="border-color:${glow.color};color:${glow.color};">+${lvl}</div>
-            </div>
-          </div>
-          <div class="fg2-stage-hint2">${locked?'🔒 슬롯 소진 · 판매하세요':'강화권을 끌어와 단조'}</div>
-        </div>
-        <div class="fg2-equip-note">올려둔 강철심장이 <b>장착</b>되어 효과 발동 · 강화권으로 강화</div>
-        <div class="fg2-effs">
-          <div class="fg2-eff-row"><span class="fg2-eff-lbl">복권 당첨률</span><span class="fg2-eff-num">+${eff.lotteryBoostPct}<span class="unit">%p</span></span></div>
-          <div class="fg2-eff-row"><span class="fg2-eff-lbl">출석 골드</span><span class="fg2-eff-num">+${eff.attendBonusG}<span class="unit">G</span></span></div>
-        </div>
-        <div class="fg2-midline2">
-          <span class="fg2-iname" style="color:${glow.color};">${item.kr}</span>
-          <span class="fg2-slotrow">${sdots}<span class="fg2-slot-n2">${used}/${EMBLEM_SLOTS}</span></span>
-          <button class="fg2-sell" onclick="window.emblemDoSell()">판매 ${emblemSellPrice(em).toLocaleString()}G</button>
+    <div class="fg2-stage" id="forge-stage">
+      <div class="fg2-ornn-area">${embers}<div id="ornn-mount"></div><div class="fg2-ornn-load">🔥 오른을 부르는 중…</div></div>
+      <div class="fg2-forge-box" id="emblem-anvil">
+        <div class="fg2-coals"></div>
+        <div class="fg2-item-wrap2">
+          <div class="fg2-aura" style="--glow:${glow.color};"></div>
+          <img class="fg2-item-img" src="${_forgeItemImg(power)}" onerror="this.style.display='none'" alt="${item.kr}">
+          <div class="fg2-lvl" style="border-color:${glow.color};color:${glow.color};">+${lvl}</div>
         </div>
       </div>
-      <div class="fg2-work-right">
-        <div class="fg2-sec">
-          <div class="fg2-sec-hd"><span>⬡ 장비 · 강철심장</span><span class="cnt">1/1</span></div>
-          <div class="fg2-inv-grid">
-            <div class="fg2-inv-cell"><div class="fg2-ditem" style="--gc:${glow.color};"><img src="${_forgeItemImg(power)}" alt="${item.kr}"><span class="fg2-dilv">+${lvl}</span></div></div>
-            ${'<div class="fg2-inv-cell"></div>'.repeat(5)}
-          </div>
-        </div>
-        <div class="fg2-sec">
-          <div class="fg2-sec-hd">⚒ 소비 · 강화권</div>
-          <div class="fg2-rack-new">${locked?`<div class="fg2-lock">🔒 강화 슬롯 ${EMBLEM_SLOTS}/${EMBLEM_SLOTS} 소진.<br>판매 후 새로 도전!</div>`:buildRackHtml(em)}</div>
-          ${!locked?'<div class="fg2-rack-tip">강화권을 <b>작업대로 끌어</b> 단조</div>':''}
-        </div>
-      </div>
+      <div class="fg2-stage-hint2">${locked?'🔒 슬롯 소진 · 판매하세요':'강화권을 끌어와 단조'}</div>
     </div>
-    <div class="fg2-shopbar">
-      <span class="fg2-shop-tag">⬡ 상점</span>
-      <button class="fg2-buy-heart dim">강철심장 보유 중</button>
-      ${shopTkHtml}
-      <span class="fg2-gold2">보유 <b>${gold.toLocaleString()}</b>G</span>
+    <div class="fg2-effs" style="margin-top:10px;">
+      <div class="fg2-eff-row"><span class="fg2-eff-lbl">복권 당첨률</span><span class="fg2-eff-num">+${eff.lotteryBoostPct}<span class="unit">%p</span></span></div>
+      <div class="fg2-eff-row"><span class="fg2-eff-lbl">출석 골드</span><span class="fg2-eff-num">+${eff.attendBonusG}<span class="unit">G</span></span></div>
+    </div>
+    <div class="fg2-midline2" style="margin-top:10px;">
+      <span class="fg2-iname" style="color:${glow.color};">${item.kr}</span>
+      <span class="fg2-slotrow">${sdots}<span class="fg2-slot-n2">${used}/${EMBLEM_SLOTS}</span></span>
+      <button class="fg2-sell" onclick="window.emblemDoSell()">판매 ${emblemSellPrice(em).toLocaleString()}G</button>
+    </div>
+    <div class="fg2-sec" style="margin-top:10px;">
+      <div class="fg2-sec-hd"><span>⚒ 강화권</span><span class="cnt">끌어서 단조</span></div>
+      <div class="fg2-rack-new">${rackHtml}</div>
     </div>`;
   if (!locked) _bindForgeDrag();
   _mountOrnn();  // 🔥 3D 오른 등장 (캔버스 이동)
+}
+
+// 🔨 상점 — 강철심장(장비)/강화권(소비) 카드 HTML (.sli 스타일, 시즌2 전용)
+function _emblemShopCardsHtml(cat){
+  if (CURRENT_SEASON !== 2) return '';
+  const key=getMyGoldKey(), data=key?goldData[key]:null, gold=getMyGold();
+  if (cat === 'equip'){
+    const owned = !!getEmblem(data), canBuy = !owned && gold >= EMBLEM_BASE_PRICE;
+    const heartImg = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/item/3084.png`;
+    const btn = owned
+      ? `<button class="sli-price sli-limit-hit" disabled>보유중</button>`
+      : `<button class="sli-price" ${canBuy?'':'disabled'} onclick="window.emblemDoBuyBase()">🪙${EMBLEM_BASE_PRICE}G</button>`;
+    return `<div class="sli">
+      <div class="sli-icon"><img src="${heartImg}" style="width:30px;height:30px;border-radius:6px;display:block;" alt=""></div>
+      <div class="sli-info">
+        <div class="sli-name" style="color:#ffd24a;">강철심장</div>
+        <div class="sli-desc">대장간에서 강화권으로 단조 · 끝까지 벼리면 오른 걸작 거인의 결의로. 복권·출석 보너스</div>
+        ${owned?'<div class="sli-pass-notice" style="color:#ffd24a;">내 아이템 · 장비 탭에서 🔨 강화</div>':''}
+      </div>
+      <div class="sli-right">${btn}</div>
+    </div>`;
+  }
+  if (cat === 'consume'){
+    return EMBLEM_TICKET_ORDER.map(tid=>{
+      const t=EMBLEM_TICKETS[tid], canBuy=gold>=t.price;
+      return `<div class="sli">
+        <div class="sli-icon" style="color:${t.color};">${t.icon}</div>
+        <div class="sli-info">
+          <div class="sli-name" style="color:${t.color};">${t.name}</div>
+          <div class="sli-desc">성공 ${Math.round(t.chance*100)}% · 성능 +${t.power} · 대장간에서 강철심장 강화에 사용</div>
+        </div>
+        <div class="sli-right"><button class="sli-price" ${canBuy?'':'disabled'} onclick="window.emblemDoBuyTicket('${tid}')">🪙${t.price}G</button></div>
+      </div>`;
+    }).join('');
+  }
+  return '';
+}
+
+// 🔨 내 아이템 — 강철심장(장비)/강화권(소비) 슬롯 HTML (시즌2 전용)
+function _emblemInvSlotsHtml(cat){
+  if (CURRENT_SEASON !== 2) return '';
+  const key=getMyGoldKey(), data=key?goldData[key]:null;
+  if (cat === 'equip'){
+    const em = getEmblem(data); if (!em) return '';
+    const lvl=emblemLevel(em), power=emblemPower(em), item=_forgeItemMeta(power);
+    const glow=_EMBLEM_GLOW_META[emblemEffects(power).glow]||_EMBLEM_GLOW_META.none;
+    return `<div class="inv-slot inv-active" onclick="window.openEmblemModal()" title="${item.kr} · 클릭하면 대장간에서 강화">
+      <div class="inv-count-badge" style="background:${glow.color};color:#0a0e1a;">+${lvl}</div>
+      <div class="inv-slot-icon"><img src="${_forgeItemImg(power)}" style="width:30px;height:30px;border-radius:6px;display:block;" alt=""></div>
+      <div class="inv-slot-name">${item.kr}</div>
+      <div class="inv-slot-action inv-action-use" style="background:linear-gradient(135deg,#ffb867,#e08a2e);color:#1a1206;">🔨 강화</div>
+    </div>`;
+  }
+  if (cat === 'consume'){
+    const t = getEmblemTickets(data);
+    return EMBLEM_TICKET_ORDER.filter(tid=>(t[tid]||0)>0).map(tid=>{
+      const def=EMBLEM_TICKETS[tid], cnt=t[tid];
+      return `<div class="inv-slot" onclick="window.openEmblemModal()" title="${def.name} · 대장간에서 강철심장 강화에 사용">
+        <div class="inv-count-badge">${cnt}개</div>
+        <div class="inv-slot-icon" style="color:${def.color};">${def.icon}</div>
+        <div class="inv-slot-name">${def.name}</div>
+        <div class="inv-slot-action inv-action-use" style="opacity:.75;">대장간용</div>
+      </div>`;
+    }).join('');
+  }
+  return '';
 }
 
 window.emblemDoBuyBase   = async function(){ if (await emblemBuyBase()) renderEmblemBody(); };
@@ -20294,12 +20310,10 @@ function _renderShopImmediate() {
       </div>
       <div class="lot-entry-arrow">›</div>
     </div>` : '';
-  // 🔷 마법공학 엠블럼 강화 진입 카드 (시즌2 전용, 소비 카테고리) — v2.44.0~
-  // 🔥 내 장비 — 대장간(강철심장 강화)을 장비 탭 상단에 인라인 (시즌2 전용). 모달 X.
-  const emblemEntryHtml = (CURRENT_SEASON === 2 && shopCatTab === 'equip')
-    ? `<div class="fg2-shop" id="emblem-body"></div><div class="fg2-shop-sep">상점</div>` : '';
-  document.getElementById('shop-list').innerHTML = lotteryEntryHtml + emblemEntryHtml + (shopFiltered.length === 0
-    ? `<div class="sp-cat-empty">🔧 준비 중인 아이템이에요.<br>곧 장비 아이템이 추가될 예정이에요!</div>`
+  // 🔨 대장간 — 강철심장(장비)/강화권(소비)을 일반 상점 카드로 표시 (시즌2 전용). 강화는 내 아이템→대장간 모달.
+  const emblemShopHtml = (CURRENT_SEASON === 2) ? _emblemShopCardsHtml(shopCatTab) : '';
+  document.getElementById('shop-list').innerHTML = lotteryEntryHtml + emblemShopHtml + (shopFiltered.length === 0
+    ? (emblemShopHtml ? '' : `<div class="sp-cat-empty">🔧 준비 중인 아이템이에요.<br>곧 장비 아이템이 추가될 예정이에요!</div>`)
     : shopFiltered.map(item => {
     const isLotteryLocked   = (item.type === 'scratch_tier' || item.type === 'lottery') && SCRATCH_LOTTERY_LOCKED;
     const isLotteryLimitHit = (item.type === 'lottery_premium' && todayPremiumCount >= 3)
@@ -20354,8 +20368,6 @@ function _renderShopImmediate() {
       </div>
     </div>`;
   }).join(''));
-  // 🔥 장비 탭 + 시즌2 → 대장간(강철심장 강화) 인라인 렌더
-  if (CURRENT_SEASON === 2 && shopCatTab === 'equip') renderEmblemBody();
 
   // ── 인벤토리 그리드 ──────────────────────────────────────
   const allDefs  = [...SHOP_ITEMS, ...S1_SHOP_ITEMS];
@@ -20368,7 +20380,9 @@ function _renderShopImmediate() {
     return invCatTab === 'equip' ? !isCon : isCon;
   });
   const invEl = document.getElementById('inv-grid');
-  if (filteredItems.length === 0 && invCatTab === 'equip') {
+  // 🔨 시즌2 — 강철심장(장비)/강화권(소비)을 내 아이템 그리드 앞에 주입
+  const emblemInvHtml = (CURRENT_SEASON === 2) ? _emblemInvSlotsHtml(invCatTab) : '';
+  if (filteredItems.length === 0 && !emblemInvHtml && invCatTab === 'equip') {
     invEl.innerHTML = '<div class="sp-cat-empty" style="grid-column:1/-1">🔧 보유한 장비 아이템이 없어요.</div>';
   } else {
     // 아이템 타입별 보유 개수 집계 + 중복 제거 (종류당 1슬롯)
@@ -20406,7 +20420,7 @@ function _renderShopImmediate() {
         <div class="inv-slot-action ${isActive?'inv-action-cancel':'inv-action-use'}">${actLabel}</div>
       </div>`);
     }
-    invEl.innerHTML = slots.join('');
+    invEl.innerHTML = emblemInvHtml + slots.join('');
   }
 }
 // 아이템 구매
