@@ -5675,7 +5675,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.12';
+const APP_VERSION = 'v2.44.13';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5684,7 +5684,9 @@ const APP_VERSION = 'v2.44.12';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
-  { ver: 'v2.44.12', date: '2026-06-06', changes: [
+  { ver: 'v2.44.13', date: '2026-06-06', changes: [
+    { tag: 'improve', text: '🔨 [시즌2] 상점 "패스권" 탭 → "🔨 대장간" 탭으로 대체 (유료 패스권 시즌2 폐지 예정이라 슬롯 재활용). 대장간 탭에 작업대(오른+모루+강화권 랙) 인라인 표시 — 강철심장 없으면 가져오기 버튼, 있으면 바로 강화. 내 아이템의 강철심장(🔨강화)/강화권 클릭 시 대장간 탭으로 이동. 강철심장=장비탭·강화권=소비탭 구매 + 내 아이템 반영은 그대로 유지. 강화 연출 중 재렌더 skip 가드' },
+  ] },
     { tag: 'fix', text: '⚒️ [시즌2] 대장간 비주얼을 최신 목업과 1:1 동기화 — (1) 강화권을 사장님이 만든 실제 모루 이미지(anvil.png) + 색상 필터(초록/금/빨강)로 표시(이전엔 clip-path 단색 도형이라 적용 안 됐던 문제). 대장간 랙·상점·내 아이템·드래그 고스트 전부 모루 이미지로 통일. (2) 3D 오른 배치 수정 — canvas object-fit:contain + object-position:center 38%로 작업대 안 정위치(이전엔 늘어나거나 잘림). 강화권 칩 레이아웃도 목업처럼 [모루][이름·확률][×개수]로 정렬' },
   ] },
   { ver: 'v2.44.11', date: '2026-06-06', changes: [
@@ -8055,6 +8057,12 @@ window.openEmblemModal = function(){
   renderEmblemBody();
 };
 window.closeEmblemModal = function(){ document.getElementById('emblem-overlay')?.remove(); };
+// 🔨 대장간 탭으로 이동 (시즌2 — 상점 패스권 슬롯을 대장간이 대체). 비-S2는 폴백으로 모달.
+window.gotoForgeTab = function(){
+  if (CURRENT_SEASON !== 2) { window.openEmblemModal(); return; }
+  window.switchShopCat('pass');  // S2에서 'pass' 카테고리 = 🔨 대장간
+  document.getElementById('shop-list')?.scrollIntoView?.({ behavior:'smooth', block:'start' });
+};
 
 // 🔨 오른 대장간 — 광채 등급별 롤 아이템 (강화할수록 진화)
 const _GLOW_RANK = { none:0, silver:1, gold:2, prismatic:3 };
@@ -8088,8 +8096,9 @@ function renderEmblemBody(){
     body.innerHTML = `
       <div class="fg2-head"><span class="fg2-head-ic">⚒️</span><span>대장간</span></div>
       <div style="text-align:center;padding:26px 16px;display:flex;flex-direction:column;gap:14px;align-items:center;">
-        <div class="fg2-empty-txt">강철심장이 없어요.<br><b>상점 · 장비 탭</b>에서 강철심장을 구매한 뒤<br>여기서 강화권으로 단조하세요.</div>
+        <div class="fg2-empty-txt"><b>강철심장</b>을 가져와 단조를 시작하세요.<br>강화권으로 두드릴수록 더 강해지고,<br>끝까지 벼리면 오른의 걸작 <b>거인의 결의</b>로.</div>
         <button class="fg2-buy ${gold<EMBLEM_BASE_PRICE?'dim':''}" onclick="window.emblemDoBuyBase()">강철심장 가져오기 · ${EMBLEM_BASE_PRICE}G</button>
+        <div style="font-size:10.5px;color:#8b8b97;">강화권은 <b style="color:#f0c060;">상점 · 소비 탭</b>에서 구매</div>
       </div>`;
     return;
   }
@@ -8200,7 +8209,7 @@ function _emblemInvSlotsHtml(cat){
     const em = getEmblem(data); if (!em) return '';
     const lvl=emblemLevel(em), power=emblemPower(em), item=_forgeItemMeta(power);
     const glow=_EMBLEM_GLOW_META[emblemEffects(power).glow]||_EMBLEM_GLOW_META.none;
-    return `<div class="inv-slot inv-active" onclick="window.openEmblemModal()" title="${item.kr} · 클릭하면 대장간에서 강화">
+    return `<div class="inv-slot inv-active" onclick="window.gotoForgeTab()" title="${item.kr} · 클릭하면 대장간에서 강화">
       <div class="inv-count-badge" style="background:${glow.color};color:#0a0e1a;">+${lvl}</div>
       <div class="inv-slot-icon"><img src="${_forgeItemImg(power)}" style="width:30px;height:30px;border-radius:6px;display:block;" alt=""></div>
       <div class="inv-slot-name">${item.kr}</div>
@@ -8211,11 +8220,11 @@ function _emblemInvSlotsHtml(cat){
     const t = getEmblemTickets(data);
     return EMBLEM_TICKET_ORDER.filter(tid=>(t[tid]||0)>0).map(tid=>{
       const def=EMBLEM_TICKETS[tid], cnt=t[tid];
-      return `<div class="inv-slot" onclick="window.openEmblemModal()" title="${def.name} · 대장간에서 강철심장 강화에 사용">
+      return `<div class="inv-slot" onclick="window.gotoForgeTab()" title="${def.name} · 대장간에서 강철심장 강화에 사용">
         <div class="inv-count-badge">${cnt}개</div>
         <div class="inv-slot-icon">${_emblemTkAnvilImg(def, 30)}</div>
         <div class="inv-slot-name">${def.name}</div>
-        <div class="inv-slot-action inv-action-use" style="opacity:.75;">대장간용</div>
+        <div class="inv-slot-action inv-action-use" style="opacity:.75;">대장간으로</div>
       </div>`;
     }).join('');
   }
@@ -20317,7 +20326,17 @@ function _renderShopImmediate() {
       </div>
       <div class="lot-entry-arrow">›</div>
     </div>` : '';
-  // 🔨 대장간 — 강철심장(장비)/강화권(소비)을 일반 상점 카드로 표시 (시즌2 전용). 강화는 내 아이템→대장간 모달.
+  // 🔨 시즌2: 상점 "패스권" 탭(유료 패스 폐지 예정)을 "🔨 대장간"이 대체 — 작업대 인라인
+  const _passBtn = document.getElementById('shop-cat-pass');
+  if (_passBtn) _passBtn.textContent = (CURRENT_SEASON === 2) ? '🔨 대장간' : '패스권';
+  if (CURRENT_SEASON === 2 && shopCatTab === 'pass') {
+    if (!_emblemFxBusy) {  // 강화 연출 중엔 재렌더 skip (애니 보존)
+      const _sl = document.getElementById('shop-list');
+      if (!document.getElementById('emblem-body')) _sl.innerHTML = '<div id="emblem-body"></div>';
+      renderEmblemBody();
+    }
+  } else {
+  // 🔨 대장간 — 강철심장(장비)/강화권(소비)을 일반 상점 카드로 표시 (시즌2). 강화는 대장간 탭에서.
   const emblemShopHtml = (CURRENT_SEASON === 2) ? _emblemShopCardsHtml(shopCatTab) : '';
   document.getElementById('shop-list').innerHTML = lotteryEntryHtml + emblemShopHtml + (shopFiltered.length === 0
     ? (emblemShopHtml ? '' : `<div class="sp-cat-empty">🔧 준비 중인 아이템이에요.<br>곧 장비 아이템이 추가될 예정이에요!</div>`)
@@ -20375,6 +20394,7 @@ function _renderShopImmediate() {
       </div>
     </div>`;
   }).join(''));
+  }  // end else (대장간 탭 외 일반 상점 렌더)
 
   // ── 인벤토리 그리드 ──────────────────────────────────────
   const allDefs  = [...SHOP_ITEMS, ...S1_SHOP_ITEMS];
