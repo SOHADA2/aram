@@ -4781,6 +4781,10 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .fg2-rack-new{display:flex;flex-direction:column;gap:7px;}
 .fg2-rack-tip{font-size:10px;color:#8b8b97;text-align:center;margin-top:8px;}
 .fg2-rack-tip b{color:#f0c060;}
+.fg2-forge-guide{margin-top:12px;text-align:center;font-size:11px;line-height:1.5;color:#b9bcc6;background:rgba(240,192,96,0.06);border:1px dashed rgba(240,192,96,0.22);border-radius:9px;padding:9px 10px;}
+.fg2-forge-guide b{color:#f0c060;}
+.inv-slot.inv-ench-src{cursor:grab;}
+.inv-slot.inv-ench-src:active{cursor:grabbing;}
 .fg2-shopbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:#141416;border:1px solid #24242c;border-radius:12px;padding:11px 13px;margin-top:2px;}
 .fg2-shop-tag{font-size:11.5px;font-weight:800;color:#ffe39a;flex-shrink:0;}
 .fg2-buy-heart{display:flex;align-items:center;gap:7px;padding:8px 12px;border:1px solid rgba(240,192,96,0.35);border-radius:9px;background:rgba(240,192,96,0.08);color:#ffe39a;font-size:11.5px;font-weight:800;cursor:pointer;}
@@ -5675,7 +5679,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.13';
+const APP_VERSION = 'v2.44.14';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5684,6 +5688,9 @@ const APP_VERSION = 'v2.44.13';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.14', date: '2026-06-06', changes: [
+    { tag: 'improve', text: '🔨 [시즌2] 대장간 강화권 중복 제거 + 드래그/탭 통합 — 작업대 아래 강화권 랙을 없애고(우측 "내 아이템·소비"와 중복이었음), 이제 내 아이템의 강화권을 작업대로 끌어오거나(데스크톱·태블릿) 탭하면(폰·태블릿) 바로 강철심장이 단조됨. 폰에서는 대장간 탭에서 강화권을 탭하는 게 가장 확실. 작업대 안내문구 추가' },
+  ] },
   { ver: 'v2.44.13', date: '2026-06-06', changes: [
     { tag: 'improve', text: '🔨 [시즌2] 상점 "패스권" 탭 → "🔨 대장간" 탭으로 대체 (유료 패스권 시즌2 폐지 예정이라 슬롯 재활용). 대장간 탭에 작업대(오른+모루+강화권 랙) 인라인 표시 — 강철심장 없으면 가져오기 버튼, 있으면 바로 강화. 내 아이템의 강철심장(🔨강화)/강화권 클릭 시 대장간 탭으로 이동. 강철심장=장비탭·강화권=소비탭 구매 + 내 아이템 반영은 그대로 유지. 강화 연출 중 재렌더 skip 가드' },
   ] },
@@ -8118,20 +8125,11 @@ function renderEmblemBody(){
     else sdots += `<span class="fg2-sdot fail"></span>`;
   }
 
-  // 강화권 랙 (드래그 소스). 0개면 상점 안내.
   const totalTk = tickets.stable + tickets.precise + tickets.overload;
-  const rackHtml = locked
-    ? `<div class="fg2-lock">🔒 강화 슬롯 ${EMBLEM_SLOTS}/${EMBLEM_SLOTS} 소진.<br>판매 후 새로 도전!</div>`
-    : (totalTk === 0
-        ? `<div class="fg2-lock" style="color:#9a9aa6;border-color:rgba(255,255,255,0.14);background:rgba(255,255,255,0.03);">강화권이 없어요.<br><b>상점 · 소비 탭</b>에서 구매하세요.</div>`
-        : EMBLEM_TICKET_ORDER.map(tid=>{
-            const t=EMBLEM_TICKETS[tid], cnt=tickets[tid]||0, canEnh=cnt>0;
-            return `<div class="fg2-tk${canEnh?' draggable':''}" data-ench="${canEnh?tid:''}" style="--tc:${t.color};border-color:${t.color}40;background:${t.color}12;${canEnh?'':'opacity:.4;'}" title="${t.name} · ${Math.round(t.chance*100)}% 성공 · 성능 +${t.power}">
-              ${_emblemTkAnvilImg(t, 30)}
-              <span class="fg2-tk-text"><b class="fg2-tk-name" style="color:${t.color};">${t.name.replace(' 강화권','')}</b> <span class="fg2-tk-sub">${Math.round(t.chance*100)}% · +${t.power}</span></span>
-              <span class="fg2-tk-cnt2${cnt>0?'':' zero'}">×${cnt}</span>
-            </div>`;
-          }).join(''));
+  // 작업대 힌트 — 강화권은 우측 "내 아이템 · 소비"에서 끌어오거나 탭
+  const hint = locked ? '🔒 슬롯 소진 · 판매하세요'
+             : (totalTk === 0 ? '강화권을 상점·소비 탭에서 구매하세요'
+                              : '강화권을 끌어오거나 탭해 단조');
 
   const embers = `<div class="fg2-embers">${[[16,3.4,0,6],[34,4.1,0.7,-9],[52,3.0,1.4,5],[70,4.6,0.4,11],[88,3.6,2.1,-7],[120,4.0,1.0,8]].map(([l,d,dl,ex])=>`<i style="left:${l}px;--ex:${ex}px;animation-duration:${d}s;animation-delay:${dl}s;"></i>`).join('')}</div>`;
 
@@ -8147,7 +8145,7 @@ function renderEmblemBody(){
           <div class="fg2-lvl" style="border-color:${glow.color};color:${glow.color};">+${lvl}</div>
         </div>
       </div>
-      <div class="fg2-stage-hint2">${locked?'🔒 슬롯 소진 · 판매하세요':'강화권을 끌어와 단조'}</div>
+      <div class="fg2-stage-hint2">${hint}</div>
     </div>
     <div class="fg2-effs" style="margin-top:10px;">
       <div class="fg2-eff-row"><span class="fg2-eff-lbl">복권 당첨률</span><span class="fg2-eff-num">+${eff.lotteryBoostPct}<span class="unit">%p</span></span></div>
@@ -8158,11 +8156,7 @@ function renderEmblemBody(){
       <span class="fg2-slotrow">${sdots}<span class="fg2-slot-n2">${used}/${EMBLEM_SLOTS}</span></span>
       <button class="fg2-sell" onclick="window.emblemDoSell()">판매 ${emblemSellPrice(em).toLocaleString()}G</button>
     </div>
-    <div class="fg2-sec" style="margin-top:10px;">
-      <div class="fg2-sec-hd"><span>⚒ 강화권</span><span class="cnt">끌어서 단조</span></div>
-      <div class="fg2-rack-new">${rackHtml}</div>
-    </div>`;
-  if (!locked) _bindForgeDrag();
+    <div class="fg2-forge-guide">👉 <b>내 아이템 · 소비</b>의 강화권을 <b>끌어오거나 탭</b>하면 단조됩니다</div>`;
   _mountOrnn();  // 🔥 3D 오른 등장 (캔버스 이동)
 }
 
@@ -8221,15 +8215,63 @@ function _emblemInvSlotsHtml(cat){
     const t = getEmblemTickets(data);
     return EMBLEM_TICKET_ORDER.filter(tid=>(t[tid]||0)>0).map(tid=>{
       const def=EMBLEM_TICKETS[tid], cnt=t[tid];
-      return `<div class="inv-slot" onclick="window.gotoForgeTab()" title="${def.name} · 대장간에서 강철심장 강화에 사용">
+      // data-ench → _bindEnchInventoryDrag가 드래그/탭 핸들러 부착 (대장간 작업대로 끌어 단조)
+      return `<div class="inv-slot inv-ench-src" data-ench="${tid}" style="touch-action:none;" title="${def.name} · 끌어오거나 탭하면 강철심장 강화">
         <div class="inv-count-badge">${cnt}개</div>
         <div class="inv-slot-icon">${_emblemTkAnvilImg(def, 30)}</div>
         <div class="inv-slot-name">${def.name}</div>
-        <div class="inv-slot-action inv-action-use" style="opacity:.75;">대장간으로</div>
+        <div class="inv-slot-action inv-action-use" style="background:linear-gradient(135deg,#ffb867,#e08a2e);color:#1a1206;">🔨 강화</div>
       </div>`;
     }).join('');
   }
   return '';
+}
+
+// 🖐️ 내 아이템 강화권 → 작업대 드래그/탭 (시즌2). 데스크톱·태블릿=드래그, 폰=탭이 가장 확실.
+function _bindEnchInventoryDrag(){
+  if (CURRENT_SEASON !== 2) return;
+  document.querySelectorAll('.inv-slot.inv-ench-src[data-ench]').forEach(slot=>{
+    const type = slot.dataset.ench; if (!type) return;
+    slot.onpointerdown = e=>{
+      if (_emblemFxBusy) return;
+      e.preventDefault();
+      _forgeDragState = { type, src:slot, ghost:null, moved:false, sx:e.clientX, sy:e.clientY };
+      try { slot.setPointerCapture(e.pointerId); } catch(_){}
+    };
+    slot.onpointermove = e=>{
+      const st=_forgeDragState; if(!st||st.src!==slot) return;
+      if(!st.moved && Math.hypot(e.clientX-st.sx, e.clientY-st.sy) > 7){
+        st.moved = true;  // 임계 넘으면 드래그 고스트 생성
+        const g=document.createElement('div'); g.className='forge-ghost';
+        g.style.setProperty('--tc', EMBLEM_TICKETS[type].color);
+        g.innerHTML = `<img src="${EMBLEM_ANVIL_IMG}" style="filter:${EMBLEM_TICKETS[type].filter};" alt=""><span>${EMBLEM_TICKETS[type].name.replace(' 강화권','')}</span>`;
+        document.body.appendChild(g); st.ghost = g;
+      }
+      if(st.ghost){ st.ghost.style.left=e.clientX+'px'; st.ghost.style.top=e.clientY+'px'; }
+      document.getElementById('forge-stage')?.classList.toggle('drop-ok', _isOverForge(e.clientX, e.clientY));
+    };
+    const finish = e=>{
+      const st=_forgeDragState; if(!st||st.src!==slot) return;
+      _forgeDragState = null;
+      if(st.ghost) st.ghost.remove();
+      document.getElementById('forge-stage')?.classList.remove('drop-ok');
+      if(st.moved){
+        if(_isOverForge(e.clientX, e.clientY)) _enchFromInventory(type);  // 작업대에 드롭 → 강화
+      } else {
+        _enchFromInventory(type);  // 탭 → (대장간 탭이면 강화 / 아니면 이동)
+      }
+    };
+    slot.onpointerup = finish;
+    slot.onpointercancel = ()=>{ const st=_forgeDragState; if(st&&st.src===slot){ if(st.ghost)st.ghost.remove(); _forgeDragState=null; document.getElementById('forge-stage')?.classList.remove('drop-ok'); } };
+  });
+}
+// 강화권으로 강화 실행 — 대장간 탭+강철심장 준비 시 단조, 아니면 대장간 탭으로 안내
+function _enchFromInventory(type){
+  const em = getEmblem(getMyGoldData());
+  const inForge = (shopCatTab === 'pass') && document.getElementById('forge-stage');  // 대장간 탭 + 강철심장 있음
+  if(!inForge){ window.gotoForgeTab(); if(!em) showS1Toast('먼저 강철심장을 가져오세요'); return; }
+  if(emblemLocked(em)){ showS1Toast('강화 슬롯이 모두 소진됐어요 (5/5)'); return; }
+  window.emblemDoEnhance(type);
 }
 
 window.emblemDoBuyBase   = async function(){ if (await emblemBuyBase()) renderEmblemBody(); };
@@ -20450,6 +20492,8 @@ function _renderShopImmediate() {
     }
     invEl.innerHTML = emblemInvHtml + slots.join('');
   }
+  // 🔨 시즌2 — 내 아이템 강화권에 드래그/탭 핸들러 부착 (작업대로 끌어 단조)
+  _bindEnchInventoryDrag();
 }
 // 아이템 구매
 // 아이템 상점 ? 툴팁 토글 (모바일: 탭, PC: hover는 CSS로 처리)
