@@ -5745,7 +5745,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.46';
+const APP_VERSION = 'v2.44.47';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5754,6 +5754,9 @@ const APP_VERSION = 'v2.44.46';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.47', date: '2026-06-05', changes: [
+    { tag: 'fix', text: '🏆 [시즌2] 걸작 효과 줄이 "비어있음"으로 뜨던 버그 수정 — 예전에 만든 강철심장에 이미 제거된 효과(복권/강화권 할인) 줄이 남아 빈 칸으로 보였음. 대장간 열 때 빈/무효 줄을 새 랜덤 효과로 자동 채워(3칸 항상 유효) 저장. 리롤 안 해도 자동 치유.' },
+  ] },
   { ver: 'v2.44.46', date: '2026-06-05', changes: [
     { tag: 'fix', text: '🔨 [시즌2] 대장간 강화 실패 모션이 끝까지 안 보이던 것 수정 — 강화 모션 뒤 결과 반영·재렌더가 820ms 만에 일어나 실패 반응 모션이 잘렸음. 실패 시엔 실패 모션 재생시간만큼(+여유) 대기 후 마무리하도록 조절. 성공 모션 타이밍은 그대로.' },
   ] },
@@ -7896,6 +7899,28 @@ const EMBLEM_LINES = 3;
 function emblemEssenceField(){ return sField('emblemEssence'); }
 function getEmblemEssence(data){ return (data||{})[emblemEssenceField()] || 0; }
 function emblemRollLines(){ return Array.from({length:EMBLEM_LINES}, ()=> EMBLEM_EFFECT_POOL[Math.floor(Math.random()*EMBLEM_EFFECT_POOL.length)]); }
+// 걸작 줄 정리 — 빈 칸/제거된(풀에 없는) 효과는 새 랜덤 유효 효과로 채워 항상 3칸 유효하게 (v2.44.47)
+function emblemSanitizeLines(lines){
+  const rnd = ()=> EMBLEM_EFFECT_POOL[Math.floor(Math.random()*EMBLEM_EFFECT_POOL.length)];
+  const out = Array.from({length:EMBLEM_LINES}, (_,i)=>{ const eid=(lines||[])[i]; return EMBLEM_EFFECTS[eid] ? eid : rnd(); });
+  return out;
+}
+// 보유 엠블럼들의 걸작 줄에 빈/무효 줄 있으면 자동 보정 + 저장(변경 시 1회). 옛 엠블럼(복권/강화권할인 잔재) 치유
+function _healEmblemLines(){
+  const key = getMyGoldKey(); if (!key) return;
+  const data = goldData[key]; if (!data) return;
+  const arr = getEmblems(data); if (!arr.length) return;
+  let changed = false;
+  const fixed = arr.map(e=>{
+    const fl = emblemSanitizeLines(e.lines);
+    if (JSON.stringify(fl) !== JSON.stringify(e.lines||[])) { changed = true; return { ...e, lines:fl }; }
+    return e;
+  });
+  if (changed){
+    goldData[key][emblemsField()] = fixed;  // 로컬 즉시 반영(렌더가 바로 정상)
+    update(ref(db,'gold/'+key), { [emblemsField()]: fixed }).catch(()=>{});
+  }
+}
 // 줄 1개 기여값 (성능 비례, 상한 미적용) — 줄 카드 표시용
 function emblemPerLine(eid, power){
   const d = EMBLEM_EFFECTS[eid]; if (!d) return 0;
@@ -8388,6 +8413,7 @@ function _emblemTkAnvilImg(t, size){
 function renderEmblemBody(){
   const body = document.getElementById('emblem-body');
   if (!body) return;
+  _healEmblemLines();  // 빈/제거된 효과 줄 자동 보정 (옛 엠블럼 "비어있음" 치유) — 렌더 전에 1회
   _evacuateOrnn();  // innerHTML 교체 전 캔버스 대피 (오른 재로딩 방지)
   const key  = getMyGoldKey();
   const data = key ? goldData[key] : null;
