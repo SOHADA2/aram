@@ -5745,7 +5745,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.41';
+const APP_VERSION = 'v2.44.42';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5754,6 +5754,9 @@ const APP_VERSION = 'v2.44.41';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.42', date: '2026-06-05', changes: [
+    { tag: 'improve', text: '⚡ [시즌2] 대장간 오른 3D 모델 경량화 — 4개 GLB 합계 40MB→1.2MB(약 33배 축소). meshopt 압축 + 텍스처 webp 변환(메쉬 폴리곤은 보존, 품질 영향 최소). 대장간 첫 진입 로딩·렉 대폭 개선. three.js에 MeshoptDecoder 추가. (S2 대장간 한정, S1 무영향)' },
+  ] },
   { ver: 'v2.44.41', date: '2026-06-05', changes: [
     { tag: 'fix', text: '🛡️ [시즌2] 걸작 효과 "패배 방어 LP" 표시가 길어서 줄바꿈돼 깨져 보이던 것 수정 — 이름 "패배 방어"·값 "1LP"로 짧게 통일(다른 효과들과 폭 맞춤). 효과 값 칸에 줄바꿈 방지(nowrap)도 추가해 향후 긴 값도 한 줄 유지.' },
   ] },
@@ -8721,6 +8724,7 @@ async function ensureOrnn3d(){
   try {
     const THREE = await import('three');
     const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    const { MeshoptDecoder } = await import('three/addons/libs/meshopt_decoder.module.js'); // GLB meshopt 압축 해제용 (v2.44.42)
     let holder = document.getElementById('ornn-holder');
     if (!holder){ holder=document.createElement('div'); holder.id='ornn-holder'; holder.style.cssText='position:absolute;left:-9999px;top:0;width:0;height:0;overflow:hidden;'; document.body.appendChild(holder); }
     let canvas = document.getElementById('ornn3d');
@@ -8738,7 +8742,7 @@ async function ensureOrnn3d(){
     const cool=new THREE.DirectionalLight(0x7e8cae,0.45); cool.position.set(-4,-1,2); scene.add(cool);
     let forge, flareT=0; const clock=new THREE.Clock();
     const STATES=[{key:'idle1',file:'ornn-idle1.glb',loop:true},{key:'idle2',file:'ornn-idle2.glb',loop:true},{key:'forge',file:'ornn-forge.glb',loop:false},{key:'fail',file:'ornn-fail.glb',loop:false}];
-    const M={}; let active=null, fitted=false; const loader=new GLTFLoader();
+    const M={}; let active=null, fitted=false; const loader=new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
     function hideAll(){ for(const k in M){ M[k].model.visible=false; if(M[k].action)M[k].action.stop(); } }
     function showState(key,ts){ const m=M[key]; if(!m)return false; hideAll(); m.model.visible=true; active=key; if(m.action){m.action.reset();m.action.timeScale=ts||1;m.action.paused=false;m.action.play();} return true; }
     function showIdle(){ const have=['idle1','idle2'].filter(k=>M[k]); if(!have.length)return; showState(have[(Math.random()*have.length)|0],1); if(showIdle._t)clearTimeout(showIdle._t); showIdle._t=setTimeout(()=>{ if(active==='idle1'||active==='idle2')showIdle(); },7000+Math.random()*5000); }
