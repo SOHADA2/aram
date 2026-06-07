@@ -5732,7 +5732,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.33';
+const APP_VERSION = 'v2.44.34';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5741,6 +5741,9 @@ const APP_VERSION = 'v2.44.33';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.34', date: '2026-06-07', changes: [
+    { tag: 'fix', text: '🔨 [시즌2] 강화/걸작/장착 직후 우측 효과 정보가 바로 안 바뀌던 문제 — 로컬 캐시(goldData)를 즉시 반영(낙관적 업데이트)해 onValue 전파 전에도 최신 성능·효과로 렌더. ※ 효과는 "걸작 줄 × 성능"이라 걸작 줄이 비어있으면(구버전 강철심장) 성능을 올려도 0 — 먼저 걸작 만들기로 3줄을 채워야 강화 효과가 오릅니다' },
+  ] },
   { ver: 'v2.44.33', date: '2026-06-07', changes: [
     { tag: 'improve', text: '🏆 [시즌2] 걸작 효과 풀 핵심 8종 확정 — 🪙경기골드·🏆승리골드·📅출석골드·🎟복권당첨률·🔨강화권할인·⭐MVP골드·🎰막고라배당·⚡승리LP. 활동별 하나씩 + LP 포함. MVP골드(경기저장)·막고라배당(정산)·승리LP(정규전)·경기골드(저장) 전부 실제 연결. 효과=줄수×기본값×성능배율(1+성능×0.1)' },
   ] },
@@ -7903,6 +7906,7 @@ async function emblemEquip(id){
   const data = goldData[key]; if (!data) return false;
   const arr = getEmblems(data);
   if (id != null && !arr.some(e=>e.id===id)) return false;
+  if (goldData[key]) { goldData[key][emblemsField()] = arr; goldData[key][emblemField()] = null; goldData[key][emblemEquippedField()] = id; }  // 로컬 즉시 반영
   await update(ref(db,'gold/'+key), {
     [emblemsField()]: arr,        // 구버전 단일이면 배열로 확정
     [emblemField()]: null,
@@ -7924,6 +7928,7 @@ async function emblemMasterReroll(){
   if (essence < 1) { showS1Toast('🔶 걸작의 정수가 없어요 (상점·소비 탭에서 구매)'); return false; }
   const newLines = emblemRollLines();
   const newArr = arr.map(e=> e.id===eqId ? { ...e, lines:newLines } : e);
+  if (goldData[key]) { goldData[key][emblemsField()] = newArr; goldData[key][emblemField()] = null; goldData[key][emblemEquippedField()] = eqId; goldData[key][emblemEssenceField()] = essence - 1; }  // 로컬 즉시 반영
   await update(ref(db,'gold/'+key), {
     [emblemsField()]: newArr,
     [emblemField()]: null,
@@ -7996,6 +8001,8 @@ async function emblemEnhance(type){
     const slots = [...(em.slots||[]), { t:type, ok }];
     const newArr = arr.map(e=> e.id===eqId ? { ...e, slots } : e);
     tickets[type] -= 1;
+    // 로컬 즉시 반영(낙관적) — onValue 전파 전에도 렌더가 최신 성능/효과를 읽도록
+    if (goldData[key]) { goldData[key][emblemsField()] = newArr; goldData[key][emblemField()] = null; goldData[key][emblemEquippedField()] = eqId; goldData[key][emblemTicketsField()] = tickets; }
     await update(ref(db,'gold/'+key), {
       [emblemsField()]: newArr,
       [emblemField()]: null,
