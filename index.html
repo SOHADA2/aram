@@ -5745,7 +5745,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.39';
+const APP_VERSION = 'v2.44.40';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5754,6 +5754,9 @@ const APP_VERSION = 'v2.44.39';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.40', date: '2026-06-05', changes: [
+    { tag: 'improve', text: '🏆 [시즌2] 걸작 효과 표시 일치 — 같은 효과 여러 줄일 때 "카드 +1LP ×2인데 총합 +3LP"처럼 어긋나 보이던 것 수정. 이제 줄 1개 값을 먼저 반올림(=카드값)하고 총합=줄값×줄수로 계산 → 카드 합과 총합이 항상 딱 떨어짐. 성능(강화) 올릴수록 줄값이 정수 단위로 깔끔하게 증가. (gold 효과는 영향 없음, LP 계열 표시 일관성↑)' },
+  ] },
   { ver: 'v2.44.39', date: '2026-06-05', changes: [
     { tag: 'new', text: '🛡️ [시즌2] 걸작 효과 "패배 방어 LP" 추가 — 정규전 패배 시 잃는 LP를 줄여줘요(base 0.5·cap 6, 승리 LP와 대칭). 도박권 사용 시 미적용. 효과 풀 7종으로 확장. (비밀퀘스트 토큰 제거로 사라졌던 패배 LP 완화 안전망을 엠블럼으로 일부 복원)' },
   ] },
@@ -7890,9 +7893,10 @@ function emblemEffectsOf(em){
   for (const eid of EMBLEM_EFFECT_POOL){
     const cnt = lines.filter(l=>l===eid).length;
     const d = EMBLEM_EFFECTS[eid];
-    let v = cnt ? cnt * d.base * mult : 0;
+    // 줄 1개 값을 먼저 반올림(=카드 표시값) → 총합 = 줄값 × 줄수. 카드 합과 총합이 항상 딱 맞음 (v2.44.40)
+    const per = cnt ? Math.round(d.base * mult) : 0;
+    let v = cnt * per;
     if (d.cap && v > d.cap) v = d.cap;
-    v = Math.round(v);
     eff[eid] = v;
   }
   return { power, mult, lines, eff };
