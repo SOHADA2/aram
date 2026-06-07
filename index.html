@@ -5716,7 +5716,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.28';
+const APP_VERSION = 'v2.44.29';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5725,6 +5725,9 @@ const APP_VERSION = 'v2.44.28';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.29', date: '2026-06-07', changes: [
+    { tag: 'improve', text: '🔨 [시즌2] 강철심장 광채 등급/칭호(효과 #3) 제거 — 랭킹·프로필·대기화면에 붙던 광채 뱃지와 "마법공학 장인" 칭호 폐지(연결부 정리). 대장간 내 아이콘 진화/색상은 유지. 걸작 효과 재설계 준비' },
+  ] },
   { ver: 'v2.44.28', date: '2026-06-07', changes: [
     { tag: 'improve', text: '🔨 [시즌2] 강철심장 다중보유 UI 정리 — (1) 좌측 하단 보유 베이를 제거하고 우측 "내 아이템 · 장비"로 통합(중복 제거). 이제 내 아이템 장비에서 강철심장 클릭=장착/교체(빼기). (2) + 구매 슬롯에 가격(150G) 표시해 골드 소모를 명확히. (3) 모든 강철심장 아이콘의 +N 강화표시를 우측 하단으로 통일(작업대·내 아이템)' },
   ] },
@@ -7953,7 +7956,7 @@ function _applyEmblemLotteryBoost(scratchResult, tierPrice){
 }
 window._applyEmblemLotteryBoost = _applyEmblemLotteryBoost;
 
-// 🔷 광채 — 이름으로 해당 유저의 엠블럼 성능 → 광채 등급/칭호 (시즌2 전용)
+// 🔷 광채 — 이름으로 해당 유저의 엠블럼 성능 → 광채 등급 (시즌2). 칭호는 폐지(v2.44.29).
 function emblemGlowMeta(name){
   if (CURRENT_SEASON !== 2 || !name) return null;
   let d = null;
@@ -7962,16 +7965,10 @@ function emblemGlowMeta(name){
   const power = emblemPower(getEmblem(d));
   if (power <= 0) return null;
   const glow = emblemEffects(power).glow; // silver / gold / prismatic
-  return { glow, power, title: power >= 25 ? '마법공학 장인' : null };
+  return { glow, power, title: null };  // 칭호 폐지 (광채 등급/칭호 효과 제거)
 }
-// 닉네임 뒤에 붙일 광채 아이콘(+칭호) HTML. withTitle=true 면 프리즈매틱 칭호도 표시.
-function emblemShineHtml(name, withTitle){
-  const m = emblemGlowMeta(name);
-  if (!m) return '';
-  const ic = m.glow === 'prismatic' ? '🌈' : m.glow === 'gold' ? '🔶' : '💠';
-  const title = (withTitle && m.title) ? `<span class="em-title">${m.title}</span>` : '';
-  return `<span class="em-shine ${m.glow}" title="강철심장 · 성능 ${m.power}">${ic}</span>${title}`;
-}
+// 광채/칭호 외부 표시(랭킹·프로필·대기화면)는 폐지 — 빈 문자열 반환 (연결부 일괄 제거)
+function emblemShineHtml(name, withTitle){ return ''; }
 window.emblemGlowMeta = emblemGlowMeta;
 window.emblemShineHtml = emblemShineHtml;
 // 🏷️ 패스 칭호 — 이름으로 passTitle_s2 조회 → 골드 배지 (시즌2 전용, emblemShineHtml 옆에 표시)
@@ -19629,13 +19626,11 @@ async function renderS1WaitingCard(el) {
   if (CURRENT_SEASON === 2) {
     const em = getEmblem(myGoldData);
     if (em) {
-      const pw = emblemPower(em), ef = emblemEffects(pw), m = emblemGlowMeta(myName);
-      const glowIc = m ? (m.glow==='prismatic'?'🌈':m.glow==='gold'?'🔶':'💠') : '🔷';
-      const titleHtml = (m && m.title) ? `<span class="em-title">${m.title}</span>` : '';
+      const pw = emblemPower(em), ef = emblemEffects(pw);
       emblemBadgeHtml = `<div style="display:flex;align-items:center;gap:6px;margin:6px 0 2px;padding:5px 9px;border-radius:7px;border:1px solid rgba(255,210,74,0.4);background:rgba(255,210,74,0.08);font-size:11px;flex-wrap:wrap;">
-        <span style="font-size:14px;">${glowIc}</span>
-        <span style="color:#ffd24a;font-weight:700;">엠블럼 +${emblemLevel(em)}</span>
-        <span style="color:var(--rk-text-dim);font-size:10px;">성능 ${pw} · 복권+${ef.lotteryBoostPct}%p · 출석+${ef.attendBonusG}G</span>${titleHtml}
+        <span style="font-size:14px;">🔨</span>
+        <span style="color:#ffd24a;font-weight:700;">강철심장 +${emblemLevel(em)}</span>
+        <span style="color:var(--rk-text-dim);font-size:10px;">성능 ${pw} · 복권+${ef.lotteryBoostPct}%p · 출석+${ef.attendBonusG}G</span>
       </div>`;
     }
   }
