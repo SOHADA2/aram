@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.44.7 (시즌2 엠블럼=🔨오른 대장간 드래그 강화 재설계 + 패스 재편 구현 완료 / 브릿지 aram-bridge v1.1.31 릴리즈 완료)
+- 현재 버전: v2.44.47 (시즌2 엠블럼=🔨오른 3D 대장간 + 걸작(masterpiece) 시스템 + S2 폴리시 / 브릿지 aram-bridge v1.1.31 릴리즈 완료)
 - ⚠️ **시즌2 작업 중** — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 필독 (진행상황·확정정책·신규콘텐츠 기획 전부 정리됨)
 
 ## 기술 스택
@@ -730,7 +730,19 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.44.0~7 (2026-06-04~05) — 🌌 시즌2 엠블럼 강화(→오른 대장간 재설계) + 패스 재편 + S2 폴리시 ← 최신
+### v2.44.8~47 (2026-06-05) — 🔨 오른 3D 대장간·걸작 시스템 + S2 알림/효과 폴리시 ← 최신
+
+> 전부 `CURRENT_SEASON===2` 게이트(라이브 S1 무영향). `previewSeason(2)`/`?preview=2`로 검증. 코드는 모두 푸시됨.
+
+- **v2.44.8~35 (다른 컴퓨터)**: 🔥 오른 3D 대장간 연출(`assets/forge/*.glb` idle1/idle2/forge/fail) + 🏆 걸작(masterpiece) 시스템 — 효과 3줄을 "걸작의 정수"로 랜덤 리롤(같은 효과 모을수록 강화), 강화하기(성능)/걸작 만들기(줄) 분리, 정수 인벤·릴 연출. 상세는 in-app CHANGELOG.
+- **v2.44.36 (이 세션)**: 🎨 알림 토스트 테마 토큰화(`--notif-*`) — showS1Toast 보라가 S2에서도 보라로 뜨던 것 → 시즌별 remap(:root 보라/.season-2 골드). 향후 테마 톤은 토큰 블록만 수정.
+- **v2.44.37~39**: 걸작 효과 풀 재조정 — 🔨강화권 할인·🎟복권 효과 제거, 골드 base 상향(경기5·승리8·출석12·MVP15), 🛡️패배 방어 LP 추가(승리 LP와 별도 유지=공격/수비 빌드). 풀 7종(matchG·winG·attend·mvpG·magollaG·winLP·lossLP), `EMBLEM_EFFECTS`/`EMBLEM_EFFECT_POOL`.
+- **v2.44.40~41**: 걸작 표시 — 카드값×줄수=총합 일치(`emblemEffectsOf`: 줄값 먼저 반올림 후 합산), 패배방어 LP 줄바꿈 깨짐(이름 단축+nowrap).
+- **v2.44.42~46 (오른 3D)**: ⚡ GLB 4종 meshopt+webp 압축 **40MB→1.2MB(~33×)**, 메쉬 보존(`GLTFLoader.setMeshoptDecoder`). 카메라 핏을 모델 박스 기준 자동(여백 ×2.6 = 작게). 강화 실패 모션 끝까지 보이게 `endDelay`=fail재생시간+500ms.
+- **v2.44.47**: 걸작 줄 "비어있음" 자동 치유 — 옛 엠블럼의 제거된 효과(복권/강화권할인) 줄을 대장간 열 때 새 랜덤 효과로 채워 저장(`emblemSanitizeLines`/`_healEmblemLines`, renderEmblemBody 진입 시).
+- **⏭️ 대장간 후속(사용자 피드백 대기)**: 오른 크기/연출 미세조정, 효과 cap·밸런스, 패스 트랙 최종 등.
+
+### v2.44.0~7 (2026-06-04~05) — 🌌 시즌2 엠블럼 강화(→오른 대장간 재설계) + 패스 재편 + S2 폴리시
 
 > 상세 코드맵·확정 수치는 **SEASON2.md §4 상단 박스**(완전판). 전부 `CURRENT_SEASON===2` 게이트라 라이브 S1 무영향. `previewSeason(2)` 또는 태블릿 URL `?preview=2`로 검증. 시즌2 미오픈이라 팀원엔 안 보임.
 
