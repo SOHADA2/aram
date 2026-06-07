@@ -5732,7 +5732,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.34';
+const APP_VERSION = 'v2.44.35';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5741,6 +5741,10 @@ const APP_VERSION = 'v2.44.34';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.35', date: '2026-06-07', changes: [
+    { tag: 'fix', text: '🔶 [시즌2] 걸작의 정수가 내 아이템·소비 탭에 안 보이던 문제 — 보유 시 정수 슬롯 표시(개수 배지, 클릭하면 대장간으로 이동)' },
+    { tag: 'fix', text: '🏆 [시즌2] 걸작 줄 카드가 "합산값"을 각 줄에 잘못 표시하던 문제 — 같은 효과 2줄인데 각 카드가 합산(예 +14G)으로 떠서 두 배로 착각됐음. 이제 줄 카드는 "줄 1개 기여값"(예 +7G), 우측 효과 요약은 "합산값 + ×N"(예 승리골드 ×2 +14G)으로 명확히 분리' },
+  ] },
   { ver: 'v2.44.34', date: '2026-06-07', changes: [
     { tag: 'fix', text: '🔨 [시즌2] 강화/걸작/장착 직후 우측 효과 정보가 바로 안 바뀌던 문제 — 로컬 캐시(goldData)를 즉시 반영(낙관적 업데이트)해 onValue 전파 전에도 최신 성능·효과로 렌더. ※ 효과는 "걸작 줄 × 성능"이라 걸작 줄이 비어있으면(구버전 강철심장) 성능을 올려도 0 — 먼저 걸작 만들기로 3줄을 채워야 강화 효과가 오릅니다' },
   ] },
@@ -7847,6 +7851,12 @@ const EMBLEM_LINES = 3;
 function emblemEssenceField(){ return sField('emblemEssence'); }
 function getEmblemEssence(data){ return (data||{})[emblemEssenceField()] || 0; }
 function emblemRollLines(){ return Array.from({length:EMBLEM_LINES}, ()=> EMBLEM_EFFECT_POOL[Math.floor(Math.random()*EMBLEM_EFFECT_POOL.length)]); }
+// 줄 1개 기여값 (성능 비례, 상한 미적용) — 줄 카드 표시용
+function emblemPerLine(eid, power){
+  const d = EMBLEM_EFFECTS[eid]; if (!d) return 0;
+  const v = d.base * (1 + power*0.1);
+  return (eid==='lottery') ? Math.round(v*10)/10 : Math.round(v);
+}
 // 장착 강철심장의 최종 효과 — 줄(걸작) × 성능(강화)
 function emblemEffectsOf(em){
   const power = emblemPower(em);
@@ -8413,7 +8423,8 @@ function renderEmblemBody(){
         ${em ? (()=>{
           const E = emblemEffectsOf(em);
           const effRows = EMBLEM_EFFECT_POOL.filter(eid=>E.eff[eid]>0).map(eid=>{ const d=EMBLEM_EFFECTS[eid];
-            return `<div class="fg2-eff-row"><span class="fg2-eff-lbl">${d.icon} ${d.name}</span><span class="fg2-eff-num" style="color:${d.color};">${d.fmt(E.eff[eid])}</span></div>`; }).join('')
+            const cnt = E.lines.filter(l=>l===eid).length;
+            return `<div class="fg2-eff-row"><span class="fg2-eff-lbl">${d.icon} ${d.name}${cnt>1?` <span style="color:#8b8b97;">×${cnt}</span>`:''}</span><span class="fg2-eff-num" style="color:${d.color};">${d.fmt(E.eff[eid])}</span></div>`; }).join('')
             || `<div style="font-size:10px;color:#8b8b97;text-align:center;padding:4px;">성능을 올리고 걸작을 맞춰<br>효과를 발동하세요</div>`;
           return `
         <div class="fg2-midline2">
@@ -8433,7 +8444,7 @@ function renderEmblemBody(){
       const E2 = emblemEffectsOf(em);
       const lineCards = Array.from({length:EMBLEM_LINES}, (_,i)=>{
         const eid = lines[i]; const d = eid?EMBLEM_EFFECTS[eid]:null;
-        return d ? `<div class="fg2-line" style="--lc:${d.color};"><span class="fg2-line-nm" style="color:${d.color};">${d.name}</span><span class="fg2-line-val">${d.fmt(E2.eff[eid])}</span></div>`
+        return d ? `<div class="fg2-line" style="--lc:${d.color};"><span class="fg2-line-nm" style="color:${d.color};">${d.name}</span><span class="fg2-line-val">${d.fmt(emblemPerLine(eid, power))}</span></div>`
                  : `<div class="fg2-line empty"><span class="fg2-line-nm">— 비어있음 —</span></div>`;
       }).join('');
       const canReroll = essence >= 1;
@@ -8523,7 +8534,7 @@ function _emblemInvSlotsHtml(cat){
   }
   if (cat === 'consume'){
     const t = getEmblemTickets(data);
-    return EMBLEM_TICKET_ORDER.filter(tid=>(t[tid]||0)>0).map(tid=>{
+    const tkSlots = EMBLEM_TICKET_ORDER.filter(tid=>(t[tid]||0)>0).map(tid=>{
       const def=EMBLEM_TICKETS[tid], cnt=t[tid];
       // data-ench → _bindEnchInventoryDrag가 드래그/탭 핸들러 부착 (대장간 작업대로 끌어 단조)
       return `<div class="inv-slot inv-ench-src" data-ench="${tid}" style="touch-action:none;" title="${def.name} · 끌어오거나 탭하면 강철심장 강화">
@@ -8533,6 +8544,17 @@ function _emblemInvSlotsHtml(cat){
         <div class="inv-slot-action inv-action-use" style="background:linear-gradient(135deg,#ffb867,#e08a2e);color:#1a1206;">🔨 강화</div>
       </div>`;
     }).join('');
+    // 🔶 걸작의 정수 — 보유 시 슬롯 표시 (클릭하면 대장간으로 이동해 걸작 만들기)
+    const ess = getEmblemEssence(data);
+    const essSlot = ess > 0
+      ? `<div class="inv-slot" onclick="window.gotoForgeTab()" title="걸작의 정수 — 대장간에서 걸작 만들기에 사용">
+          <div class="inv-count-badge">${ess}개</div>
+          <div class="inv-slot-icon" style="font-size:26px;">🔶</div>
+          <div class="inv-slot-name">걸작의 정수</div>
+          <div class="inv-slot-action inv-action-use" style="opacity:.75;">걸작 리롤용</div>
+        </div>`
+      : '';
+    return tkSlots + essSlot;
   }
   return '';
 }
@@ -8648,12 +8670,13 @@ function _emblemReelAnim(finalLines){
     const cards = [...document.querySelectorAll('.fg2-master .fg2-line')];
     if (cards.length < 3){ resolve(); return; }
     const pool = EMBLEM_EFFECT_POOL;
+    const _pw = emblemPower(getEquippedEmblem(getMyGoldData()));
     const spin = (card, eid)=>{ const d=EMBLEM_EFFECTS[eid];
       card.className='fg2-line spinning'; card.style.setProperty('--lc', d.color);
-      card.innerHTML = `<span class="fg2-line-nm" style="color:${d.color};">${d.name}</span><span class="fg2-line-val" style="opacity:.5;">${d.fmt(d.base)}</span>`; };
+      card.innerHTML = `<span class="fg2-line-nm" style="color:${d.color};">${d.name}</span><span class="fg2-line-val" style="opacity:.5;">${d.fmt(emblemPerLine(eid,_pw))}</span>`; };
     const settle = (card, eid)=>{ const d=EMBLEM_EFFECTS[eid];
       card.className='fg2-line settled'; card.style.setProperty('--lc', d.color);
-      card.innerHTML = `<span class="fg2-line-nm" style="color:${d.color};">${d.name}</span><span class="fg2-line-val">${d.fmt(d.base)}</span>`;
+      card.innerHTML = `<span class="fg2-line-nm" style="color:${d.color};">${d.name}</span><span class="fg2-line-val">${d.fmt(emblemPerLine(eid,_pw))}</span>`;
       try { _gSfx?.mergeImpact?.(2); } catch(_){} try { anvilClang(false); } catch(_){} };
     const stopAt = [15, 23, 31];  // 각 칸 멈추는 틱 (왼→오 캐스케이드)
     const stopped = [false,false,false];
