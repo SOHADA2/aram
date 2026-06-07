@@ -5745,7 +5745,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.48';
+const APP_VERSION = 'v2.44.49';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5754,6 +5754,9 @@ const APP_VERSION = 'v2.44.48';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.49', date: '2026-06-07', changes: [
+    { tag: 'improve', text: '🌱 [시즌2] 뉴비 보너스 효과 OFF — 시즌2는 전원 배치고사부터 새 출발이라 뉴비 보호(승리 +3LP/+5G·패배 완화·배치 1패무시)를 끔. LP 단순화 + 엠블럼 패배방어와 겹쳐 무손실되던 엣지 제거. 🌱 표식·부여 버튼은 유지(툴팁만 "시즌2 미적용"). 시즌1 기록·골드는 그대로(시즌 게이트). 라이브·정산창·재계산·골드 전부 반영' },
+  ] },
   { ver: 'v2.44.48', date: '2026-06-07', changes: [
     { tag: 'improve', text: '⚡ [시즌2] 걸작 LP 효과 스케일 개선 — base 0.5/cap 6이라 성능 0~19가 전부 +1 LP로 뭉툭하던 문제. 승리 LP base 1.0·cap 12, 패배 방어 base 1.0·cap 8로 상향해 강화(성능)할수록 LP가 꾸준히 오르게(상한은 3줄+만렙 극단 투자에서만 닿는 자연 천장). 승리 LP 최대 +12(3줄 만렙), 패배 방어 최대 8 완화' },
   ] },
@@ -9241,6 +9244,7 @@ const BTN_TIPS = {
   s1_lp2x_loss:        `<strong style="color:#ff8080">LP 2배권 소모</strong><br>패배 → <strong style="color:#e8e8f0">−14 LP</strong> (일반 패배 적용)<br><span style="color:#a0b0c8;">아이템은 소모됨</span>`,
   newbie_bonus:  `🌱 <strong style="color:#00c77a">뉴비 보너스</strong> 적용 중<br><span style="color:#a0b0c8;font-size:9px;">팀원 중 뉴비가 있는 경우</span><br><br>🏆 승리 <strong style="color:#e8e8f0">+13pt · +20G</strong><br>💀 패배 <strong style="color:#e8e8f0">−4pt · +5G</strong><br>🌱 뉴비 본인 패배 <strong style="color:#e8e8f0">−2pt</strong>`,
   newbie_bonus_s1: `🌱 <strong style="color:#00c77a">뉴비 보너스 (시즌 1)</strong><br><span style="color:#a0b0c8;font-size:9px;">팀원 중 뉴비가 있는 경우 · 정규전 한정</span><br><br>🏆 승리 <strong style="color:#e8e8f0">+23 LP · +20G</strong><br>💀 패배 <strong style="color:#e8e8f0">−11 LP · +5G</strong><br>🌱 뉴비 본인 패배 <strong style="color:#e8e8f0">−5 LP</strong><br>🧪 배치고사 1패 무시 보정<br><span style="color:#ff8080;font-size:9px;">⚠ 승급전·도박권 사용 시 미적용</span>`,
+  newbie_bonus_s2: `🌱 <strong style="color:#8b8b97">뉴비 표식</strong><br><span style="color:#a0b0c8;font-size:9px;">시즌 2에서는 뉴비 보너스 효과가 없어요</span><br><br>LP·골드 보너스, 배치 보정 모두 <strong style="color:#e8e8f0">미적용</strong><br><span style="color:#a0b0c8;font-size:9px;">표식만 표시됩니다</span>`,
 };
 function _positionTip(box, cx, cy) {
   box.style.visibility = 'hidden';
@@ -9441,8 +9445,8 @@ function calcGoldFromMatches(name, season = CURRENT_SEASON) {
     if (m.mannerKing   && normName(m.mannerKing)   === key) gold += GOLD_MANNER; // legacy
     if (m.mannerWinner && normName(m.mannerWinner) === key) gold += GOLD_MANNER;
     if (m.mannerLoser  && normName(m.mannerLoser)  === key) gold += GOLD_MANNER;
-    // 뉴비 팀원과 함께 승리 시 골드 보너스 (뉴비 지정 이후 경기만)
-    if (won) {
+    // 뉴비 팀원과 함께 승리 시 골드 보너스 (뉴비 지정 이후 경기만 · S2 경기는 뉴비 OFF)
+    if (won && (m.season || 0) !== 2) {
       const myTeam = inA ? (m.teamA||[]) : (m.teamB||[]);
       const matchTime = m.timestamp || 0;
       const hasNewbieTeammate = myTeam.some(n => normName(n) !== key && matchTime >= getNewbieSince(n));
@@ -11505,8 +11509,9 @@ window.s1FindDemotions = async function() {
       const key = normName(name);
       const won = winners.some(w => normName(w) === key);
       const myTeam = won ? winners : losers;
-      const iAmNewbie = newbieSet.size > 0 ? newbieSet.has(key) : isNewbie(name);
-      const hasNewbieTeammate = myTeam.some(t => normName(t) !== key && (newbieSet.size > 0 ? newbieSet.has(normName(t)) : isNewbie(t)));
+      const _nbOn = (m.season || 0) !== 2;  // S2 경기는 뉴비 시스템 OFF
+      const iAmNewbie = _nbOn && (newbieSet.size > 0 ? newbieSet.has(key) : isNewbie(name));
+      const hasNewbieTeammate = _nbOn && myTeam.some(t => normName(t) !== key && (newbieSet.size > 0 ? newbieSet.has(normName(t)) : isNewbie(t)));
 
       const effects = (m.itemEffects && m.itemEffects[key]) || [];
       const activeS1Item = effects.find(e => e.startsWith('s1_')) || null;
@@ -11630,8 +11635,9 @@ window.s1Resimulate = async function(dryRun = false) {
       const key = normName(name);
       const won = winners.some(w => normName(w) === key);
       const myTeam = won ? winners : losers;
-      const iAmNewbie   = newbieSet.size ? newbieSet.has(key) : isNewbie(name);
-      const hasNewbieTeammate = myTeam.some(t => normName(t) !== key && (newbieSet.size ? newbieSet.has(normName(t)) : isNewbie(t)));
+      const _nbOn = (m.season || 0) !== 2;  // S2 경기는 뉴비 시스템 OFF
+      const iAmNewbie   = _nbOn && (newbieSet.size ? newbieSet.has(key) : isNewbie(name));
+      const hasNewbieTeammate = _nbOn && myTeam.some(t => normName(t) !== key && (newbieSet.size ? newbieSet.has(normName(t)) : isNewbie(t)));
       const effects = (m.itemEffects?.[key]) || [];
       const activeS1Item = effects.find(e => e.startsWith('s1_')) || null;
 
@@ -13405,7 +13411,7 @@ function teamCard(title,cls,members) {
         : `<span class="streak-inline loss">${streak.count}연패↓</span>`
       : '';
     const isMe = myName && normName(p.name)===normName(myName);
-    const nTipKey = CURRENT_SEASON >= 1 ? 'newbie_bonus_s1' : 'newbie_bonus';
+    const nTipKey = CURRENT_SEASON === 2 ? 'newbie_bonus_s2' : (CURRENT_SEASON >= 1 ? 'newbie_bonus_s1' : 'newbie_bonus');
     const nBadge = isNewbie(p.name) ? ` <span class="newbie-badge" data-tip="${nTipKey}">🌱</span>` : '';
     const rBadge = getRankBadge(p.name);
     const _tcTierRow=(()=>{
@@ -13773,9 +13779,10 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
   const _synColl = []; // 시너지 발동/미발동 수집 → 행 아래 분리해 별도 요약 카드로 (행 높이 통일, v2.43.241)
   function playerRow(name, isWin) {
     const effects = itemEffects[normName(name)] || [];
-    const iAmNewbie = isNewbie(name);
+    const _nbOn = CURRENT_SEASON !== 2;  // S2는 뉴비 시스템 OFF
+    const iAmNewbie = _nbOn && isNewbie(name);
     const myTeam = isWin ? winners : losers;
-    const hasNewbieTeammate = myTeam.some(n => normName(n) !== normName(name) && isNewbie(n));
+    const hasNewbieTeammate = _nbOn && myTeam.some(n => normName(n) !== normName(name) && isNewbie(n));
 
     let ptChange = 0, ptLabel = '', questExtraPt = 0;
     if (isWin) {
@@ -24129,8 +24136,8 @@ async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = f
     d.placementGames = (d.placementGames || 0) + 1;
     if (won) d.placementWins = (d.placementWins || 0) + 1;
     if (d.placementGames >= S1_PLACEMENT_GAMES) {
-      // 뉴비 본인 배치 완화: 승수에 +1 보너스 (5 상한) → 실질적으로 1패 무시 효과
-      const effectiveWins = iAmNewbie
+      // 뉴비 본인 배치 완화: 승수에 +1 보너스 (5 상한) → 실질적으로 1패 무시 효과 (S2는 뉴비 시스템 OFF)
+      const effectiveWins = (iAmNewbie && CURRENT_SEASON !== 2)
         ? Math.min(S1_PLACEMENT_GAMES, (d.placementWins || 0) + 1)
         : (d.placementWins || 0);
       const res = s1CalcPlacementResult(effectiveWins);
@@ -24175,8 +24182,8 @@ async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = f
   let gain = useGamble ? S1_GAMBLE_WIN : (useLp2x ? S1_LP_WIN * 2 : S1_LP_WIN);
   let lose = useGamble ? S1_GAMBLE_LOSS : S1_LP_LOSS;
 
-  // 뉴비 보너스 (도박권 사용 시 미적용 — 도박의 순수 리스크 보장)
-  if (!useGamble) {
+  // 뉴비 보너스 (도박권 사용 시 미적용 · S2는 뉴비 시스템 OFF — v2.44.49)
+  if (!useGamble && CURRENT_SEASON !== 2) {
     if (won && hasNewbieTeammate) gain += S1_NEWBIE_WIN_BONUS_LP;   // +20 → +23
     if (!won && iAmNewbie)        lose = S1_NEWBIE_SELF_LOSS_LP;    // -14 → -5
     else if (!won && hasNewbieTeammate) lose = Math.max(0, lose - S1_NEWBIE_LOSS_REDUCE_LP); // -14 → -11
