@@ -4773,6 +4773,19 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .fg2-bay-add.dim{opacity:.4;pointer-events:none;}
 .fg2-noeq{color:#9a8a78;font-size:11px;text-align:center;line-height:1.5;z-index:3;font-weight:600;position:relative;}
 .fg2-noeq-side{color:#9a9aa6;font-size:11px;text-align:center;line-height:1.6;padding:8px;}
+/* 🏆 걸작 — 효과 3줄 + 리롤 */
+.fg2-master{margin-top:10px;background:rgba(240,192,96,0.05);border:1px solid rgba(240,192,96,0.18);border-radius:11px;padding:10px 12px;}
+.fg2-master-hd{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;font-weight:800;color:#ffe39a;margin-bottom:8px;gap:8px;flex-wrap:wrap;}
+.fg2-essence{font-size:11px;font-weight:800;color:#fbbf24;white-space:nowrap;}
+.fg2-lines{display:flex;gap:7px;margin-bottom:9px;}
+.fg2-line{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 5px;border-radius:9px;border:1px solid var(--lc,#555);background:rgba(255,255,255,0.03);box-shadow:0 0 8px -4px var(--lc,#555) inset;}
+.fg2-line.empty{border-style:dashed;border-color:rgba(255,255,255,0.14);background:rgba(255,255,255,0.02);}
+.fg2-line-ic{font-size:20px;line-height:1;}
+.fg2-line-nm{font-size:10px;font-weight:700;text-align:center;line-height:1.2;word-break:keep-all;color:#b8ad9c;}
+.fg2-reroll{width:100%;padding:10px;border:none;border-radius:9px;background:linear-gradient(135deg,#ffd24a,#e0a52e);color:#1a1206;font-size:12px;font-weight:800;cursor:pointer;}
+.fg2-reroll.dim{opacity:.45;}
+.fg2-reroll-note{font-size:10px;color:#8b8b97;text-align:center;margin-top:6px;}
+.fg2-reroll-note b{color:#f0c060;}
 /* 🔨 통합 무대 — 오른(위)이 강철심장(아래 모루)을 단조하는 한 장면 */
 .fg2-scene{position:relative;flex:1;min-height:208px;overflow:hidden;}
 .fg2-scene #ornn-mount{position:absolute;left:0;top:0;right:0;bottom:0;z-index:1;pointer-events:none;}  /* 오른=무대 전체(3D 모델이 아래로 내려와 있음) */
@@ -5716,7 +5729,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.29';
+const APP_VERSION = 'v2.44.30';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5725,6 +5738,9 @@ const APP_VERSION = 'v2.44.29';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.30', date: '2026-06-07', changes: [
+    { tag: 'new', text: '🏆 [시즌2] 강철심장 "걸작 만들기" 추가 — 2시스템: ①강화하기(강화권→성능=효과 배율) ②걸작 만들기(효과 3줄을 "걸작의 정수" 120G로 전체 랜덤 리롤, 같은 효과 모을수록 극대화). 효과 풀 5종(🎟복권·📅출석·🔨강화권할인·🪙경기골드·🏆승리골드). 최종효과=줄수×기본값×성능배율. 광채/칭호 효과는 폐지' },
+  ] },
   { ver: 'v2.44.29', date: '2026-06-07', changes: [
     { tag: 'improve', text: '🔨 [시즌2] 강철심장 광채 등급/칭호(효과 #3) 제거 — 랭킹·프로필·대기화면에 붙던 광채 뱃지와 "마법공학 장인" 칭호 폐지(연결부 정리). 대장간 내 아이콘 진화/색상은 유지. 걸작 효과 재설계 준비' },
   ] },
@@ -7792,12 +7808,47 @@ function emblemLevel(em)     { return em && em.slots ? em.slots.filter(s=>s.ok).
 function emblemPower(em)     { return em && em.slots ? em.slots.reduce((a,s)=> a + (s.ok ? (EMBLEM_TICKETS[s.t]?.power||0) : 0), 0) : 0; }
 function emblemSlotsUsed(em) { return em && em.slots ? em.slots.length : 0; }
 function emblemLocked(em)    { return emblemSlotsUsed(em) >= EMBLEM_SLOTS; }
+// 광채 등급(아이콘 진화·색상용. 효과 아님). 성능 비례.
 function emblemEffects(power){
-  return {
-    lotteryBoostPct: Math.min(Math.round(power * 2) / 10, 8),  // 꽝 슬라이스 → 본전 이전 비율(A안). 정수연산으로 부동소수점 오차 제거(성능×0.2%p)
-    attendBonusG:    power * 3,
-    glow:  power<=0 ? 'none' : power<10 ? 'silver' : power<25 ? 'gold' : 'prismatic',
-  };
+  return { glow: power<=0 ? 'none' : power<10 ? 'silver' : power<25 ? 'gold' : 'prismatic' };
+}
+// ── 🏆 걸작 시스템 (v2.44.30~) ──
+// 강화하기 = 성능↑(효과 배율). 걸작 = 효과 슬롯 3줄(랜덤, 전용재화로 전체 리롤). 같은 효과 줄 합산.
+// 최종 효과 = 줄수 × 기본값(base) × 성능배율(1 + 성능×0.1)
+const EMBLEM_REROLL_PRICE = 120;   // 걸작의 정수 1개 가격 (상점 소비 탭)
+const EMBLEM_EFFECTS = {
+  lottery: { id:'lottery', icon:'🎟', name:'복권 당첨률',  color:'#f59e0b', base:1.0, cap:8,  fmt:v=>`+${v}%p`, desc:'복권 꽝 → 본전 환급 확률' },
+  attend:  { id:'attend',  icon:'📅', name:'출석 골드',    color:'#34d399', base:8,   cap:0,  fmt:v=>`+${v}G`,  desc:'출석 체크 시 추가 골드' },
+  tkdisc:  { id:'tkdisc',  icon:'🔨', name:'강화권 할인',  color:'#fbbf24', base:4,   cap:40, fmt:v=>`-${v}%`,  desc:'강화권 구매가 할인' },
+  matchG:  { id:'matchG',  icon:'🪙', name:'경기 골드',    color:'#cbd5e1', base:3,   cap:0,  fmt:v=>`+${v}G`,  desc:'경기 종료 후 추가 골드(승패 무관)' },
+  winG:    { id:'winG',    icon:'🏆', name:'승리 골드',    color:'#ffd24a', base:5,   cap:0,  fmt:v=>`+${v}G`,  desc:'승리 시 추가 골드' },
+};
+const EMBLEM_EFFECT_POOL = ['lottery','attend','tkdisc','matchG','winG'];
+const EMBLEM_LINES = 3;
+function emblemEssenceField(){ return sField('emblemEssence'); }
+function getEmblemEssence(data){ return (data||{})[emblemEssenceField()] || 0; }
+function emblemRollLines(){ return Array.from({length:EMBLEM_LINES}, ()=> EMBLEM_EFFECT_POOL[Math.floor(Math.random()*EMBLEM_EFFECT_POOL.length)]); }
+// 장착 강철심장의 최종 효과 — 줄(걸작) × 성능(강화)
+function emblemEffectsOf(em){
+  const power = emblemPower(em);
+  const mult = 1 + power*0.1;
+  const lines = Array.isArray(em?.lines) ? em.lines : [];
+  const eff = {};
+  for (const eid of EMBLEM_EFFECT_POOL){
+    const cnt = lines.filter(l=>l===eid).length;
+    const d = EMBLEM_EFFECTS[eid];
+    let v = cnt ? cnt * d.base * mult : 0;
+    if (d.cap && v > d.cap) v = d.cap;
+    v = (eid==='lottery') ? Math.round(v*10)/10 : Math.round(v);  // 복권만 0.1단위, 나머지 정수
+    eff[eid] = v;
+  }
+  return { power, mult, lines, eff };
+}
+// 장착 강철심장의 특정 효과값 (없으면 0)
+function myEmblemEff(eid, data){
+  if (CURRENT_SEASON !== 2) return 0;
+  data = data || getMyGoldData();
+  return emblemEffectsOf(getEmblem(data)).eff[eid] || 0;
 }
 // 판매 환급(제안 공식): 베이스 절반 + 투입 강화권가의 35% + 성능²×2 (고성능 추격 보상)
 function emblemSellPrice(em){
@@ -7817,7 +7868,7 @@ async function emblemBuyBase(){
   const gold = getMyGold();
   if (gold < EMBLEM_BASE_PRICE) { showGoldToast(`🪙 골드 부족 (보유 ${gold} / 필요 ${EMBLEM_BASE_PRICE})`); return false; }
   const newId = emblemNextId(arr);
-  const newArr = [...arr, { id:newId, slots:[], createdAt:Date.now() }];
+  const newArr = [...arr, { id:newId, slots:[], lines:emblemRollLines(), createdAt:Date.now() }];  // 걸작 3줄 자동 생성
   const curEquipped = getEquippedId(data);
   const spentKey = sField('goldSpent');
   await update(ref(db,'gold/'+key), {
@@ -7846,6 +7897,44 @@ async function emblemEquip(id){
 }
 window.emblemEquip = emblemEquip;
 
+// 🏆 걸작 만들기 — 장착된 강철심장의 3줄 전체 리롤 (걸작의 정수 1개 소모)
+async function emblemMasterReroll(){
+  const key = getMyGoldKey(); if (!key) { showGoldToast('닉네임을 먼저 선택해주세요!'); return false; }
+  const data = goldData[key]; if (!data) return false;
+  const arr = getEmblems(data); const eqId = getEquippedId(data);
+  const em = arr.find(e=>e.id===eqId);
+  if (!em) { showS1Toast('강철심장을 먼저 장착하세요'); return false; }
+  const essence = getEmblemEssence(data);
+  if (essence < 1) { showS1Toast('🔶 걸작의 정수가 없어요 (상점·소비 탭에서 구매)'); return false; }
+  const newLines = emblemRollLines();
+  const newArr = arr.map(e=> e.id===eqId ? { ...e, lines:newLines } : e);
+  await update(ref(db,'gold/'+key), {
+    [emblemsField()]: newArr,
+    [emblemField()]: null,
+    [emblemEquippedField()]: eqId,
+    [emblemEssenceField()]: essence - 1,
+  });
+  return { lines:newLines };
+}
+window.emblemMasterReroll = emblemMasterReroll;
+// 🔶 걸작의 정수 구매 (골드 → 정수)
+async function emblemBuyEssence(qty){
+  qty = qty || 1;
+  const key = getMyGoldKey(); if (!key) { showGoldToast('닉네임을 먼저 선택해주세요!'); return false; }
+  const data = goldData[key]; if (!data) return false;
+  const cost = EMBLEM_REROLL_PRICE * qty, gold = getMyGold();
+  if (gold < cost) { showGoldToast(`🪙 골드 부족 (보유 ${gold} / 필요 ${cost})`); return false; }
+  const spentKey = sField('goldSpent');
+  await update(ref(db,'gold/'+key), {
+    [emblemEssenceField()]: getEmblemEssence(data) + qty,
+    [spentKey]: (data[spentKey] ?? 0) + cost,
+  });
+  showS1Toast(`🔶 걸작의 정수 ${qty}개 구매`);
+  renderShop();
+  return true;
+}
+window.emblemBuyEssence = emblemBuyEssence;
+
 // 강화권 구매
 async function emblemBuyTicket(type, qty){
   qty = qty || 1;
@@ -7853,7 +7942,9 @@ async function emblemBuyTicket(type, qty){
   const key = getMyGoldKey();
   if (!key) { showGoldToast('닉네임을 먼저 선택해주세요!'); return false; }
   const data = goldData[key]; if (!data) return false;
-  const cost = def.price * qty;
+  const disc = myEmblemEff('tkdisc', data);  // 🔨 강화권 할인 효과(장착 강철심장)
+  const unit = Math.max(1, Math.round(def.price * (1 - disc/100)));
+  const cost = unit * qty;
   const gold = getMyGold();
   if (gold < cost) { showGoldToast(`🪙 골드 부족 (보유 ${gold} / 필요 ${cost})`); return false; }
   const tickets = getEmblemTickets(data);
@@ -7908,11 +7999,11 @@ window.__emblemDiag = function(){
   const data = key ? goldData[key] : null;
   if (!data) { console.log('데이터 없음 (닉네임 선택 필요)'); return; }
   const em = getEmblem(data), t = getEmblemTickets(data);
-  const power = emblemPower(em), eff = emblemEffects(power);
-  console.log('엠블럼:', em ? `+${emblemLevel(em)} (성능 ${power}, 슬롯 ${emblemSlotsUsed(em)}/${EMBLEM_SLOTS}${emblemLocked(em)?' LOCK':''})` : '미보유');
-  if (em?.slots?.length) console.table(em.slots.map((s,i)=>({칸:i+1, 강화권:EMBLEM_TICKETS[s.t]?.name, 결과:s.ok?'✅성공':'❌실패', 성능기여:s.ok?(EMBLEM_TICKETS[s.t]?.power||0):0})));
-  console.log('강화권 보유:', `🟢안정 ${t.stable} · 🟡정밀 ${t.precise} · 🔴과부하 ${t.overload}`);
-  console.log('효과:', `복권 +${eff.lotteryBoostPct}%p · 출석 +${eff.attendBonusG}G · 광채 ${eff.glow}`);
+  const power = emblemPower(em), E = em?emblemEffectsOf(em):null;
+  console.log('장착 강철심장:', em ? `+${emblemLevel(em)} (성능 ${power}, 슬롯 ${emblemSlotsUsed(em)}/${EMBLEM_SLOTS}${emblemLocked(em)?' LOCK':''})` : '미장착');
+  if (em?.lines) console.log('걸작 3줄:', em.lines.map(eid=>EMBLEM_EFFECTS[eid]?.name||eid).join(' · '));
+  console.log('강화권 보유:', `🟢안정 ${t.stable} · 🟡정밀 ${t.precise} · 🔴과부하 ${t.overload} · 🔶정수 ${getEmblemEssence(data)}`);
+  if (E) console.log('효과:', EMBLEM_EFFECT_POOL.filter(eid=>E.eff[eid]>0).map(eid=>`${EMBLEM_EFFECTS[eid].name} ${EMBLEM_EFFECTS[eid].fmt(E.eff[eid])}`).join(' · ')||'없음');
   console.log('판매 환급가:', em ? emblemSellPrice(em)+'G' : '-');
 };
 window.emblemBuyBase   = emblemBuyBase;
@@ -7949,10 +8040,8 @@ function _applyEmblemLotteryBoost(scratchResult, tierPrice){
   if (CURRENT_SEASON !== 2) return;
   if (!scratchResult || scratchResult.win) return;   // 당첨이면 부스트 무관
   if (!(tierPrice > 0)) return;
-  const power = emblemPower(getEmblem(getMyGoldData()));
-  if (power <= 0) return;
-  const boostPct = emblemEffects(power).lotteryBoostPct; // 성능×0.2%p, 캡 8%p
-  if (Math.random()*100 < boostPct) scratchResult.emblemRefund = tierPrice;
+  const boostPct = myEmblemEff('lottery');  // 🎟 복권 당첨률 효과(걸작 줄×성능)
+  if (boostPct > 0 && Math.random()*100 < boostPct) scratchResult.emblemRefund = tierPrice;
 }
 window._applyEmblemLotteryBoost = _applyEmblemLotteryBoost;
 
@@ -8298,20 +8387,39 @@ function renderEmblemBody(){
         <div class="fg2-stage-hint2">${hint}</div>
       </div>
       <div class="fg2-side">
-        ${em ? `
+        ${em ? (()=>{
+          const E = emblemEffectsOf(em);
+          const effRows = EMBLEM_EFFECT_POOL.filter(eid=>E.eff[eid]>0).map(eid=>{ const d=EMBLEM_EFFECTS[eid];
+            return `<div class="fg2-eff-row"><span class="fg2-eff-lbl">${d.icon} ${d.name}</span><span class="fg2-eff-num" style="color:${d.color};">${d.fmt(E.eff[eid])}</span></div>`; }).join('')
+            || `<div style="font-size:10px;color:#8b8b97;text-align:center;padding:4px;">성능을 올리고 걸작을 맞춰<br>효과를 발동하세요</div>`;
+          return `
         <div class="fg2-midline2">
           <span class="fg2-iname" style="color:${glow.color};">${item.kr}</span>
-          <span class="fg2-slotrow">${sdots}<span class="fg2-slot-n2">${used}/${EMBLEM_SLOTS}</span></span>
+          <span class="fg2-slotrow">${sdots}<span class="fg2-slot-n2">성능 ${power}</span></span>
         </div>
-        <div class="fg2-effs">
-          <div class="fg2-eff-row"><span class="fg2-eff-lbl">복권 당첨률</span><span class="fg2-eff-num">+${eff.lotteryBoostPct}<span class="unit">%p</span></span></div>
-          <div class="fg2-eff-row"><span class="fg2-eff-lbl">출석 골드</span><span class="fg2-eff-num">+${eff.attendBonusG}<span class="unit">G</span></span></div>
-        </div>
-        <button class="fg2-sell" onclick="window.emblemDoSell(${em.id})">💰 판매 ${emblemSellPrice(em).toLocaleString()}G</button>`
+        <div class="fg2-effs">${effRows}</div>
+        <button class="fg2-sell" onclick="window.emblemDoSell(${em.id})">💰 판매 ${emblemSellPrice(em).toLocaleString()}G</button>`;
+        })()
         : `<div class="fg2-noeq-side">장착된 강철심장이 없어요.<br><b>내 아이템 · 장비</b>에서 하나를 클릭해 장착하세요.</div>`}
-        <div class="fg2-forge-guide">👉 <b>내 아이템 · 장비</b>에서 강철심장 <b>장착/교체</b> · <b>소비</b>의 강화권을 <b>꾹 눌러</b> 끌어오면 단조</div>
+        <div class="fg2-forge-guide">👉 <b>장비</b>탭에서 장착/교체 · <b>소비</b>의 강화권을 꾹 눌러 끌어오면 강화(성능↑)</div>
       </div>
-    </div>`;
+    </div>
+    ${em ? (()=>{
+      const essence = getEmblemEssence(data);
+      const lines = (em.lines||[]);
+      const lineCards = Array.from({length:EMBLEM_LINES}, (_,i)=>{
+        const eid = lines[i]; const d = eid?EMBLEM_EFFECTS[eid]:null;
+        return d ? `<div class="fg2-line" style="--lc:${d.color};"><span class="fg2-line-ic">${d.icon}</span><span class="fg2-line-nm" style="color:${d.color};">${d.name}</span></div>`
+                 : `<div class="fg2-line empty"><span class="fg2-line-nm">— 비어있음 —</span></div>`;
+      }).join('');
+      const canReroll = essence >= 1;
+      return `
+    <div class="fg2-master">
+      <div class="fg2-master-hd"><span>🏆 걸작 — 효과 3줄 <span style="color:#8b8b97;font-weight:600;">(같은 효과 모을수록 강화)</span></span><span class="fg2-essence">🔶 정수 ${essence}</span></div>
+      <div class="fg2-lines">${lineCards}</div>
+      <button class="fg2-reroll ${canReroll?'':'dim'}" onclick="window.emblemDoReroll()">🏆 걸작 만들기 — 3줄 리롤 <b>(🔶 정수 1)</b></button>
+      ${essence<1?`<div class="fg2-reroll-note">정수가 없어요 — <b>상점·소비 탭</b>에서 걸작의 정수(${EMBLEM_REROLL_PRICE}G) 구매</div>`:''}
+    </div>` ; })() : ''}`;
   _mountOrnn();  // 🔥 3D 오른 등장 (캔버스 이동)
 }
 
@@ -8335,17 +8443,29 @@ function _emblemShopCardsHtml(cat){
     </div>`;
   }
   if (cat === 'consume'){
-    return EMBLEM_TICKET_ORDER.map(tid=>{
+    const tk = EMBLEM_TICKET_ORDER.map(tid=>{
       const t=EMBLEM_TICKETS[tid], canBuy=gold>=t.price;
       return `<div class="sli">
         <div class="sli-icon" style="background:transparent;">${_emblemTkAnvilImg(t, 38)}</div>
         <div class="sli-info">
           <div class="sli-name" style="color:${t.color};">${t.name}</div>
-          <div class="sli-desc">성공 ${Math.round(t.chance*100)}% · 성능 +${t.power} · 대장간에서 강철심장 강화에 사용</div>
+          <div class="sli-desc">성공 ${Math.round(t.chance*100)}% · 성능 +${t.power} · 대장간에서 강철심장 강화(성능↑)에 사용</div>
         </div>
         <div class="sli-right"><button class="sli-price" ${canBuy?'':'disabled'} onclick="window.emblemDoBuyTicket('${tid}')">🪙${t.price}G</button></div>
       </div>`;
     }).join('');
+    // 🔶 걸작의 정수 — 걸작(효과 3줄) 리롤 재화
+    const essence = getEmblemEssence(data);
+    const canBuyEss = gold>=EMBLEM_REROLL_PRICE;
+    const essCard = `<div class="sli">
+      <div class="sli-icon" style="font-size:26px;">🔶</div>
+      <div class="sli-info">
+        <div class="sli-name" style="color:#fbbf24;">걸작의 정수 ${essence>0?`<span style="color:#8b8b97;font-size:11px;">(보유 ${essence})</span>`:''}</div>
+        <div class="sli-desc">대장간 <b>걸작 만들기</b>에 사용 — 강철심장 효과 3줄을 랜덤 리롤. 같은 효과 모을수록 극대화</div>
+      </div>
+      <div class="sli-right"><button class="sli-price" ${canBuyEss?'':'disabled'} onclick="window.emblemDoBuyEssence()">🪙${EMBLEM_REROLL_PRICE}G</button></div>
+    </div>`;
+    return tk + essCard;
   }
   return '';
 }
@@ -8477,9 +8597,20 @@ function _enchFromInventory(type){
 
 window.emblemDoBuyBase   = async function(){ if (await emblemBuyBase()) renderEmblemBody(); };
 window.emblemDoBuyTicket = async function(type){ if (await emblemBuyTicket(type)) renderEmblemBody(); };
+window.emblemDoBuyEssence = async function(){ if (await emblemBuyEssence(1)) renderEmblemBody(); };
 // 베이에서 클릭 — 장착 중이면 빼기, 아니면 장착(교체)
 window.emblemDoEquip = async function(id, isEquipped){
   if (await emblemEquip(isEquipped ? null : id)) renderEmblemBody();
+};
+// 🏆 걸작 만들기 (3줄 리롤)
+window.emblemDoReroll = async function(){
+  const r = await emblemMasterReroll();
+  if (r){
+    const icons = r.lines.map(eid=>EMBLEM_EFFECTS[eid]?.icon||'?').join(' ');
+    const triple = EMBLEM_EFFECT_POOL.find(eid=>r.lines.filter(l=>l===eid).length===3);
+    showS1Toast(triple ? `🌟 트리플! ${EMBLEM_EFFECTS[triple].icon} ${EMBLEM_EFFECTS[triple].name} 극대화!` : `🏆 걸작 리롤 → ${icons}`);
+    renderEmblemBody();
+  }
 };
 // 🔥 3D 오른 (대장간) — lazy init. three.js dynamic import + glb 40MB는 대장간 첫 진입 때만 로드.
 let _ornnInit = false;
@@ -19626,11 +19757,12 @@ async function renderS1WaitingCard(el) {
   if (CURRENT_SEASON === 2) {
     const em = getEmblem(myGoldData);
     if (em) {
-      const pw = emblemPower(em), ef = emblemEffects(pw);
+      const pw = emblemPower(em), E = emblemEffectsOf(em);
+      const effTxt = EMBLEM_EFFECT_POOL.filter(eid=>E.eff[eid]>0).map(eid=>`${EMBLEM_EFFECTS[eid].icon}${EMBLEM_EFFECTS[eid].fmt(E.eff[eid])}`).join(' · ') || '효과 없음(걸작/강화 필요)';
       emblemBadgeHtml = `<div style="display:flex;align-items:center;gap:6px;margin:6px 0 2px;padding:5px 9px;border-radius:7px;border:1px solid rgba(255,210,74,0.4);background:rgba(255,210,74,0.08);font-size:11px;flex-wrap:wrap;">
         <span style="font-size:14px;">🔨</span>
         <span style="color:#ffd24a;font-weight:700;">강철심장 +${emblemLevel(em)}</span>
-        <span style="color:var(--rk-text-dim);font-size:10px;">성능 ${pw} · 복권+${ef.lotteryBoostPct}%p · 출석+${ef.attendBonusG}G</span>
+        <span style="color:var(--rk-text-dim);font-size:10px;">성능 ${pw} · ${effTxt}</span>
       </div>`;
     }
   }
@@ -20342,7 +20474,7 @@ window.doAttendance = async function() {
   // 릴레이 완주(마지막 칸) 후 기본 출석 보상 — 기존 출첵과 동일한 50G
   const baseAttendGold = (relayGoldGain === 0 && newClaimed >= RELAY_REWARDS.length) ? 50 : 0;
   // 🔷 시즌2 엠블럼 출석 보너스 (성능×3G) — 매 출석마다, 라이브 S1 무영향
-  const emblemAttendBonus = CURRENT_SEASON === 2 ? emblemEffects(emblemPower(getEmblem(data))).attendBonusG : 0;
+  const emblemAttendBonus = Math.round(myEmblemEff('attend', data));  // 📅 출석 골드 효과(걸작 줄×성능)
   const totalGoldGain  = relayGoldGain + baseAttendGold + emblemAttendBonus;
 
   // attendanceHistory: 날짜/슬롯 기록용 (엠블럼 보너스는 gold 에 포함 → calcAttendanceGold 합산)
@@ -23174,10 +23306,14 @@ async function giveMatchGold(winners, losers, matchTimestamp) {
 
     // v2.43.236 신뢰성 핵심 — 매 경기 저장 시 {...d} 통짜 set이 직전 구매(아이템·골드)를 덮어쓰던 문제.
     // 바뀐 필드(items 소모 + lastMatch)만 update → 구매한 아이템이 경기 저장에 유실되지 않음
-    await update(ref(db,'gold/'+k), {
-      [itemsKey]: items,
-      lastMatch: { isWinner, at: Date.now() }
-    });
+    const _upd = { [itemsKey]: items, lastMatch: { isWinner, at: Date.now() } };
+    // 🔨 강철심장 걸작 효과 — 경기 골드(승패무관) + 승리 골드. 저장 시점 장착 기준 goldBonusLegacy_s2 가산(비소급)
+    if (CURRENT_SEASON === 2){
+      const _ef = emblemEffectsOf(getEmblem(d)).eff;
+      const _mg = Math.round((_ef.matchG||0) + (isWinner ? (_ef.winG||0) : 0));
+      if (_mg > 0){ const _gk=sField('goldBonusLegacy'); _upd[_gk] = (d[_gk]||0) + _mg; applyLog.push(`🔨 ${name} 강철심장 +${_mg}G`); }
+    }
+    await update(ref(db,'gold/'+k), _upd);
   };
 
   for (const name of winners) await processPlayer(name, true);
@@ -23735,7 +23871,7 @@ window.__s2dbg = {
     if (!confirm('내 시즌2 테스트 데이터(엠블럼·패스·테스트골드)를 모두 초기화할까요?\n(라이브 S1 데이터는 안 건드립니다)')) return;
     const k = getMyGoldKey(); if (!k) return;
     await update(ref(db,'gold/'+k), {
-      [sField('emblem')]:null, [sField('emblems')]:null, [sField('emblemEquipped')]:null, [sField('emblemTickets')]:null, [sField('emblemSellG')]:0,
+      [sField('emblem')]:null, [sField('emblems')]:null, [sField('emblemEquipped')]:null, [sField('emblemTickets')]:null, [sField('emblemEssence')]:0, [sField('emblemSellG')]:0,
       [sField('passNormal')]:null, [sField('passCustom')]:null, [sField('passGold')]:0,
       [sField('passTitle')]:null, [sField('normalGamePts')]:0, [sField('goldBonusLegacy')]:0,
     });
