@@ -5745,7 +5745,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.37';
+const APP_VERSION = 'v2.44.38';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5754,6 +5754,9 @@ const APP_VERSION = 'v2.44.37';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.38', date: '2026-06-05', changes: [
+    { tag: 'improve', text: '🏆 [시즌2] 걸작 효과 풀 재조정 — 🎟복권 본전 환급 효과 제거(정의·풀·적용 로직 전부). 골드 효과 base 상향: 경기 3→5G · 승리 5→8G · 출석 8→12G · MVP 8→15G. 이제 효과 풀 6종(경기·승리·출석·MVP 골드 + 막고라 배당 + 승리 LP).' },
+  ] },
   { ver: 'v2.44.37', date: '2026-06-05', changes: [
     { tag: 'improve', text: '🏆 [시즌2] 걸작 효과 풀 정리 — 🔨강화권 할인 효과 제거(풀·적용 모두). 복권 효과는 이름이 동작과 안 맞아 혼란("복권 당첨률"이지만 실제론 꽝일 때 환급) → "복권 본전 환급"으로 변경 + 설명 명확화(복권 꽝이어도 N% 확률로 구매비 환급). 이제 효과 풀 7종(경기골드·승리골드·출석골드·복권본전환급·MVP골드·막고라배당·승리LP).' },
   ] },
@@ -7855,16 +7858,15 @@ function emblemEffects(power){
 // 최종 효과 = 줄수 × 기본값(base) × 성능배율(1 + 성능×0.1)
 const EMBLEM_REROLL_PRICE = 120;   // 걸작의 정수 1개 가격 (상점 소비 탭)
 const EMBLEM_EFFECTS = {
-  matchG:   { id:'matchG',   icon:'🪙', name:'경기 골드',    color:'#cbd5e1', base:3,   cap:0,  fmt:v=>`+${v}G`,  desc:'매 경기 후 추가 골드(승패 무관)' },
-  winG:     { id:'winG',     icon:'🏆', name:'승리 골드',    color:'#ffd24a', base:5,   cap:0,  fmt:v=>`+${v}G`,  desc:'승리 시 추가 골드' },
-  attend:   { id:'attend',   icon:'📅', name:'출석 골드',    color:'#34d399', base:8,   cap:0,  fmt:v=>`+${v}G`,  desc:'출석 체크 시 추가 골드' },
-  lottery:  { id:'lottery',  icon:'🎟', name:'복권 본전 환급', color:'#f59e0b', base:1.0, cap:8,  fmt:v=>`${v}%`, desc:'복권이 꽝이어도 이 확률로 구매비를 돌려받아요(본전)' },
-  mvpG:     { id:'mvpG',     icon:'⭐', name:'MVP 골드',     color:'#a78bfa', base:8,   cap:0,  fmt:v=>`+${v}G`,  desc:'MVP·SVP 선정 시 추가 골드' },
+  matchG:   { id:'matchG',   icon:'🪙', name:'경기 골드',    color:'#cbd5e1', base:5,   cap:0,  fmt:v=>`+${v}G`,  desc:'매 경기 후 추가 골드(승패 무관)' },
+  winG:     { id:'winG',     icon:'🏆', name:'승리 골드',    color:'#ffd24a', base:8,   cap:0,  fmt:v=>`+${v}G`,  desc:'승리 시 추가 골드' },
+  attend:   { id:'attend',   icon:'📅', name:'출석 골드',    color:'#34d399', base:12,  cap:0,  fmt:v=>`+${v}G`,  desc:'출석 체크 시 추가 골드' },
+  mvpG:     { id:'mvpG',     icon:'⭐', name:'MVP 골드',     color:'#a78bfa', base:15,  cap:0,  fmt:v=>`+${v}G`,  desc:'MVP·SVP 선정 시 추가 골드' },
   magollaG: { id:'magollaG', icon:'🎰', name:'막고라 배당',  color:'#f472b6', base:4,   cap:30, fmt:v=>`+${v}%`,  desc:'막고라 베팅 적중 수익 보너스' },
   winLP:    { id:'winLP',    icon:'⚡', name:'승리 LP',      color:'#60a5fa', base:0.5, cap:6,  fmt:v=>`+${v}LP`, desc:'정규전 승리 시 추가 LP' },
 };
 // ⚖️ 모든 효과 동일 확률(균등 추첨). 리스트가 길수록 같은 효과 3줄 맞추기가 자연히 어려워짐.
-const EMBLEM_EFFECT_POOL = ['matchG','winG','attend','lottery','mvpG','magollaG','winLP'];
+const EMBLEM_EFFECT_POOL = ['matchG','winG','attend','mvpG','magollaG','winLP'];
 const EMBLEM_LINES = 3;
 function emblemEssenceField(){ return sField('emblemEssence'); }
 function getEmblemEssence(data){ return (data||{})[emblemEssenceField()] || 0; }
@@ -7873,7 +7875,7 @@ function emblemRollLines(){ return Array.from({length:EMBLEM_LINES}, ()=> EMBLEM
 function emblemPerLine(eid, power){
   const d = EMBLEM_EFFECTS[eid]; if (!d) return 0;
   const v = d.base * (1 + power*0.1);
-  return (eid==='lottery') ? Math.round(v*10)/10 : Math.round(v);
+  return Math.round(v);
 }
 // 장착 강철심장의 최종 효과 — 줄(걸작) × 성능(강화)
 function emblemEffectsOf(em){
@@ -7886,7 +7888,7 @@ function emblemEffectsOf(em){
     const d = EMBLEM_EFFECTS[eid];
     let v = cnt ? cnt * d.base * mult : 0;
     if (d.cap && v > d.cap) v = d.cap;
-    v = (eid==='lottery') ? Math.round(v*10)/10 : Math.round(v);  // 복권만 0.1단위, 나머지 정수
+    v = Math.round(v);
     eff[eid] = v;
   }
   return { power, mult, lines, eff };
@@ -8084,16 +8086,7 @@ async function emblemSell(id){
 }
 window.emblemSell = emblemSell;
 
-// 복권 A안 — 꽝일 때 엠블럼 성능 비례 확률로 "본전 환급" (시즌2 전용, 라이브 S1 복권 무영향).
-// scratchResult가 꽝이면 boostPct% 확률로 emblemRefund=tierPrice 세팅 → onComplete가 본전을 lotteryHistory에 합산.
-function _applyEmblemLotteryBoost(scratchResult, tierPrice){
-  if (CURRENT_SEASON !== 2) return;
-  if (!scratchResult || scratchResult.win) return;   // 당첨이면 부스트 무관
-  if (!(tierPrice > 0)) return;
-  const boostPct = myEmblemEff('lottery');  // 🎟 복권 당첨률 효과(걸작 줄×성능)
-  if (boostPct > 0 && Math.random()*100 < boostPct) scratchResult.emblemRefund = tierPrice;
-}
-window._applyEmblemLotteryBoost = _applyEmblemLotteryBoost;
+// (복권 본전 환급 효과 제거 v2.44.38 — _applyEmblemLotteryBoost 삭제)
 
 // 🔷 광채 — 이름으로 해당 유저의 엠블럼 성능 → 광채 등급 (시즌2). 칭호는 폐지(v2.44.29).
 function emblemGlowMeta(name){
@@ -23034,7 +23027,6 @@ async function _buyItemImpl(itemId) {
     const newGoldSpent = (data[spentKey] ?? 0) + tierPrice;
     await update(ref(db,'gold/'+key), { [spentKey]: newGoldSpent });
     const result = rollScratch(tierDef.idx);
-    _applyEmblemLotteryBoost(result, tierPrice); // 🔷 시즌2 엠블럼 — 꽝→본전 환급 (S1 무영향)
     const onComplete = async ({ winGold, skullPenalty }) => {
       const latestData = getMyGoldData();
       const lotteryHistory = [...(latestData?.lotteryHistory || []), {
