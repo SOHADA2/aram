@@ -4778,10 +4778,13 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .fg2-master-hd{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;font-weight:800;color:#ffe39a;margin-bottom:8px;gap:8px;flex-wrap:wrap;}
 .fg2-essence{font-size:11px;font-weight:800;color:#fbbf24;white-space:nowrap;}
 .fg2-lines{display:flex;gap:7px;margin-bottom:9px;}
-.fg2-line{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 5px;border-radius:9px;border:1px solid var(--lc,#555);background:rgba(255,255,255,0.03);box-shadow:0 0 8px -4px var(--lc,#555) inset;}
-.fg2-line.empty{border-style:dashed;border-color:rgba(255,255,255,0.14);background:rgba(255,255,255,0.02);}
-.fg2-line-ic{font-size:20px;line-height:1;}
-.fg2-line-nm{font-size:10px;font-weight:700;text-align:center;line-height:1.2;word-break:keep-all;color:#b8ad9c;}
+.fg2-line{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:11px 5px;border-radius:9px;border:1px solid var(--lc,#555);background:rgba(255,255,255,0.03);box-shadow:0 0 8px -4px var(--lc,#555) inset;min-height:58px;transition:transform .08s,filter .08s;}
+.fg2-line.empty{border-style:dashed;border-color:rgba(255,255,255,0.14);background:rgba(255,255,255,0.02);min-height:58px;}
+.fg2-line-nm{font-size:10.5px;font-weight:800;text-align:center;line-height:1.2;word-break:keep-all;color:#cfcfd8;}
+.fg2-line-val{font-size:13px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--lc,#fff);}
+.fg2-line.spinning{transform:scale(0.96);filter:brightness(1.12);}
+.fg2-line.settled{animation:fg2LineSettle .32s ease;}
+@keyframes fg2LineSettle{0%{transform:scale(1.14);filter:brightness(1.7);}60%{transform:scale(0.96);}100%{transform:scale(1);filter:none;}}
 .fg2-reroll{width:100%;padding:10px;border:none;border-radius:9px;background:linear-gradient(135deg,#ffd24a,#e0a52e);color:#1a1206;font-size:12px;font-weight:800;cursor:pointer;}
 .fg2-reroll.dim{opacity:.45;}
 .fg2-reroll-note{font-size:10px;color:#8b8b97;text-align:center;margin-top:6px;}
@@ -5729,7 +5732,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.30';
+const APP_VERSION = 'v2.44.31';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5738,6 +5741,9 @@ const APP_VERSION = 'v2.44.30';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.31', date: '2026-06-07', changes: [
+    { tag: 'improve', text: '🏆 [시즌2] 걸작 개선 — (1) 걸작의 정수 경기 1판당 1개 자동 지급(골드 구매도 유지). (2) 걸작 만들기에 슬롯머신 릴 연출(촤르륵→왼쪽부터 차례로 멈춤). (3) 효과 줄 표기 이모지→이름+효과값(예: 출석 골드 +12G)' },
+  ] },
   { ver: 'v2.44.30', date: '2026-06-07', changes: [
     { tag: 'new', text: '🏆 [시즌2] 강철심장 "걸작 만들기" 추가 — 2시스템: ①강화하기(강화권→성능=효과 배율) ②걸작 만들기(효과 3줄을 "걸작의 정수" 120G로 전체 랜덤 리롤, 같은 효과 모을수록 극대화). 효과 풀 5종(🎟복권·📅출석·🔨강화권할인·🪙경기골드·🏆승리골드). 최종효과=줄수×기본값×성능배율. 광채/칭호 효과는 폐지' },
   ] },
@@ -8407,9 +8413,10 @@ function renderEmblemBody(){
     ${em ? (()=>{
       const essence = getEmblemEssence(data);
       const lines = (em.lines||[]);
+      const E2 = emblemEffectsOf(em);
       const lineCards = Array.from({length:EMBLEM_LINES}, (_,i)=>{
         const eid = lines[i]; const d = eid?EMBLEM_EFFECTS[eid]:null;
-        return d ? `<div class="fg2-line" style="--lc:${d.color};"><span class="fg2-line-ic">${d.icon}</span><span class="fg2-line-nm" style="color:${d.color};">${d.name}</span></div>`
+        return d ? `<div class="fg2-line" style="--lc:${d.color};"><span class="fg2-line-nm" style="color:${d.color};">${d.name}</span><span class="fg2-line-val">${d.fmt(E2.eff[eid])}</span></div>`
                  : `<div class="fg2-line empty"><span class="fg2-line-nm">— 비어있음 —</span></div>`;
       }).join('');
       const canReroll = essence >= 1;
@@ -8602,16 +8609,49 @@ window.emblemDoBuyEssence = async function(){ if (await emblemBuyEssence(1)) ren
 window.emblemDoEquip = async function(id, isEquipped){
   if (await emblemEquip(isEquipped ? null : id)) renderEmblemBody();
 };
-// 🏆 걸작 만들기 (3줄 리롤)
+// 🏆 걸작 만들기 (3줄 리롤) — 슬롯머신 릴 연출 후 결과 정착
 window.emblemDoReroll = async function(){
-  const r = await emblemMasterReroll();
-  if (r){
-    const icons = r.lines.map(eid=>EMBLEM_EFFECTS[eid]?.icon||'?').join(' ');
-    const triple = EMBLEM_EFFECT_POOL.find(eid=>r.lines.filter(l=>l===eid).length===3);
-    showS1Toast(triple ? `🌟 트리플! ${EMBLEM_EFFECTS[triple].icon} ${EMBLEM_EFFECTS[triple].name} 극대화!` : `🏆 걸작 리롤 → ${icons}`);
+  if (_emblemFxBusy) return;
+  _emblemFxBusy = true;
+  try {
+    const r = await emblemMasterReroll();
+    if (!r) return;
+    await _emblemReelAnim(r.lines);   // 촤르륵 → 차례로 멈춤
     renderEmblemBody();
-  }
+    const triple = EMBLEM_EFFECT_POOL.find(eid=>r.lines.filter(l=>l===eid).length===3);
+    const pair   = EMBLEM_EFFECT_POOL.find(eid=>r.lines.filter(l=>l===eid).length===2);
+    if (triple)    showS1Toast(`🌟 트리플! ${EMBLEM_EFFECTS[triple].name} 극대화!`);
+    else if (pair) showS1Toast(`✨ ${EMBLEM_EFFECTS[pair].name} 2줄!`);
+    else           showS1Toast('🏆 걸작 완성');
+  } finally { _emblemFxBusy = false; }
 };
+// 슬롯머신 릴 — 3칸이 빠르게 효과를 바꾸다 왼쪽부터 차례로 멈춤
+function _emblemReelAnim(finalLines){
+  return new Promise(resolve=>{
+    const cards = [...document.querySelectorAll('.fg2-master .fg2-line')];
+    if (cards.length < 3){ resolve(); return; }
+    const pool = EMBLEM_EFFECT_POOL;
+    const spin = (card, eid)=>{ const d=EMBLEM_EFFECTS[eid];
+      card.className='fg2-line spinning'; card.style.setProperty('--lc', d.color);
+      card.innerHTML = `<span class="fg2-line-nm" style="color:${d.color};">${d.name}</span><span class="fg2-line-val" style="opacity:.5;">${d.fmt(d.base)}</span>`; };
+    const settle = (card, eid)=>{ const d=EMBLEM_EFFECTS[eid];
+      card.className='fg2-line settled'; card.style.setProperty('--lc', d.color);
+      card.innerHTML = `<span class="fg2-line-nm" style="color:${d.color};">${d.name}</span><span class="fg2-line-val">${d.fmt(d.base)}</span>`;
+      try { _gSfx?.mergeImpact?.(2); } catch(_){} try { anvilClang(false); } catch(_){} };
+    const stopAt = [15, 23, 31];  // 각 칸 멈추는 틱 (왼→오 캐스케이드)
+    const stopped = [false,false,false];
+    let ticks = 0;
+    const iv = setInterval(()=>{
+      ticks++;
+      for (let i=0;i<3;i++){
+        if (stopped[i]) continue;
+        if (ticks >= stopAt[i]){ stopped[i]=true; settle(cards[i], finalLines[i]); }
+        else spin(cards[i], pool[(Math.random()*pool.length)|0]);
+      }
+      if (stopped.every(Boolean)){ clearInterval(iv); setTimeout(resolve, 260); }
+    }, 70);
+  });
+}
 // 🔥 3D 오른 (대장간) — lazy init. three.js dynamic import + glb 40MB는 대장간 첫 진입 때만 로드.
 let _ornnInit = false;
 async function ensureOrnn3d(){
@@ -23312,6 +23352,8 @@ async function giveMatchGold(winners, losers, matchTimestamp) {
       const _ef = emblemEffectsOf(getEmblem(d)).eff;
       const _mg = Math.round((_ef.matchG||0) + (isWinner ? (_ef.winG||0) : 0));
       if (_mg > 0){ const _gk=sField('goldBonusLegacy'); _upd[_gk] = (d[_gk]||0) + _mg; applyLog.push(`🔨 ${name} 강철심장 +${_mg}G`); }
+      // 🔶 걸작의 정수 — 경기 1판당 1개 지급
+      const _ek = sField('emblemEssence'); _upd[_ek] = (d[_ek]||0) + 1;
     }
     await update(ref(db,'gold/'+k), _upd);
   };
