@@ -4758,6 +4758,21 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
   .fg2-forge-row>.fg2-stage{flex:none;}
   .fg2-side{justify-content:flex-start;}
 }
+/* 🔨 강철심장 베이 — 보유 목록(교체) */
+.fg2-bay-wrap{margin-top:10px;}
+.fg2-bay-label{font-size:10px;color:#8b8b97;text-align:center;margin-bottom:7px;}
+.fg2-bay-label b{color:#f0c060;}
+.fg2-bay{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
+.fg2-bay-slot{position:relative;width:50px;height:50px;border-radius:10px;border:2px solid var(--gc,#555);background:#1a1410;cursor:pointer;overflow:hidden;box-shadow:0 0 8px -3px var(--gc,#555);transition:transform .1s;}
+.fg2-bay-slot:hover{transform:translateY(-2px);}
+.fg2-bay-slot.eq{box-shadow:0 0 0 2px #ffd24a,0 0 12px rgba(255,210,74,0.45);}
+.fg2-bay-slot img{width:100%;height:100%;display:block;}
+.fg2-bay-lv{position:absolute;bottom:-1px;right:-1px;font-size:9px;font-weight:900;font-family:'JetBrains Mono',monospace;background:#0c0907;border:1px solid;border-radius:5px;padding:0 3px;line-height:1.4;}
+.fg2-bay-tag{position:absolute;top:2px;left:2px;font-size:8px;font-weight:800;color:#1a1206;background:#ffd24a;border-radius:4px;padding:1px 4px;}
+.fg2-bay-add{width:50px;height:50px;border-radius:10px;border:1px dashed rgba(240,192,96,0.4);background:rgba(240,192,96,0.06);color:#f0c060;font-size:24px;font-weight:800;cursor:pointer;line-height:1;}
+.fg2-bay-add.dim{opacity:.4;pointer-events:none;}
+.fg2-noeq{color:#9a8a78;font-size:11px;text-align:center;line-height:1.5;z-index:3;font-weight:600;position:relative;}
+.fg2-noeq-side{color:#9a9aa6;font-size:11px;text-align:center;line-height:1.6;padding:8px;}
 /* 🔨 통합 무대 — 오른(위)이 강철심장(아래 모루)을 단조하는 한 장면 */
 .fg2-scene{position:relative;flex:1;min-height:208px;overflow:hidden;}
 .fg2-scene #ornn-mount{position:absolute;left:0;top:0;right:0;bottom:0;z-index:1;pointer-events:none;}  /* 오른=무대 전체(3D 모델이 아래로 내려와 있음) */
@@ -5694,7 +5709,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.26';
+const APP_VERSION = 'v2.44.27';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5703,6 +5718,9 @@ const APP_VERSION = 'v2.44.26';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.27', date: '2026-06-07', changes: [
+    { tag: 'new', text: '🔨 [시즌2] 강철심장 여러 개 보유 + 장착 교체 — 이제 강철심장을 최대 6개까지 보유하고, 대장간 하단 "보유 강철심장" 목록에서 클릭해 장착/교체(빼기)할 수 있어요. 장착한 1개만 효과(복권·출석) 발동 + 강화 대상. 여러 개를 다르게 강화해두고 상황에 맞게 바꿔 끼우세요' },
+  ] },
   { ver: 'v2.44.26', date: '2026-06-07', changes: [
     { tag: 'improve', text: '🔨 [시즌2] 대장간 망치 소리 3번째 타격 미세조정 — 0.57 → 0.53으로 조금 더 앞당겨 오른 모션에 정렬' },
   ] },
@@ -7731,9 +7749,31 @@ const EMBLEM_TICKETS = {
 };
 const EMBLEM_TICKET_ORDER = ['stable','precise','overload'];
 
-function emblemField()         { return sField('emblem'); }
+const EMBLEM_MAX_OWN = 6;  // 강철심장 최대 보유 수 (장착은 1개만 효과 — 교체식)
+function emblemField()          { return sField('emblem'); }           // 구버전 단일 (마이그레이션용)
+function emblemsField()         { return sField('emblems'); }          // emblems_s2 : 보유 배열 [{id,slots,createdAt}]
+function emblemEquippedField()  { return sField('emblemEquipped'); }   // emblemEquipped_s2 : 장착된 id
 function emblemTicketsField()   { return sField('emblemTickets'); }
-function getEmblem(data)        { return (data || {})[emblemField()] || null; }
+// 보유한 모든 강철심장 (구버전 단일 emblem_s2 → 배열 자동 변환)
+function getEmblems(data){
+  data = data || {};
+  const arr = data[emblemsField()];
+  if (Array.isArray(arr)) return arr.filter(Boolean);
+  const single = data[emblemField()];  // 구버전 단일
+  if (single) return [{ id:1, slots:single.slots||[], createdAt:single.createdAt||0 }];
+  return [];
+}
+function getEquippedId(data){
+  const arr = getEmblems(data); if (!arr.length) return null;
+  const eq = (data||{})[emblemEquippedField()];
+  if (eq != null && arr.some(e=>e.id===eq)) return eq;  // 유효한 장착 id
+  if (eq === null) return null;  // 명시적 해제 상태
+  return arr[0].id;  // 미지정 → 첫 번째 자동 장착 (구버전 호환)
+}
+function getEquippedEmblem(data){ const id=getEquippedId(data); return id==null?null:getEmblems(data).find(e=>e.id===id)||null; }
+function emblemNextId(arr){ return arr.reduce((m,e)=>Math.max(m, e.id||0), 0) + 1; }
+// getEmblem = "장착된" 강철심장 (효과·강화 대상). 기존 코드 호환(효과/출석/복권부스트가 이걸 참조)
+function getEmblem(data)        { return getEquippedEmblem(data); }
 function getEmblemTickets(data) { const t=(data||{})[emblemTicketsField()]||{}; return { stable:t.stable||0, precise:t.precise||0, overload:t.overload||0 }; }
 function emblemLevel(em)     { return em && em.slots ? em.slots.filter(s=>s.ok).length : 0; }
 function emblemPower(em)     { return em && em.slots ? em.slots.reduce((a,s)=> a + (s.ok ? (EMBLEM_TICKETS[s.t]?.power||0) : 0), 0) : 0; }
@@ -7754,23 +7794,44 @@ function emblemSellPrice(em){
   return Math.round(EMBLEM_BASE_PRICE*0.5 + invested*0.35 + power*power*2);
 }
 
-// 엠블럼 베이스 구매 (단일 장비, 1개)
+// 강철심장 구매 — 보유 배열에 새 인스턴스 추가 (최대 EMBLEM_MAX_OWN). 첫 구매는 자동 장착.
 async function emblemBuyBase(){
   const key = getMyGoldKey();
   if (!key) { showGoldToast('닉네임을 먼저 선택해주세요!'); return false; }
   const data = goldData[key]; if (!data) return false;
-  if (getEmblem(data)) { showS1Toast('이미 엠블럼을 보유 중이에요'); return false; }
+  const arr = getEmblems(data);
+  if (arr.length >= EMBLEM_MAX_OWN) { showS1Toast(`강철심장은 최대 ${EMBLEM_MAX_OWN}개까지 보유할 수 있어요`); return false; }
   const gold = getMyGold();
   if (gold < EMBLEM_BASE_PRICE) { showGoldToast(`🪙 골드 부족 (보유 ${gold} / 필요 ${EMBLEM_BASE_PRICE})`); return false; }
+  const newId = emblemNextId(arr);
+  const newArr = [...arr, { id:newId, slots:[], createdAt:Date.now() }];
+  const curEquipped = getEquippedId(data);
   const spentKey = sField('goldSpent');
   await update(ref(db,'gold/'+key), {
-    [emblemField()]: { slots: [], createdAt: Date.now() },
+    [emblemsField()]: newArr,
+    [emblemField()]: null,  // 구버전 단일 정리
+    [emblemEquippedField()]: (curEquipped != null) ? curEquipped : newId,  // 기존 장착 유지, 없으면 새 것 장착
     [spentKey]: (data[spentKey] ?? 0) + EMBLEM_BASE_PRICE,
   });
-  showS1Toast('⚒️ 강철심장 획득! 대장간에서 강화해보세요');
+  showS1Toast(`⚒️ 강철심장 획득! (보유 ${newArr.length}/${EMBLEM_MAX_OWN})`);
   renderShop();
   return true;
 }
+// 장착 교체 (대장간에서 뺐다/꼈다). id=null이면 해제
+async function emblemEquip(id){
+  const key = getMyGoldKey(); if (!key) return false;
+  const data = goldData[key]; if (!data) return false;
+  const arr = getEmblems(data);
+  if (id != null && !arr.some(e=>e.id===id)) return false;
+  await update(ref(db,'gold/'+key), {
+    [emblemsField()]: arr,        // 구버전 단일이면 배열로 확정
+    [emblemField()]: null,
+    [emblemEquippedField()]: id,  // null = 해제
+  });
+  renderShop();
+  return true;
+}
+window.emblemEquip = emblemEquip;
 
 // 강화권 구매
 async function emblemBuyTicket(type, qty){
@@ -7804,16 +7865,21 @@ async function emblemEnhance(type){
     const key = getMyGoldKey();
     if (!key) { showGoldToast('닉네임을 먼저 선택해주세요!'); return null; }
     const data = goldData[key]; if (!data) return null;
-    const em = getEmblem(data);
-    if (!em) { showS1Toast('엠블럼을 먼저 구매하세요'); return null; }
+    const arr = getEmblems(data);
+    const eqId = getEquippedId(data);
+    const em = arr.find(e=>e.id===eqId);
+    if (!em) { showS1Toast('강철심장을 먼저 장착하세요'); return null; }
     if (emblemLocked(em)) { showS1Toast('강화 슬롯이 모두 소진됐어요 (5/5)'); return null; }
     const tickets = getEmblemTickets(data);
     if ((tickets[type]||0) < 1) { showS1Toast(`${def.icon} ${def.name}이 없어요`); return null; }
     const ok = Math.random() < def.chance;
     const slots = [...(em.slots||[]), { t:type, ok }];
+    const newArr = arr.map(e=> e.id===eqId ? { ...e, slots } : e);
     tickets[type] -= 1;
     await update(ref(db,'gold/'+key), {
-      [emblemField()]: { ...em, slots },
+      [emblemsField()]: newArr,
+      [emblemField()]: null,
+      [emblemEquippedField()]: eqId,
       [emblemTicketsField()]: tickets,
     });
     const newEm = { ...em, slots };
@@ -7840,17 +7906,25 @@ window.emblemBuyBase   = emblemBuyBase;
 window.emblemBuyTicket = emblemBuyTicket;
 window.emblemEnhance   = emblemEnhance;
 
-// ── 엠블럼 판매 (환급은 emblemSellG_s2 별도 누적 → 역계산 가능, goldSpent 미변동) ──
-async function emblemSell(){
+// ── 강철심장 판매 (id 지정 / 미지정 시 장착된 것). 환급은 emblemSellG_s2 별도 누적 ──
+async function emblemSell(id){
   const key = getMyGoldKey(); if (!key) return false;
-  const data = goldData[key]; const em = getEmblem(data); if (!em) return false;
+  const data = goldData[key];
+  const arr = getEmblems(data);
+  const em = (id != null) ? arr.find(e=>e.id===id) : arr.find(e=>e.id===getEquippedId(data));
+  if (!em) return false;
   const refund = emblemSellPrice(em);
+  const newArr = arr.filter(e=>e.id!==em.id);
   const sellKey = sField('emblemSellG');
-  await update(ref(db,'gold/'+key), {
+  const updates = {
+    [emblemsField()]: newArr,
     [emblemField()]: null,
     [sellKey]: (data[sellKey] ?? 0) + refund,
-  });
-  showS1Toast(`🔷 엠블럼 판매 · +${refund}G 환급`);
+  };
+  // 장착된 걸 팔면 → 남은 것 중 하나 자동 장착 / 없으면 해제
+  if (getEquippedId(data) === em.id) updates[emblemEquippedField()] = newArr.length ? newArr[0].id : null;
+  await update(ref(db,'gold/'+key), updates);
+  showS1Toast(`🔷 강철심장 판매 · +${refund}G 환급`);
   renderShop();
   return true;
 }
@@ -7988,10 +8062,15 @@ async function claimPassLevel(passType, level){
   updates[node] = { ...(data[node]||{}), claimed };
   if (reward.gold)    { const gk=sField('passGold'); updates[gk] = (data[gk] ?? 0) + reward.gold; }
   if (reward.tickets) { const tk=getEmblemTickets(data); for (const t in reward.tickets) tk[t]=(tk[t]||0)+reward.tickets[t]; updates[emblemTicketsField()] = tk; }
-  const alreadyHadEmblem = !!(reward.emblem && getEmblem(data));
+  const _emArr = getEmblems(data);
+  const alreadyHadEmblem = !!(reward.emblem && _emArr.length >= EMBLEM_MAX_OWN);  // "가득참" 의미로 재사용
   if (reward.emblem)  {
-    if (!alreadyHadEmblem) updates[emblemField()] = { slots:[], createdAt: Date.now() };
-    else { const gk=sField('passGold'); updates[gk] = (updates[gk] ?? data[gk] ?? 0) + EMBLEM_BASE_PRICE; } // 이미 보유 → 베이스가 150G 환급 (보상 증발 방지)
+    if (!alreadyHadEmblem) {
+      const newId = emblemNextId(_emArr);
+      updates[emblemsField()] = [..._emArr, { id:newId, slots:[], createdAt: Date.now() }];
+      updates[emblemField()] = null;
+      if (getEquippedId(data) == null) updates[emblemEquippedField()] = newId;  // 장착 없으면 자동 장착
+    } else { const gk=sField('passGold'); updates[gk] = (updates[gk] ?? data[gk] ?? 0) + EMBLEM_BASE_PRICE; } // 가득참 → 150G 환급 (보상 증발 방지)
   }
   if (reward.title)   { updates[sField('passTitle')] = reward.title; }
   await update(ref(db,'gold/'+key), updates);
@@ -8084,7 +8163,7 @@ window.doClaimPass = async function(pv, lv){
   const parts = [];
   if (r.reward.gold) parts.push(`🪙 ${r.reward.gold}G`);
   if (r.reward.tickets) for (const t in r.reward.tickets) parts.push(`${_PASS_TICKET_IC[t]}×${r.reward.tickets[t]}`);
-  if (r.reward.emblem) parts.push(r.alreadyHadEmblem ? '🔷 150G 환급(엠블럼 보유 중)' : '🔷 엠블럼');
+  if (r.reward.emblem) parts.push(r.alreadyHadEmblem ? '🔷 150G 환급(강철심장 가득참)' : '🔷 강철심장');
   if (r.reward.title) parts.push(`🏷️ "${r.reward.title}"`);
   showS1Toast(`🎫 LV${lv} 보상 수령! ${parts.join(' · ')}`);
   try { _gSfx.reveal(2); } catch(_){}
@@ -8148,45 +8227,67 @@ function renderEmblemBody(){
   const key  = getMyGoldKey();
   const data = key ? goldData[key] : null;
   const gold = getMyGold();
-  const em = getEmblem(data);
+  const owned = getEmblems(data);
+  const eqId  = getEquippedId(data);
+  const em    = getEquippedEmblem(data);   // 장착된 것(효과·강화 대상). 미장착이면 null
   const tickets = getEmblemTickets(data);
 
-  // 강철심장 미보유 → 안전망 (보통 내 아이템에서 보유 시에만 열림)
-  if (!em){
+  // 한 개도 없음 → 구매 안내
+  if (!owned.length){
     body.innerHTML = `
       <div class="fg2-head"><span class="fg2-head-ic">⚒️</span><span>대장간</span></div>
       <div style="text-align:center;padding:26px 16px;display:flex;flex-direction:column;gap:14px;align-items:center;">
         <div class="fg2-empty-txt"><b>강철심장</b>을 가져와 단조를 시작하세요.<br>강화권으로 두드릴수록 더 강해지고,<br>끝까지 벼리면 오른의 걸작 <b>거인의 결의</b>로.</div>
         <button class="fg2-buy ${gold<EMBLEM_BASE_PRICE?'dim':''}" onclick="window.emblemDoBuyBase()">강철심장 가져오기 · ${EMBLEM_BASE_PRICE}G</button>
-        <div style="font-size:10.5px;color:#8b8b97;">강화권은 <b style="color:#f0c060;">상점 · 소비 탭</b>에서 구매</div>
+        <div style="font-size:10.5px;color:#8b8b97;">강화권은 <b style="color:#f0c060;">상점 · 소비 탭</b>에서 구매 · 여러 개 보유하며 교체 가능</div>
       </div>`;
     return;
   }
 
-  const lvl = emblemLevel(em), power = emblemPower(em), used = emblemSlotsUsed(em), locked = emblemLocked(em);
+  const lvl = em?emblemLevel(em):0, power = em?emblemPower(em):0, used = em?emblemSlotsUsed(em):0, locked = em?emblemLocked(em):false;
   const eff = emblemEffects(power);
   const glow = _EMBLEM_GLOW_META[eff.glow] || _EMBLEM_GLOW_META.none;
   const item = _forgeItemMeta(power);
 
-  // 슬롯 도트
+  // 슬롯 도트 (장착된 것 기준)
   let sdots = '';
   for (let i=0;i<EMBLEM_SLOTS;i++){
-    const s = em.slots?.[i];
+    const s = em?.slots?.[i];
     if (!s) sdots += `<span class="fg2-sdot empty"></span>`;
     else if (s.ok) sdots += `<span class="fg2-sdot" style="background:${EMBLEM_TICKETS[s.t].color};box-shadow:0 0 5px ${EMBLEM_TICKETS[s.t].color};"></span>`;
     else sdots += `<span class="fg2-sdot fail"></span>`;
   }
 
   const totalTk = tickets.stable + tickets.precise + tickets.overload;
-  // 작업대 힌트 — 강화권은 우측 "내 아이템 · 소비"에서 끌어오거나 탭
-  const hint = locked ? '🔒 슬롯 소진 · 판매하세요'
+  const hint = !em ? '아래에서 강철심장을 장착하세요'
+             : locked ? '🔒 슬롯 소진 · 판매하세요'
              : (totalTk === 0 ? '강화권을 상점·소비 탭에서 구매하세요'
                               : '강화권을 끌어오거나 탭해 단조');
 
   const embers = `<div class="fg2-embers">${[[16,3.4,0,6],[34,4.1,0.7,-9],[52,3.0,1.4,5],[70,4.6,0.4,11],[88,3.6,2.1,-7],[120,4.0,1.0,8]].map(([l,d,dl,ex])=>`<i style="left:${l}px;--ex:${ex}px;animation-duration:${d}s;animation-delay:${dl}s;"></i>`).join('')}</div>`;
 
+  // 작업대 위 — 장착됐으면 강철심장, 아니면 placeholder
+  const anvilInner = em
+    ? `<div class="fg2-item-wrap2">
+         <div class="fg2-aura" style="--glow:${glow.color};"></div>
+         <img class="fg2-item-img" src="${_forgeItemImg(power)}" onerror="this.style.display='none'" alt="${item.kr}">
+         <div class="fg2-lvl" style="border-color:${glow.color};color:${glow.color};">+${lvl}</div>
+       </div>`
+    : `<div class="fg2-noeq">강철심장 미장착<br>아래에서 선택</div>`;
+
+  // 🔨 강철심장 베이 — 보유 목록(교체). 장착된 건 강조, 클릭=장착/빼기. + 구매
+  const bayHtml = owned.map(e=>{
+    const p=emblemPower(e), g=_EMBLEM_GLOW_META[emblemEffects(p).glow]||_EMBLEM_GLOW_META.none, isEq=e.id===eqId;
+    return `<div class="fg2-bay-slot${isEq?' eq':''}" style="--gc:${g.color};" onclick="window.emblemDoEquip(${e.id},${isEq})" title="${isEq?'장착 중 (클릭하면 빼기)':'클릭하면 장착'}">
+      <img src="${_forgeItemImg(p)}" alt="">
+      <span class="fg2-bay-lv" style="color:${g.color};border-color:${g.color};">+${emblemLevel(e)}</span>
+      ${isEq?'<span class="fg2-bay-tag">장착</span>':''}
+    </div>`;
+  }).join('') + (owned.length < EMBLEM_MAX_OWN
+    ? `<button class="fg2-bay-add ${gold<EMBLEM_BASE_PRICE?'dim':''}" onclick="window.emblemDoBuyBase()" title="강철심장 구매 ${EMBLEM_BASE_PRICE}G">＋</button>` : '');
+
   body.innerHTML = `
-    <div class="fg2-head"><span class="fg2-head-ic">⚒️</span><span>대장간</span><span class="fg2-head-glow" style="color:${glow.color};">${glow.label}</span></div>
+    <div class="fg2-head"><span class="fg2-head-ic">⚒️</span><span>대장간</span><span class="fg2-head-glow" style="color:${glow.color};">${em?glow.label:'미장착'}</span></div>
     <div class="fg2-forge-row">
       <div class="fg2-stage" id="forge-stage">
         <div class="fg2-scene">
@@ -8195,16 +8296,13 @@ function renderEmblemBody(){
           <div class="fg2-ornn-load">🔥 오른을 부르는 중…</div>
           <div class="fg2-anvil2" id="emblem-anvil">
             <div class="fg2-coals"></div>
-            <div class="fg2-item-wrap2">
-              <div class="fg2-aura" style="--glow:${glow.color};"></div>
-              <img class="fg2-item-img" src="${_forgeItemImg(power)}" onerror="this.style.display='none'" alt="${item.kr}">
-              <div class="fg2-lvl" style="border-color:${glow.color};color:${glow.color};">+${lvl}</div>
-            </div>
+            ${anvilInner}
           </div>
         </div>
         <div class="fg2-stage-hint2">${hint}</div>
       </div>
       <div class="fg2-side">
+        ${em ? `
         <div class="fg2-midline2">
           <span class="fg2-iname" style="color:${glow.color};">${item.kr}</span>
           <span class="fg2-slotrow">${sdots}<span class="fg2-slot-n2">${used}/${EMBLEM_SLOTS}</span></span>
@@ -8213,9 +8311,14 @@ function renderEmblemBody(){
           <div class="fg2-eff-row"><span class="fg2-eff-lbl">복권 당첨률</span><span class="fg2-eff-num">+${eff.lotteryBoostPct}<span class="unit">%p</span></span></div>
           <div class="fg2-eff-row"><span class="fg2-eff-lbl">출석 골드</span><span class="fg2-eff-num">+${eff.attendBonusG}<span class="unit">G</span></span></div>
         </div>
-        <button class="fg2-sell" onclick="window.emblemDoSell()">💰 판매 ${emblemSellPrice(em).toLocaleString()}G</button>
-        <div class="fg2-forge-guide">👉 <b>내 아이템 · 소비</b>의 강화권을 <b>꾹 눌러</b> 강철심장 위로 <b>끌어오면</b> 단조</div>
+        <button class="fg2-sell" onclick="window.emblemDoSell(${em.id})">💰 판매 ${emblemSellPrice(em).toLocaleString()}G</button>`
+        : `<div class="fg2-noeq-side">장착된 강철심장이 없어요.<br>아래 목록에서 하나를 <b>클릭해 장착</b>하세요.</div>`}
+        <div class="fg2-forge-guide">👉 <b>내 아이템 · 소비</b>의 강화권을 <b>꾹 눌러</b> 장착된 강철심장 위로 <b>끌어오면</b> 단조</div>
       </div>
+    </div>
+    <div class="fg2-bay-wrap">
+      <div class="fg2-bay-label">⬡ 보유 강철심장 ${owned.length}/${EMBLEM_MAX_OWN} · 클릭해 <b>장착/교체</b></div>
+      <div class="fg2-bay">${bayHtml}</div>
     </div>`;
   _mountOrnn();  // 🔥 3D 오른 등장 (캔버스 이동)
 }
@@ -8225,17 +8328,16 @@ function _emblemShopCardsHtml(cat){
   if (CURRENT_SEASON !== 2) return '';
   const key=getMyGoldKey(), data=key?goldData[key]:null, gold=getMyGold();
   if (cat === 'equip'){
-    const owned = !!getEmblem(data), canBuy = !owned && gold >= EMBLEM_BASE_PRICE;
+    const ownCnt = getEmblems(data).length, full = ownCnt >= EMBLEM_MAX_OWN, canBuy = !full && gold >= EMBLEM_BASE_PRICE;
     const heartImg = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/item/3084.png`;
-    const btn = owned
-      ? `<button class="sli-price sli-limit-hit" disabled>보유중</button>`
+    const btn = full
+      ? `<button class="sli-price sli-limit-hit" disabled>가득참 ${ownCnt}/${EMBLEM_MAX_OWN}</button>`
       : `<button class="sli-price" ${canBuy?'':'disabled'} onclick="window.emblemDoBuyBase()">🪙${EMBLEM_BASE_PRICE}G</button>`;
     return `<div class="sli">
       <div class="sli-icon"><img src="${heartImg}" style="width:30px;height:30px;border-radius:6px;display:block;" alt=""></div>
       <div class="sli-info">
-        <div class="sli-name" style="color:#ffd24a;">강철심장</div>
-        <div class="sli-desc">대장간에서 강화권으로 단조 · 끝까지 벼리면 오른 걸작 거인의 결의로. 복권·출석 보너스</div>
-        ${owned?'<div class="sli-pass-notice" style="color:#ffd24a;">내 아이템 · 장비 탭에서 🔨 강화</div>':''}
+        <div class="sli-name" style="color:#ffd24a;">강철심장 ${ownCnt>0?`<span style="color:#8b8b97;font-size:11px;">(보유 ${ownCnt}/${EMBLEM_MAX_OWN})</span>`:''}</div>
+        <div class="sli-desc">여러 개 보유하며 대장간에서 <b>장착 교체</b> · 장착한 것만 효과(복권·출석). 강화권으로 단조</div>
       </div>
       <div class="sli-right">${btn}</div>
     </div>`;
@@ -8261,15 +8363,18 @@ function _emblemInvSlotsHtml(cat){
   if (CURRENT_SEASON !== 2) return '';
   const key=getMyGoldKey(), data=key?goldData[key]:null;
   if (cat === 'equip'){
-    const em = getEmblem(data); if (!em) return '';
-    const lvl=emblemLevel(em), power=emblemPower(em), item=_forgeItemMeta(power);
-    const glow=_EMBLEM_GLOW_META[emblemEffects(power).glow]||_EMBLEM_GLOW_META.none;
-    return `<div class="inv-slot inv-active" onclick="window.gotoForgeTab()" title="${item.kr} · 클릭하면 대장간에서 강화">
-      <div class="inv-count-badge" style="background:${glow.color};color:#0a0e1a;">+${lvl}</div>
-      <div class="inv-slot-icon"><img src="${_forgeItemImg(power)}" style="width:30px;height:30px;border-radius:6px;display:block;" alt=""></div>
-      <div class="inv-slot-name">${item.kr}</div>
-      <div class="inv-slot-action inv-action-use" style="background:linear-gradient(135deg,#ffb867,#e08a2e);color:#1a1206;">🔨 강화</div>
-    </div>`;
+    const owned = getEmblems(data); if (!owned.length) return '';
+    const eqId = getEquippedId(data);
+    return owned.map(e=>{
+      const power=emblemPower(e), item=_forgeItemMeta(power), lvl=emblemLevel(e), isEq=e.id===eqId;
+      const glow=_EMBLEM_GLOW_META[emblemEffects(power).glow]||_EMBLEM_GLOW_META.none;
+      return `<div class="inv-slot${isEq?' inv-active':''}" onclick="window.gotoForgeTab()" title="${item.kr}${isEq?' · 장착 중':''} · 클릭하면 대장간">
+        <div class="inv-count-badge" style="background:${glow.color};color:#0a0e1a;">+${lvl}</div>
+        <div class="inv-slot-icon"><img src="${_forgeItemImg(power)}" style="width:30px;height:30px;border-radius:6px;display:block;" alt=""></div>
+        <div class="inv-slot-name">${item.kr}</div>
+        <div class="inv-slot-action inv-action-use" style="${isEq?'background:linear-gradient(135deg,#ffb867,#e08a2e);color:#1a1206;':'opacity:.7;'}">${isEq?'🔨 장착중':'대장간'}</div>
+      </div>`;
+    }).join('');
   }
   if (cat === 'consume'){
     const t = getEmblemTickets(data);
@@ -8362,14 +8467,19 @@ function _bindEnchInventoryDrag(){
 }
 // 강화 실행 — 드래그를 작업대에 드롭했을 때만 호출됨
 function _enchFromInventory(type){
-  const em = getEmblem(getMyGoldData());
-  if(!em){ showS1Toast('먼저 강철심장을 가져오세요'); return; }
+  const data = getMyGoldData();
+  const em = getEmblem(data);
+  if(!em){ showS1Toast(getEmblems(data).length ? '강철심장을 먼저 장착하세요 (대장간 하단)' : '먼저 강철심장을 가져오세요'); return; }
   if(emblemLocked(em)){ showS1Toast('강화 슬롯이 모두 소진됐어요 (5/5)'); return; }
   window.emblemDoEnhance(type);
 }
 
 window.emblemDoBuyBase   = async function(){ if (await emblemBuyBase()) renderEmblemBody(); };
 window.emblemDoBuyTicket = async function(type){ if (await emblemBuyTicket(type)) renderEmblemBody(); };
+// 베이에서 클릭 — 장착 중이면 빼기, 아니면 장착(교체)
+window.emblemDoEquip = async function(id, isEquipped){
+  if (await emblemEquip(isEquipped ? null : id)) renderEmblemBody();
+};
 // 🔥 3D 오른 (대장간) — lazy init. three.js dynamic import + glb 40MB는 대장간 첫 진입 때만 로드.
 let _ornnInit = false;
 async function ensureOrnn3d(){
@@ -8586,11 +8696,13 @@ function _bindForgeDrag(){
     chip.addEventListener('pointercancel', ()=>{ const st=_forgeDragState; if(st&&st.chip===chip){ st.ghost.remove(); _forgeDragState=null; forgeStage?.classList.remove('drop-ok'); } });
   });
 }
-window.emblemDoSell = async function(){
-  const key = getMyGoldKey(); const data = key?goldData[key]:null; const em = getEmblem(data);
+window.emblemDoSell = async function(id){
+  const key = getMyGoldKey(); const data = key?goldData[key]:null;
+  const arr = getEmblems(data);
+  const em = (id != null) ? arr.find(e=>e.id===id) : getEquippedEmblem(data);
   if (!em) return;
-  if (!confirm(`엠블럼을 판매할까요?\n+${emblemLevel(em)} (성능 ${emblemPower(em)}) → 환급 ${emblemSellPrice(em).toLocaleString()}G\n\n다시 만들려면 처음부터 강화해야 해요.`)) return;
-  if (await emblemSell()) renderEmblemBody();
+  if (!confirm(`이 강철심장을 판매할까요?\n+${emblemLevel(em)} (성능 ${emblemPower(em)}) → 환급 ${emblemSellPrice(em).toLocaleString()}G\n\n되돌릴 수 없어요.`)) return;
+  if (await emblemSell(em.id)) renderEmblemBody();
 };
 
 // ────────────────────────────────────────────────────────────────
@@ -23624,7 +23736,7 @@ window.__s2dbg = {
     if (!confirm('내 시즌2 테스트 데이터(엠블럼·패스·테스트골드)를 모두 초기화할까요?\n(라이브 S1 데이터는 안 건드립니다)')) return;
     const k = getMyGoldKey(); if (!k) return;
     await update(ref(db,'gold/'+k), {
-      [sField('emblem')]:null, [sField('emblemTickets')]:null, [sField('emblemSellG')]:0,
+      [sField('emblem')]:null, [sField('emblems')]:null, [sField('emblemEquipped')]:null, [sField('emblemTickets')]:null, [sField('emblemSellG')]:0,
       [sField('passNormal')]:null, [sField('passCustom')]:null, [sField('passGold')]:0,
       [sField('passTitle')]:null, [sField('normalGamePts')]:0, [sField('goldBonusLegacy')]:0,
     });
