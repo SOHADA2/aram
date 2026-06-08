@@ -1568,6 +1568,8 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .wm-duo-v.pos,.wm-duo-v.win{color:var(--gold-light);}
 .wm-duo-v.neg,.wm-duo-v.loss{color:#d98a8a;}
 .wm-duo-k{font-size:8px;letter-spacing:0.3px;color:var(--rk-text-muted);font-family:'JetBrains Mono',monospace;text-align:center;}
+.wm-duo-sub{font-size:9px;color:var(--rk-text-dim);font-family:'JetBrains Mono',monospace;letter-spacing:0.2px;}
+.wm-duo-sub b{color:var(--gold-light);font-weight:800;}
 .wm-duo-form{display:flex;align-items:center;gap:4px;font-size:9px;color:var(--rk-text-dim);font-family:'JetBrains Mono',monospace;padding-top:2px;border-top:1px solid rgba(240,192,96,0.1);}
 .wm-duo-fdot{font-size:11px;line-height:1;}
 .wm-duo-fdot.up{color:var(--gold-light);}
@@ -6120,7 +6122,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.82';
+const APP_VERSION = 'v2.44.83';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6129,6 +6131,9 @@ const APP_VERSION = 'v2.44.82';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.83', date: '2026-06-08', changes: [
+    { tag: 'improve', text: '🎰 [시즌2] 대기화면 막고라 박스에 실제 파이터 대전 전적 추가 — 골드 손익뿐 아니라 본인이 파이터로 1:1 대전한 경기의 대전승/대전패를 magolla_matches에서 집계해 표시(승=골드/패=뮤트). 박스 = [대전승][대전패][참여][손익] + 수익률·최고수익 + 최근 대전폼(▲▼). 기록 없으면 안내. 시즌 스코프(현 시즌 매치만)' },
+  ] },
   { ver: 'v2.44.82', date: '2026-06-08', changes: [
     { tag: 'improve', text: '🌌 [시즌2] 헥스텍 톤 확대 적용 — (1) 랭킹 탭 카드: 회색(--rk-card)을 웜블랙+골드 테두리로(토큰 교체라 히어로·미니카드 일괄). (2) 프로필 모달: S1 블루 아바타·테두리 → 블랙+골드. (3) 대기화면 막고라: 좁은 한 줄을 ⚔️내전 · 🎰막고라 "두 박스"로 분리하고 막고라 박스에 참여·손익·수익률·최고수익·최근폼까지 풍부하게. 전부 .season-2 게이트(라이브 S1 무영향)' },
   ] },
@@ -21069,17 +21074,20 @@ async function renderS1WaitingCard(el) {
     const _mgWins = _mgHist.filter(h => (h.delta||0) > 0).length;
     const _mgWr = _mgCnt > 0 ? Math.round(_mgWins / _mgCnt * 100) : 0;
     const _mgBest = _mgHist.reduce((mx,h)=>Math.max(mx, h.delta||0), 0);
-    const _mgForm = _mgHist.slice(-7).map(h => (h.delta||0) >= 0
+    // 파이터 실제 대전 전적(승/패) — magolla_matches에서 집계
+    const _fr = mgFighterStats(myName, CURRENT_SEASON);
+    const _frForm = _fr.recent.map(won => won
       ? '<span class="wm-duo-fdot up">▲</span>' : '<span class="wm-duo-fdot dn">▼</span>').join('');
-    const mgBody = _mgCnt > 0 ? `
+    const mgEmpty = (_mgCnt === 0 && _fr.total === 0);
+    const mgBody = mgEmpty ? `<div class="wm-duo-empty">아직 막고라 기록이 없어요</div>` : `
         <div class="wm-duo-grid">
+          <div class="wm-duo-st"><span class="wm-duo-v win">${_fr.win}</span><span class="wm-duo-k">대전승</span></div>
+          <div class="wm-duo-st"><span class="wm-duo-v loss">${_fr.loss}</span><span class="wm-duo-k">대전패</span></div>
           <div class="wm-duo-st"><span class="wm-duo-v">${_mgCnt}</span><span class="wm-duo-k">참여</span></div>
           <div class="wm-duo-st"><span class="wm-duo-v ${_mgNet>=0?'pos':'neg'}">${_mgNet>=0?'+':''}${_mgNet}</span><span class="wm-duo-k">손익(G)</span></div>
-          <div class="wm-duo-st"><span class="wm-duo-v">${_mgWr}%</span><span class="wm-duo-k">수익률</span></div>
-          <div class="wm-duo-st"><span class="wm-duo-v pos">+${_mgBest}</span><span class="wm-duo-k">최고</span></div>
         </div>
-        <div class="wm-duo-form">최근 ${_mgForm}</div>`
-      : `<div class="wm-duo-empty">아직 막고라 참여 기록이 없어요</div>`;
+        <div class="wm-duo-sub">수익률 ${_mgWr}% · 최고 <b>+${_mgBest}</b>G</div>
+        ${_frForm ? `<div class="wm-duo-form">대전 ${_frForm}</div>` : ''}`;
     duoRowHtml = `<div class="wm-duo-row">
       <div class="wm-duo-box">
         <div class="wm-duo-hd">⚔️ 내전</div>
@@ -26494,6 +26502,18 @@ function mgRecentForm(name, n) {
     const wt=(m.winner==='blue'?m.teamA:m.teamB||[]).map(normName);
     return wt.includes(nn)?'W':'L';
   });
+}
+// 막고라 파이터 전적 — settled 매치 중 본인이 fighter였던 경기의 승/패 + 최근 폼 (시즌 스코프)
+function mgFighterStats(name, season) {
+  const nn = normName(name||'');
+  const arr = Object.values(magollaMatches||{})
+    .filter(m => m && m.status==='settled' && (season==null || (m.season??1)===season)
+              && (normName(m.fighter1||'')===nn || normName(m.fighter2||'')===nn)
+              && m.result && m.result.winner)
+    .map(m => ({ ts: m.bettingStartAt||0, won: normName(m.result.winner||'')===nn }))
+    .sort((a,b)=>(a.ts||0)-(b.ts||0));
+  const win = arr.filter(x=>x.won).length;
+  return { win, loss: arr.length-win, total: arr.length, recent: arr.slice(-7).map(x=>x.won) };
 }
 function mgHeadToHead(n1, n2) {
   const nn1=normName(n1), nn2=normName(n2);
