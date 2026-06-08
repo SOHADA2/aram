@@ -6061,6 +6061,7 @@ const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
   { ver: 'v2.44.77', date: '2026-06-08', changes: [
     { tag: 'improve', text: '📬 [시즌2] 우편함 모달도 헥스텍 블랙+골드로 통일 — 그동안 버튼·배지만 골드였고 모달 본체(시트·제목·"보상 받기" 버튼·아이템 칩)는 S1 파랑/보라가 남아 있던 것을 골드로 재배색. 전부 .season-2 게이트라 라이브 S1 우편함은 기존 파랑 유지' },
+    { tag: 'fix', text: '📬 [시즌2 준비] 우편 시즌 격리 — 우편 레코드(/mailbox)는 전역인데 수령여부만 시즌별(_s2)이라, S2 오픈 시 과거 S1 우편이 전부 "미수령"으로 떠 보상이 재지급되던 누수를 차단. 발송 시 season 태그를 박고(sendMail) 현 시즌 우편만 노출·수령(_myMails/claimMail 가드). 과거 우편(태그 없음)은 S1 발송분으로 간주(?? 1)해 S2에선 자동 숨김. 라이브 S1은 무영향' },
   ] },
   { ver: 'v2.44.76', date: '2026-06-08', changes: [
     { tag: 'fix', text: '⚡ [성능] 시즌2 렉 주범 수정 — 🔨대장간 3D 오른 렌더 루프가 정지 조건 없이 세션 내내 60fps로 WebGL 렌더+애니메이션 믹서를 돌리고 있었음(대장간을 닫아도 캔버스가 화면 밖 holder로 대피될 뿐 display:none이 아니라 계속 렌더). 캔버스가 실제 무대(#ornn-mount)에 떠 있고 탭이 활성일 때만 렌더하도록 가드 추가 → 대장간 닫으면 GPU/CPU 부하 0. S2 한 번이라도 대장간을 연 사용자의 상시 발열·버벅임 해소' },
@@ -18711,7 +18712,9 @@ function _myMails() {
   const myData = getMyGoldData() || {};
   const claimed = myData[sField('mailClaimed')] || {};
   return Object.entries(mailboxData)
-    .filter(([,m]) => m && (m.target === 'all' || (Array.isArray(m.target) && m.target.some(n => normName(n) === myNorm))))
+    // 🌌 시즌 격리 — 우편 레코드는 전역(/mailbox)이지만 수령여부는 시즌별(_s2)이라, 시즌 태그로 현 시즌 우편만 노출.
+    //   과거 우편(season 필드 없음)은 S1 발송분이므로 ?? 1 로 S1 취급 → S2에선 자동 숨김(재수령 누수 차단)
+    .filter(([,m]) => m && ((m.season ?? 1) === CURRENT_SEASON) && (m.target === 'all' || (Array.isArray(m.target) && m.target.some(n => normName(n) === myNorm))))
     .map(([id, m]) => ({ id, ...m, claimed: !!claimed[id] }))
     .sort((a, b) => (a.claimed - b.claimed) || (b.sentAt || 0) - (a.sentAt || 0));
 }
@@ -18783,6 +18786,7 @@ window.claimMail = async function(mailId) {
   if (!key || !data) return;
   // 대상 확인
   const myNorm = normName(myName || '');
+  if ((mail.season ?? 1) !== CURRENT_SEASON) { showGoldToast('지난 시즌 우편이에요'); return; } // 시즌 격리 가드
   const eligible = mail.target === 'all' || (Array.isArray(mail.target) && mail.target.some(n => normName(n) === myNorm));
   if (!eligible) { showGoldToast('받을 수 없는 우편이에요'); return; }
   // 중복 수령 방지
@@ -18825,7 +18829,7 @@ window.sendMail = async function(opts = {}) {
   if (freeScratch) rewards.freeScratch = freeScratch;
   if (items) rewards.items = items;
   if (!Object.keys(rewards).length) { console.warn('보상이 비어있어요. gold/freeScratch/items 중 하나는 필요.'); return; }
-  const mail = { title, desc, rewards, target, sentAt: Date.now(), sentBy: myName || 'admin' };
+  const mail = { title, desc, rewards, target, season: CURRENT_SEASON, sentAt: Date.now(), sentBy: myName || 'admin' };
   const r = await push(ref(db, 'mailbox'), mail);
   console.log(`✅ 우편 발송 완료 (id: ${r.key})`, mail);
   return r.key;
