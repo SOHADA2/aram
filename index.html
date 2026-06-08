@@ -5856,7 +5856,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.59';
+const APP_VERSION = 'v2.44.60';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5865,6 +5865,9 @@ const APP_VERSION = 'v2.44.59';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.60', date: '2026-06-08', changes: [
+    { tag: 'fix', text: '[시즌2] 레벨업 보상 팝업이 정산창과 겹치지 않게 — 경기 직후 정산창이 떠있으면 레벨업 팝업을 보류했다가, 정산창을 닫으면 그때 표시' },
+  ] },
   { ver: 'v2.44.59', date: '2026-06-08', changes: [
     { tag: 'improve', text: '[시즌2] 내전 레벨업 보상을 RPG식 팝업으로 — 인라인 작은 "수령" 버튼 대신, 레벨업하면 LEVEL UP 연출 팝업이 떠서 획득 보상(정수·강화권·복권·골드)을 타일로 공개하고 "보상 받기"로 수령. 여러 레벨 동시 상승 시 합산. 미수령분은 정보 바 "보상 받기"로 다시 열림' },
   ] },
@@ -8554,9 +8557,12 @@ function _plvTile(name,cls,cnt,color){
     <div class="plv-tile-ic"></div><div class="plv-tile-name">${name}</div><div class="plv-tile-cnt">${cnt}</div></div>`;
 }
 // 🎚️ RPG식 레벨업 보상 팝업 — 연출 + 보상 공개 + 받기 (이모지 없이 전문 톤)
+let _plvPendingPopup = false;   // 정산창 등 차단 모달 때문에 보류된 상태
 function _plvShowRewardPopup(){
   if (document.getElementById('plv-pop')) return;           // 중복 방지
   const p = _plvPendingRewards(); if (!p) return;
+  // 정산창이 떠있으면 보류 → 정산창 닫힐 때 표시(겹침 방지). 정산창 닫기(finish)에서 재호출
+  if (document.querySelector('.match-summary-overlay')) { _plvPendingPopup = true; return; }
   const tiles=[];
   if (p.essence) tiles.push(_plvTile('걸작의 정수','ess','×'+p.essence));
   for (const t in p.tickets) tiles.push(_plvTile(EMBLEM_TICKETS[t].name.replace(' 강화권','')+' 강화권','tk','×'+p.tickets[t],EMBLEM_TICKETS[t].color));
@@ -14536,6 +14542,11 @@ window.closeMatchSummary = function() {
         teamCard('⚡ 1팀','team-a',currentTeamA) +
         teamCard('🔥 2팀','team-b',currentTeamB);
       renderQuickItemBar();
+    }
+    // 🎚️ 정산창 닫힌 뒤 보류된 레벨업 보상 팝업 표시 (겹침 방지)
+    if (typeof _plvPendingPopup !== 'undefined' && _plvPendingPopup) {
+      _plvPendingPopup = false;
+      setTimeout(() => { try { _plvShowRewardPopup(); } catch(_){} }, 350);
     }
   };
   if (overlay) {
