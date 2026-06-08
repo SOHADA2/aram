@@ -1543,8 +1543,19 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .wm-fx-card{padding:11px 13px;}
 .wm-fx-head{font-size:10px;font-weight:800;letter-spacing:0.6px;color:var(--rk-gold);font-family:'JetBrains Mono',monospace;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
 .wm-fx-sub{font-size:8px;font-weight:600;letter-spacing:0.4px;color:var(--rk-text-muted);}
-.wm-fx-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-@media(max-width:420px){.wm-fx-grid{grid-template-columns:1fr;}}
+.wm-fx-grid{display:grid;grid-template-columns:1fr;gap:8px;}
+.wm-fx-grade{font-size:9px;font-weight:800;letter-spacing:0.3px;padding:1px 6px;border:1px solid;border-radius:5px;font-family:'JetBrains Mono',monospace;flex-shrink:0;}
+.wm-fx-itemdesc{font-size:10px;color:var(--rk-text-dim);line-height:1.45;}
+.wm-fx-forge-row{display:flex;align-items:center;gap:8px;}
+.wm-fx-pips{display:inline-flex;gap:4px;flex-shrink:0;}
+.wm-pip{width:11px;height:11px;border-radius:50%;display:inline-block;}
+.wm-pip.empty{border:1px solid rgba(240,192,96,0.28);background:transparent;}
+.wm-pip.fail{background:rgba(217,138,138,0.45);border:1px solid rgba(217,138,138,0.55);}
+.wm-fx-forge-txt{font-size:9px;color:var(--rk-text-muted);font-family:'JetBrains Mono',monospace;}
+.wm-fx-efflist{display:flex;flex-direction:column;gap:3px;margin-top:1px;}
+.wm-fx-eff{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;padding:3px 8px;background:rgba(240,192,96,0.045);border-radius:6px;}
+.wm-fx-eff-nm{color:var(--rk-text-dim);}
+.wm-fx-eff-v{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:11px;flex-shrink:0;}
 .wm-fx-cell{background:rgba(240,192,96,0.045);border:1px solid rgba(240,192,96,0.18);border-radius:9px;padding:8px 9px;display:flex;flex-direction:column;gap:6px;min-width:0;}
 .wm-fx-cell.empty{background:rgba(255,255,255,0.02);border-color:var(--rk-border);border-style:dashed;}
 .wm-fx-cell.warn{background:rgba(255,184,107,0.06);border-color:rgba(255,184,107,0.32);}
@@ -6122,7 +6133,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.83';
+const APP_VERSION = 'v2.44.84';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6131,6 +6142,9 @@ const APP_VERSION = 'v2.44.83';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.84', date: '2026-06-08', changes: [
+    { tag: 'improve', text: '🔩 [시즌2] 대기화면 강철심장 표시 개편 — (1) 효과를 이모지+숫자 칩(🪙+5G) → "효과 이름 + 값"(경기 골드 +5G) 줄로 바꿔 무슨 효과인지 명확히. (2) 아이템 설명 문구 추가("매 경기 자동 발동하는 강화 장비"). (3) 강화가 얼마나 잘 됐는지 시각화 — 5칸 강화 핍(성공=강화권색·실패=뮤트·빈칸=테두리) + 성능 등급 배지(미강화/실버/골드/프리즈매틱) + 성능·성공 칸수. 잡다한 이모지 정리. 카드는 강철심장→시너지 세로 스택으로 넓게' },
+  ] },
   { ver: 'v2.44.83', date: '2026-06-08', changes: [
     { tag: 'improve', text: '🎰 [시즌2] 대기화면 막고라 박스에 실제 파이터 대전 전적 추가 — 골드 손익뿐 아니라 본인이 파이터로 1:1 대전한 경기의 대전승/대전패를 magolla_matches에서 집계해 표시(승=골드/패=뮤트). 박스 = [대전승][대전패][참여][손익] + 수익률·최고수익 + 최근 대전폼(▲▼). 기록 없으면 안내. 시즌 스코프(현 시즌 매치만)' },
   ] },
@@ -21106,23 +21120,39 @@ async function renderS1WaitingCard(el) {
     statsHtml = `<div class="wm-stat-strip">${_statItems}</div>`;
   }
   if (_s2) {
-    // ── 강철심장(걸작) 셀 ──
+    // ── 강철심장(걸작) 셀 — 아이템 설명 + 강화도(칸/등급/성능) + 효과를 이름으로 ──
     let emCell;
     const em = getEmblem(myGoldData);
     if (em) {
-      const pw = emblemPower(em), E = emblemEffectsOf(em), lvl = emblemLevel(em);
-      const chips = EMBLEM_EFFECT_POOL.filter(eid=>E.eff[eid]>0).map(eid=>{
-        const ef = EMBLEM_EFFECTS[eid];
-        return `<span class="wm-fx-chip" style="color:${ef.color};border-color:${ef.color}55;">${ef.icon} ${ef.fmt(E.eff[eid])}</span>`;
+      const pw = emblemPower(em), E = emblemEffectsOf(em), lvl = emblemLevel(em), used = emblemSlotsUsed(em);
+      const _g = emblemEffects(pw).glow, _gc = (_EMBLEM_GLOW_META[_g]||{}).color || '#7c818f';
+      const _gl = { none:'미강화', silver:'실버', gold:'골드', prismatic:'프리즈매틱' }[_g] || '미강화';
+      const pips = Array.from({ length: EMBLEM_SLOTS }, (_, i) => {
+        const sl = em.slots && em.slots[i];
+        if (!sl) return '<span class="wm-pip empty"></span>';
+        if (!sl.ok) return '<span class="wm-pip fail"></span>';
+        const col = (EMBLEM_TICKETS[sl.t] || {}).color || '#f0c060';
+        return `<span class="wm-pip ok" style="background:${col};box-shadow:0 0 5px ${col}99;"></span>`;
       }).join('');
+      const effRows = EMBLEM_EFFECT_POOL.filter(eid => E.eff[eid] > 0).map(eid => {
+        const ef = EMBLEM_EFFECTS[eid];
+        return `<div class="wm-fx-eff"><span class="wm-fx-eff-nm">${ef.name}</span><span class="wm-fx-eff-v" style="color:${ef.color};">${ef.fmt(E.eff[eid])}</span></div>`;
+      }).join('') || `<span class="wm-fx-none">효과 없음 · 대장간에서 걸작/강화하세요</span>`;
       emCell = `<div class="wm-fx-cell">
-        <div class="wm-fx-cell-top"><span class="wm-fx-ico">🔨</span><span class="wm-fx-name" style="color:#ffd24a;">강철심장 +${lvl}</span><span class="wm-fx-perf">성능 ${pw}</span></div>
-        <div class="wm-fx-chips">${chips || `<span class="wm-fx-none">효과 없음 · 대장간에서 걸작/강화</span>`}</div>
+        <div class="wm-fx-cell-top">
+          <span class="wm-fx-name" style="color:#ffd24a;">강철심장 <b>+${lvl}</b></span>
+          <span class="wm-fx-grade" style="color:${_gc};border-color:${_gc}66;">${_gl}</span>
+          <span class="wm-fx-perf">성능 ${pw}</span>
+        </div>
+        <div class="wm-fx-itemdesc">매 경기 자동 발동하는 강화 장비 — 강화할수록 효과가 커집니다</div>
+        <div class="wm-fx-forge-row"><span class="wm-fx-pips">${pips}</span><span class="wm-fx-forge-txt">강화 ${used}/${EMBLEM_SLOTS}칸 · 성공 ${lvl}</span></div>
+        <div class="wm-fx-efflist">${effRows}</div>
       </div>`;
     } else {
       emCell = `<div class="wm-fx-cell empty">
-        <div class="wm-fx-cell-top"><span class="wm-fx-ico" style="opacity:.5;">🔨</span><span class="wm-fx-name dim">강철심장 미장착</span></div>
-        <div class="wm-fx-none">상점 → 대장간에서 제작·장착</div>
+        <div class="wm-fx-cell-top"><span class="wm-fx-name dim">강철심장 미장착</span></div>
+        <div class="wm-fx-itemdesc">매 경기 효과를 주는 강화 장비입니다</div>
+        <div class="wm-fx-none">상점 → 대장간에서 제작·장착하세요</div>
       </div>`;
     }
     // ── 시너지 셀 ──
