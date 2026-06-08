@@ -5856,7 +5856,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.61';
+const APP_VERSION = 'v2.44.62';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5865,6 +5865,9 @@ const APP_VERSION = 'v2.44.61';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.62', date: '2026-06-08', changes: [
+    { tag: 'improve', text: '[시즌2/개발] 레벨업 테스트 콘솔 도구 — __plvXpAdd(n)으로 XP 임시 가산(본인·로컬·새로고침 시 리셋)해 경험치 바·LEVEL UP 배너 관찰. __plvLevelUp()=한 단계 올림, __plvReset()=초기화' },
+  ] },
   { ver: 'v2.44.61', date: '2026-06-08', changes: [
     { tag: 'improve', text: '[시즌2] 레벨업 보상을 다시 버튼 방식으로 — 자동 보상 팝업 제거(어색). 레벨업 시엔 간단한 LEVEL UP 연출 배너만, 보상은 정보 바 "보상 받기 N" 버튼으로 직접 수령' },
   ] },
@@ -8450,9 +8453,11 @@ const plvNeed  = i => PLV_BASE_NEED + (i-1)*PLV_NEED_STEP;     // 레벨 i→i+1
 const plvCumXp = L => { let s=0; for (let i=1;i<L;i++) s+=plvNeed(i); return s; };  // 레벨 L 도달 누적 XP (L=1→0)
 function plvLevelFromXp(xp){ let L=1; while ((xp||0) >= plvCumXp(L+1)) L++; return L; }
 // 내전 경기 XP 파생 — 판수/승/MVP·매너/KDA(브릿지 participants 있을 때)
+let _plvDebugXp = 0;   // 콘솔 테스트용 XP 가산(본인·로컬·새로고침 시 리셋). __plvXpAdd/__plvLevelUp/__plvReset
 function calcPlayerXp(name){
   if (!name) return 0;
-  const nn = normName(name); let xp = 0;
+  const nn = normName(name);
+  let xp = (myName && nn === normName(myName)) ? (_plvDebugXp || 0) : 0;
   for (const m of Object.values(matches||{})){
     if ((m.season||0) !== 2) continue;
     const inA=(m.teamA||[]).some(p=>normName(p)===nn), inB=(m.teamB||[]).some(p=>normName(p)===nn);
@@ -8468,6 +8473,19 @@ function calcPlayerXp(name){
   return xp;
 }
 window.calcPlayerXp = calcPlayerXp;
+// 🧪 레벨업 테스트(콘솔) — 본인 화면만, 로컬 메모리(새로고침 시 0). 경험치 바·LEVEL UP 배너 관찰용
+window.__plvXpAdd = function(n){
+  n = (n==null) ? 40 : n;
+  _plvDebugXp = Math.max(0, _plvDebugXp + n);
+  if (typeof updateMyInfoBar === 'function') updateMyInfoBar();
+  const xp = calcPlayerXp(myName);
+  console.log(`🧪 테스트 XP ${n>=0?'+':''}${n} → 총 ${xp} · LV ${plvLevelFromXp(xp)}  (보상 받기 누르면 실제 지급됨)`);
+};
+window.__plvLevelUp = function(){              // 다음 레벨 직전까지 채우고 한 단계 올림
+  const xp = calcPlayerXp(myName), lv = plvLevelFromXp(xp);
+  window.__plvXpAdd(plvCumXp(lv+1) - xp + 1);
+};
+window.__plvReset = function(){ _plvDebugXp = 0; if (typeof updateMyInfoBar === 'function') updateMyInfoBar(); console.log('🧪 테스트 XP 리셋'); };
 // 레벨 보상 (무한). 🔶정수 매 레벨 1 고정 + 순환/마일스톤(5단위).
 function plvReward(L){
   const r = { essence:1 };
