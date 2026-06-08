@@ -5,7 +5,8 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.44.51 (시즌2 🔨오른 3D 대장간 + 걸작 시스템 + 걸작 LP 스케일·S2 뉴비 OFF·LP 밸런스 감사 1순위 해결·**걸작 효과 경기별 기록(역산)** / 브릿지 aram-bridge v1.1.31 릴리즈 완료)
+- 현재 버전: v2.44.52 (시즌2 🔨오른 3D 대장간 + 걸작 시스템 + 걸작 경기별 기록(역산) + **🎚️플레이어 레벨/경험치 시스템(정수=레벨업 전용)** / 브릿지 aram-bridge v1.1.31 릴리즈 완료)
+  - ⏳ **레벨 시스템 후속**: ① 패스를 일반/내전 포인트패스 → **S1식 퀘스트 패스(내전 전용)로 되돌리기**(미완) ② 레벨 보상량/곡선 실플레이 튜닝. 레벨 코드맵: `PLV_XP`·`calcPlayerXp`·`plvLevelFromXp`·`plvReward`·`claimPlayerLevels`·`_plvCardHtml`(패스 탭 상단). 데이터 `playerLevelClaimed_s2`. 정수: 경기당+1·상점120G 폐지(레벨업만).
 - ⚠️ **시즌2 작업 중** — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 필독 (진행상황·확정정책·신규콘텐츠 기획 전부 정리됨)
 
 ## 기술 스택
