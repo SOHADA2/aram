@@ -1539,6 +1539,15 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .my-info-name{font-weight:700;font-size:14px;color:var(--rk-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .mib-pills{display:flex;align-items:center;gap:5px;margin-top:3px;flex-wrap:wrap;}
 .my-info-gold{font-size:13px;color:var(--rk-gold);font-weight:600;white-space:nowrap;flex-shrink:0;position:relative;z-index:1;}
+/* 🎚️ 내 정보 바 — 내전 레벨/경험치 (닉네임↔골드 사이) */
+.mib-level{flex:0 1 132px;min-width:90px;display:flex;flex-direction:column;gap:3px;position:relative;z-index:1;}
+.mib-lv-top{display:flex;align-items:center;justify-content:space-between;gap:6px;}
+.mib-lv-tag{font-size:11px;font-weight:800;color:#f0c060;font-family:'JetBrains Mono',monospace;white-space:nowrap;}
+.mib-lv-claim{font-size:10px;font-weight:800;color:#ffe39a;background:rgba(240,192,96,0.18);border:1px solid rgba(240,192,96,0.55);border-radius:12px;padding:1px 8px;cursor:pointer;white-space:nowrap;animation:plvClaimPulse 1.6s ease-in-out infinite;}
+.mib-lv-claim:hover{background:rgba(240,192,96,0.3);}
+.mib-lv-bar{height:6px;border-radius:5px;background:rgba(0,0,0,0.4);overflow:hidden;border:1px solid rgba(240,192,96,0.2);}
+.mib-lv-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,#c89230,#f0c060,#ffe39a);box-shadow:0 0 6px rgba(240,192,96,0.5);transition:width .4s ease;}
+.mib-lv-xp{font-size:9px;color:#8b8b97;font-family:'JetBrains Mono',monospace;text-align:right;}
 .my-info-change{font-size:11px;margin-left:auto;}
 /* ── 출석 체크 ── */
 .attend-box{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;}
@@ -5096,6 +5105,7 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
     <div class="my-info-name" id="my-name-display">나를 선택하세요</div>
     <div class="mib-pills" id="my-info-pills"></div>
   </div>
+  <div class="mib-level" id="my-level" style="display:none;"></div>
   <div class="my-info-gold">🪙 <span id="my-gold-display">0</span></div>
 </div>
 
@@ -5769,7 +5779,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.52';
+const APP_VERSION = 'v2.44.53';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5778,6 +5788,9 @@ const APP_VERSION = 'v2.44.52';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.53', date: '2026-06-08', changes: [
+    { tag: 'improve', text: '🎚️ [시즌2] 내전 레벨 표시 위치 이동 — 패스 탭 → 메인 상단 "내 정보 바"(닉네임↔골드 사이)로 옮김. LV 배지 + XP 진행바 + 수령 가능 시 🎁 버튼(바로 수령). 어느 탭에서나 내 레벨·경험치가 한눈에' },
+  ] },
   { ver: 'v2.44.52', date: '2026-06-08', changes: [
     { tag: 'new', text: '🎚️ [시즌2] 플레이어 레벨/경험치 시스템 — 내전 경기로 XP 적립(1판 +10·승 +6·MVP/매너 +4·KDA 3+ →+3/5+ →+6) → 무한 레벨업(Lv1 80XP, 레벨마다 요구 +15 점증). 레벨업마다 🔶걸작의 정수 1개 고정 + 강화권/복권/골드 순환 보상(5단위 마일스톤↑). 패스 탭 상단에 레벨 카드(진행바·다음 보상·수령 버튼). XP는 매치 파생이라 자동 역산. 판수 늘릴수록 계속 보상' },
     { tag: 'improve', text: '🔶 [시즌2] 걸작의 정수 = 레벨업 전용 — 경기 1판당 자동 지급·상점 120G 구매를 모두 폐지하고, 정수는 이제 내전 레벨업 보상으로만 획득(상점 소비탭/대장간 안내문 갱신). 정수가 레벨 보상의 핵심이 되어 판수 유도' },
@@ -8444,6 +8457,7 @@ window.doClaimPlayerLevels = async function(){
   const lotTot = r.got.reduce((s,g)=>s+((g.r.freeScratch&&g.r.freeScratch[0])||0),0);
   if (lotTot) parts.push(`🎟 복권×${lotTot}`);
   showS1Toast(`🎚️ LV ${r.from}~${r.to} 수령! ${parts.join(' · ')}`);
+  if (typeof updateMyInfoBar === 'function') updateMyInfoBar();
   if (typeof renderAchievementsOrPass === 'function') renderAchievementsOrPass();
 };
 
@@ -8495,7 +8509,6 @@ window.renderS2Pass = function renderS2Pass(){
     </div>`;
   }).join('');
   el.innerHTML = `
-    ${_plvCardHtml()}
     <div class="s2p-tabs">${tabs}</div>
     <div class="s2p-head" style="border-color:${meta.color}44;">
       <div class="s2p-head-top">
@@ -19720,6 +19733,24 @@ function updateMyInfoBar() {
       avatarEl.style.setProperty('--mib-ring-color', '#4fc3f7');
       if (faceEl) faceEl.textContent = fallback;
       pillsEl.innerHTML = '';
+    }
+  }
+  // 🎚️ 내전 레벨/경험치 (S2) — 닉네임↔골드 사이 표시
+  const lvEl = document.getElementById('my-level');
+  if (lvEl) {
+    if (CURRENT_SEASON === 2 && myName) {
+      const xp = calcPlayerXp(myName), lv = plvLevelFromXp(xp);
+      const inLv = xp - plvCumXp(lv), need = plvNeed(lv);
+      const pct = Math.max(0, Math.min(100, Math.round(inLv/need*100)));
+      const k = getMyGoldKey(), dd = k ? goldData[k] : null;
+      const claimable = lv - (dd?.[sField('playerLevelClaimed')] || 0);
+      lvEl.style.display = 'flex';
+      lvEl.innerHTML = `
+        <div class="mib-lv-top"><span class="mib-lv-tag">🎚️ LV ${lv}</span>${claimable>0?`<button class="mib-lv-claim" onclick="event.stopPropagation();window.doClaimPlayerLevels()">🎁 ${claimable}</button>`:''}</div>
+        <div class="mib-lv-bar"><div class="mib-lv-fill" style="width:${pct}%;"></div></div>
+        <div class="mib-lv-xp">${inLv}/${need} XP</div>`;
+    } else {
+      lvEl.style.display = 'none';
     }
   }
   updateS1PassTabBadge();
