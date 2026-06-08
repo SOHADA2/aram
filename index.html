@@ -5745,7 +5745,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.49';
+const APP_VERSION = 'v2.44.50';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5754,6 +5754,9 @@ const APP_VERSION = 'v2.44.49';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.50', date: '2026-06-08', changes: [
+    { tag: 'fix', text: '🛡️ [시즌2] 운영자 LP 재시뮬레이션(s1Resimulate) S2 차단 — 재시뮬은 강철심장 걸작 LP(승리/패배방어)와 가챠 시너지 LP를 복원하지 못해(걸작은 경기별 기록이 없고 현재 성능만 알 수 있음), 시즌2에서 돌리면 라이브 LP를 덮어써 경기당 최대 ~28LP 손실 위험. S2 활성 중 실행 차단(부정확 감수 시 force 옵션). LP 밸런스 감사 1순위 권고 반영' },
+  ] },
   { ver: 'v2.44.49', date: '2026-06-07', changes: [
     { tag: 'improve', text: '🌱 [시즌2] 뉴비 보너스 효과 OFF — 시즌2는 전원 배치고사부터 새 출발이라 뉴비 보호(승리 +3LP/+5G·패배 완화·배치 1패무시)를 끔. LP 단순화 + 엠블럼 패배방어와 겹쳐 무손실되던 엣지 제거. 🌱 표식·부여 버튼은 유지(툴팁만 "시즌2 미적용"). 시즌1 기록·골드는 그대로(시즌 게이트). 라이브·정산창·재계산·골드 전부 반영' },
   ] },
@@ -11613,7 +11616,22 @@ window.s1FindDemotions = async function() {
 
 // ── S1 LP 전체 재시뮬레이션 (콘솔: s1Resimulate()) ────────────────
 // 모든 S1 경기를 타임스탬프 순으로 재생해 LP/티어를 처음부터 재계산 후 Firebase 덮어쓰기
-window.s1Resimulate = async function(dryRun = false) {
+window.s1Resimulate = async function(dryRun = false, opts = {}) {
+  // ⚠️ 시즌2 가드 (v2.44.50) — S2 활성 중에는 재시뮬 차단.
+  //   강철심장 걸작 LP(winLP/lossLP)는 매 경기 "그 시점 걸작 성능"으로 라이브 적용되는데
+  //   경기별 기록이 없어(현재 걸작 상태만 조회 가능) 과거를 정확히 복원 불가.
+  //   가챠 시너지 LP도 재시뮬 루프 미반영. 그대로 돌리면 둘 다 증발해 라이브 LP를
+  //   덮어쓰며 경기당 최대 ~28LP 어긋남. (LP 밸런스 감사 1순위)
+  if (CURRENT_SEASON === 2 && !opts.force) {
+    console.warn('⛔ 시즌2 활성 중에는 s1Resimulate가 차단됩니다.\n' +
+      '   재시뮬은 강철심장 걸작 LP·가챠 시너지 LP를 복원하지 못해(걸작은 경기별 기록 없음),\n' +
+      '   실행 시 라이브 LP를 덮어써 경기당 최대 ~28LP 손실이 발생합니다.\n' +
+      '   정말 필요하면(걸작/시너지 LP 부정확 감수): s1Resimulate(false, { force: true })');
+    return null;
+  }
+  if (CURRENT_SEASON === 2 && opts.force) {
+    console.warn('⚠️ force 모드 — 걸작/시너지 LP는 복원되지 않습니다(부정확). 라이브 LP와 어긋날 수 있어 주의.');
+  }
   const { get, ref: dbRef, query, orderByChild, update: fbUpdate } = await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js');
   console.log(`📊 S1 LP 재시뮬레이션 시작 (dryRun=${dryRun})...`);
   const snap = await get(query(dbRef(db, 'matches'), orderByChild('timestamp')));
