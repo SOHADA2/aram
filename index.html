@@ -5856,7 +5856,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.63';
+const APP_VERSION = 'v2.44.64';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5865,6 +5865,9 @@ const APP_VERSION = 'v2.44.63';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.64', date: '2026-06-08', changes: [
+    { tag: 'improve', text: '[시즌2] 내전 레벨 곡선 대폭 완화 — 시즌1 실측 판수(최다 254판·중앙값 151판) 기준으로 재설계. 기존엔 100레벨에 8만 XP라 사실상 불가능 → 이제 최다 활동자 ≈ 100레벨, 중앙값 ≈ 72, 캐주얼(40판) ≈ 26. Lv1→2=20XP로 초반 빠르고(5레벨=6판) 레벨마다 +0.4씩만 완만히 증가' },
+  ] },
   { ver: 'v2.44.63', date: '2026-06-08', changes: [
     { tag: 'improve', text: '[시즌2/개발] 레벨업 테스트를 버튼으로 — 미리보기 🧪 디버그 패널에 "내전 XP +40 / 레벨업! / 테스트 XP 리셋" 버튼 추가(콘솔 없이 경험치 바·LEVEL UP 연출 확인). 미리보기에서만 표시' },
   ] },
@@ -8451,8 +8454,10 @@ window.__addNormalPassPts = async function(n){
 // 내전(S2) 경기에서 XP 적립 → 무한 레벨업. XP는 매치 파생(저장X, 자동 역산). 데이터: playerLevelClaimed_s2(수령한 최고 레벨)
 // 보상: 매 레벨 🔶정수 ×1 고정 + 순환(강화권/복권/골드), 5단위 마일스톤↑. 정수는 레벨업 전용(상점/경기지급 폐지).
 const PLV_XP = { game:10, win:6, award:4, kda3:3, kda5:6 };   // 판수 / 승 / MVP·매너 / KDA3+ / KDA5+
-const PLV_BASE_NEED = 80, PLV_NEED_STEP = 15;                  // Lv1→2=80, 레벨마다 +15
-const plvNeed  = i => PLV_BASE_NEED + (i-1)*PLV_NEED_STEP;     // 레벨 i→i+1 요구 XP
+// 곡선: S1 실측(최다 254판·중앙값 151판) 기준 — 최다 활동자 ≈ L100. Lv1→2=20, 레벨마다 +0.4(완만)
+// 누적: L10≈194 · L50≈1450 · L100≈3920 (≈254판). 초반 빠름(L5=6판), 한 경기 ~16XP
+const PLV_BASE_NEED = 20, PLV_NEED_STEP = 0.4;
+const plvNeed  = i => Math.round(PLV_BASE_NEED + (i-1)*PLV_NEED_STEP);   // 레벨 i→i+1 요구 XP(정수)
 const plvCumXp = L => { let s=0; for (let i=1;i<L;i++) s+=plvNeed(i); return s; };  // 레벨 L 도달 누적 XP (L=1→0)
 function plvLevelFromXp(xp){ let L=1; while ((xp||0) >= plvCumXp(L+1)) L++; return L; }
 // 내전 경기 XP 파생 — 판수/승/MVP·매너/KDA(브릿지 participants 있을 때)
