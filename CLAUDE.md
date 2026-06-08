@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.44.50 (시즌2 🔨오른 3D 대장간 + 걸작 시스템 + 걸작 LP 스케일·S2 뉴비 OFF·LP 밸런스 감사 1순위 해결[s1Resimulate S2 차단] / 브릿지 aram-bridge v1.1.31 릴리즈 완료)
+- 현재 버전: v2.44.51 (시즌2 🔨오른 3D 대장간 + 걸작 시스템 + 걸작 LP 스케일·S2 뉴비 OFF·LP 밸런스 감사 1순위 해결·**걸작 효과 경기별 기록(역산)** / 브릿지 aram-bridge v1.1.31 릴리즈 완료)
 - ⚠️ **시즌2 작업 중** — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 필독 (진행상황·확정정책·신규콘텐츠 기획 전부 정리됨)
 
 ## 기술 스택
@@ -61,6 +61,11 @@
                                   // 다중 관전자 예측 (v2.32.2~), 베팅 시스템 (v2.36.11~ — betAmount/payout 추가)
                                   // payout: 적중 시 +betAmount / 실패 시 -betAmount
                                   // 자동 픽(betAmount=0): 적중 시 +30G 보너스 / 실패 0 (v2.36.12~)
+  synergyEffects: { [normName]: { sid, tier, effType, procced, lpDelta?, goldDelta?, streak? } }
+                                  // 가챠 시너지 발동 기록 (v2.43.153~) — lpDelta=적용 LP 순델타(역산용)
+  emblemEffects: { [normName]: { power, lines, matchG, winG, mvpG, winLP, lossLP } }
+                                  // 🔨 강철심장 걸작 스냅샷 (v2.44.51, S2) — 그 경기 시점 걸작·효과값 박제(역산/감사용).
+                                  // 순수 기록(골드/LP 적용 방식 불변). 적용조건=winner/mvpWinner/mvpLoser로 판정
   secretQuests: { [normName]: { questId, questName, questDiff, questIcon, questDesc, success, won, reward, lpProtect } }
                                   // 비밀 퀘스트 토큰 (v2.43.39~) — 토큰 보유자만 저장됨
                                   // success+won=true 시 reward 골드 지급
@@ -741,7 +746,7 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > ⚠️ **용어**: 코드 내부 변수는 옛 이름 `emblem*` 그대로(=강철심장/걸작). 보고서의 "엠블럼 winLP/lossLP" = 강철심장 걸작 승리LP/패배방어.
 - **판정**: 구조적으로 견고(오픈 OK). 패배→+LP 불가, 시너지 단일 슬롯, 캡 우회 없음, 전부 합산이라 폭주 불가(한 판 승리 최대 +71). 단 아래 2건 권고.
 - **⏭️ 미결 권고 (우선순위)**:
-  1. **[✅ 해결 v2.44.50] `s1Resimulate` S2 차단** — 운영자 콘솔 LP 재계산이 걸작 LP(winLP/lossLP)·가챠 시너지 LP를 빼먹어 S2에서 돌리면 경기당 최대 ~28LP 어긋남. **걸작 LP는 경기별 기록이 없어(현재 성능만 조회 가능) 정확한 포팅 자체가 불가** → S2 활성 중 `s1Resimulate` 실행 **차단**으로 해결(`CURRENT_SEASON===2 && !opts.force` early return). 부정확 감수 시 `s1Resimulate(false,{force:true})`.
+  1. **[✅ 해결 v2.44.50+51] 걸작 LP/골드 역산** — 운영자 LP 재계산이 걸작 LP·시너지 LP를 빼먹어 S2 재시뮬 시 경기당 최대 ~28LP 어긋남. **(v2.44.50)** S2 중 `s1Resimulate` **차단**(`CURRENT_SEASON===2 && !opts.force` early return, force escape). **(v2.44.51) 근본 해결 — 걸작 효과 경기별 기록**: 기존엔 걸작 골드가 `goldBonusLegacy_s2` 한 덩어리, 걸작 LP는 기록조차 없어 역산 불가였음. 이제 매 경기 저장 시 `matches/{key}.emblemEffects[name]={power,lines,matchG,winG,mvpG,winLP,lossLP}` 박제(순수 기록, 적용방식 불변) → 가챠 시너지처럼 완전 역산/감사 가능. **과거 경기는 기록 없어 소급 불가(지금부터)**. 향후 resim을 기록 기반으로 고치면 force 차단도 풀 수 있음.
   2. **[중·선택] 챌린저 인플레** — 챌린저 LP 무캡 + 단판 +71. 그중 가챠 유레카(risk_win) 3성 단독 +16(정규승 80%). 조치: 유레카 v3 `+16→+10` OR 챌린저 구간 시너지 LP 게이트. ※ 가챠 시너지 LP를 S2에서 유지/축소/제거할지 결정하면 자동 해소 가능(가챠는 강철심장 걸작과 LP 소스 중복).
   3. **[하] 묶음** — 비챌린저 캡 100 초과 LP 증발 UI 안내 · 아이템 동시활성(LP2x↔도박권 등) `saveMatch` 직전 1개만 남기는 방어코드.
 
