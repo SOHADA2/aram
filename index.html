@@ -6042,7 +6042,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.75';
+const APP_VERSION = 'v2.44.76';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6051,6 +6051,9 @@ const APP_VERSION = 'v2.44.75';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.76', date: '2026-06-08', changes: [
+    { tag: 'fix', text: '⚡ [성능] 시즌2 렉 주범 수정 — 🔨대장간 3D 오른 렌더 루프가 정지 조건 없이 세션 내내 60fps로 WebGL 렌더+애니메이션 믹서를 돌리고 있었음(대장간을 닫아도 캔버스가 화면 밖 holder로 대피될 뿐 display:none이 아니라 계속 렌더). 캔버스가 실제 무대(#ornn-mount)에 떠 있고 탭이 활성일 때만 렌더하도록 가드 추가 → 대장간 닫으면 GPU/CPU 부하 0. S2 한 번이라도 대장간을 연 사용자의 상시 발열·버벅임 해소' },
+  ] },
   { ver: 'v2.44.75', date: '2026-06-08', changes: [
     { tag: 'improve', text: '🎟 [시즌2] 스크래치 복권 전체를 헥스텍 블랙+골드 톤으로 재단장 — 허브/스크래치 카드가 S1 보라·핑크 팔레트였던 것을 S2 정체성에 맞춰 통일. 3티어를 골드 등급 진행으로 재배색(일반=앤틱골드 · 고급=엘렉트럼골드 · 프리미엄=프리즈매틱골드), 커버 긁기 텍스처도 프리미엄 핑크 홀로그래픽 → 골드 프리즈매틱으로 교체, 카드 안쪽에 골드 육각 회로(헥스필드) 배경 주입. 전부 CURRENT_SEASON===2 게이트라 라이브 S1 복권은 그대로(보라·핑크 유지). ?preview=2로 검증' },
   ] },
@@ -9431,7 +9434,13 @@ async function ensureOrnn3d(){
       }, undefined, err=>console.error('오른 로드 실패 '+st.file,err));
     });
     window.ornn3d={ playForge:(ts)=>playOnce('forge',ts), playFail:(ts)=>playOnce('fail',ts), idle:()=>showIdle(), durationOf:(key)=>M[key]?M[key].dur:0, flare:()=>{flareT=1;} };
-    (function loop(){ requestAnimationFrame(loop); const dt=clock.getDelta(); for(const k in M){ if(M[k].mixer&&M[k].model.visible)M[k].mixer.update(dt); } if(forge){ if(flareT>0)flareT=Math.max(0,flareT-dt*2.4); forge.intensity=2.6+flareT*7; } renderer.render(scene,camera); })();
+    // ⚡ 렉 방지 — 캔버스가 실제 무대(#ornn-mount)에 떠 있고 탭이 활성일 때만 렌더.
+    //   대장간을 닫으면 캔버스는 화면 밖 #ornn-holder로 대피(display:none 아님)되므로,
+    //   부모 체크로 가드 안 하면 WebGL 렌더+믹서가 세션 내내 60fps로 계속 돌아 렉을 유발.
+    (function loop(){ requestAnimationFrame(loop); const dt=clock.getDelta();
+      const cvp = renderer.domElement.parentElement;
+      if (document.hidden || !cvp || cvp.id !== 'ornn-mount') return;  // 닫힘/백그라운드 → 무거운 작업 스킵
+      for(const k in M){ if(M[k].mixer&&M[k].model.visible)M[k].mixer.update(dt); } if(forge){ if(flareT>0)flareT=Math.max(0,flareT-dt*2.4); forge.intensity=2.6+flareT*7; } renderer.render(scene,camera); })();
   } catch(e){ console.error('3D 오른 init 실패:',e); _ornnInit=false; }
 }
 window.ensureOrnn3d = ensureOrnn3d;
