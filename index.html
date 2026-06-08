@@ -5856,7 +5856,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.64';
+const APP_VERSION = 'v2.44.65';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -5865,6 +5865,9 @@ const APP_VERSION = 'v2.44.64';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.65', date: '2026-06-08', changes: [
+    { tag: 'improve', text: '[시즌2] 내전 레벨 만렙 50으로 확정 + 보상 재구성 — 곡선 need=16+(L-1), 만렙 누적 ~1960XP(S1 실측 ~123판/avg16에 만렙, 코어 131판+ 시즌 내 달성). 보상: 매 레벨 정수×1 + 순환(강화권/복권/골드) + 🔷강철심장 마일스톤(L10·20·25·30·40·50) + 만렙 칭호 "마법공학 거장". 만렙 시 정보 바 MAX 표시. 1~50 누적: 정수 50·강철심장 6·강화권 45·복권 14·4500G' },
+  ] },
   { ver: 'v2.44.64', date: '2026-06-08', changes: [
     { tag: 'improve', text: '[시즌2] 내전 레벨 곡선 대폭 완화 — 시즌1 실측 판수(최다 254판·중앙값 151판) 기준으로 재설계. 기존엔 100레벨에 8만 XP라 사실상 불가능 → 이제 최다 활동자 ≈ 100레벨, 중앙값 ≈ 72, 캐주얼(40판) ≈ 26. Lv1→2=20XP로 초반 빠르고(5레벨=6판) 레벨마다 +0.4씩만 완만히 증가' },
   ] },
@@ -8454,12 +8457,13 @@ window.__addNormalPassPts = async function(n){
 // 내전(S2) 경기에서 XP 적립 → 무한 레벨업. XP는 매치 파생(저장X, 자동 역산). 데이터: playerLevelClaimed_s2(수령한 최고 레벨)
 // 보상: 매 레벨 🔶정수 ×1 고정 + 순환(강화권/복권/골드), 5단위 마일스톤↑. 정수는 레벨업 전용(상점/경기지급 폐지).
 const PLV_XP = { game:10, win:6, award:4, kda3:3, kda5:6 };   // 판수 / 승 / MVP·매너 / KDA3+ / KDA5+
-// 곡선: S1 실측(최다 254판·중앙값 151판) 기준 — 최다 활동자 ≈ L100. Lv1→2=20, 레벨마다 +0.4(완만)
-// 누적: L10≈194 · L50≈1450 · L100≈3920 (≈254판). 초반 빠름(L5=6판), 한 경기 ~16XP
-const PLV_BASE_NEED = 20, PLV_NEED_STEP = 0.4;
+// 곡선: 만렙 50. need=round(16+(L-1)). 누적 L50≈1960XP. S1 실측 기준 ~123판(avg16)에 만렙
+// (캐주얼 40판≈L24·준코어 80판≈L38·코어 131판+≈만렙). 초반 빠름(L5=7판). 만렙→정수 구매 해금 예정
+const PLV_MAX_LEVEL = 50, PLV_BASE_NEED = 16, PLV_NEED_STEP = 1;
 const plvNeed  = i => Math.round(PLV_BASE_NEED + (i-1)*PLV_NEED_STEP);   // 레벨 i→i+1 요구 XP(정수)
 const plvCumXp = L => { let s=0; for (let i=1;i<L;i++) s+=plvNeed(i); return s; };  // 레벨 L 도달 누적 XP (L=1→0)
-function plvLevelFromXp(xp){ let L=1; while ((xp||0) >= plvCumXp(L+1)) L++; return L; }
+function plvLevelFromXp(xp){ let L=1; while (L<PLV_MAX_LEVEL && (xp||0) >= plvCumXp(L+1)) L++; return L; }
+const plvIsMax = lv => lv >= PLV_MAX_LEVEL;
 // 내전 경기 XP 파생 — 판수/승/MVP·매너/KDA(브릿지 participants 있을 때)
 let _plvDebugXp = 0;   // 콘솔 테스트용 XP 가산(본인·로컬·새로고침 시 리셋). __plvXpAdd/__plvLevelUp/__plvReset
 function calcPlayerXp(name){
@@ -8494,15 +8498,18 @@ window.__plvLevelUp = function(){              // 다음 레벨 직전까지 채
   window.__plvXpAdd(plvCumXp(lv+1) - xp + 1);
 };
 window.__plvReset = function(){ _plvDebugXp = 0; if (typeof updateMyInfoBar === 'function') updateMyInfoBar(); console.log('🧪 테스트 XP 리셋'); };
-// 레벨 보상 (무한). 🔶정수 매 레벨 1 고정 + 순환/마일스톤(5단위).
+// 레벨 보상 (만렙 50). 🔶정수 매 레벨 1 고정 + 순환 + 마일스톤(강철심장 L10·20·25·30·40·50, 만렙 칭호)
 function plvReward(L){
   const r = { essence:1 };
-  if (L % 5 === 0){ r.tickets={overload:1}; r.gold=200; r.freeScratch={0:1}; }   // ⭐ 마일스톤
+  if (L === 50)          { r.tickets={overload:3}; r.gold=1000; r.heart=1; r.title='마법공학 거장'; }   // 🏆 만렙
+  else if (L === 25)     { r.tickets={overload:2,precise:2}; r.gold=500; r.heart=1; }                    // ⭐ 중간 대형
+  else if (L % 10 === 0) { r.tickets={overload:1}; r.gold=300; r.heart=1; }       // L10·20·30·40 — 강철심장
+  else if (L % 5 === 0)  { r.tickets={overload:1}; r.gold=200; r.freeScratch={0:1}; } // L5·15·35·45
   else switch (L % 5){
     case 1: r.tickets={stable:2}; break;
     case 2: r.gold=100; break;
     case 3: r.tickets={precise:1}; break;
-    case 4: r.freeScratch={0:1}; break;   // 🎟 일반 복권권 ×1
+    case 4: r.freeScratch={0:1}; break;   // 일반 복권권 ×1
   }
   return r;
 }
@@ -8529,22 +8536,36 @@ async function claimPlayerLevels(){
   const claimed = data[claimedKey] || 0;
   const lv = plvLevelFromXp(calcPlayerXp(myName));
   if (lv <= claimed) { showS1Toast('수령할 레벨이 없어요'); return null; }
-  let gold=0, essence=0; const tk = getEmblemTickets(data); const ft = { ...(data[sField('freeScratch')]||{}) };
+  let gold=0, essence=0, heart=0, title=null; const tk = getEmblemTickets(data); const ft = { ...(data[sField('freeScratch')]||{}) };
   const got = [];
   for (let L=claimed+1; L<=lv; L++){
     const r = plvReward(L);
     essence += r.essence||0;
     if (r.gold) gold += r.gold;
+    if (r.heart) heart += r.heart;
+    if (r.title) title = r.title;
     if (r.tickets) for (const t in r.tickets) tk[t]=(tk[t]||0)+r.tickets[t];
     if (r.freeScratch) [0,1,2].forEach(t=>{ if(r.freeScratch[t]) ft[t]=(ft[t]||0)+r.freeScratch[t]; });
     got.push({ L, r });
   }
   const updates = { [claimedKey]: lv, [emblemTicketsField()]: tk, [sField('freeScratch')]: ft };
+  // 🔷 강철심장 지급 — 보유 최대(EMBLEM_MAX_OWN)까지 추가, 초과분은 150G 환급
+  let heartAdded = 0;
+  if (heart > 0){
+    const arr = [...getEmblems(data)];
+    for (let i=0;i<heart;i++){
+      if (arr.length < EMBLEM_MAX_OWN){ arr.push({ id: emblemNextId(arr), slots:[], createdAt: Date.now() }); heartAdded++; }
+      else { gold += EMBLEM_BASE_PRICE; }   // 가득참 → 150G 환급
+    }
+    updates[emblemsField()] = arr; updates[emblemField()] = null;
+    if (getEquippedId(data) == null && arr.length) updates[emblemEquippedField()] = arr[0].id;
+  }
+  if (title)   updates[sField('passTitle')] = title;
   if (essence) updates[emblemEssenceField()] = getEmblemEssence(data) + essence;
   if (gold)    { const gk=sField('passGold'); updates[gk] = (data[gk]??0) + gold; }
   if (goldData[key]) Object.assign(goldData[key], updates);   // 로컬 즉시 반영
   await update(ref(db,'gold/'+key), updates);
-  return { from:claimed+1, to:lv, gold, essence, got };
+  return { from:claimed+1, to:lv, gold, essence, heart:heartAdded, title, got };
 }
 window.claimPlayerLevels = claimPlayerLevels;
 // 레벨/경험치 애니메이션 상태 (이름별 직전 레벨·진행률) — 바 차오름·레벨업 감지용
@@ -8650,11 +8671,13 @@ window.doClaimPlayerLevels = async function(){
   if (!r) return;
   const parts = [];
   if (r.essence) parts.push(`정수 ${r.essence}`);
-  if (r.gold) parts.push(`${r.gold}G`);
+  if (r.heart) parts.push(`강철심장×${r.heart}`);
   const tkTot = {}; r.got.forEach(g=>{ if(g.r.tickets) for(const t in g.r.tickets) tkTot[t]=(tkTot[t]||0)+g.r.tickets[t]; });
   for (const t in tkTot) parts.push(`${EMBLEM_TICKETS[t].name.replace(' 강화권','')}×${tkTot[t]}`);
   const lotTot = r.got.reduce((s,g)=>s+((g.r.freeScratch&&g.r.freeScratch[0])||0),0);
   if (lotTot) parts.push(`복권×${lotTot}`);
+  if (r.gold) parts.push(`${r.gold}G`);
+  if (r.title) parts.push(`칭호 "${r.title}"`);
   showS1Toast(`LV ${r.from}~${r.to} 보상 수령 — ${parts.join(' · ')}`);
   if (typeof updateMyInfoBar === 'function') updateMyInfoBar();
   if (typeof renderAchievementsOrPass === 'function') renderAchievementsOrPass();
@@ -19944,19 +19967,19 @@ function updateMyInfoBar() {
   if (lvEl) {
     if (CURRENT_SEASON === 2 && myName) {
       const _nn = normName(myName);
-      const xp = calcPlayerXp(myName), lv = plvLevelFromXp(xp);
+      const xp = calcPlayerXp(myName), lv = plvLevelFromXp(xp), isMax = plvIsMax(lv);
       const inLv = xp - plvCumXp(lv), need = plvNeed(lv);
-      const pct = Math.max(0, Math.min(100, Math.round(inLv/need*100)));
+      const pct = isMax ? 100 : Math.max(0, Math.min(100, Math.round(inLv/need*100)));
       const k = getMyGoldKey(), dd = k ? goldData[k] : null;
       const claimable = lv - (dd?.[sField('playerLevelClaimed')] || 0);
       const prev = _plvLastByName[_nn];
       // 같은 레벨이면 직전 진행률에서 증가분 애니, 레벨업이면 0부터 채움, 첫 렌더는 즉시 표시
-      const startPct = prev ? (prev.lv === lv ? prev.pct : 0) : pct;
+      const startPct = isMax ? 100 : (prev ? (prev.lv === lv ? prev.pct : 0) : pct);
       lvEl.style.display = 'flex';
       lvEl.innerHTML = `
-        <div class="mib-lv-top"><span class="mib-lv-tag">LV ${lv}</span>${claimable>0?`<button class="mib-lv-claim" onclick="event.stopPropagation();window.doClaimPlayerLevels()">보상 받기 ${claimable}</button>`:''}</div>
+        <div class="mib-lv-top"><span class="mib-lv-tag">LV ${lv}${isMax?' <span style="color:#ffe39a;">MAX</span>':''}</span>${claimable>0?`<button class="mib-lv-claim" onclick="event.stopPropagation();window.doClaimPlayerLevels()">보상 받기 ${claimable}</button>`:''}</div>
         <div class="mib-lv-bar"><div class="mib-lv-fill" style="width:${startPct}%;"></div></div>
-        <div class="mib-lv-xp">${inLv} / ${need} XP</div>`;
+        <div class="mib-lv-xp">${isMax ? '만렙 달성' : `${inLv} / ${need} XP`}</div>`;
       const _fill = lvEl.querySelector('.mib-lv-fill');
       if (_fill && startPct !== pct) requestAnimationFrame(()=>{ _fill.style.width = pct + '%'; });
       if (prev && lv > prev.lv) _plvLevelUpFx(lv);   // 레벨업 → 간단 LEVEL UP 연출 배너(팝업 아님). 보상은 버튼으로
