@@ -6173,7 +6173,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.98';
+const APP_VERSION = 'v2.44.99';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6182,6 +6182,10 @@ const APP_VERSION = 'v2.44.98';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.99', date: '2026-06-09', changes: [
+    { tag: 'fix', text: '[시즌2 개시 점검] 워크플로우 감사로 발견한 표시/구독 누수 5건 수정 — ① 프로필 모달이 S2에서 LP·챔프=S2인데 전적·어워드·폼=S1로 섞이던 것 현재 시즌 기준 통일 ② 라이브로 S2 토글 시 빙고 구독 누락(헤더 글로우 미점등) → config 핸들러에 bingoSubscribe 추가 ③ 패스 탭 dot이 빙고 보상 수령가능을 안 보던 것 빙고 기준으로 ④ 기록 탭 "일반게임" 항목이 S1에도 뜨던 것 S2 전용 게이트 + 시즌 필터 ⑤ 비밀퀘 토큰 saveMatch 판정 루프에 S2 가드(방어). 전부 표시/방어용, 데이터 영향 없음. (switchSeason(2)는 블로커 0건 — S1 데이터 읽기전용 보존 확인)' },
+    { tag: 'improve', text: '🃏 [밸런스] 가챠 시너지 LP 하향 — 시즌2에선 강철심장 걸작이 LP 주(主) 엔진이라 시너지 LP가 같은 경기에 중첩되지 않도록 조정. 원딜/암살자 3/5→2/3, 슈리마 3/4→2/3(연승상한 3→2), 유레카(마법사) 승리 +12/16→+8/10·패배 -6→-8(도박성 강화). 전사·검무·탱커·데마시아·공허는 유지. 효과 텍스트는 자동 반영' },
+  ] },
   { ver: 'v2.44.98', date: '2026-06-09', changes: [
     { tag: 'new', text: '🎮→📈 일반게임(증바람)도 내전과 똑같이 성장에 반영 — (1) 내전 레벨 XP: 일반게임도 경기·승리·KDA로 동일하게 XP 적립(MVP/매너 보너스는 일반게임엔 없음). (2) 퀘스트 패스: 내전/일반 구분 없이 한 패스에서, 게임 스탯 퀘스트(킬·어시·딜량·KDA·경기수·승·연승)는 일반게임에서 달성해도 인정(내전+일반 통합 집계·연승은 시간순 병합). 단 관전·MVP·매너왕 같은 내전 전용 활동 퀘스트는 내전에서만. S2 일반게임만 반영(브릿지 v1.1.33로 기록된 normal_matches)' },
   ] },
@@ -10386,6 +10390,7 @@ onValue(ref(db, 'config/currentSeason'), (snapshot) => {
   // 시즌이 바뀌었으면 LP/티어·마일스톤 구독을 새 시즌 노드로 재설정 (season1/* → season2/*)
   if (_seasonPlayersSubSeason !== CURRENT_SEASON) subscribeSeasonPlayers();
   if (typeof subscribeMilestones === 'function' && _milestoneSubSeason !== CURRENT_SEASON) subscribeMilestones();
+  if (CURRENT_SEASON === 2 && typeof bingoSubscribe === 'function') bingoSubscribe(); // 토글로 S2 전환 시 빙고 구독(멱등) — 헤더 글로우/배지 즉시 반영
   viewSeason = CURRENT_SEASON;
   rankViewSeason = CURRENT_SEASON;
   if (!seasonLoaded) { seasonLoaded = true; renderAllWhenReady(); }
@@ -15276,7 +15281,8 @@ window.saveMatch = async function() {
     // MVP 정보 자체가 있는지 (sq_mvp 판정 가능 여부)
     const _mvpInfoAvailable = !!(matchData.mvpWinner || matchData.mvpLoser
                               || mvpConfirmed?.teamAMvp || mvpConfirmed?.teamBMvp);
-    for (const p of allPlayers) {
+    // 시즌2는 비밀 퀘스트 토큰 OFF — 구매·모달은 막혔으나 판정 루프에도 가드(토큰이 어떤 경로로 새도 S2 미적용)
+    for (const p of (CURRENT_SEASON === 2 ? [] : allPlayers)) {
       const entry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(p.name));
       if (!entry) continue;
       const itemsArr = entry[1][sField('items')] || [];
@@ -15802,11 +15808,13 @@ function renderSeasonSelector() {
       <span class="nm">⚔️ 막고라</span>
       <span class="st" style="background:rgba(160,120,255,.15);color:#b48aff;">NEW</span>
     </button>`;
-  const normalItem =
-    `<button class="rk-season-dd-item${'normal'===viewSeason?' active':''}" onclick="selectViewSeason('normal')">
+  // 일반게임 카테고리는 시즌2 전용 (브릿지 일반게임 분리 기능)
+  const normalItem = CURRENT_SEASON === 2
+    ? `<button class="rk-season-dd-item${'normal'===viewSeason?' active':''}" onclick="selectViewSeason('normal')">
       <span class="nm">🎮 일반게임</span>
       <span class="st" style="background:rgba(240,192,96,.15);color:#f0c060;">NEW</span>
-    </button>`;
+    </button>`
+    : '';
   dropdown.innerHTML = seasonItems + magollaItem + normalItem;
 }
 
@@ -15989,7 +15997,7 @@ function renderNormalHistory() {
   const myNN = normName(myName || '');
   const rows = Object.entries(normalMatches)
     .map(([key, m]) => ({ key, ...m }))
-    .filter(m => m && Array.isArray(m.players) && m.players.length)
+    .filter(m => m && Array.isArray(m.players) && m.players.length && (m.season ?? 0) === CURRENT_SEASON)
     .sort((a, b) => (b.ts || 0) - (a.ts || 0))
     .map(m => ({ m, mine: (m.players || [])
         .map(p => ({ ...p, member: _normalMatchMember(p.summonerName) }))
@@ -16660,11 +16668,11 @@ function calcMvpCount(name) {
 }
 
 // S1 전용: MVP(🏆 승리팀) / SVP(🥈 패배팀) / MMP(🎖️ 매너왕) 분리 집계
-function calcS1AwardStats(name) {
+function calcS1AwardStats(name, season = 1) {
   const key = normName(name);
   let mvp = 0, svp = 0, mmp = 0;
   Object.values(matches).forEach(m => {
-    if ((m.season ?? 0) !== 1) return;
+    if ((m.season ?? 0) !== season) return;
     if (normName(m.mvpWinner || '') === key) mvp++;
     if (normName(m.mvpLoser  || '') === key) svp++;
     if (normName(m.mvp       || '') === key) mvp++; // legacy
@@ -16865,14 +16873,14 @@ async function _openS1ProfileModal(fbKey, player) {
   const meta = S1_TIER_META[s1d.tier] || S1_TIER_META.unranked;
   const tc   = meta.color;
 
-  // S1 시즌 통계
-  const s  = calcStats(name, 1);
+  // 시즌 통계 (현재 시즌 — S2에서도 LP/챔프와 일치하도록)
+  const s  = calcStats(name, CURRENT_SEASON);
   const wr = s.total > 0 ? Math.round(s.wr * 100) : null;
   const wrColor = wr === null ? 'var(--rk-text-muted)'
                 : wr >= 55   ? 'var(--green)'
                 : wr >= 45   ? 'var(--rk-text-dim)'
                 : 'var(--red)';
-  const awards = calcS1AwardStats(name);
+  const awards = calcS1AwardStats(name, CURRENT_SEASON);
 
   // 아바타
   const avatarContent = player.statusEmoji || escHtml(name.trim().charAt(0));
@@ -16939,8 +16947,8 @@ async function _openS1ProfileModal(fbKey, player) {
     playerGold = Math.max(0, calcPlayerGoldEarned(name, myGoldEntry) - _spent);
   }
 
-  // 연승/연패 + 최근 10경기 폼
-  const streak = calcRecentStreak(name, 1, 10);
+  // 연승/연패 + 최근 10경기 폼 (현재 시즌)
+  const streak = calcRecentStreak(name, CURRENT_SEASON, 10);
   let streakHtml = '';
   if (streak.length >= 2) {
     const last = streak[streak.length - 1];
@@ -18990,8 +18998,11 @@ function updateS1PassTabBadge() {
   const myData = myEntry[1] || {};
 
   const relayClaimable = Math.min(myData[sField('relayProgress')] || 0, RELAY_REWARDS.length) > (myData[sField('relayClaimed')] || 0);
+  // S2 출석=협력 빙고: relayProgress 대신 빙고 미수령 보상으로 판정
+  const bingoClaimable = (typeof _bingoData !== 'undefined' && _bingoData && Array.isArray(_bingoData.log))
+    ? (_bingoData.log.length > (myData[sField('bingoClaimed')] || 0)) : false;
   const anyClaimable = CURRENT_SEASON === 2
-    ? (relayClaimable || _isPlvClaimable(myData) || _isS2PassClaimable('custom', myData) || _isS2PassClaimable('normal', myData))
+    ? (bingoClaimable || _isPlvClaimable(myData) || _isS2PassClaimable('custom', myData) || _isS2PassClaimable('normal', myData))
     : (relayClaimable
         || isPassClaimable('s1', myData)
         || (!!myData[sField('hasBattlePass')]  && isPassClaimable('battle',  myData))
@@ -27952,16 +27963,16 @@ const GACHA_SYNERGY_GROUPS = [
   {sid:'warrior',  name:'검을 뽑아라', label:'전사',     icon:'⚔️',  color:'#ff8855', category:'role',    archetype:'atk',
    members:['DrMundo','Gangplank','Yasuo'], effType:'win_lp', v2:2, v3:3},
   {sid:'marksman', name:'탄환 세례',  label:'원딜',     icon:'🎯',  color:'#ffdd55', category:'role',    archetype:'atk',
-   members:['Akshan','Jhin','Vayne'], effType:'win_lp', v2:3, v3:5,
+   members:['Akshan','Jhin','Vayne'], effType:'win_lp', v2:2, v3:3,
    cond:{stat:'damage', min:35000, label:'딜량 35,000+'}},
   {sid:'assassin', name:'그림자 주자',label:'암살자',   icon:'🌑',  color:'#cc88ff', category:'role',    archetype:'atk',
-   members:['Fizz','Khazix','Naafiri'], effType:'win_lp', v2:3, v3:5,
+   members:['Fizz','Khazix','Naafiri'], effType:'win_lp', v2:2, v3:3,
    cond:{stat:'kills', min:8, label:'킬 8+'}},
   {sid:'ionia',    name:'검무',        label:'아이오니아',icon:'🌸', color:'#ffaacc', category:'faction', archetype:'atk',
    members:['Jhin','Yasuo'], effType:'win_lp', v2:1, v3:2},
   {sid:'shurima',  name:'나는 왕이다', label:'슈리마',   icon:'👑',  color:'#ffdd66', category:'faction', archetype:'atk',
-   members:['Akshan','Amumu','Naafiri','Rammus'], effType:'win_lp', v2:3, v3:4,
-   special:'reign', streakStep:1, streakMax2:2, streakMax3:3},
+   members:['Akshan','Amumu','Naafiri','Rammus'], effType:'win_lp', v2:2, v3:3,
+   special:'reign', streakStep:1, streakMax2:2, streakMax3:2},
   // ── 🛡️ 방어형 (lp_block) — v2.43.176 완화량 추가 축소 ──
   {sid:'tank',     name:'강철 심장',  label:'탱커',     icon:'🛡️', color:'#77beff', category:'role',    archetype:'def',
    members:['Amumu','Malphite','Poppy','Rammus'], effType:'lp_block', v2:3, v3:5,
@@ -27977,7 +27988,7 @@ const GACHA_SYNERGY_GROUPS = [
    members:['Lulu','Morgana'], effType:'win_gold', v2:40, v3:60},
   // ── 💫 리스크형 ──
   {sid:'mage',     name:'유레카',     label:'마법사',   icon:'🎲',  color:'#aaddff', category:'role',    archetype:'risk',
-   members:['Brand','Malzahar','Mel'], effType:'risk_win', v2:12, v3:16, lossV:6},
+   members:['Brand','Malzahar','Mel'], effType:'risk_win', v2:8, v3:10, lossV:8},
   {sid:'void',     name:'공허 균열',   label:'공허',     icon:'🌀',  color:'#9955ff', category:'faction', archetype:'risk',
    members:['Khazix','Malzahar'], effType:'risk_block', failV2:6, failV3:4},
 ];
