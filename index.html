@@ -1588,9 +1588,11 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .wm-fx-eff{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;padding:3px 8px;background:rgba(240,192,96,0.045);border-radius:6px;}
 .wm-fx-eff-nm{color:var(--rk-text-dim);}
 .wm-fx-eff-v{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:11px;flex-shrink:0;}
-.wm-lotto-pips{display:inline-flex;gap:3px;}
-.wm-lotto-pip{width:7px;height:7px;border-radius:50%;border:1px solid rgba(240,192,96,0.4);background:transparent;}
-.wm-lotto-pip.on{background:var(--gold-light);border-color:var(--gold-light);box-shadow:0 0 4px rgba(240,192,96,0.75);}
+.wm-fx-eff.lotto{flex-direction:column;align-items:stretch;gap:4px;}
+.wm-fx-eff-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.wm-lotto-bar{height:5px;border-radius:3px;background:rgba(255,255,255,0.06);overflow:hidden;}
+.wm-lotto-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--gold-deep),var(--gold-light));box-shadow:0 0 6px rgba(240,192,96,0.6);transition:width .5s ease;}
+.wm-lotto-sub{font-size:8.5px;color:var(--rk-text-muted);font-family:'JetBrains Mono',monospace;}
 .wm-fx-cell{background:rgba(240,192,96,0.045);border:1px solid rgba(240,192,96,0.18);border-radius:9px;padding:8px 9px;display:flex;flex-direction:column;gap:6px;min-width:0;}
 .wm-fx-cell.empty{background:rgba(255,255,255,0.02);border-color:var(--rk-border);border-style:dashed;}
 .wm-fx-cell.warn{background:rgba(255,184,107,0.06);border-color:rgba(255,184,107,0.32);}
@@ -6254,7 +6256,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.23';
+const APP_VERSION = 'v2.45.24';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6263,6 +6265,9 @@ const APP_VERSION = 'v2.45.23';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.24', date: '2026-06-08', changes: [
+    { tag: 'improve', text: '🎟️ [시즌2] 복권 지급 효과 = 성능 비례 연속 적립으로 개편 — 3단 계단식(실버1/골드2/프리즈3)은 같은 구간 내 강화 의욕이 없어, 성능 1점마다 적립률 +5%p씩 연속 증가하는 게이지 방식으로 변경. 매 경기 게이지가 차고 가득(100%) 차면 무료 일반 복권 1장(나머지 이월). 강철심장 카드에 적립률("경기당 +N%")+진행바+"약 N경기" 지표, 대장간 효과행에도 적립률 표기. 데이터 lottoGauge_s2' },
+  ] },
   { ver: 'v2.45.23', date: '2026-06-08', changes: [
     { tag: 'improve', text: '🎟️ [시즌2] 복권 지급 효과 = 성능 등급별로 명확화 — 실버 1장 / 골드 2장 / 프리즈매틱 3장(일반 복권, 줄수 무관). 강철심장 카드에 등급 핍 지표(●●○) + "+N장/경기", 대장간 효과행에 등급명 표기로 "얼만큼인지" 한눈에. 줄수×성능 혼합 → 등급 기준 단일화' },
   ] },
@@ -8619,8 +8624,10 @@ function emblemLocked(em)    { return emblemSlotsUsed(em) >= EMBLEM_SLOTS; }
 function emblemEffects(power){
   return { glow: power<=0 ? 'none' : power<10 ? 'silver' : power<25 ? 'gold' : 'prismatic' };
 }
-// 🎟️ 복권 지급 = 성능 등급별 무료 일반 복권권 (실버1·골드2·프리즈매틱3, 성능 무관 줄수)
-function _lottoTktByGrade(power){ const g = emblemEffects(power).glow; return g==='prismatic'?3 : g==='gold'?2 : g==='silver'?1 : 0; }
+// 🎟️ 복권 지급 = 성능 비례 게이지 적립률(경기당). 성능 1점마다 +5%p씩 연속 증가 → 강화할수록 적립 빨라짐.
+//   매 경기 이 비율만큼 게이지(lottoGauge_s2)가 차고, 1.0 도달 시 무료 일반 복권권 1장 지급(나머지 이월).
+const LOTTO_RATE_K = 0.05;
+function _lottoRate(power){ return power>0 ? Math.min(3, power*LOTTO_RATE_K) : 0; }
 // ── 🏆 걸작 시스템 (v2.44.30~) ──
 // 강화하기 = 성능↑(효과 배율). 걸작 = 효과 슬롯 3줄(랜덤, 전용재화로 전체 리롤). 같은 효과 줄 합산.
 // 최종 효과 = 줄수 × 기본값(base) × 성능배율(1 + 성능×0.1)
@@ -8633,7 +8640,7 @@ const EMBLEM_EFFECTS = {
   magollaG: { id:'magollaG', icon:'🎰', name:'막고라 배당',  color:'#f472b6', base:4,   cap:30, fmt:v=>`+${v}%`,  desc:'막고라 베팅 적중 수익 보너스' },
   winLP:    { id:'winLP',    icon:'⚡', name:'승리 LP',      color:'#60a5fa', base:1.0, cap:12, fmt:v=>`+${v}LP`, desc:'정규전 승리 시 추가 LP' },
   lossLP:   { id:'lossLP',   icon:'🛡️', name:'패배 방어',    color:'#7dd3fc', base:1.0, cap:8,  fmt:v=>`${v}LP`, desc:'정규전 패배 시 잃는 LP를 그만큼 덜 잃어요' },
-  lottoTkt: { id:'lottoTkt', icon:'🎟️', name:'복권 지급',    color:'#f0b450', base:1,   cap:3,  fmt:v=>`+${v}장/경기`, desc:'매 경기 종료 시 무료 일반 복권권 — 성능 등급별 실버 1장·골드 2장·프리즈매틱 3장' },
+  lottoTkt: { id:'lottoTkt', icon:'🎟️', name:'복권 지급',    color:'#f0b450', base:1,   cap:3,  fmt:v=>`경기당 +${Math.round(v*100)}%`, desc:'매 경기 성능에 비례해 복권 게이지 적립 → 가득 차면 무료 일반 복권권 1장. 성능이 오를수록 적립이 빨라져요' },
 };
 // ⚖️ 모든 효과 동일 확률(균등 추첨). 리스트가 길수록 같은 효과 3줄 맞추기가 자연히 어려워짐.
 const EMBLEM_EFFECT_POOL = ['matchG','winG','attend','mvpG','magollaG','winLP','lossLP','lottoTkt'];
@@ -8666,7 +8673,7 @@ function _healEmblemLines(){
 // 줄 1개 기여값 (성능 비례, 상한 미적용) — 줄 카드 표시용
 function emblemPerLine(eid, power){
   const d = EMBLEM_EFFECTS[eid]; if (!d) return 0;
-  if (eid === 'lottoTkt') return _lottoTktByGrade(power);  // 🎟️ 성능 등급 기반(줄수 무관)
+  if (eid === 'lottoTkt') return _lottoRate(power);  // 🎟️ 성능 비례 적립률(줄수 무관)
   const v = d.base * (1 + power*0.1);
   return Math.round(v);
 }
@@ -8679,7 +8686,7 @@ function emblemEffectsOf(em){
   for (const eid of EMBLEM_EFFECT_POOL){
     const cnt = lines.filter(l=>l===eid).length;
     const d = EMBLEM_EFFECTS[eid];
-    if (eid === 'lottoTkt'){ eff[eid] = cnt ? _lottoTktByGrade(power) : 0; continue; }  // 🎟️ 성능 등급 기반(줄수 무관)
+    if (eid === 'lottoTkt'){ eff[eid] = cnt ? _lottoRate(power) : 0; continue; }  // 🎟️ 성능 비례 적립률(줄수 무관)
     // 줄 1개 값을 먼저 반올림(=카드 표시값) → 총합 = 줄값 × 줄수. 카드 합과 총합이 항상 딱 맞음 (v2.44.40)
     const per = cnt ? Math.round(d.base * mult) : 0;
     let v = cnt * per;
@@ -9477,9 +9484,8 @@ function renderEmblemBody(){
           const E = emblemEffectsOf(em);
           const effRows = EMBLEM_EFFECT_POOL.filter(eid=>E.eff[eid]>0).map(eid=>{ const d=EMBLEM_EFFECTS[eid];
             const cnt = E.lines.filter(l=>l===eid).length;
-            if (eid === 'lottoTkt'){ // 🎟️ 줄수 곱 아님 — 성능 등급(실버1·골드2·프리즈3) 라벨로
-              const _gl = {silver:'실버',gold:'골드',prismatic:'프리즈매틱'}[emblemEffects(E.power).glow] || '미강화';
-              return `<div class="fg2-eff-row"><span class="fg2-eff-lbl">${d.icon} ${d.name} <span style="color:#8b8b97;">${_gl}</span></span><span class="fg2-eff-num" style="color:${d.color};">${d.fmt(E.eff[eid])}</span></div>`;
+            if (eid === 'lottoTkt'){ // 🎟️ 줄수 곱 아님 — 성능 비례 적립률 표기
+              return `<div class="fg2-eff-row"><span class="fg2-eff-lbl">${d.icon} ${d.name}</span><span class="fg2-eff-num" style="color:${d.color};">${d.fmt(E.eff[eid])}</span></div>`;
             }
             return `<div class="fg2-eff-row"><span class="fg2-eff-lbl">${d.icon} ${d.name}${cnt>1?` <span style="color:#8b8b97;">×${cnt}</span>`:''}</span><span class="fg2-eff-num" style="color:${d.color};">${d.fmt(E.eff[eid])}</span></div>`; }).join('')
             || `<div style="font-size:10px;color:#8b8b97;text-align:center;padding:4px;">성능을 올리고 걸작을 맞춰<br>효과를 발동하세요</div>`;
@@ -15664,22 +15670,29 @@ window.saveMatch = async function() {
           matchG: Math.round(eff.matchG || 0), winG: Math.round(eff.winG || 0),
           mvpG:   Math.round(eff.mvpG   || 0),
           winLP:  Math.round(eff.winLP  || 0), lossLP: Math.round(eff.lossLP || 0),
-          lottoTkt: Math.round(eff.lottoTkt || 0),
+          lottoRate: +(eff.lottoTkt || 0).toFixed(3),
         };
-        // 🎟️ 복권 지급 — 무료 일반 복권권(freeScratch[0])을 줄 수만큼 적립
-        const _lt = Math.round(eff.lottoTkt || 0);
-        if (_lt > 0) {
-          const gd = _en[1], ff = sField('freeScratch');
-          const ft = { ...(gd[ff] || {}) };
-          ft[0] = (ft[0] || 0) + _lt;
-          gd[ff] = ft;                                // 로컬 즉시 반영
-          _lottoGrants.push({ key: _en[0], freeField: ff, ft });
+        // 🎟️ 복권 지급 — 성능 비례 게이지 적립, 1.0 도달 시 무료 일반 복권권(freeScratch[0]) 지급(나머지 이월)
+        const _rate = eff.lottoTkt || 0;
+        if (_rate > 0) {
+          const gd = _en[1], ff = sField('freeScratch'), gf = sField('lottoGauge');
+          let gauge = (gd[gf] || 0) + _rate;
+          const grant = Math.floor(gauge);
+          gauge = +(gauge - grant).toFixed(4);        // 나머지 이월(부동소수 정리)
+          const upd = { [gf]: gauge };
+          gd[gf] = gauge;                             // 로컬 즉시 반영
+          if (grant > 0) {
+            const ft = { ...(gd[ff] || {}) };
+            ft[0] = (ft[0] || 0) + grant;
+            gd[ff] = ft; upd[ff] = ft;
+          }
+          _lottoGrants.push({ key: _en[0], upd });
         }
       }
       if (Object.keys(_emblemSnap).length > 0) matchData.emblemEffects = _emblemSnap;
-      // 무료 복권권 지급 Firebase 반영 (라이브 기기가 각 플레이어 노드에 1회 기록)
+      // 복권 게이지/무료권 Firebase 반영 (라이브 기기가 각 플레이어 노드에 1회 기록)
       if (_lottoGrants.length) {
-        try { await Promise.all(_lottoGrants.map(g => update(ref(db, 'gold/' + g.key), { [g.freeField]: g.ft }))); } catch(_){}
+        try { await Promise.all(_lottoGrants.map(g => update(ref(db, 'gold/' + g.key), g.upd))); } catch(_){}
       }
     }
 
@@ -21783,10 +21796,16 @@ async function renderS1WaitingCard(el) {
       }).join('');
       const effRows = EMBLEM_EFFECT_POOL.filter(eid => E.eff[eid] > 0).map(eid => {
         const ef = EMBLEM_EFFECTS[eid];
-        if (eid === 'lottoTkt'){ // 🎟️ 성능 등급별 지표 — 실버1·골드2·프리즈3 (현재 등급까지 핍 점등)
-          const cur = E.eff.lottoTkt;
-          const pips = [1,2,3].map(n=>`<span class="wm-lotto-pip${cur>=n?' on':''}" title="${['실버','골드','프리즈매틱'][n-1]} ${n}장"></span>`).join('');
-          return `<div class="wm-fx-eff"><span class="wm-fx-eff-nm">${ef.name}</span><span class="wm-fx-eff-v" style="color:${ef.color};display:inline-flex;align-items:center;gap:6px;"><span class="wm-lotto-pips">${pips}</span>${ef.fmt(cur)}</span></div>`;
+        if (eid === 'lottoTkt'){ // 🎟️ 성능 비례 게이지 지표 — 적립률 + 다음 복권까지 진행바
+          const rate = E.eff.lottoTkt;
+          const gauge = Math.min(0.999, Math.max(0, myGoldData?.[sField('lottoGauge')] || 0));
+          const gpct = Math.round(gauge*100);
+          const need = Math.max(1, Math.ceil((1 - gauge) / rate));   // 남은 경기 수
+          return `<div class="wm-fx-eff lotto">
+            <div class="wm-fx-eff-head"><span class="wm-fx-eff-nm">${ef.name}</span><span class="wm-fx-eff-v" style="color:${ef.color};">${ef.fmt(rate)}</span></div>
+            <div class="wm-lotto-bar"><div class="wm-lotto-fill" style="width:${gpct}%;"></div></div>
+            <div class="wm-lotto-sub">다음 무료 복권까지 ${gpct}% · 약 ${need}경기</div>
+          </div>`;
         }
         return `<div class="wm-fx-eff"><span class="wm-fx-eff-nm">${ef.name}</span><span class="wm-fx-eff-v" style="color:${ef.color};">${ef.fmt(E.eff[eid])}</span></div>`;
       }).join('') || `<span class="wm-fx-none">효과 없음 · 대장간에서 걸작/강화하세요</span>`;
