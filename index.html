@@ -6154,7 +6154,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.94';
+const APP_VERSION = 'v2.44.95';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6163,6 +6163,9 @@ const APP_VERSION = 'v2.44.94';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.95', date: '2026-06-09', changes: [
+    { tag: 'improve', text: '[시즌2/내부] 패스 구조 정리 — 시즌2 패스 = 내전 전용 "퀘스트 패스" 단일 활성으로 확정. 기존엔 window.renderS2Pass가 2번 정의돼(2종 포인트패스 + 퀘스트패스) 순서로 덮는 취약 구조였음 → 2종 포인트패스 렌더러를 renderS2PointPass(보류)로 분리해 중복 제거. 2종 포인트패스 코드·보상트랙(PASS_TRACKS)은 보존(나중에 추가 예정). 동작 변화 없음' },
+  ] },
   { ver: 'v2.44.94', date: '2026-06-09', changes: [
     { tag: 'fix', text: '[시즌] 랭킹 시즌 셀렉터 과거 시즌 LP 열람 — 시즌2에서도 드롭다운으로 시즌1 LP 랭킹을 읽기전용 조회 가능. 그동안 renderS1Ranking이 "S1"·season===1·현재시즌 LP데이터를 하드코딩해 S2 중 S1 랭킹을 못 봤고, S2 오픈 시엔 라벨/경기수가 "S1"로 잘못 뜰 잠재버그도 있었음. 이제 rankViewSeason 기준으로 라벨·경기수·LP데이터 라우팅(과거 시즌은 season{N}/players 1회 스냅샷 로드 캐시). 과거 시즌 카드 클릭 시 현재시즌 상세 프로필이 열려 오해되던 것 차단(열람 전용 안내)' },
   ] },
@@ -9087,7 +9090,9 @@ function _passRewardChips(reward){
   if (reward.title) chips.push(`<span class="s2p-chip title">🏷️ "${reward.title}"</span>`);
   return chips.join('');
 }
-window.renderS2Pass = function renderS2Pass(){
+// 🅿️ [보류] 일반/내전 2종 포인트 패스 — 현재 비활성. 패스 탭은 내전 전용 "퀘스트 패스"(아래 renderS2Pass 오버라이드) 사용.
+//   2종 포인트 패스는 나중에 추가 예정이라 코드·보상트랙(PASS_TRACKS)은 보존. 재활성화 시 renderAchievementsOrPass에서 이 함수로 연결.
+window.renderS2PointPass = function renderS2PointPass(){
   const el = document.getElementById('achievement-content');
   const titleEl = document.getElementById('achievement-card-title');
   if (titleEl) titleEl.textContent = '🎫 시즌 2 패스';
@@ -9138,7 +9143,7 @@ window.renderS2Pass = function renderS2Pass(){
     ${bridgeNote}
     <div class="s2p-track">${rows}</div>`;
 };
-window.switchS2Pass = function(t){ currentPassView = t; renderS2Pass(); };
+window.switchS2Pass = function(t){ currentPassView = t; renderS2PointPass(); };  // [보류] 2종 포인트패스 전용
 window.doClaimPass = async function(pv, lv){
   const r = await claimPassLevel(pv, lv);
   if (!r) return;
@@ -9149,7 +9154,7 @@ window.doClaimPass = async function(pv, lv){
   if (r.reward.title) parts.push(`🏷️ "${r.reward.title}"`);
   showS1Toast(`🎫 LV${lv} 보상 수령! ${parts.join(' · ')}`);
   try { _gSfx.reveal(2); } catch(_){}
-  renderS2Pass();
+  renderS2PointPass();
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -17849,7 +17854,7 @@ function _s2PassRewardChips(reward){
   if(reward.title) c.push(`<span class="s2q-chip title">🏷️</span>`);
   return c.join('');
 }
-// 🎫 S2 퀘스트 패스 렌더 (기존 2트랙 포인트 패스 대체 — window.renderS2Pass 오버라이드)
+// 🎫 S2 패스 = 내전 전용 "퀘스트 패스" (활성). 2종 포인트 패스(renderS2PointPass)는 보류 — 나중에 추가 예정.
 window.renderS2Pass = function renderS2Pass(){
   const el=document.getElementById('achievement-content');
   const titleEl=document.getElementById('achievement-card-title'); if(titleEl) titleEl.textContent='🎫 시즌 2 패스';
