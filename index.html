@@ -4565,6 +4565,28 @@ img.emoji{
 .nmh-champ{color:var(--text-dim);font-size:11px;white-space:nowrap;}
 .nmh-kda{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);white-space:nowrap;}
 .nmh-kda b{color:#ffe39a;}
+/* 시즌2 신규 콘텐츠 튜토리얼 (페이지형, 헥스텍) */
+.hs-season-badge.clickable{cursor:pointer;}
+.hs-season-badge.clickable:hover{color:#ffe39a;text-shadow:0 0 8px rgba(240,192,96,.5);}
+.s2tut-overlay{position:fixed;inset:0;z-index:9800;background:rgba(0,0,0,.82);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:24px;animation:s2tutFade .25s ease;}
+@keyframes s2tutFade{from{opacity:0}to{opacity:1}}
+.s2tut-modal{position:relative;width:100%;max-width:400px;background:linear-gradient(165deg,#15130d,#0b0a07);border:1px solid #c89230;clip-path:polygon(16px 0,100% 0,100% calc(100% - 16px),calc(100% - 16px) 100%,0 100%,0 16px);padding:30px 26px 22px;box-shadow:0 0 40px rgba(240,192,96,.16);}
+.s2tut-x{position:absolute;top:12px;right:14px;background:none;border:none;color:#8b8b97;font-size:16px;cursor:pointer;line-height:1;}
+.s2tut-body{text-align:center;min-height:238px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;}
+.s2tut-ic{font-size:48px;filter:drop-shadow(0 0 14px rgba(240,192,96,.5));animation:s2tutPop .35s cubic-bezier(.34,1.56,.64,1);}
+@keyframes s2tutPop{from{transform:scale(.5);opacity:0}to{transform:scale(1);opacity:1}}
+.s2tut-tag{font-size:11px;font-weight:800;letter-spacing:2px;color:#c89230;}
+.s2tut-title{font-size:20px;font-weight:800;color:#ffe39a;}
+.s2tut-text{font-size:13px;line-height:1.75;color:#c8c8d0;max-width:322px;}
+.s2tut-text b{color:#ffe39a;font-weight:700;}
+.s2tut-dots{display:flex;justify-content:center;gap:7px;margin:18px 0 16px;}
+.s2tut-dot{width:7px;height:7px;border-radius:50%;background:#2c2c34;transition:.25s;}
+.s2tut-dot.on{background:linear-gradient(135deg,#ffe39a,#c89230);box-shadow:0 0 7px rgba(240,192,96,.7);width:20px;border-radius:4px;}
+.s2tut-nav{display:flex;gap:10px;}
+.s2tut-prev{flex:none;padding:12px 18px;background:transparent;border:1px solid #2c2c34;color:#8b8b97;font-weight:700;font-size:13px;cursor:pointer;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);font-family:'Noto Sans KR',sans-serif;}
+.s2tut-prev:hover{color:#e9e7ec;border-color:#3a3a44;}
+.s2tut-next{flex:1;padding:12px;background:linear-gradient(135deg,#f0c060,#c89230);border:none;color:#1a1205;font-weight:800;font-size:14px;cursor:pointer;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);font-family:'Noto Sans KR',sans-serif;}
+.s2tut-next:hover{filter:brightness(1.1);}
 /* ── 막고라 인트로 팝업 (v2.41.1~) ── */
 @keyframes mgIntroUp{from{opacity:0;transform:translateY(26px);}to{opacity:1;transform:translateY(0);}}
 .mgintro-overlay{position:fixed;inset:0;z-index:10100;background:rgba(4,2,18,.88);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .3s ease;}
@@ -6008,7 +6030,13 @@ function seasonNode(sub) { return 'season' + (CURRENT_SEASON || 0) + '/' + sub; 
 // 헤더 부제 "⚙️ SEASON N" — 시즌 전환 시 갱신
 function renderHeaderSeasonLabel() {
   const el = document.getElementById('header-season-label');
-  if (el) el.textContent = `SEASON ${CURRENT_SEASON}`;
+  if (el) {
+    el.textContent = `SEASON ${CURRENT_SEASON}`;
+    // 시즌2: 라벨 클릭 시 신규 콘텐츠 튜토리얼 재열람
+    el.classList.toggle('clickable', CURRENT_SEASON === 2);
+    el.title = CURRENT_SEASON === 2 ? '시즌2 가이드 다시 보기' : '';
+    el.onclick = CURRENT_SEASON === 2 ? function(){ try{ showS2Tutorial(true); }catch(_){} } : null;
+  }
   document.body.classList.toggle('s1-active', CURRENT_SEASON >= 1);
   document.documentElement.classList.toggle('s1-active', CURRENT_SEASON >= 1);
   // 시즌별 컨셉 테마 (S2 = 헥스텍/마법공학). s1-active는 동작용으로 유지, season-N이 비주얼을 덮어씀
@@ -6173,7 +6201,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.99';
+const APP_VERSION = 'v2.45.0';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6182,6 +6210,9 @@ const APP_VERSION = 'v2.44.99';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.0', date: '2026-06-09', changes: [
+    { tag: 'new', text: '📖 [시즌2] 신규 콘텐츠 튜토리얼 — 시즌2 오픈 시 페이지형 가이드가 1회 자동으로 떠요(6장: 시즌 리셋 안내 · 마법공학 대장간 · 협력 빙고 출석 · 내전 레벨 · 퀘스트 패스 · 일반게임 자동기록). 헥스텍 블랙+골드 톤, 이전/다음·진행 점. 닫은 뒤엔 헤더 "SEASON 2" 라벨을 클릭하면 다시 볼 수 있어요. (미리보기/테스트는 🧪 디버그 패널 "시즌2 튜토리얼 열기")' },
+  ] },
   { ver: 'v2.44.99', date: '2026-06-09', changes: [
     { tag: 'fix', text: '[시즌2 개시 점검] 워크플로우 감사로 발견한 표시/구독 누수 5건 수정 — ① 프로필 모달이 S2에서 LP·챔프=S2인데 전적·어워드·폼=S1로 섞이던 것 현재 시즌 기준 통일 ② 라이브로 S2 토글 시 빙고 구독 누락(헤더 글로우 미점등) → config 핸들러에 bingoSubscribe 추가 ③ 패스 탭 dot이 빙고 보상 수령가능을 안 보던 것 빙고 기준으로 ④ 기록 탭 "일반게임" 항목이 S1에도 뜨던 것 S2 전용 게이트 + 시즌 필터 ⑤ 비밀퀘 토큰 saveMatch 판정 루프에 S2 가드(방어). 전부 표시/방어용, 데이터 영향 없음. (switchSeason(2)는 블로커 0건 — S1 데이터 읽기전용 보존 확인)' },
     { tag: 'improve', text: '🃏 [밸런스] 가챠 시너지 LP 하향 — 시즌2에선 강철심장 걸작이 LP 주(主) 엔진이라 시너지 LP가 같은 경기에 중첩되지 않도록 조정. 원딜/암살자 3/5→2/3, 슈리마 3/4→2/3(연승상한 3→2), 유레카(마법사) 승리 +12/16→+8/10·패배 -6→-8(도박성 강화). 전사·검무·탱커·데마시아·공허는 유지. 효과 텍스트는 자동 반영' },
@@ -10405,6 +10436,7 @@ onValue(ref(db, 'config/currentSeason'), (snapshot) => {
   if (typeof renderAchievementsOrPass === 'function') renderAchievementsOrPass();
   if (goldLoaded && matchesLoaded) updateMyInfoBar();
   showS1WelcomePopup();
+  try { showS2Tutorial(); } catch(_) {} // 시즌2 오픈 시 1회 자동(seen 가드)
 });
 
 // 시즌 1 플레이어 LP/티어 데이터 구독
@@ -20165,6 +20197,56 @@ async function _rkSaveSheet() {
 //   - S1 전환 후 7일간만 표시 (s1WelcomeStart 기준)
 //   - 오늘 하루 보지 않기: 24시간 스누즈 (s1WelcomeSnooze24h)
 //   - 확인: 그냥 닫기 (영구 숨김 없음, 다음 방문 재등장)
+// ═══════════════ 시즌2 신규 콘텐츠 튜토리얼 (오픈 시 1회 자동 + 헤더 라벨로 재열람) ═══════════════
+const S2_TUTORIAL_SLIDES = [
+  { icon:'🌌', tag:'SEASON 2', title:'마법공학 시즌 오픈', body:'새 시즌이 시작됐어요. <b>LP·티어·골드·패스·가챠 컬렉션이 모두 새로 시작</b>합니다. 시즌1 기록은 사라지지 않고 랭킹·기록 탭의 <b>시즌 셀렉터</b>로 계속 볼 수 있어요.' },
+  { icon:'🔨', tag:'대장간', title:'마법공학 엠블럼 강화', body:'오른의 대장간에서 <b>강철심장</b>을 강화권(🟢안정·🟡정밀·🔴과부하)으로 두드려 성능을 올리고, <b>걸작의 정수</b>로 효과 3줄을 리롤하세요. 강화할수록 경기·출석 골드와 <b>승리 LP</b> 보너스가 커집니다.' },
+  { icon:'🎯', tag:'출석', title:'협력 빙고 출석', body:'하루 <b>오전·오후</b> 출석! 빙고판에서 <b>칸을 고르고</b> 출석하기를 누르면, 팀이 함께 칸을 채워 <b>줄(가로·세로·대각)</b>을 완성할 때마다 보상을 받아요. 6/10 시작!' },
+  { icon:'📊', tag:'레벨', title:'내전 레벨 시스템', body:'경기를 할수록 <b>레벨</b>이 올라요(만렙 50). 레벨업마다 <b>걸작의 정수·강화권·복권·골드</b>를 받고, 만렙을 찍으면 정수를 상점에서도 살 수 있어요. <b>일반게임(증바람)</b>도 똑같이 XP가 쌓입니다.' },
+  { icon:'🎫', tag:'패스', title:'퀘스트 패스', body:'경기하며 퀘스트를 깨면 보상을 받는 <b>퀘스트 패스</b>(LV25). 킬·딜량·KDA·연승 같은 스탯 퀘스트는 <b>내전이든 일반게임이든</b> 달성하면 인정됩니다.' },
+  { icon:'🎮', tag:'일반게임', title:'일반게임 자동 기록', body:'진행자가 <b>브릿지를 켠 채</b> 함께 일반게임(증바람)을 하면 자동으로 <b>기록 탭 "일반게임"</b>에 남고, 레벨·패스에도 합산돼요. 내전 LP/매치와는 완전히 분리됩니다.' },
+];
+let _s2TutIdx = 0;
+function showS2Tutorial(force){
+  if (CURRENT_SEASON !== 2) return;
+  if (!force && localStorage.getItem('s2TutorialSeen') === '1') return;
+  if (document.getElementById('s2tut-overlay')) return;
+  _s2TutIdx = 0;
+  const ov = document.createElement('div');
+  ov.id = 's2tut-overlay'; ov.className = 's2tut-overlay season-2';
+  ov.onclick = (e) => { if (e.target === ov) window.closeS2Tutorial(); };
+  ov.innerHTML = `<div class="s2tut-modal">
+    <button class="s2tut-x" onclick="window.closeS2Tutorial()">✕</button>
+    <div class="s2tut-body" id="s2tut-body"></div>
+    <div class="s2tut-dots" id="s2tut-dots"></div>
+    <div class="s2tut-nav">
+      <button class="s2tut-prev" id="s2tut-prev" onclick="window._s2TutGo(-1)">이전</button>
+      <button class="s2tut-next" id="s2tut-next" onclick="window._s2TutGo(1)">다음</button>
+    </div>
+  </div>`;
+  document.body.appendChild(ov);
+  _s2TutRender();
+}
+function _s2TutRender(){
+  const s = S2_TUTORIAL_SLIDES[_s2TutIdx];
+  const body = document.getElementById('s2tut-body'); if (!body) return;
+  body.innerHTML = `<div class="s2tut-ic">${s.icon}</div><div class="s2tut-tag">${s.tag}</div><div class="s2tut-title">${s.title}</div><div class="s2tut-text">${s.body}</div>`;
+  const dots = document.getElementById('s2tut-dots');
+  if (dots) dots.innerHTML = S2_TUTORIAL_SLIDES.map((_,i)=>`<i class="s2tut-dot${i===_s2TutIdx?' on':''}"></i>`).join('');
+  const prev = document.getElementById('s2tut-prev'); if (prev) prev.style.visibility = _s2TutIdx===0 ? 'hidden':'visible';
+  const next = document.getElementById('s2tut-next'); if (next) next.textContent = (_s2TutIdx===S2_TUTORIAL_SLIDES.length-1) ? '시작하기 ✦' : '다음';
+}
+window._s2TutGo = function(d){
+  if (d>0 && _s2TutIdx===S2_TUTORIAL_SLIDES.length-1) { window.closeS2Tutorial(); return; }
+  _s2TutIdx = Math.max(0, Math.min(S2_TUTORIAL_SLIDES.length-1, _s2TutIdx+d));
+  _s2TutRender();
+};
+window.closeS2Tutorial = function(){
+  const ov = document.getElementById('s2tut-overlay'); if (ov) ov.remove();
+  localStorage.setItem('s2TutorialSeen','1'); // 닫으면 자동표시 안 함(헤더 SEASON 2 라벨 클릭으로 재열람)
+};
+window.showS2Tutorial = showS2Tutorial;
+
 function showS1WelcomePopup() {
   // v2.36.17~ 시즌 1 정착됨 → 웰컴 팝업 영구 비활성 (호출은 유지하되 즉시 return)
   return;
@@ -25647,6 +25729,7 @@ function renderSeasonDebugPanel(){
       <button onclick="window.__mgSeedReset()" style="color:#cbd5e1;">🎰 막고라 테스트 초기화</button>
       <button onclick="window.__normalSeed()">🎮 일반게임 기록 테스트 추가</button>
       <button onclick="window.__normalReset()" style="color:#fca5a5;">🎮 일반게임 테스트 삭제</button>
+      <button onclick="window.showS2Tutorial(true)">📖 시즌2 튜토리얼 열기</button>
       <button onclick="window.__s2dbg.reset()" style="color:#fca5a5;">🔄 S2 테스트 데이터 초기화</button>
       <button onclick="window.__s2dbg.off()" style="color:#7dd3fc;">✕ 미리보기 끄기</button>
     </div>`;
