@@ -1485,14 +1485,23 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .wm-sv.loss{color:var(--red);}
 .wm-sv.wr{color:#60a5fa;}
 .wm-sk{font-size:9px;color:var(--rk-text-muted);font-family:'JetBrains Mono',monospace;}
-/* 좌측 카드 하단 — 최근 10경기(5+5) + 챔피언 2열 */
-.wm-lp-bottom{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px;padding-top:9px;border-top:1px solid var(--rk-border);align-items:start;}
-@media(max-width:460px){.wm-lp-bottom{grid-template-columns:1fr;gap:10px;}}
+/* 좌측 카드 하단 — 최근 10경기(1줄) + 챔피언(가로) 세로 스택 */
+.wm-lp-bottom{display:flex;flex-direction:column;gap:11px;margin-top:10px;padding-top:9px;border-top:1px solid var(--rk-border);}
 .wm-form-row{display:flex;flex-direction:column;gap:6px;}
 .wm-champ-col{display:flex;flex-direction:column;gap:6px;min-width:0;}
-.wm-champ-all{margin-top:6px;width:100%;padding:4px;border-radius:6px;border:1px solid var(--rk-border);background:rgba(255,255,255,0.03);color:var(--rk-text-dim);font-size:9px;font-family:'JetBrains Mono',monospace;cursor:pointer;letter-spacing:0.5px;}
+.wm-champ-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.wm-champ-all{padding:2px 9px;border-radius:6px;border:1px solid var(--rk-border);background:rgba(255,255,255,0.03);color:var(--rk-text-dim);font-size:8.5px;font-family:'JetBrains Mono',monospace;cursor:pointer;letter-spacing:0.5px;white-space:nowrap;flex-shrink:0;}
+.wm-champ-all:hover{color:var(--rk-text);border-color:var(--rk-text-dim);}
 .wm-form-lbl{font-size:9px;font-weight:700;letter-spacing:0.6px;color:var(--rk-text-muted);font-family:'JetBrains Mono',monospace;}
-#wm-form-dots{display:grid;grid-template-columns:repeat(5,auto);gap:4px;justify-content:start;}
+#wm-form-dots{display:flex;gap:4px;flex-wrap:wrap;}
+/* 우측 패스 카드 하단 — 다음 퀘스트 컴팩트(공백 채움) */
+.wm-pass-quest{margin-top:9px;padding-top:9px;border-top:1px solid var(--rk-border);display:flex;flex-direction:column;gap:3px;}
+.wm-pq-lbl{font-size:8px;font-weight:700;letter-spacing:0.3px;color:var(--rk-gold);font-family:'JetBrains Mono',monospace;}
+.wm-pq-row{display:flex;align-items:center;gap:4px;}
+.wm-pq-ic{font-size:13px;line-height:1;flex-shrink:0;}
+.wm-pq-nm{font-size:11px;font-weight:700;color:var(--rk-text);line-height:1.15;}
+.wm-pq-desc{font-size:9px;color:var(--rk-text-dim);font-family:'JetBrains Mono',monospace;line-height:1.4;}
+.wm-pq-rw{font-size:9px;color:var(--gold-light);font-weight:700;font-family:'JetBrains Mono',monospace;margin-top:1px;}
 .wm-fdot{width:26px;height:26px;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;transform:scale(0);transition:transform 0.32s cubic-bezier(0.34,1.56,0.64,1);}
 .wm-fdot.in{transform:scale(1);}
 .wm-fdot.w{background:rgba(0,199,122,0.12);border:1px solid rgba(0,199,122,0.4);color:var(--green);}
@@ -6215,7 +6224,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.7';
+const APP_VERSION = 'v2.45.8';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6224,6 +6233,9 @@ const APP_VERSION = 'v2.45.7';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.8', date: '2026-06-09', changes: [
+    { tag: 'improve', text: '🪪 [시즌2] 대기화면 하단 다듬기 — 최근 10경기를 다시 1줄로, 챔피언은 가로 배치 유지하고 "전체보기"를 챔피언 헤더 우측 상단 작은 버튼으로. 우측 퀘스트 패스 카드 하단 공백을 "다음 퀘스트" 컴팩트 정보(이름·설명·보상)로 채움' },
+  ] },
   { ver: 'v2.45.7', date: '2026-06-09', changes: [
     { tag: 'improve', text: '🪪 [시즌2] 대기화면 챔피언 가로 배치 — MOST·BEST를 세로 쌓기에서 좌우 나란히로. 하단 2열(최근10경기 | 챔피언)을 align-items:start로 자연 높이 정렬해 행 공백 축소' },
   ] },
@@ -21476,15 +21488,20 @@ async function renderS1WaitingCard(el) {
   // 패스 다음 퀘스트 (시즌 분기)
   const nextPassLv = passLv + 1;
   const passBarPct = Math.round((passLv / passMax) * 100);
-  let passSub = '', questBodyHtml = '';
+  let passSub = '', questBodyHtml = '', wmPassQuestCompact = '';
   if (passLv < passMax) {
     const nq = _s2Pass ? S2_PASS_QUESTS[passLv] : S1_PASS_QUESTS[passLv];
     const rChip = _s2Pass ? _wmS2PassRewardShort(s2PassReward(nextPassLv)) : `🪙 ${s1PassRewardForLevel(nextPassLv)}G`;
     passSub = `다음: LV ${nextPassLv}<br>${rChip}`;
-    if (nq) questBodyHtml = `<div class="wm-quest-label">🎯 다음 퀘스트 · LV ${passLv} → ${nextPassLv}</div><div class="wm-quest-row"><span class="wm-quest-icon">${nq.icon}</span><div class="wm-quest-body"><div class="wm-quest-name">${escHtml(nq.name)}</div><div class="wm-quest-desc">${escHtml(nq.desc)}</div></div><div class="wm-quest-reward">${rChip}</div></div>`;
+    if (nq) {
+      questBodyHtml = `<div class="wm-quest-label">🎯 다음 퀘스트 · LV ${passLv} → ${nextPassLv}</div><div class="wm-quest-row"><span class="wm-quest-icon">${nq.icon}</span><div class="wm-quest-body"><div class="wm-quest-name">${escHtml(nq.name)}</div><div class="wm-quest-desc">${escHtml(nq.desc)}</div></div><div class="wm-quest-reward">${rChip}</div></div>`;
+      // 좁은 우측 패스 카드용 컴팩트 버전 (하단 공백 채움)
+      wmPassQuestCompact = `<div class="wm-pq-lbl">🎯 다음 퀘스트 · LV${nextPassLv}</div><div class="wm-pq-row"><span class="wm-pq-ic">${nq.icon}</span><span class="wm-pq-nm">${escHtml(nq.name)}</span></div><div class="wm-pq-desc">${escHtml(nq.desc)}</div><div class="wm-pq-rw">보상 ${rChip}</div>`;
+    }
   } else {
     passSub = '패스 완주 🎉';
     questBodyHtml = `<div class="wm-quest-row"><span class="wm-quest-icon">🎉</span><div class="wm-quest-body"><div class="wm-quest-name">시즌 패스 완주!</div><div class="wm-quest-desc">모든 퀘스트를 완료했어요</div></div></div>`;
+    wmPassQuestCompact = `<div class="wm-pq-lbl">🎉 패스 완주!</div><div class="wm-pq-desc">모든 퀘스트를 완료했어요.<br>다음 시즌을 기다려 주세요.</div>`;
   }
 
   // 추가 패스(전투/지원) 보유·진행률 (v2.38.14~)
@@ -21701,9 +21718,8 @@ async function renderS1WaitingCard(el) {
           <div id="wm-form-dots"></div>
         </div>
         <div class="wm-champ-col">
-          <span class="wm-form-lbl">챔피언</span>
+          <div class="wm-champ-hd"><span class="wm-form-lbl">챔피언</span>${myName ? `<button onclick="openChampPoolModal('${escHtml(myName)}')" class="wm-champ-all">전체 ›</button>` : ''}</div>
           <div class="wm-champ-list">${champHtml}</div>
-          ${myName ? `<button onclick="openChampPoolModal('${escHtml(myName)}')" class="wm-champ-all">전체 보기 ›</button>` : ''}
         </div>
       </div>
     </div>
@@ -21717,6 +21733,7 @@ async function renderS1WaitingCard(el) {
           <button class="wm-pass-tab${_wmPassViewPref==='support'?' active':''}${!hasSupport?' locked':''}" onclick="setWmPassView('support')">지원</button>
         </div>`}
         <div id="wm-pass-content">${buildWmPassCardContent(_wmPassViewPref)}</div>
+        ${wmPassQuestCompact ? `<div class="wm-pass-quest">${wmPassQuestCompact}</div>` : ''}
       </div>
     </div>
   </div>
