@@ -6173,7 +6173,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.97';
+const APP_VERSION = 'v2.44.98';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6182,6 +6182,9 @@ const APP_VERSION = 'v2.44.97';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.98', date: '2026-06-09', changes: [
+    { tag: 'new', text: '🎮→📈 일반게임(증바람)도 내전과 똑같이 성장에 반영 — (1) 내전 레벨 XP: 일반게임도 경기·승리·KDA로 동일하게 XP 적립(MVP/매너 보너스는 일반게임엔 없음). (2) 퀘스트 패스: 내전/일반 구분 없이 한 패스에서, 게임 스탯 퀘스트(킬·어시·딜량·KDA·경기수·승·연승)는 일반게임에서 달성해도 인정(내전+일반 통합 집계·연승은 시간순 병합). 단 관전·MVP·매너왕 같은 내전 전용 활동 퀘스트는 내전에서만. S2 일반게임만 반영(브릿지 v1.1.33로 기록된 normal_matches)' },
+  ] },
   { ver: 'v2.44.97', date: '2026-06-09', changes: [
     { tag: 'fix', text: '🎮 일반게임 멤버 인식 = 내전과 동일하게 "닉네임(=인게임 소환사명)"으로 매칭(공백무시 폴백). 앞서 "라이엇 ID 등록 필요"로 안내했던 건 잘못 — 내전도 riotId 없이 닉네임으로 매칭하므로 동일하게 변경. riotId는 닉네임이 인게임명과 다른 멤버를 위한 보조 수단으로만 사용' },
   ] },
@@ -8903,6 +8906,16 @@ function calcPlayerXp(name){
     if (pd){ const kda = ((pd.kills||0)+(pd.assists||0)) / Math.max(1, pd.deaths||0);
       if (kda>=5) xp += PLV_XP.kda5; else if (kda>=3) xp += PLV_XP.kda3; }
   }
+  // 일반게임(증바람) XP — 내전과 동일(경기·승리·KDA). MVP/매너 award는 일반게임에 없음
+  for (const m of Object.values(normalMatches||{})){
+    if (!m || !Array.isArray(m.players) || (m.season||0) !== 2) continue;
+    const pl = m.players.find(x => normName(_normalMatchMember(x.summonerName)||'') === nn);
+    if (!pl) continue;
+    xp += PLV_XP.game;
+    if (pl.isWin) xp += PLV_XP.win;
+    const kda = ((pl.kills||0)+(pl.assists||0)) / Math.max(1, pl.deaths||0);
+    if (kda>=5) xp += PLV_XP.kda5; else if (kda>=3) xp += PLV_XP.kda3;
+  }
   return xp;
 }
 window.calcPlayerXp = calcPlayerXp;
@@ -10628,6 +10641,10 @@ onValue(ref(db, 'magolla_matches'), (snapshot) => {
 onValue(ref(db, 'normal_matches'), (snapshot) => {
   normalMatches = snapshot.val() || {};
   if (viewSeason === 'normal') renderMatchHistory();
+  // 일반게임도 레벨 XP·퀘스트 패스에 반영되므로 관련 UI 갱신
+  try { if (typeof updateMyInfoBar === 'function') updateMyInfoBar(); } catch(_) {}
+  try { if (typeof updateMemberModeDisplay === 'function') updateMemberModeDisplay(); } catch(_) {}
+  try { if (CURRENT_SEASON >= 1 && typeof renderAchievementsOrPass === 'function') renderAchievementsOrPass(); } catch(_) {}
 });
 
 // ── 정산창 전파 (v2.43.61~) — 매치 참여 팀원에게 자동 표시 ──
@@ -17826,20 +17843,29 @@ function calcS1PassStats(name, afterTs = S1_PASS_START_TS, season = 1) {
   let mvpCount=0, mannerCount=0, specTotal=0, specCorrect=0;
   let gambleWinS1=0, promoShieldUsed=0, promoWinUsed=0;
 
-  // 최대 연승
-  let curStreak=0, maxWinStreak=0;
-  for (const m of myMatches) {
-    games++;
+  // 게임 스탯·승패·연승 = 내전 + (S2면) 일반게임 통합(시간순) — 퀘스트는 게임 종류 무관 달성 시 인정
+  const statGames = myMatches.map(m => {
     const inA = (m.teamA||[]).some(n=>normName(n)===key);
-    const won = (m.winner==='blue'&&inA) || (m.winner==='red'&&!inA);
-    if (won) { wins++; curStreak++; if (curStreak>maxWinStreak) maxWinStreak=curStreak; }
-    else     { losses++; curStreak=0; }
+    return { ts:m.timestamp||0, won:(m.winner==='blue'&&inA)||(m.winner==='red'&&!inA), p:m.participants?.[key]||null };
+  });
+  if (season === 2) {
+    for (const m of Object.values(normalMatches||{})) {
+      if (!m || !Array.isArray(m.players) || (m.season ?? 0) !== 2 || (m.ts||0) < afterTs) continue;
+      const pl = m.players.find(x => normName(_normalMatchMember(x.summonerName)||'') === key);
+      if (!pl) continue;
+      statGames.push({ ts:m.ts||0, won:!!pl.isWin, p:{ kills:pl.kills||0, deaths:pl.deaths||0, assists:pl.assists||0, damage:pl.damage||0, cs:pl.cs||0 } });
+    }
+  }
+  statGames.sort((a,b)=>(a.ts||0)-(b.ts||0));
 
-    // 참가자 스탯 (있으면)
-    const p = m.participants?.[key];
+  let curStreak=0, maxWinStreak=0;
+  for (const g of statGames) {
+    games++;
+    if (g.won) { wins++; curStreak++; if (curStreak>maxWinStreak) maxWinStreak=curStreak; }
+    else       { losses++; curStreak=0; }
+    const p = g.p;
     if (p) {
-      const k = p.kills||0, d = p.deaths||0, a = p.assists||0;
-      const dmg = p.damage||0, cs = p.cs||0;
+      const k=p.kills||0, d=p.deaths||0, a=p.assists||0, dmg=p.damage||0, cs=p.cs||0;
       if (k>maxKills)    maxKills=k;
       if (d>maxDeaths)   maxDeaths=d;
       if (a>maxAssists)  maxAssists=a;
@@ -17848,18 +17874,19 @@ function calcS1PassStats(name, afterTs = S1_PASS_START_TS, season = 1) {
       if (k+a>maxKa)     maxKa=k+a;
       const kda = d===0 ? (k+a) : (k+a)/d;
       if (kda>maxKda) maxKda=kda;
-      if (won && d===0) perfectWin=true;
-      if (won && d<=3)  lowDeathWin=true;
-      if (won && d<=5)  lowDeathWin5=true;
+      if (g.won && d===0) perfectWin=true;
+      if (g.won && d<=3)  lowDeathWin=true;
+      if (g.won && d<=5)  lowDeathWin5=true;
     }
-
-    // S1 아이템 사용 이력 (itemEffects 에 기록된 활성 아이템 ID)
+  }
+  // 내전 전용 스탯 (아이템·MVP·매너) — 일반게임엔 해당 없음
+  for (const m of myMatches) {
+    const inA = (m.teamA||[]).some(n=>normName(n)===key);
+    const won = (m.winner==='blue'&&inA) || (m.winner==='red'&&!inA);
     const effects = m.itemEffects?.[key] || [];
-    if (effects.includes('s1_gamble') && won)       gambleWinS1++;
-    if (effects.includes('s1_promo_shield'))        promoShieldUsed++;
-    if (effects.includes('s1_promo_win'))           promoWinUsed++;
-
-    // MVP/매너
+    if (effects.includes('s1_gamble') && won)  gambleWinS1++;
+    if (effects.includes('s1_promo_shield'))   promoShieldUsed++;
+    if (effects.includes('s1_promo_win'))      promoWinUsed++;
     if (normName(m.mvpWinner||'')===key || normName(m.mvpLoser||'')===key) mvpCount++;
     if (normName(m.mannerWinner||'')===key || normName(m.mannerLoser||'')===key || normName(m.mannerKing||'')===key) mannerCount++;
   }
