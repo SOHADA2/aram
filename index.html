@@ -5171,6 +5171,13 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .fg2-spark{position:absolute;left:50%;top:46%;width:4px;height:4px;border-radius:50%;z-index:4;pointer-events:none;animation:forgeSpark 0.5s ease-out forwards;}
 .fg2-up-label{position:absolute;left:50%;top:-6px;transform:translateX(-50%);z-index:6;font-size:13px;font-weight:900;white-space:nowrap;text-shadow:0 1px 4px rgba(0,0,0,0.85);animation:fg2Label 1.1s ease-out forwards;pointer-events:none;}
 @keyframes fg2Label{0%{opacity:0;transform:translate(-50%,4px) scale(.8)}25%{opacity:1;transform:translate(-50%,-12px) scale(1.1)}100%{opacity:0;transform:translate(-50%,-32px) scale(1)}}
+/* ✨ 단조 성공 버스트 — 플래시 + 충격파 링 + 빛줄기 */
+.fg2-burst-flash{position:absolute;left:50%;top:46%;width:74px;height:74px;margin:-37px 0 0 -37px;border-radius:50%;z-index:5;pointer-events:none;mix-blend-mode:screen;animation:fg2Flash .62s ease-out forwards;}
+@keyframes fg2Flash{0%{transform:scale(.2);opacity:0}22%{opacity:1}100%{transform:scale(2.3);opacity:0}}
+.fg2-burst-ring{position:absolute;left:50%;top:46%;width:30px;height:30px;margin:-15px 0 0 -15px;border:2.5px solid currentColor;border-radius:50%;z-index:5;pointer-events:none;box-shadow:0 0 13px currentColor;animation:fg2Ring .9s cubic-bezier(0.2,0.7,0.3,1) forwards;}
+@keyframes fg2Ring{0%{transform:scale(.3);opacity:.95}100%{transform:scale(3.6);opacity:0}}
+.fg2-burst-ray{position:absolute;left:50%;top:46%;width:3px;height:42px;margin:-42px 0 0 -1.5px;transform-origin:bottom center;z-index:4;pointer-events:none;border-radius:2px;animation:fg2Ray .64s ease-out forwards;}
+@keyframes fg2Ray{0%{transform:rotate(var(--rot,0deg)) scaleY(0);opacity:0}30%{opacity:1}100%{transform:rotate(var(--rot,0deg)) scaleY(1.35);opacity:0}}
 /* 강화권 = 모루 이미지(anvil.png) 칩 3종 — 목업과 동일 */
 .fg2-rack{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0;}
 .fg2-tk{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);user-select:none;white-space:nowrap;transition:transform .1s,box-shadow .12s,border-color .12s;}
@@ -6244,7 +6251,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.20';
+const APP_VERSION = 'v2.45.21';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6253,6 +6260,9 @@ const APP_VERSION = 'v2.45.20';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.21', date: '2026-06-08', changes: [
+    { tag: 'improve', text: '⚒️ [시즌2] 오른 대장간 강화 연출 손질 — (1) 강화 실패 시 오른의 실패 모션 제거(안빌 흔들림+토스트만, 오른은 idle 유지). (2) 강화 성공(마지막 탕! 일격)에 근사한 버스트 이펙트 추가: 중앙 플래시 + 충격파 링 + 빛줄기(starburst). 강화/걸작 시 더 화려하게(링 2겹·빛줄기 12갈래)' },
+  ] },
   { ver: 'v2.45.20', date: '2026-06-08', changes: [
     { tag: 'fix', text: '🎲 가챠 — 한 번 뽑은 뒤 금액 버튼이 disabled로 남아 재시도가 막히던 버그 수정. 뽑기 시작 시 버튼을 비활성화하는데 성공 경로에서 다시 활성화하지 않던 게 원인(에러 경로만 풀림). 뽑기 완료 후 50G/450G 버튼 재활성화' },
   ] },
@@ -9916,6 +9926,26 @@ function _forgeLabel(anvil, txt, col){
   const el = document.createElement('div'); el.className='fg2-up-label'; el.textContent = txt; el.style.color = col;
   wrap.appendChild(el); setTimeout(()=>el.remove(), 1100);
 }
+// ✨ 단조 성공 버스트 — 중앙 플래시 + 충격파 링 + 빛줄기(starburst). big=강화/걸작 시 더 화려
+function _forgeBurst(anvil, col, big){
+  const wrap = anvil.querySelector('.fg2-item-wrap2') || anvil.querySelector('.fg2-item-wrap') || anvil;
+  const flash = document.createElement('span'); flash.className='fg2-burst-flash';
+  flash.style.background = `radial-gradient(circle, #fff 0%, ${col} 32%, transparent 70%)`;
+  wrap.appendChild(flash); setTimeout(()=>flash.remove(), 640);
+  const rings = big ? 2 : 1;
+  for (let i=0;i<rings;i++){
+    const ring = document.createElement('span'); ring.className='fg2-burst-ring';
+    ring.style.color = col; ring.style.animationDelay = (i*0.13)+'s';
+    wrap.appendChild(ring); setTimeout(()=>ring.remove(), 980+i*130);
+  }
+  const rays = big ? 12 : 8;
+  for (let i=0;i<rays;i++){
+    const ray = document.createElement('span'); ray.className='fg2-burst-ray';
+    ray.style.background = `linear-gradient(${col}, transparent)`;
+    ray.style.setProperty('--rot', (360/rays*i)+'deg');
+    wrap.appendChild(ray); setTimeout(()=>ray.remove(), 660);
+  }
+}
 // 🔨 금속 모루 타격음 합성 (big=탕!/false=통) — 노이즈 어택 + 금속 배음 링
 function anvilClang(big){
   try{
@@ -9959,25 +9989,28 @@ function _emblemForge(r){
           if (r.finalForm){
             anvil.classList.add('forge-final');
             try { _gSfx.mergeImpact(3); _gSfx.reveal(3); } catch(_){}
-            _forgeSparks(anvil, '#e879f9', 28);
+            _forgeBurst(anvil, '#e879f9', true);
+            _forgeSparks(anvil, '#e879f9', 30);
             _forgeLabel(anvil, '거인의 결의 완성!', '#e879f9');
             showS1Toast(`⚒️ 오른의 걸작 · 거인의 결의 완성! 성능 ${r.power}`);
           } else if (r.tierUp){
             anvil.classList.add('forge-up');
             try { _gSfx.mergeImpact(3); _gSfx.reveal(2); } catch(_){}
-            _forgeSparks(anvil, col, 18);
+            _forgeBurst(anvil, col, true);
+            _forgeSparks(anvil, col, 20);
             _forgeLabel(anvil, '더 강해졌다!', _EMBLEM_GLOW_META[emblemEffects(r.power).glow]?.color || col);
             showS1Toast(`🔥 강철심장이 더 강해졌어요! +${r.level} · 성능 ${r.power}`);
           } else {
             anvil.classList.add('forge-success');
-            try { _gSfx.mergeImpact(1); } catch(_){}
-            _forgeSparks(anvil, col, 12);
+            try { _gSfx.mergeImpact(2); _gSfx.reveal(1); } catch(_){}
+            _forgeBurst(anvil, col, false);
+            _forgeSparks(anvil, col, 14);
             showS1Toast(`⚒️ 단조 성공! +${r.level} · 성능 ${r.power}${r.locked?' · 🔒 LOCK':''}`);
           }
         } else {
           anvil.classList.add('forge-fail');
           try { _gSfx.mergeImpact(1); } catch(_){}
-          try { const failD=(window.ornn3d?.durationOf?.('fail')||0)*1000; const failTs=failD>0?Math.min(1.0,Math.max(0.7,failD/1900)):0.9; window.ornn3d?.playFail?.(failTs); if(failD>0) endDelay=Math.max(endDelay, failD/failTs + 500); } catch(_){}  // 🔥 오른 실패 반응 — 끝까지 보이게 결과·재렌더 대기
+          // 🔥 오른 실패 모션 제거(사용자 요청) — 안빌 흔들림 + 토스트만, 오른은 idle 유지
           showS1Toast(`💢 단조 실패… 성능 ${r.power} 유지 (슬롯 ${r.slotsUsed}/${EMBLEM_SLOTS})`);
         }
         setTimeout(()=>{ anvil.classList.remove('forge-success','forge-fail','forge-up','forge-final'); resolve(); }, endDelay);
