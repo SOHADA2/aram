@@ -4547,6 +4547,24 @@ img.emoji{
 .mgh-bet-result.minus{color:var(--red);}
 .mgh-bet-result.zero{color:var(--text-dim);}
 .mgh-empty{text-align:center;padding:40px 20px;color:var(--text-dim);font-size:13px;}
+/* 일반게임 기록 카드 */
+.nmh-card{background:var(--surface,#16161c);border:1px solid var(--border,#2c2c34);border-radius:12px;padding:11px 13px;margin-bottom:10px;}
+.nmh-head{display:flex;align-items:center;gap:8px;margin-bottom:9px;flex-wrap:wrap;}
+.nmh-tag{font-size:11px;font-weight:800;color:#f0c060;letter-spacing:.3px;}
+.nmh-sub{font-size:10px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;}
+.nmh-date{margin-left:auto;font-size:10px;color:var(--text-dim);font-family:'JetBrains Mono',monospace;}
+.nmh-rows{display:flex;flex-direction:column;gap:5px;}
+.nmh-row{display:flex;align-items:center;gap:8px;padding:6px 9px;border-radius:8px;background:rgba(255,255,255,.025);border:1px solid transparent;font-size:12px;}
+.nmh-row.win{border-color:rgba(240,192,96,.28);}
+.nmh-row.loss{opacity:.82;}
+.nmh-row.me{background:rgba(77,182,232,.10);border-color:rgba(77,182,232,.35);}
+.nmh-res{flex:none;width:24px;height:20px;display:flex;align-items:center;justify-content:center;border-radius:5px;font-size:10px;font-weight:800;}
+.nmh-res.w{background:rgba(240,192,96,.16);color:#ffe39a;}
+.nmh-res.l{background:rgba(255,255,255,.05);color:var(--text-dim);}
+.nmh-name{font-weight:700;color:var(--text);white-space:nowrap;}
+.nmh-champ{color:var(--text-dim);font-size:11px;white-space:nowrap;}
+.nmh-kda{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-dim);white-space:nowrap;}
+.nmh-kda b{color:#ffe39a;}
 /* ── 막고라 인트로 팝업 (v2.41.1~) ── */
 @keyframes mgIntroUp{from{opacity:0;transform:translateY(26px);}to{opacity:1;transform:translateY(0);}}
 .mgintro-overlay{position:fixed;inset:0;z-index:10100;background:rgba(4,2,18,.88);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .3s ease;}
@@ -5977,9 +5995,10 @@ function _seasonPreviewOverride() {
 })();
 window.__SEASON_PREVIEW = _seasonPreviewOverride() !== null;
 let CURRENT_SEASON = _seasonPreviewOverride() ?? parseInt(localStorage.getItem('aram_season') || '0', 10); // Firebase 로드 전 캐시값으로 초기화 (미리보기 오버라이드 우선)
-let viewSeason = 0;     // 현재 경기 기록 탭에서 보고 있는 시즌 (숫자=일반경기, 'magolla'=막고라)
+let viewSeason = 0;     // 기록 탭에서 보는 카테고리 (숫자=내전 시즌, 'magolla'=막고라, 'normal'=일반게임)
 let _recordMineOnly = false; // 기록 탭 "내 경기만" 필터 (v2.43.272)
 let magollaMatches = {};  // Firebase /magolla_matches 전체 캐시
+let normalMatches  = {};  // Firebase /normal_matches 전체 캐시 (브릿지 일반게임 기록)
 // 시즌별 Firebase 필드명 (season 0은 기존 필드명 유지, 이후부터 _s1, _s2 ...)
 function seasonSuffix(s) { return s === 0 ? '' : '_s' + s; }
 function sField(field) { return field + seasonSuffix(CURRENT_SEASON); }
@@ -6154,7 +6173,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.95';
+const APP_VERSION = 'v2.44.96';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6163,6 +6182,9 @@ const APP_VERSION = 'v2.44.95';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.96', date: '2026-06-09', changes: [
+    { tag: 'new', text: '🎮 기록 탭에 "일반게임" 카테고리 추가 — 내전·막고라에 이어 일반게임(증바람) 기록을 따로 봐요. 진행자가 브릿지(v1.1.33+)를 켠 상태로 함께 일반게임을 하면 자동 기록(/normal_matches)되고, 프로필에 라이엇 ID(닉네임#태그)를 등록한 멤버를 인식해 참여 멤버의 챔피언·KDA·승패를 카드로 표시. 일반게임은 내전 LP/매치와 완전히 분리(오염 없음). ※ 등록 멤버 1명 이상 참여한 게임만 표시. 레이아웃 확인용 테스트 시드는 🧪 S2 디버그 패널에 있음' },
+  ] },
   { ver: 'v2.44.95', date: '2026-06-09', changes: [
     { tag: 'improve', text: '[시즌2/내부] 패스 구조 정리 — 시즌2 패스 = 내전 전용 "퀘스트 패스" 단일 활성으로 확정. 기존엔 window.renderS2Pass가 2번 정의돼(2종 포인트패스 + 퀘스트패스) 순서로 덮는 취약 구조였음 → 2종 포인트패스 렌더러를 renderS2PointPass(보류)로 분리해 중복 제거. 2종 포인트패스 코드·보상트랙(PASS_TRACKS)은 보존(나중에 추가 예정). 동작 변화 없음' },
   ] },
@@ -10597,6 +10619,12 @@ onValue(ref(db, 'matches'), (snapshot) => {
 onValue(ref(db, 'magolla_matches'), (snapshot) => {
   magollaMatches = snapshot.val() || {};
   if (viewSeason === 'magolla') renderMatchHistory();
+});
+
+// 일반게임 기록 실시간 구독 (브릿지가 isCustomGame=false 게임을 /normal_matches 에 기록)
+onValue(ref(db, 'normal_matches'), (snapshot) => {
+  normalMatches = snapshot.val() || {};
+  if (viewSeason === 'normal') renderMatchHistory();
 });
 
 // ── 정산창 전파 (v2.43.61~) — 매치 참여 팀원에게 자동 표시 ──
@@ -15742,7 +15770,7 @@ function renderSeasonSelector() {
   const label = document.getElementById('season-selector-label');
   if (!btn || !dropdown) return;
   const seasons = getAvailableSeasons();
-  label.textContent = viewSeason === 'magolla' ? '막고라' : `S${viewSeason}`;
+  label.textContent = viewSeason === 'magolla' ? '막고라' : viewSeason === 'normal' ? '일반게임' : `S${viewSeason}`;
   const seasonItems = seasons.map(s =>
     `<button class="rk-season-dd-item${s===viewSeason?' active':''}" onclick="selectViewSeason(${s})">
       <span class="nm">시즌${s}</span>
@@ -15754,7 +15782,12 @@ function renderSeasonSelector() {
       <span class="nm">⚔️ 막고라</span>
       <span class="st" style="background:rgba(160,120,255,.15);color:#b48aff;">NEW</span>
     </button>`;
-  dropdown.innerHTML = seasonItems + magollaItem;
+  const normalItem =
+    `<button class="rk-season-dd-item${'normal'===viewSeason?' active':''}" onclick="selectViewSeason('normal')">
+      <span class="nm">🎮 일반게임</span>
+      <span class="st" style="background:rgba(240,192,96,.15);color:#f0c060;">NEW</span>
+    </button>`;
+  dropdown.innerHTML = seasonItems + magollaItem + normalItem;
 }
 
 // 기록 탭 "내 경기만" 토글 (v2.43.272)
@@ -15787,7 +15820,7 @@ window.toggleSeasonDropdown = function() {
 
 window.selectViewSeason = function(s) {
   viewSeason = s;
-  document.getElementById('season-selector-label').textContent = s === 'magolla' ? '막고라' : `S${s}`;
+  document.getElementById('season-selector-label').textContent = s === 'magolla' ? '막고라' : s === 'normal' ? '일반게임' : `S${s}`;
   document.getElementById('season-dropdown').classList.remove('show');
   document.getElementById('season-selector-btn').classList.remove('open');
   renderMatchHistory();
@@ -15803,6 +15836,7 @@ function renderMatchHistory() {
     else { _mineBtn.style.display = ''; _mineBtn.classList.toggle('on', _recordMineOnly); }
   }
   if (viewSeason === 'magolla') { renderMagollaHistory(); return; }
+  if (viewSeason === 'normal')  { renderNormalHistory(); return; }
   const el=document.getElementById('match-history-list');
   const _myNorm = normName(myName || '');
   const matchArr = Object.entries(matches)
@@ -15915,6 +15949,80 @@ if(matchArr.length===0){el.innerHTML=`<div class="empty-state"><div class="icon"
 }
 
 // ── 막고라 기록 렌더 (v2.41.0) ─────────────────────────────
+// ── 일반게임 기록 (브릿지 isCustomGame=false → /normal_matches) ──
+// 소환사명/riotId 로 등록 멤버를 인식, 멤버가 1명 이상 참여한 게임만 표시.
+function _normalMemberMap() {
+  const map = {};
+  Object.values(registeredPlayers).forEach(p => {
+    if (p.riotId) { const gn = String(p.riotId).split('#')[0].trim(); if (gn) map[normName(gn)] = p.name; }
+    if (!map[normName(p.name)]) map[normName(p.name)] = p.name;
+  });
+  return map;
+}
+function renderNormalHistory() {
+  const el = document.getElementById('match-history-list');
+  if (!el) return;
+  const memMap = _normalMemberMap();
+  const myNN = normName(myName || '');
+  const rows = Object.entries(normalMatches)
+    .map(([key, m]) => ({ key, ...m }))
+    .filter(m => m && Array.isArray(m.players) && m.players.length)
+    .sort((a, b) => (b.ts || 0) - (a.ts || 0))
+    .map(m => ({ m, mine: (m.players || [])
+        .map(p => ({ ...p, member: memMap[normName(p.summonerName || '')] || null }))
+        .filter(p => p.member) }))
+    .filter(x => x.mine.length > 0);
+
+  const badge = document.getElementById('match-count-badge');
+  if (badge) badge.textContent = rows.length;
+  if (rows.length === 0) {
+    el.innerHTML = `<div class="mgh-empty">🎮 아직 기록된 일반게임이 없어요<br>
+      <span style="font-size:11px;color:var(--text-dim);line-height:1.6;display:inline-block;margin-top:6px;">진행자가 <b>브릿지를 켠 상태</b>로 함께 일반게임(증바람)을 하면 자동 기록돼요.<br>프로필에 <b>라이엇 ID(닉네임#태그)</b>를 등록한 멤버만 인식됩니다.</span></div>`;
+    return;
+  }
+  el.innerHTML = rows.map(({ m, mine }) => {
+    const ts = m.ts ? new Date(m.ts) : null;
+    const dateStr = ts ? ts.toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' }) : '';
+    const gm = m.gameTime ? ` · ${Math.floor(m.gameTime/60)}분` : '';
+    const wins = mine.filter(p => p.isWin).length;
+    const memRows = mine
+      .slice().sort((a,b) => (b.isWin?1:0) - (a.isWin?1:0))
+      .map(p => {
+        const isMe = (p.member && normName(p.member) === myNN) || normName(p.summonerName||'') === myNN;
+        const champ = p.championName || (p.championId ? `챔프#${p.championId}` : '');
+        const k=p.kills||0, d=p.deaths||0, a=p.assists||0;
+        const kda = d===0 ? 'P' : ((k+a)/d).toFixed(1);
+        return `<div class="nmh-row${p.isWin?' win':' loss'}${isMe?' me':''}">
+          <span class="nmh-res ${p.isWin?'w':'l'}">${p.isWin?'승':'패'}</span>
+          <span class="nmh-name">${escHtml(p.member)}${isMe?'<span class="mg-me-tag">나</span>':''}</span>
+          <span class="nmh-champ">${escHtml(champ)}</span>
+          <span class="nmh-kda">${k}/${d}/${a}<b> ${kda}</b></span>
+        </div>`;
+      }).join('');
+    return `<div class="nmh-card">
+      <div class="nmh-head"><span class="nmh-tag">🎮 일반게임</span><span class="nmh-sub">멤버 ${mine.length}명 · ${wins}승 ${mine.length-wins}패</span><span class="nmh-date">${dateStr}${gm}</span></div>
+      <div class="nmh-rows">${memRows}</div>
+    </div>`;
+  }).join('');
+}
+window.renderNormalHistory = renderNormalHistory;
+// 🧪 일반게임 기록 테스트 시드(등록 멤버 이름으로 가짜 게임 1건) — 레이아웃 확인용
+window.__normalSeed = async function(){
+  const members = Object.values(registeredPlayers).map(p=>p.name).slice(0,4);
+  if (members.length < 2) { alert('등록 멤버가 부족해요'); return; }
+  const champs = ['Lux','Ezreal','Ahri','Garen'];
+  const players = members.map((nm,i)=>({ summonerName:nm, championId:0, championName:champs[i%champs.length],
+    kills:4+i, deaths:3, assists:7+i, damage:18000+i*3000, gold:9000+i*800, cs:25+i*4, teamId:100, isWin:i%3!==2, augments:[] }));
+  const id = 'seed_' + Math.floor(Math.random()*1e9);
+  await set(ref(db,'normal_matches/'+id), { gameId:id, ts:Date.now(), season:CURRENT_SEASON, gameTime:1080, winSide:'blue', players, _test:true });
+  if (typeof showS1Toast==='function') showS1Toast('🧪 일반게임 테스트 기록 추가');
+};
+window.__normalReset = async function(){
+  const entries = Object.entries(normalMatches||{}).filter(([,m]) => m && m._test);
+  for (const [k] of entries) { await set(ref(db,'normal_matches/'+k), null); }
+  if (typeof showS1Toast==='function') showS1Toast(`🧪 일반게임 테스트 기록 ${entries.length}건 삭제`);
+};
+
 function renderMagollaHistory() {
   const el = document.getElementById('match-history-list');
   const COND_LABEL = { tower: '🏰 포탑 파괴', kill2: '⚔️ 2킬 달성', cs100: '🌾 CS 70' };
@@ -25493,6 +25601,8 @@ function renderSeasonDebugPanel(){
       <button onclick="window.__bingoReset()" style="color:#fca5a5;">🎯 빙고판 초기화</button>
       <button onclick="window.__mgSeedTest()">🎰 막고라 박스 테스트 전적(미리보기)</button>
       <button onclick="window.__mgSeedReset()" style="color:#cbd5e1;">🎰 막고라 테스트 초기화</button>
+      <button onclick="window.__normalSeed()">🎮 일반게임 기록 테스트 추가</button>
+      <button onclick="window.__normalReset()" style="color:#fca5a5;">🎮 일반게임 테스트 삭제</button>
       <button onclick="window.__s2dbg.reset()" style="color:#fca5a5;">🔄 S2 테스트 데이터 초기화</button>
       <button onclick="window.__s2dbg.off()" style="color:#7dd3fc;">✕ 미리보기 끄기</button>
     </div>`;
