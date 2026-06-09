@@ -1485,9 +1485,14 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .wm-sv.loss{color:var(--red);}
 .wm-sv.wr{color:#60a5fa;}
 .wm-sk{font-size:9px;color:var(--rk-text-muted);font-family:'JetBrains Mono',monospace;}
-.wm-form-row{display:flex;flex-direction:column;gap:6px;margin-top:10px;padding-top:9px;border-top:1px solid var(--rk-border);}
+/* 좌측 카드 하단 — 최근 10경기(5+5) + 챔피언 2열 */
+.wm-lp-bottom{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px;padding-top:9px;border-top:1px solid var(--rk-border);}
+@media(max-width:460px){.wm-lp-bottom{grid-template-columns:1fr;gap:10px;}}
+.wm-form-row{display:flex;flex-direction:column;gap:6px;}
+.wm-champ-col{display:flex;flex-direction:column;gap:6px;min-width:0;}
+.wm-champ-all{margin-top:auto;width:100%;padding:4px;border-radius:6px;border:1px solid var(--rk-border);background:rgba(255,255,255,0.03);color:var(--rk-text-dim);font-size:9px;font-family:'JetBrains Mono',monospace;cursor:pointer;letter-spacing:0.5px;}
 .wm-form-lbl{font-size:9px;font-weight:700;letter-spacing:0.6px;color:var(--rk-text-muted);font-family:'JetBrains Mono',monospace;}
-#wm-form-dots{display:flex;gap:4px;flex-wrap:wrap;}
+#wm-form-dots{display:grid;grid-template-columns:repeat(5,auto);gap:4px;justify-content:start;}
 .wm-fdot{width:26px;height:26px;border-radius:6px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;transform:scale(0);transition:transform 0.32s cubic-bezier(0.34,1.56,0.64,1);}
 .wm-fdot.in{transform:scale(1);}
 .wm-fdot.w{background:rgba(0,199,122,0.12);border:1px solid rgba(0,199,122,0.4);color:var(--green);}
@@ -6210,7 +6215,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.4';
+const APP_VERSION = 'v2.45.5';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6219,6 +6224,9 @@ const APP_VERSION = 'v2.45.4';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.5', date: '2026-06-09', changes: [
+    { tag: 'improve', text: '🪪 [시즌2] 대기화면 헤더 재배치 — 챔피언을 우측에서 좌측 카드 하단으로 이동, [최근 10경기 | 챔피언] 2열 배치. 최근 10경기는 5+5(두 줄)로 정렬해 챔피언 높이와 맞춤. 우측은 퀘스트 패스만 남아 세로로 채워짐(균형). 좁은 화면은 세로로 쌓임' },
+  ] },
   { ver: 'v2.45.4', date: '2026-06-09', changes: [
     { tag: 'improve', text: '🪪 [시즌2] 대기화면 순서 변경 — 내전/막고라 전적 박스를 2행(전투 준비 효과보다 위)으로 올림. 이제 1행 레벨·전적 헤더 → 2행 내전/막고라 → 3행 전투 준비 효과(강철심장·시너지) 순서' },
   ] },
@@ -21676,13 +21684,20 @@ async function renderS1WaitingCard(el) {
         <div class="wm-award-item"><span class="wm-award-icon">🥈</span><div class="wm-award-right"><span class="wm-award-val" style="color:${cSVP};">${awards.svp}</span><span class="wm-award-lbl">SVP</span></div></div>
         <div class="wm-award-item"><span class="wm-award-icon">🎖️</span><div class="wm-award-right"><span class="wm-award-val" style="color:${cMMP};">${awards.mmp}</span><span class="wm-award-lbl">MMP</span></div></div>
       </div>
-      <div class="wm-form-row">
-        <span class="wm-form-lbl">최근 10경기</span>
-        <div id="wm-form-dots"></div>
+      <div class="wm-lp-bottom">
+        <div class="wm-form-row">
+          <span class="wm-form-lbl">최근 10경기</span>
+          <div id="wm-form-dots"></div>
+        </div>
+        <div class="wm-champ-col">
+          <span class="wm-form-lbl">챔피언</span>
+          <div class="wm-champ-list">${champHtml}</div>
+          ${myName ? `<button onclick="openChampPoolModal('${escHtml(myName)}')" class="wm-champ-all">전체 보기 ›</button>` : ''}
+        </div>
       </div>
     </div>
     <div class="wm-right-col">
-      <div class="wm-side-card">
+      <div class="wm-side-card" style="flex:1;">
         ${_s2Pass
           ? `<div class="wm-side-lbl">🎫 시즌2 퀘스트 패스</div>`
           : `<div class="wm-pass-tabs">
@@ -21691,11 +21706,6 @@ async function renderS1WaitingCard(el) {
           <button class="wm-pass-tab${_wmPassViewPref==='support'?' active':''}${!hasSupport?' locked':''}" onclick="setWmPassView('support')">지원</button>
         </div>`}
         <div id="wm-pass-content">${buildWmPassCardContent(_wmPassViewPref)}</div>
-      </div>
-      <div class="wm-side-card" style="flex:1;display:flex;flex-direction:column;">
-        <div class="wm-side-lbl">챔피언</div>
-        <div class="wm-champ-list" style="flex:1;">${champHtml}</div>
-        ${myName ? `<button onclick="openChampPoolModal('${escHtml(myName)}')" style="margin-top:8px;width:100%;padding:4px;border-radius:6px;border:1px solid var(--rk-border);background:rgba(255,255,255,0.03);color:var(--rk-text-dim);font-size:9px;font-family:'JetBrains Mono',monospace;cursor:pointer;letter-spacing:0.5px;">전체 보기 ›</button>` : ''}
       </div>
     </div>
   </div>
