@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.44.84 (시즌2 톤앤매너 전면 통일 — 복권·우편함·랭킹·프로필·대기화면 헥스텍 블랙+골드 + 대기화면 재구성(막고라 2박스·강철심장 표시 개편) + ⚡대장간 렉 수정 / 브릿지 aram-bridge v1.1.31 릴리즈 완료)
+- 현재 버전: v2.45.37 (🏛 시즌1 명예의 전당 신설(동적·부문상 TOP5·TMI·전원 명단) + 대기화면 정렬/강화현황 개선 + 걸작 효과 "해골 감소" 정착 / 브릿지 aram-bridge v1.1.31 릴리즈 완료)
   - ⏳ **레벨 시스템 후속**: ① 패스를 일반/내전 포인트패스 → **S1식 퀘스트 패스(내전 전용)로 되돌리기**(미완) ② 레벨 보상량/곡선 실플레이 튜닝. 레벨 코드맵: `PLV_XP`·`calcPlayerXp`·`plvLevelFromXp`·`plvReward`·`claimPlayerLevels`·`_plvCardHtml`(패스 탭 상단). 데이터 `playerLevelClaimed_s2`. 정수: 경기당+1·상점120G 폐지(레벨업만).
 - ⚠️ **시즌2 작업 중** — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 필독 (진행상황·확정정책·신규콘텐츠 기획 전부 정리됨)
 
@@ -736,7 +736,32 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.44.72~84 (2026-06-08) — 🌌 시즌2 톤앤매너 전면 통일 + 대기화면 재구성 + 대장간 렉 수정 ← 최신
+### v2.45.15~37 (2026-06-08) — 🏛 시즌1 명예의 전당 + 대기화면 정렬·강화현황 + 걸작 "해골 감소" ← 최신
+
+> 이 세션 전, **다른 컴퓨터가 v2.44.85~v2.45.14** 진행(시즌2 전환 토글·브릿지 일반게임 분리·일반패스 적립·튜토리얼·대기화면 다듬기 등 — 상세는 in-app CHANGELOG). 이 세션은 v2.45.15부터. 전부 푸시 완료. **CHANGELOG/커밋 규칙(주석줄만 매칭·`&&`로 구문검사 묶기)은 이전 항목 참조 — 이번 세션도 동일 적용.**
+
+#### 🏛 시즌1 명예의 전당 (v2.45.31~37) — 이번 세션 핵심
+- **위치/구조**: `showS1HallOfFame()`(index.html ~L20768, async). 라우터 `showHallOfFame()`(~L20712): `CURRENT_SEASON>=1 → S1, else showS0HallOfFame()`(레거시 하드코딩). 좌상단 `🏛 명예의전당` 버튼(`corner-badge`).
+- **동적 계산**(S0는 수동 하드코딩이었음): `_s1HofPlayers(s1node)`가 matches(season===1)·calcStats·calcS1AwardStats·calcMaxStreaks·mgFighterStats·calcGoldFromMatches + goldData(`lotteryHistory`/`gachaLog_s1`/`champCards_s1`/`attendanceHistory` 직접) 집계. 참여자(=S1 1판+) 전원 수집.
+- **⚠️ 시즌 격리 버그 수정(중요)**: `season1Data` 전역은 `seasonNode('players')`=**현재 시즌** 노드라, S2 프리뷰에선 S2 LP를 담음. → HOF 열 때 `CURRENT_SEASON!==1`이면 `get(ref(db,'season1/players'))`로 **진짜 S1 노드 직접 fetch**해서 티어/LP 표시(`s1node`). 경기통계는 원래 season===1 필터라 무관.
+- **구성**: 👑정점 TOP3(티어·LP) → 🏅부문상 **23부문 각 TOP5 순위**(1·2·3·4·5, 자기 등수 확인용) → 📊**TMI**(시즌1 전체 숨은통계: 누적킬뎃어시·딜량·멀티킬·복권/가챠/출석·막고라·관전·국민챔피언 등) → 🎖️**명예 명단**(참여자 전원 1칭호씩, `_s1HofTitle`).
+- **티어 배지**: 정점 TOP3에만(대부분 챌린저라 부문상순위·명단의 반복배지 제거).
+- **부문상 정의** = `AWDEFS` 배열 `[ico,ttl,val(p),flt(p),fmt(p),asc]`. TMI = `_s1HofTMI()`(실데이터)/`_s1HofTMISample()`(샘플).
+- **프리뷰 폴백**: 데이터 없는 프리뷰(`__SEASON_PREVIEW`)에서 P 비면 `_s1HofSample()`(11명)로 자동 표시. 콘솔 `previewS1Hof()` / URL `?hofdemo`도 샘플. 라이브엔 샘플 미적용(실데이터 있으면 우선).
+- **스크롤 최적화(v35)**: `.hof-overlay`의 `backdrop-filter:blur(8px)`가 스크롤마다 뒤 애니배경 블러 재계산→끊김. 블러 제거+불투명 배경(#080510)+overscroll-behavior:contain.
+- **CSS**: `.hof-award-list2`/`.hof-award2`/`.hof-rk`(순위행) · `.hof-roster*` · `.hof-tmi-*`(기존) · `.hof-alt-btn`(시즌 교차 보기).
+- ⏭️ **미결 제안**: 부문상 1인 독식 방지(1인 최대 N개 상한 → 더 많은 사람 노출) — 사용자에 제안만 함, 미적용. 출석/가챠 TMI는 _s1 필드라 S1 한정이나 `attendanceHistory`는 전시즌 공유라 누적이 all-time일 수 있음(TMI라 OK).
+
+#### 그 외 (v2.45.15~30)
+- **v15~16 대기화면 챔피언·최근경기 정렬**: MOST/BEST를 flex:1 균등 카드로(다닥다닥). `.wm-lp-bottom`을 가로그리드→세로 풀폭 스택, 폼도트 flex로 폭 채움.
+- **v17~19 능력치 육각 레이더**: 추가→브릿지 전투6축 개편→**사용자가 "별로"라 완전 제거**(되돌림). _buildStatRadar/calcCombatStats 전부 삭제됨. (다시 만들 거면 git에서 v2.45.17~18 참조)
+- **v20 가챠 버그**: doGachaPull이 성공 경로에서 버튼 disabled 안 풀어 재시도 블락 → 재활성화 추가.
+- **v21 오른 대장간 연출**: 강화 **실패 시 오른 실패모션 제거**(playFail 호출 삭제, 안빌 흔들림만). 강화 **성공 시 버스트**(`_forgeBurst`: 플래시+충격파링+빛줄기, `.fg2-burst-*` CSS).
+- **v22~28 걸작 효과 "복권 지급" 대장정 → 최종 "해골 감소"**: ① 매경기 무료복권1장(골드인플레 과함) → ② 가챠·복권 혼합 → ③ **최종: 🛡️해골 감소**(이름 "해골 감소", id는 `lottoTkt` 유지). `_lottoSkullReduce(power)`=성능×3%p·캡70%. `rollScratch` 내부에서 본인 강철심장 성능으로 skullAppear 가중치 차감(호출처 무수정). 골드 안 풀어 인플레0. **가챠/부스트/freeScratch 지급 코드는 전부 되돌림**. (밸런스 검토: 무료 일반복권 EV~55G/경기 = 다른 골드효과의 3~9배라 과했던 게 계기)
+- **v29 강화 현황**: 실패칸 **✕** 표시(`fg2-sdot.fail`/`wm-pip.fail`), 성능 수치 크게(`.fg2-pow-n` 24px). 대장간+대기화면 강철심장 둘 다.
+- **v30 전투 준비 효과 카드**: 강철심장 셀이 6행이라 시너지 셀(2행)과 안 맞던 것 → 강철심장도 "헤더+효과칩 1줄"로 압축, 그리드 stretch로 높이 맞춤.
+
+### v2.44.72~84 (2026-06-08) — 🌌 시즌2 톤앤매너 전면 통일 + 대기화면 재구성 + 대장간 렉 수정
 
 > 전부 `CURRENT_SEASON===2` 게이트(라이브 S1 무영향). `?preview=2`로 검증. 모두 푸시 완료. **헥스텍 정체성 = 블랙+골드 + 육각 회로 골드 펄스**(`_buildHexfield`)를 시즌2 전역에 적용하는 작업.
 
