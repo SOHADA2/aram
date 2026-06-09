@@ -5290,6 +5290,9 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .fg2-ditem img{width:100%;height:100%;border-radius:7px;display:block;}
 .fg2-dilv{position:absolute;bottom:-5px;right:-5px;min-width:16px;text-align:center;padding:1px 4px;border-radius:6px;font-size:9.5px;font-weight:900;font-family:'JetBrains Mono',monospace;color:var(--gc);background:#0c0907;border:1.5px solid var(--gc);}
 .fg2-item-wrap2{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;}
+.fg2-item-wrap2.fg2-grab{cursor:grab;touch-action:none;}
+.fg2-item-wrap2.fg2-grab:active{cursor:grabbing;}
+.inv-slot.inv-emblem-eq{cursor:grab;}
 .fg2-item-img{width:78px;height:78px;border-radius:14px;border:2px solid rgba(255,210,140,0.45);box-shadow:0 4px 14px rgba(0,0,0,0.6),0 0 22px rgba(255,150,60,0.22);position:relative;z-index:2;background:#1a1410;}
 .fg2-item-img.hit{animation:fg2Hit .2s ease;}
 @keyframes fg2Hit{0%{transform:translateY(0) scale(1);}35%{transform:translateY(5px) scale(1.1,.88);}70%{transform:translateY(-2px) scale(.96,1.05);}100%{transform:none;}}
@@ -6207,7 +6210,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.2';
+const APP_VERSION = 'v2.45.3';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6216,6 +6219,9 @@ const APP_VERSION = 'v2.45.2';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.3', date: '2026-06-09', changes: [
+    { tag: 'improve', text: '🔨 [시즌2] 강철심장 장착/해제 직관화 — 강화권처럼 드래그로 장착·해제. 내 아이템(장비)의 강철심장을 <b>대장간 작업대로 끌어오거나 더블클릭</b>하면 장착(클릭도 장착). 작업대(오른 아래)의 장착된 강철심장을 <b>밖으로 끌어내거나 더블클릭</b>하면 해제. 드래그 중 작업대 하이라이트로 드롭 위치 안내, grab 커서' },
+  ] },
   { ver: 'v2.45.2', date: '2026-06-09', changes: [
     { tag: 'fix', text: '🌌 [시즌2] 상점 "스크래치 복권권" 진입 카드가 보라/핑크라 톤앤매너 안 맞던 것 → 블랙+골드로 통일(.season-2 .lot-entry-card 오버라이드: 배경·테두리·제목·설명·화살표). S1은 기존 보라 유지' },
   ] },
@@ -9400,6 +9406,7 @@ function renderEmblemBody(){
       ${essence<1?`<div class="fg2-reroll-note">정수가 없어요 — ${_plvMaxReached()?`<b>상점·소비 탭</b>에서 구매(${EMBLEM_REROLL_PRICE}G)`:'<b>레벨업</b> 보상 (만렙 시 상점 구매 해금)'}</div>`:''}
     </div>` ; })() : ''}`;
   _mountOrnn();  // 🔥 3D 오른 등장 (캔버스 이동)
+  _bindEmblemEquipDrag();   // 작업대 강철심장 빼기(드래그/더블클릭) + 인벤 슬롯 재바인딩
 }
 
 // 🔨 상점 — 강철심장(장비)/강화권(소비) 카드 HTML (.sli 스타일, 시즌2 전용)
@@ -9463,7 +9470,7 @@ function _emblemInvSlotsHtml(cat){
     const slots = owned.map(e=>{
       const power=emblemPower(e), item=_forgeItemMeta(power), lvl=emblemLevel(e), isEq=e.id===eqId;
       const glow=_EMBLEM_GLOW_META[emblemEffects(power).glow]||_EMBLEM_GLOW_META.none;
-      return `<div class="inv-slot inv-emblem-eq${isEq?' inv-active':''}" onclick="window.emblemDoEquip(${e.id},${isEq})" title="${item.kr} · ${isEq?'장착 중 (클릭=빼기)':'클릭하면 장착'}">
+      return `<div class="inv-slot inv-emblem-eq${isEq?' inv-active':''}" data-emid="${e.id}" style="touch-action:none;" title="${item.kr} · ${isEq?'장착 중 (작업대로 끌어내거나 더블클릭하면 빼기)':'클릭·드래그·더블클릭으로 장착'}">
         <div class="inv-emblem-thumb" style="--gc:${glow.color};"><img src="${_forgeItemImg(power)}" alt=""><span class="inv-emblem-lv">+${lvl}</span></div>
         <div class="inv-slot-name">${item.kr}</div>
         <div class="inv-slot-action inv-action-use" style="${isEq?'background:linear-gradient(135deg,#ffb867,#e08a2e);color:#1a1206;':'opacity:.8;'}">${isEq?'✓ 장착중':'장착'}</div>
@@ -9526,10 +9533,15 @@ function _armForgeDrag(st){
   st.armed = true;
   try { st.src.setPointerCapture(st.pid); } catch(_){}        // ⚠️ 캡처는 "드래그 확정 후"에만 — 그 전엔 탭/다른 버튼 정상 동작
   st.src.classList.add('ench-pressing');
-  const t = EMBLEM_TICKETS[st.type];
   const g=document.createElement('div'); g.className='forge-ghost';
-  g.style.setProperty('--tc', t.color);
-  g.innerHTML = `<img src="${EMBLEM_ANVIL_IMG}" style="filter:${t.filter};" alt=""><span>${t.name.replace(' 강화권','')}</span>`;
+  if (st.kind === 'equip' || st.kind === 'unequip'){
+    g.style.setProperty('--tc', '#f0c060');
+    g.innerHTML = `<img src="${_forgeItemImg(st.power||0)}" alt=""><span>${st.kind==='unequip'?'빼기':'장착'}</span>`;
+  } else {
+    const t = EMBLEM_TICKETS[st.type];
+    g.style.setProperty('--tc', t.color);
+    g.innerHTML = `<img src="${EMBLEM_ANVIL_IMG}" style="filter:${t.filter};" alt=""><span>${t.name.replace(' 강화권','')}</span>`;
+  }
   g.style.left=st.lx+'px'; g.style.top=st.ly+'px';
   document.body.appendChild(g); st.ghost=g;
   try { if(navigator.vibrate) navigator.vibrate(18); } catch(_){}  // 모바일 햅틱: 드래그 준비됨
@@ -9595,6 +9607,77 @@ window.emblemDoBuyEssence = async function(){ if (await emblemBuyEssence(1)) ren
 window.emblemDoEquip = async function(id, isEquipped){
   if (await emblemEquip(isEquipped ? null : id)) renderEmblemBody();
 };
+window.emblemDoEquipById = async function(id){ if (await emblemEquip(id)) renderEmblemBody(); };
+window.emblemDoUnequip   = async function(){ if (await emblemEquip(null)) renderEmblemBody(); };
+
+// 🖐️ 강철심장 장착/해제 드래그 — 인벤 강철심장 → 작업대(드롭)=장착 · 작업대 강철심장 → 밖(드롭)=해제. 더블클릭·탭도 동작.
+function _emPowerById(id){ const e=getEmblems(getMyGoldData()).find(x=>x.id===id); return e?emblemPower(e):0; }
+function _emEquipMove(e, src){
+  const st=_forgeDragState; if(!st||st.src!==src) return;
+  st.lx=e.clientX; st.ly=e.clientY;
+  const dist=Math.hypot(e.clientX-st.sx, e.clientY-st.sy);
+  if(!st.armed){
+    if(st.isTouch){ if(dist>12) _cancelForgeDrag(); }
+    else { if(dist>6) _armForgeDrag(st); }
+    return;
+  }
+  if(st.ghost){ st.ghost.style.left=e.clientX+'px'; st.ghost.style.top=e.clientY+'px'; }
+  e.preventDefault();
+  const over=_isOverForge(e.clientX, e.clientY);
+  // 장착=작업대 위에서 OK · 해제=작업대 밖에서 OK
+  document.getElementById('forge-stage')?.classList.toggle('drop-ok', st.kind==='equip' ? over : !over);
+}
+function _bindEmblemEquipDrag(){
+  if (CURRENT_SEASON !== 2) return;
+  // (A) 인벤토리 강철심장 → 작업대로 끌면 장착 (탭/더블클릭도 장착)
+  document.querySelectorAll('.inv-slot.inv-emblem-eq[data-emid]').forEach(slot=>{
+    const id = parseInt(slot.dataset.emid, 10); if (Number.isNaN(id)) return;
+    slot.style.touchAction = 'none';
+    slot.oncontextmenu = e=>{ e.preventDefault(); return false; };
+    slot.ondblclick = ()=>{ window.emblemDoEquipById(id); };
+    slot.onpointerdown = e=>{
+      if (_emblemFxBusy) return;
+      if (_forgeDragState) _cancelForgeDrag();
+      const isTouch = e.pointerType==='touch';
+      _forgeDragState = { kind:'equip', emblemId:id, power:_emPowerById(id), src:slot, ghost:null, armed:false, sx:e.clientX, sy:e.clientY, lx:e.clientX, ly:e.clientY, isTouch, pid:e.pointerId, timer:null };
+      const st=_forgeDragState;
+      st.timer = setTimeout(()=>{ if(_forgeDragState===st && !st.armed) _armForgeDrag(st); }, isTouch?_ENCH_HOLD_TOUCH:_ENCH_HOLD_MOUSE);
+    };
+    slot.onpointermove = e=>{ _emEquipMove(e, slot); };
+    slot.onpointerup = e=>{
+      const st=_forgeDragState; if(!st||st.src!==slot) return;
+      const wasArmed=st.armed, ox=e.clientX, oy=e.clientY; _cancelForgeDrag();
+      if(wasArmed){ if(_isOverForge(ox,oy)) window.emblemDoEquipById(id); }   // 작업대 위에 놓으면 장착(밖이면 취소)
+      else { window.emblemDoEquipById(id); }                                  // 짧은 탭/클릭=장착(토글 아님 → 더블클릭 안전)
+    };
+    slot.onpointercancel = ()=>{ if(_forgeDragState && _forgeDragState.src===slot) _cancelForgeDrag(); };
+  });
+  // (B) 작업대 위 장착된 강철심장 → 밖으로 끌면 해제 (더블클릭도 해제)
+  const anvilItem = document.querySelector('#emblem-anvil .fg2-item-wrap2');
+  if (anvilItem){
+    anvilItem.style.touchAction = 'none';
+    anvilItem.classList.add('fg2-grab');
+    anvilItem.oncontextmenu = e=>{ e.preventDefault(); return false; };
+    anvilItem.ondblclick = ()=>{ window.emblemDoUnequip(); };
+    anvilItem.onpointerdown = e=>{
+      if (_emblemFxBusy) return;
+      const eq = getEquippedEmblem(getMyGoldData()); if(!eq) return;
+      if (_forgeDragState) _cancelForgeDrag();
+      const isTouch = e.pointerType==='touch';
+      _forgeDragState = { kind:'unequip', emblemId:eq.id, power:emblemPower(eq), src:anvilItem, ghost:null, armed:false, sx:e.clientX, sy:e.clientY, lx:e.clientX, ly:e.clientY, isTouch, pid:e.pointerId, timer:null };
+      const st=_forgeDragState;
+      st.timer = setTimeout(()=>{ if(_forgeDragState===st && !st.armed) _armForgeDrag(st); }, isTouch?_ENCH_HOLD_TOUCH:_ENCH_HOLD_MOUSE);
+    };
+    anvilItem.onpointermove = e=>{ _emEquipMove(e, anvilItem); };
+    anvilItem.onpointerup = e=>{
+      const st=_forgeDragState; if(!st||st.src!==anvilItem) return;
+      const wasArmed=st.armed, ox=e.clientX, oy=e.clientY; _cancelForgeDrag();
+      if(wasArmed && !_isOverForge(ox,oy)) window.emblemDoUnequip();   // 작업대 밖에 놓으면 해제(안이면 유지)
+    };
+    anvilItem.onpointercancel = ()=>{ if(_forgeDragState && _forgeDragState.src===anvilItem) _cancelForgeDrag(); };
+  }
+}
+window._bindEmblemEquipDrag = _bindEmblemEquipDrag;
 // 🏆 걸작 만들기 (3줄 리롤) — 슬롯머신 릴 연출 후 결과 정착
 window.emblemDoReroll = async function(){
   if (_emblemFxBusy) return;
@@ -22653,6 +22736,7 @@ function _renderShopImmediate() {
   }
   // 🔨 시즌2 — 내 아이템 강화권에 드래그/탭 핸들러 부착 (작업대로 끌어 단조)
   _bindEnchInventoryDrag();
+  _bindEmblemEquipDrag();   // 강철심장 장착(인벤→작업대) 드래그/더블클릭
 }
 // 아이템 구매
 // 아이템 상점 ? 툴팁 토글 (모바일: 탭, PC: hover는 CSS로 처리)
