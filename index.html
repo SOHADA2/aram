@@ -6152,7 +6152,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.89';
+const APP_VERSION = 'v2.44.90';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6161,6 +6161,9 @@ const APP_VERSION = 'v2.44.89';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.90', date: '2026-06-09', changes: [
+    { tag: 'improve', text: '[시즌2/개발] 막고라 박스 미리보기 테스트 도구 — 🧪 S2 디버그 패널에 "막고라 박스 테스트 전적" 버튼 추가. 시즌2 미오픈이라 대기화면 막고라 박스가 "기록 없어요"로 비어보이는데, 가짜 전적(대전 5승2패·참여12·+1240G 등)을 로컬로 주입해 채워진 레이아웃을 미리 확인(새로고침 시 리셋, Firebase 무기록). __mgSeedTest()/__mgSeedReset()' },
+  ] },
   { ver: 'v2.44.89', date: '2026-06-09', changes: [
     { tag: 'improve', text: '🌌 [시즌2] 최근 10경기 폼 도트 블랙+골드 톤 통일 — 승=골드(노랑)·패=다크(검정)로 헥스텍 톤앤매너 적용(대기화면·프로필 모달). 기존엔 텍스트만 골드/회색이고 배경·테두리는 초록/빨강이 하드코딩돼 톤이 어긋났던 문제. S2 전용(S1 무영향)' },
   ] },
@@ -20832,6 +20835,10 @@ function tierFromPt(pt) {
   return 'iron';
 }
 
+let _mgDebugSeed = false;  // 🧪 막고라 박스 미리보기용 가짜 전적(로컬 전용, 새로고침 시 리셋)
+window.__mgSeedTest  = function(){ _mgDebugSeed = true;  try{ renderWaitingCard(); }catch(_){} };
+window.__mgSeedReset = function(){ _mgDebugSeed = false; try{ renderWaitingCard(); }catch(_){} };
+
 function renderWaitingCard() {
   const el = document.getElementById('member-waiting');
   if (!el || !myName) return;
@@ -21157,14 +21164,19 @@ async function renderS1WaitingCard(el) {
   if (_s2) {
     // 막고라 전적 집계 (참여/손익/수익률/최고/최근폼)
     const _mgHist = (myGoldData?.[sField('magollaHistory')] || []).filter(h => h && typeof h === 'object');
-    const _mgCnt = _mgHist.length;
-    const _mgNet = calcMagollaGold(_mgHist);
+    let _mgCnt = _mgHist.length;
+    let _mgNet = calcMagollaGold(_mgHist);
     const _mgWins = _mgHist.filter(h => (h.delta||0) > 0).length;
-    const _mgWr = _mgCnt > 0 ? Math.round(_mgWins / _mgCnt * 100) : 0;
-    const _mgBest = _mgHist.reduce((mx,h)=>Math.max(mx, h.delta||0), 0);
+    let _mgWr = _mgCnt > 0 ? Math.round(_mgWins / _mgCnt * 100) : 0;
+    let _mgBest = _mgHist.reduce((mx,h)=>Math.max(mx, h.delta||0), 0);
     // 파이터 실제 대전 전적(승/패) — magolla_matches에서 집계
-    const _fr = mgFighterStats(myName, CURRENT_SEASON);
-    const _frForm = _fr.recent.map(won => won
+    let _fr = mgFighterStats(myName, CURRENT_SEASON);
+    // 🧪 미리보기 테스트 시드 (로컬 전용, 새로고침 시 리셋) — 박스가 채워진 모습 확인용
+    if (_mgDebugSeed) {
+      _fr = { win: 5, loss: 2, total: 7, recent: [true,true,false,true,true,false,true] };
+      _mgCnt = 12; _mgNet = 1240; _mgWr = 58; _mgBest = 450;
+    }
+    let _frForm = _fr.recent.map(won => won
       ? '<span class="wm-duo-fdot up">▲</span>' : '<span class="wm-duo-fdot dn">▼</span>').join('');
     const mgEmpty = (_mgCnt === 0 && _fr.total === 0);
     const mgBody = mgEmpty ? `<div class="wm-duo-empty">아직 막고라 기록이 없어요</div>` : `
@@ -25423,6 +25435,8 @@ function renderSeasonDebugPanel(){
       <button onclick="window.__plvReset()" style="color:#cbd5e1;">🎚️ 테스트 XP 리셋(로컬)</button>
       <button onclick="window.__bingoSim(6)">🎯 빙고 시뮬 +6칸(가상팀)</button>
       <button onclick="window.__bingoReset()" style="color:#fca5a5;">🎯 빙고판 초기화</button>
+      <button onclick="window.__mgSeedTest()">🎰 막고라 박스 테스트 전적(미리보기)</button>
+      <button onclick="window.__mgSeedReset()" style="color:#cbd5e1;">🎰 막고라 테스트 초기화</button>
       <button onclick="window.__s2dbg.reset()" style="color:#fca5a5;">🔄 S2 테스트 데이터 초기화</button>
       <button onclick="window.__s2dbg.off()" style="color:#7dd3fc;">✕ 미리보기 끄기</button>
     </div>`;
