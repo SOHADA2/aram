@@ -4826,6 +4826,19 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .bg-help-tip{position:absolute;top:128%;left:50%;transform:translateX(-50%);width:212px;max-width:72vw;background:#16130b;border:1px solid #c89230;border-radius:8px;padding:8px 10px;font-size:11px;line-height:1.55;color:#e9e7ec;font-weight:600;text-align:left;white-space:normal;z-index:60;opacity:0;visibility:hidden;transition:opacity .15s;pointer-events:none;box-shadow:0 6px 22px rgba(0,0,0,.6);}
 .bg-help-tip b{color:#ffe39a;font-weight:800;}
 .bg-help-wrap:hover .bg-help-tip,.bg-help-wrap.open .bg-help-tip{opacity:1;visibility:visible;}
+/* 출석/빙고 보상 팝업 (아이콘 + 받은 항목, 확인 버튼) */
+.brw-overlay{position:fixed;inset:0;z-index:9760;background:rgba(0,0,0,.8);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:24px;animation:s2tutFade .2s ease;}
+.brw-card{position:relative;width:100%;max-width:330px;background:linear-gradient(165deg,#16130b,#0b0a07);border:1px solid #c89230;clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);padding:24px 22px 18px;text-align:center;box-shadow:0 0 40px rgba(240,192,96,.18);}
+.brw-title{font-size:16px;font-weight:800;color:#ffe39a;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:6px;}
+.brw-sub{font-size:11px;color:#c8c8d0;margin-bottom:14px;line-height:1.55;}
+.brw-list{display:flex;flex-direction:column;gap:8px;margin-bottom:18px;}
+.brw-row{display:flex;align-items:center;gap:10px;background:rgba(240,192,96,.06);border:1px solid rgba(240,192,96,.2);border-radius:9px;padding:8px 12px;}
+.brw-ic{width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
+.brw-ic img{width:28px;height:28px;border-radius:5px;}
+.brw-nm{font-size:12.5px;font-weight:700;color:#e9e7ec;text-align:left;flex:1;min-width:0;}
+.brw-qty{font-size:12.5px;font-weight:800;font-family:'JetBrains Mono',monospace;flex-shrink:0;color:#ffe39a;}
+.brw-ok{width:100%;padding:12px;background:linear-gradient(135deg,#f0c060,#c89230);border:none;color:#1a1205;font-size:14px;font-weight:800;cursor:pointer;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);font-family:'Noto Sans KR',sans-serif;}
+.brw-ok:hover{filter:brightness(1.1);}
 .bg-statbar{display:flex;justify-content:space-between;align-items:center;background:#121214;border:1px solid #2c2c34;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px);padding:8px 14px;margin-bottom:12px;font-size:12px;color:#8b8b97;}
 .bg-round b{color:#ffe39a;font-weight:800;}
 .bg-prog{display:flex;align-items:center;gap:7px;color:#e9e7ec;}
@@ -6229,7 +6242,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.10';
+const APP_VERSION = 'v2.45.11';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6238,6 +6251,9 @@ const APP_VERSION = 'v2.45.10';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.11', date: '2026-06-09', changes: [
+    { tag: 'improve', text: '🎁 [시즌2] 출석/빙고 보상 표시 개선 — 그냥 사라지던 텍스트 토스트 대신, 받은 보상을 아이콘과 함께 보여주는 확인 팝업으로. 출석 시 출석 골드·빙고 줄 완성 안내, "보상 받기" 시 골드·강화권(이미지)·복권권을 항목별로 표시. 자동으로 안 사라지고 확인 버튼으로 닫아요' },
+  ] },
   { ver: 'v2.45.10', date: '2026-06-09', changes: [
     { tag: 'improve', text: '🎯 [시즌2] 협력 빙고판 문양 통일 — 칸마다 제각각이던 이모지(✨🔮⚡…)를 시즌2 헥스텍 컨셉의 단일 다이아 문양(◆)으로 싹 교체. 기본 칸은 은은한 골드, 내 칸은 블루, 완성된 줄은 밝은 골드로 상태만 색으로 구분' },
   ] },
@@ -18474,6 +18490,23 @@ window.bingoSelect=function(i){
   _bingoSel=(_bingoSel===i)?null:i; _bingoRerender();
 };
 // 빙고 출석 — 슬롯 출석 + 칸 픽(트랜잭션)
+// 🎁 출석/빙고 보상 팝업 — 아이콘 + 받은 항목 표시, 확인 버튼으로 닫기(자동 안 사라짐)
+function showBingoReward(title, sub, items){
+  const old=document.getElementById('bingo-reward-overlay'); if(old) old.remove();
+  if(!items || !items.length) return;
+  const ov=document.createElement('div'); ov.id='bingo-reward-overlay'; ov.className='brw-overlay season-2';
+  ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+  const rows=items.map(it=>`<div class="brw-row"><span class="brw-ic">${it.iconHtml}</span><span class="brw-nm">${it.name}</span><span class="brw-qty" style="${it.color?`color:${it.color};`:''}">${it.qty}</span></div>`).join('');
+  ov.innerHTML=`<div class="brw-card">
+    <div class="brw-title"><span class="bg-dia"></span>${title}</div>
+    ${sub?`<div class="brw-sub">${sub}</div>`:''}
+    <div class="brw-list">${rows}</div>
+    <button class="brw-ok" onclick="document.getElementById('bingo-reward-overlay')?.remove()">확인</button>
+  </div>`;
+  document.body.appendChild(ov);
+}
+function _scratchTierName(t){ return (['일반','고급','프리미엄'][t]||'') + ' 복권권'; }
+
 async function doBingoAttendance(){
   const key=getMyGoldKey(); if(!key) return;
   const data=goldData[key]; const todayKey=getLocalDateKey(); const slot=getAttendSlot();
@@ -18512,15 +18545,18 @@ async function doBingoAttendance(){
   if(goldData[key]) Object.assign(goldData[key],updates);   // 낙관적 반영(onValue 전파 전 즉시 갱신)
   try{ await update(ref(db,'gold/'+key),updates); }catch(e){ showGoldToast('❌ 출석 저장 실패'); return; }
   _bingoSel=null;
-  if(dupWith.length) showGoldToast(`🔴 ${dupWith.join(', ')}님과 같은 칸! (중복) · +${baseGold}G`);
-  else if(wasFirst)  showGoldToast(`🎨 이 칸을 처음 골랐어요! ${sName} 출석 +${baseGold}G`);
-  else               showGoldToast(`${sName} 출석 +${baseGold}G`);
   try{ updateAttendQuickBtn(); _bingoRerender(); }catch(_){}
+  // 보상 팝업 (아이콘 + 받은 항목, 확인 버튼으로 닫기)
+  const items=[{ iconHtml:'🪙', name:`${sName} 출석 보상`, qty:`+${baseGold}G`, color:'#ffd24a' }];
+  let sub = dupWith.length ? `🔴 ${dupWith.join(', ')}님과 같은 칸을 골랐어요`
+          : wasFirst ? '🎨 이 칸을 처음 골랐어요!' : '';
   if(gotLines.length){
     const top=gotLines[gotLines.length-1];
-    setTimeout(()=>{ const f=document.getElementById('bingo-flash'); if(f){ f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); }
-      showGoldToast(top.golden?`✨ ${top.n}줄 협력 빙고! 황금 보상!`:`🎉 ${top.n}줄 협력 빙고 완성!${top.reset?' · 새 판 시작':''}`); }, 60);
+    sub = (sub?sub+'<br>':'') + (top.golden?`✨ ${top.n}줄 협력 빙고 완성! (황금 보상)`:`🎉 ${top.n}줄 협력 빙고 완성!${top.reset?' · 새 판 시작':''}`);
+    items.push({ iconHtml:'🎯', name:`협력 빙고 ${top.n}줄 보상`, qty:'🎁 수령 대기', color:'#f0c060' });
+    setTimeout(()=>{ const f=document.getElementById('bingo-flash'); if(f){ f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); } }, 60);
   }
+  showBingoReward(`${sName} 출석 완료`, sub, items);
 }
 // 빙고 줄 보상 수령 (미수령 log 전부)
 window.bingoClaim=async function(){
@@ -18528,18 +18564,25 @@ window.bingoClaim=async function(){
   const data=goldData[key]; const log=(_bingoData&&_bingoData.log)||[];
   const claimed=data[sField('bingoClaimed')]||0;
   if(log.length<=claimed){ showS1Toast('수령할 빙고 보상이 없어요'); return; }
-  let gold=0; const tk=getEmblemTickets(data); const ft={...(data[sField('freeScratch')]||{})};
+  let gold=0; const tkGain={}, scGain={};
   for(let k=claimed;k<log.length;k++){ const e=log[k];
     if(e.gold) gold+=e.gold;
-    if(e.tickets) for(const t in e.tickets) tk[t]=(tk[t]||0)+e.tickets[t];
-    if(e.scratch) [0,1,2].forEach(t=>{ if(e.scratch[t]) ft[t]=(ft[t]||0)+e.scratch[t]; });
+    if(e.tickets) for(const t in e.tickets) tkGain[t]=(tkGain[t]||0)+e.tickets[t];
+    if(e.scratch) [0,1,2].forEach(t=>{ if(e.scratch[t]) scGain[t]=(scGain[t]||0)+e.scratch[t]; });
   }
+  const tk=getEmblemTickets(data); for(const t in tkGain) tk[t]=(tk[t]||0)+tkGain[t];
+  const ft={...(data[sField('freeScratch')]||{})}; for(const t in scGain) ft[t]=(ft[t]||0)+scGain[t];
   const gk=sField('passGold');
   const upd={ [sField('bingoClaimed')]:log.length, [emblemTicketsField()]:tk, [sField('freeScratch')]:ft, [gk]:(data[gk]??0)+gold };
   if(goldData[key]) Object.assign(goldData[key],upd);
   await update(ref(db,'gold/'+key),upd);
-  showS1Toast(`🎉 협력 빙고 보상 수령 — +${gold}G + 강화권/복권`);
   _bingoRerender();
+  // 보상 팝업 — 받은 항목을 아이콘과 함께 (확인 버튼으로 닫기)
+  const items=[];
+  if(gold>0) items.push({ iconHtml:'🪙', name:'골드', qty:`+${gold}G`, color:'#ffd24a' });
+  for(const t in tkGain){ const d=EMBLEM_TICKETS[t]; if(d) items.push({ iconHtml:_emblemTkAnvilImg(d,28), name:d.name, qty:`×${tkGain[t]}`, color:d.color }); }
+  for(const t in scGain){ items.push({ iconHtml:'🎟️', name:_scratchTierName(t), qty:`×${scGain[t]}`, color:'#f0c060' }); }
+  showBingoReward('협력 빙고 보상 수령', '완성한 줄의 보상을 받았어요!', items);
 };
 // 🧪 빙고 테스트 도구 — 가상 팀원이 랜덤 칸을 채워 줄/중복/리셋을 확인
 function _bingoScanLines(cur){
