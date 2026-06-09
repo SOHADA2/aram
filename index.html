@@ -6173,7 +6173,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.96';
+const APP_VERSION = 'v2.44.97';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6182,8 +6182,11 @@ const APP_VERSION = 'v2.44.96';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.97', date: '2026-06-09', changes: [
+    { tag: 'fix', text: '🎮 일반게임 멤버 인식 = 내전과 동일하게 "닉네임(=인게임 소환사명)"으로 매칭(공백무시 폴백). 앞서 "라이엇 ID 등록 필요"로 안내했던 건 잘못 — 내전도 riotId 없이 닉네임으로 매칭하므로 동일하게 변경. riotId는 닉네임이 인게임명과 다른 멤버를 위한 보조 수단으로만 사용' },
+  ] },
   { ver: 'v2.44.96', date: '2026-06-09', changes: [
-    { tag: 'new', text: '🎮 기록 탭에 "일반게임" 카테고리 추가 — 내전·막고라에 이어 일반게임(증바람) 기록을 따로 봐요. 진행자가 브릿지(v1.1.33+)를 켠 상태로 함께 일반게임을 하면 자동 기록(/normal_matches)되고, 프로필에 라이엇 ID(닉네임#태그)를 등록한 멤버를 인식해 참여 멤버의 챔피언·KDA·승패를 카드로 표시. 일반게임은 내전 LP/매치와 완전히 분리(오염 없음). ※ 등록 멤버 1명 이상 참여한 게임만 표시. 레이아웃 확인용 테스트 시드는 🧪 S2 디버그 패널에 있음' },
+    { tag: 'new', text: '🎮 기록 탭에 "일반게임" 카테고리 추가 — 내전·막고라에 이어 일반게임(증바람) 기록을 따로 봐요. 진행자가 브릿지(v1.1.33+)를 켠 상태로 함께 일반게임을 하면 자동 기록(/normal_matches)되고, 내전과 동일하게 닉네임으로 참여 멤버를 인식해 챔피언·KDA·승패를 카드로 표시. 일반게임은 내전 LP/매치와 완전히 분리(오염 없음). ※ 등록 멤버 1명 이상 참여한 게임만 표시. 레이아웃 확인용 테스트 시드는 🧪 S2 디버그 패널에 있음' },
   ] },
   { ver: 'v2.44.95', date: '2026-06-09', changes: [
     { tag: 'improve', text: '[시즌2/내부] 패스 구조 정리 — 시즌2 패스 = 내전 전용 "퀘스트 패스" 단일 활성으로 확정. 기존엔 window.renderS2Pass가 2번 정의돼(2종 포인트패스 + 퀘스트패스) 순서로 덮는 취약 구조였음 → 2종 포인트패스 렌더러를 renderS2PointPass(보류)로 분리해 중복 제거. 2종 포인트패스 코드·보상트랙(PASS_TRACKS)은 보존(나중에 추가 예정). 동작 변화 없음' },
@@ -15950,26 +15953,29 @@ if(matchArr.length===0){el.innerHTML=`<div class="empty-state"><div class="icon"
 
 // ── 막고라 기록 렌더 (v2.41.0) ─────────────────────────────
 // ── 일반게임 기록 (브릿지 isCustomGame=false → /normal_matches) ──
-// 소환사명/riotId 로 등록 멤버를 인식, 멤버가 1명 이상 참여한 게임만 표시.
-function _normalMemberMap() {
-  const map = {};
-  Object.values(registeredPlayers).forEach(p => {
-    if (p.riotId) { const gn = String(p.riotId).split('#')[0].trim(); if (gn) map[normName(gn)] = p.name; }
-    if (!map[normName(p.name)]) map[normName(p.name)] = p.name;
-  });
-  return map;
+// 내전과 동일하게 인게임 소환사명 ↔ 등록 닉네임으로 매칭(공백무시 폴백). riotId는 닉네임이 다른 멤버 대비 보조.
+function _normalMatchMember(summonerName) {
+  const sn = normName(summonerName || ''); if (!sn) return null;
+  const snNo = sn.replace(/\s/g, '');
+  const players = Object.values(registeredPlayers);
+  let p = players.find(x => normName(x.name) === sn)
+       || players.find(x => normName(x.name).replace(/\s/g, '') === snNo);
+  if (p) return p.name;
+  // 보조: 라이엇ID(닉네임#태그)의 게임네임이 등록돼 있으면 그것도 시도
+  p = players.find(x => x.riotId && normName(String(x.riotId).split('#')[0]) === sn)
+   || players.find(x => x.riotId && normName(String(x.riotId).split('#')[0]).replace(/\s/g, '') === snNo);
+  return p ? p.name : null;
 }
 function renderNormalHistory() {
   const el = document.getElementById('match-history-list');
   if (!el) return;
-  const memMap = _normalMemberMap();
   const myNN = normName(myName || '');
   const rows = Object.entries(normalMatches)
     .map(([key, m]) => ({ key, ...m }))
     .filter(m => m && Array.isArray(m.players) && m.players.length)
     .sort((a, b) => (b.ts || 0) - (a.ts || 0))
     .map(m => ({ m, mine: (m.players || [])
-        .map(p => ({ ...p, member: memMap[normName(p.summonerName || '')] || null }))
+        .map(p => ({ ...p, member: _normalMatchMember(p.summonerName) }))
         .filter(p => p.member) }))
     .filter(x => x.mine.length > 0);
 
@@ -15977,7 +15983,7 @@ function renderNormalHistory() {
   if (badge) badge.textContent = rows.length;
   if (rows.length === 0) {
     el.innerHTML = `<div class="mgh-empty">🎮 아직 기록된 일반게임이 없어요<br>
-      <span style="font-size:11px;color:var(--text-dim);line-height:1.6;display:inline-block;margin-top:6px;">진행자가 <b>브릿지를 켠 상태</b>로 함께 일반게임(증바람)을 하면 자동 기록돼요.<br>프로필에 <b>라이엇 ID(닉네임#태그)</b>를 등록한 멤버만 인식됩니다.</span></div>`;
+      <span style="font-size:11px;color:var(--text-dim);line-height:1.6;display:inline-block;margin-top:6px;">진행자가 <b>브릿지를 켠 상태</b>로 함께 일반게임(증바람)을 하면 자동 기록돼요.<br>내전과 똑같이 <b>닉네임(=인게임 소환사명)</b>으로 멤버를 인식합니다.</span></div>`;
     return;
   }
   el.innerHTML = rows.map(({ m, mine }) => {
