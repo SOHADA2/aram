@@ -6215,7 +6215,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.5';
+const APP_VERSION = 'v2.45.6';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6224,6 +6224,9 @@ const APP_VERSION = 'v2.45.5';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.6', date: '2026-06-09', changes: [
+    { tag: 'improve', text: '[시즌2/개발] 대기화면 챔피언 MOST/BEST 미리보기 도구 — 🧪 S2 디버그 패널 "챔피언 MOST/BEST 미리보기" 버튼으로 가짜 챔피언 데이터(MOST·BEST)를 주입해 레이아웃 확인(로컬, 새로고침 시 리셋). S2 미오픈이라 "데이터 없음"으로 비어보이던 챔피언 칸 확인용. __champSeed()/__champReset()' },
+  ] },
   { ver: 'v2.45.5', date: '2026-06-09', changes: [
     { tag: 'improve', text: '🪪 [시즌2] 대기화면 헤더 재배치 — 챔피언을 우측에서 좌측 카드 하단으로 이동, [최근 10경기 | 챔피언] 2열 배치. 최근 10경기는 5+5(두 줄)로 정렬해 챔피언 높이와 맞춤. 우측은 퀘스트 패스만 남아 세로로 채워짐(균형). 좁은 화면은 세로로 쌓임' },
   ] },
@@ -21218,6 +21221,9 @@ function tierFromPt(pt) {
 let _mgDebugSeed = false;  // 🧪 막고라 박스 미리보기용 가짜 전적(로컬 전용, 새로고침 시 리셋)
 window.__mgSeedTest  = function(){ _mgDebugSeed = true;  try{ renderWaitingCard(); }catch(_){} };
 window.__mgSeedReset = function(){ _mgDebugSeed = false; try{ renderWaitingCard(); }catch(_){} };
+let _champDebugSeed = false;  // 🧪 챔피언(MOST/BEST) 미리보기용 가짜 데이터(로컬, 새로고침 리셋)
+window.__champSeed  = function(){ _champDebugSeed = true;  try{ renderWaitingCard(); }catch(_){} };
+window.__champReset = function(){ _champDebugSeed = false; try{ renderWaitingCard(); }catch(_){} };
 
 function renderWaitingCard() {
   const el = document.getElementById('member-waiting');
@@ -21450,7 +21456,9 @@ async function renderS1WaitingCard(el) {
     if (pt) ctxTips.push(pt);
   }
   // 챔피언 (현재 시즌 경기만 집계)
-  const cd = calcChampDetail(myName, CURRENT_SEASON);
+  const cd = _champDebugSeed
+    ? { most:{ slug:'Lux', onePick:false, games:42, wins:25, losses:17 }, best:{ slug:'Ahri', games:18, winrate:67 } }  // 🧪 미리보기
+    : calcChampDetail(myName, CURRENT_SEASON);
   const cUrl = slug => `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(slug)}.png`;
   const cKR  = slug => champNamesKR[slug] || slug;
   let champHtml = '';
@@ -25838,6 +25846,8 @@ function renderSeasonDebugPanel(){
       <button onclick="window.__mgSeedReset()" style="color:#cbd5e1;">🎰 막고라 테스트 초기화</button>
       <button onclick="window.__normalSeed()">🎮 일반게임 기록 테스트 추가</button>
       <button onclick="window.__normalReset()" style="color:#fca5a5;">🎮 일반게임 테스트 삭제</button>
+      <button onclick="window.__champSeed()">🏆 챔피언 MOST/BEST 미리보기</button>
+      <button onclick="window.__champReset()" style="color:#cbd5e1;">🏆 챔피언 미리보기 끄기</button>
       <button onclick="window.showS2Tutorial(true)">📖 시즌2 튜토리얼 열기</button>
       <button onclick="window.__s2dbg.reset()" style="color:#fca5a5;">🔄 S2 테스트 데이터 초기화</button>
       <button onclick="window.__s2dbg.off()" style="color:#7dd3fc;">✕ 미리보기 끄기</button>
