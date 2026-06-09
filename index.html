@@ -6154,7 +6154,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.93';
+const APP_VERSION = 'v2.44.94';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6163,6 +6163,9 @@ const APP_VERSION = 'v2.44.93';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.94', date: '2026-06-09', changes: [
+    { tag: 'fix', text: '[시즌] 랭킹 시즌 셀렉터 과거 시즌 LP 열람 — 시즌2에서도 드롭다운으로 시즌1 LP 랭킹을 읽기전용 조회 가능. 그동안 renderS1Ranking이 "S1"·season===1·현재시즌 LP데이터를 하드코딩해 S2 중 S1 랭킹을 못 봤고, S2 오픈 시엔 라벨/경기수가 "S1"로 잘못 뜰 잠재버그도 있었음. 이제 rankViewSeason 기준으로 라벨·경기수·LP데이터 라우팅(과거 시즌은 season{N}/players 1회 스냅샷 로드 캐시). 과거 시즌 카드 클릭 시 현재시즌 상세 프로필이 열려 오해되던 것 차단(열람 전용 안내)' },
+  ] },
   { ver: 'v2.44.93', date: '2026-06-09', changes: [
     { tag: 'new', text: '[관리자] 시즌2 전환 토글 버튼 추가 — 라이브 계정 시즌 어드민 바에 S2 버튼(골드 강조). switchSeason(2)로 config/currentSeason=2 즉시 전환. 큰 동작이라 2단계 확인(전원 S2 전환·S1 읽기전용 보존 안내). 데이터는 시즌 스코프(_s2 필드/season2 노드)라 S1 기록 보존, 전환 경로는 기존 S0↔S1과 동일. 미리보기 모드 중엔 실제 전환 차단(기존)' },
   ] },
@@ -19191,6 +19194,23 @@ function buildRankRow(name, season = CURRENT_SEASON) {
 
 // 랭킹 탭 전용 시즌 상태
 let rankViewSeason = 0; // CURRENT_SEASON 로드 후 동기화
+// 랭킹 열람용 — 다른 시즌(읽기전용) LP 데이터 스냅샷 캐시 (예: S2 중 S1 랭킹 보기)
+// season1Data 는 항상 "현재 시즌" 플레이어를 가리키므로, 과거 시즌은 따로 1회 로드해 캐시한다.
+let _rankSeasonPlayers = null, _rankSeasonPlayersFor = null;
+function rankSeasonData() {
+  if (rankViewSeason === CURRENT_SEASON) return season1Data;          // 현재 시즌 = 라이브 데이터
+  return (_rankSeasonPlayersFor === rankViewSeason && _rankSeasonPlayers) ? _rankSeasonPlayers : {};
+}
+async function ensureRankSeasonData() {
+  if (rankViewSeason === CURRENT_SEASON) return;                       // 라이브 데이터 사용
+  if (_rankSeasonPlayersFor === rankViewSeason && _rankSeasonPlayers) return; // 이미 로드됨
+  try {
+    const snap = await get(ref(db, 'season' + rankViewSeason + '/players'));
+    _rankSeasonPlayers = snap.val() || {};
+  } catch (_) { _rankSeasonPlayers = {}; }
+  _rankSeasonPlayersFor = rankViewSeason;
+  renderRanking();
+}
 
 function getRankSeasons() {
   const set = new Set(Object.values(matches).map(m => m.season ?? 0));
@@ -19428,7 +19448,11 @@ window.showSeasonInfoModal = function() {
 function renderRanking() {
   renderTierCriteriaCard();
   if (rankViewSeason >= 1) {
-    if (!s1DataLoaded) return; // S1 데이터 로드 완료 전까지 대기 (깜박 방지)
+    if (rankViewSeason === CURRENT_SEASON) {
+      if (!s1DataLoaded) return; // 현재 시즌 데이터 로드 완료 전까지 대기 (깜박 방지)
+    } else if (_rankSeasonPlayersFor !== rankViewSeason) {
+      ensureRankSeasonData(); return; // 과거 시즌 LP 스냅샷 로드 → 완료 후 자동 재렌더
+    }
     renderS1Ranking(); return;
   }
   const el = document.getElementById('rank-list');
@@ -26187,10 +26211,11 @@ function renderS1Ranking() {
   const el = document.getElementById('rank-list');
   if (!el) return;
   const seasonLabel = document.getElementById('rk-season-label');
-  if (seasonLabel) seasonLabel.textContent = 'S1';
+  if (seasonLabel) seasonLabel.textContent = 'S' + rankViewSeason;
+  const _rd = rankSeasonData();  // 현재 시즌이면 라이브, 과거 시즌이면 읽기전용 스냅샷
 
   const rows = Object.values(registeredPlayers).map(p => {
-    const d    = season1Data[normName(p.name)] || s1DefaultPlayer();
+    const d    = _rd[normName(p.name)] || s1DefaultPlayer();
     const meta = S1_TIER_META[d.tier] || S1_TIER_META.unranked;
     return { name:p.name, tier:d.tier, lp:d.lp||0, tierRank:meta.rank, d,
              me: myName && normName(p.name)===normName(myName),
@@ -26208,7 +26233,7 @@ function renderS1Ranking() {
   let html = '';
 
   // 헤더 통계 갱신
-  const totalGames = Object.values(matches).filter(m => (m.season ?? 0) === 1).length;
+  const totalGames = Object.values(matches).filter(m => (m.season ?? 0) === rankViewSeason).length;
   const gamesEl = document.getElementById('rk-stat-games');
   const playersEl = document.getElementById('rk-stat-players');
   if (gamesEl) gamesEl.textContent = totalGames.toLocaleString();
@@ -26241,11 +26266,13 @@ function renderS1Ranking() {
   }
   if (!html) {
     html = `<div style="padding:40px 16px;text-align:center;color:var(--rk-text-dim);font-size:13px;">
-      시즌 1이 시작되면 배치고사 후 랭킹이 표시됩니다</div>`;
+      시즌 ${rankViewSeason} 배치고사가 진행되면 랭킹이 표시됩니다</div>`;
   }
   el.innerHTML = html;
   el.querySelectorAll('[data-name]').forEach(card => {
     card.addEventListener('click', () => {
+      // 과거 시즌(읽기전용) 열람 중엔 상세 프로필(현재 시즌 기준)을 열지 않음 — 오해 방지
+      if (rankViewSeason !== CURRENT_SEASON) { showS1Toast?.(`시즌 ${rankViewSeason} 랭킹은 열람 전용이에요`); return; }
       const entry = Object.entries(registeredPlayers).find(([,p]) => normName(p.name)===normName(card.dataset.name));
       if (entry) openProfileModal(entry[0]);
     });
