@@ -6269,7 +6269,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.33';
+const APP_VERSION = 'v2.45.34';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6278,6 +6278,9 @@ const APP_VERSION = 'v2.45.33';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.34', date: '2026-06-08', changes: [
+    { tag: 'fix', text: '🏛️ 시즌2 프리뷰에서도 시즌1 명예의 전당이 진짜 S1 데이터로 — season1Data 전역은 현재 시즌 노드라 S2 프리뷰에선 S2 LP를 담아 티어/LP가 틀리던 문제. HOF 열 때 현재 시즌이 1이 아니면 season1/players 노드를 직접 읽어와 티어/LP를 S1 기준으로 표시(경기 통계는 원래 season===1 필터라 정상). 실데이터 있으면 샘플 대신 실데이터 사용' },
+  ] },
   { ver: 'v2.45.33', date: '2026-06-08', changes: [
     { tag: 'improve', text: '🏛️ [개발] 프리뷰 환경에서 명예의전당 버튼 = 데이터 없으면 샘플로 자동 표시 — 프리뷰(?preview)에 실제 시즌1 데이터가 없을 때 명예의전당을 누르면 샘플로 채워 디자인을 바로 확인. 라이브에선 항상 실제 데이터로 채워짐(샘플 폴백 미적용)' },
   ] },
@@ -20708,7 +20711,8 @@ window.showHallOfFame = showHallOfFame;
 
 // ── 🏛 시즌 1 명예의 전당 (동적 계산 · 참여자 전원 포함) ──────────────
 const _S1_TORD = ['unranked','bronze','silver','gold','platinum','diamond','master','grandmaster','challenger'];
-function _s1HofPlayers(){
+function _s1HofPlayers(s1node){
+  s1node = s1node || season1Data || {};   // 시즌2 프리뷰 등에선 외부에서 진짜 season1/players 전달
   const nameMap = {};
   Object.values(registeredPlayers||{}).forEach(p=>{ if(p&&p.name) nameMap[normName(p.name)] = p.name; });
   const st = {}; // nn → combat/spectator 집계 (matches 1회 순회)
@@ -20726,7 +20730,7 @@ function _s1HofPlayers(){
     const s=calcStats(name,1); if(s.total<1) continue;
     const aw=calcS1AwardStats(name,1);
     const ms=calcMaxStreaks(name,1);
-    const sp=s1GetPlayer(name)||s1DefaultPlayer();
+    const sp=s1node[nn]||s1DefaultPlayer();   // 티어/LP = 진짜 S1 노드 기준(현재 시즌 무관)
     const c=st[nn]||{g:0};
     const combat = c.g>0 ? { g:c.g, avgK:c.k/c.g, avgD:c.d/c.g, avgA:c.a/c.g, avgDmg:c.dmg/c.g, avgCs:c.cs/c.g, kda:(c.k+c.a)/Math.max(1,c.d), totD:c.d } : { g:0 };
     let mg={win:0,loss:0}; try{ if(typeof mgFighterStats==='function') mg=mgFighterStats(name,1); }catch(_){}
@@ -20757,10 +20761,13 @@ function _s1HofTitle(p){
   if(p.total>=10)               return ['🎮','내전의 기둥'];
   return ['🌱','함께한 동료'];
 }
-function showS1HallOfFame(playersOverride){
+async function showS1HallOfFame(playersOverride){
   if (document.querySelector('.hof-overlay')) return;
-  let P = playersOverride || _s1HofPlayers();
-  // 🧪 프리뷰 환경에 실제 시즌1 데이터가 없으면 샘플로 채워 디자인 확인 (라이브는 항상 실데이터)
+  // 티어/LP는 진짜 S1 노드 기준. 현재 시즌이 1이 아니면(S2 프리뷰 등) season1/players를 직접 읽어옴.
+  let s1node = season1Data;
+  if (!playersOverride && CURRENT_SEASON !== 1) { try { const snap = await get(ref(db, 'season1/players')); if (snap && snap.val()) s1node = snap.val(); } catch(_){} }
+  let P = playersOverride || _s1HofPlayers(s1node);
+  // 🧪 프리뷰 환경에 실제 시즌1 데이터가 전혀 없으면 샘플로 채워 디자인 확인 (라이브는 항상 실데이터)
   if (!playersOverride && !P.length && window.__SEASON_PREVIEW && typeof _s1HofSample === 'function') P = _s1HofSample();
   const ranked = [...P].sort((a,b)=>_s1HofTrank(b)-_s1HofTrank(a));
   const t3 = ranked.slice(0,3);
