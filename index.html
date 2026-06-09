@@ -1574,7 +1574,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .wm-fx-card{padding:11px 13px;}
 .wm-fx-head{font-size:10px;font-weight:800;letter-spacing:0.6px;color:var(--rk-gold);font-family:'JetBrains Mono',monospace;margin-bottom:8px;display:flex;align-items:center;gap:6px;}
 .wm-fx-sub{font-size:8px;font-weight:600;letter-spacing:0.4px;color:var(--rk-text-muted);}
-.wm-fx-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:start;}  /* 강철심장·시너지 좌우 박스 배치 */
+.wm-fx-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:stretch;}  /* 강철심장·시너지 좌우 박스 — 높이 맞춤 */
 @media(max-width:440px){.wm-fx-grid{grid-template-columns:1fr;}}
 .wm-fx-grade{font-size:9px;font-weight:800;letter-spacing:0.3px;padding:1px 6px;border:1px solid;border-radius:5px;font-family:'JetBrains Mono',monospace;flex-shrink:0;}
 .wm-fx-itemdesc{font-size:10px;color:var(--rk-text-dim);line-height:1.45;}
@@ -6258,7 +6258,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.29';
+const APP_VERSION = 'v2.45.30';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6267,6 +6267,9 @@ const APP_VERSION = 'v2.45.29';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.30', date: '2026-06-08', changes: [
+    { tag: 'improve', text: '⚔️ [시즌2] 대기화면 전투 준비 효과 카드 정렬 — 강철심장 셀이 설명·강화핍·효과목록으로 6행이라 시너지 셀(2행)과 높이가 안 맞던 것을, 강철심장도 "헤더 + 효과 칩 1줄"로 압축(상세는 대장간에). 두 박스 높이까지 stretch로 맞춰 행이 딱 떨어지게' },
+  ] },
   { ver: 'v2.45.29', date: '2026-06-08', changes: [
     { tag: 'improve', text: '🔨 [시즌2] 강화 현황 표시 개선 — (1) 강화 실패한 칸을 ✕로 명확히 표시(대장간·대기화면 강철심장 모두). 칸도 키워서 잘 보이게. (2) 가장 중요한 성능 수치를 크게 강조(대장간 24px 글로우·대기화면 배지 확대). 강화도 "N/5칸" 라벨도 별도 줄로 분리' },
   ] },
@@ -21777,39 +21780,23 @@ async function renderS1WaitingCard(el) {
     statsHtml = `<div class="wm-stat-strip">${_statItems}</div>`;
   }
   if (_s2) {
-    // ── 강철심장(걸작) 셀 — 아이템 설명 + 강화도(칸/등급/성능) + 효과를 이름으로 ──
+    // ── 강철심장(걸작) 셀 — 시너지 셀과 행 맞춤: 헤더 + 효과 칩 1줄(상세는 대장간에) ──
     let emCell;
     const em = getEmblem(myGoldData);
     if (em) {
-      const pw = emblemPower(em), E = emblemEffectsOf(em), lvl = emblemLevel(em), used = emblemSlotsUsed(em);
-      const _g = emblemEffects(pw).glow, _gc = (_EMBLEM_GLOW_META[_g]||{}).color || '#7c818f';
-      const _gl = { none:'미강화', silver:'실버', gold:'골드', prismatic:'프리즈매틱' }[_g] || '미강화';
-      const pips = Array.from({ length: EMBLEM_SLOTS }, (_, i) => {
-        const sl = em.slots && em.slots[i];
-        if (!sl) return '<span class="wm-pip empty"></span>';
-        if (!sl.ok) return '<span class="wm-pip fail">✕</span>';
-        const col = (EMBLEM_TICKETS[sl.t] || {}).color || '#f0c060';
-        return `<span class="wm-pip ok" style="background:${col};box-shadow:0 0 5px ${col}99;"></span>`;
-      }).join('');
-      const effRows = EMBLEM_EFFECT_POOL.filter(eid => E.eff[eid] > 0).map(eid => {
+      const pw = emblemPower(em), E = emblemEffectsOf(em), lvl = emblemLevel(em);
+      const chips = EMBLEM_EFFECT_POOL.filter(eid => E.eff[eid] > 0).map(eid => {
         const ef = EMBLEM_EFFECTS[eid];
-        return `<div class="wm-fx-eff"><span class="wm-fx-eff-nm">${ef.name}</span><span class="wm-fx-eff-v" style="color:${ef.color};">${ef.fmt(E.eff[eid])}</span></div>`;
-      }).join('') || `<span class="wm-fx-none">효과 없음 · 대장간에서 걸작/강화하세요</span>`;
+        return `<span class="wm-fx-chip" style="color:${ef.color};border-color:${ef.color}55;">${ef.icon} ${ef.fmt(E.eff[eid])}</span>`;
+      }).join('') || `<span class="wm-fx-none">효과 없음 · 대장간에서 강화</span>`;
       emCell = `<div class="wm-fx-cell">
-        <div class="wm-fx-cell-top">
-          <span class="wm-fx-name" style="color:#ffd24a;">강철심장 <b>+${lvl}</b></span>
-          <span class="wm-fx-grade" style="color:${_gc};border-color:${_gc}66;">${_gl}</span>
-          <span class="wm-fx-perf">성능 ${pw}</span>
-        </div>
-        <div class="wm-fx-itemdesc">매 경기 자동 발동하는 강화 장비 — 강화할수록 효과가 커집니다</div>
-        <div class="wm-fx-forge-row"><span class="wm-fx-pips">${pips}</span><span class="wm-fx-forge-txt">강화 ${used}/${EMBLEM_SLOTS}칸 · 성공 ${lvl}</span></div>
-        <div class="wm-fx-efflist">${effRows}</div>
+        <div class="wm-fx-cell-top"><span class="wm-fx-name" style="color:#ffd24a;">🔨 강철심장 <b>+${lvl}</b></span><span class="wm-fx-perf">성능 ${pw}</span></div>
+        <div class="wm-fx-chips">${chips}</div>
       </div>`;
     } else {
       emCell = `<div class="wm-fx-cell empty">
-        <div class="wm-fx-cell-top"><span class="wm-fx-name dim">강철심장 미장착</span></div>
-        <div class="wm-fx-itemdesc">매 경기 효과를 주는 강화 장비입니다</div>
-        <div class="wm-fx-none">상점 → 대장간에서 제작·장착하세요</div>
+        <div class="wm-fx-cell-top"><span class="wm-fx-name dim">🔨 강철심장 미장착</span></div>
+        <div class="wm-fx-none">상점 → 대장간에서 제작·장착</div>
       </div>`;
     }
     // ── 시너지 셀 ──
