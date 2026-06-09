@@ -2488,6 +2488,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .sli-desc{font-size:10px;color:var(--text-dim);line-height:1.4;}
 .sli-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
 .sli-price{padding:5px 10px;border-radius:6px;border:none;background:linear-gradient(135deg,#a07828,var(--gold));color:#0a0e1a;font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:11px;cursor:pointer;white-space:nowrap;transition:all 0.15s;}
+.sli-price.sli-free{background:linear-gradient(135deg,#f0c060,#ffe39a);box-shadow:0 0 10px rgba(240,192,96,0.5);}
 .sli-price:disabled{opacity:0.4;cursor:not-allowed;}
 .sli-price:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 3px 8px rgba(200,155,60,0.35);}
 .inv-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
@@ -6251,7 +6252,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.25';
+const APP_VERSION = 'v2.45.26';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6260,6 +6261,9 @@ const APP_VERSION = 'v2.45.25';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.26', date: '2026-06-08', changes: [
+    { tag: 'improve', text: '🎴 [시즌2] 걸작 효과 "복권 지급" → "가챠·복권"으로 개편(골드 인플레 해결) — 무료 복권은 당첨금=골드라 경기당 ~55G 주입으로 다른 효과의 3~9배라 과했음. 지급 파트를 무료 챔피언 가챠 1회로 교체(카드만 주고 골드는 안 풀려 인플레 0), 복권은 "당첨금 성능 비례 부스트(+N%)"로 남겨 둘을 섞음. 가챠 ×1 버튼에 "🎴 무료 N회" 표시·우선 사용. 데이터 freeGacha_s2' },
+  ] },
   { ver: 'v2.45.25', date: '2026-06-08', changes: [
     { tag: 'improve', text: '🎟️ [시즌2] 복권 지급 효과 = "매 경기 1장 고정 + 당첨금 부스트"로 재설계(게이지 방식 폐기) — 개수는 매 경기 1장으로 단순·직관적으로 고정하고, 성능은 연속값인 "복권 당첨금 +N%"(성능×2%p, 최대 50%)에 태워 강화할수록 부드럽게 보상↑. 본인 복권(무료·구매 모두) 당첨 시 부스트 적용, 토스트로 "+NG" 표시. 강철심장 카드/대장간에 "매경기 1장 · 당첨 +N%" 표기' },
   ] },
@@ -8638,7 +8642,7 @@ const EMBLEM_EFFECTS = {
   magollaG: { id:'magollaG', icon:'🎰', name:'막고라 배당',  color:'#f472b6', base:4,   cap:30, fmt:v=>`+${v}%`,  desc:'막고라 베팅 적중 수익 보너스' },
   winLP:    { id:'winLP',    icon:'⚡', name:'승리 LP',      color:'#60a5fa', base:1.0, cap:12, fmt:v=>`+${v}LP`, desc:'정규전 승리 시 추가 LP' },
   lossLP:   { id:'lossLP',   icon:'🛡️', name:'패배 방어',    color:'#7dd3fc', base:1.0, cap:8,  fmt:v=>`${v}LP`, desc:'정규전 패배 시 잃는 LP를 그만큼 덜 잃어요' },
-  lottoTkt: { id:'lottoTkt', icon:'🎟️', name:'복권 지급',    color:'#f0b450', base:1,   cap:1,  fmt:v=>`1장 · 당첨 +${Math.round(v*100)}%`, desc:'매 경기 무료 일반 복권 1장 + 본인 복권 당첨금 성능 비례 부스트(+2%p/성능, 최대 +50%)' },
+  lottoTkt: { id:'lottoTkt', icon:'🎴', name:'가챠·복권',    color:'#f0b450', base:1,   cap:1,  fmt:v=>`가챠1회 · 복권+${Math.round(v*100)}%`, desc:'매 경기 무료 챔피언 가챠 1회(카드만·골드 인플레 없음) + 본인 복권 당첨금 성능 비례 부스트(+2%p/성능, 최대 +50%)' },
 };
 // ⚖️ 모든 효과 동일 확률(균등 추첨). 리스트가 길수록 같은 효과 3줄 맞추기가 자연히 어려워짐.
 const EMBLEM_EFFECT_POOL = ['matchG','winG','attend','mvpG','magollaG','winLP','lossLP','lottoTkt'];
@@ -15670,13 +15674,12 @@ window.saveMatch = async function() {
           winLP:  Math.round(eff.winLP  || 0), lossLP: Math.round(eff.lossLP || 0),
           lottoBoost: +(eff.lottoTkt || 0).toFixed(3),
         };
-        // 🎟️ 복권 지급 — 효과 보유(부스트>0) 시 매 경기 무료 일반 복권권(freeScratch[0]) 1장 고정 지급
+        // 🎴 가챠 지급 — 효과 보유 시 매 경기 무료 가챠권 1장 고정 지급(골드 인플레 없음·카드만)
         if ((eff.lottoTkt || 0) > 0) {
-          const gd = _en[1], ff = sField('freeScratch');
-          const ft = { ...(gd[ff] || {}) };
-          ft[0] = (ft[0] || 0) + 1;
-          gd[ff] = ft;                                // 로컬 즉시 반영
-          _lottoGrants.push({ key: _en[0], upd: { [ff]: ft } });
+          const gd = _en[1], gf = sField('freeGacha');
+          const nv = (gd[gf] || 0) + 1;
+          gd[gf] = nv;                                // 로컬 즉시 반영
+          _lottoGrants.push({ key: _en[0], upd: { [gf]: nv } });
         }
       }
       if (Object.keys(_emblemSnap).length > 0) matchData.emblemEffects = _emblemSnap;
@@ -21786,9 +21789,9 @@ async function renderS1WaitingCard(el) {
       }).join('');
       const effRows = EMBLEM_EFFECT_POOL.filter(eid => E.eff[eid] > 0).map(eid => {
         const ef = EMBLEM_EFFECTS[eid];
-        if (eid === 'lottoTkt'){ // 🎟️ 매 경기 1장 고정 + 성능 비례 당첨금 부스트
+        if (eid === 'lottoTkt'){ // 🎴 매 경기 무료 가챠 1회 + 성능 비례 복권 당첨금 부스트
           const boost = Math.round(E.eff.lottoTkt*100);
-          return `<div class="wm-fx-eff"><span class="wm-fx-eff-nm">${ef.name}</span><span class="wm-fx-eff-v" style="color:${ef.color};display:inline-flex;gap:6px;"><span>매경기 1장</span><span style="opacity:.6;">·</span><span>당첨 +${boost}%</span></span></div>`;
+          return `<div class="wm-fx-eff"><span class="wm-fx-eff-nm">${ef.name}</span><span class="wm-fx-eff-v" style="color:${ef.color};display:inline-flex;gap:6px;"><span>가챠 1회</span><span style="opacity:.6;">·</span><span>복권 +${boost}%</span></span></div>`;
         }
         return `<div class="wm-fx-eff"><span class="wm-fx-eff-nm">${ef.name}</span><span class="wm-fx-eff-v" style="color:${ef.color};">${ef.fmt(E.eff[eid])}</span></div>`;
       }).join('') || `<span class="wm-fx-none">효과 없음 · 대장간에서 걸작/강화하세요</span>`;
@@ -22705,15 +22708,16 @@ function renderGachaTab() {
   </div>` + _activeSynergyBanner();
 
   if (gachaCatTab === 'pull') {
+    const _freeG = getMyGoldData()?.[sField('freeGacha')] || 0;  // 🎴 강철심장 가챠 지급 무료권
     list.innerHTML = tabHtml + `
       <div class="sli">
         <div class="sli-icon" style="overflow:hidden;position:relative;">
           <img id="gacha-preview-img" src="assets/pets/Yasuo/silver/default.png" style="width:100%;height:100%;object-fit:contain;filter:brightness(0) opacity(0.55);" onerror="this.style.opacity='0'">
         </div>
         <div class="sli-info">
-          <div class="sli-name">챔피언 가챠 × 1 <span class="sli-tip-wrap">?<div class="sli-tip">1성 87% · 2성 10% · 3성 3%<br>18종 챔피언 카드 · 중복 시 합성 재료 활용 · 어떤 챔피언이 나올지는 뽑아야 알 수 있어요</div></span></div>
+          <div class="sli-name">챔피언 가챠 × 1 ${_freeG>0?`<span style="display:inline-block;margin-left:4px;padding:1px 6px;border-radius:6px;background:rgba(240,180,80,0.16);border:1px solid rgba(240,180,80,0.45);color:#f0c060;font-size:9px;font-weight:800;vertical-align:middle;">🎴 무료 ${_freeG}회</span>`:''}<span class="sli-tip-wrap">?<div class="sli-tip">1성 87% · 2성 10% · 3성 3%<br>18종 챔피언 카드 · 중복 시 합성 재료 활용 · 어떤 챔피언이 나올지는 뽑아야 알 수 있어요</div></span></div>
         </div>
-        <div class="sli-right"><button id="gacha-btn1" class="sli-price" onclick="window.doGachaPull(1)">50G</button></div>
+        <div class="sli-right"><button id="gacha-btn1" class="sli-price${_freeG>0?' sli-free':''}" onclick="window.doGachaPull(1)">${_freeG>0?'🎴 무료':'50G'}</button></div>
       </div>
       <div class="sli">
         <div class="sli-icon" style="overflow:hidden;position:relative;">
@@ -28672,11 +28676,13 @@ function stopGachaPreview() { clearInterval(_gachaPreviewTimer); _gachaPreviewTi
 
 window.doGachaPull = async function(times) {
   if (!myName) { showGoldToast('먼저 내 이름을 선택해주세요'); return; }
-  const cost = times === 1 ? 50 : 450;
-  const currentGold = getMyGold();
-  if (currentGold < cost) { showGoldToast(`🪙 골드 부족! (보유 ${currentGold}G / 필요 ${cost}G)`); return; }
   const key = getMyGoldKey(), data = getMyGoldData();
   if (!key || !data) return;
+  // 🎴 강철심장 "가챠 지급" 효과로 적립된 무료 가챠권 — 1회 뽑기에 우선 사용(골드 차감 0)
+  const useFree = times === 1 && (data[sField('freeGacha')] || 0) > 0;
+  const cost = useFree ? 0 : (times === 1 ? 50 : 450);
+  const currentGold = getMyGold();
+  if (!useFree && currentGold < cost) { showGoldToast(`🪙 골드 부족! (보유 ${currentGold}G / 필요 ${cost}G)`); return; }
   document.getElementById('gacha-btn1')?.setAttribute('disabled','');
   document.getElementById('gacha-btn10')?.setAttribute('disabled','');
   stopGachaPreview();
@@ -28704,15 +28710,17 @@ window.doGachaPull = async function(times) {
     const spentKey = sField('goldSpent');
     // 가챠 소모 추적 (v2.43.157~) — 롤백/감사용. goldSpent 합산과 별도로 gachaSpent_s1 누적 + 로그 기록
     const gachaLog = Array.isArray(data[sField('gachaLog')]) ? data[sField('gachaLog')].slice() : [];
-    gachaLog.push({ ts: Date.now(), times, cost });
-    await update(ref(db, 'gold/' + key), {
+    gachaLog.push({ ts: Date.now(), times, cost, ...(useFree ? { free: true } : {}) });
+    const _updates = {
       [spentKey]: (data[spentKey] || 0) + cost,
       [sField('gachaSpent')]: (data[sField('gachaSpent')] || 0) + cost,
       [sField('gachaLog')]: gachaLog,
       [sField('champCards')]: cards,
       [sField('champCardLog')]: log,
       ...(gotYuumi ? { [sField('secretYuumi')]: true } : {}),
-    });
+    };
+    if (useFree) { _updates[sField('freeGacha')] = Math.max(0, (data[sField('freeGacha')] || 0) - 1); if (goldData[key]) goldData[key][sField('freeGacha')] = _updates[sField('freeGacha')]; }
+    await update(ref(db, 'gold/' + key), _updates);
     if (gotYuumi && goldData[key]) goldData[key][sField('secretYuumi')] = true; // 즉시 반영
   } catch(e) {
     showGoldToast('❌ 뽑기 실패 — 다시 시도해주세요');
