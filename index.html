@@ -6251,7 +6251,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.21';
+const APP_VERSION = 'v2.45.22';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6260,6 +6260,9 @@ const APP_VERSION = 'v2.45.21';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.22', date: '2026-06-08', changes: [
+    { tag: 'new', text: '🎟️ [시즌2] 걸작 효과 추가 — "복권 지급": 매 경기 종료 시 무료 일반 복권권을 줄 수만큼 지급(최대 3장). 강철심장 걸작 효과 풀에 8번째 효과로 합류(균등 추첨). 경기 저장 시 참가자 freeScratch[0]에 적립(지금부터, 소급 없음)' },
+  ] },
   { ver: 'v2.45.21', date: '2026-06-08', changes: [
     { tag: 'improve', text: '⚒️ [시즌2] 오른 대장간 강화 연출 손질 — (1) 강화 실패 시 오른의 실패 모션 제거(안빌 흔들림+토스트만, 오른은 idle 유지). (2) 강화 성공(마지막 탕! 일격)에 근사한 버스트 이펙트 추가: 중앙 플래시 + 충격파 링 + 빛줄기(starburst). 강화/걸작 시 더 화려하게(링 2겹·빛줄기 12갈래)' },
   ] },
@@ -8622,9 +8625,10 @@ const EMBLEM_EFFECTS = {
   magollaG: { id:'magollaG', icon:'🎰', name:'막고라 배당',  color:'#f472b6', base:4,   cap:30, fmt:v=>`+${v}%`,  desc:'막고라 베팅 적중 수익 보너스' },
   winLP:    { id:'winLP',    icon:'⚡', name:'승리 LP',      color:'#60a5fa', base:1.0, cap:12, fmt:v=>`+${v}LP`, desc:'정규전 승리 시 추가 LP' },
   lossLP:   { id:'lossLP',   icon:'🛡️', name:'패배 방어',    color:'#7dd3fc', base:1.0, cap:8,  fmt:v=>`${v}LP`, desc:'정규전 패배 시 잃는 LP를 그만큼 덜 잃어요' },
+  lottoTkt: { id:'lottoTkt', icon:'🎟️', name:'복권 지급',    color:'#f0b450', base:1,   cap:3,  fmt:v=>`+${v}장/경기`, desc:'매 경기 종료 시 무료 일반 복권권 지급 (줄 수만큼·최대 3장)' },
 };
 // ⚖️ 모든 효과 동일 확률(균등 추첨). 리스트가 길수록 같은 효과 3줄 맞추기가 자연히 어려워짐.
-const EMBLEM_EFFECT_POOL = ['matchG','winG','attend','mvpG','magollaG','winLP','lossLP'];
+const EMBLEM_EFFECT_POOL = ['matchG','winG','attend','mvpG','magollaG','winLP','lossLP','lottoTkt'];
 const EMBLEM_LINES = 3;
 function emblemEssenceField(){ return sField('emblemEssence'); }
 function getEmblemEssence(data){ return (data||{})[emblemEssenceField()] || 0; }
@@ -15632,6 +15636,7 @@ window.saveMatch = async function() {
     //    matchG=승패무관 적용 · winG/winLP=승자만 · lossLP=패자만 · mvpG=MVP/SVP 선정자만.
     if (CURRENT_SEASON === 2) {
       const _emblemSnap = {};
+      const _lottoGrants = [];   // 🎟️ 복권 지급 걸작 효과 — 저장 시 무료 일반 복권권 지급
       for (const p of allPlayers) {
         const pNorm = normName(p.name);
         const _en = Object.entries(goldData).find(([,g]) => g && normName(g.name) === pNorm);
@@ -15645,9 +15650,23 @@ window.saveMatch = async function() {
           matchG: Math.round(eff.matchG || 0), winG: Math.round(eff.winG || 0),
           mvpG:   Math.round(eff.mvpG   || 0),
           winLP:  Math.round(eff.winLP  || 0), lossLP: Math.round(eff.lossLP || 0),
+          lottoTkt: Math.round(eff.lottoTkt || 0),
         };
+        // 🎟️ 복권 지급 — 무료 일반 복권권(freeScratch[0])을 줄 수만큼 적립
+        const _lt = Math.round(eff.lottoTkt || 0);
+        if (_lt > 0) {
+          const gd = _en[1], ff = sField('freeScratch');
+          const ft = { ...(gd[ff] || {}) };
+          ft[0] = (ft[0] || 0) + _lt;
+          gd[ff] = ft;                                // 로컬 즉시 반영
+          _lottoGrants.push({ key: _en[0], freeField: ff, ft });
+        }
       }
       if (Object.keys(_emblemSnap).length > 0) matchData.emblemEffects = _emblemSnap;
+      // 무료 복권권 지급 Firebase 반영 (라이브 기기가 각 플레이어 노드에 1회 기록)
+      if (_lottoGrants.length) {
+        try { await Promise.all(_lottoGrants.map(g => update(ref(db, 'gold/' + g.key), { [g.freeField]: g.ft }))); } catch(_){}
+      }
     }
 
     // ── 관전자 결과 헬퍼 (다중 관전자 지원) ─────────────────────
