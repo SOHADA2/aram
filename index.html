@@ -6282,7 +6282,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.36';
+const APP_VERSION = 'v2.45.37';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6291,6 +6291,9 @@ const APP_VERSION = 'v2.45.36';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.37', date: '2026-06-08', changes: [
+    { tag: 'improve', text: '🏛️ 시즌1 명예의 전당 확장 — (1) 티어 배지는 정점 TOP3에만 표시(대부분 챌린저라 부문상 순위·명단의 반복 배지는 제거). (2) 부문상 6개 추가: 🩸퍼스트블러드·🎟️복권왕(당첨금)·🍀한탕(최고당첨)·🃏카드 컬렉터·🌈3성 수집가·📅개근왕. (3) TMI 대폭 추가: 복권(긁은 수·당첨금·최고당첨), 가챠(뽑기·카드·3성·시너지), 출석(누적·개근왕), 퍼블·MVP 누적·국민챔피언 등' },
+  ] },
   { ver: 'v2.45.36', date: '2026-06-08', changes: [
     { tag: 'improve', text: '🏛️ 시즌1 명예의 전당 개편 — (1) 부문상을 단일 우승자 → 부문별 TOP5 순위(1·2·3·4·5)로. 자기 등수까지 확인되고 포함되는 사람이 크게 늘어남. (2) 📊 "시즌1 TMI" 섹션 신설 — 유저들이 몰랐던 데이터상 통계(총 경기·누적 킬데스어시·누적 딜량·멀티킬·최애 챔피언·경기 길이·막고라 판수·관전 베팅 등). 명예 명단(전원 칭호)은 유지' },
   ] },
@@ -20738,11 +20741,13 @@ function _s1HofPlayers(s1node){
   Object.values(matches||{}).forEach(m=>{
     if((m.season??0)!==1) return;
     if(m.participants) for(const nn in m.participants){ const p=m.participants[nn]; if(!p)continue; if(p.kills===undefined&&p.damage===undefined)continue;
-      const s=st[nn]||(st[nn]={g:0,k:0,d:0,a:0,dmg:0,cs:0,spT:0,spC:0}); s.g++; s.k+=p.kills||0; s.d+=p.deaths||0; s.a+=p.assists||0; s.dmg+=p.damage||0; s.cs+=p.cs||0; if(!nameMap[nn])nameMap[nn]=nn; }
+      const s=st[nn]||(st[nn]={g:0,k:0,d:0,a:0,dmg:0,cs:0,spT:0,spC:0,fb:0}); s.g++; s.k+=p.kills||0; s.d+=p.deaths||0; s.a+=p.assists||0; s.dmg+=p.damage||0; s.cs+=p.cs||0; if(p.firstBlood)s.fb++; if(!nameMap[nn])nameMap[nn]=nn; }
     if(m.spectatorPicks) for(const nn in m.spectatorPicks){ const pk=m.spectatorPicks[nn]; if(!pk)continue;
-      const s=st[nn]||(st[nn]={g:0,k:0,d:0,a:0,dmg:0,cs:0,spT:0,spC:0}); s.spT++; if(pk.correct)s.spC++; if(!nameMap[nn])nameMap[nn]=nn; }
+      const s=st[nn]||(st[nn]={g:0,k:0,d:0,a:0,dmg:0,cs:0,spT:0,spC:0,fb:0}); s.spT++; if(pk.correct)s.spC++; if(!nameMap[nn])nameMap[nn]=nn; }
     [...(m.teamA||[]),...(m.teamB||[])].forEach(n=>{ const nn=normName(n); if(!nameMap[nn])nameMap[nn]=n; });
   });
+  // goldData 를 normName 으로 매핑(복권/가챠/출석은 _s1 필드 직접 참조 — 현재 시즌 무관)
+  const gdByNorm={}; Object.values(goldData||{}).forEach(gd=>{ if(gd&&gd.name) gdByNorm[normName(gd.name)]=gd; });
   const players=[];
   for(const nn in nameMap){
     const name=nameMap[nn];
@@ -20754,8 +20759,15 @@ function _s1HofPlayers(s1node){
     const combat = c.g>0 ? { g:c.g, avgK:c.k/c.g, avgD:c.d/c.g, avgA:c.a/c.g, avgDmg:c.dmg/c.g, avgCs:c.cs/c.g, kda:(c.k+c.a)/Math.max(1,c.d), totD:c.d } : { g:0 };
     let mg={win:0,loss:0}; try{ if(typeof mgFighterStats==='function') mg=mgFighterStats(name,1); }catch(_){}
     let gold=0; try{ gold=calcGoldFromMatches(name,1)||0; }catch(_){}
+    // 복권·가챠·출석 (S1)
+    const gd=gdByNorm[nn]||{};
+    let lottoWin=0, lottoBuy=0, lottoMax=0;
+    (gd.lotteryHistory||[]).forEach(h=>{ if((h.season??1)!==1||!h.scratch) return; lottoBuy++; const g=h.gold||0; if(g>0){ lottoWin+=g; if(g>lottoMax)lottoMax=g; } });
+    let gachaCards=0, gacha3=0; const cc=gd.champCards_s1||{}; for(const slug in cc){ const cd=cc[slug]||{}; gachaCards+=(cd.s1||0)+(cd.s2||0)+(cd.s3||0); gacha3+=(cd.s3||0); }
+    const attend=(gd.attendanceHistory||[]).length;
     players.push({ nn, name, tier:sp.tier||'unranked', lp:sp.lp||0, wins:s.wins, losses:s.losses, total:s.total, wr:s.wr,
-      mvp:aw.mvp||0, svp:aw.svp||0, mmp:aw.mmp||0, maxWin:ms.maxWin||0, combat, spT:c.spT||0, spC:c.spC||0, mg, gold });
+      mvp:aw.mvp||0, svp:aw.svp||0, mmp:aw.mmp||0, maxWin:ms.maxWin||0, combat, fb:c.fb||0, spT:c.spT||0, spC:c.spC||0, mg, gold,
+      lottoWin, lottoBuy, lottoMax, gachaCards, gacha3, attend });
   }
   return players;
 }
@@ -20782,26 +20794,43 @@ function _s1HofTitle(p){
 }
 // 📊 시즌1 전체 숨은 통계 (TMI) — matches 1회 순회 집계
 function _s1HofTMI(){
-  let games=0,totK=0,totD=0,totA=0,totDmg=0,penta=0,quad=0,triple=0,specBets=0;
+  let games=0,totK=0,totD=0,totA=0,totDmg=0,penta=0,quad=0,triple=0,specBets=0,firstBloods=0,mvpVotes=0;
   let longest=0, shortest=0;
-  const champCount={}; const players=new Set();
+  const champCount={}; const players=new Set(); const champUsers={};
   Object.values(matches||{}).forEach(m=>{
     if((m.season??0)!==1) return; games++;
+    if(m.mvpWinner) mvpVotes++;
     if(m.gameTime){ if(m.gameTime>longest) longest=m.gameTime; if(!shortest||m.gameTime<shortest) shortest=m.gameTime; }
     if(m.spectatorPicks) specBets += Object.keys(m.spectatorPicks).length;
     [...(m.teamA||[]),...(m.teamB||[])].forEach(n=>players.add(normName(n)));
     if(m.participants) for(const nn in m.participants){ const p=m.participants[nn]; if(!p)continue;
       totK+=p.kills||0; totD+=p.deaths||0; totA+=p.assists||0; totDmg+=p.damage||0;
-      penta+=p.pentaKills||0; quad+=p.quadraKills||0; triple+=p.tripleKills||0;
-      if(p.champion) champCount[p.champion]=(champCount[p.champion]||0)+1;
+      penta+=p.pentaKills||0; quad+=p.quadraKills||0; triple+=p.tripleKills||0; if(p.firstBlood)firstBloods++;
+      if(p.champion){ champCount[p.champion]=(champCount[p.champion]||0)+1; (champUsers[p.champion]=champUsers[p.champion]||new Set()).add(nn); }
     }
   });
   let magollaGames=0; Object.values(typeof magollaMatches!=='undefined'?magollaMatches:{}).forEach(m=>{ if(m&&m.status==='settled'&&(m.season??1)===1) magollaGames++; });
+  // 복권·가챠·출석 (goldData 스캔, _s1 필드 직접)
+  let lottoBuys=0, lottoWinTot=0, lottoMaxWin=0, lottoMaxName='';
+  let gachaPulls=0, gacha3=0, gachaCardsTot=0, synergyOwners=0;
+  let attendTot=0, attendMax=0, attendMaxName='';
+  Object.values(goldData||{}).forEach(gd=>{ if(!gd) return; const nm=gd.name||'';
+    (gd.lotteryHistory||[]).forEach(h=>{ if((h.season??1)!==1||!h.scratch) return; lottoBuys++; const g=h.gold||0; if(g>0){ lottoWinTot+=g; if(g>lottoMaxWin){lottoMaxWin=g;lottoMaxName=nm;} } });
+    (gd.gachaLog_s1||[]).forEach(g=>{ gachaPulls += (g.times||1); });
+    const cc=gd.champCards_s1||{}; for(const slug in cc){ const cd=cc[slug]||{}; gachaCardsTot+=(cd.s1||0)+(cd.s2||0)+(cd.s3||0); gacha3+=(cd.s3||0); }
+    if(gd.activeSynergy_s1&&gd.activeSynergy_s1.sid) synergyOwners++;
+    const a=(gd.attendanceHistory||[]).length; attendTot+=a; if(a>attendMax){attendMax=a;attendMaxName=nm;}
+  });
   const topChamp = Object.entries(champCount).sort((a,b)=>b[1]-a[1])[0]||null;
-  return { games, players:players.size, totK, totD, totA, totDmg, penta, quad, triple, specBets, longest, shortest, magollaGames, topChamp };
+  const mostShared = Object.entries(champUsers).sort((a,b)=>b[1].size-a[1].size)[0];
+  return { games, players:players.size, totK, totD, totA, totDmg, penta, quad, triple, specBets, firstBloods, mvpVotes, longest, shortest, magollaGames,
+    topChamp, sharedChamp: mostShared?[mostShared[0],mostShared[1].size]:null,
+    lottoBuys, lottoWinTot, lottoMaxWin, lottoMaxName, gachaPulls, gacha3, gachaCardsTot, synergyOwners, attendTot, attendMax, attendMaxName };
 }
 function _s1HofTMISample(){
-  return { games:412, players:11, totK:9840, totD:8210, totA:18600, totDmg:14200000, penta:7, quad:38, triple:210, specBets:520, longest:2280, shortest:540, magollaGames:34, topChamp:['Garen',86] };
+  return { games:412, players:11, totK:9840, totD:8210, totA:18600, totDmg:14200000, penta:7, quad:38, triple:210, specBets:520, firstBloods:198, mvpVotes:412, longest:2280, shortest:540, magollaGames:34,
+    topChamp:['Garen',86], sharedChamp:['Lux',9],
+    lottoBuys:1840, lottoWinTot:96500, lottoMaxWin:8580, lottoMaxName:'럼블홀릭', gachaPulls:620, gacha3:24, gachaCardsTot:1180, synergyOwners:7, attendTot:540, attendMax:78, attendMaxName:'울퉁쓰' };
 }
 async function showS1HallOfFame(playersOverride){
   if (document.querySelector('.hof-overlay')) return;
@@ -20832,6 +20861,12 @@ async function showS1HallOfFame(playersOverride){
     ['💰','골드 부자', p=>p.gold, p=>p.gold>0, p=>`${Math.round(p.gold).toLocaleString()}G`, false],
     ['⚙️','철인(최다경기)', p=>p.total, ()=>true, p=>`${p.total}판`, false],
     ['💀','돌격대장(데스)', p=>p.combat.totD||0, p=>p.combat.g>=5, p=>`${p.combat.totD}`, false],
+    ['🩸','퍼스트블러드', p=>p.fb||0, p=>(p.fb||0)>0, p=>`${p.fb}회`, false],
+    ['🎟️','복권왕(당첨금)', p=>p.lottoWin||0, p=>(p.lottoWin||0)>0, p=>`${(p.lottoWin).toLocaleString()}G`, false],
+    ['🍀','한탕(최고 당첨)', p=>p.lottoMax||0, p=>(p.lottoMax||0)>0, p=>`${(p.lottoMax).toLocaleString()}G`, false],
+    ['🃏','카드 컬렉터', p=>p.gachaCards||0, p=>(p.gachaCards||0)>0, p=>`${p.gachaCards}장`, false],
+    ['🌈','3성 수집가', p=>p.gacha3||0, p=>(p.gacha3||0)>0, p=>`${p.gacha3}장`, false],
+    ['📅','개근왕(출석)', p=>p.attend||0, p=>(p.attend||0)>0, p=>`${p.attend}회`, false],
   ];
   const RANKN=5;
   let awCount=0;
@@ -20839,7 +20874,7 @@ async function showS1HallOfFame(playersOverride){
     const c=P.filter(flt); if(!c.length) return '';
     c.sort((a,b)=> asc ? val(a)-val(b) : val(b)-val(a));
     awCount++;
-    const rows=c.slice(0,RANKN).map((p,i)=>`<div class="hof-rk${i===0?' r1':''}"><span class="hof-rk-n">${i+1}</span><span class="hof-rk-nm">${escHtml(p.name)}</span>${s1TierBadgeHtml(p.tier,'mini')}<span class="hof-rk-v">${fmt(p)}</span></div>`).join('');
+    const rows=c.slice(0,RANKN).map((p,i)=>`<div class="hof-rk${i===0?' r1':''}"><span class="hof-rk-n">${i+1}</span><span class="hof-rk-nm">${escHtml(p.name)}</span><span class="hof-rk-v">${fmt(p)}</span></div>`).join('');
     return `<div class="hof-award2"><div class="hof-award2-hd"><span class="hof-award2-ico">${ico}</span>${ttl}</div>${rows}</div>`;
   }).filter(Boolean).join('');
 
@@ -20847,18 +20882,33 @@ async function showS1HallOfFame(playersOverride){
   const tmi = playersOverride ? _s1HofTMISample() : _s1HofTMI();
   const _fmtMin=s=> s? `${Math.floor(s/60)}분 ${Math.round(s%60)}초` : '-';
   const tmiF=[];
+  const _kr=s=> (typeof champNamesKR!=='undefined'&&champNamesKR[s])||s;
   tmiF.push(['📅','전체 규모', `${tmi.games.toLocaleString()}경기 · ${tmi.players}명 참여`]);
   tmiF.push(['⚔️','누적 전투', `킬 ${tmi.totK.toLocaleString()} · 데스 ${tmi.totD.toLocaleString()} · 어시 ${tmi.totA.toLocaleString()}`]);
   if(tmi.totDmg) tmiF.push(['💥','누적 딜량', `${tmi.totDmg.toLocaleString()}`]);
   if(tmi.penta+tmi.quad+tmi.triple>0) tmiF.push(['🌟','멀티킬', `펜타 ${tmi.penta} · 쿼드라 ${tmi.quad} · 트리플 ${tmi.triple}`]);
-  if(tmi.topChamp) tmiF.push(['🏅','최애 챔피언', `${(typeof champNamesKR!=='undefined'&&champNamesKR[tmi.topChamp[0]])||tmi.topChamp[0]} · ${tmi.topChamp[1]}회 픽`]);
+  if(tmi.firstBloods) tmiF.push(['🩸','퍼스트블러드', `누적 ${tmi.firstBloods.toLocaleString()}회`]);
+  if(tmi.topChamp) tmiF.push(['🏅','최애 챔피언', `${_kr(tmi.topChamp[0])} · ${tmi.topChamp[1]}회 픽`]);
+  if(tmi.sharedChamp) tmiF.push(['👥','국민 챔피언', `${_kr(tmi.sharedChamp[0])} · ${tmi.sharedChamp[1]}명이 사용`]);
   if(tmi.longest) tmiF.push(['⏱️','경기 길이', `최장 ${_fmtMin(tmi.longest)} · 최단 ${_fmtMin(tmi.shortest)}`]);
+  if(tmi.mvpVotes) tmiF.push(['⭐','MVP 선정', `누적 ${tmi.mvpVotes.toLocaleString()}회`]);
+  // 🎟️ 복권
+  if(tmi.lottoBuys) tmiF.push(['🎟️','복권 열기', `${tmi.lottoBuys.toLocaleString()}장 긁음 · 당첨금 ${tmi.lottoWinTot.toLocaleString()}G`]);
+  if(tmi.lottoMaxWin) tmiF.push(['🍀','최고 당첨', `${tmi.lottoMaxWin.toLocaleString()}G — ${escHtml(tmi.lottoMaxName||'?')}`]);
+  // 🃏 가챠
+  if(tmi.gachaPulls) tmiF.push(['🃏','가챠', `${tmi.gachaPulls.toLocaleString()}회 뽑기 · 카드 ${tmi.gachaCardsTot.toLocaleString()}장`]);
+  if(tmi.gacha3) tmiF.push(['🌈','3성 카드', `누적 ${tmi.gacha3.toLocaleString()}장 획득`]);
+  if(tmi.synergyOwners) tmiF.push(['🔗','시너지', `${tmi.synergyOwners}명 활성화`]);
+  // 📅 출석
+  if(tmi.attendTot) tmiF.push(['📅','출석 체크', `누적 ${tmi.attendTot.toLocaleString()}회 출석`]);
+  if(tmi.attendMax) tmiF.push(['🔆','개근왕', `${tmi.attendMax}회 — ${escHtml(tmi.attendMaxName||'?')}`]);
+  // 🎰 막고라 · 🔮 관전
   if(tmi.magollaGames) tmiF.push(['🎰','막고라', `총 ${tmi.magollaGames}판 진행`]);
   if(tmi.specBets) tmiF.push(['🔮','관전 베팅', `누적 ${tmi.specBets.toLocaleString()}회 참여`]);
   const tmiHtml = tmiF.map(([ic,t,d])=>`<div class="hof-tmi-card"><div class="hof-tmi-ico">${ic}</div><div class="hof-tmi-ttl">${t}</div><div class="hof-tmi-desc">${d}</div></div>`).join('');
 
   const podHtml=(p,cls,medal)=> `<div class="hof-pod ${cls}"><div class="hof-pod-rank">${medal}</div><div class="hof-pod-name">${p?escHtml(p.name):'-'}</div><div class="hof-pod-score">${p?s1TierBadgeHtml(p.tier,'mini')+' '+p.lp+'LP':''}</div><div class="hof-pod-base"></div></div>`;
-  const rosterHtml = ranked.map(p=>{ const [ic,ti]=_s1HofTitle(p); return `<div class="hof-roster"><span class="hof-roster-ic">${ic}</span><span class="hof-roster-nm">${escHtml(p.name)}</span>${s1TierBadgeHtml(p.tier,'mini')}<span class="hof-roster-ti">${ti}</span><span class="hof-roster-g">${p.total}전</span></div>`; }).join('') || `<div style="grid-column:1/-1;text-align:center;color:rgba(200,168,75,0.5);font-size:12px;padding:20px;">아직 시즌 1 기록이 없어요</div>`;
+  const rosterHtml = ranked.map(p=>{ const [ic,ti]=_s1HofTitle(p); return `<div class="hof-roster"><span class="hof-roster-ic">${ic}</span><span class="hof-roster-nm">${escHtml(p.name)}</span><span class="hof-roster-ti">${ti}</span><span class="hof-roster-g">${p.total}전</span></div>`; }).join('') || `<div style="grid-column:1/-1;text-align:center;color:rgba(200,168,75,0.5);font-size:12px;padding:20px;">아직 시즌 1 기록이 없어요</div>`;
 
   const overlay=document.createElement('div'); overlay.className='hof-overlay';
   overlay.innerHTML = `
@@ -20888,11 +20938,13 @@ async function showS1HallOfFame(playersOverride){
 window.showS1HallOfFame = showS1HallOfFame;
 // 🧪 시즌1 명예의 전당 샘플 데이터 — 데이터 없는 프리뷰에서 디자인 확인용
 function _s1HofSample(){
-  const mk=(name,tier,lp,w,l,o={})=>{ const total=w+l; const c=o.combat||{}; return {
+  const mk=(name,tier,lp,w,l,o={})=>{ const total=w+l; const c=o.combat||{}; const seed=name.length; return {
     name, tier, lp, wins:w, losses:l, total, wr:total?w/total:0,
     mvp:o.mvp||0, svp:o.svp||0, mmp:o.mmp||0, maxWin:o.maxWin||0,
     combat:{ g:c.g||total, avgK:c.avgK||5, avgD:c.avgD||5, avgA:c.avgA||10, avgDmg:c.avgDmg||25000, avgCs:c.avgCs||30, kda:c.kda||3, totD:c.totD||((c.avgD||5)*total) },
-    spT:o.spT||0, spC:o.spC||0, mg:o.mg||{win:0,loss:0}, gold:o.gold||1000 }; };
+    fb:o.fb??(seed*3), spT:o.spT||0, spC:o.spC||0, mg:o.mg||{win:0,loss:0}, gold:o.gold||1000,
+    lottoWin:o.lottoWin??(total*40), lottoMax:o.lottoMax??(seed*200), lottoBuy:o.lottoBuy??(total*2),
+    gachaCards:o.gachaCards??(total*3), gacha3:o.gacha3??Math.floor(seed/2), attend:o.attend??(40+seed*4) }; };
   return [
     mk('애긔반달곰','challenger',180,90,40,{mvp:25,svp:12,mmp:8,maxWin:7,combat:{g:80,avgK:9.2,avgD:4.1,avgA:14,avgDmg:42000,avgCs:48,kda:5.6,totD:328},spT:10,spC:8,mg:{win:6,loss:2},gold:8500}),
     mk('울퉁쓰','grandmaster',60,80,70,{mvp:14,svp:18,mmp:5,maxWin:5,combat:{g:120,avgK:6,avgD:6,avgA:12,avgDmg:30000,avgCs:65,kda:3,totD:720},gold:6000,mg:{win:3,loss:4}}),
