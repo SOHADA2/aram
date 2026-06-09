@@ -1362,6 +1362,10 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .season-admin-btn.active{background:rgba(200,168,75,0.18);color:var(--rk-gold);}
 .season-admin-btn:not(.active):hover{background:rgba(255,255,255,0.08);color:var(--text);}
 .bridge-status-wrap{display:flex;align-items:center;gap:5px;margin-left:auto;flex-shrink:0;}
+.bridge-refresh-btn{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;border-radius:5px;border:1px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.04);color:var(--text-dim);font-size:12px;line-height:1;cursor:pointer;transition:color .15s,background .15s,border-color .15s;}
+.bridge-refresh-btn:hover{color:var(--gold);border-color:var(--gold);background:rgba(200,168,75,0.1);}
+.bridge-refresh-btn.spinning{animation:bridgeRefreshSpin .6s linear;}
+@keyframes bridgeRefreshSpin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 
 /* ── 투표 알림 배너 ── */
 .vote-notify-banner{position:fixed;top:0;left:0;right:0;z-index:9999;background:linear-gradient(90deg,var(--rk-gold-deep),var(--rk-gold));color:#111;font-size:13px;font-weight:700;padding:10px 16px;display:flex;align-items:center;justify-content:center;gap:12px;animation:slideDown 0.3s ease;box-shadow:0 2px 16px rgba(232,208,128,.4);}
@@ -5407,6 +5411,7 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
   <div class="bridge-status-wrap">
     <div class="sync-dot err" id="bridge-dot" title="LCU 브릿지 연결 상태"></div>
     <span id="bridge-msg" style="font-size:10px;">브릿지 없음</span>
+    <button class="bridge-refresh-btn" id="bridge-refresh-btn" title="브릿지 연결 상태 새로고침" onclick="window.refreshBridgeStatus()">⟳</button>
     <button class="account-change-btn" onclick="openMyModal()">계정변경</button>
   </div>
 </div>
@@ -6141,7 +6146,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.44.87';
+const APP_VERSION = 'v2.44.88';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6150,6 +6155,10 @@ const APP_VERSION = 'v2.44.87';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.44.88', date: '2026-06-09', changes: [
+    { tag: 'new', text: '🌉 브릿지 진행자 표시 — 누가 브릿지를 켰는지 상단 상태바에 "브릿지 연결중 (이름)"으로 표시. 브릿지 상태페이지(127.0.0.1:7654)에서 팀원 명단으로 본인 닉네임을 선택하면 사이트에 뜸(앱 계정과 무관한 식별용). 여러 명이 동시에 켜면 전원 표시(브릿지 연결중 (A · B)) — 같은 게임이면 중복 저장은 자동 차단(saveLock+gameId), 다른 게임이면 각자 저장. ※ aram-bridge v1.1.32 필요. 구버전 브릿지는 기존처럼 "브릿지 연결됨"으로 표시(레거시 heartbeat 폴백)' },
+    { tag: 'new', text: '🔄 브릿지 상태 새로고침 버튼 — 상태바 ⟳ 버튼으로 Firebase에서 직접 다시 읽어와 즉시 갱신. 브릿지를 끄거나 진행자가 바뀌었을 때 자동 갱신(실시간 구독+5초 주기)을 기다리지 않고 바로 확인 가능' },
+  ] },
   { ver: 'v2.44.87', date: '2026-06-08', changes: [
     { tag: 'improve', text: '📅📬 출석체크·우편함을 사이트 최상단 좌측 코너바(명예의전당·일정 옆)로 이동 — 같은 톤앤매너의 컴팩트 배지로. 기존 헤더 아래 큰 행에서 상단 고정바로.' },
   ] },
@@ -10887,17 +10896,41 @@ const BRIDGE_DOWNLOAD_URL = 'https://github.com/SOHADA2/aram-bridge/releases/lat
 })();
 
 let _bridgeHeartbeat = null;
+let _bridgeOperators = null;   // { id: {name, at} } — 다중 진행자 (aram-bridge v1.1.32~)
 
 function _updateBridgeDot() {
   const dot = document.getElementById('bridge-dot');
   const msg = document.getElementById('bridge-msg');
   if (!dot || !msg) return;
-  const connected = _bridgeHeartbeat && (Date.now() - _bridgeHeartbeat < 120000);
+  // 우선순위: operators(진행자 표시) → 레거시 heartbeat
+  const now = Date.now();
+  const active = _bridgeOperators
+    ? Object.values(_bridgeOperators).filter(o => o && o.at && (now - o.at < 120000))
+    : [];
+  if (active.length) {
+    const names = active.map(o => o.name).filter(Boolean);
+    dot.className = 'sync-dot ok';
+    if (!names.length) {
+      msg.textContent = '브릿지 연결중 (진행자 미선택)';
+    } else {
+      const shown = names.slice(0, 2).join(' · ');
+      const extra = names.length > 2 ? ` 외 ${names.length - 2}` : '';
+      msg.textContent = `브릿지 연결중 (${shown}${extra})`;
+    }
+    return;
+  }
+  const connected = _bridgeHeartbeat && (now - _bridgeHeartbeat < 120000);
   dot.className = 'sync-dot ' + (connected ? 'ok' : 'err');
   msg.textContent = connected ? '브릿지 연결됨' : '브릿지 없음';
 }
 
-// 신규 경로: bridge/heartbeat (ms 타임스탬프, 초 단위 저장 시 자동 변환)
+// 다중 진행자: bridge/operators/{id} = {name, at} (aram-bridge v1.1.32~)
+onValue(ref(db, 'bridge/operators'), (snap) => {
+  _bridgeOperators = snap.val();
+  _updateBridgeDot();
+});
+
+// 레거시 경로: bridge/heartbeat (ms 타임스탬프, 초 단위 저장 시 자동 변환)
 onValue(ref(db, 'bridge/heartbeat'), (snap) => {
   let v = snap.val();
   if (v && v < 1e12) v = v * 1000;
@@ -10918,6 +10951,21 @@ onValue(ref(db, 'session/bridgeConnected'), (snap) => {
 
 // 브릿지가 조용히 죽어도 10초 내 감지
 setInterval(_updateBridgeDot, 5000);
+
+// 수동 새로고침 — Firebase에서 직접 한 번 다시 읽어와 즉시 갱신(브릿지 끄거나 진행자 바뀌었을 때 바로 확인)
+window.refreshBridgeStatus = async function() {
+  const btn = document.getElementById('bridge-refresh-btn');
+  if (btn) { btn.classList.remove('spinning'); void btn.offsetWidth; btn.classList.add('spinning'); }
+  try {
+    const [opSnap, hbSnap] = await Promise.all([
+      get(ref(db, 'bridge/operators')),
+      get(ref(db, 'bridge/heartbeat')),
+    ]);
+    _bridgeOperators = opSnap.val();
+    let v = hbSnap.val(); if (v && v < 1e12) v = v * 1000; _bridgeHeartbeat = v;
+  } catch (_) {}
+  _updateBridgeDot();
+};
 
 
 // ── EOG 결과 오버레이 ─────────────────────────────────────────────
