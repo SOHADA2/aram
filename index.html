@@ -6269,7 +6269,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.31';
+const APP_VERSION = 'v2.45.32';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6278,6 +6278,9 @@ const APP_VERSION = 'v2.45.31';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.32', date: '2026-06-08', changes: [
+    { tag: 'improve', text: '🏛️ [개발] 시즌1 명예의 전당 샘플 미리보기 — 데이터 없는 환경에서 디자인 확인용. 콘솔 previewS1Hof() 또는 URL ?hofdemo 로 샘플 11명 채워진 전당 표시. (실제 명예의전당 버튼은 라이브 시즌1 데이터로 자동 채워짐 — 로직 정상 확인)' },
+  ] },
   { ver: 'v2.45.31', date: '2026-06-08', changes: [
     { tag: 'new', text: '🏛️ 시즌 1 명예의 전당 추가 — 시즌0(수동)과 달리 데이터로 자동 계산. 👑정점 TOP3(티어·LP) + 🏅부문상 17종(최다승·승률왕·연승왕·킬/딜/CS/KDA·생존왕·MVP/SVP/매너왕·족집게관전·막고라파이터왕·골드부자·철인·돌격대장) + 🎖️명예 명단(시즌1에 한 판이라도 뛴 참여자 전원에게 티어배지+개성 칭호 부여). 명예의전당 버튼이 현재 시즌에 맞게 S1/S0 자동 분기(서로 보기 링크 포함)' },
   ] },
@@ -20751,9 +20754,9 @@ function _s1HofTitle(p){
   if(p.total>=10)               return ['🎮','내전의 기둥'];
   return ['🌱','함께한 동료'];
 }
-function showS1HallOfFame(){
+function showS1HallOfFame(playersOverride){
   if (document.querySelector('.hof-overlay')) return;
-  const P = _s1HofPlayers();
+  const P = playersOverride || _s1HofPlayers();
   const ranked = [...P].sort((a,b)=>_s1HofTrank(b)-_s1HofTrank(a));
   const t3 = ranked.slice(0,3);
   // 부문상 계산
@@ -20806,6 +20809,31 @@ function showS1HallOfFame(){
   overlay.addEventListener('click', e=>{ if(e.target===overlay) overlay.remove(); });
 }
 window.showS1HallOfFame = showS1HallOfFame;
+// 🧪 시즌1 명예의 전당 샘플 미리보기 — 데이터 없을 때 디자인 확인용 (콘솔: previewS1Hof())
+window.previewS1Hof = function(){
+  const mk=(name,tier,lp,w,l,o={})=>{ const total=w+l; const c=o.combat||{}; return {
+    name, tier, lp, wins:w, losses:l, total, wr:total?w/total:0,
+    mvp:o.mvp||0, svp:o.svp||0, mmp:o.mmp||0, maxWin:o.maxWin||0,
+    combat:{ g:c.g||total, avgK:c.avgK||5, avgD:c.avgD||5, avgA:c.avgA||10, avgDmg:c.avgDmg||25000, avgCs:c.avgCs||30, kda:c.kda||3, totD:c.totD||((c.avgD||5)*total) },
+    spT:o.spT||0, spC:o.spC||0, mg:o.mg||{win:0,loss:0}, gold:o.gold||1000 }; };
+  const P=[
+    mk('애긔반달곰','challenger',180,90,40,{mvp:25,svp:12,mmp:8,maxWin:7,combat:{g:80,avgK:9.2,avgD:4.1,avgA:14,avgDmg:42000,avgCs:48,kda:5.6,totD:328},spT:10,spC:8,mg:{win:6,loss:2},gold:8500}),
+    mk('울퉁쓰','grandmaster',60,80,70,{mvp:14,svp:18,mmp:5,maxWin:5,combat:{g:120,avgK:6,avgD:6,avgA:12,avgDmg:30000,avgCs:65,kda:3,totD:720},gold:6000,mg:{win:3,loss:4}}),
+    mk('브랜딩프로','master',40,60,50,{mvp:8,mmp:3,combat:{g:60,avgK:5,avgD:5,avgA:11,avgDmg:28000,avgCs:87,kda:3.2,totD:300},gold:4000}),
+    mk('나랑듀오해듀오','diamond',70,55,45,{maxWin:8,mmp:4,combat:{g:50,avgK:8,avgD:5,avgA:10,avgDmg:33000,avgCs:40,kda:3.6,totD:250},gold:3500}),
+    mk('조조와빈찬합','diamond',30,70,60,{mvp:12,svp:21,mmp:10,combat:{g:70,avgK:6,avgD:7,avgA:18,avgDmg:31000,avgCs:35,kda:3.4,totD:490},gold:5000}),
+    mk('맹독 벌꿀오소리','platinum',50,40,40,{mmp:6,combat:{g:40,avgK:7,avgD:4,avgA:13,avgDmg:29000,avgCs:42,kda:5,totD:160},spT:5,spC:4,gold:3000}),
+    mk('ap렉사이서폿','platinum',20,50,55,{svp:9,mmp:7,combat:{g:55,avgK:3,avgD:6,avgA:20,avgDmg:18000,avgCs:25,kda:3.8,totD:330},gold:2800}),
+    mk('빛나는언즈','gold',60,35,40,{maxWin:4,combat:{g:35,avgK:6,avgD:5,avgA:9,avgDmg:26000,avgCs:38,kda:3,totD:175},gold:2200}),
+    mk('신규회원임','silver',40,25,30,{mmp:2,combat:{g:25,avgK:5,avgD:6,avgA:8,avgDmg:22000,avgCs:30,kda:2.2,totD:150},gold:1500}),
+    mk('럼블홀릭','bronze',80,15,25,{combat:{g:20,avgK:4,avgD:7,avgA:7,avgDmg:20000,avgCs:28,kda:1.6,totD:140},gold:900}),
+    mk('함께한친구','unranked',0,3,5,{combat:{g:8,avgK:4,avgD:6,avgA:6,avgDmg:18000,avgCs:24,kda:1.7,totD:48},gold:400}),
+  ];
+  showS1HallOfFame(P);
+  console.log('🏛 시즌1 HOF 미리보기 (샘플 11명) — 실제는 라이브 시즌1 데이터로 채워집니다');
+};
+// 태블릿/모바일 — URL에 ?hofdemo 붙이면 로드 후 자동으로 샘플 HOF 띄움(콘솔 없이 디자인 확인)
+if (location.search.includes('hofdemo')) setTimeout(()=>{ try{ window.previewS1Hof(); }catch(_){} }, 1400);
 
 // ── 골드 & 상점 시스템 ───────────────────────────────────────
 
