@@ -411,6 +411,18 @@ html:not(.s1-active) .hs-season-badge{color:var(--text-dim);border-color:rgba(25
 .hof-roster-g{font-size:9px;color:rgba(180,155,210,0.45);font-family:'JetBrains Mono',monospace;margin-left:auto;flex-shrink:0;}
 .hof-alt-btn{width:100%;padding:11px;border-radius:12px;border:1px solid rgba(140,100,220,0.3);background:rgba(140,80,255,0.07);color:rgba(200,170,255,0.8);font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:12.5px;cursor:pointer;transition:all 0.2s;margin-top:14px;}
 .hof-alt-btn:hover{background:rgba(140,80,255,0.14);color:#d8c2ff;}
+/* 🏅 부문상 TOP5 순위 카드 (2열) */
+.hof-award-list2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+@media(max-width:440px){.hof-award-list2{grid-template-columns:1fr;}}
+.hof-award2{background:rgba(255,255,255,0.028);border:1px solid rgba(255,255,255,0.06);border-radius:10px;padding:9px 11px;min-width:0;}
+.hof-award2-hd{font-size:11px;font-weight:800;color:rgba(255,220,140,0.85);margin-bottom:6px;display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hof-award2-ico{font-size:14px;flex-shrink:0;}
+.hof-rk{display:flex;align-items:center;gap:5px;padding:2.5px 0;font-size:11px;min-width:0;}
+.hof-rk-n{width:13px;flex-shrink:0;text-align:center;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:800;color:rgba(180,155,210,0.45);}
+.hof-rk.r1 .hof-rk-n{color:#ffd24a;}
+.hof-rk-nm{flex:1;min-width:0;color:#d2c2e4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hof-rk.r1 .hof-rk-nm{font-weight:700;color:#f2e6ff;}
+.hof-rk-v{flex-shrink:0;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:rgba(200,168,75,0.85);}
 .hof-tmi-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;}
 .hof-tmi-card{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:10px 12px;}
 .hof-tmi-ico{font-size:18px;margin-bottom:4px;}
@@ -6270,7 +6282,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.35';
+const APP_VERSION = 'v2.45.36';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6279,6 +6291,9 @@ const APP_VERSION = 'v2.45.35';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.36', date: '2026-06-08', changes: [
+    { tag: 'improve', text: '🏛️ 시즌1 명예의 전당 개편 — (1) 부문상을 단일 우승자 → 부문별 TOP5 순위(1·2·3·4·5)로. 자기 등수까지 확인되고 포함되는 사람이 크게 늘어남. (2) 📊 "시즌1 TMI" 섹션 신설 — 유저들이 몰랐던 데이터상 통계(총 경기·누적 킬데스어시·누적 딜량·멀티킬·최애 챔피언·경기 길이·막고라 판수·관전 베팅 등). 명예 명단(전원 칭호)은 유지' },
+  ] },
   { ver: 'v2.45.35', date: '2026-06-08', changes: [
     { tag: 'fix', text: '🏛️ 명예의 전당 스크롤 끊김·뒷배경 최적화 — 풀스크린 오버레이의 backdrop-filter:blur(8px)가 스크롤마다 뒤 애니메이션 배경(헥스필드 펄스·모트) 전체를 블러 재계산해 끊기던 것이 원인. 블러 제거 + 불투명 배경으로 바꿔 뒤 배경이 안 비치고 스크롤이 매끄럽게. overscroll-behavior:contain로 스크롤 격리도 추가' },
   ] },
@@ -20765,6 +20780,29 @@ function _s1HofTitle(p){
   if(p.total>=10)               return ['🎮','내전의 기둥'];
   return ['🌱','함께한 동료'];
 }
+// 📊 시즌1 전체 숨은 통계 (TMI) — matches 1회 순회 집계
+function _s1HofTMI(){
+  let games=0,totK=0,totD=0,totA=0,totDmg=0,penta=0,quad=0,triple=0,specBets=0;
+  let longest=0, shortest=0;
+  const champCount={}; const players=new Set();
+  Object.values(matches||{}).forEach(m=>{
+    if((m.season??0)!==1) return; games++;
+    if(m.gameTime){ if(m.gameTime>longest) longest=m.gameTime; if(!shortest||m.gameTime<shortest) shortest=m.gameTime; }
+    if(m.spectatorPicks) specBets += Object.keys(m.spectatorPicks).length;
+    [...(m.teamA||[]),...(m.teamB||[])].forEach(n=>players.add(normName(n)));
+    if(m.participants) for(const nn in m.participants){ const p=m.participants[nn]; if(!p)continue;
+      totK+=p.kills||0; totD+=p.deaths||0; totA+=p.assists||0; totDmg+=p.damage||0;
+      penta+=p.pentaKills||0; quad+=p.quadraKills||0; triple+=p.tripleKills||0;
+      if(p.champion) champCount[p.champion]=(champCount[p.champion]||0)+1;
+    }
+  });
+  let magollaGames=0; Object.values(typeof magollaMatches!=='undefined'?magollaMatches:{}).forEach(m=>{ if(m&&m.status==='settled'&&(m.season??1)===1) magollaGames++; });
+  const topChamp = Object.entries(champCount).sort((a,b)=>b[1]-a[1])[0]||null;
+  return { games, players:players.size, totK, totD, totA, totDmg, penta, quad, triple, specBets, longest, shortest, magollaGames, topChamp };
+}
+function _s1HofTMISample(){
+  return { games:412, players:11, totK:9840, totD:8210, totA:18600, totDmg:14200000, penta:7, quad:38, triple:210, specBets:520, longest:2280, shortest:540, magollaGames:34, topChamp:['Garen',86] };
+}
 async function showS1HallOfFame(playersOverride){
   if (document.querySelector('.hof-overlay')) return;
   // 티어/LP는 진짜 S1 노드 기준. 현재 시즌이 1이 아니면(S2 프리뷰 등) season1/players를 직접 읽어옴.
@@ -20775,31 +20813,51 @@ async function showS1HallOfFame(playersOverride){
   if (!playersOverride && !P.length && window.__SEASON_PREVIEW && typeof _s1HofSample === 'function') P = _s1HofSample();
   const ranked = [...P].sort((a,b)=>_s1HofTrank(b)-_s1HofTrank(a));
   const t3 = ranked.slice(0,3);
-  // 부문상 계산
-  const A=[];
-  const top=(f,flt)=>{ const c=flt?P.filter(flt):P; if(!c.length)return null; return c.reduce((b,p)=>f(p)>f(b)?p:b); };
-  const low=(f,flt)=>{ const c=flt?P.filter(flt):P; if(!c.length)return null; return c.reduce((b,p)=>f(p)<f(b)?p:b); };
-  const add=(ico,ttl,p,desc)=>{ if(p) A.push({ico,ttl,name:p.name,tier:p.tier,desc:desc(p)}); };
-  add('⚔️','최다 승리', top(p=>p.wins,p=>p.wins>0), p=>`${p.wins}승 · ${p.total}전 (${Math.round(p.wr*100)}%)`);
-  add('📈','승률왕', top(p=>p.wr,p=>p.total>=10), p=>`승률 ${Math.round(p.wr*100)}% · ${p.total}전 (10전+)`);
-  add('🔥','연승왕', top(p=>p.maxWin,p=>p.maxWin>=2), p=>`최장 ${p.maxWin}연승`);
-  add('🗡️','킬 사냥꾼', top(p=>p.combat.avgK||0,p=>p.combat.g>=5), p=>`평균 ${(p.combat.avgK).toFixed(1)}킬 · ${p.combat.g}경기`);
-  add('💥','딜 몬스터', top(p=>p.combat.avgDmg||0,p=>p.combat.g>=5), p=>`평균 딜 ${Math.round(p.combat.avgDmg).toLocaleString()} · ${p.combat.g}경기`);
-  add('🌾','CS 장인', top(p=>p.combat.avgCs||0,p=>p.combat.g>=5), p=>`평균 CS ${Math.round(p.combat.avgCs)} · ${p.combat.g}경기`);
-  add('🧠','KDA 마스터', top(p=>p.combat.kda||0,p=>p.combat.g>=5), p=>`평균 KDA ${(p.combat.kda).toFixed(2)}`);
-  add('🛡️','생존왕', low(p=>p.combat.avgD,p=>p.combat.g>=5), p=>`평균 데스 ${(p.combat.avgD).toFixed(1)} (최저)`);
-  add('🤝','조력자', top(p=>p.combat.avgA||0,p=>p.combat.g>=5), p=>`평균 어시 ${(p.combat.avgA).toFixed(1)}`);
-  add('⭐','MVP왕', top(p=>p.mvp,p=>p.mvp>0), p=>`MVP ${p.mvp}회`);
-  add('🥈','투혼상', top(p=>p.svp,p=>p.svp>0), p=>`SVP(패배팀 MVP) ${p.svp}회`);
-  add('🎖️','매너왕', top(p=>p.mmp,p=>p.mmp>0), p=>`매너왕 ${p.mmp}회`);
-  add('🎯','족집게 관전', top(p=>p.spT>=3?p.spC/p.spT:0,p=>p.spT>=3), p=>`관전 적중 ${p.spC}/${p.spT} (${Math.round(p.spC/p.spT*100)}%)`);
-  add('🎰','막고라 파이터왕', top(p=>p.mg.win||0,p=>(p.mg.win||0)>0), p=>`막고라 ${p.mg.win}승 ${p.mg.loss}패`);
-  add('💰','골드 부자', top(p=>p.gold,p=>p.gold>0), p=>`경기 골드 ${Math.round(p.gold).toLocaleString()}G`);
-  add('⚙️','철인', top(p=>p.total), p=>`${p.total}경기 출전 (최다)`);
-  add('💀','돌격대장', top(p=>p.combat.totD||0,p=>p.combat.g>=5), p=>`누적 데스 ${p.combat.totD} — 가장 앞장선 전사`);
+  // 부문상 — 부문별 TOP5 순위 (자기 등수 확인 가능 → 포함되는 사람 ↑)
+  const AWDEFS=[
+    ['⚔️','최다 승리', p=>p.wins, p=>p.wins>0, p=>`${p.wins}승`, false],
+    ['📈','승률왕(10전+)', p=>p.wr, p=>p.total>=10, p=>`${Math.round(p.wr*100)}%`, false],
+    ['🔥','연승왕', p=>p.maxWin, p=>p.maxWin>=2, p=>`${p.maxWin}연승`, false],
+    ['🗡️','킬 사냥꾼', p=>p.combat.avgK||0, p=>p.combat.g>=5, p=>`${(p.combat.avgK).toFixed(1)}킬`, false],
+    ['💥','딜 몬스터', p=>p.combat.avgDmg||0, p=>p.combat.g>=5, p=>`${Math.round((p.combat.avgDmg)/1000)}k`, false],
+    ['🌾','CS 장인', p=>p.combat.avgCs||0, p=>p.combat.g>=5, p=>`${Math.round(p.combat.avgCs)}`, false],
+    ['🧠','KDA 마스터', p=>p.combat.kda||0, p=>p.combat.g>=5, p=>`${(p.combat.kda).toFixed(2)}`, false],
+    ['🛡️','생존왕(저데스)', p=>p.combat.avgD, p=>p.combat.g>=5, p=>`${(p.combat.avgD).toFixed(1)}뎃`, true],
+    ['🤝','조력자', p=>p.combat.avgA||0, p=>p.combat.g>=5, p=>`${(p.combat.avgA).toFixed(1)}`, false],
+    ['⭐','MVP왕', p=>p.mvp, p=>p.mvp>0, p=>`${p.mvp}회`, false],
+    ['🥈','투혼상(SVP)', p=>p.svp, p=>p.svp>0, p=>`${p.svp}회`, false],
+    ['🎖️','매너왕', p=>p.mmp, p=>p.mmp>0, p=>`${p.mmp}회`, false],
+    ['🎯','족집게 관전', p=>p.spC/Math.max(1,p.spT), p=>p.spT>=3, p=>`${Math.round(p.spC/p.spT*100)}%`, false],
+    ['🎰','막고라 파이터', p=>p.mg.win||0, p=>(p.mg.win||0)>0, p=>`${p.mg.win}승`, false],
+    ['💰','골드 부자', p=>p.gold, p=>p.gold>0, p=>`${Math.round(p.gold).toLocaleString()}G`, false],
+    ['⚙️','철인(최다경기)', p=>p.total, ()=>true, p=>`${p.total}판`, false],
+    ['💀','돌격대장(데스)', p=>p.combat.totD||0, p=>p.combat.g>=5, p=>`${p.combat.totD}`, false],
+  ];
+  const RANKN=5;
+  let awCount=0;
+  const awHtml = AWDEFS.map(([ico,ttl,val,flt,fmt,asc])=>{
+    const c=P.filter(flt); if(!c.length) return '';
+    c.sort((a,b)=> asc ? val(a)-val(b) : val(b)-val(a));
+    awCount++;
+    const rows=c.slice(0,RANKN).map((p,i)=>`<div class="hof-rk${i===0?' r1':''}"><span class="hof-rk-n">${i+1}</span><span class="hof-rk-nm">${escHtml(p.name)}</span>${s1TierBadgeHtml(p.tier,'mini')}<span class="hof-rk-v">${fmt(p)}</span></div>`).join('');
+    return `<div class="hof-award2"><div class="hof-award2-hd"><span class="hof-award2-ico">${ico}</span>${ttl}</div>${rows}</div>`;
+  }).filter(Boolean).join('');
 
-  const podHtml=(p,cls,medal)=> `<div class="hof-pod ${cls}"><div class="hof-pod-rank">${medal}</div><div class="hof-pod-name">${p?escHtml(p.name):'-'}</div><div class="hof-pod-score">${p?s1TierBadgeHtml(p.tier,'mini')+' '+(p.tier==='challenger'?p.lp+'LP':p.lp+'LP'):''}</div><div class="hof-pod-base"></div></div>`;
-  const awHtml = A.map(a=>`<div class="hof-award"><div class="hof-award-ico">${a.ico}</div><div style="flex:1;min-width:0;"><div class="hof-award-ttl">${a.ttl}</div><div class="hof-award-name">${escHtml(a.name)} ${s1TierBadgeHtml(a.tier,'mini')}</div><div class="hof-award-desc">${a.desc}</div></div></div>`).join('');
+  // 📊 TMI — 시즌1 전체 숨은 통계
+  const tmi = playersOverride ? _s1HofTMISample() : _s1HofTMI();
+  const _fmtMin=s=> s? `${Math.floor(s/60)}분 ${Math.round(s%60)}초` : '-';
+  const tmiF=[];
+  tmiF.push(['📅','전체 규모', `${tmi.games.toLocaleString()}경기 · ${tmi.players}명 참여`]);
+  tmiF.push(['⚔️','누적 전투', `킬 ${tmi.totK.toLocaleString()} · 데스 ${tmi.totD.toLocaleString()} · 어시 ${tmi.totA.toLocaleString()}`]);
+  if(tmi.totDmg) tmiF.push(['💥','누적 딜량', `${tmi.totDmg.toLocaleString()}`]);
+  if(tmi.penta+tmi.quad+tmi.triple>0) tmiF.push(['🌟','멀티킬', `펜타 ${tmi.penta} · 쿼드라 ${tmi.quad} · 트리플 ${tmi.triple}`]);
+  if(tmi.topChamp) tmiF.push(['🏅','최애 챔피언', `${(typeof champNamesKR!=='undefined'&&champNamesKR[tmi.topChamp[0]])||tmi.topChamp[0]} · ${tmi.topChamp[1]}회 픽`]);
+  if(tmi.longest) tmiF.push(['⏱️','경기 길이', `최장 ${_fmtMin(tmi.longest)} · 최단 ${_fmtMin(tmi.shortest)}`]);
+  if(tmi.magollaGames) tmiF.push(['🎰','막고라', `총 ${tmi.magollaGames}판 진행`]);
+  if(tmi.specBets) tmiF.push(['🔮','관전 베팅', `누적 ${tmi.specBets.toLocaleString()}회 참여`]);
+  const tmiHtml = tmiF.map(([ic,t,d])=>`<div class="hof-tmi-card"><div class="hof-tmi-ico">${ic}</div><div class="hof-tmi-ttl">${t}</div><div class="hof-tmi-desc">${d}</div></div>`).join('');
+
+  const podHtml=(p,cls,medal)=> `<div class="hof-pod ${cls}"><div class="hof-pod-rank">${medal}</div><div class="hof-pod-name">${p?escHtml(p.name):'-'}</div><div class="hof-pod-score">${p?s1TierBadgeHtml(p.tier,'mini')+' '+p.lp+'LP':''}</div><div class="hof-pod-base"></div></div>`;
   const rosterHtml = ranked.map(p=>{ const [ic,ti]=_s1HofTitle(p); return `<div class="hof-roster"><span class="hof-roster-ic">${ic}</span><span class="hof-roster-nm">${escHtml(p.name)}</span>${s1TierBadgeHtml(p.tier,'mini')}<span class="hof-roster-ti">${ti}</span><span class="hof-roster-g">${p.total}전</span></div>`; }).join('') || `<div style="grid-column:1/-1;text-align:center;color:rgba(200,168,75,0.5);font-size:12px;padding:20px;">아직 시즌 1 기록이 없어요</div>`;
 
   const overlay=document.createElement('div'); overlay.className='hof-overlay';
@@ -20813,8 +20871,11 @@ async function showS1HallOfFame(playersOverride){
       <div class="hof-sec-title">👑 시즌 1 정점</div>
       <div class="hof-podium">${podHtml(t3[1],'silver','🥈')}${podHtml(t3[0],'gold','🥇')}${podHtml(t3[2],'bronze','🥉')}</div>
       <div class="hof-divider"></div>
-      <div class="hof-sec-title">🏅 시즌 1 부문상 <span style="font-weight:400;opacity:.6;">(${A.length}개)</span></div>
-      <div class="hof-award-list">${awHtml}</div>
+      <div class="hof-sec-title">🏅 시즌 1 부문상 <span style="font-weight:400;opacity:.6;">(${awCount}부문 · 각 TOP5)</span></div>
+      <div class="hof-award-list2">${awHtml}</div>
+      <div class="hof-divider"></div>
+      <div class="hof-sec-title">📊 시즌 1 TMI <span style="font-weight:400;opacity:.6;">(데이터로만 있던 숨은 통계)</span></div>
+      <div class="hof-tmi-grid">${tmiHtml}</div>
       <div class="hof-divider"></div>
       <div class="hof-sec-title">🎖️ 명예 명단 — 참여자 전원 ${ranked.length}명</div>
       <div class="hof-roster-grid">${rosterHtml}</div>
