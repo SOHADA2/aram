@@ -6298,7 +6298,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.53';
+const APP_VERSION = 'v2.45.54';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6307,6 +6307,9 @@ const APP_VERSION = 'v2.45.53';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.54', date: '2026-06-10', changes: [
+    { tag: 'fix', text: '🎯 챔피언 풀 전체보기 시즌 누수 수정 — calcChampPool이 시즌 필터 없이 전체 시즌(S0+S1+S2) 매치를 합산해, 시즌2인데도 옛 시즌 챔프 기록이 섞여 보이던 문제. 현재 시즌 경기만 집계하도록 필터 추가(헤더에 "시즌 N" 표기). 다른 시즌 통계 헬퍼들과 동일 기준' },
+  ] },
   { ver: 'v2.45.53', date: '2026-06-11', changes: [
     { tag: 'fix', text: '🎚️ [시즌2] 새로고침할 때마다 "LEVEL UP" 배너가 뜨던 버그 수정 — 페이지 로드 직후 경기 데이터가 들어오기 전 레벨을 낮게 잡았다가, 데이터 로드 후 실제 레벨로 점프하는 걸 레벨업으로 오인했음. 직전 레벨이 실데이터(내전+일반게임 로드 완료) 기준으로 잡혔을 때만 레벨업 연출이 뜨도록 가드 추가. 실제 경기 후 레벨업은 정상 표시.' },
   ] },
@@ -18423,10 +18426,11 @@ function profileChampSectionHtml(name, seasonFilter) {
 }
 
 // 본인 챔프 풀 — 챔프별 판수/승패/승률/평균 KDA 집계
-function calcChampPool(name) {
+function calcChampPool(name, season = CURRENT_SEASON) {
   const key = normName(name);
   const map = {};
   for (const m of Object.values(matches)) {
+    if ((m.season ?? 0) !== season) continue;   // 현재 시즌 경기만 (시즌 누수 차단)
     const p = m.participants?.[key];
     if (!p) continue;
     let s = p.champion;
@@ -18549,7 +18553,7 @@ window.openChampPoolModal = async function(name) {
       <div class="champ-pool-header">
         <div class="cp-header-text">
           <div class="cp-header-title">🎯 ${escHtml(name)}의 챔피언 풀</div>
-          <div class="cp-header-sub">${pool.length}챔프 · 총 ${totalGames}판 · 평균 승률 ${totalWr}%</div>
+          <div class="cp-header-sub">시즌 ${CURRENT_SEASON} · ${pool.length}챔프 · 총 ${totalGames}판 · 평균 승률 ${totalWr}%</div>
         </div>
         <button class="champ-pool-close" onclick="closeChampPoolModal()">✕</button>
       </div>
