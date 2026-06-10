@@ -6290,7 +6290,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.45';
+const APP_VERSION = 'v2.45.46';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6299,6 +6299,9 @@ const APP_VERSION = 'v2.45.45';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.46', date: '2026-06-10', changes: [
+    { tag: 'fix', text: '📅 출석 일일 게이트를 시즌별로 분리(lastAttendance/lastAttendance2 → sField) — 기존엔 시즌 무관 공유 필드라 시즌1에서 오늘 출석하면 시즌2 출석이 막혔음. 이제 시즌마다 독립 → 시즌1에서 출석했어도 시즌2에서 다시 출석 가능' },
+  ] },
   { ver: 'v2.45.45', date: '2026-06-10', changes: [
     { tag: 'fix', text: '🏅 대기화면 MVP/SVP/MMP가 시즌과 무관하게 시즌1 기준으로만 표시되던 버그 수정 — calcS1AwardStats 호출 시 시즌 인자가 누락돼 기본값(season=1)으로 빠지던 문제. 현재 라이브 시즌(_liveSeason) 기준으로 집계' },
     { tag: 'improve', text: '🌌 시즌2 안내 팝업 — 첫 접속 시 자동 표시. "확인"(이번만 닫기·다음 접속 시 재표시)과 "다시 안보기"(영구 숨김) 버튼 분리 → 못 보고 닫은 팀원도 다시 볼 수 있게. 헤더 SEASON 2 라벨 클릭으로 언제든 재열람' },
@@ -19061,7 +19064,7 @@ async function doBingoAttendance(){
   const histKey=sField('attendanceHistory');
   const updates={ [histKey]:[...(data[histKey]||[]),{date:todayKey,gold:baseGold,ts:Date.now(),slot}],
     [sField('attendanceCount')]:(data[sField('attendanceCount')]??0)+1 };
-  if(slot===1) updates.lastAttendance=todayKey; else updates.lastAttendance2=todayKey;
+  if(slot===1) updates[sField('lastAttendance')]=todayKey; else updates[sField('lastAttendance2')]=todayKey;
   if(goldData[key]) Object.assign(goldData[key],updates);   // 낙관적 반영(onValue 전파 전 즉시 갱신)
   try{ await update(ref(db,'gold/'+key),updates); }catch(e){ showGoldToast('❌ 출석 저장 실패'); return; }
   _bingoSel=null;
@@ -19150,11 +19153,11 @@ function renderBingoBoardHtml(){
   const dots=Array.from({length:BINGO_MAX},(_,k)=>`<i class="bg-dot${k<(d.bingos||0)?' on':''}"></i>`).join('');
   // 오늘 출석 현황 (오전/오후)
   const team=Object.values(goldData).filter(g=>g&&g.name);
-  const amCnt=team.filter(g=>g.lastAttendance===todayKey).length, pmCnt=team.filter(g=>g.lastAttendance2===todayKey).length;
-  const roster=team.map(g=>{ const am=g.lastAttendance===todayKey, pm=g.lastAttendance2===todayKey, mineP=normName(g.name)===me;
+  const amCnt=team.filter(g=>g[sField('lastAttendance')]===todayKey).length, pmCnt=team.filter(g=>g[sField('lastAttendance2')]===todayKey).length;
+  const roster=team.map(g=>{ const am=g[sField('lastAttendance')]===todayKey, pm=g[sField('lastAttendance2')]===todayKey, mineP=normName(g.name)===me;
     const st=(am&&pm)?'done':(am||pm)?'part':'none';
     return `<span class="bg-ros ${st}${mineP?' me':''}" title="${escHtml(g.name)} · 오전 ${am?'✓':'–'} 오후 ${pm?'✓':'–'}">${escHtml(g.name)}<span class="bg-dots"><i class="bg-d${am?' on':''}"></i><i class="bg-d${pm?' on':''}"></i></span></span>`; }).join('');
-  const notYet=team.filter(g=> slot===1 ? g.lastAttendance!==todayKey : g.lastAttendance2!==todayKey).map(g=>g.name);
+  const notYet=team.filter(g=> slot===1 ? g[sField('lastAttendance')]!==todayKey : g[sField('lastAttendance2')]!==todayKey).map(g=>g.name);
   // 보상 수령
   const log=(_bingoData&&_bingoData.log)||[]; const claimable=log.length-(mydata[sField('bingoClaimed')]||0);
   const mineCnt=d.cells.filter(c=>c.picks&&c.picks[me]).length;
@@ -23159,7 +23162,8 @@ function _renderSchedule() {
 // 현재 출석 슬롯 반환 (1: 자정~정오 = 오전 출첵, 2: 정오~자정 = 오후 출첵)
 function getAttendSlot() { return new Date().getHours() < 12 ? 1 : 2; }
 function isAttendSlotDone(data, slot, todayKey) {
-  return slot === 1 ? data?.lastAttendance === todayKey : data?.lastAttendance2 === todayKey;
+  // 일일 게이트도 시즌별로 분리(sField) — S1에서 오늘 출석했어도 S2에서 다시 가능(시즌마다 독립)
+  return slot === 1 ? data?.[sField('lastAttendance')] === todayKey : data?.[sField('lastAttendance2')] === todayKey;
 }
 
 // 출석 체크 렌더링 (패스 탭 내부로 통합, 별도 카드 숨김)
@@ -23220,8 +23224,8 @@ window.doAttendance = async function() {
     [sField('items')]: newItems,
   };
   if (_relayGrant.ftChanged) updates[sField('freeScratch')] = _relayGrant.ft; // 무료 복권권 세트(43칸 완주)
-  if (slot === 1) updates.lastAttendance  = todayKey;
-  else            updates.lastAttendance2 = todayKey;
+  if (slot === 1) updates[sField('lastAttendance')]  = todayKey;
+  else            updates[sField('lastAttendance2')] = todayKey;
 
   // Firebase 저장(=출석 성공)과 UI 갱신을 분리 — UI 에러가 "출석 실패"로 오표시되지 않도록 (v2.43.265)
   try {
