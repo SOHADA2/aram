@@ -6294,7 +6294,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.50';
+const APP_VERSION = 'v2.45.51';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6303,6 +6303,9 @@ const APP_VERSION = 'v2.45.50';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.51', date: '2026-06-09', changes: [
+    { tag: 'new', text: '🎮 [시즌2] 일반게임(증바람) 기록 실시간 알림 — 그동안 기록만 되고 표시가 없었음. 내가 참여한 일반게임이 잡히면 "🎮 일반게임 승리/패배 기록 완료 · 패스 포인트 적립" 토스트. 진행자(라이브)에겐 "기록 완료 N명" 확인. (첫 로드 제외, 최근 게임만)' },
+  ] },
   { ver: 'v2.45.50', date: '2026-06-09', changes: [
     { tag: 'fix', text: '🔩 [시즌2] 처음 산 강철심장에 걸작이 자동 적용돼 있던 버그 수정 — 구매 시 효과 3줄을 자동 생성하던 것을 빈 걸작으로 변경(걸작 만들기로 직접 채우게). 빈 걸작은 자동 채움 보정에서도 제외(걸작 줄이 있는데 제거된 효과만 치유). 처음 사면 효과 없음 → 대장간 걸작 만들기로 효과 추가.' },
   ] },
@@ -11366,8 +11369,31 @@ onValue(ref(db, 'magolla_matches'), (snapshot) => {
 });
 
 // 일반게임 기록 실시간 구독 (브릿지가 isCustomGame=false 게임을 /normal_matches 에 기록)
+let _knownNormalKeys = null;  // null=첫 로드(알림 없이 기록만)
 onValue(ref(db, 'normal_matches'), (snapshot) => {
   normalMatches = snapshot.val() || {};
+  // 🎮 새 일반게임 기록 알림 — 첫 로드 제외, 최근(10분) + 등록 멤버 참여한 게임만
+  try {
+    const keys = Object.keys(normalMatches);
+    if (_knownNormalKeys === null) {
+      _knownNormalKeys = new Set(keys);  // 첫 로드: 토스트 없이 키만 기록
+    } else {
+      const myNN = normName(myName || '');
+      for (const k of keys) {
+        if (_knownNormalKeys.has(k)) continue;
+        _knownNormalKeys.add(k);
+        const m = normalMatches[k];
+        if (!m || !Array.isArray(m.players) || !m.players.length) continue;
+        if (m.ts && Date.now() - m.ts > 10 * 60 * 1000) continue;  // 오래된 기록 스킵
+        const mem = m.players.map(p => ({ won: !!p.isWin, member: _normalMatchMember(p.summonerName) })).filter(p => p.member);
+        if (!mem.length) continue;  // 등록 멤버 없는 게임 무시
+        const me = myNN ? mem.find(p => normName(p.member) === myNN) : null;
+        if (me)        showS1Toast(`🎮 일반게임 ${me.won ? '승리 🏆' : '패배'} 기록 완료 · 패스 포인트 적립`);
+        else if (!myNN) showS1Toast(`🎮 일반게임 기록 완료 — 멤버 ${mem.length}명`);  // 진행자(라이브) 확인용
+        break;  // 한 번에 하나만
+      }
+    }
+  } catch (_) {}
   if (viewSeason === 'normal') renderMatchHistory();
   // 일반게임도 레벨 XP·퀘스트 패스에 반영되므로 관련 UI 갱신
   try { if (typeof updateMyInfoBar === 'function') updateMyInfoBar(); } catch(_) {}
