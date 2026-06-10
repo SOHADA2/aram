@@ -6298,7 +6298,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.52';
+const APP_VERSION = 'v2.45.53';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6307,6 +6307,9 @@ const APP_VERSION = 'v2.45.52';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.53', date: '2026-06-11', changes: [
+    { tag: 'fix', text: '🎚️ [시즌2] 새로고침할 때마다 "LEVEL UP" 배너가 뜨던 버그 수정 — 페이지 로드 직후 경기 데이터가 들어오기 전 레벨을 낮게 잡았다가, 데이터 로드 후 실제 레벨로 점프하는 걸 레벨업으로 오인했음. 직전 레벨이 실데이터(내전+일반게임 로드 완료) 기준으로 잡혔을 때만 레벨업 연출이 뜨도록 가드 추가. 실제 경기 후 레벨업은 정상 표시.' },
+  ] },
   { ver: 'v2.45.52', date: '2026-06-11', changes: [
     { tag: 'new', text: '🎮 [시즌2] 일반게임 진행 중 전체 배너 — 진행자가 브릿지 켜고 일반게임(증바람) 중이면 사이트 최상단에 "🎮 일반게임 진행 중 · [참가 멤버]" 배너가 모두에게 표시(누가 게임 중인지). 게임 끝나면 사라지고 기록 토스트로 전환. ※ 브릿지 v1.1.34 필요(진행 중 게임 종류·참가자 전송).' },
   ] },
@@ -22006,6 +22009,8 @@ function updateMyInfoBar() {
       const k = getMyGoldKey(), dd = k ? goldData[k] : null;
       const claimable = lv - (dd?.[sField('playerLevelClaimed')] || 0);
       const prev = _plvLastByName[_nn];
+      // XP 원천 데이터(내전 matches + 일반게임 normalMatches) 로드 완료 여부 — 로드 중 0→실제레벨 점프를 레벨업으로 오인 방지 (v2.45.53)
+      const _xpReady = matchesLoaded && _knownNormalKeys !== null;
       // 같은 레벨이면 직전 진행률에서 증가분 애니, 레벨업이면 0부터 채움, 첫 렌더는 즉시 표시
       const startPct = isMax ? 100 : (prev ? (prev.lv === lv ? prev.pct : 0) : pct);
       lvEl.style.display = 'flex';
@@ -22015,8 +22020,9 @@ function updateMyInfoBar() {
         <div class="mib-lv-xp">${isMax ? '만렙 달성' : `${inLv} / ${need} XP`}</div>`;
       const _fill = lvEl.querySelector('.mib-lv-fill');
       if (_fill && startPct !== pct) requestAnimationFrame(()=>{ _fill.style.width = pct + '%'; });
-      if (prev && lv > prev.lv) _plvLevelUpFx(lv);   // 레벨업 → 간단 LEVEL UP 연출 배너(팝업 아님). 보상은 버튼으로
-      _plvLastByName[_nn] = { lv, pct };
+      // 직전 baseline이 실데이터로 잡혔을 때(ready)만 레벨업 발동 — 새로고침 직후 로드 catch-up 점프 제외
+      if (prev && prev.ready && lv > prev.lv) _plvLevelUpFx(lv);   // 레벨업 → 간단 LEVEL UP 연출 배너(팝업 아님). 보상은 버튼으로
+      _plvLastByName[_nn] = { lv, pct, ready: _xpReady };
     } else {
       lvEl.style.display = 'none';
     }
