@@ -6290,7 +6290,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.47';
+const APP_VERSION = 'v2.45.48';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6299,6 +6299,9 @@ const APP_VERSION = 'v2.45.47';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.48', date: '2026-06-10', changes: [
+    { tag: 'improve', text: '🗑️ 쓰레기통 뒤지기 동전에 하루 총량 한도(250G) 추가 — 직접 뒤지기 + 유미 자동파밍 합산. 한도를 다 채우면 "오늘치 쓰레기통은 바닥까지 다 긁었다 — 더는 동전이 안 나온다"로 표시되고 동전 대신 꽝/쓰레기만. (이스터에그 +300G는 한도에 미포함, 무료 복권권은 기존 하루 3장 한도 유지)' },
+  ] },
   { ver: 'v2.45.47', date: '2026-06-10', changes: [
     { tag: 'fix', text: '🎟 복권 허브 "팀 총 N회 시도 · 최다 OOO" 통계가 시즌 필터 없이 전 시즌(시즌1 포함) 누적을 보여주던 버그 수정 → 현재 시즌 복권 이력만 집계(시즌2는 0부터 시작)' },
   ] },
@@ -24217,6 +24220,10 @@ window.closeLotteryHub = function() {
    ③ 무료 복권권은 등급별(일반·고급·프미) 하루 1장씩 = 총 3장 캡(trashFree_s1={date,got}) → 무한 파밍 방지.
    골드는 trashGold_s1(누적, calcPlayerGoldEarned 합산), 무료권은 freeScratch[tier]. */
 const TRASH_DIG_THRESHOLD = 1100; // 누적 드래그 거리(px) — 한 번 뒤지는 데 필요한 뒤적임 양 (빡세게)
+// 🗑️ 쓰레기통 동전 하루 총량 캡(직접 뒤지기 + 유미 자동파밍 합산). 초과 시 동전 안 나오고 꽝 처리. 무료 복권권은 별도 3장 캡.
+const TRASH_DAILY_GOLD_CAP = 250;
+function _trashTodayGold(data){ const t = data && data[sField('trashGoldDay')]; return (t && t.date === getLocalDateKey()) ? (t.gold || 0) : 0; }
+function _trashGoldRemaining(data){ return Math.max(0, TRASH_DAILY_GOLD_CAP - _trashTodayGold(data)); }
 const TRASH_JUNK = [
   // ── 평범한 쓰레기 ──
   {e:'🍌',n:'바나나 껍질'},{e:'🐟',n:'생선 뼈'},{e:'🥫',n:'찌그러진 깡통'},
@@ -24348,13 +24355,14 @@ window.collectYuumi = async function() {
   if (_yuumiState(data).st !== 'done') { showGoldToast('아직 수령할 수 없어요'); return; }
   const base = 130 + Math.floor(Math.random() * 101); // 130~230G
   const wb = Math.min(YUUMI_WATCH_CAP, _yuumiWatchGold || 0); // 구경 보너스(최대 60)
-  const coins = base + wb;
+  const coins = Math.min(base + wb, _trashGoldRemaining(data)); // 🗑️ 하루 캡(직접+유미 합산)
   _yuumiWatchGold = 0;
   const f = { cooldownUntil: Date.now() + YUUMI_COOLDOWN_MS };
+  const today = getLocalDateKey();
   const newGold = (data[sField('trashGold')] || 0) + coins;
   const updates = { [sField('trashGold')]: newGold, [sField('yuumiForage')]: f };
+  if (coins > 0) updates[sField('trashGoldDay')] = { date: today, gold: _trashTodayGold(data) + coins };
   // 무료권 — 직접 1시간 뒤진 것과 동일: 오늘 남은 등급을 캡까지 모두 캐옴 (등급별 1장·총 3장, 직접 뒤지기와 공유)
-  const today = getLocalDateKey();
   const gotToday = (data[sField('trashFree')] && data[sField('trashFree')].date === today) ? { ...(data[sField('trashFree')].got || {}) } : {};
   const got = [0, 1, 2].filter(t => !gotToday[t]);
   if (got.length) {
@@ -24368,13 +24376,19 @@ window.collectYuumi = async function() {
     goldData[key][sField('yuumiForage')] = f; goldData[key][sField('trashGold')] = newGold;
     if (updates[sField('freeScratch')]) goldData[key][sField('freeScratch')] = updates[sField('freeScratch')];
     if (updates[sField('trashFree')]) goldData[key][sField('trashFree')] = updates[sField('trashFree')];
+    if (updates[sField('trashGoldDay')]) goldData[key][sField('trashGoldDay')] = updates[sField('trashGoldDay')];
   }
   if (got.length) { got.forEach(t => _trashFreeGot[t] = true); _trashRenderDigs(); } // 열린 모달의 남은 무료권 표시 동기화
-  const tName = got.length
-    ? got.map(t => TRASH_FREE_TIERS[t].short).join('·') + ` 무료권 ${got.length}장`
-    : '무료권은 오늘치 다 캐서 동전만';
+  const tName = got.length ? got.map(t => TRASH_FREE_TIERS[t].short).join('·') + ` 무료권 ${got.length}장` : '';
   _trashSfx.coin(); if (got.length) setTimeout(() => _trashSfx.free(), 240); // 수령 효과음
-  showGoldToast(`🐱 유미가 캐왔어요! +${coins}G${wb > 0 ? ` (구경 보너스 +${wb})` : ''} · ${tName}`);
+  if (coins > 0) {
+    showGoldToast(`🐱 유미가 캐왔어요! +${coins}G${wb > 0 ? ` (구경 보너스 +${wb})` : ''}${tName ? ' · ' + tName : ''}`);
+  } else {
+    // 🗑️ 오늘 동전 한도 도달 — 동전은 0이지만 안 긁은 복권은 챙겨옴
+    showGoldToast(got.length
+      ? `🐱 오늘 쓰레기통은 바닥났지만 안 긁은 ${tName}은 챙겨왔어요!`
+      : `🐱 유미가 다녀왔지만… 오늘치 쓰레기통은 이미 바닥. 동전이 없네요.`);
+  }
   _renderYuumiPanel();
 };
 const YUUMI_WATCH_CAP = 60;                              // 구경 보너스 상한
@@ -24693,12 +24707,20 @@ async function _trashReveal(elapsed) {
       sfxKey = 'free';
       resHtml = `<span class="tr-emoji">${ti.e}</span>대박! 안 긁은 <b style="color:${ti.c}">${ti.n} 무료권</b>을 주웠다!<br><span style="font-size:11px;color:#9ca3af;font-weight:400;">(${ti.short} 무료권 +1 · 오늘 이 등급 끝)</span>`;
     } else if (reward.type === 'gold') {
-      updates[sField('trashGold')] = (data[sField('trashGold')] || 0) + reward.val;
-      _trashSessionGold += reward.val; // 이번 판 동전 누적
-      sfxKey = 'coin';
-      resHtml = reward.consolation
-        ? `<span class="tr-emoji">🪙</span>또 복권이…? 어 이미 주머니가 꽉 찼네. 동전이나 챙기자 <b style="color:#fbbf24">+${reward.val}G</b>`
-        : `<span class="tr-emoji">🪙</span>오! 동전을 주웠다! <b style="color:#fbbf24">+${reward.val}G</b>`;
+      const give = Math.min(reward.val, _trashGoldRemaining(data)); // 🗑️ 하루 캡(직접+유미 합산)
+      if (give > 0) {
+        updates[sField('trashGold')] = (data[sField('trashGold')] || 0) + give;
+        updates[sField('trashGoldDay')] = { date: today, gold: _trashTodayGold(data) + give };
+        if (key && goldData[key]) goldData[key][sField('trashGoldDay')] = updates[sField('trashGoldDay')]; // 낙관적 — 연속 뒤지기 캡 정확
+        _trashSessionGold += give; // 이번 판 동전 누적
+        sfxKey = 'coin';
+        resHtml = reward.consolation
+          ? `<span class="tr-emoji">🪙</span>또 복권이…? 어 이미 주머니가 꽉 찼네. 동전이나 챙기자 <b style="color:#fbbf24">+${give}G</b>`
+          : `<span class="tr-emoji">🪙</span>오! 동전을 주웠다! <b style="color:#fbbf24">+${give}G</b>`;
+      } else {
+        sfxKey = 'junk';
+        resHtml = `<span class="tr-emoji">🗑️</span>오늘치 쓰레기통은 <b style="color:#cdbfa0">바닥까지 다 긁었다.</b> 더는 동전이 안 나온다…<br><span style="font-size:11px;color:#9ca3af;">(내일 새 쓰레기가 쌓이면 다시 와보자)</span>`;
+      }
     } else {
       const j = TRASH_JUNK[Math.floor(Math.random() * TRASH_JUNK.length)];
       const line = TRASH_JUNK_LINE[Math.floor(Math.random() * TRASH_JUNK_LINE.length)];
