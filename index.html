@@ -6294,7 +6294,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.49';
+const APP_VERSION = 'v2.45.50';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6303,6 +6303,9 @@ const APP_VERSION = 'v2.45.49';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.50', date: '2026-06-09', changes: [
+    { tag: 'fix', text: '🔩 [시즌2] 처음 산 강철심장에 걸작이 자동 적용돼 있던 버그 수정 — 구매 시 효과 3줄을 자동 생성하던 것을 빈 걸작으로 변경(걸작 만들기로 직접 채우게). 빈 걸작은 자동 채움 보정에서도 제외(걸작 줄이 있는데 제거된 효과만 치유). 처음 사면 효과 없음 → 대장간 걸작 만들기로 효과 추가.' },
+  ] },
   { ver: 'v2.45.49', date: '2026-06-10', changes: [
     { tag: 'fix', text: '🌌 사이트 첫 진입 시 시즌1 화면이 잠깐 보였다가 시즌2로 바뀌던 깜빡임 제거 — 부팅 스크립트가 s1-active만 즉시 걸고 season-2는 모듈 로드 후에야 적용하던 게 원인. <html>/<body> 부팅 스크립트에 캐시 시즌 기반 season-2 클래스를 즉시 적용(팔레트·배경 첫 페인트부터 시즌2). 미리보기도 인식' },
   ] },
@@ -8771,9 +8774,11 @@ function getEmblemEssence(data){ return (data||{})[emblemEssenceField()] || 0; }
 function emblemRollLines(){ return Array.from({length:EMBLEM_LINES}, ()=> EMBLEM_EFFECT_POOL[Math.floor(Math.random()*EMBLEM_EFFECT_POOL.length)]); }
 // 걸작 줄 정리 — 빈 칸/제거된(풀에 없는) 효과는 새 랜덤 유효 효과로 채워 항상 3칸 유효하게 (v2.44.47)
 function emblemSanitizeLines(lines){
+  // 걸작 미생성(빈 줄)은 그대로 빈 채 유지 — 처음 산 강철심장에 걸작 자동 적용 방지 (v2.45.50)
+  if (!Array.isArray(lines) || lines.length === 0) return [];
+  // 걸작 있음(줄 보유): 제거된(무효) 효과 줄만 새 랜덤 유효 효과로 치유, 3칸 유지
   const rnd = ()=> EMBLEM_EFFECT_POOL[Math.floor(Math.random()*EMBLEM_EFFECT_POOL.length)];
-  const out = Array.from({length:EMBLEM_LINES}, (_,i)=>{ const eid=(lines||[])[i]; return EMBLEM_EFFECTS[eid] ? eid : rnd(); });
-  return out;
+  return Array.from({length:EMBLEM_LINES}, (_,i)=>{ const eid=lines[i]; return EMBLEM_EFFECTS[eid] ? eid : rnd(); });
 }
 // 보유 엠블럼들의 걸작 줄에 빈/무효 줄 있으면 자동 보정 + 저장(변경 시 1회). 옛 엠블럼(복권/강화권할인 잔재) 치유
 function _healEmblemLines(){
@@ -8841,7 +8846,7 @@ async function emblemBuyBase(){
   const gold = getMyGold();
   if (gold < EMBLEM_BASE_PRICE) { showGoldToast(`🪙 골드 부족 (보유 ${gold} / 필요 ${EMBLEM_BASE_PRICE})`); return false; }
   const newId = emblemNextId(arr);
-  const newArr = [...arr, { id:newId, slots:[], lines:emblemRollLines(), createdAt:Date.now() }];  // 걸작 3줄 자동 생성
+  const newArr = [...arr, { id:newId, slots:[], lines:[], createdAt:Date.now() }];  // 걸작 미적용(빈 줄) — 걸작 만들기로 채움 (v2.45.50)
   const curEquipped = getEquippedId(data);
   const spentKey = sField('goldSpent');
   await update(ref(db,'gold/'+key), {
