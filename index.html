@@ -6283,7 +6283,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.39';
+const APP_VERSION = 'v2.45.40';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6292,6 +6292,9 @@ const APP_VERSION = 'v2.45.39';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.40', date: '2026-06-10', changes: [
+    { tag: 'new', text: '🎓 오른 대장간 인터랙티브 튜토리얼 — 시즌2 대장간 첫 진입 시 스포트라이트 가이드 자동 1회(localStorage 기억) + 우측 상단 🎓 사용법 버튼으로 재생. 강철심장 구매→강화권 단조(안정/정밀/실패 개념·5칸 한도)→성능↔걸작 효과 스케일→걸작 정수 리롤(실제 룰렛 연출)→3줄 겹침 극대화→장착 시 메인화면 표시 미리보기→하향가 판매까지 안내. 전용 샌드박스(FORGE_TUT)에서 진행돼 실제 골드·아이템·정산엔 무영향(window.emblemDo* 임시 오버라이드→복원, 코어 뮤테이터 무수정)' },
+  ] },
   { ver: 'v2.45.39', date: '2026-06-10', changes: [
     { tag: 'improve', text: '🏠 메인 대기화면 챔피언 카드 시인성 개선 — 챔피언 초상화(26→42px)·이름(12→16px)·전적(8→11px)을 키우고, 카드가 우측 칸의 너비·높이를 꽉 채우도록 stretch 정렬해 뒷부분 공백 제거' },
   ] },
@@ -8441,6 +8444,8 @@ function _getToday() {
 //   새 큰 기능을 배포할 때만 최신순 맨 위에 1줄 추가. 다른 컴퓨터에서도 동일 적용.
 const CHANGELOG_MAJOR = [
   // 시크릿 챔피언(유미) 관련 항목은 스포일러 방지로 여기에 넣지 않음
+  { ver:'v2.45.40', date:'2026-06-10', emoji:'🎓', title:'오른 대장간 사용법 튜토리얼',
+    desc:'시즌2 대장간에 처음 들어가면 단계별 가이드가 떠요. 강철심장 구매 → 강화권으로 단조 → 걸작 정수 리롤 → 장착까지 직접 따라 해보세요(체험용이라 실제 골드는 안 써요). 대장간 우측 상단 🎓 버튼으로 언제든 다시 볼 수 있어요.' },
   { ver:'v2.43.273', date:'2026-06-04', emoji:'🗓️', title:'출석 릴레이 연장 & 시즌2 예고',
     desc:'시즌1 출석판을 6/10까지 43칸으로 늘렸어요(진행률 유지). 35·40일 LP2배권, 완주 시 1000G+무료 복권권 30장! 그 아래엔 6/11 오픈하는 시즌2 출석 이벤트 예고가 떠요.' },
   { ver:'v2.43.225', date:'2026-06-01', emoji:'🗑️', title:'쓰레기통 뒤지기',
@@ -8662,6 +8667,11 @@ const EMBLEM_TICKETS = {
 };
 const EMBLEM_TICKET_ORDER = ['stable','precise','overload'];
 
+// 🎓 오른 대장간 튜토리얼 — 전용 샌드박스 상태(실제 골드/아이템/정산과 완전 분리). 엔진/단계는 하단 모듈.
+//   active일 때 renderEmblemBody·getMyGoldData·_healEmblemLines가 sb(샌드박스)를 읽고,
+//   window.emblemDo* 핸들러는 시작 시 오버라이드 → 종료 시 복원(기존 코어 뮤테이터 무수정).
+const FORGE_TUT = { active:false, step:0, steps:[], sb:null, gold:99999, _orig:null, _autoArmed:false };
+
 const EMBLEM_MAX_OWN = 6;  // 강철심장 최대 보유 수 (장착은 1개만 효과 — 교체식)
 function emblemField()          { return sField('emblem'); }           // 구버전 단일 (마이그레이션용)
 function emblemsField()         { return sField('emblems'); }          // emblems_s2 : 보유 배열 [{id,slots,createdAt}]
@@ -8728,6 +8738,7 @@ function emblemSanitizeLines(lines){
 }
 // 보유 엠블럼들의 걸작 줄에 빈/무효 줄 있으면 자동 보정 + 저장(변경 시 1회). 옛 엠블럼(복권/강화권할인 잔재) 치유
 function _healEmblemLines(){
+  if (FORGE_TUT.active) return;  // 튜토리얼 중엔 실제 데이터 치유 금지
   const key = getMyGoldKey(); if (!key) return;
   const data = goldData[key]; if (!data) return;
   const arr = getEmblems(data); if (!arr.length) return;
@@ -9486,8 +9497,8 @@ function renderEmblemBody(){
   _healEmblemLines();  // 빈/제거된 효과 줄 자동 보정 (옛 엠블럼 "비어있음" 치유) — 렌더 전에 1회
   _evacuateOrnn();  // innerHTML 교체 전 캔버스 대피 (오른 재로딩 방지)
   const key  = getMyGoldKey();
-  const data = key ? goldData[key] : null;
-  const gold = getMyGold();
+  const data = FORGE_TUT.active ? FORGE_TUT.sb : (key ? goldData[key] : null);
+  const gold = FORGE_TUT.active ? FORGE_TUT.gold : getMyGold();
   const owned = getEmblems(data);
   const eqId  = getEquippedId(data);
   const em    = getEquippedEmblem(data);   // 장착된 것(효과·강화 대상). 미장착이면 null
@@ -9496,7 +9507,7 @@ function renderEmblemBody(){
   // 한 개도 없음 → 구매 안내
   if (!owned.length){
     body.innerHTML = `
-      <div class="fg2-head"><span class="fg2-head-ic">⚒️</span><span>대장간</span></div>
+      <div class="fg2-head"><span class="fg2-head-ic">⚒️</span><span>대장간</span>${FORGE_TUT.active?'':'<button class="fg2-tut-btn" onclick="window.startForgeTut(true)">🎓 사용법</button>'}</div>
       <div style="text-align:center;padding:26px 16px;display:flex;flex-direction:column;gap:14px;align-items:center;">
         <div class="fg2-empty-txt"><b>강철심장</b>을 가져와 단조를 시작하세요.<br>강화권으로 두드릴수록 더 강해지고,<br>끝까지 벼리면 오른의 걸작 <b>거인의 결의</b>로.</div>
         <button class="fg2-buy ${gold<EMBLEM_BASE_PRICE?'dim':''}" onclick="window.emblemDoBuyBase()">강철심장 가져오기 · ${EMBLEM_BASE_PRICE}G</button>
@@ -9537,7 +9548,7 @@ function renderEmblemBody(){
     : `<div class="fg2-noeq">강철심장 미장착<br>내 아이템·장비에서 클릭</div>`;
 
   body.innerHTML = `
-    <div class="fg2-head"><span class="fg2-head-ic">⚒️</span><span>대장간</span><span class="fg2-head-glow" style="color:${glow.color};">${em?glow.label:'미장착'}</span></div>
+    <div class="fg2-head"><span class="fg2-head-ic">⚒️</span><span>대장간</span><span class="fg2-head-glow" style="color:${glow.color};">${em?glow.label:'미장착'}</span>${FORGE_TUT.active?'':'<button class="fg2-tut-btn" onclick="window.startForgeTut(true)">🎓 사용법</button>'}</div>
     <div class="fg2-forge-row">
       <div class="fg2-stage" id="forge-stage">
         <div class="fg2-scene">
@@ -10165,6 +10176,301 @@ window.emblemDoSell = async function(id){
   if (!em) return;
   if (!confirm(`이 강철심장을 판매할까요?\n+${emblemLevel(em)} (성능 ${emblemPower(em)}) → 환급 ${emblemSellPrice(em).toLocaleString()}G\n\n되돌릴 수 없어요.`)) return;
   if (await emblemSell(em.id)) renderEmblemBody();
+};
+
+// ════════════════════════════════════════════════════════════════
+// ████  🎓 오른 대장간 인터랙티브 튜토리얼 (v2.45.40~)  ████████████████
+// ════════════════════════════════════════════════════════════════
+// "대장간 안에서 가이드" — 스포트라이트(주변 어둡게)로 단계별 진행.
+// 전용 샌드박스(FORGE_TUT.sb)에서 구매/강화/리롤/판매가 일어나며 실제 골드·아이템·정산엔 무영향.
+// 시작 시 window.emblemDo* 핸들러를 오버라이드 → 종료 시 복원(기존 코어 뮤테이터는 무수정).
+function _ftInjectCss(){
+  if (document.getElementById('ft-css')) return;
+  const st = document.createElement('style'); st.id = 'ft-css';
+  st.textContent = [
+    '#ft-overlay{position:fixed;inset:0;z-index:4200;pointer-events:none;font-family:"Noto Sans KR",sans-serif;}',
+    '.ft-mask{position:fixed;background:rgba(4,4,6,0.80);pointer-events:auto;}',
+    '.ft-ring{position:fixed;border:2px solid #f0c060;border-radius:12px;box-shadow:0 0 0 3px rgba(240,192,96,0.22),0 0 22px rgba(240,192,96,0.5);pointer-events:none;transition:left .22s ease,top .22s ease,width .22s ease,height .22s ease;}',
+    '.ft-bubble{position:fixed;width:min(87vw,332px);background:linear-gradient(162deg,#16161d,#0b0b10);border:1px solid #3a3320;border-radius:15px;padding:15px 16px 13px;box-shadow:0 18px 52px rgba(0,0,0,0.62);pointer-events:auto;color:#e9e7ec;}',
+    '.ft-bubble.center{left:50%;top:50%;transform:translate(-50%,-50%);}',
+    '.ft-step{font-size:10px;letter-spacing:1px;color:#c89230;font-weight:800;font-family:"JetBrains Mono",monospace;margin-bottom:5px;}',
+    '.ft-title{font-size:15.5px;font-weight:800;color:#ffe39a;margin-bottom:7px;line-height:1.32;}',
+    '.ft-text{font-size:12.5px;line-height:1.68;color:#d6d4da;}',
+    '.ft-text b{color:#ffe39a;font-weight:700;}',
+    '.ft-text .ft-tk{font-weight:700;}',
+    '.ft-act{margin-top:12px;}',
+    '.ft-do{width:100%;background:linear-gradient(135deg,#ffce6a,#e0a13a);color:#1a1206;border:none;border-radius:10px;padding:11px 14px;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 5px 16px rgba(224,161,58,0.32);}',
+    '.ft-do:active{transform:translateY(1px);}',
+    '.ft-nav{margin-top:12px;display:flex;align-items:center;justify-content:space-between;gap:8px;}',
+    '.ft-skip{background:none;border:none;color:#74747f;font-size:11px;cursor:pointer;padding:4px 2px;}',
+    '.ft-next{background:linear-gradient(135deg,#ffce6a,#e0a13a);border:none;color:#1a1206;border-radius:8px;padding:7px 16px;font-size:12.5px;font-weight:800;cursor:pointer;}',
+    '.ft-hint{font-size:11px;color:#c89230;font-weight:700;}',
+    '.ft-dots{display:flex;gap:4px;align-items:center;}',
+    '.ft-dot{width:6px;height:6px;border-radius:50%;background:#3a3a44;transition:all .2s;}',
+    '.ft-dot.on{background:#f0c060;width:16px;border-radius:3px;}',
+    '.ft-prevbox{margin-top:11px;padding:10px;border:1px dashed #3a3320;border-radius:11px;background:rgba(255,255,255,0.02);}',
+    '.fg2-tut-btn{margin-left:auto;background:rgba(240,192,96,0.12);border:1px solid rgba(240,192,96,0.42);color:#f0c060;font-size:10.5px;font-weight:700;border-radius:7px;padding:3px 9px;cursor:pointer;white-space:nowrap;}',
+    '.fg2-tut-btn:hover{background:rgba(240,192,96,0.2);}'
+  ].join('');
+  document.head.appendChild(st);
+}
+function _ftFreshSb(){
+  return {
+    [emblemsField()]: [],
+    [emblemEquippedField()]: null,
+    [emblemField()]: null,
+    [emblemTicketsField()]: { stable:0, precise:0, overload:0 },
+    [emblemEssenceField()]: 0,
+  };
+}
+// ── 샌드박스 뮤테이터 (실제 Firebase·골드 미접근) ──
+function _ftBuyBase(){
+  const arr = getEmblems(FORGE_TUT.sb);
+  const id = emblemNextId(arr);
+  FORGE_TUT.sb[emblemsField()] = [...arr, { id, slots:[], lines:emblemRollLines(), createdAt:1 }];
+  FORGE_TUT.sb[emblemEquippedField()] = id;   // 첫 강철심장 자동 장착
+  showS1Toast('⚒️ (튜토리얼) 강철심장 획득!');
+}
+function _ftGrantTickets(t){ FORGE_TUT.sb[emblemTicketsField()] = { stable:t.stable||0, precise:t.precise||0, overload:t.overload||0 }; }
+function _ftGrantEssence(n){ FORGE_TUT.sb[emblemEssenceField()] = n; }
+async function _ftEnhance(type){
+  if (_emblemFxBusy) return null;
+  const def = EMBLEM_TICKETS[type]; if (!def) return null;
+  const data = FORGE_TUT.sb;
+  const arr = getEmblems(data); const eqId = getEquippedId(data);
+  const em = arr.find(e=>e.id===eqId); if (!em) { showS1Toast('강철심장을 먼저 장착하세요'); return null; }
+  if (emblemLocked(em)) { showS1Toast('강화 슬롯이 모두 소진됐어요 (5/5)'); return null; }
+  const tickets = getEmblemTickets(data);
+  if ((tickets[type]||0) < 1) { showS1Toast(def.icon+' '+def.name+'이 없어요'); return null; }
+  _emblemFxBusy = true;
+  try {
+    const oldGlow = emblemEffects(emblemPower(em)).glow;
+    const ok = Math.random() < def.chance;
+    const slots = [...(em.slots||[]), { t:type, ok }];
+    tickets[type] -= 1;
+    data[emblemsField()] = arr.map(e=> e.id===eqId ? { ...e, slots } : e);
+    data[emblemTicketsField()] = tickets;
+    const newEm = { ...em, slots };
+    const r = { ok, type, def, level:emblemLevel(newEm), power:emblemPower(newEm), slotsUsed:emblemSlotsUsed(newEm), locked:emblemLocked(newEm) };
+    const newGlow = emblemEffects(r.power).glow;
+    r.tierUp = r.ok && (_GLOW_RANK[newGlow]||0) > (_GLOW_RANK[oldGlow]||0);
+    r.finalForm = r.tierUp && newGlow === 'prismatic';
+    await _emblemForge(r);       // 🔨 실제 모루 단조 연출 (오른 망치질)
+    renderEmblemBody();
+    return r;
+  } finally { _emblemFxBusy = false; }
+}
+async function _ftReroll(){
+  if (_emblemFxBusy) return null;
+  const data = FORGE_TUT.sb;
+  const eqId = getEquippedId(data); const arr = getEmblems(data);
+  const em = arr.find(e=>e.id===eqId); if (!em) { showS1Toast('강철심장을 먼저 장착하세요'); return null; }
+  const ess = getEmblemEssence(data);
+  if (ess < 1) { showS1Toast('걸작의 정수가 없어요'); return null; }
+  _emblemFxBusy = true;
+  try {
+    const newLines = emblemRollLines();
+    data[emblemsField()] = arr.map(e=> e.id===eqId ? { ...e, lines:newLines } : e);
+    data[emblemEssenceField()] = ess - 1;
+    await _emblemReelAnim(newLines);   // 🎰 실제 슬롯머신 릴 연출
+    renderEmblemBody();
+    const triple = EMBLEM_EFFECT_POOL.find(eid=>newLines.filter(l=>l===eid).length===3);
+    const pair   = EMBLEM_EFFECT_POOL.find(eid=>newLines.filter(l=>l===eid).length===2);
+    if (triple)    showS1Toast('🌟 트리플! '+EMBLEM_EFFECTS[triple].name+' 극대화!');
+    else if (pair) showS1Toast('✨ '+EMBLEM_EFFECTS[pair].name+' 2줄!');
+    else           showS1Toast('🏆 걸작 완성');
+    return newLines;
+  } finally { _emblemFxBusy = false; }
+}
+// ── 메인화면 장착 미리보기 배지 (대기화면 wm-fx 마크업 재사용) ──
+function _ftPreviewBadge(){
+  const em = getEquippedEmblem(FORGE_TUT.sb); if (!em) return '';
+  const E = emblemEffectsOf(em);
+  const lvl = emblemLevel(em), power = emblemPower(em);
+  const chips = EMBLEM_EFFECT_POOL.filter(eid=>E.eff[eid]>0).map(eid=>{ const ef=EMBLEM_EFFECTS[eid];
+    return '<span class="wm-fx-chip" style="display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;margin:2px 3px 0 0;color:'+ef.color+';border:1px solid '+ef.color+'55;">'+ef.icon+' '+ef.fmt(E.eff[eid])+'</span>'; }).join('');
+  return '<div class="ft-prevbox"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px;"><span style="color:#ffd24a;font-weight:800;font-size:12.5px;">🔨 강철심장 +'+lvl+'</span><span style="font-size:10px;color:#8b8b97;font-family:\'JetBrains Mono\',monospace;">성능 '+power+'</span></div><div>'+(chips||'<span style="font-size:10.5px;color:#8b8b97;">걸작을 맞추면 효과가 표시돼요</span>')+'</div></div>';
+}
+// ── 단계 정의 ──
+function _ftBuildSteps(){
+  return [
+    { gate:'next', target:null,
+      title:'⚒️ 오른 대장간에 오신 걸 환영해요',
+      html:'강철심장을 직접 만들어보며 사용법을 익혀볼게요.<br><b>지금 하는 모든 구매·강화·리롤은 체험용</b>이라 실제 골드·아이템·정산엔 전혀 반영되지 않아요.' },
+
+    { gate:'action', action:'buyBase', target:'.fg2-buy',
+      title:'1. 강철심장 가져오기',
+      html:'아직 강철심장이 없네요. 강화를 하려면 먼저 강철심장이 필요해요.<br>아래 <b>강철심장 가져오기</b> 버튼을 눌러주세요.',
+      btn:'<button class="ft-do" onclick="window.emblemDoBuyBase()">⚒️ 강철심장 가져오기</button>' },
+
+    { gate:'next', target:null,
+      title:'2. 어디서 살 수 있나요?',
+      html:'강철심장은 <b>상점 · 장비 탭</b>에서 구매하거나, <b>내 아이템</b> 화면의 <b>＋ 강철심장</b> 타일로도 바로(퀵) 구매할 수 있어요.<br>여러 개를 보유하며 교체 장착할 수 있어요.' },
+
+    { gate:'next', target:null, pre:()=>{ _ftGrantTickets({stable:5, precise:3, overload:2}); },
+      title:'3. 강화권 3종',
+      html:'강화는 <b>강화권</b>으로 해요. 성공 확률과 성능이 달라요:<br>· <span class="ft-tk" style="color:#5fbf8a;">🟢 안정</span> — 100% · 성능 +1<br>· <span class="ft-tk" style="color:#e0b341;">🟡 정밀</span> — 60% · 성능 +3<br>· <span class="ft-tk" style="color:#e0685a;">🔴 과부하</span> — 30% · 성능 +6<br>강화권은 <b>상점 · 소비 탭</b>에서 사거나 <b>패스 · 우편 보상</b>으로 얻어요. (체험용으로 몇 장 드렸어요!)' },
+
+    { gate:'action', action:'enhance:stable', target:'#emblem-anvil',
+      title:'4. 강화해보기 — 안정(100%)부터',
+      html:'강화권을 <b>작업대(모루)로 끌어다 놓거나 탭</b>하면 강화돼요.<br>먼저 가장 안전한 <span class="ft-tk" style="color:#5fbf8a;">🟢 안정(100%)</span>으로 한 번 두드려볼게요.',
+      btn:'<button class="ft-do" onclick="window.emblemDoEnhance(\'stable\')">🟢 안정 강화권으로 강화 (100%)</button>' },
+
+    { gate:'next', target:'.fg2-slotline',
+      title:'5. 강화 칸은 5개',
+      html:'성공하면 칸이 채워지고 <b>레벨(+N)</b>과 <b>성능</b>이 올라가요.<br>강철심장 하나당 강화는 <b>총 5번(5칸)</b>까지만 가능해요. 5칸을 다 쓰면 더는 강화할 수 없어요.' },
+
+    { gate:'action', action:'enhance:precise', target:'#emblem-anvil',
+      title:'6. 실패하면? — 정밀(60%) 도전',
+      html:'정밀·과부하는 성능이 크지만 확률이 낮아요. <b>실패하면 성능은 그대로지만 강화 칸 하나를 그대로 소모</b>해요 — 즉 5번의 기회 중 하나가 날아가죠.<br>한 번 <span class="ft-tk" style="color:#e0b341;">🟡 정밀(60%)</span>로 도전해볼게요.',
+      btn:'<button class="ft-do" onclick="window.emblemDoEnhance(\'precise\')">🟡 정밀 강화권으로 강화 (60%)</button>' },
+
+    { gate:'next', target:'.fg2-effs',
+      title:'7. 성능 ↑ = 걸작 효과 ↑',
+      html:'강화로 <b>성능</b>이 오르면 걸작 3줄의 <b>효과 능력치도 함께 커져요</b>.<br>(효과 = 줄 수 × 기본값 × <b>성능 배율</b>) — 그래서 같은 +레벨이라도 성능이 높을수록 강해요.' },
+
+    { gate:'action', action:'reroll', target:'.fg2-master', pre:()=>{ _ftGrantEssence(3); renderEmblemBody(); },
+      title:'8. 걸작 3줄 다시 굴리기',
+      html:'걸작의 <b>효과 3줄</b>은 <b>걸작의 정수</b>로 통째로 다시 굴릴 수 있어요. 정수는 <b>레벨업 보상</b>으로 얻고, 내전 <b>만렙(LV50)</b>이 되면 상점에서도 구매할 수 있어요.<br>정수를 드렸어요 — 한 번 굴려볼까요? (룰렛처럼 돌아가요!)',
+      btn:'<button class="ft-do" onclick="window.emblemDoReroll()">🏆 걸작의 정수로 3줄 리롤</button>' },
+
+    { gate:'next', target:'.fg2-lines',
+      title:'9. 같은 효과를 겹치면 극대화',
+      html:'같은 효과가 <b>2줄·3줄 겹치면</b> 그 효과가 크게 강화돼요 (3줄 일치 = <b>트리플 극대화</b>). 운이 좋으면 3줄이 모두 같은 효과로 나오기도 해요.<br>정수가 있으면 원하는 조합이 나올 때까지 다시 굴릴 수 있어요.' },
+
+    { gate:'next', target:null,
+      title:'10. 장착해야 진짜 적용돼요',
+      html:'걸작을 <b>장착</b>해야 실제 경기·출석·복권에 효과가 들어가요. (강철심장은 만들면 자동 장착돼요. 여러 개면 클릭/드래그로 교체!)<br>장착하면 <b>메인 대기화면</b>에 이렇게 표시돼요:',
+      html2:true },
+
+    { gate:'next', target:'.fg2-sell',
+      title:'11. 판매는 하향된 금액으로',
+      html2:'sell' },
+
+    { gate:'next', target:null,
+      title:'🎉 튜토리얼 완료!',
+      html:'이제 직접 강화하고 걸작을 맞춰 나만의 강철심장을 만들어보세요.<br><b>방금 체험한 내용은 실제 골드·아이템에 전혀 반영되지 않았어요.</b> 진짜 강철심장은 상점에서 구매해 시작할 수 있어요!<br><span style="color:#8b8b97;font-size:11px;">언제든 대장간 우측 상단 🎓 사용법 버튼으로 다시 볼 수 있어요.</span>' },
+  ];
+}
+function _ftStepHtml(step){
+  // 동적 본문 (미리보기 배지 / 판매가)
+  if (step.html2 === true) return step.html + _ftPreviewBadge();
+  if (step.html2 === 'sell'){
+    const em = getEquippedEmblem(FORGE_TUT.sb); const p = em ? emblemSellPrice(em) : 0;
+    return '마음에 안 들거나 새로 만들고 싶으면 강철심장을 <b>판매</b>할 수 있어요. 단, 정가가 아니라 <b>하향된 금액</b>으로 환급돼요.<br>(베이스 절반 + 투입 강화권의 35% + 성능 보너스 ≈ 약 60%)<br>지금 이 강철심장은 판매 시 <b>'+p.toLocaleString()+'G</b> 환급돼요.';
+  }
+  return step.html;
+}
+function _ftDotsHtml(){
+  let s = '<div class="ft-dots">';
+  for (let i=0;i<FORGE_TUT.steps.length;i++) s += '<span class="ft-dot'+(i===FORGE_TUT.step?' on':'')+'"></span>';
+  return s + '</div>';
+}
+function _ftSetMask(m,x,y,w,h){ m.style.display='block'; m.style.left=x+'px'; m.style.top=y+'px'; m.style.width=Math.max(0,w)+'px'; m.style.height=Math.max(0,h)+'px'; }
+function _ftLayout(){
+  const ov = document.getElementById('ft-overlay'); if (!ov || !FORGE_TUT.active) return;
+  const step = FORGE_TUT.steps[FORGE_TUT.step]; if (!step) return;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const masks = ov.querySelectorAll('.ft-mask');
+  const ring = ov.querySelector('.ft-ring');
+  const bubble = ov.querySelector('.ft-bubble');
+  let rect = null;
+  if (step.target){ const el = document.querySelector(step.target); if (el){ const r = el.getBoundingClientRect(); if (r.width && r.height && r.bottom>0 && r.top<vh) rect = r; } }
+  if (!rect){
+    _ftSetMask(masks[0],0,0,vw,vh);
+    masks[1].style.display = masks[2].style.display = masks[3].style.display = 'none';
+    ring.style.display = 'none';
+    bubble.classList.add('center'); bubble.style.left=''; bubble.style.top='';
+    return;
+  }
+  bubble.classList.remove('center');
+  const pad = 8;
+  const L = Math.max(0,rect.left-pad), T = Math.max(0,rect.top-pad), R = Math.min(vw,rect.right+pad), B = Math.min(vh,rect.bottom+pad);
+  _ftSetMask(masks[0],0,0,vw,T);
+  _ftSetMask(masks[1],0,B,vw,vh-B);
+  _ftSetMask(masks[2],0,T,L,B-T);
+  _ftSetMask(masks[3],R,T,vw-R,B-T);
+  ring.style.display='block'; ring.style.left=L+'px'; ring.style.top=T+'px'; ring.style.width=(R-L)+'px'; ring.style.height=(B-T)+'px';
+  const bw = bubble.offsetWidth||320, bh = bubble.offsetHeight||210;
+  let bx = Math.min(Math.max(8, rect.left), vw-bw-8);
+  let by = (B+12+bh <= vh-8) ? B+12 : (T-12-bh >= 8 ? T-12-bh : Math.max(8,(vh-bh)/2));
+  bubble.style.left=bx+'px'; bubble.style.top=by+'px';
+}
+function _ftRender(){
+  const ov = document.getElementById('ft-overlay'); if (!ov) return;
+  const step = FORGE_TUT.steps[FORGE_TUT.step]; const n = FORGE_TUT.steps.length;
+  const bubble = ov.querySelector('.ft-bubble');
+  let acts = (step.gate==='action' && step.btn) ? '<div class="ft-act">'+step.btn+'</div>' : '';
+  let nav;
+  if (step.gate==='action'){
+    nav = '<div class="ft-nav"><button class="ft-skip" onclick="window._ftSkip()">건너뛰기</button>'+_ftDotsHtml()+'<span class="ft-hint">👆 직접 해보세요</span></div>';
+  } else {
+    const isLast = FORGE_TUT.step === n-1;
+    nav = '<div class="ft-nav"><button class="ft-skip" onclick="window._ftSkip()">건너뛰기</button>'+_ftDotsHtml()+'<button class="ft-next" onclick="window._ftNext()">'+(isLast?'완료 ✦':'다음 ›')+'</button></div>';
+  }
+  bubble.innerHTML = '<div class="ft-step">대장간 사용법 · '+(FORGE_TUT.step+1)+'/'+n+'</div><div class="ft-title">'+step.title+'</div><div class="ft-text">'+_ftStepHtml(step)+'</div>'+acts+nav;
+  if (step.target){ const el = document.querySelector(step.target); if (el){ try { el.scrollIntoView({behavior:'smooth', block:'center'}); } catch(_){} } }
+  requestAnimationFrame(_ftLayout);
+  setTimeout(_ftLayout, 260);
+}
+function _ftGo(i){
+  if (i < 0) return;
+  if (i >= FORGE_TUT.steps.length) return _ftEnd(true);
+  FORGE_TUT.step = i;
+  const step = FORGE_TUT.steps[i];
+  if (step.pre) { try { step.pre(); } catch(_){} }
+  _ftRender();
+}
+function _ftMaybeAdvance(action, arg){
+  const idx = FORGE_TUT.step;
+  const step = FORGE_TUT.steps[idx]; if (!step || step.gate!=='action') return;
+  const want = step.action;
+  let ok = false;
+  if (want === action) ok = true;
+  else if (action === 'enhance' && (want === 'enhance:any' || want === 'enhance:'+arg)) ok = true;
+  if (ok) setTimeout(()=>{ if (FORGE_TUT.active && FORGE_TUT.step === idx) _ftGo(idx+1); }, 420);
+}
+function _ftEnd(markSeen){
+  FORGE_TUT.active = false;
+  if (FORGE_TUT._orig){ Object.keys(FORGE_TUT._orig).forEach(k=>{ window[k] = FORGE_TUT._orig[k]; }); FORGE_TUT._orig = null; }
+  FORGE_TUT.sb = null; FORGE_TUT.step = 0;
+  document.getElementById('ft-overlay')?.remove();
+  window.removeEventListener('scroll', _ftLayout, true);
+  window.removeEventListener('resize', _ftLayout);
+  if (markSeen) localStorage.setItem('forgeTutSeen','1');
+  try { renderEmblemBody(); } catch(_){}   // 실제 데이터로 복귀
+}
+window._ftNext = ()=> _ftGo(FORGE_TUT.step+1);
+window._ftSkip = ()=>{ if (confirm('대장간 튜토리얼을 건너뛸까요?')) _ftEnd(true); };
+window.startForgeTut = function(force){
+  if (FORGE_TUT.active) return;
+  if (CURRENT_SEASON !== 2){ if (force) showS1Toast('시즌2 대장간에서만 이용할 수 있어요'); return; }
+  if (!force && localStorage.getItem('forgeTutSeen')) return;
+  localStorage.setItem('forgeTutSeen','1');
+  _ftInjectCss();
+  FORGE_TUT.sb = _ftFreshSb();
+  FORGE_TUT.gold = 99999;
+  FORGE_TUT.step = 0;
+  FORGE_TUT.steps = _ftBuildSteps();
+  // 핸들러 오버라이드 (종료 시 복원)
+  FORGE_TUT._orig = {};
+  ['emblemDoBuyBase','emblemDoBuyTicket','emblemDoBuyEssence','emblemDoEnhance','emblemDoReroll','emblemDoEquipById','emblemDoUnequip','emblemDoSell'].forEach(k=>{ FORGE_TUT._orig[k] = window[k]; });
+  window.emblemDoBuyBase   = async ()=>{ _ftBuyBase(); renderEmblemBody(); _ftMaybeAdvance('buyBase'); };
+  window.emblemDoEnhance   = async (t)=>{ const r = await _ftEnhance(t); if (r) _ftMaybeAdvance('enhance', t); };
+  window.emblemDoReroll    = async ()=>{ const l = await _ftReroll(); if (l) _ftMaybeAdvance('reroll'); };
+  window.emblemDoSell      = async ()=>{ const em = getEquippedEmblem(FORGE_TUT.sb); showS1Toast('🔷 (튜토리얼) 판매 시 '+(em?emblemSellPrice(em).toLocaleString():'0')+'G 환급'); };
+  window.emblemDoBuyTicket = async ()=>{ showS1Toast('튜토리얼에선 강화권이 준비돼 있어요'); };
+  window.emblemDoBuyEssence= async ()=>{ showS1Toast('튜토리얼에선 정수가 준비돼 있어요'); };
+  window.emblemDoEquipById = async ()=>{};
+  window.emblemDoUnequip   = async ()=>{};
+  FORGE_TUT.active = true;
+  renderEmblemBody();   // 샌드박스(빈 상태)로 렌더 → 강철심장 가져오기 버튼 노출
+  const ov = document.createElement('div'); ov.id = 'ft-overlay';
+  ov.innerHTML = '<div class="ft-mask"></div><div class="ft-mask"></div><div class="ft-mask"></div><div class="ft-mask"></div><div class="ft-ring"></div><div class="ft-bubble"></div>';
+  document.body.appendChild(ov);
+  window.addEventListener('scroll', _ftLayout, true);
+  window.addEventListener('resize', _ftLayout);
+  _ftGo(0);
 };
 
 // ────────────────────────────────────────────────────────────────
@@ -20978,6 +21284,7 @@ function getMyGoldKey() {
   return Object.entries(goldData).find(([,g])=>g.name===myName)?.[0] || null;
 }
 function getMyGoldData() {
+  if (FORGE_TUT.active) return FORGE_TUT.sb;  // 🎓 대장간 튜토리얼 샌드박스
   const key = getMyGoldKey();
   return key ? goldData[key] : null;
 }
@@ -23088,6 +23395,11 @@ function _renderShopImmediate() {
       const _sl = document.getElementById('shop-list');
       if (!document.getElementById('emblem-body')) _sl.innerHTML = '<div id="emblem-body"></div>';
       renderEmblemBody();
+      // 🎓 대장간 첫 진입 → 튜토리얼 자동 1회 (localStorage 기억). _autoArmed로 재렌더 중복 방지.
+      if (!FORGE_TUT.active && !FORGE_TUT._autoArmed && !localStorage.getItem('forgeTutSeen') && typeof window.startForgeTut === 'function') {
+        FORGE_TUT._autoArmed = true;
+        setTimeout(()=>{ if (!FORGE_TUT.active && document.getElementById('emblem-body')) window.startForgeTut(false); }, 500);
+      }
     }
   } else {
   if (CURRENT_SEASON === 2) _evacuateOrnn();  // 대장간 탭에서 다른 탭 전환 시 캔버스 대피 (파괴 방지)
