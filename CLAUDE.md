@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.45.49 (🌌 **시즌2 라이브 오픈 완료 2026-06-10** — `switchSeason(2)` 누름 / 출시일 대장간 튜토리얼·출석/복권/어워드 시즌격리·부팅깜빡임·쓰레기통 캡 등 정리)
+- 현재 버전: v2.45.56 (🌌 **시즌2 라이브 중 2026-06-10~** — 출석 발견성 개선(아바타 코치마크+코너버튼 골드강조)·빙고 첫선택/중복 알림·챔피언풀 시즌누수·GitHub Pages `.nojekyll` 배포수정 / 시즌2 라이브 오픈은 `switchSeason(2)`로 완료)
   - ⏳ **레벨 시스템 후속**: ① 패스를 일반/내전 포인트패스 → **S1식 퀘스트 패스(내전 전용)로 되돌리기**(미완) ② 레벨 보상량/곡선 실플레이 튜닝. 레벨 코드맵: `PLV_XP`·`calcPlayerXp`·`plvLevelFromXp`·`plvReward`·`claimPlayerLevels`·`_plvCardHtml`(패스 탭 상단). 데이터 `playerLevelClaimed_s2`. 정수: 경기당+1·상점120G 폐지(레벨업만).
 - ✅ **시즌2 라이브 중** (2026-06-10~) — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 + 세션이력 v2.45.38~49 필독
 
@@ -736,7 +736,20 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.45.38~49 (2026-06-10) — 🌌 시즌2 라이브 오픈 + 🎓 대장간 튜토리얼 + 출시일 정리/수정 ← 최신
+### v2.45.50~56 (2026-06-10) — 🎯 출석 발견성·빙고 알림 + 챔피언풀 시즌누수 + GitHub Pages 배포수정 ← 최신
+
+> v2.45.50~53은 다른 컴퓨터/세션 진행(LEVEL UP 배너 새로고침 버그·일반게임 진행중 배너·실시간 토스트 등 — 상세 in-app CHANGELOG). 이 세션은 **v2.45.54부터**. 전부 푸시 완료. **CHANGELOG/커밋 규칙(주석줄만 매칭·모듈단위 node --check·`&&` 게이트 커밋)은 이전 항목 동일 적용.**
+
+- **v54 챔피언 풀 전체보기 시즌 누수**: `calcChampPool(name, season=CURRENT_SEASON)`(~L18426)이 시즌 필터 없이 전체 시즌(S0+S1+S2) 매치를 합산 → S2인데 옛 시즌 챔프가 섞여 보임. `if((m.season??0)!==season) continue;` 추가. 헤더 "시즌 N" 표기.
+- **🚀 GitHub Pages 배포 오류 수정 (중요)**: v52~53에서 Pages "Page build failed"/빌드 멈춤 — 브랜치 직접배포가 **기본 Jekyll**로 거대한 index.html 파싱하다 실패. → **`.nojekyll` 파일 추가**(Jekyll 비활성화). ⚠️ `.gitignore`가 `*` + 화이트리스트라 `!.nojekyll` 추가해야 추적됨. 이후 빌드 정상(ee7cd7a "built").
+- **v55 협력 빙고 출석 첫선택/중복 알림 보강**: `doBingoAttendance`(~L19110)가 `wasFirst`/`dupWith`→`sub`를 **보상 팝업 한 줄(`.brw-sub` 11px)로만** 띄워 골드 보상에 묻혀 안 보이던 것. 트랜잭션 직후 **토스트로도** 알림 추가(`🎨 처음 골랐어요!`/`🔴 X님이 이미 골랐어요`). 블라인드 보드 설계(출석 후 공개) 유지. *주의: 본인이 이미 고른 칸은 dup·first 둘 다 false라 무알림이 정상.*
+- **🎯 v56 출석 발견성 개선 (이 세션 핵심)**: 좌상단 배지(명예의전당·일정·출석체크·우편함·노트)가 전부 비슷한 골드 테두리라 출석을 못 찾던 문제.
+  - **메인 아바타 코치마크**: 출석 가능 시 `#my-avatar`에 골드 링 강조(`.attend-ready`)+🎯 골드 점(`#mib-attend-dot`), 바로 아래 말풍선 `#attend-coach`("오늘 출석 보상이 기다려요! 탭해서 출석") — 누르면 `goToRelayBoard()`로 바로 출석창. ✕로 이번 슬롯 닫기(`_attendCoachDismiss`=date_slot 키, `window._dismissAttendCoach`).
+  - **코너 버튼 차별화**: 출석 가능 시 `.relay-event-btn.attend-live`(채워진 골드+`🎯 출석하기`+강한 펄스), 보상만 대기면 `.glow-attend`+`🎁 보상 받기`. 라벨은 `#reb-label` 동적 변경.
+  - 코어 함수: `updateAttendCoach(canAttendNow?)`·`positionAttendCoach()`(아바타 rect 기준 fixed 배치)·`_attendSlotKey()`. `updateRelayEventBtn` 끝(~L19895)에서 버튼+코치마크 동시 갱신 → 골드 onValue·이름선택·출석완료 시 자동 반영. `showTab`에도 호출(탭전환 위치 재계산). 팀구성 완료로 아바타 숨김 시 `offsetParent===null`로 코치마크 자동 숨김. resize/scroll(capture) 리스너로 말풍선 위치 추적. CSS는 `.reb-arrow` 정의 뒤(~L4712) 블록.
+  - ⏭️ 실기기 확인 후 말풍선 위치/문구/강조 강도 미세조정 여지.
+
+### v2.45.38~49 (2026-06-10) — 🌌 시즌2 라이브 오픈 + 🎓 대장간 튜토리얼 + 출시일 정리/수정
 
 > **이날 시즌2 정식 오픈** (`switchSeason(2)` → `config/currentSeason=2`). 전환 감사(3-에이전트+직접검증) 결과 쇼스토퍼 0. 전환 메커니즘=순수 config 쓰기, onValue 리스너가 `season2/`로 재구독. 이후 출시일에 발견된 시즌격리 누락·UI 깜빡임 등을 줄줄이 수정. CHANGELOG/커밋 규칙(주석줄만 매칭·node --check 후 커밋) 동일 적용.
 
