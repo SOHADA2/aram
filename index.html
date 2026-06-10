@@ -6285,7 +6285,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.42';
+const APP_VERSION = 'v2.45.43';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6294,6 +6294,9 @@ const APP_VERSION = 'v2.45.42';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.43', date: '2026-06-10', changes: [
+    { tag: 'fix', text: '🎓 대장간 튜토리얼 완성도 — (1) 강화 성공·튜토리얼 판매 등 토스트가 튜토리얼 오버레이 뒤에 가리고 정중앙에서 겹치던 문제: 튜토리얼 중엔 토스트를 오버레이 위(z 4300)로 올리고 화면 상단에 배치. (2) 노란 강조 박스가 이전 위치에서 엉뚱하게 날아오던 문제: 위치 transition 제거 → 단계 전환 시 숨겼다가 제자리에서 페이드인(스크롤 시에도 대상에 정확히 정렬)' },
+  ] },
   { ver: 'v2.45.42', date: '2026-06-10', changes: [
     { tag: 'fix', text: '🎓 대장간 튜토리얼 — (1) 🎓 사용법 버튼이 스타일 없이 튀던 문제: 버튼 CSS를 튜토리얼 전용 주입 CSS→메인 스타일시트로 옮겨 항상 적용(은은한 골드 알약). (2) 스크롤 시 말풍선이 오른/작업대를 통째로 가리던 문제: 강화·리롤 같은 체험 단계는 박스 강조 대신 옅은 전체 딤 + 말풍선을 대상 반대편 화면 가장자리에 고정(watch 모드)해 오른이 항상 보이게' },
   ] },
@@ -10198,7 +10201,7 @@ function _ftInjectCss(){
   st.textContent = [
     '#ft-overlay{position:fixed;inset:0;z-index:4200;pointer-events:none;font-family:"Noto Sans KR",sans-serif;}',
     '.ft-mask{position:fixed;background:rgba(4,4,6,0.80);pointer-events:auto;}',
-    '.ft-ring{position:fixed;border:2px solid #f0c060;border-radius:12px;box-shadow:0 0 0 3px rgba(240,192,96,0.22),0 0 22px rgba(240,192,96,0.5);pointer-events:none;transition:left .22s ease,top .22s ease,width .22s ease,height .22s ease;}',
+    '.ft-ring{position:fixed;border:2px solid #f0c060;border-radius:12px;box-shadow:0 0 0 3px rgba(240,192,96,0.22),0 0 22px rgba(240,192,96,0.5);pointer-events:none;opacity:0;transition:opacity .2s ease;}',
     '.ft-bubble{position:fixed;width:min(87vw,332px);background:linear-gradient(162deg,#16161d,#0b0b10);border:1px solid #3a3320;border-radius:15px;padding:15px 16px 13px;box-shadow:0 18px 52px rgba(0,0,0,0.62);pointer-events:auto;color:#e9e7ec;}',
     '.ft-bubble.center{left:50%;top:50%;transform:translate(-50%,-50%);}',
     '.ft-step{font-size:10px;letter-spacing:1px;color:#c89230;font-weight:800;font-family:"JetBrains Mono",monospace;margin-bottom:5px;}',
@@ -10430,7 +10433,7 @@ function _ftLayout(){
   _ftSetMask(masks[1],0,B,vw,vh-B);
   _ftSetMask(masks[2],0,T,L,B-T);
   _ftSetMask(masks[3],R,T,vw-R,B-T);
-  ring.style.display='block'; ring.style.left=L+'px'; ring.style.top=T+'px'; ring.style.width=(R-L)+'px'; ring.style.height=(B-T)+'px';
+  ring.style.display='block'; ring.style.left=L+'px'; ring.style.top=T+'px'; ring.style.width=(R-L)+'px'; ring.style.height=(B-T)+'px'; ring.style.opacity='1';
   const bw = bubble.offsetWidth||320, bh = bubble.offsetHeight||210;
   let bx = Math.min(Math.max(8, rect.left), vw-bw-8);
   // 대상을 가리지 않게: 아래 우선, 안 되면 위, 그래도 안 되면 대상에서 먼 화면 가장자리에 고정
@@ -10444,6 +10447,7 @@ function _ftRender(){
   const ov = document.getElementById('ft-overlay'); if (!ov) return;
   const step = FORGE_TUT.steps[FORGE_TUT.step]; const n = FORGE_TUT.steps.length;
   const bubble = ov.querySelector('.ft-bubble');
+  const ring = ov.querySelector('.ft-ring'); if (ring){ ring.style.opacity='0'; ring.style.display='none'; }  // 새 단계 → 이전 위치에서 날아오지 않게 숨겼다가 제자리에서 페이드인
   let acts = (step.gate==='action' && step.btn) ? '<div class="ft-act">'+step.btn+'</div>' : '';
   let nav;
   if (step.gate==='action'){
@@ -26088,6 +26092,8 @@ function showS1Toast(msg) {
   el.id='gold-toast'; el.className='s1-toast';
   el.innerHTML = msg.includes('<svg') ? msg.replace(/(<\/svg>)([\s\S]*)/, '$1<span class="s1-toast-text">$2</span>') : msg;
   document.body.appendChild(el);
+  // 🎓 대장간 튜토리얼 중엔 오버레이(z 4200) 위로 + 정중앙 대신 상단에 띄워 말풍선·작업대와 안 겹치게
+  if (typeof FORGE_TUT !== 'undefined' && FORGE_TUT.active){ el.style.zIndex='4300'; el.style.top='58px'; el.style.transform='translate(-50%,0)'; }
   setTimeout(()=>{
     el.classList.add('fade-out');
     setTimeout(()=>el.remove(), 400);
