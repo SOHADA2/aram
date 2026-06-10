@@ -499,6 +499,10 @@ header{text-align:center;padding:48px 0 24px;position:relative;}
 .corner-badges-left .mailbox-btn{width:auto;padding:2px 7px;border-radius:3px;background:rgba(6,13,24,0.7);border:1px solid rgba(30,60,110,0.3);box-shadow:none;}
 .corner-badges-left .mailbox-btn svg{width:13px;height:13px;}
 .corner-badges-left .mb-badge{top:-5px;right:-5px;min-width:13px;height:13px;font-size:8px;}
+/* 🎮 일반게임 진행 중 배너 — 전체 상단 고정 (브릿지 inGame 기반, v2.45.52) */
+.ngb{position:fixed;top:0;left:0;right:0;z-index:997;display:flex;align-items:center;justify-content:center;gap:7px;padding:5px 14px;background:linear-gradient(180deg,rgba(12,20,30,0.96),rgba(8,14,22,0.9));border-bottom:1px solid rgba(125,211,252,0.35);color:#bfe3ff;font-size:11px;font-weight:700;font-family:'Noto Sans KR',sans-serif;letter-spacing:0.3px;backdrop-filter:blur(6px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ngb-dot{width:7px;height:7px;border-radius:50%;background:#7dd3fc;box-shadow:0 0 7px #7dd3fc;animation:ngbDot 1.3s ease-in-out infinite;flex-shrink:0;}
+@keyframes ngbDot{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(0.65);}}
 .corner-badge:hover{color:rgba(200,230,255,0.95);border-color:rgba(100,160,220,0.5);}
 #sched-badge-btn.has-today{color:var(--gold-light,#e8c95a);border-color:rgba(200,168,75,0.5);}
 /* 일정(달력) 모달 */
@@ -6294,7 +6298,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.51';
+const APP_VERSION = 'v2.45.52';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6303,6 +6307,9 @@ const APP_VERSION = 'v2.45.51';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.52', date: '2026-06-11', changes: [
+    { tag: 'new', text: '🎮 [시즌2] 일반게임 진행 중 전체 배너 — 진행자가 브릿지 켜고 일반게임(증바람) 중이면 사이트 최상단에 "🎮 일반게임 진행 중 · [참가 멤버]" 배너가 모두에게 표시(누가 게임 중인지). 게임 끝나면 사라지고 기록 토스트로 전환. ※ 브릿지 v1.1.34 필요(진행 중 게임 종류·참가자 전송).' },
+  ] },
   { ver: 'v2.45.51', date: '2026-06-09', changes: [
     { tag: 'new', text: '🎮 [시즌2] 일반게임(증바람) 기록 실시간 알림 — 그동안 기록만 되고 표시가 없었음. 내가 참여한 일반게임이 잡히면 "🎮 일반게임 승리/패배 기록 완료 · 패스 포인트 적립" 토스트. 진행자(라이브)에겐 "기록 완료 N명" 확인. (첫 로드 제외, 최근 게임만)' },
   ] },
@@ -12058,6 +12065,25 @@ onValue(ref(db, 'bridge/gamePhase'), async (snap) => {
   currentMatchParticipants = pts;
   renderMvpSection();
 });
+
+// ── 🎮 일반게임 진행 중 배너 (브릿지 bridge/inGame 기반, v2.45.52) ──
+// 브릿지가 InProgress 시 { isCustom, players:[소환사명], at } 기록 → 일반게임(isCustom=false)이면 전체에게 표시
+let _bridgeInGame = null;
+onValue(ref(db, 'bridge/inGame'), (snap) => { _bridgeInGame = snap.val(); try { updateNormalGameBanner(); } catch (_) {} });
+function updateNormalGameBanner(){
+  const ig = _bridgeInGame;
+  const active = !!(ig && ig.isCustom === false && magollaState !== 'active' && (!ig.at || Date.now() - ig.at < 90 * 60 * 1000));
+  let bar = document.getElementById('normal-game-banner');
+  if (!active){ if (bar) bar.remove(); return; }
+  // 인게임 소환사명 → 등록 멤버 매칭 (중복 제거)
+  const members = (ig.players || []).map(sn => _normalMatchMember(sn)).filter(Boolean);
+  const seen = new Set(); const uniq = [];
+  for (const m of members){ const nn = normName(m); if (!seen.has(nn)){ seen.add(nn); uniq.push(m); } }
+  let who = '';
+  if (uniq.length) who = ' · ' + (uniq.length <= 3 ? uniq.join(', ') : `${uniq.slice(0,2).join(', ')} 외 ${uniq.length-2}명`);
+  if (!bar){ bar = document.createElement('div'); bar.id = 'normal-game-banner'; bar.className = 'ngb'; document.body.appendChild(bar); }
+  bar.innerHTML = `<span class="ngb-dot"></span>🎮 일반게임 진행 중${escHtml(who)}`;
+}
 
 // ── 개발용: 투표 카드 챔피언 데이터 미리보기 ────────────────────────
 window.__previewVotesDone = () => {
