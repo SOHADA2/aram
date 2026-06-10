@@ -6290,7 +6290,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.44';
+const APP_VERSION = 'v2.45.45';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6299,6 +6299,10 @@ const APP_VERSION = 'v2.45.44';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.45', date: '2026-06-10', changes: [
+    { tag: 'fix', text: '🏅 대기화면 MVP/SVP/MMP가 시즌과 무관하게 시즌1 기준으로만 표시되던 버그 수정 — calcS1AwardStats 호출 시 시즌 인자가 누락돼 기본값(season=1)으로 빠지던 문제. 현재 라이브 시즌(_liveSeason) 기준으로 집계' },
+    { tag: 'improve', text: '🌌 시즌2 안내 팝업 — 첫 접속 시 자동 표시. "확인"(이번만 닫기·다음 접속 시 재표시)과 "다시 안보기"(영구 숨김) 버튼 분리 → 못 보고 닫은 팀원도 다시 볼 수 있게. 헤더 SEASON 2 라벨 클릭으로 언제든 재열람' },
+  ] },
   { ver: 'v2.45.44', date: '2026-06-10', changes: [
     { tag: 'improve', text: '🔴 라이브 모드 바 — 시즌2 톤(블랙+골드)으로 통일(기존 레드는 S0/S1에서만). 의미 없던 복권 하우스 골드 지표(팀원 복권 구매금−당첨금) 표시 제거' },
   ] },
@@ -20918,6 +20922,7 @@ function showS2Tutorial(force){
       <button class="s2tut-prev" id="s2tut-prev" onclick="window._s2TutGo(-1)">이전</button>
       <button class="s2tut-next" id="s2tut-next" onclick="window._s2TutGo(1)">다음</button>
     </div>
+    <button onclick="window.dontShowS2Tutorial()" style="display:block;margin:11px auto 0;background:none;border:none;color:#8b8b97;font-size:11px;cursor:pointer;letter-spacing:.3px;">다시 안보기</button>
   </div>`;
   document.body.appendChild(ov);
   _s2TutRender();
@@ -20929,16 +20934,21 @@ function _s2TutRender(){
   const dots = document.getElementById('s2tut-dots');
   if (dots) dots.innerHTML = S2_TUTORIAL_SLIDES.map((_,i)=>`<i class="s2tut-dot${i===_s2TutIdx?' on':''}"></i>`).join('');
   const prev = document.getElementById('s2tut-prev'); if (prev) prev.style.visibility = _s2TutIdx===0 ? 'hidden':'visible';
-  const next = document.getElementById('s2tut-next'); if (next) next.textContent = (_s2TutIdx===S2_TUTORIAL_SLIDES.length-1) ? '시작하기 ✦' : '다음';
+  const next = document.getElementById('s2tut-next'); if (next) next.textContent = (_s2TutIdx===S2_TUTORIAL_SLIDES.length-1) ? '확인' : '다음';
 }
 window._s2TutGo = function(d){
   if (d>0 && _s2TutIdx===S2_TUTORIAL_SLIDES.length-1) { window.closeS2Tutorial(); return; }
   _s2TutIdx = Math.max(0, Math.min(S2_TUTORIAL_SLIDES.length-1, _s2TutIdx+d));
   _s2TutRender();
 };
+// 확인(✕·마지막 확인) = 이번만 닫기 → 다음 접속 시 재표시(못 보고 닫은 멤버 보호). 영구 숨김은 '다시 안보기'.
 window.closeS2Tutorial = function(){
   const ov = document.getElementById('s2tut-overlay'); if (ov) ov.remove();
-  localStorage.setItem('s2TutorialSeen','1'); // 닫으면 자동표시 안 함(헤더 SEASON 2 라벨 클릭으로 재열람)
+};
+// 다시 안보기 = 영구 숨김(헤더 SEASON 2 라벨 클릭으로 재열람 가능)
+window.dontShowS2Tutorial = function(){
+  const ov = document.getElementById('s2tut-overlay'); if (ov) ov.remove();
+  localStorage.setItem('s2TutorialSeen','1');
 };
 window.showS2Tutorial = showS2Tutorial;
 
@@ -22185,7 +22195,7 @@ async function renderS1WaitingCard(el) {
   // 내전·막고라 전적/수익은 실제 라이브 시즌 기준(미리보기 오버라이드 무시) — 지금은 S1, 실제 S2 전환 시 자동 S2
   const _liveSeason = (() => { const v = parseInt(localStorage.getItem('aram_season') || '0', 10); return v >= 1 ? v : Math.max(1, CURRENT_SEASON); })();
   const s      = calcStats(myName, _liveSeason);
-  const awards = calcS1AwardStats(myName);
+  const awards = calcS1AwardStats(myName, _liveSeason);  // 시즌별 MVP/SVP/MMP (인자 누락 시 기본 season=1로 빠지던 버그 수정)
   const myGoldData = getMyGoldData();
   // 🌌 시즌2 = 단일 퀘스트 패스(전투/지원 탭 폐지). 패스 데이터를 시즌에 맞게 분기.
   const _s2Pass = CURRENT_SEASON === 2;
