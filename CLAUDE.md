@@ -5,9 +5,9 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.45.37 (🏛 시즌1 명예의 전당 신설(동적·부문상 TOP5·TMI·전원 명단) + 대기화면 정렬/강화현황 개선 + 걸작 효과 "해골 감소" 정착 / 브릿지 aram-bridge v1.1.31 릴리즈 완료)
+- 현재 버전: v2.45.49 (🌌 **시즌2 라이브 오픈 완료 2026-06-10** — `switchSeason(2)` 누름 / 출시일 대장간 튜토리얼·출석/복권/어워드 시즌격리·부팅깜빡임·쓰레기통 캡 등 정리)
   - ⏳ **레벨 시스템 후속**: ① 패스를 일반/내전 포인트패스 → **S1식 퀘스트 패스(내전 전용)로 되돌리기**(미완) ② 레벨 보상량/곡선 실플레이 튜닝. 레벨 코드맵: `PLV_XP`·`calcPlayerXp`·`plvLevelFromXp`·`plvReward`·`claimPlayerLevels`·`_plvCardHtml`(패스 탭 상단). 데이터 `playerLevelClaimed_s2`. 정수: 경기당+1·상점120G 폐지(레벨업만).
-- ⚠️ **시즌2 작업 중** — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 필독 (진행상황·확정정책·신규콘텐츠 기획 전부 정리됨)
+- ✅ **시즌2 라이브 중** (2026-06-10~) — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 + 세션이력 v2.45.38~49 필독
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
@@ -736,7 +736,28 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.45.15~37 (2026-06-08) — 🏛 시즌1 명예의 전당 + 대기화면 정렬·강화현황 + 걸작 "해골 감소" ← 최신
+### v2.45.38~49 (2026-06-10) — 🌌 시즌2 라이브 오픈 + 🎓 대장간 튜토리얼 + 출시일 정리/수정 ← 최신
+
+> **이날 시즌2 정식 오픈** (`switchSeason(2)` → `config/currentSeason=2`). 전환 감사(3-에이전트+직접검증) 결과 쇼스토퍼 0. 전환 메커니즘=순수 config 쓰기, onValue 리스너가 `season2/`로 재구독. 이후 출시일에 발견된 시즌격리 누락·UI 깜빡임 등을 줄줄이 수정. CHANGELOG/커밋 규칙(주석줄만 매칭·node --check 후 커밋) 동일 적용.
+
+- **v38~39 메인 대기화면**: 최근10경기↔챔피언 세로스택 → **좌우 2열**(`.wm-lp-bottom` grid `auto 1fr`, 폼도트 5+5). 챔피언 카드 시인성↑(초상화 42px·이름16px), `align-items:stretch`로 칸 꽉 채움.
+- **v40~43 🎓 오른 대장간 인터랙티브 튜토리얼** (신규 핵심): 시즌2 대장간 첫 진입 시 스포트라이트 가이드 자동 1회(`localStorage forgeTutSeen`) + 우상단 🎓 사용법 버튼 재생. **전용 샌드박스 `FORGE_TUT`**(인메모리, Firebase 무접근)에서 구매/강화/리롤/판매 시연 — 실제 골드·정산 무영향. 게터 가드 3곳(`renderEmblemBody`/`getMyGoldData`/`_healEmblemLines`)만 기존수정, `window.emblemDo*` 핸들러는 시작 시 오버라이드→종료 복원. 실제 연출(`_emblemForge`·`_emblemReelAnim`) 재사용. 코드: `_ftBuildSteps`(13단계)·`_ftLayout`(watch모드=옅은딤+말풍선 가장자리고정, box모드=링)·`_ftWatch`·`startForgeTut`. v41=오른 가림 수정(타깃 `#forge-stage`)+걸작 설명정정("3줄=특별보너스 아님, 같은효과 합산"), v42=`.fg2-tut-btn` CSS를 메인시트로(주입CSS라 튀던것), v43=튜토중 토스트 z4300·상단배치 + 링 위치transition 제거(opacity 페이드).
+- **v44 라이브모드 바**: `.season-2` 골드 톤 + 복권 하우스골드 지표(`calcLotteryHouseGold`) 표시 제거.
+- **v45**: 대기화면 MVP/SVP/MMP가 `calcS1AwardStats` **season 인자 누락**으로 항상 S1집계 → `_liveSeason` 전달. + 시즌2 안내팝업(`showS2Tutorial`) **확인(세션만·재표시)/다시안보기(영구 `s2TutorialSeen`) 2버튼** 분리.
+- **v46 출석 시즌격리**: 일일게이트 `lastAttendance`/`lastAttendance2`가 시즌무관 공유필드라 S1 오늘출석이 S2를 막던것 → `sField`로 시즌별(8곳: `isAttendSlotDone`·`doBingoAttendance`·빙고로스터3·S1릴레이`doAttendance`). S2는 빈 `lastAttendance_s2`라 S1무관 출석가능.
+- **v47 복권허브** 팀시도통계(`tierAttemptStats` ~24753)에 `(h.season??1)===CURRENT_SEASON` 추가(전시즌 누적 보이던것).
+- **v48 🗑️ 쓰레기통 동전 하루 250G 캡** (`TRASH_DAILY_GOLD_CAP`/`_trashGoldRemaining`/`trashGoldDay`): 직접뒤지기+유미 합산. 초과시 "바닥까지 다 긁었다" 메시지. 이스터에그 +300G 미포함, 무료권 3장캡 유지. (직접 ~0.27G/회·1100px드래그 → 250G에 ~30분~1시간 / 유미 1회 130~290G로 거의 캡).
+- **v49 부팅 깜빡임**: 첫진입 S1→S2 깜빡임 = 부팅스크립트(head/body)가 `s1-active`만 즉시걸고 `season-2`는 모듈로드후 적용해서. → 부팅스크립트에 캐시시즌(=2) 기반 `season-2` 즉시추가. `.season-2{--gold..}`가 html레벨 셀렉터라 첫페인트부터 팔레트/카드 S2. (단 `aram_season` 캐시=2여야 — 전환후 1회 접속하면 갱신됨).
+
+#### 🔧 출시일 데이터 정리 (Firebase REST 직접 — 읽기·쓰기 인증없이 됨)
+- **DB**: `https://aramchaos-ca022-default-rtdb.asia-southeast1.firebasedatabase.app` — `/gold.json`(전체)·`/gold/{key}.json`·`/season2_bingo.json`. PowerShell `Invoke-RestMethod`로 조회/PATCH/PUT.
+- **⚠️ 테스트 잔재 함정**: 🧪검증패널 "테스트골드"(`__s2dbg.gold`)가 `goldBonusLegacy_s2`에 누적 → `calcPlayerGoldEarned`가 실골드로 합산. 프리뷰 테스트한 계정(애긔반달곰)이 S2라이브에서 골드·엠블럼·가챠·패스·레벨·빙고 잔재 보유. **다른사람은 0에서 깨끗 시작**(전환 정상, 그 계정만 더럽혀진것).
+- **애긔반달곰(key `-OowXInAIfDm6j7PKe0M`) 전체초기화 완료**: 모든 `_s2` 필드 0/삭제 + `lotteryHistory` 351→344(season===2 7개만 제거). `_s1`·S0 무손상.
+- **공유 빙고판(`season2_bingo`) 리셋**: 테스트픽 15칸·빙고1줄·로그1개 → 새판(round1·36칸·로그0)으로 PUT. (패스탭 노란점=빙고미수령보상이 전원에 뜨던것 해소. 단 **레벨1 시작보상(정수1+안정2)** 미수령은 정상 — `plvLevelFromXp(0)=1`이라 전원 레벨1, `_isPlvClaimable`=true. 의도된 시작보상.)
+
+
+
+### v2.45.15~37 (2026-06-08) — 🏛 시즌1 명예의 전당 + 대기화면 정렬·강화현황 + 걸작 "해골 감소"
 
 > 이 세션 전, **다른 컴퓨터가 v2.44.85~v2.45.14** 진행(시즌2 전환 토글·브릿지 일반게임 분리·일반패스 적립·튜토리얼·대기화면 다듬기 등 — 상세는 in-app CHANGELOG). 이 세션은 v2.45.15부터. 전부 푸시 완료. **CHANGELOG/커밋 규칙(주석줄만 매칭·`&&`로 구문검사 묶기)은 이전 항목 참조 — 이번 세션도 동일 적용.**
 
