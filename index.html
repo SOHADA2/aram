@@ -6357,7 +6357,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.65';
+const APP_VERSION = 'v2.45.66';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6366,6 +6366,9 @@ const APP_VERSION = 'v2.45.65';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.66', date: '2026-06-11', changes: [
+    { tag: 'improve', text: '💰 시즌2 신규 아이템 되팔기 추가 — 내 아이템에서 강화권(안정·정밀·과부하)과 걸작의 정수를 기존 소비 아이템처럼 정가 95% 환급(수수료 5%)으로 판매 가능(좌상단 💰 버튼). 강철심장은 정해진 환급가(emblemSellPrice)로 장비 슬롯에서도 바로 판매. resellGold에 누적' },
+  ] },
   { ver: 'v2.45.65', date: '2026-06-11', changes: [
     { tag: 'fix', text: '🎟 스크래치 복권 카드 제목의 이모지가 그라데이션 텍스트에 물려 이상하게(투명·금빛 실루엣) 보이던 문제 수정 — 이모지를 그라데이션 클립 밖 별도 요소로 분리(일반🎟·고급🎫·프리미엄💎). 제목 텍스트만 골드 그라데이션 적용' },
   ] },
@@ -9819,7 +9822,9 @@ function _emblemInvSlotsHtml(cat){
     const slots = owned.map(e=>{
       const power=emblemPower(e), item=_forgeItemMeta(power), lvl=emblemLevel(e), isEq=e.id===eqId;
       const glow=_EMBLEM_GLOW_META[emblemEffects(power).glow]||_EMBLEM_GLOW_META.none;
+      const sellHeart = emblemSellPrice(e);
       return `<div class="inv-slot inv-emblem-eq${isEq?' inv-active':''}" data-emid="${e.id}" style="touch-action:none;" title="${item.kr} · ${isEq?'장착 중 (작업대로 끌어내거나 더블클릭하면 빼기)':'클릭·드래그·더블클릭으로 장착'}">
+        ${!isItemsEffectivelyLocked() ? `<button class="inv-sell-btn" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();window.emblemDoSell(${e.id})" title="강철심장 판매 ${sellHeart.toLocaleString()}G (정해진 환급가)">💰${sellHeart.toLocaleString()}</button>` : ''}
         <div class="inv-emblem-thumb" style="--gc:${glow.color};"><img src="${_forgeItemImg(power)}" alt=""><span class="inv-emblem-lv">+${lvl}</span></div>
         <div class="inv-slot-name">${item.kr}</div>
         <div class="inv-slot-action inv-action-use" style="${isEq?'background:linear-gradient(135deg,#ffb867,#e08a2e);color:#1a1206;':'opacity:.8;'}">${isEq?'✓ 장착중':'장착'}</div>
@@ -9839,9 +9844,11 @@ function _emblemInvSlotsHtml(cat){
     const t = getEmblemTickets(data);
     const tkSlots = EMBLEM_TICKET_ORDER.filter(tid=>(t[tid]||0)>0).map(tid=>{
       const def=EMBLEM_TICKETS[tid], cnt=t[tid];
+      const sellTk = Math.max(1, Math.round(def.price * 0.95)); const sellableTk = !isItemsEffectivelyLocked();
       // data-ench → _bindEnchInventoryDrag가 드래그/탭 핸들러 부착 (대장간 작업대로 끌어 단조)
       return `<div class="inv-slot inv-ench-src" data-ench="${tid}" style="touch-action:none;" title="${def.name} · 끌어오거나 탭하면 강철심장 강화">
         <div class="inv-count-badge">${cnt}개</div>
+        ${sellableTk ? `<button class="inv-sell-btn" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();window.sellEmblemTicket('${tid}')" title="${sellTk}G에 되팔기 (정가 ${def.price}G − 수수료 5%)">💰${sellTk}</button>` : ''}
         <div class="inv-slot-icon">${_emblemTkAnvilImg(def, 30)}</div>
         <div class="inv-slot-name">${def.name}</div>
         <div class="inv-slot-action inv-action-use" style="background:linear-gradient(135deg,#ffb867,#e08a2e);color:#1a1206;">🔨 강화</div>
@@ -9849,9 +9856,11 @@ function _emblemInvSlotsHtml(cat){
     }).join('');
     // 🔶 걸작의 정수 — 보유 시 슬롯 표시 (클릭하면 대장간으로 이동해 걸작 만들기)
     const ess = getEmblemEssence(data);
+    const sellEss = Math.max(1, Math.round(EMBLEM_REROLL_PRICE * 0.95)); const sellableEss = !isItemsEffectivelyLocked();
     const essSlot = ess > 0
       ? `<div class="inv-slot" onclick="window.gotoForgeTab()" title="걸작의 정수 — 대장간에서 걸작 만들기에 사용">
           <div class="inv-count-badge">${ess}개</div>
+          ${sellableEss ? `<button class="inv-sell-btn" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();window.sellEmblemEssence()" title="${sellEss}G에 되팔기 (정가 ${EMBLEM_REROLL_PRICE}G − 수수료 5%)">💰${sellEss}</button>` : ''}
           <div class="inv-slot-icon">${_essenceImg(30)}</div>
           <div class="inv-slot-name">걸작의 정수</div>
           <div class="inv-slot-action inv-action-use" style="opacity:.75;">걸작 리롤용</div>
@@ -26292,6 +26301,41 @@ window.sellItem = async function(id) {
   const pLog = _appendPurchaseLog(goldData[key], def, { type: 'sell', price: sellValue }); // 📒 판매도 기록
   await update(ref(db, 'gold/' + key), { [itemsKey]: fresh, [sField('resellGold')]: resell, [sField('purchaseLog')]: pLog });
   showGoldToast(`💰 ${def.name} 판매 +${sellValue}G (정가 −5% 수수료)`);
+  if (typeof renderShop === 'function') renderShop();
+};
+
+// 💰 강화권 1장 되팔기 — 정가 95% 환급(5% 수수료), resellGold 누적 (기존 소비 아이템 정책 동일, v2.45.66)
+window.sellEmblemTicket = async function(type){
+  if (isItemsEffectivelyLocked()) { showGoldToast('🔒 팀 구성 후에는 변경할 수 없어요!'); return; }
+  const key = getMyGoldKey(); if (!key) return;
+  const def = EMBLEM_TICKETS[type]; if (!def || !def.price) return;
+  const t = getEmblemTickets(goldData[key]);
+  if ((t[type]||0) < 1) { showGoldToast('판매할 강화권이 없어요'); return; }
+  const sellValue = Math.max(1, Math.round(def.price * 0.95));
+  if (!(await _confirmSell({ name: def.name, price: def.price }, sellValue, t[type]))) return;
+  const tk = getEmblemTickets(goldData[key]);
+  if ((tk[type]||0) < 1) { showS1Toast('판매할 강화권이 없어요'); return; }
+  tk[type] -= 1;
+  const resell = (goldData[key]?.[sField('resellGold')] || 0) + sellValue;
+  if (goldData[key]) { goldData[key][emblemTicketsField()] = tk; goldData[key][sField('resellGold')] = resell; }
+  await update(ref(db, 'gold/' + key), { [emblemTicketsField()]: tk, [sField('resellGold')]: resell });
+  showGoldToast(`💰 ${def.name} 판매 +${sellValue}G (정가 −5% 수수료)`);
+  if (typeof renderShop === 'function') renderShop();
+};
+// 💰 걸작의 정수 1개 되팔기 (정가 EMBLEM_REROLL_PRICE의 95%)
+window.sellEmblemEssence = async function(){
+  if (isItemsEffectivelyLocked()) { showGoldToast('🔒 팀 구성 후에는 변경할 수 없어요!'); return; }
+  const key = getMyGoldKey(); if (!key) return;
+  const ess = getEmblemEssence(goldData[key]);
+  if (ess < 1) { showGoldToast('판매할 정수가 없어요'); return; }
+  const sellValue = Math.max(1, Math.round(EMBLEM_REROLL_PRICE * 0.95));
+  if (!(await _confirmSell({ name: '걸작의 정수', price: EMBLEM_REROLL_PRICE }, sellValue, ess))) return;
+  const ess2 = getEmblemEssence(goldData[key]);
+  if (ess2 < 1) { showS1Toast('판매할 정수가 없어요'); return; }
+  const resell = (goldData[key]?.[sField('resellGold')] || 0) + sellValue;
+  if (goldData[key]) { goldData[key][emblemEssenceField()] = ess2 - 1; goldData[key][sField('resellGold')] = resell; }
+  await update(ref(db, 'gold/' + key), { [emblemEssenceField()]: ess2 - 1, [sField('resellGold')]: resell });
+  showGoldToast(`💰 걸작의 정수 판매 +${sellValue}G (정가 −5% 수수료)`);
   if (typeof renderShop === 'function') renderShop();
 };
 
