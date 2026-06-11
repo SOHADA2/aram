@@ -2702,6 +2702,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .scard-head{padding:13px 18px 11px;display:flex;align-items:center;gap:10px;
   background:linear-gradient(90deg,rgba(200,168,75,0.22) 0%,rgba(200,168,75,0.1) 50%,rgba(200,168,75,0.22) 100%);
   border-bottom:1px solid rgba(200,168,75,0.35);}
+.scard-title-em{font-size:18px;line-height:1;flex-shrink:0;}  /* 제목 이모지 — 그라데이션 클립 밖이라 정상 렌더 */
 .scard-title{font-family:'Black Han Sans',sans-serif;font-size:16px;letter-spacing:2px;flex:1;
   background:linear-gradient(90deg,#c8a84b,#ffe680,#c8a84b);background-size:200% auto;
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
@@ -6356,7 +6357,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.64';
+const APP_VERSION = 'v2.45.65';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6365,6 +6366,9 @@ const APP_VERSION = 'v2.45.64';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.65', date: '2026-06-11', changes: [
+    { tag: 'fix', text: '🎟 스크래치 복권 카드 제목의 이모지가 그라데이션 텍스트에 물려 이상하게(투명·금빛 실루엣) 보이던 문제 수정 — 이모지를 그라데이션 클립 밖 별도 요소로 분리(일반🎟·고급🎫·프리미엄💎). 제목 텍스트만 골드 그라데이션 적용' },
+  ] },
   { ver: 'v2.45.64', date: '2026-06-11', changes: [
     { tag: 'fix', text: '🎟 스크래치 복권 — 긁다가 "확인"으로 나가면 상점까지 빠져나가던 문제. 이제 확인(및 ✕·바깥 탭)으로 닫으면 상점이 아니라 <b>복권 선택창</b>으로 돌아가 연속해서 다른 복권을 고를 수 있어요(해골 회피로 중간에 멈춰도 동일). 확인과 동작이 겹치던 "← 뒤로" 버튼은 제거' },
   ] },
@@ -25218,7 +25222,9 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   const revealThreshold = toolParams?.threshold ?? 0.55;
   const CELL_LAYERS = 1;
   const LAYER_THRESHOLD = 0.28; // 미사용
-  const titleMap = ['🎰 일반 복권', '🎰 고급 복권', '🎰 프리미엄 복권'];
+  // 제목은 그라데이션 클립 텍스트라 이모지를 같이 넣으면 이모지가 잘려 이상하게 보임 → 이모지는 별도 span(클립 밖)으로 분리
+  const titleMap = ['일반 복권', '고급 복권', '프리미엄 복권'];
+  const titleEmoji = ['🎟', '🎫', '💎'];
   const toolLabel = toolParams
     ? `<span class="scard-tool-badge">${toolParams.threshold ? '🔑 만능 긁개 적용' : '🪙 긁기 동전 적용'}</span>`
     : '';
@@ -25228,7 +25234,8 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   overlay.innerHTML = `
     <div class="scard-modal tier-${activeTier.idx}">
       <div class="scard-head">
-        <div class="scard-title">${testMode ? '🧪 테스트 모드' : titleMap[activeTier.idx] ?? '🎰 스크래치 복권'}</div>
+        <span class="scard-title-em">${testMode ? '🧪' : (titleEmoji[activeTier.idx] || '🎟')}</span>
+        <div class="scard-title">${testMode ? '테스트 모드' : (titleMap[activeTier.idx] ?? '스크래치 복권')}</div>
         <div style="display:flex;align-items:center;gap:6px;">
           ${testMode && testStats
             ? `<div class="scard-price" style="font-size:10px;letter-spacing:0;">${testStats.tries}회 · 당첨 ${testStats.wins}회 · 회수율 ${testStats.rate}</div>`
