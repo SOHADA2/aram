@@ -6356,7 +6356,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.60';
+const APP_VERSION = 'v2.45.61';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6365,6 +6365,9 @@ const APP_VERSION = 'v2.45.60';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.61', date: '2026-06-11', changes: [
+    { tag: 'improve', text: '📬 우편 보상에 🔶 걸작의 정수 지원 추가 — 우편으로 정수를 보내고 수령 시 emblemEssence_s2에 누적(시즌2 추적). 우편함 보상 칩에도 정수 표시' },
+  ] },
   { ver: 'v2.45.60', date: '2026-06-11', changes: [
     { tag: 'fix', text: '🎯 협력 빙고 — 칸별 출석자(누가 골랐는지)가 완성 안 된 칸까지 전부 보이던 문제 수정. 이제 빙고 줄이 완성된 칸에서만 출석자가 공개되고, 나머지 칸은 비공개' },
   ] },
@@ -20070,6 +20073,7 @@ function _mailRewardChips(rw) {
     const NM = ['일반','고급','프리미엄'];
     [0,1,2].forEach(t => { if (fs[t]) chips.push(`<span class="mail-chip free">🎟 ${NM[t]} 복권 ${fs[t]}장</span>`); });
   }
+  if (rw.essence) chips.push(`<span class="mail-chip gold">🔶 걸작의 정수 ${rw.essence}개</span>`);
   if (Array.isArray(rw.items)) rw.items.forEach(id => {
     const def = [...SHOP_ITEMS, ...S1_SHOP_ITEMS].find(s => s.id === id);
     chips.push(`<span class="mail-chip item">🎁 ${def ? def.name : id}</span>`);
@@ -20139,6 +20143,8 @@ window.claimMail = async function(mailId) {
     rw.items.forEach(id => items.push({ id, ts: _now, fromMail: mailId }));
     updates[sField('items')] = items;
   }
+  // 🔶 걸작의 정수 → emblemEssence 누적 (S2 전용; 우편 season:2라 S2에서만 수령됨)
+  if (rw.essence) { const ef = emblemEssenceField(); updates[ef] = (data[ef] || 0) + rw.essence; }
   await update(ref(db, 'gold/' + key), updates);
   // 로컬 즉시 반영 (onValue 갱신 대기 없이 모달이 '수령 완료'로 바로 바뀌도록 — 먹통 방지, v2.43.203)
   if (goldData[key]) {
@@ -20152,11 +20158,12 @@ window.claimMail = async function(mailId) {
 
 // 어드민 콘솔 발송 — sendMail({title, desc, gold, freeScratch:{0,1,2}, items:[], target:'all'|['이름'...]})
 window.sendMail = async function(opts = {}) {
-  const { title = '보상 우편', desc = '', gold = 0, freeScratch = null, items = null, target = 'all' } = opts;
+  const { title = '보상 우편', desc = '', gold = 0, freeScratch = null, items = null, essence = 0, target = 'all' } = opts;
   const rewards = {};
   if (gold) rewards.gold = gold;
   if (freeScratch) rewards.freeScratch = freeScratch;
   if (items) rewards.items = items;
+  if (essence) rewards.essence = essence;
   if (!Object.keys(rewards).length) { console.warn('보상이 비어있어요. gold/freeScratch/items 중 하나는 필요.'); return; }
   const mail = { title, desc, rewards, target, season: CURRENT_SEASON, sentAt: Date.now(), sentBy: myName || 'admin' };
   const r = await push(ref(db, 'mailbox'), mail);
