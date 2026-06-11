@@ -4938,6 +4938,18 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .bg-ros-tip{margin-top:9px;font-size:11px;color:#8b8b97;line-height:1.5;border-top:1px solid #2226;padding-top:8px;}
 .bg-ros-tip b{color:#ffd98a;}
 .bg-ros-tip.on{color:#9fe0a0;}.bg-ros-tip.on b{color:#9fe0a0;}
+/* 빙고 보상 안내 + 완성 줄 칸별 출석자 (v2.45.58) */
+.bg-rewards{background:#121214;border:1px solid #2c2c34;border-radius:9px;padding:9px 11px;margin-top:9px;}
+.bg-rw-hd{font-size:11px;font-weight:800;color:#ffe39a;letter-spacing:.3px;margin-bottom:6px;}
+.bg-rw-row{display:flex;align-items:baseline;gap:7px;font-size:11px;line-height:1.65;}
+.bg-rw-n{flex-shrink:0;width:26px;font-weight:800;color:#f0c060;}
+.bg-rw-v{color:#cfcdd6;min-width:0;}
+.bg-rw-note{font-size:9.5px;color:#c89230;margin-top:5px;border-top:1px solid #2226;padding-top:5px;}
+.bg-lines{background:#121214;border:1px solid #2c2c34;border-radius:9px;padding:9px 11px;margin-top:8px;}
+.bg-ln-hd{font-size:11px;font-weight:800;color:#ffe39a;letter-spacing:.3px;margin-bottom:6px;}
+.bg-ln-row{display:flex;gap:7px;font-size:10.5px;line-height:1.55;padding:2px 0;}
+.bg-ln-lbl{flex-shrink:0;width:42px;font-weight:800;color:#f0c060;}
+.bg-ln-cells{color:#cfcdd6;min-width:0;word-break:keep-all;}
 .bingo-soon{text-align:center;padding:46px 20px;}
 .bingo-soon .bs-dia{width:34px;height:34px;margin:0 auto 16px;background:linear-gradient(135deg,#ffe39a,#c89230);transform:rotate(45deg);box-shadow:0 0 24px rgba(240,192,96,.5);animation:bgSel 2s ease-in-out infinite;}
 .bingo-soon .bs-t{font-size:17px;font-weight:800;color:#ffe39a;margin-bottom:10px;}
@@ -6331,7 +6343,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.57';
+const APP_VERSION = 'v2.45.58';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6340,6 +6352,9 @@ const APP_VERSION = 'v2.45.57';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.58', date: '2026-06-10', changes: [
+    { tag: 'new', text: '🎯 협력 빙고 출석에 (1) 줄별 보상 안내 추가 — 1줄 🪙50G·🟢안정×2 / 2줄 🪙80G·🟡정밀×1·🎟일반복권×1 / 3줄 🪙150G·🔴과부하×1·🎫고급복권×1 (5라운드마다 황금 🪙450G+💎프미). (2) 완성된 줄의 칸별 출석자 표시 — 행/열/대각별로 누가 어느 칸에 출석했는지 한눈에. 각 칸에 마우스 올리면 그 칸 출석자도 표시' },
+  ] },
   { ver: 'v2.45.57', date: '2026-06-10', changes: [
     { tag: 'fix', text: '📅 협력 빙고 출석 현황에 같은 팀원 닉네임이 중복으로 표시되던 문제 수정 — 일부 계정의 gold 문서가 등록 과정에서 중복 생성된 게 원인. (1) 출석 현황을 닉네임 기준으로 1명씩 병합 표시(오전/오후는 합산), 인원 수(N명)도 정확히. (2) 중복 생성된 빈 문서 정리' },
   ] },
@@ -19104,6 +19119,19 @@ function bingoReward(n, rnd){
     ? { gold:450, tickets:{overload:1}, scratch:{1:1,2:1}, golden:true }
     : { gold:150, tickets:{overload:1}, scratch:{1:1} };
 }
+// 빙고 보상 칩 텍스트 (보상 안내·동기화용). 강화권 아이콘/복권 등급 재사용
+function _bingoRewardChips(rw){
+  if(!rw) return '';
+  const c=[];
+  if(rw.gold) c.push(`🪙${rw.gold}G`);
+  if(rw.tickets) for(const t in rw.tickets){ const dd=EMBLEM_TICKETS[t]; if(dd) c.push(`${dd.icon}${dd.name.replace(' 강화권','')}×${rw.tickets[t]}`); }
+  if(rw.scratch){ const SC=['🎟일반','🎫고급','💎프미']; for(const t in rw.scratch) c.push(`${SC[t]||'복권'} 복권×${rw.scratch[t]}`); }
+  return c.join(' · ');
+}
+// 한 칸의 출석자 표시명 배열 (picks 값=표시 닉네임)
+function _bingoCellNames(cell){ return cell&&cell.picks ? Object.values(cell.picks).filter(Boolean) : []; }
+// 줄 라벨 (행/열/대각)
+function _bingoLineLabel(li){ li=+li; const S=BINGO_SIZE; if(li<S) return (li+1)+'행'; if(li<2*S) return (li-S+1)+'열'; return li===2*S?'↘ 대각':'↙ 대각'; }
 function bingoStarted(){ return getLocalDateKey() >= BINGO_START || !!window.__SEASON_PREVIEW; }
 let _bingoData=null, _bingoSel=null, _bingoUnsub=null;
 function _bingoShuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
@@ -19272,7 +19300,9 @@ function renderBingoBoardHtml(){
   const cells=d.cells.map((c,i)=>{
     const line=inDone(i), mine=c.picks&&c.picks[me], sel=_bingoSel===i;
     const cls=['bg-cell']; if(line)cls.push('line'); else if(mine)cls.push('mine'); if(sel)cls.push('sel');
-    return `<div class="${cls.join(' ')}" onclick="window.bingoSelect(${i})">${BINGO_MARK}</div>`;
+    const nm=_bingoCellNames(c);
+    const ttl=nm.length?`이 칸 출석: ${nm.join(', ')}`:'아직 아무도 안 고른 칸';
+    return `<div class="${cls.join(' ')}" title="${escHtml(ttl)}" onclick="window.bingoSelect(${i})">${BINGO_MARK}</div>`;
   }).join('');
   // 진행 점
   const dots=Array.from({length:BINGO_MAX},(_,k)=>`<i class="bg-dot${k<(d.bingos||0)?' on':''}"></i>`).join('');
@@ -19290,6 +19320,25 @@ function renderBingoBoardHtml(){
   // 보상 수령
   const log=(_bingoData&&_bingoData.log)||[]; const claimable=log.length-(mydata[sField('bingoClaimed')]||0);
   const mineCnt=d.cells.filter(c=>c.picks&&c.picks[me]).length;
+  // 🎁 빙고 보상 안내 (bingoReward와 동기화)
+  const _rnd=d.round||1;
+  const rewardsHtml=`
+    <div class="bg-rewards">
+      <div class="bg-rw-hd">🎁 빙고 보상 <span style="color:#8b8b97;font-weight:600;font-size:9.5px;">(줄 완성 시 인벤 지급 → "보상 받기")</span></div>
+      <div class="bg-rw-row"><span class="bg-rw-n">1줄</span><span class="bg-rw-v">${_bingoRewardChips(bingoReward(1,_rnd))}</span></div>
+      <div class="bg-rw-row"><span class="bg-rw-n">2줄</span><span class="bg-rw-v">${_bingoRewardChips(bingoReward(2,_rnd))}</span></div>
+      <div class="bg-rw-row"><span class="bg-rw-n">3줄</span><span class="bg-rw-v">${_bingoRewardChips(bingoReward(3,1))}</span></div>
+      <div class="bg-rw-note">✨ 5라운드마다 3줄은 <b style="color:#ffe39a;">황금 보상</b> — ${_bingoRewardChips(bingoReward(3,0))}</div>
+    </div>`;
+  // ✨ 완성된 줄 · 칸별 출석자 (행/열/대각 + 각 칸 출석자)
+  const doneLines=Object.keys(d.lines||{}).filter(li=>d.lines[li]);
+  const linesHtml=doneLines.length?`
+    <div class="bg-lines">
+      <div class="bg-ln-hd">✨ 완성된 줄 · 칸별 출석자</div>
+      ${doneLines.map(li=>{ const cl=BINGO_LINES[li]||[];
+        const nm=cl.map(ci=>{ const a=_bingoCellNames(d.cells[ci]); return a.length?a.map(escHtml).join('/'):'—'; });
+        return `<div class="bg-ln-row"><span class="bg-ln-lbl">${_bingoLineLabel(li)}</span><span class="bg-ln-cells">${nm.join(' · ')}</span></div>`; }).join('')}
+    </div>`:'';
   return `
     <div class="bg-head">
       <div class="bg-title"><span class="bg-dia"></span>협력 빙고 출석 <span class="bg-help-wrap"><button class="bg-help" onclick="this.parentNode.classList.toggle('open')">?</button><span class="bg-help-tip"><b>칸을 고르고 출석</b>하면 팀이 함께 빙고판을 채워요. 가로·세로·대각 <b>줄을 완성</b>하면 보상! 하루 <b>오전·오후</b> 출석할 수 있어요.</span></span></div>
@@ -19297,11 +19346,13 @@ function renderBingoBoardHtml(){
     </div>
     <div class="bg-statbar"><span class="bg-round">ROUND <b>${d.round}</b></span><span class="bg-prog">협력 빙고 ${dots}</span></div>
     <div class="bg-board-wrap"><div class="bg-flash" id="bingo-flash"></div><div class="bg-board">${cells}</div></div>
+    ${linesHtml}
     <div class="bg-actions">
       <button class="bg-attend" ${canAttend?'':'disabled'} onclick="window.doAttendance()">${canAttend?`${sName} 출석하기`:`${sName} 출석 완료`}</button>
       ${claimable>0?`<button class="bg-claim" onclick="window.bingoClaim()">보상 받기 ${claimable}</button>`:''}
     </div>
     <div class="bg-daycnt">내 표시 <b>${mineCnt}</b>칸 · 칸 고르고 출석하기를 눌러요</div>
+    ${rewardsHtml}
     <div class="bg-roster">
       <div class="bg-ros-hd"><span>오늘 출석 <span class="bg-ros-lgd">점=오전·오후</span></span><span>오전 ${amCnt} · 오후 ${pmCnt} <span style="color:#5a5a64;">/ ${team.length}명</span></span></div>
       <div class="bg-ros-list">${roster}</div>
