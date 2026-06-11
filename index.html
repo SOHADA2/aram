@@ -546,6 +546,19 @@ header{text-align:center;padding:48px 0 24px;position:relative;}
 .sched-cancel{background:rgba(255,255,255,0.06);color:var(--text,#e8eaf0);border-color:rgba(255,255,255,0.15);}
 .sched-edit-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:7px;}
 .sched-edit-chip{font-size:10.5px;padding:3px 8px;border-radius:12px;background:rgba(74,222,128,0.16);border:1px solid rgba(74,222,128,0.4);color:#a7e8c0;}
+/* 🌌 시즌2 — 일정(달력) 블랙+골드 톤 (그린/블루 → 골드) */
+.season-2 .sched-overlay{background:rgba(4,4,6,0.88);}
+.season-2 .sched-cell.today{border-color:rgba(240,192,96,0.6);}
+.season-2 .sched-cell.mine{background:rgba(240,192,96,0.16);border-color:rgba(240,192,96,0.5);}
+.season-2 .sched-cell.editing.mine{background:rgba(240,192,96,0.30);border-color:rgba(240,192,96,0.9);box-shadow:inset 0 0 0 1px rgba(240,192,96,0.45);}
+.season-2 .sched-cell.sel{box-shadow:0 0 0 2px rgba(240,192,96,0.7);}
+.season-2 .sched-check{color:#f0c060;}
+.season-2 .sched-cnt{color:#ffe39a;}
+.season-2 .sched-name{background:rgba(240,192,96,0.14);border-color:rgba(240,192,96,0.4);color:#ffe39a;}
+.season-2 .sched-name.me{background:rgba(240,192,96,0.24);border-color:rgba(240,192,96,0.6);color:#fff3cf;}
+.season-2 .sched-edit-chip{background:rgba(240,192,96,0.16);border-color:rgba(240,192,96,0.4);color:#ffe39a;}
+.season-2 .sched-edit-btn{background:linear-gradient(135deg,#ffce6a,#e0a13a);color:#1a1206;border-color:rgba(240,192,96,0.5);}
+.season-2 .sched-confirm{background:linear-gradient(135deg,#ffce6a,#e0a13a);color:#1a1206;}
 .version-badge.unseen{
   color:var(--gold-light);
   border-color:rgba(200,168,75,0.55);
@@ -6343,7 +6356,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.58';
+const APP_VERSION = 'v2.45.59';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6352,6 +6365,9 @@ const APP_VERSION = 'v2.45.58';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.59', date: '2026-06-11', changes: [
+    { tag: 'fix', text: '📅 내전 일정 — 지난 날짜를 탭하면 아무 반응 없이 막혀 "체크가 안 된다"고 느끼던 문제: "지난 날짜는 체크할 수 없어요 (오늘부터 가능)" 안내 토스트 추가. + 일정 달력을 시즌2 블랙+골드 톤으로 통일(참여=초록→골드, 선택·버튼·명단 칩 골드화)' },
+  ] },
   { ver: 'v2.45.58', date: '2026-06-10', changes: [
     { tag: 'new', text: '🎯 협력 빙고 출석에 (1) 줄별 보상 안내 추가 — 1줄 🪙50G·🟢안정×2 / 2줄 🪙80G·🟡정밀×1·🎟일반복권×1 / 3줄 🪙150G·🔴과부하×1·🎫고급복권×1 (5라운드마다 황금 🪙450G+💎프미). (2) 완성된 줄의 칸별 출석자 표시 — 행/열/대각별로 누가 어느 칸에 출석했는지 한눈에. 각 칸에 마우스 올리면 그 칸 출석자도 표시' },
   ] },
@@ -23263,7 +23279,7 @@ function _schedCanEdit() { return !!myName && !liveMode; }
 // 날짜 클릭 — 편집 모드면 내 참여일 토글(스테이징), 보기 모드면 그 날 명단 보기
 window.schedDayClick = function(dateKey) {
   if (_schedMode === 'edit') {
-    if (dateKey < getLocalDateKey()) return; // 지난 날짜는 편집 불가
+    if (dateKey < getLocalDateKey()) { if (typeof showGoldToast === 'function') showGoldToast('🗓️ 지난 날짜는 체크할 수 없어요 (오늘부터 가능)'); return; } // 지난 날짜는 편집 불가 — 조용히 막지 말고 안내
     if (_schedEditSet.has(dateKey)) _schedEditSet.delete(dateKey);
     else _schedEditSet.add(dateKey);
   }
@@ -23310,10 +23326,13 @@ function _renderSchedule() {
   const editing = _schedMode === 'edit';
   document.getElementById('sched-monthlabel').textContent = `${y}년 ${m+1}월`;
   const sub = document.getElementById('sched-sub');
+  const _s2T = CURRENT_SEASON===2;
+  const _acGo = _s2T ? '#f0c060' : '#4ade80';   // 확정(시즌2=골드)
+  const _acDo = _s2T ? '#ffe39a' : '#7aa8ff';   // 체크 안내(시즌2=골드)
   if (sub) sub.innerHTML = editing
-    ? '참여 가능한 날짜를 모두 탭한 뒤 아래 <b style="color:#4ade80">확정</b>을 누르세요 (다시 탭하면 해제)'
+    ? `참여 가능한 날짜를 모두 탭한 뒤 아래 <b style="color:${_acGo}">확정</b>을 누르세요 (다시 탭하면 해제)`
     : _schedCanEdit()
-      ? '날짜를 눌러 그 날 참여자를 확인 · 아래 <b style="color:#7aa8ff">내 참여 일정 체크</b>로 본인 일정 등록'
+      ? `날짜를 눌러 그 날 참여자를 확인 · 아래 <b style="color:${_acDo}">내 참여 일정 체크</b>로 본인 일정 등록`
       : liveMode
         ? '날짜를 눌러 그 날 참여 가능자를 확인하세요'
         : '날짜를 눌러 가능자 확인 · 본인 일정을 체크하려면 우상단 <b>계정변경</b>에서 이름 선택';
