@@ -6356,7 +6356,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.63';
+const APP_VERSION = 'v2.45.64';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6365,6 +6365,9 @@ const APP_VERSION = 'v2.45.63';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.64', date: '2026-06-11', changes: [
+    { tag: 'fix', text: '🎟 스크래치 복권 — 긁다가 "확인"으로 나가면 상점까지 빠져나가던 문제. 이제 확인(및 ✕·바깥 탭)으로 닫으면 상점이 아니라 <b>복권 선택창</b>으로 돌아가 연속해서 다른 복권을 고를 수 있어요(해골 회피로 중간에 멈춰도 동일). 확인과 동작이 겹치던 "← 뒤로" 버튼은 제거' },
+  ] },
   { ver: 'v2.45.63', date: '2026-06-11', changes: [
     { tag: 'improve', text: '🔨 대장간 강화 5/5 완료 시 안내 문구 수정 — "슬롯 소진 · 판매하세요"(좋은 결과여도 판매를 권하는 느낌) → "✨ 강화 완료 (5/5) — 더 강화할 수 없어요"로. 판매는 선택지로 버튼만 유지' },
   ] },
@@ -25266,7 +25269,6 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
             <div class="scard-progress" id="scard-progress"></div>
             <div class="scard-result" id="scard-result"></div>
             <div class="scard-actions" id="scard-actions">
-              <button class="scard-act-btn scard-act-back" id="scard-back">← 뒤로</button>
               ${testMode
                 ? ''
                 : `<button class="scard-act-btn scard-act-replay" id="scard-replay">🔁 한 번 더 (-${activeTier.price}G)</button>`}
@@ -25305,7 +25307,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
       if (!testMode && onCancel) onCancel();
     } else {
       if (!allDone) finishReveal();
-      setTimeout(() => { overlay.remove(); _runComplete(); }, 200);
+      setTimeout(() => { overlay.remove(); _runComplete(); if (!testMode) setTimeout(() => window.openLotteryHub(), 120); }, 200); // 연결성 — 복권 선택창(Hub)으로 복귀
     }
   });
 
@@ -25552,7 +25554,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
       if (!testMode && onCancel) onCancel();
     } else {
       if (!allDone) finishReveal();
-      setTimeout(() => { overlay.remove(); _runComplete(); }, 200);
+      setTimeout(() => { overlay.remove(); _runComplete(); if (!testMode) setTimeout(() => window.openLotteryHub(), 120); }, 200); // 연결성 — 복권 선택창(Hub)으로 복귀
     }
   });
 
@@ -25572,19 +25574,11 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
       overlay.remove();
       if (testMode && onNext) { onNext(); return; }
       _runComplete();
+      if (!testMode) setTimeout(() => window.openLotteryHub(), 120); // 연결성 — 확인 시 복권 선택창(Hub)으로 복귀(상점까지 안 나가게)
     }, 200);
   };
 
-  // 뒤로: 결과 정산 후 Hub 재오픈 (테스트 모드면 그냥 닫기)
-  overlay.querySelector('#scard-back').onclick = () => {
-    if (!_canFinalize()) return;
-    if (!allDone) finishReveal();
-    setTimeout(() => {
-      overlay.remove();
-      _runComplete();
-      if (!testMode) setTimeout(() => window.openLotteryHub(), 120);
-    }, 200);
-  };
+  // (← 뒤로 버튼 제거 v2.45.64 — 확인이 복권 선택창으로 복귀하므로 중복)
 
   // 한 번 더: 결과 정산 후 같은 티어 재구매 (테스트 모드엔 버튼 자체 없음)
   overlay.querySelector('#scard-replay')?.addEventListener('click', () => {
