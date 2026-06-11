@@ -5778,7 +5778,7 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
           <div class="match-cfg-dd" id="match-mode-dd">
             <button class="match-cfg-dd-item active" data-mode="balance" onclick="setMode('balance')">
               <span class="dd-icon">⚖️</span>
-              <span class="dd-text"><span class="dd-name">밸런스</span><span class="dd-sub">티어 기반 자동 분배</span></span>
+              <span class="dd-text"><span class="dd-name">밸런스</span><span class="dd-sub">승률 기반 자동 분배</span></span>
             </button>
             <button class="match-cfg-dd-item" data-mode="random" onclick="setMode('random')">
               <span class="dd-icon">🎲</span>
@@ -6384,7 +6384,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.67';
+const APP_VERSION = 'v2.45.68';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6393,6 +6393,9 @@ const APP_VERSION = 'v2.45.67';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.68', date: '2026-06-11', changes: [
+    { tag: 'improve', text: '⚖️ 밸런스 팀짜기 — (1) 표기를 "승률 기반 자동 분배"로 정정(실제 기준=이번 시즌 승률). (2) 전판과 똑같은 1팀/2팀이 또 잡히던 문제 개선: 기존엔 정렬→지그재그→그리디가 늘 같은 황금밸런스로 수렴했는데, 이제 랜덤 시작으로 여러 번 밸런싱한 뒤 균형이 거의 같은 후보들 중 전판과 다른 조합을 우선 선택' },
+  ] },
   { ver: 'v2.45.67', date: '2026-06-11', changes: [
     { tag: 'improve', text: '🎫 메인 대기화면 시즌2 패스 카드 재디자인 — 이모지를 줄이고(🎫·🎯·퀘스트 아이콘·🎉 제거, 보상 아이콘만 유지) 정보형으로. 레벨/진행률 + 획득/남은/전체 레벨 스탯 행 + 다음 퀘스트(이름·설명·보상)로 빈 공간을 채워 전문적인 레이아웃' },
   ] },
@@ -14156,19 +14159,32 @@ window.makeTeams = function() {
     if (mode==='random') {
       const s=shuffle(pool); currentTeamA=s.slice(0,teamSize); currentTeamB=s.slice(teamSize);
     } else {
+      // 🎯 승률 기반 밸런스 — 전판과 똑같은 팀 조합이 반복되지 않도록:
+      //   기존엔 정렬→지그재그→그리디 스왑이 늘 같은 최적해(황금 밸런스)로 수렴해 전판 팀이 자주 재현됨.
+      //   → 랜덤 시작으로 여러 번 밸런싱한 뒤, 균형이 거의 동일한 후보군(허용오차) 중 '전판과 다른' 조합을 우선 랜덤 선택.
       const _scoreFunc = getWinRateScore;
-      const sorted=[...pool].sort((a,b)=>_scoreFunc(b.name)-_scoreFunc(a.name));
-      currentTeamA=[]; currentTeamB=[];
-      sorted.forEach((p,i)=>(i%2===0?currentTeamA:currentTeamB).push(p));
-      const sc=arr=>arr.reduce((s,p)=>s+_scoreFunc(p.name),0);
-      for(let i=0;i<300;i++){
-        const ia=Math.floor(Math.random()*currentTeamA.length);
-        const ib=Math.floor(Math.random()*currentTeamB.length);
-        const before=Math.abs(sc(currentTeamA)-sc(currentTeamB));
-        [currentTeamA[ia],currentTeamB[ib]]=[currentTeamB[ib],currentTeamA[ia]];
-        if(Math.abs(sc(currentTeamA)-sc(currentTeamB))>before)
-          [currentTeamA[ia],currentTeamB[ib]]=[currentTeamB[ib],currentTeamA[ia]];
-      }
+      const sc = arr => arr.reduce((s,p)=>s+_scoreFunc(p.name),0);
+      const _pkey = (a,b)=>{ const na=(a||[]).map(p=>normName(p.name||p)).sort().join(','), nb=(b||[]).map(p=>normName(p.name||p)).sort().join(','); return na<nb ? na+'|'+nb : nb+'|'+na; };
+      const prevKey = _pkey(currentTeamA, currentTeamB); // 직전(전판) 팀 조합 — 1팀/2팀 순서 무관
+      const _balanceOnce = ()=>{
+        const s = shuffle([...pool]); const A=[], B=[];   // 랜덤 시작 (지그재그 고정 시작 대신 매번 다르게)
+        s.forEach((p,i)=>(i%2===0?A:B).push(p));
+        for(let i=0;i<200;i++){                            // 그리디: 스왑이 양팀 점수합 차이를 줄이면 유지
+          const ia=Math.floor(Math.random()*A.length), ib=Math.floor(Math.random()*B.length);
+          const before=Math.abs(sc(A)-sc(B));
+          [A[ia],B[ib]]=[B[ib],A[ia]];
+          if(Math.abs(sc(A)-sc(B))>before) [A[ia],B[ib]]=[B[ib],A[ia]];
+        }
+        return { A, B, diff:Math.abs(sc(A)-sc(B)), key:_pkey(A,B) };
+      };
+      const cands=[]; for(let r=0;r<16;r++) cands.push(_balanceOnce());
+      const minDiff = Math.min(...cands.map(c=>c.diff));
+      const TOL = 0.12; // 균형 허용오차(점수합 기준) — 이 안의 후보는 '거의 같은 밸런스'로 간주
+      const within = cands.filter(c=>c.diff <= minDiff + TOL);
+      const fresh  = within.filter(c=>c.key !== prevKey);  // 전판과 다른 조합 우선
+      const pickFrom = fresh.length ? fresh : within;
+      const chosen = pickFrom[Math.floor(Math.random()*pickFrom.length)];
+      currentTeamA = chosen.A; currentTeamB = chosen.B;
     }
   }
   selectedWinner = null;
