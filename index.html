@@ -6356,7 +6356,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.61';
+const APP_VERSION = 'v2.45.62';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6365,6 +6365,9 @@ const APP_VERSION = 'v2.45.61';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.62', date: '2026-06-11', changes: [
+    { tag: 'improve', text: '🔨 오른 대장간 모바일 강화 편의 — 세로 화면에서 강화권을 오른/작업대까지 끌어올리기 어렵던 문제. 이제 강화권을 <b>탭(또는 제자리에서 떼기)</b>만 해도 강화되고(끌어 작업대 밖에 놓은 경우만 취소), 탭 시 작업대로 자동 스크롤해 단조 연출이 보임. 드래그도 그대로 가능' },
+  ] },
   { ver: 'v2.45.61', date: '2026-06-11', changes: [
     { tag: 'improve', text: '📬 우편 보상에 🔶 걸작의 정수 지원 추가 — 우편으로 정수를 보내고 수령 시 emblemEssence_s2에 누적(시즌2 추적). 우편함 보상 칩에도 정수 표시' },
   ] },
@@ -9721,7 +9724,7 @@ function renderEmblemBody(){
         <button class="fg2-sell" onclick="window.emblemDoSell(${em.id})">💰 판매 ${emblemSellPrice(em).toLocaleString()}G</button>`;
         })()
         : `<div class="fg2-noeq-side">장착된 강철심장이 없어요.<br><b>내 아이템 · 장비</b>에서 하나를 클릭해 장착하세요.</div>`}
-        <div class="fg2-forge-guide">👉 <b>장비</b>탭에서 장착/교체 · <b>소비</b>의 강화권을 꾹 눌러 끌어오면 강화(성능↑)</div>
+        <div class="fg2-forge-guide">👉 <b>장비</b>탭에서 장착/교체 · <b>소비</b>의 강화권을 <b>탭</b>(또는 끌어와) 강화(성능↑) <span style="color:#8b8b97;">📱모바일은 탭이 편해요</span></div>
       </div>
     </div>
     ${em ? (()=>{
@@ -9915,13 +9918,14 @@ function _bindEnchInventoryDrag(){
     const finish = e=>{
       const st=_forgeDragState; if(!st||st.src!==slot) return;
       const wasArmed = st.armed, ox=e.clientX, oy=e.clientY;
+      const moved = Math.hypot(ox-st.sx, oy-st.sy) > 16;
       _cancelForgeDrag();
-      if(wasArmed){
-        if(_isOverForge(ox, oy)) _enchFromInventory(type);   // 작업대 위에 놓아야만 강화 (밖이면 취소)
-      } else {
-        // 짧은 탭 = 강화 안 함 + 화면 리셋 안 함(과거 gotoForgeTab가 우측 패널 리셋시키던 버그). 안내만.
-        showS1Toast('🔨 강화권을 꾹 눌러 강철심장 위로 끌어오세요');
-      }
+      // 📱 모바일: 세로로 오른까지 끌어올리기 어려움 → 탭(또는 제자리에서 떼기)만으로 강화.
+      //   드래그해서 '작업대 밖'에 놓은 경우에만 취소(의도적 취소). 그 외(탭·제자리·작업대 드롭)는 강화.
+      if(wasArmed && moved && !_isOverForge(ox, oy)) return;   // 끌어다 작업대 밖에 놓음 = 취소
+      // 탭으로 강화 시(작업대를 안 보고 있을 수 있어) 작업대를 화면 중앙으로 스크롤해 단조 연출이 보이게
+      if(!(wasArmed && _isOverForge(ox, oy))){ try{ document.getElementById('forge-stage')?.scrollIntoView({behavior:'smooth', block:'center'}); }catch(_){} }
+      _enchFromInventory(type);
     };
     slot.onpointerup = finish;
     slot.onpointercancel = ()=>{ if(_forgeDragState && _forgeDragState.src===slot) _cancelForgeDrag(); };
