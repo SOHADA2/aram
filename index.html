@@ -6331,7 +6331,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.56';
+const APP_VERSION = 'v2.45.57';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6340,6 +6340,9 @@ const APP_VERSION = 'v2.45.56';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.57', date: '2026-06-10', changes: [
+    { tag: 'fix', text: '📅 협력 빙고 출석 현황에 같은 팀원 닉네임이 중복으로 표시되던 문제 수정 — 일부 계정의 gold 문서가 등록 과정에서 중복 생성된 게 원인. (1) 출석 현황을 닉네임 기준으로 1명씩 병합 표시(오전/오후는 합산), 인원 수(N명)도 정확히. (2) 중복 생성된 빈 문서 정리' },
+  ] },
   { ver: 'v2.45.56', date: '2026-06-10', changes: [
     { tag: 'improve', text: '🎯 출석 위치를 못 찾는 문제 개선 — (1) 출석 가능할 때 메인 화면 내 캐릭터 아바타에 골드 링+🎯 점이 켜지고, 바로 아래 "오늘 출석 보상이 기다려요! 탭해서 출석" 말풍선 코치마크가 떠서 누르면 바로 출석창이 열림(✕로 이번 슬롯 닫기 가능). (2) 좌상단 출석 버튼도 출석 가능 시 외곽선 → "채워진 골드(🎯 출석하기)"로 바뀌어 주변 배지(명예의전당·일정·우편함)와 확연히 구분. 출석을 마치면 모두 자동으로 사라짐' },
   ] },
@@ -19273,13 +19276,17 @@ function renderBingoBoardHtml(){
   }).join('');
   // 진행 점
   const dots=Array.from({length:BINGO_MAX},(_,k)=>`<i class="bg-dot${k<(d.bingos||0)?' on':''}"></i>`).join('');
-  // 오늘 출석 현황 (오전/오후)
-  const team=Object.values(goldData).filter(g=>g&&g.name);
-  const amCnt=team.filter(g=>g[sField('lastAttendance')]===todayKey).length, pmCnt=team.filter(g=>g[sField('lastAttendance2')]===todayKey).length;
-  const roster=team.map(g=>{ const am=g[sField('lastAttendance')]===todayKey, pm=g[sField('lastAttendance2')]===todayKey, mineP=normName(g.name)===me;
+  // 오늘 출석 현황 (오전/오후) — goldData에 같은 닉네임 중복 문서가 있으면 두 번 표시되던 문제 → normName 기준 1명으로 병합(오전/오후는 OR)
+  const _rosMap={};
+  Object.values(goldData).forEach(g=>{ if(!g||!g.name) return; const nn=normName(g.name);
+    const am=g[sField('lastAttendance')]===todayKey, pm=g[sField('lastAttendance2')]===todayKey;
+    const cur=_rosMap[nn]; if(!cur) _rosMap[nn]={name:g.name,am,pm,mineP:nn===me}; else { cur.am=cur.am||am; cur.pm=cur.pm||pm; } });
+  const team=Object.values(_rosMap);
+  const amCnt=team.filter(g=>g.am).length, pmCnt=team.filter(g=>g.pm).length;
+  const roster=team.map(g=>{ const am=g.am, pm=g.pm, mineP=g.mineP;
     const st=(am&&pm)?'done':(am||pm)?'part':'none';
     return `<span class="bg-ros ${st}${mineP?' me':''}" title="${escHtml(g.name)} · 오전 ${am?'✓':'–'} 오후 ${pm?'✓':'–'}">${escHtml(g.name)}<span class="bg-dots"><i class="bg-d${am?' on':''}"></i><i class="bg-d${pm?' on':''}"></i></span></span>`; }).join('');
-  const notYet=team.filter(g=> slot===1 ? g[sField('lastAttendance')]!==todayKey : g[sField('lastAttendance2')]!==todayKey).map(g=>g.name);
+  const notYet=team.filter(g=> slot===1 ? !g.am : !g.pm).map(g=>g.name);
   // 보상 수령
   const log=(_bingoData&&_bingoData.log)||[]; const claimable=log.length-(mydata[sField('bingoClaimed')]||0);
   const mineCnt=d.cells.filter(c=>c.picks&&c.picks[me]).length;
