@@ -500,7 +500,7 @@ header{text-align:center;padding:48px 0 24px;position:relative;}
 .corner-badges-left .mailbox-btn svg{width:13px;height:13px;}
 .corner-badges-left .mb-badge{top:-5px;right:-5px;min-width:13px;height:13px;font-size:8px;}
 /* 🎮 일반게임 진행 중 배너 — 전체 상단 고정 (브릿지 inGame 기반, v2.45.52) */
-.ngb{position:fixed;top:34px;left:0;right:0;z-index:997;display:flex;align-items:center;justify-content:center;gap:7px;padding:5px 14px;background:linear-gradient(180deg,rgba(12,20,30,0.96),rgba(8,14,22,0.9));border-top:1px solid rgba(125,211,252,0.18);border-bottom:1px solid rgba(125,211,252,0.35);color:#bfe3ff;font-size:11px;font-weight:700;font-family:'Noto Sans KR',sans-serif;letter-spacing:0.3px;backdrop-filter:blur(6px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ngb{position:fixed;bottom:0;left:0;right:0;z-index:997;display:flex;align-items:center;justify-content:center;gap:7px;padding:6px 14px;background:linear-gradient(0deg,rgba(12,20,30,0.97),rgba(8,14,22,0.92));border-top:1px solid rgba(125,211,252,0.35);color:#bfe3ff;font-size:11px;font-weight:700;font-family:'Noto Sans KR',sans-serif;letter-spacing:0.3px;backdrop-filter:blur(6px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 -3px 14px rgba(0,0,0,0.35);}
 .ngb-dot{width:7px;height:7px;border-radius:50%;background:#7dd3fc;box-shadow:0 0 7px #7dd3fc;animation:ngbDot 1.3s ease-in-out infinite;flex-shrink:0;}
 .ngb.custom{border-bottom-color:rgba(240,192,96,0.42);color:#ffe39a;background:linear-gradient(180deg,rgba(24,18,7,0.96),rgba(14,11,6,0.92));}
 .ngb.custom .ngb-dot{background:#f0c060;box-shadow:0 0 7px #f0c060;}
@@ -6419,7 +6419,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.77';
+const APP_VERSION = 'v2.45.78';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6428,6 +6428,9 @@ const APP_VERSION = 'v2.45.77';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.78', date: '2026-06-11', changes: [
+    { tag: 'fix', text: '🎮 진행 중 게임 배너를 화면 최하단으로 이동 — 상단에 두니 코너 배지(우편함·출석) 등을 가려서, 아예 화면 맨 아래 고정 바로 옮김(상단 요소 안 가림). 하단 내비 탭은 고정이 아니라 함께 스크롤되므로 가리지 않음' },
+  ] },
   { ver: 'v2.45.77', date: '2026-06-11', changes: [
     { tag: 'new', text: '💍 결혼 축하 메시지 이벤트(1회성) — 이번에 결혼하는 팀원 3명(맹독 벌꿀오소리·울퉁쓰·ap렉사이서폿)에게 모든 팀원이 각각 축하 메시지(최대 10글자)를 1번씩 보낼 수 있어요. 메시지 1개당 그 분께 축의금 +100G가 전해집니다. 진입은 내 아바타 코치마크의 "💍 결혼 축하 보내기" → 3명 각각 메시지 입력·전송. 결혼 당사자는 받은 축하 메시지를 모달에서 볼 수 있고, 받은 수×100G가 골드에 자동 반영(메시지 수로 파생 — 이중지급 없음). 시즌2 전용. + 전체 팀원에게 축하 선물 우편(500G·무료 복권 세트) 발송' },
   ] },
@@ -12276,7 +12279,6 @@ onValue(ref(db, 'bridge/gamePhase'), async (snap) => {
 // 브릿지가 InProgress 시 { isCustom, players:[소환사명], at } 기록 → 일반게임(isCustom=false)이면 전체에게 표시
 let _bridgeInGame = null;
 onValue(ref(db, 'bridge/inGame'), (snap) => { _bridgeInGame = snap.val(); try { updateNormalGameBanner(); } catch (_) {} });
-window.addEventListener('resize', () => { if (document.getElementById('normal-game-banner')) { try { updateNormalGameBanner(); } catch (_) {} } });
 let _gameBannerTimer = null;
 function updateNormalGameBanner(){
   const ig = _bridgeInGame;
@@ -12298,14 +12300,7 @@ function updateNormalGameBanner(){
   if (!bar){ bar = document.createElement('div'); bar.id = 'normal-game-banner'; bar.className = 'ngb'; document.body.appendChild(bar); }
   bar.classList.toggle('custom', isCustom);
   bar.innerHTML = `<span class="ngb-dot"></span>${label}${escHtml(who)} ${timeStr}`;
-  // 좌상단 코너 배지(우편함·출석)·우상단 버전 배지를 가리지 않도록 그 아래로 배치 (줄바꿈 시에도 대응)
-  try {
-    const lb = document.querySelector('.corner-badges-left'), vb = document.getElementById('version-badge');
-    let topY = 6;
-    if (lb && lb.offsetParent !== null) topY = Math.max(topY, lb.getBoundingClientRect().bottom);
-    if (vb && vb.offsetParent !== null) topY = Math.max(topY, vb.getBoundingClientRect().bottom);
-    bar.style.top = Math.round(topY + 5) + 'px';
-  } catch (_) { bar.style.top = '34px'; }
+  // 화면 최하단 고정(.ngb bottom:0) — 상단 요소를 가리지 않음
   // 경과 시간 라이브 갱신 (30초)
   if (!_gameBannerTimer) _gameBannerTimer = setInterval(() => { try { updateNormalGameBanner(); } catch (_) {} }, 30000);
 }
