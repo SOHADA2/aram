@@ -6387,7 +6387,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.72';
+const APP_VERSION = 'v2.45.73';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6396,6 +6396,9 @@ const APP_VERSION = 'v2.45.72';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.73', date: '2026-06-11', changes: [
+    { tag: 'fix', text: '🐱 유미 구경 보너스(최대 +60G) 저장 — 이제 현재 파견에 묶여 Firebase에 저장돼 새로고침·재접속해도 모은 보너스가 유지됩니다(예전엔 메모리에만 있어 새로고침하면 0으로 사라짐). 구경 보너스는 한 파견당 최대 60G로 고정(중복 없음), 수령 후 쉬었다가 다시 파견하면 0부터 새로 적립' },
+  ] },
   { ver: 'v2.45.72', date: '2026-06-11', changes: [
     { tag: 'improve', text: '🐱 유미 자동파밍은 쓰레기통 하루 캡(250G)에서 제외 — 이제 유미 수령 골드는 한도 없이 전액 지급되고, 직접 뒤지기 250G 한도와도 분리(유미 수익이 직접 뒤지기 한도를 깎지 않음). 직접 뒤지기는 기존대로 개인별 하루 250G 캡 유지' },
   ] },
@@ -24721,7 +24724,7 @@ window.deployYuumi = async function() {
   const key = getMyGoldKey(), data = getMyGoldData();
   if (!key || !_ownsYuumi(data)) return;
   if (_yuumiState(data).st !== 'ready') { showGoldToast('지금은 유미를 보낼 수 없어요'); return; }
-  const f = { startAt: Date.now() };
+  const f = { startAt: Date.now(), watchGold: 0 }; // watchGold = 이번 파견의 구경 보너스(저장형, 한 파견당 최대 60)
   try { await update(ref(db, 'gold/' + key), { [sField('yuumiForage')]: f }); } catch(_) { return; }
   if (goldData[key]) goldData[key][sField('yuumiForage')] = f; // 즉시 반영
   _yuumiWatchGold = 0; // 파밍 시작 — 구경 보너스 초기화
@@ -24733,7 +24736,8 @@ window.collectYuumi = async function() {
   if (!key) return;
   if (_yuumiState(data).st !== 'done') { showGoldToast('아직 수령할 수 없어요'); return; }
   const base = 130 + Math.floor(Math.random() * 101); // 130~230G
-  const wb = Math.min(YUUMI_WATCH_CAP, _yuumiWatchGold || 0); // 구경 보너스(최대 60)
+  const persistedWatch = (data[sField('yuumiForage')] && data[sField('yuumiForage')].watchGold) || 0;
+  const wb = Math.min(YUUMI_WATCH_CAP, Math.max(persistedWatch, _yuumiWatchGold || 0)); // 구경 보너스(최대 60, 저장값 우선 — 새로고침해도 유지)
   const coins = base + wb; // 🐱 유미 파밍은 일일 캡 미적용 — 직접 뒤지기 한도와 분리(v2.45.72)
   _yuumiWatchGold = 0;
   const f = { cooldownUntil: Date.now() + YUUMI_COOLDOWN_MS };
@@ -24779,6 +24783,15 @@ function _yuumiSpawnCoin() {
   c.style.setProperty('--dx', (Math.random()*44 - 22).toFixed(0) + 'px');
   scene.appendChild(c); setTimeout(() => c.remove(), 850);
 }
+// 구경 보너스를 현재 파견(yuumiForage.watchGold)에 저장 — 새로고침/재접속해도 유지. 파밍 중일 때만.
+function _yuumiPersistWatch() {
+  const key = getMyGoldKey(); if (!key) return;
+  const d = goldData[key]; if (!d) return;
+  const f = d[sField('yuumiForage')];
+  if (!f || !f.startAt || f.cooldownUntil) return; // 파밍 중(파견 활성)일 때만 저장
+  f.watchGold = _yuumiWatchGold;                    // 낙관적 동기화
+  update(ref(db, 'gold/' + key), { [sField('yuumiForage') + '/watchGold']: _yuumiWatchGold }).catch(() => {});
+}
 function _renderYuumiPanel() {
   const el = document.getElementById('yuumi-panel');
   if (!el) return;
@@ -24789,6 +24802,9 @@ function _renderYuumiPanel() {
   el.style.display = 'block';
   const fmt = ms => { const t = Math.max(0, Math.ceil(ms/1000)); return Math.floor(t/60) + '분 ' + String(t%60).padStart(2,'0') + '초'; };
   if (s.st === 'foraging') {
+    // 저장된 구경 보너스 로드 — 새로고침/재접속 시 이어서 (다운그레이드 방지로 max)
+    const _fw = (getMyGoldData() || {})[sField('yuumiForage')] || {};
+    _yuumiWatchGold = Math.min(YUUMI_WATCH_CAP, Math.max(_yuumiWatchGold || 0, _fw.watchGold || 0));
     // 누끼컷이 쓰레기통에서 상반신만 나온 채 들락날락 뒤지는 장면 + 라이브 발견 피드
     el.innerHTML = `<div class="yuumi-fcard">
       <div class="yuumi-title">유미 — 자동 쓰레기 줍기 <span class="yuumi-secret">SECRET</span></div>
@@ -24822,7 +24838,9 @@ function _renderYuumiPanel() {
       const fe = document.getElementById('yuumi-find');
       if (Math.random() < 0.45) {            // 동전 발견 (띠링)
         const n = 1 + Math.floor(Math.random() * 6);
+        const _prevW = _yuumiWatchGold;
         _yuumiWatchGold = Math.min(YUUMI_WATCH_CAP, _yuumiWatchGold + n);
+        if (_yuumiWatchGold !== _prevW) _yuumiPersistWatch(); // 변동 시에만 저장(상한 도달 후엔 미저장)
         const w = document.getElementById('yuumi-watch'), wr = document.getElementById('yuumi-watch-wrap');
         if (w) w.textContent = _yuumiWatchGold;
         if (wr) { wr.classList.remove('pop'); void wr.offsetWidth; wr.classList.add('pop'); }
