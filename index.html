@@ -6387,7 +6387,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.71';
+const APP_VERSION = 'v2.45.72';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6396,6 +6396,9 @@ const APP_VERSION = 'v2.45.71';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.72', date: '2026-06-11', changes: [
+    { tag: 'improve', text: '🐱 유미 자동파밍은 쓰레기통 하루 캡(250G)에서 제외 — 이제 유미 수령 골드는 한도 없이 전액 지급되고, 직접 뒤지기 250G 한도와도 분리(유미 수익이 직접 뒤지기 한도를 깎지 않음). 직접 뒤지기는 기존대로 개인별 하루 250G 캡 유지' },
+  ] },
   { ver: 'v2.45.71', date: '2026-06-11', changes: [
     { tag: 'new', text: '🎮 메인 상단 진행 중 게임 배너 확장 — 일반게임만 뜨던 것을 내전(⚔️)에도 표시하고, "진행 N분" 경과 시간을 실시간으로 보여줌. 게임 안 하는 사람도 지금 내전/일반이 진행 중인지·얼마나 됐는지 알 수 있음. (막고라는 기존처럼 배팅 모달로 표시) ※ 내전 표시·진행시간은 브릿지 v1.1.34+ 필요' },
   ] },
@@ -24731,13 +24734,13 @@ window.collectYuumi = async function() {
   if (_yuumiState(data).st !== 'done') { showGoldToast('아직 수령할 수 없어요'); return; }
   const base = 130 + Math.floor(Math.random() * 101); // 130~230G
   const wb = Math.min(YUUMI_WATCH_CAP, _yuumiWatchGold || 0); // 구경 보너스(최대 60)
-  const coins = Math.min(base + wb, _trashGoldRemaining(data)); // 🗑️ 하루 캡(직접+유미 합산)
+  const coins = base + wb; // 🐱 유미 파밍은 일일 캡 미적용 — 직접 뒤지기 한도와 분리(v2.45.72)
   _yuumiWatchGold = 0;
   const f = { cooldownUntil: Date.now() + YUUMI_COOLDOWN_MS };
   const today = getLocalDateKey();
   const newGold = (data[sField('trashGold')] || 0) + coins;
   const updates = { [sField('trashGold')]: newGold, [sField('yuumiForage')]: f };
-  if (coins > 0) updates[sField('trashGoldDay')] = { date: today, gold: _trashTodayGold(data) + coins };
+  // 유미 수익은 trashGoldDay(직접 뒤지기 캡)에 합산하지 않음 → 직접 뒤지기 250G 한도는 그대로 보존
   // 무료권 — 직접 1시간 뒤진 것과 동일: 오늘 남은 등급을 캡까지 모두 캐옴 (등급별 1장·총 3장, 직접 뒤지기와 공유)
   const gotToday = (data[sField('trashFree')] && data[sField('trashFree')].date === today) ? { ...(data[sField('trashFree')].got || {}) } : {};
   const got = [0, 1, 2].filter(t => !gotToday[t]);
@@ -24752,7 +24755,6 @@ window.collectYuumi = async function() {
     goldData[key][sField('yuumiForage')] = f; goldData[key][sField('trashGold')] = newGold;
     if (updates[sField('freeScratch')]) goldData[key][sField('freeScratch')] = updates[sField('freeScratch')];
     if (updates[sField('trashFree')]) goldData[key][sField('trashFree')] = updates[sField('trashFree')];
-    if (updates[sField('trashGoldDay')]) goldData[key][sField('trashGoldDay')] = updates[sField('trashGoldDay')];
   }
   if (got.length) { got.forEach(t => _trashFreeGot[t] = true); _trashRenderDigs(); } // 열린 모달의 남은 무료권 표시 동기화
   const tName = got.length ? got.map(t => TRASH_FREE_TIERS[t].short).join('·') + ` 무료권 ${got.length}장` : '';
