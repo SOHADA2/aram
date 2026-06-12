@@ -500,7 +500,7 @@ header{text-align:center;padding:48px 0 24px;position:relative;}
 .corner-badges-left .mailbox-btn svg{width:13px;height:13px;}
 .corner-badges-left .mb-badge{top:-5px;right:-5px;min-width:13px;height:13px;font-size:8px;}
 /* 🎮 일반게임 진행 중 배너 — 전체 상단 고정 (브릿지 inGame 기반, v2.45.52) */
-.ngb{position:fixed;top:0;left:0;right:0;z-index:997;display:flex;align-items:center;justify-content:center;gap:7px;padding:5px 14px;background:linear-gradient(180deg,rgba(12,20,30,0.96),rgba(8,14,22,0.9));border-bottom:1px solid rgba(125,211,252,0.35);color:#bfe3ff;font-size:11px;font-weight:700;font-family:'Noto Sans KR',sans-serif;letter-spacing:0.3px;backdrop-filter:blur(6px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ngb{position:fixed;top:34px;left:0;right:0;z-index:997;display:flex;align-items:center;justify-content:center;gap:7px;padding:5px 14px;background:linear-gradient(180deg,rgba(12,20,30,0.96),rgba(8,14,22,0.9));border-top:1px solid rgba(125,211,252,0.18);border-bottom:1px solid rgba(125,211,252,0.35);color:#bfe3ff;font-size:11px;font-weight:700;font-family:'Noto Sans KR',sans-serif;letter-spacing:0.3px;backdrop-filter:blur(6px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .ngb-dot{width:7px;height:7px;border-radius:50%;background:#7dd3fc;box-shadow:0 0 7px #7dd3fc;animation:ngbDot 1.3s ease-in-out infinite;flex-shrink:0;}
 .ngb.custom{border-bottom-color:rgba(240,192,96,0.42);color:#ffe39a;background:linear-gradient(180deg,rgba(24,18,7,0.96),rgba(14,11,6,0.92));}
 .ngb.custom .ngb-dot{background:#f0c060;box-shadow:0 0 7px #f0c060;}
@@ -6393,7 +6393,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.75';
+const APP_VERSION = 'v2.45.76';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6402,6 +6402,9 @@ const APP_VERSION = 'v2.45.75';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.76', date: '2026-06-11', changes: [
+    { tag: 'fix', text: '🎮 진행 중 게임 배너 위치 수정 — 최상단(top:0) 전체폭이라 좌상단 코너 배지(우편함·출석)와 우상단 버전 배지를 가리던 문제. 이제 코너 배지 줄 바로 아래로 자동 배치(배지 줄바꿈·창 크기 변화에도 그 아래에 맞춰 따라감) → 배너가 기존 버튼들을 더는 가리지 않음' },
+  ] },
   { ver: 'v2.45.75', date: '2026-06-11', changes: [
     { tag: 'improve', text: '🐱 메인 아바타 코치마크에 유미 알림 추가 — 출석 알림과 같은 자리(내 프로필 아바타)에서 유미가 파견 가능하면 "🐱 유미 보내기", 수령할 게 있으면 "🎁 유미 수령"을 함께 알려줍니다. 할 일이 여러 개면 말풍선에 줄로 쌓여 표시되고, 각 줄을 탭하면 해당 화면으로 바로 이동' },
     { tag: 'fix', text: '🗑️ 뒷골목 쓰레기통 팝업이 떠 있을 때 뒷 화면이 스크롤되거나 겹쳐 보이던 문제 수정 — 모달 열린 동안 본문 스크롤을 잠그고(overflow 잠금), 오버레이 자체에 스크롤 격리(overscroll-behavior)를 적용. 내용이 길어도 모달 안에서만 스크롤됨' },
@@ -12242,6 +12245,7 @@ onValue(ref(db, 'bridge/gamePhase'), async (snap) => {
 // 브릿지가 InProgress 시 { isCustom, players:[소환사명], at } 기록 → 일반게임(isCustom=false)이면 전체에게 표시
 let _bridgeInGame = null;
 onValue(ref(db, 'bridge/inGame'), (snap) => { _bridgeInGame = snap.val(); try { updateNormalGameBanner(); } catch (_) {} });
+window.addEventListener('resize', () => { if (document.getElementById('normal-game-banner')) { try { updateNormalGameBanner(); } catch (_) {} } });
 let _gameBannerTimer = null;
 function updateNormalGameBanner(){
   const ig = _bridgeInGame;
@@ -12263,6 +12267,14 @@ function updateNormalGameBanner(){
   if (!bar){ bar = document.createElement('div'); bar.id = 'normal-game-banner'; bar.className = 'ngb'; document.body.appendChild(bar); }
   bar.classList.toggle('custom', isCustom);
   bar.innerHTML = `<span class="ngb-dot"></span>${label}${escHtml(who)} ${timeStr}`;
+  // 좌상단 코너 배지(우편함·출석)·우상단 버전 배지를 가리지 않도록 그 아래로 배치 (줄바꿈 시에도 대응)
+  try {
+    const lb = document.querySelector('.corner-badges-left'), vb = document.getElementById('version-badge');
+    let topY = 6;
+    if (lb && lb.offsetParent !== null) topY = Math.max(topY, lb.getBoundingClientRect().bottom);
+    if (vb && vb.offsetParent !== null) topY = Math.max(topY, vb.getBoundingClientRect().bottom);
+    bar.style.top = Math.round(topY + 5) + 'px';
+  } catch (_) { bar.style.top = '34px'; }
   // 경과 시간 라이브 갱신 (30초)
   if (!_gameBannerTimer) _gameBannerTimer = setInterval(() => { try { updateNormalGameBanner(); } catch (_) {} }, 30000);
 }
