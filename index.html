@@ -6387,7 +6387,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.73';
+const APP_VERSION = 'v2.45.74';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6396,6 +6396,9 @@ const APP_VERSION = 'v2.45.73';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.74', date: '2026-06-11', changes: [
+    { tag: 'improve', text: '🐱 유미 수령 시 상세 정산 팝업 — 토스트 한 줄 대신 항목별 내역을 보여줍니다. 🪙 주운 동전(기본 130~230G) · 👀 구경 보너스(파밍 지켜본 보상, 0~60G) · 🎫 무료 복권권(있을 때) + 총 획득 골드. 얼마를, 무엇으로 받았는지 한눈에 확인' },
+  ] },
   { ver: 'v2.45.73', date: '2026-06-11', changes: [
     { tag: 'fix', text: '🐱 유미 구경 보너스(최대 +60G) 저장 — 이제 현재 파견에 묶여 Firebase에 저장돼 새로고침·재접속해도 모은 보너스가 유지됩니다(예전엔 메모리에만 있어 새로고침하면 0으로 사라짐). 구경 보너스는 한 파견당 최대 60G로 고정(중복 없음), 수령 후 쉬었다가 다시 파견하면 0부터 새로 적립' },
   ] },
@@ -24763,14 +24766,16 @@ window.collectYuumi = async function() {
   if (got.length) { got.forEach(t => _trashFreeGot[t] = true); _trashRenderDigs(); } // 열린 모달의 남은 무료권 표시 동기화
   const tName = got.length ? got.map(t => TRASH_FREE_TIERS[t].short).join('·') + ` 무료권 ${got.length}장` : '';
   _trashSfx.coin(); if (got.length) setTimeout(() => _trashSfx.free(), 240); // 수령 효과음
-  if (coins > 0) {
-    showGoldToast(`🐱 유미가 캐왔어요! +${coins}G${wb > 0 ? ` (구경 보너스 +${wb})` : ''}${tName ? ' · ' + tName : ''}`);
-  } else {
-    // 🗑️ 오늘 동전 한도 도달 — 동전은 0이지만 안 긁은 복권은 챙겨옴
-    showGoldToast(got.length
-      ? `🐱 오늘 쓰레기통은 바닥났지만 안 긁은 ${tName}은 챙겨왔어요!`
-      : `🐱 유미가 다녀왔지만… 오늘치 쓰레기통은 이미 바닥. 동전이 없네요.`);
-  }
+  // 📋 상세 정산 — 기본 수령 + 구경 보너스 + 무료권을 항목별로
+  const items = [
+    { iconHtml: '🪙', name: '쓰레기통에서 주운 동전', qty: `+${base}G`, color: '#ffd24a' },
+    { iconHtml: '👀', name: wb > 0 ? '구경 보너스 (파밍 지켜봄)' : '구경 보너스 (구경 안 함)', qty: `+${wb}G`, color: wb > 0 ? '#7dd3fc' : '#7a7a85' },
+  ];
+  got.forEach(t => items.push({ iconHtml: TRASH_FREE_TIERS[t].e, name: `${TRASH_FREE_TIERS[t].n} 무료권`, qty: '+1장', color: TRASH_FREE_TIERS[t].c }));
+  const sub = `총 <b style="color:#ffd76a">+${coins}G</b>${got.length ? ` · 🎫 무료권 ${got.length}장` : ''}`
+    + (wb > 0 ? `<br><span style="font-size:10px;color:#9a8a5a;">구경 보너스 ${wb}G = 파밍 장면을 지켜본 보상 (파견당 최대 ${YUUMI_WATCH_CAP})</span>` : '');
+  try { showBingoReward('🐱 유미 수령 완료', sub, items); }
+  catch (_) { showGoldToast(`🐱 유미가 캐왔어요! +${coins}G${wb > 0 ? ` (구경 +${wb})` : ''}${tName ? ' · ' + tName : ''}`); }
   _renderYuumiPanel();
 };
 const YUUMI_WATCH_CAP = 60;                              // 구경 보너스 상한
