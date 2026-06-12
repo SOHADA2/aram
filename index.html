@@ -4809,6 +4809,18 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .wd-recv-msg b{flex:0 0 auto;color:#ffe7a8;font-weight:700;max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .wd-recv-msg span{color:#e8e0cc;}
 .wd-recv-empty{font-size:11px;color:#9a8a5a;text-align:center;padding:4px;}
+/* 결혼 그룹 — 상단 커플(서로 결혼) / 하단 솔로(다른 날) */
+.wd-group{margin-bottom:4px;}
+.wd-group-head{display:flex;flex-direction:column;align-items:center;gap:1px;margin-bottom:9px;}
+.wd-group-title{font-size:12.5px;font-weight:800;color:#ffd76a;}
+.wd-group-sub{font-size:10px;color:#b9a98a;}
+.wd-group-cards{display:flex;flex-direction:column;gap:9px;}
+.wd-group.couple{background:linear-gradient(180deg,rgba(255,150,180,.07),rgba(232,184,75,.03));border:1px solid rgba(255,140,170,.30);border-radius:14px;padding:13px 11px;}
+.wd-group.couple .wd-group-title{color:#ffc2d4;}
+.wd-couple-banner{display:flex;align-items:center;justify-content:center;gap:9px;font-size:15px;font-weight:800;color:#ffe7a8;margin-bottom:11px;font-family:'Black Han Sans',sans-serif;letter-spacing:.3px;flex-wrap:wrap;text-align:center;}
+.wd-heart{font-size:16px;display:inline-block;animation:wdHeart 1.3s ease-in-out infinite;}
+@keyframes wdHeart{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
+.wd-group:not(.couple){border-top:1px dashed rgba(232,184,75,.28);padding-top:14px;margin-top:8px;}
 @keyframes acDot{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
 /* ── 릴레이 출석 보드 ── */
 .rlb-section{margin-bottom:14px;}
@@ -6419,7 +6431,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.78';
+const APP_VERSION = 'v2.45.79';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6428,6 +6440,9 @@ const APP_VERSION = 'v2.45.78';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.79', date: '2026-06-11', changes: [
+    { tag: 'improve', text: '💍 결혼 축하 모달 배치 — 결혼 관계가 드러나게 정리. 상단에 서로 결혼하는 커플(울퉁쓰 💞 ap렉사이서폿)을 하트 배너로 한 박스에 묶고, 하단에 다른 날 결혼하는 맹독 벌꿀오소리를 점선으로 구분해 따로 배치' },
+  ] },
   { ver: 'v2.45.78', date: '2026-06-11', changes: [
     { tag: 'fix', text: '🎮 진행 중 게임 배너를 화면 최하단으로 이동 — 상단에 두니 코너 배지(우편함·출석) 등을 가려서, 아예 화면 맨 아래 고정 바로 옮김(상단 요소 안 가림). 하단 내비 탭은 고정이 아니라 함께 스크롤되므로 가리지 않음' },
   ] },
@@ -20201,7 +20216,12 @@ window.addEventListener('scroll', () => { try { if (document.getElementById('att
 // ── 💍 결혼 축하 메시지 이벤트 (1회성, 시즌2) ─────────────────────────────────
 // 모든 팀원이 결혼자 3명에게 각각 10자 이하 축하 메시지를 1번씩 보낼 수 있고, 메시지 1개당 결혼자에게 +100G 축의금.
 // 골드는 별도 필드 없이 메시지 수 × 100으로 파생(이중지급 불가·자동 일치). 진입은 아바타 코치마크.
-const WEDDING_HONOREES = ['맹독 벌꿀오소리', '울퉁쓰', 'ap렉사이서폿']; // 등록 닉네임(정확히)
+const WEDDING_HONOREES = ['울퉁쓰', 'ap렉사이서폿', '맹독 벌꿀오소리']; // 등록 닉네임(정확히) · 인덱스 = sendWeddingMsg 기준
+// 결혼 관계: 상단 커플(서로 결혼) + 하단 솔로(다른 날 결혼)
+const WEDDING_GROUPS = [
+  { couple: true,  idx: [0, 1], title: '💞 서로의 짝이 되는 두 사람', sub: '함께 새 출발을 해요' },
+  { couple: false, idx: [2],    title: '🎊 또 다른 날의 결혼', sub: '다른 날 결혼하는 우리 팀원' },
+];
 const WEDDING_MSG_GOLD = 100;
 const WEDDING_MSG_MAX  = 10;
 const WEDDING_NODE     = 'wedding2026';
@@ -20250,10 +20270,23 @@ window.closeWeddingModal = function() {
   document.getElementById('wedding-overlay')?.remove();
   document.body.style.overflow = '';
 };
+// 결혼자 1명 카드 HTML (본인이면 '' 반환 → 그룹에서 제외)
+function _weddingCardHtml(i) {
+  const h = WEDDING_HONOREES[i]; if (!h) return '';
+  const hn = normName(h), me = normName(myName);
+  if (hn === me) return ''; // 본인 제외
+  const mine = weddingData[hn] && weddingData[hn][me];
+  const cnt = weddingData[hn] ? Object.keys(weddingData[hn]).length : 0;
+  let c = `<div class="wd-card"><div class="wd-card-top"><span class="wd-name">${escHtml(h)}</span><span class="wd-cnt">💌 ${cnt} · +${cnt * WEDDING_MSG_GOLD}G</span></div>`;
+  if (mine) c += `<div class="wd-done">✓ 축하를 보냈어요 — "<b>${escHtml(mine.msg)}</b>"</div>`;
+  else c += `<div class="wd-send"><input class="wd-input" id="wd-in-${i}" maxlength="${WEDDING_MSG_MAX}" placeholder="축하 메시지 (최대 ${WEDDING_MSG_MAX}자)"><button class="wd-send-btn" onclick="window.sendWeddingMsg(${i})">보내기</button></div>`;
+  return c + `</div>`;
+}
 function _renderWeddingBody() {
   const body = document.getElementById('wd-body'); if (!body) return;
   const me = normName(myName);
   let html = '';
+  // 결혼자 본인 → 받은 축하 먼저
   if (_isWeddingHonoree(myName)) {
     const recv = weddingData[me] || {};
     const msgs = Object.values(recv).sort((a, b) => (b.at || 0) - (a.at || 0));
@@ -20261,22 +20294,18 @@ function _renderWeddingBody() {
     html += msgs.length ? msgs.map(m => `<div class="wd-recv-msg"><b>${escHtml(m.from || '')}</b><span>${escHtml(m.msg)}</span></div>`).join('') : `<div class="wd-recv-empty">아직 받은 축하가 없어요</div>`;
     html += `</div>`;
   }
-  WEDDING_HONOREES.forEach((h, i) => {
-    const hn = normName(h);
-    if (hn === me) return; // 본인 제외
-    const mine = weddingData[hn] && weddingData[hn][me];
-    const cnt = weddingData[hn] ? Object.keys(weddingData[hn]).length : 0;
-    html += `<div class="wd-card">
-      <div class="wd-card-top"><span class="wd-name">${escHtml(h)}</span><span class="wd-cnt">💌 ${cnt} · +${cnt * WEDDING_MSG_GOLD}G</span></div>`;
-    if (mine) {
-      html += `<div class="wd-done">✓ 축하를 보냈어요 — "<b>${escHtml(mine.msg)}</b>"</div>`;
-    } else {
-      html += `<div class="wd-send">
-        <input class="wd-input" id="wd-in-${i}" maxlength="${WEDDING_MSG_MAX}" placeholder="축하 메시지 (최대 ${WEDDING_MSG_MAX}자)">
-        <button class="wd-send-btn" onclick="window.sendWeddingMsg(${i})">보내기</button>
-      </div>`;
-    }
-    html += `</div>`;
+  // 그룹별(상단 커플 / 하단 솔로) 렌더
+  WEDDING_GROUPS.forEach(g => {
+    const cards = g.idx.map(i => _weddingCardHtml(i)).filter(Boolean);
+    if (!cards.length) return; // 그룹 전원이 본인이면 생략
+    const coupleBanner = g.couple
+      ? `<div class="wd-couple-banner">${escHtml(WEDDING_HONOREES[g.idx[0]])} <span class="wd-heart">💞</span> ${escHtml(WEDDING_HONOREES[g.idx[1]])}</div>`
+      : '';
+    html += `<div class="wd-group${g.couple ? ' couple' : ''}">
+      <div class="wd-group-head"><span class="wd-group-title">${g.title}</span><span class="wd-group-sub">${g.sub}</span></div>
+      ${coupleBanner}
+      <div class="wd-group-cards">${cards.join('')}</div>
+    </div>`;
   });
   body.innerHTML = html;
 }
