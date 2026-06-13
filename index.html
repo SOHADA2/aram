@@ -6431,7 +6431,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.79';
+const APP_VERSION = 'v2.45.80';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6440,6 +6440,9 @@ const APP_VERSION = 'v2.45.79';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.80', date: '2026-06-11', changes: [
+    { tag: 'fix', text: '🛡️ 강철심장 "해골 감소" 걸작 효과가 줄수 무관(1줄=3줄 동일)이라 같은 효과를 모아도 안 강해지던 비효율 수정 — 이제 다른 효과처럼 줄수×성능에 비례(줄 1개당 성능×3%p, 총 상한 -70%). 같은 해골감소 줄을 모을수록 더 안전해지고, 효과 카드에도 ×줄수 표기. 적용 자체는 원래 정상이었음(rollScratch에서 본인 성능으로 해골 가중치 차감)' },
+  ] },
   { ver: 'v2.45.79', date: '2026-06-11', changes: [
     { tag: 'improve', text: '💍 결혼 축하 모달 배치 — 결혼 관계가 드러나게 정리. 상단에 서로 결혼하는 커플(울퉁쓰 💞 ap렉사이서폿)을 하트 배너로 한 박스에 묶고, 하단에 다른 날 결혼하는 맹독 벌꿀오소리를 점선으로 구분해 따로 배치' },
   ] },
@@ -8975,10 +8978,11 @@ function emblemLocked(em)    { return emblemSlotsUsed(em) >= EMBLEM_SLOTS; }
 function emblemEffects(power){
   return { glow: power<=0 ? 'none' : power<10 ? 'silver' : power<25 ? 'gold' : 'prismatic' };
 }
-// 🛡️ 해골 감소 = 본인 복권의 해골 출현 확률을 성능 비례로 감소(연속). 성능 1점마다 -3%p, 최대 -70%.
+// 🛡️ 해골 감소 = 본인 복권의 해골 출현 확률을 감소. 줄 1개당 성능×3%p, 같은 효과 줄을 모을수록 강해짐(다른 효과와 동일), 총 상한 -70%.
 //   고급·프리미엄 복권이 더 안전해짐. 골드를 새로 풀지 않아(손실 완화) 인플레 없음.
 const LOTTO_SKULL_K = 0.03;
-function _lottoSkullReduce(power){ return power>0 ? Math.min(0.70, power*LOTTO_SKULL_K) : 0; }
+const LOTTO_SKULL_CAP = 0.70;
+function _lottoSkullReduce(power){ return power>0 ? Math.min(LOTTO_SKULL_CAP, power*LOTTO_SKULL_K) : 0; } // 줄 1개 기준(표시용)
 // ── 🏆 걸작 시스템 (v2.44.30~) ──
 // 강화하기 = 성능↑(효과 배율). 걸작 = 효과 슬롯 3줄(랜덤, 전용재화로 전체 리롤). 같은 효과 줄 합산.
 // 최종 효과 = 줄수 × 기본값(base) × 성능배율(1 + 성능×0.1)
@@ -8991,7 +8995,7 @@ const EMBLEM_EFFECTS = {
   magollaG: { id:'magollaG', icon:'🎰', name:'막고라 배당',  color:'#f472b6', base:4,   cap:30, fmt:v=>`+${v}%`,  desc:'막고라 베팅 적중 수익 보너스' },
   winLP:    { id:'winLP',    icon:'⚡', name:'승리 LP',      color:'#60a5fa', base:1.0, cap:12, fmt:v=>`+${v}LP`, desc:'정규전 승리 시 추가 LP' },
   lossLP:   { id:'lossLP',   icon:'🛡️', name:'패배 방어',    color:'#7dd3fc', base:1.0, cap:8,  fmt:v=>`${v}LP`, desc:'정규전 패배 시 잃는 LP를 그만큼 덜 잃어요' },
-  lottoTkt: { id:'lottoTkt', icon:'🛡️', name:'해골 감소', color:'#7dd3fc', base:1, cap:1, fmt:v=>`-${Math.round(v*100)}%`, desc:'복권 해골 출현 확률을 성능 비례로 감소 (최대 -70%) · 고급·프리미엄이 더 안전' },
+  lottoTkt: { id:'lottoTkt', icon:'🛡️', name:'해골 감소', color:'#7dd3fc', base:1, cap:1, fmt:v=>`-${Math.round(v*100)}%`, desc:'복권 해골 출현 확률 감소 · 줄 1개당 성능×3%p, 같은 효과 줄 모을수록 강해짐 (총 최대 -70%) · 고급·프리미엄이 더 안전' },
 };
 // ⚖️ 모든 효과 동일 확률(균등 추첨). 리스트가 길수록 같은 효과 3줄 맞추기가 자연히 어려워짐.
 const EMBLEM_EFFECT_POOL = ['matchG','winG','attend','mvpG','magollaG','winLP','lossLP','lottoTkt'];
@@ -9040,7 +9044,7 @@ function emblemEffectsOf(em){
   for (const eid of EMBLEM_EFFECT_POOL){
     const cnt = lines.filter(l=>l===eid).length;
     const d = EMBLEM_EFFECTS[eid];
-    if (eid === 'lottoTkt'){ eff[eid] = cnt ? _lottoSkullReduce(power) : 0; continue; }  // 🛡️ 성능 비례 해골 감소율(줄수 무관)
+    if (eid === 'lottoTkt'){ eff[eid] = cnt ? Math.min(LOTTO_SKULL_CAP, cnt * power * LOTTO_SKULL_K) : 0; continue; }  // 🛡️ 줄수×성능 해골 감소율(상한 70%)
     // 줄 1개 값을 먼저 반올림(=카드 표시값) → 총합 = 줄값 × 줄수. 카드 합과 총합이 항상 딱 맞음 (v2.44.40)
     const per = cnt ? Math.round(d.base * mult) : 0;
     let v = cnt * per;
@@ -9838,9 +9842,6 @@ function renderEmblemBody(){
           const E = emblemEffectsOf(em);
           const effRows = EMBLEM_EFFECT_POOL.filter(eid=>E.eff[eid]>0).map(eid=>{ const d=EMBLEM_EFFECTS[eid];
             const cnt = E.lines.filter(l=>l===eid).length;
-            if (eid === 'lottoTkt'){ // 🎟️ 줄수 곱 아님 — 성능 비례 적립률 표기
-              return `<div class="fg2-eff-row"><span class="fg2-eff-lbl">${d.icon} ${d.name}</span><span class="fg2-eff-num" style="color:${d.color};">${d.fmt(E.eff[eid])}</span></div>`;
-            }
             return `<div class="fg2-eff-row"><span class="fg2-eff-lbl">${d.icon} ${d.name}${cnt>1?` <span style="color:#8b8b97;">×${cnt}</span>`:''}</span><span class="fg2-eff-num" style="color:${d.color};">${d.fmt(E.eff[eid])}</span></div>`; }).join('')
             || `<div style="font-size:10px;color:#8b8b97;text-align:center;padding:4px;">성능을 올리고 걸작을 맞춰<br>효과를 발동하세요</div>`;
           return `
