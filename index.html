@@ -1558,7 +1558,9 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 /* 🎫 시즌2 퀘스트 패스 카드 v2 — 정보형/이모지 최소화 */
 .wm-pass-card-v2{display:flex;flex-direction:column;}
 .wmp2-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
-.wmp2-kicker{font-size:9px;font-weight:800;letter-spacing:1.1px;color:var(--rk-text-muted);font-family:'JetBrains Mono',monospace;}
+.wmp2-titlewrap{display:flex;flex-direction:column;gap:1px;min-width:0;}
+.wmp2-kicker{font-size:8px;font-weight:800;letter-spacing:1px;color:var(--rk-text-muted);font-family:'JetBrains Mono',monospace;white-space:nowrap;line-height:1;}
+.wmp2-title{font-size:13px;font-weight:800;color:var(--gold-light);white-space:nowrap;line-height:1.15;}
 .wmp2-ready{font-size:8.5px;font-weight:800;color:#1a1206;background:linear-gradient(135deg,#ffce6a,#e0a13a);border-radius:5px;padding:2px 7px;letter-spacing:.3px;white-space:nowrap;flex-shrink:0;}
 .wmp2-lvrow{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;}
 .wmp2-lv{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;color:var(--rk-text-dim);}
@@ -1570,10 +1572,10 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .wmp2-stats{display:flex;gap:6px;padding:9px 0;border-top:1px solid var(--rk-border);border-bottom:1px solid var(--rk-border);margin-bottom:10px;}
 .wmp2-stat{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;}
 .wmp2-sv{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:800;color:var(--rk-text);line-height:1;}
-.wmp2-sl{font-size:8.5px;color:var(--rk-text-muted);letter-spacing:.2px;}
+.wmp2-sl{font-size:8px;color:var(--rk-text-muted);letter-spacing:0;white-space:nowrap;}
 .wmp2-next{display:flex;flex-direction:column;flex:1;}
 .wmp2-next-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px;}
-.wmp2-next-lbl{font-size:9px;font-weight:800;letter-spacing:.6px;color:var(--gold);font-family:'JetBrains Mono',monospace;}
+.wmp2-next-lbl{font-size:10px;font-weight:800;letter-spacing:.3px;color:var(--gold);white-space:nowrap;}
 .wmp2-next-lv{font-size:9.5px;font-weight:700;color:var(--rk-text-muted);font-family:'JetBrains Mono',monospace;}
 .wmp2-next-name{font-size:13px;font-weight:700;color:var(--rk-text);line-height:1.25;margin-bottom:3px;}
 .wmp2-next-desc{font-size:10.5px;color:var(--rk-text-dim);line-height:1.45;margin-bottom:9px;}
@@ -6431,7 +6433,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.83';
+const APP_VERSION = 'v2.45.84';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6440,6 +6442,9 @@ const APP_VERSION = 'v2.45.83';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.84', date: '2026-06-11', changes: [
+    { tag: 'fix', text: '🎫 대기화면 시즌2 퀘스트 패스 카드 정리 — (1) 제목 "SEASON 2 · 퀘스트 패스"가 한글인데 영문 전용 폰트(JetBrains Mono)라 글자가 깨지고 좁은 폭에서 줄바꿈되던 문제 → "SEASON 2"(영문)와 "퀘스트 패스"(한글)를 분리해 한글은 기본 폰트로 표시. (2) "획득 레벨/남은 레벨" 라벨이 두 줄로 쪼개지던 것 한 줄 고정. (3) "다음 퀘스트" 라벨 폰트도 한글 정상화. (4) 모바일 대응. (5) 패스 보상 수령 후에도 "수령 가능" 배지가 남던 버그 — doClaimS2Pass가 패스 탭만 다시 그리고 대기화면 카드를 갱신 안 해서 생긴 staleness → 수령 시 대기카드·탭 배지 즉시 갱신' },
+  ] },
   { ver: 'v2.45.83', date: '2026-06-11', changes: [
     { tag: 'improve', text: '📅 강철심장 걸작 "출석 골드" 효과 상향 — 기본값 12 → 15G로 올림(약 +25%). 출석은 매일 받는 보상이라 강화·줄수에 비례해 체감이 커요. 예: 3줄·만렙 기준 매일 +144G → +180G. 상한은 그대로 없음' },
   ] },
@@ -19091,6 +19096,8 @@ window.doClaimS2Pass = async function(lv){
   showS1Toast(`🎫 LV${lv} 보상 수령! ${parts.join(' · ')}`);
   try{ _gSfx.reveal(2); }catch(_){}
   renderS2Pass();
+  try{ renderWaitingCard(); }catch(_){}      // 대기화면 패스 카드 '수령 가능' 배지 즉시 갱신(staleness 방지)
+  try{ updateS1PassTabBadge(); }catch(_){}   // 패스 탭 dot 갱신
 };
 // 탭 배지 — 다음 레벨 퀘스트 완료 시 (오버라이드)
 window._isS2PassClaimable = function(passType, data){
@@ -22891,12 +22898,15 @@ async function renderS1WaitingCard(el) {
   // 🎫 시즌2 퀘스트 패스 카드 — 정보형 재디자인(이모지 최소화, 빈 공간을 스탯으로 채움)
   let s2PassCardHtml = '';
   if (_s2Pass) {
-    let _claim = false; try { _claim = !!window._isS2PassClaimable('quest', myGoldData); } catch(_){}
+    let _claim = false; try { _claim = !!(goldLoaded && matchesLoaded && window._isS2PassClaimable('quest', myGoldData)); } catch(_){}
     const _nq = passLv < passMax ? S2_PASS_QUESTS[passLv] : null;
     const _rw = passLv < passMax ? _wmS2PassRewardShort(s2PassReward(nextPassLv)) : '';
     s2PassCardHtml = `
       <div class="wmp2-head">
-        <span class="wmp2-kicker">SEASON 2 · 퀘스트 패스</span>
+        <div class="wmp2-titlewrap">
+          <span class="wmp2-kicker">SEASON 2</span>
+          <span class="wmp2-title">퀘스트 패스</span>
+        </div>
         ${_claim ? '<span class="wmp2-ready">수령 가능</span>' : ''}
       </div>
       <div class="wmp2-lvrow">
