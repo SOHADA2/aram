@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.45.71 (🌌 **시즌2 라이브 중 2026-06-10~** — 출시 후속: 빙고보상안내·복권허브UX·대장간 모바일탭강화·신규템 되팔기·패스카드 재디자인·밸런스 전판팀반복 완화·정산창 칩정리·진행중 게임배너(내전+진행시간). 브릿지 v1.1.34(inGame). 시즌2 라이브는 `switchSeason(2)` 완료)
+- 현재 버전: v2.45.84 (🌌 **시즌2 라이브 중 2026-06-10~** — 최근: 🐱유미 걸작 효과 2종(파견/휴식 단축)·출석골드 상향·대기화면 패스카드 폰트/배지 수정. 브릿지 **v1.1.35**(종료 버튼 cleanup). 시즌2 라이브는 `switchSeason(2)` 완료. 상세는 아래 세션 이력 v2.45.81~84)
   - ⏳ **레벨 시스템 후속**: ① 패스를 일반/내전 포인트패스 → **S1식 퀘스트 패스(내전 전용)로 되돌리기**(미완) ② 레벨 보상량/곡선 실플레이 튜닝. 레벨 코드맵: `PLV_XP`·`calcPlayerXp`·`plvLevelFromXp`·`plvReward`·`claimPlayerLevels`·`_plvCardHtml`(패스 탭 상단). 데이터 `playerLevelClaimed_s2`. 정수: 경기당+1·상점120G 폐지(레벨업만).
 - ✅ **시즌2 라이브 중** (2026-06-10~) — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 + 세션이력 v2.45.38~49 필독
 
@@ -596,7 +596,7 @@
 
 ## LCU 브릿지 (aram-bridge)
 - 리포: https://github.com/SOHADA2/aram-bridge (로컬: `C:\Users\so\aram-bridge` 또는 `C:\Users\sbs_n\Desktop\aram-bridge`)
-- 현재 버전: v1.1.31 (롤 재시작 재연결 수정 + 증강 슬롯 동적수집 v1.1.27~)
+- 현재 버전: v1.1.35 (종료 버튼 cleanup로 웹앱 "연결중" 즉시 해제 · inGame배너 v1.1.34 · 일반게임분리 v1.1.33 · 진행자표시 v1.1.32)
 - ⚠️ 시즌2 확장 예정: 일반게임 eog를 내전과 분리(`gameData.isCustomGame`) → 위 "시즌 2" 섹션 참조
 - 배포 형태: GitHub Releases에 ZIP (exe + `이 파일을 실행해 주세요.vbs`) 업로드
 - 웹사이트 다운로드 링크: GitHub API로 최신 릴리즈 .zip 에셋 자동 감지 (`index.html` line ~3510)
@@ -736,7 +736,17 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.45.57~71 (2026-06-11) — 🛠️ 시즌2 출시 후속 다듬기 (빙고·복권·대장간·패스·밸런스·정산창·진행배너) ← 최신
+### v2.45.81~84 (웹) + 브릿지 v1.1.35 (2026-06-14) — 🐱 유미 걸작 효과 2종 + 출석 상향 + 패스카드 수정 + 브릿지 종료 정리 ← 최신
+
+> 다른 컴퓨터가 v2.45.72~80 진행(결혼 이벤트·진행중배너 위치·해골감소 줄수비례 등 — in-app CHANGELOG). 이 세션은 v2.45.81부터. 전부 푸시·배포 완료. CHANGELOG/커밋 규칙(주석줄만 매칭·모듈 node --check를 `&&`로 게이트) 동일. 배포 검증: 매 푸시 후 `gh run list`(pages-build-deployment) + 배포본 APP_VERSION 폴링.
+
+- **v81~82 🐱 유미 파견 걸작 효과 2종** (요청): 강철심장 걸작에 `yuumiCut`(유미 파견시간 단축)·`yuumiCool`(파견 후 쿨다운 단축) 추가. 둘 다 `EMBLEM_EFFECTS` base 4·cap 30, `줄수×성능` 비례로 최대 -30분(1시간→30분). 적용=`_yuumiForageMs`/`_yuumiCooldownMs`(myEmblemEff). **파견 시점/수령 시점에 박제**(deployYuumi의 `f.forageMs`, collectYuumi의 cooldownUntil)라 도중 강화/판매 무영향. `_yuumiState`가 `f.forageMs||YUUMI_FORAGE_MS` 사용. 보내기 버튼·수령정산에 단축시간 표시. EMBLEM_EFFECT_POOL에 둘 다 추가(유미 미보유자에겐 dead line — 의도, 설명에 "유미 보유자 전용"). 콘솔 테스트 `grantYuumi()`→`yuumiSkip()`.
+- **v83 📅 출석 골드 상향**: `EMBLEM_EFFECTS.attend.base` 12→15(+25%, 상한 없음 유지). 중앙 base 1곳이라 카드·툴팁·doAttendance·빙고출석 전부 자동 반영. 3줄 만렙 +144→+180G.
+- **v84 🎫 대기화면 시즌2 패스카드 수정** (제보): ① 제목 "SEASON 2 · 퀘스트 패스"가 한글인데 `JetBrains Mono`(한글 글리프 없음)라 깨지고 줄바꿈 → "SEASON 2"(영문 mono)+`.wmp2-title`"퀘스트 패스"(한글 기본폰트)로 분리. ② `.wmp2-sl`(획득/남은 레벨) `white-space:nowrap`. ③ `.wmp2-next-lbl` mono 제거. ④ `_claim` 배지에 `goldLoaded&&matchesLoaded` 가드. ⑤ **수령 후 "수령 가능" 잔존** = `doClaimS2Pass`가 패스탭만 재렌더 → `renderWaitingCard()`+`updateS1PassTabBadge()` 추가(staleness 해소). ※ S2 퀘스트패스는 순차형(`s2PassAfterTs`=이전레벨 수령시각 이후 게임만 집계)이라 동시 2레벨 수령가능 불가 → 수령 즉시 배지 사라지는 게 정상.
+- **🔌 브릿지 v1.1.35** (제보): 상태페이지 **종료 버튼**(`/api/shutdown`)이 `cleanup()` 없이 `process.exit(0)`만 해서, 종료해도 `bridge/operators/{id}` 노드가 남아 웹앱이 최대 120초간 "브릿지 연결중"으로 표시(웹 판정=`_updateBridgeDot`, operators.at<120000). → 종료 핸들러가 `cleanup()`(operators/heartbeat/inGame null) 완료 후 종료(+3초 안전망). 빌드·릴리즈 완료(gh release v1.1.35, zip+exe). **웹앱 무수정**(onValue 실시간). ⚠️ 비정상종료(크래시)는 여전히 120초 폴백(정상).
+- **GitHub Pages 인증 장애 경험**: 세션 초반 v2.45.52~53 배포가 `deploy-pages` 401(GitHub 측 "Authentication issues related to API requests" Critical 장애)로 실패 → 장애 복구 후 자동 재배포됨. 코드/`.nojekyll` 무관, GitHub 인시던트였음.
+
+### v2.45.57~71 (2026-06-11) — 🛠️ 시즌2 출시 후속 다듬기 (빙고·복권·대장간·패스·밸런스·정산창·진행배너)
 
 > 시즌2 라이브 후 사용자 제보·요청 기반 연속 수정. 전부 푸시 완료. CHANGELOG/커밋 규칙(주석줄 매칭·node --check 후 커밋) 동일. **이번 세션 Firebase REST 직접 작업 다수**(읽기·쓰기 인증없이 됨, DB URL은 "시즌2" 섹션 참조).
 
