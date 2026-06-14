@@ -6433,7 +6433,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.84';
+const APP_VERSION = 'v2.45.85';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6442,6 +6442,9 @@ const APP_VERSION = 'v2.45.84';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.85', date: '2026-06-14', changes: [
+    { tag: 'improve', text: '⚡🛡️ 강철심장 걸작 LP 효과(승리 LP·패배 방어) 발동 확률제로 개편 — 기존엔 강화(성능)할수록 LP량이 커지고 낮은 상한에서 멈춰(승리 +12·패배 −8) ① 강화 보람이 일찍 끊기고 ② 패배 방어가 사실상 안전망이라 리스크가 사라질 위험이 있었음. 이제 효과량은 걸작 줄수 비례로 고정(줄당 ±2, 최대 ±6), 강화(성능)는 "발동 확률"을 올림(성능×2.5%, 최대 70%·성능 28+). 강화할수록 자주 터지되 효과량은 보수적이고, 패배 방어가 확률이라 30%는 그대로 잃어 리스크 유지. 만렙 3줄 평균 EV 승리 +4.2/패배 −4.2. 발동은 경기 저장 시 1회 롤(매치에 winLpProc/lossLpProc 박제·역산 가능), 대장간·대기화면 효과칩에 "발동 N%" 표기' },
+  ] },
   { ver: 'v2.45.84', date: '2026-06-11', changes: [
     { tag: 'fix', text: '🎫 대기화면 시즌2 퀘스트 패스 카드 정리 — (1) 제목 "SEASON 2 · 퀘스트 패스"가 한글인데 영문 전용 폰트(JetBrains Mono)라 글자가 깨지고 좁은 폭에서 줄바꿈되던 문제 → "SEASON 2"(영문)와 "퀘스트 패스"(한글)를 분리해 한글은 기본 폰트로 표시. (2) "획득 레벨/남은 레벨" 라벨이 두 줄로 쪼개지던 것 한 줄 고정. (3) "다음 퀘스트" 라벨 폰트도 한글 정상화. (4) 모바일 대응. (5) 패스 보상 수령 후에도 "수령 가능" 배지가 남던 버그 — doClaimS2Pass가 패스 탭만 다시 그리고 대기화면 카드를 갱신 안 해서 생긴 staleness → 수령 시 대기카드·탭 배지 즉시 갱신' },
   ] },
@@ -8728,6 +8731,8 @@ function _getToday() {
 //   새 큰 기능을 배포할 때만 최신순 맨 위에 1줄 추가. 다른 컴퓨터에서도 동일 적용.
 const CHANGELOG_MAJOR = [
   // 시크릿 챔피언(유미) 관련 항목은 스포일러 방지로 여기에 넣지 않음
+  { ver:'v2.45.85', date:'2026-06-14', emoji:'⚡', title:'강철심장 LP 효과 — 발동 확률제로 변경',
+    desc:'승리 LP·패배 방어가 "강화할수록 자주 발동"하는 확률 방식으로 바뀌었어요. 효과량은 걸작 줄당 ±2(최대 ±6)로 고정되고, 강화(성능)는 발동 확률을 올립니다(최대 70%). 패배 방어도 확률이라 가끔은 그대로 잃어요 — 한 판 한 판이 더 의미있어집니다. 이미 강화한 강철심장은 대장간·대기화면에서 "발동 N%"로 확인하세요.' },
   { ver:'v2.45.77', date:'2026-06-11', emoji:'💍', title:'결혼 축하 메시지 이벤트',
     desc:'이번에 결혼하는 팀원 3명에게 축하 메시지(최대 10글자)를 보내요! 내 아바타 옆 코치마크의 "💍 결혼 축하 보내기"를 누르면 3명 각각에게 한마디씩 보낼 수 있고, 메시지 1개당 그 분께 축의금 +100G가 전해져요. 모두 한 번씩 축하해 주세요 🎉 (전원에게 축하 선물 우편 500G+무료 복권 세트도 도착!)' },
   { ver:'v2.45.40', date:'2026-06-10', emoji:'🎓', title:'오른 대장간 사용법 튜토리얼',
@@ -8997,6 +9002,11 @@ function emblemEffects(power){
 const LOTTO_SKULL_K = 0.03;
 const LOTTO_SKULL_CAP = 0.70;
 function _lottoSkullReduce(power){ return power>0 ? Math.min(LOTTO_SKULL_CAP, power*LOTTO_SKULL_K) : 0; } // 줄 1개 기준(표시용)
+// ⚡🛡️ LP 효과(승리/패배방어) = 효과량 고정(줄당 2·최대 6) + 발동확률 성능 비례(보수적: 사다리 보호·강화 보람·리스크 유지)
+const EMBLEM_LP_CHANCE_K = 0.025, EMBLEM_LP_CHANCE_CAP = 0.70; // 발동확률 = 성능×2.5%, 최대 70%(성능 28+)
+function _emblemLpChance(power){ return power>0 ? Math.min(EMBLEM_LP_CHANCE_CAP, power*EMBLEM_LP_CHANCE_K) : 0; }
+// 한 매치의 LP 발동 롤(스냅샷에서 굴려 기록·적용 모두 동일 결과 보장). saveMatch 스냅샷에서 채우고 s1ApplyMatchResult가 소비.
+let _emblemLpRolls = {}; // { normName: { winProc, lossProc, winAmt, lossAmt, chance } }
 // ── 🏆 걸작 시스템 (v2.44.30~) ──
 // 강화하기 = 성능↑(효과 배율). 걸작 = 효과 슬롯 3줄(랜덤, 전용재화로 전체 리롤). 같은 효과 줄 합산.
 // 최종 효과 = 줄수 × 기본값(base) × 성능배율(1 + 성능×0.1)
@@ -9007,8 +9017,8 @@ const EMBLEM_EFFECTS = {
   attend:   { id:'attend',   icon:'📅', name:'출석 골드',    color:'#34d399', base:15,  cap:0,  fmt:v=>`+${v}G`,  desc:'출석 체크 시 추가 골드(매일)' },
   mvpG:     { id:'mvpG',     icon:'⭐', name:'MVP 골드',     color:'#a78bfa', base:15,  cap:0,  fmt:v=>`+${v}G`,  desc:'MVP·SVP 선정 시 추가 골드' },
   magollaG: { id:'magollaG', icon:'🎰', name:'막고라 배당',  color:'#f472b6', base:4,   cap:30, fmt:v=>`+${v}%`,  desc:'막고라 베팅 적중 수익 보너스' },
-  winLP:    { id:'winLP',    icon:'⚡', name:'승리 LP',      color:'#60a5fa', base:1.0, cap:12, fmt:v=>`+${v}LP`, desc:'정규전 승리 시 추가 LP' },
-  lossLP:   { id:'lossLP',   icon:'🛡️', name:'패배 방어',    color:'#7dd3fc', base:1.0, cap:8,  fmt:v=>`${v}LP`, desc:'정규전 패배 시 잃는 LP를 그만큼 덜 잃어요' },
+  winLP:    { id:'winLP',    icon:'⚡', name:'승리 LP',      color:'#60a5fa', base:2, cap:6, fmt:v=>`+${v}LP`, desc:'정규전 승리 시 확률 발동 → 추가 LP. 효과량=걸작 줄당 +2(최대 +6), 발동 확률은 강화(성능)할수록 ↑ (최대 70%)' },
+  lossLP:   { id:'lossLP',   icon:'🛡️', name:'패배 방어',    color:'#7dd3fc', base:2, cap:6, fmt:v=>`-${v}LP`, desc:'정규전 패배 시 확률 발동 → 잃는 LP 완화. 효과량=걸작 줄당 2(최대 6), 발동 확률은 강화(성능)할수록 ↑ (최대 70%). 확률이라 100% 안전망 아님' },
   lottoTkt: { id:'lottoTkt', icon:'🛡️', name:'해골 감소', color:'#7dd3fc', base:1, cap:1, fmt:v=>`-${Math.round(v*100)}%`, desc:'복권 해골 출현 확률 감소 · 줄 1개당 성능×3%p, 같은 효과 줄 모을수록 강해짐 (총 최대 -70%) · 고급·프리미엄이 더 안전' },
   yuumiCut:  { id:'yuumiCut',  icon:'🐱', name:'유미 파견', color:'#c4b5fd', base:4, cap:30, fmt:v=>`-${v}분`, desc:'🐱 유미 파견(자동 줍기) 시간 단축 · 줄수×성능 비례 (1시간 → 최대 30분까지) · 유미 보유자 전용' },
   yuumiCool: { id:'yuumiCool', icon:'💤', name:'유미 휴식', color:'#a5b4fc', base:4, cap:30, fmt:v=>`-${v}분`, desc:'💤 유미 휴식(파견 후 쿨다운) 시간 단축 · 줄수×성능 비례 (1시간 → 최대 30분까지) · 유미 보유자 전용' },
@@ -9048,6 +9058,7 @@ function _healEmblemLines(){
 function emblemPerLine(eid, power){
   const d = EMBLEM_EFFECTS[eid]; if (!d) return 0;
   if (eid === 'lottoTkt') return _lottoSkullReduce(power);  // 🛡️ 성능 비례 해골 감소율(줄수 무관)
+  if (eid === 'winLP' || eid === 'lossLP') return d.base;   // ⚡🛡️ LP 효과량 = 줄당 고정(2, 성능 무관 — 성능은 발동확률에)
   const v = d.base * (1 + power*0.1);
   return Math.round(v);
 }
@@ -9061,6 +9072,7 @@ function emblemEffectsOf(em){
     const cnt = lines.filter(l=>l===eid).length;
     const d = EMBLEM_EFFECTS[eid];
     if (eid === 'lottoTkt'){ eff[eid] = cnt ? Math.min(LOTTO_SKULL_CAP, cnt * power * LOTTO_SKULL_K) : 0; continue; }  // 🛡️ 줄수×성능 해골 감소율(상한 70%)
+    if (eid === 'winLP' || eid === 'lossLP'){ eff[eid] = cnt ? Math.min(d.cap, cnt * d.base) : 0; continue; }  // ⚡🛡️ 효과량=줄당2(최대6, 성능 무관) · 발동확률 별도(_emblemLpChance)
     // 줄 1개 값을 먼저 반올림(=카드 표시값) → 총합 = 줄값 × 줄수. 카드 합과 총합이 항상 딱 맞음 (v2.44.40)
     const per = cnt ? Math.round(d.base * mult) : 0;
     let v = cnt * per;
@@ -9856,9 +9868,14 @@ function renderEmblemBody(){
       <div class="fg2-side">
         ${em ? (()=>{
           const E = emblemEffectsOf(em);
+          const _lpCh = Math.round(_emblemLpChance(E.power)*100); // ⚡🛡️ LP 효과 발동확률(성능 비례)
           const effRows = EMBLEM_EFFECT_POOL.filter(eid=>E.eff[eid]>0).map(eid=>{ const d=EMBLEM_EFFECTS[eid];
             const cnt = E.lines.filter(l=>l===eid).length;
-            return `<div class="fg2-eff-row"><span class="fg2-eff-lbl">${d.icon} ${d.name}${cnt>1?` <span style="color:#8b8b97;">×${cnt}</span>`:''}</span><span class="fg2-eff-num" style="color:${d.color};">${d.fmt(E.eff[eid])}</span></div>`; }).join('')
+            const _isLp = (eid==='winLP'||eid==='lossLP');
+            const valHtml = _isLp
+              ? `<span class="fg2-eff-num" style="color:${d.color};">${d.fmt(E.eff[eid])} <span style="color:#8b8b97;font-size:9px;">발동 ${_lpCh}%</span></span>`
+              : `<span class="fg2-eff-num" style="color:${d.color};">${d.fmt(E.eff[eid])}</span>`;
+            return `<div class="fg2-eff-row"><span class="fg2-eff-lbl">${d.icon} ${d.name}${cnt>1?` <span style="color:#8b8b97;">×${cnt}</span>`:''}</span>${valHtml}</div>`; }).join('')
             || `<div style="font-size:10px;color:#8b8b97;text-align:center;padding:4px;">성능을 올리고 걸작을 맞춰<br>효과를 발동하세요</div>`;
           return `
         <div class="fg2-midline2">
@@ -10584,8 +10601,10 @@ function _ftPreviewBadge(){
   const em = getEquippedEmblem(FORGE_TUT.sb); if (!em) return '';
   const E = emblemEffectsOf(em);
   const lvl = emblemLevel(em), power = emblemPower(em);
+  const _lpCh3 = Math.round(_emblemLpChance(power)*100);
   const chips = EMBLEM_EFFECT_POOL.filter(eid=>E.eff[eid]>0).map(eid=>{ const ef=EMBLEM_EFFECTS[eid];
-    return '<span class="wm-fx-chip" style="display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;margin:2px 3px 0 0;color:'+ef.color+';border:1px solid '+ef.color+'55;">'+ef.icon+' '+ef.fmt(E.eff[eid])+'</span>'; }).join('');
+    const _suf = (eid==='winLP'||eid==='lossLP') ? ' <span style="opacity:.6;">'+_lpCh3+'%</span>' : '';
+    return '<span class="wm-fx-chip" style="display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;margin:2px 3px 0 0;color:'+ef.color+';border:1px solid '+ef.color+'55;">'+ef.icon+' '+ef.fmt(E.eff[eid])+_suf+'</span>'; }).join('');
   return '<div class="ft-prevbox"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px;"><span style="color:#ffd24a;font-weight:800;font-size:12.5px;">🔨 강철심장 +'+lvl+'</span><span style="font-size:10px;color:#8b8b97;font-family:\'JetBrains Mono\',monospace;">성능 '+power+'</span></div><div>'+(chips||'<span style="font-size:10.5px;color:#8b8b97;">걸작을 맞추면 효과가 표시돼요</span>')+'</div></div>';
 }
 // ── 단계 정의 ──
@@ -16435,6 +16454,7 @@ window.saveMatch = async function() {
     //    matchG=승패무관 적용 · winG/winLP=승자만 · lossLP=패자만 · mvpG=MVP/SVP 선정자만.
     if (CURRENT_SEASON === 2) {
       const _emblemSnap = {};
+      _emblemLpRolls = {}; // 이번 매치 LP 발동 롤 초기화 (아래에서 굴려 s1ApplyMatchResult가 소비)
       for (const p of allPlayers) {
         const pNorm = normName(p.name);
         const _en = Object.entries(goldData).find(([,g]) => g && normName(g.name) === pNorm);
@@ -16443,12 +16463,20 @@ window.saveMatch = async function() {
         const power = emblemPower(em);
         if (!em || power <= 0) continue;            // 무지/미장착 스킵
         const eff = emblemEffectsOf(em).eff;
+        const winAmt = Math.round(eff.winLP || 0), lossAmt = Math.round(eff.lossLP || 0);
+        // ⚡🛡️ LP 발동 롤 — 효과량 있을 때만, 발동확률=성능 비례. 여기서 한 번 굴려 기록·적용 모두 동일.
+        const _chance = _emblemLpChance(power);
+        const winProc  = winAmt  > 0 && Math.random() < _chance;
+        const lossProc = lossAmt > 0 && Math.random() < _chance;
+        _emblemLpRolls[pNorm] = { winProc, lossProc, winAmt, lossAmt, chance: _chance };
         _emblemSnap[pNorm] = {
           power, lines: em.lines || null,
           matchG: Math.round(eff.matchG || 0), winG: Math.round(eff.winG || 0),
           mvpG:   Math.round(eff.mvpG   || 0),
-          winLP:  Math.round(eff.winLP  || 0), lossLP: Math.round(eff.lossLP || 0),
-          skullCut: +(eff.lottoTkt || 0).toFixed(3),   // 🛡️ 복권 해골 감소율(역산/감사용)
+          winLP:  winAmt, lossLP: lossAmt,                  // 발동 시 효과량(줄당2·최대6)
+          lpChance: +_chance.toFixed(3),                    // 발동확률(성능 비례)
+          winLpProc: winProc, lossLpProc: lossProc,         // 실제 발동 여부(역산/감사용)
+          skullCut: +(eff.lottoTkt || 0).toFixed(3),        // 🛡️ 복권 해골 감소율(역산/감사용)
         };
       }
       if (Object.keys(_emblemSnap).length > 0) matchData.emblemEffects = _emblemSnap;
@@ -23056,9 +23084,11 @@ async function renderS1WaitingCard(el) {
     const em = getEmblem(myGoldData);
     if (em) {
       const pw = emblemPower(em), E = emblemEffectsOf(em), lvl = emblemLevel(em);
+      const _lpCh2 = Math.round(_emblemLpChance(pw)*100);
       const chips = EMBLEM_EFFECT_POOL.filter(eid => E.eff[eid] > 0).map(eid => {
         const ef = EMBLEM_EFFECTS[eid];
-        return `<span class="wm-fx-chip" style="color:${ef.color};border-color:${ef.color}55;">${ef.icon} ${ef.fmt(E.eff[eid])}</span>`;
+        const _suf = (eid==='winLP'||eid==='lossLP') ? ` <span style="opacity:.6;">${_lpCh2}%</span>` : '';
+        return `<span class="wm-fx-chip" style="color:${ef.color};border-color:${ef.color}55;">${ef.icon} ${ef.fmt(E.eff[eid])}${_suf}</span>`;
       }).join('') || `<span class="wm-fx-none">효과 없음 · 대장간에서 강화</span>`;
       emCell = `<div class="wm-fx-cell">
         <div class="wm-fx-cell-top"><span class="wm-fx-name" style="color:#ffd24a;">🔨 강철심장 <b>+${lvl}</b></span><span class="wm-fx-perf">성능 ${pw}</span></div>
@@ -27514,17 +27544,25 @@ async function s1ApplyMatchResult(name, won, activeS1Item, hasNewbieTeammate = f
     if (!won && iAmNewbie)        lose = S1_NEWBIE_SELF_LOSS_LP;    // -14 → -5
     else if (!won && hasNewbieTeammate) lose = Math.max(0, lose - S1_NEWBIE_LOSS_REDUCE_LP); // -14 → -11
   }
-  // ⚡ 강철심장 걸작 — 승리 LP 보너스 (S2, 정규전, 도박권 미사용 시)
+  // ⚡ 강철심장 걸작 — 승리 LP 보너스 (S2, 정규전, 도박권 미사용 시). 발동확률=성능 비례.
   if (won && CURRENT_SEASON === 2 && !useGamble){
-    const _wd = Object.values(goldData).find(g=>g && normName(g.name)===normName(name));
-    const _lp = Math.round(emblemEffectsOf(getEmblem(_wd)).eff.winLP || 0);
-    if (_lp > 0) gain += _lp;
+    const _roll = _emblemLpRolls[normName(name)];
+    if (_roll) { if (_roll.winProc) gain += _roll.winAmt; }       // 스냅샷에서 굴린 결과 사용(기록·적용 일치)
+    else {                                                        // 폴백: 스냅샷 없으면 라이브 롤
+      const _wd = Object.values(goldData).find(g=>g && normName(g.name)===normName(name));
+      const _em = getEmblem(_wd); const _amt = Math.round(emblemEffectsOf(_em).eff.winLP || 0);
+      if (_amt > 0 && Math.random() < _emblemLpChance(emblemPower(_em))) gain += _amt;
+    }
   }
-  // 🛡️ 강철심장 걸작 — 패배 방어 LP (S2, 정규전, 도박권 미사용 시): 패배 시 잃는 LP 감소
+  // 🛡️ 강철심장 걸작 — 패배 방어 LP (S2, 정규전, 도박권 미사용 시): 발동 시 잃는 LP 감소. 확률이라 100% 안전망 아님.
   if (!won && CURRENT_SEASON === 2 && !useGamble){
-    const _ld = Object.values(goldData).find(g=>g && normName(g.name)===normName(name));
-    const _dlp = Math.round(emblemEffectsOf(getEmblem(_ld)).eff.lossLP || 0);
-    if (_dlp > 0) lose = Math.max(0, lose - _dlp);
+    const _roll = _emblemLpRolls[normName(name)];
+    if (_roll) { if (_roll.lossProc) lose = Math.max(0, lose - _roll.lossAmt); }
+    else {
+      const _ld = Object.values(goldData).find(g=>g && normName(g.name)===normName(name));
+      const _em = getEmblem(_ld); const _dlp = Math.round(emblemEffectsOf(_em).eff.lossLP || 0);
+      if (_dlp > 0 && Math.random() < _emblemLpChance(emblemPower(_em))) lose = Math.max(0, lose - _dlp);
+    }
   }
 
   // 비밀 퀘스트 LP 보호 (v2.43.39~) — 패배 + 적중 시만, 본인 뉴비/도박권 활성 시 비활성
