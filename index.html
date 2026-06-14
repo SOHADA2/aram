@@ -6431,7 +6431,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.80';
+const APP_VERSION = 'v2.45.81';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6440,6 +6440,9 @@ const APP_VERSION = 'v2.45.80';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.81', date: '2026-06-11', changes: [
+    { tag: 'new', text: '🐱 강철심장 걸작 신규 효과 "유미 단축" — 유미 파견(자동 쓰레기 줍기) 시간을 줄여줘요. 줄수×성능에 비례해서, 기본 1시간 파견을 최대 30분까지 단축(많이 강화·같은 줄을 모을수록 더 빨라짐). 유미를 보유한 사람에게만 의미가 있는 효과이고, 파견을 보내는 순간의 효과로 시간이 정해져요(보내고 나서 강화·판매해도 그 파견은 그대로). 쿨다운(쉬는 시간 1시간)은 그대로예요' },
+  ] },
   { ver: 'v2.45.80', date: '2026-06-11', changes: [
     { tag: 'fix', text: '🛡️ 강철심장 "해골 감소" 걸작 효과가 줄수 무관(1줄=3줄 동일)이라 같은 효과를 모아도 안 강해지던 비효율 수정 — 이제 다른 효과처럼 줄수×성능에 비례(줄 1개당 성능×3%p, 총 상한 -70%). 같은 해골감소 줄을 모을수록 더 안전해지고, 효과 카드에도 ×줄수 표기. 적용 자체는 원래 정상이었음(rollScratch에서 본인 성능으로 해골 가중치 차감)' },
   ] },
@@ -8996,9 +8999,10 @@ const EMBLEM_EFFECTS = {
   winLP:    { id:'winLP',    icon:'⚡', name:'승리 LP',      color:'#60a5fa', base:1.0, cap:12, fmt:v=>`+${v}LP`, desc:'정규전 승리 시 추가 LP' },
   lossLP:   { id:'lossLP',   icon:'🛡️', name:'패배 방어',    color:'#7dd3fc', base:1.0, cap:8,  fmt:v=>`${v}LP`, desc:'정규전 패배 시 잃는 LP를 그만큼 덜 잃어요' },
   lottoTkt: { id:'lottoTkt', icon:'🛡️', name:'해골 감소', color:'#7dd3fc', base:1, cap:1, fmt:v=>`-${Math.round(v*100)}%`, desc:'복권 해골 출현 확률 감소 · 줄 1개당 성능×3%p, 같은 효과 줄 모을수록 강해짐 (총 최대 -70%) · 고급·프리미엄이 더 안전' },
+  yuumiCut: { id:'yuumiCut', icon:'🐱', name:'유미 단축', color:'#c4b5fd', base:4, cap:30, fmt:v=>`-${v}분`, desc:'🐱 유미 파견(자동 줍기) 시간 단축 · 줄수×성능 비례 (1시간 → 최대 30분까지) · 유미 보유자 전용' },
 };
 // ⚖️ 모든 효과 동일 확률(균등 추첨). 리스트가 길수록 같은 효과 3줄 맞추기가 자연히 어려워짐.
-const EMBLEM_EFFECT_POOL = ['matchG','winG','attend','mvpG','magollaG','winLP','lossLP','lottoTkt'];
+const EMBLEM_EFFECT_POOL = ['matchG','winG','attend','mvpG','magollaG','winLP','lossLP','lottoTkt','yuumiCut'];
 const EMBLEM_LINES = 3;
 function emblemEssenceField(){ return sField('emblemEssence'); }
 function getEmblemEssence(data){ return (data||{})[emblemEssenceField()] || 0; }
@@ -24903,8 +24907,14 @@ const _trashSfx = {
 // 보유 시 쓰레기통 모달에서 "유미 보내기" → 1시간 자동 파밍 → 수령 → 1시간 쿨다운.
 // Firebase 시각 기준(실시간 경과)이라 새로고침·다른 기기 무관. 동전 trashGold_s1, 무료권 freeScratch.
 const YUUMI = { slug:'Yuumi', kr:'유미', role:'support', desc:'쓰레기통을 대신 뒤져주는 시크릿 고양이. 무료 복권 이용권과 동전을 캐온다.' };
-const YUUMI_FORAGE_MS = 60 * 60 * 1000;    // 1시간 파견
+const YUUMI_FORAGE_MS = 60 * 60 * 1000;    // 1시간 파견(기본)
+const YUUMI_MIN_FORAGE_MS = 30 * 60 * 1000; // 🐱 걸작 단축 하한 — 최대 단축 시 30분 파견
 const YUUMI_COOLDOWN_MS = 60 * 60 * 1000;  // 수령 후 1시간 쿨다운
+// 🐱 강철심장 '유미 단축' 걸작 효과(분)만큼 줄인 이번 파견의 실제 소요 ms (하한 30분)
+function _yuumiForageMs(data){
+  const cutMin = Math.round(myEmblemEff('yuumiCut', data)); // 0~30분 (줄수×성능, 상한 30)
+  return Math.max(YUUMI_MIN_FORAGE_MS, YUUMI_FORAGE_MS - cutMin * 60 * 1000);
+}
 const YUUMI_PULL_RATE = 0.005;             // 일반 뽑기 0.5% (매우 희귀)
 const YUUMI_RECOMBINE_RATE = 0.08;         // 3성 재조합 8%
 function _ownsYuumi(data) { data = data || getMyGoldData(); return !!(data && data[sField('secretYuumi')]); }
@@ -24915,7 +24925,8 @@ function _yuumiState(data) {
   const f = data[sField('yuumiForage')] || {};
   const now = Date.now();
   if (f.startAt && !f.cooldownUntil) {
-    if (now < f.startAt + YUUMI_FORAGE_MS) return { st:'foraging', endAt: f.startAt + YUUMI_FORAGE_MS };
+    const forageMs = f.forageMs || YUUMI_FORAGE_MS; // 파견 시점에 박제된 단축 시간(없으면 기본 1시간)
+    if (now < f.startAt + forageMs) return { st:'foraging', endAt: f.startAt + forageMs };
     return { st:'done' };
   }
   if (f.cooldownUntil && now < f.cooldownUntil) return { st:'cooldown', endAt: f.cooldownUntil };
@@ -24925,12 +24936,15 @@ window.deployYuumi = async function() {
   const key = getMyGoldKey(), data = getMyGoldData();
   if (!key || !_ownsYuumi(data)) return;
   if (_yuumiState(data).st !== 'ready') { showGoldToast('지금은 유미를 보낼 수 없어요'); return; }
-  const f = { startAt: Date.now(), watchGold: 0 }; // watchGold = 이번 파견의 구경 보너스(저장형, 한 파견당 최대 60)
+  const forageMs = _yuumiForageMs(data); // 🐱 '유미 단축' 걸작 반영(파견 시점 박제)
+  const f = { startAt: Date.now(), watchGold: 0, forageMs }; // watchGold = 이번 파견의 구경 보너스(저장형, 한 파견당 최대 60)
   try { await update(ref(db, 'gold/' + key), { [sField('yuumiForage')]: f }); } catch(_) { return; }
   if (goldData[key]) goldData[key][sField('yuumiForage')] = f; // 즉시 반영
   _yuumiWatchGold = 0; // 파밍 시작 — 구경 보너스 초기화
   _renderYuumiPanel();
-  showGoldToast('🐱 유미를 쓰레기통으로 보냈어요! 1시간 뒤 수령하세요');
+  const _mins = Math.round(forageMs / 60000);
+  const _lbl = _mins >= 60 ? '1시간' : `${_mins}분`;
+  showGoldToast(`🐱 유미를 쓰레기통으로 보냈어요! ${_lbl} 뒤 수령하세요`);
 };
 window.collectYuumi = async function() {
   const key = getMyGoldKey(), data = getMyGoldData();
@@ -25021,7 +25035,12 @@ function _renderYuumiPanel() {
     </div>`;
   } else {
     let body = '';
-    if (s.st === 'ready')         body = `<button class="yuumi-btn go" onclick="window.deployYuumi()">🐱 유미 보내기 · 1시간 자동 뒤지기</button>`;
+    if (s.st === 'ready') {
+      const _fm = Math.round(_yuumiForageMs(getMyGoldData()) / 60000); // 🐱 걸작 단축 반영 표시
+      const _flbl = _fm >= 60 ? '1시간' : `${_fm}분`;
+      const _cutBadge = _fm < 60 ? ` <span style="font-size:9px;color:#c4b5fd;font-weight:700;">⚡단축</span>` : '';
+      body = `<button class="yuumi-btn go" onclick="window.deployYuumi()">🐱 유미 보내기 · ${_flbl} 자동 뒤지기${_cutBadge}</button>`;
+    }
     else if (s.st === 'done')     body = `<button class="yuumi-btn collect" onclick="window.collectYuumi()">🎁 유미가 주워온 것 수령!</button>`;
     else if (s.st === 'cooldown') body = `<div class="yuumi-status cd">😴 유미가 쉬는 중… <b id="yuumi-timer">${fmt(s.endAt - Date.now())}</b> 뒤 재출동</div>`;
     const thumbCls = 'yuumi-thumb' + (s.st === 'cooldown' ? ' sleep' : ' idle');
