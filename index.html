@@ -6433,7 +6433,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.85';
+const APP_VERSION = 'v2.45.86';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6442,6 +6442,9 @@ const APP_VERSION = 'v2.45.85';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.86', date: '2026-06-14', changes: [
+    { tag: 'fix', text: '🎰🐱💤 걸작 효과 막고라 배당·유미 파견·유미 휴식의 상한 처리 정리 — 셋 다 총합 상한 30만 있어, 3줄이면 성능 15부터 천장에 닿아 ① 줄 카드값×줄수(성능30이면 16×3=48)와 총합(30)이 어긋나 보이고 ② 그 뒤 강화가 낭비됐음(옛 패배 방어와 같은 구조). 줄당 상한(10)으로 바꿔 항상 줄카드×줄수=총합으로 딱 맞고, 1줄 10·2줄 20·3줄 30으로 줄마다 의미. 최대치(3줄 30%·−30분)·밸런스는 그대로 유지' },
+  ] },
   { ver: 'v2.45.85', date: '2026-06-14', changes: [
     { tag: 'improve', text: '⚡🛡️ 강철심장 걸작 LP 효과(승리 LP·패배 방어) 발동 확률제로 개편 — 기존엔 강화(성능)할수록 LP량이 커지고 낮은 상한에서 멈춰(승리 +12·패배 −8) ① 강화 보람이 일찍 끊기고 ② 패배 방어가 사실상 안전망이라 리스크가 사라질 위험이 있었음. 이제 효과량은 걸작 줄수 비례로 고정(줄당 ±2, 최대 ±6), 강화(성능)는 "발동 확률"을 올림(성능×2.5%, 최대 70%·성능 28+). 강화할수록 자주 터지되 효과량은 보수적이고, 패배 방어가 확률이라 30%는 그대로 잃어 리스크 유지. 만렙 3줄 평균 EV 승리 +4.2/패배 −4.2. 발동은 경기 저장 시 1회 롤(매치에 winLpProc/lossLpProc 박제·역산 가능), 대장간·대기화면 효과칩에 "발동 N%" 표기' },
   ] },
@@ -9016,12 +9019,12 @@ const EMBLEM_EFFECTS = {
   winG:     { id:'winG',     icon:'🏆', name:'승리 골드',    color:'#ffd24a', base:8,   cap:0,  fmt:v=>`+${v}G`,  desc:'승리 시 추가 골드' },
   attend:   { id:'attend',   icon:'📅', name:'출석 골드',    color:'#34d399', base:15,  cap:0,  fmt:v=>`+${v}G`,  desc:'출석 체크 시 추가 골드(매일)' },
   mvpG:     { id:'mvpG',     icon:'⭐', name:'MVP 골드',     color:'#a78bfa', base:15,  cap:0,  fmt:v=>`+${v}G`,  desc:'MVP·SVP 선정 시 추가 골드' },
-  magollaG: { id:'magollaG', icon:'🎰', name:'막고라 배당',  color:'#f472b6', base:4,   cap:30, fmt:v=>`+${v}%`,  desc:'막고라 베팅 적중 수익 보너스' },
+  magollaG: { id:'magollaG', icon:'🎰', name:'막고라 배당',  color:'#f472b6', base:4,   cap:30, perCap:10, fmt:v=>`+${v}%`,  desc:'막고라 베팅 적중 수익 보너스 · 줄당 최대 +10%(3줄 +30%), 줄당값은 강화(성능)할수록 ↑' },
   winLP:    { id:'winLP',    icon:'⚡', name:'승리 LP',      color:'#60a5fa', base:2, cap:6, fmt:v=>`+${v}LP`, desc:'정규전 승리 시 확률 발동 → 추가 LP. 효과량=걸작 줄당 +2(최대 +6), 발동 확률은 강화(성능)할수록 ↑ (최대 70%)' },
   lossLP:   { id:'lossLP',   icon:'🛡️', name:'패배 방어',    color:'#7dd3fc', base:2, cap:6, fmt:v=>`-${v}LP`, desc:'정규전 패배 시 확률 발동 → 잃는 LP 완화. 효과량=걸작 줄당 2(최대 6), 발동 확률은 강화(성능)할수록 ↑ (최대 70%). 확률이라 100% 안전망 아님' },
   lottoTkt: { id:'lottoTkt', icon:'🛡️', name:'해골 감소', color:'#7dd3fc', base:1, cap:1, fmt:v=>`-${Math.round(v*100)}%`, desc:'복권 해골 출현 확률 감소 · 줄 1개당 성능×3%p, 같은 효과 줄 모을수록 강해짐 (총 최대 -70%) · 고급·프리미엄이 더 안전' },
-  yuumiCut:  { id:'yuumiCut',  icon:'🐱', name:'유미 파견', color:'#c4b5fd', base:4, cap:30, fmt:v=>`-${v}분`, desc:'🐱 유미 파견(자동 줍기) 시간 단축 · 줄수×성능 비례 (1시간 → 최대 30분까지) · 유미 보유자 전용' },
-  yuumiCool: { id:'yuumiCool', icon:'💤', name:'유미 휴식', color:'#a5b4fc', base:4, cap:30, fmt:v=>`-${v}분`, desc:'💤 유미 휴식(파견 후 쿨다운) 시간 단축 · 줄수×성능 비례 (1시간 → 최대 30분까지) · 유미 보유자 전용' },
+  yuumiCut:  { id:'yuumiCut',  icon:'🐱', name:'유미 파견', color:'#c4b5fd', base:4, cap:30, perCap:10, fmt:v=>`-${v}분`, desc:'🐱 유미 파견(자동 줍기) 시간 단축 · 줄당 최대 -10분(3줄 -30분, 1시간→30분), 줄당값은 강화(성능)할수록 ↑ · 유미 보유자 전용' },
+  yuumiCool: { id:'yuumiCool', icon:'💤', name:'유미 휴식', color:'#a5b4fc', base:4, cap:30, perCap:10, fmt:v=>`-${v}분`, desc:'💤 유미 휴식(파견 후 쿨다운) 시간 단축 · 줄당 최대 -10분(3줄 -30분, 1시간→30분), 줄당값은 강화(성능)할수록 ↑ · 유미 보유자 전용' },
 };
 // ⚖️ 모든 효과 동일 확률(균등 추첨). 리스트가 길수록 같은 효과 3줄 맞추기가 자연히 어려워짐.
 const EMBLEM_EFFECT_POOL = ['matchG','winG','attend','mvpG','magollaG','winLP','lossLP','lottoTkt','yuumiCut','yuumiCool'];
@@ -9059,8 +9062,8 @@ function emblemPerLine(eid, power){
   const d = EMBLEM_EFFECTS[eid]; if (!d) return 0;
   if (eid === 'lottoTkt') return _lottoSkullReduce(power);  // 🛡️ 성능 비례 해골 감소율(줄수 무관)
   if (eid === 'winLP' || eid === 'lossLP') return d.base;   // ⚡🛡️ LP 효과량 = 줄당 고정(2, 성능 무관 — 성능은 발동확률에)
-  const v = d.base * (1 + power*0.1);
-  return Math.round(v);
+  const v = Math.round(d.base * (1 + power*0.1));
+  return d.perCap ? Math.min(d.perCap, v) : v;              // 🎰🐱💤 줄당 상한(있으면) — 카드값×줄수=총합 일치 보장
 }
 // 장착 강철심장의 최종 효과 — 줄(걸작) × 성능(강화)
 function emblemEffectsOf(em){
@@ -9074,7 +9077,8 @@ function emblemEffectsOf(em){
     if (eid === 'lottoTkt'){ eff[eid] = cnt ? Math.min(LOTTO_SKULL_CAP, cnt * power * LOTTO_SKULL_K) : 0; continue; }  // 🛡️ 줄수×성능 해골 감소율(상한 70%)
     if (eid === 'winLP' || eid === 'lossLP'){ eff[eid] = cnt ? Math.min(d.cap, cnt * d.base) : 0; continue; }  // ⚡🛡️ 효과량=줄당2(최대6, 성능 무관) · 발동확률 별도(_emblemLpChance)
     // 줄 1개 값을 먼저 반올림(=카드 표시값) → 총합 = 줄값 × 줄수. 카드 합과 총합이 항상 딱 맞음 (v2.44.40)
-    const per = cnt ? Math.round(d.base * mult) : 0;
+    // 🎰🐱💤 perCap 있으면 줄당 상한 적용 → cnt×per 가 항상 깔끔(총합 상한에서 어중간하게 안 깎임)
+    const per = cnt ? (d.perCap ? Math.min(d.perCap, Math.round(d.base * mult)) : Math.round(d.base * mult)) : 0;
     let v = cnt * per;
     if (d.cap && v > d.cap) v = d.cap;
     eff[eid] = v;
