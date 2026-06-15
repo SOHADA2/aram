@@ -2733,7 +2733,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 /* ── 스크래치 복권 모달 v2 (v2.43.73~) ── */
 @keyframes scardIn{from{opacity:0;transform:scale(0.88) translateY(12px);}to{opacity:1;transform:scale(1) translateY(0);}}
 @keyframes scardShimmer{0%{background-position:200% center;}100%{background-position:-200% center;}}
-.scard-overlay{position:fixed;inset:0;z-index:3100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.92);backdrop-filter:blur(8px);padding:16px;animation:lottOvIn 0.2s ease;}
+.scard-overlay{position:fixed;inset:0;z-index:3100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.92);backdrop-filter:blur(8px);padding:16px;animation:lottOvIn 0.2s ease;overscroll-behavior:contain;}
 .scard-modal{position:relative;width:100%;max-width:520px;display:flex;flex-direction:column;border-radius:14px;overflow:hidden;
   background:linear-gradient(170deg,#1c1406 0%,#110d04 60%,#1a1206 100%);
   border:2px solid rgba(200,168,75,0.55);
@@ -3106,7 +3106,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 /* ═══ 확률표를 ? 도움말 패널로 이동 + 단일 컬럼(목업 정합) v2.45.107 ═══ */
 .season-2 .scard-overlay .scard-modal .scard-body{display:block!important;}
 .season-2 .scard-overlay .scard-modal .scard-left{flex:none!important;}
-.season-2 .scard-overlay .scard-modal{max-height:92vh!important;overflow-y:auto!important;overflow-x:hidden!important;}
+.season-2 .scard-overlay .scard-modal{max-height:92vh!important;overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain!important;}
 .season-2 .scard-overlay .scard-modal .scard-help-panel{max-height:42vh;overflow-y:auto;-webkit-overflow-scrolling:touch;}
 .season-2 .scard-overlay .scard-modal .scard-help-odds{margin-top:9px;padding-top:8px;border-top:1px dashed var(--pl-deep)!important;display:grid;grid-template-columns:repeat(2,1fr);column-gap:14px;row-gap:0;}
 .season-2 .scard-overlay .scard-modal .scard-help-odds-title{grid-column:1/-1;font-size:10.5px;font-weight:800;letter-spacing:1px;color:var(--pl-shadow)!important;opacity:0.92;margin-bottom:4px;}
@@ -6538,7 +6538,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.123';
+const APP_VERSION = 'v2.45.124';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6547,6 +6547,9 @@ const APP_VERSION = 'v2.45.123';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.124', date: '2026-06-16', changes: [
+    { tag: 'fix', text: '🎟 복권 모달 열렸을 때 뒷 배경이 스크롤되던 버그 수정 — 모달 열림 동안 body 스크롤 잠금 + 모달 내부 스크롤이 끝에서 배경으로 전파되지 않게(overscroll-behavior:contain). 닫는 경로가 여러 곳이라 오버레이 제거를 감지(MutationObserver)해 어떤 경로로 닫혀도 스크롤 락 자동 복원' },
+  ] },
   { ver: 'v2.45.123', date: '2026-06-16', changes: [
     { tag: 'fix', text: '🎟 스크래치 복권 긁기 — 칸 안에서 긁다가 원(칸) 밖으로 나가면 끊기던 것 수정. 한 칸을 누르면 밖으로 나가도 그 칸을 계속 긁도록 pointermove/up을 window에 바인딩(+포인터 캡처). 모달 닫으면 리스너 자동 정리' },
   ] },
@@ -26084,6 +26087,14 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
       </div>
     </div>`;
   document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden'; // 🎟 복권 모달 열림 — 뒷 배경 스크롤 방지
+  // 닫는 경로가 여러 곳(overlay.remove() 8곳·_closeTicket)이라, 오버레이가 어떤 경로로든 제거되면 스크롤 락 복원
+  const _scratchScrollObs = new MutationObserver(muts => {
+    for (const m of muts) for (const n of m.removedNodes) {
+      if (n === overlay) { document.body.style.overflow = ''; _scratchScrollObs.disconnect(); return; }
+    }
+  });
+  _scratchScrollObs.observe(document.body, { childList: true });
   ensureLotteryHexBg(overlay.querySelector('.scard-modal')); // 🌌 S2 헥스 회로 배경
   // 밖 클릭 = 보류(정산 X) — _closeTicket 로 위임 (실수로 나가도 복권 유지)
   overlay.addEventListener('click', e => {
