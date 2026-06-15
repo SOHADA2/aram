@@ -189,6 +189,7 @@
   </div>
   <div class="note">
     <b>실제로 손가락/마우스로 긁어보세요.</b> 위 <b>✋ 맨손 ↔ 🔑 만능 긁개</b>를 바꿔가며 차이를 느껴보세요.<br>
+    💀 <b>해골은 가운데 문양을 다 긁어야 "발견"으로 처리</b>돼요 — 긁다가 해골 형태가 보이면 멈추면 안 들킨 셈! (조심스럽게 긁는 재미)<br>
     같은 문양이 매칭(실버 2개·골드/프리즘 3개)되면 디스크가 골드로 빛나요(✨). · <b>다시 덮기</b>로 재시도
   </div>
 
@@ -203,8 +204,8 @@
   // 🔑 도구: 맨손 vs 만능 긁개 (실제 앱 brushMult/threshold 반영)
   //  맨손: brushMult 1.0, threshold 0.55 (많이 긁어야 공개) / 만능: brushMult 3.0, threshold 0.28 (조금만 긁어도 공개)
   const TOOLS = {
-    none:{ mult:1.0, thr:0.67, label:'✋ 맨손', desc:'아주 작은 브러시 · <b>67%</b> 긁어야 공개 — 칸을 구석구석 한참 꼼꼼히 긁어야 해요' },
-    key: { mult:1.9, thr:0.47, label:'🔑 만능 긁개', desc:'브러시 <b>약 1.9배</b> · <b>47%</b> 긁으면 공개 — 훨씬 빠르고 편해요 (그래도 한 번에 다 긁히진 않아요)' },
+    none:{ mult:1.0, thr:0.80, label:'✋ 맨손', desc:'아주 작은 브러시 · <b>가운데 문양을 거의 다 긁어야</b> 공개 — 해골 형태가 보이면 멈추세요!' },
+    key: { mult:1.9, thr:0.70, label:'🔑 만능 긁개', desc:'브러시 <b>약 1.9배</b> · 가운데 문양을 충분히 긁으면 공개 — 빠르지만 신중히' },
   };
   const BASE_R = 0.07;   // 기본 브러시 반지름 비율(맨손, 더 작게). 만능은 ×mult
   let TOOL='none';
@@ -243,7 +244,12 @@
     ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x1,y1);ctx.stroke();
     for(let i=0;i<3;i++){const ox=(Math.random()-0.5)*r*1.6,oy=(Math.random()-0.5)*r*1.6;ctx.beginPath();ctx.arc(x1+ox,y1+oy,r*(0.3+Math.random()*0.4),0,Math.PI*2);ctx.fill();}
     ctx.globalCompositeOperation='source-over'; }
-  function clearedRatio(ctx,w,h){ try{const d=ctx.getImageData(0,0,w,h).data;let cl=0,tot=0;for(let i=3;i<d.length;i+=4*7){tot++;if(d[i]<40)cl++;}return cl/tot;}catch(e){return 0;} }
+  // 공개 판정은 디스크 "가운데 문양 영역(중앙 52%)"만 본다 — 문양이 충분히 드러나야 공개로 침.
+  // (가장자리만 긁어선 공개 안 됨 → 해골 형태가 보이면 멈출 수 있어 조심스럽게 긁게 됨)
+  function clearedRatio(ctx,w,h){
+    const x0=Math.floor(w*0.24),y0=Math.floor(h*0.24),bw=Math.max(1,Math.floor(w*0.52)),bh=Math.max(1,Math.floor(h*0.52));
+    try{const d=ctx.getImageData(x0,y0,bw,bh).data;let cl=0,tot=0;for(let i=3;i<d.length;i+=4*5){tot++;if(d[i]<40)cl++;}return cl/tot;}catch(e){return 0;}
+  }
   function revealDisc(disc,cv){ if(cv._done)return;cv._done=true;disc.classList.add('done'); if(disc.dataset.win) disc.classList.add('win'); }
 
   function initDisc(disc){
