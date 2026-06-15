@@ -6511,7 +6511,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.108';
+const APP_VERSION = 'v2.45.109';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6520,6 +6520,10 @@ const APP_VERSION = 'v2.45.108';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.109', date: '2026-06-15', changes: [
+    { tag: 'improve', text: '🎟 스크래치 복권 "긁는 느낌"을 목업과 동일하게 전면 개선 — 기존엔 반투명(alpha 0.85)으로 벗겨져 흐릿하고 스크래치 느낌이 안 났는데, 목업처럼 한 번 그으면 확실히 벗겨지도록(완전 불투명 destination-out + 끝점 부스러기 청크) 바꿈. 브러시를 셀 크기 비례(폭×0.062×배율)로, 캔버스를 DPR 선명화, 공개 판정을 "가운데 문양이 완전히 벗겨진 비율"(alpha<40) 기준으로 목업과 정합. 🔑 만능 긁개는 목업과 똑같이 브러시 ~2배(2.15)·문양 충분히 긁으면 공개(0.70)로 맞춰 맨손과 차이가 확실해짐(부스러기도 2배)' },
+    { tag: 'fix', text: '🔑 복권을 보류했다가 이어 긁을 때 긁기 도구(동전/만능 긁개)가 적용 안 되고 맨손으로 떨어지던 문제 수정 — 보류 시 쓰던 도구를 기록해 이어하기에서 그대로 복원' },
+  ] },
   { ver: 'v2.45.108', date: '2026-06-15', changes: [
     { tag: 'fix', text: '🔧 스크래치 복권 "?" 도움말이 너무 크게 열려 화면 밖으로 넘쳐 안 보이고 닫지도 못하던 문제 수정 — 확률표가 들어가며 패널이 길어져 모달이 화면보다 커졌었음. 모달 자체에 최대 높이(92vh)+스크롤 적용해 화면을 벗어나지 않게 하고, 도움말 패널 높이를 제한, 확률표를 2열로 컴팩트하게 배치해 한눈에 보이도록 함' },
   ] },
@@ -24508,8 +24512,9 @@ const SCRATCH_TIERS = [
 // 긁기 도구: brushMult = 브러시 반지름 배율, threshold = 공개 임계값(기본 0.45)
 // v2.43.109~: 기본 임계값 ↑에 맞춰 도구 임계값도 비례 조정
 const SCRATCH_TOOLS = {
-  scratch_coin: { brushMult: 1.8, threshold: 0.52 }, // 브러시 1.8배 + 더 쉽게(중앙 기준)
-  scratch_key:  { brushMult: 2.4, threshold: 0.42 }, // 🔑 브러시 2.4배 + 확 쉽게(중앙 42%) — 맨손(0.6)과 확실히 차이
+  // 목업과 동일 스케일 (clearedRatio = 중앙이 '완전히' 벗겨진 비율, alpha<40) — 맨손 mult 1.0/thr 0.83
+  scratch_coin: { brushMult: 1.6, threshold: 0.78 }, // 🪙 동전 — 맨손과 만능 사이
+  scratch_key:  { brushMult: 2.15, threshold: 0.70 }, // 🔑 만능 긁개 — 목업과 정확히 동일(브러시 ~2배·문양 충분히 긁으면 공개)
 };
 
 // v2.43.110~ 출연 확률(appear) 독립 추첨 + 모든 슬롯 무조건 심볼 + 사후 매칭 판정
@@ -25861,6 +25866,7 @@ window._lhResumeScratch = function(){
     await update(ref(db,'gold/'+key), { lotteryHistory });
   };
   const onSetAside = (revealed) => savePendingScratch({ ...rec, revealed });
+  const toolParams = rec.toolId ? (SCRATCH_TOOLS[rec.toolId] || null) : null;   // 🔑 보류 전 쓰던 긁기 도구(동전/만능) 복원
   const onDiscard = async () => {   // 🗑 쓰레기통에 버림 — 당첨금 지급 X(gold 0), 시도 기록만
     await clearPendingScratch();
     const latestData = getMyGoldData();
@@ -25870,7 +25876,7 @@ window._lhResumeScratch = function(){
     }];
     await update(ref(db,'gold/'+key), { lotteryHistory });
   };
-  showScratchModal(result, getMyGold(), { tierDef, onComplete, onSetAside, onDiscard, isResume:true, resumeRevealed: rec.revealed || [] });
+  showScratchModal(result, getMyGold(), { tierDef, toolParams, onComplete, onSetAside, onDiscard, isResume:true, resumeRevealed: rec.revealed || [] });
 };
 
 /* ── 스크래치 복권 모달 (v2.43.91~ 3티어+해골기믹+긁기도구) ── */
@@ -25885,8 +25891,11 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   // 난이도 완화 (v2.43.104~) — 단일 레이어로 통일, 마지막 레이어 점진 노출 제거 (스크래치 복권과 동떨어진 느낌)
   // 대신 심볼이 처음부터 살짝 비쳐 보임 (CSS .scard-sym-emoji 기본 opacity 0.12 + blur)
   // v2.43.116~ 임계값 0.45 → 0.55 + 한 스트로크 영향력 ↓ (긁기 시간 ~1.7배 슬로다운)
-  const brushRadius = Math.round(14 * (toolParams?.brushMult ?? 1.0));
-  const revealThreshold = toolParams?.threshold ?? 0.6;   // 맨손: 가운데 문양 60% 긁으면 공개(잘 긁히되 조심은 유지)
+  // 🎟 목업과 동일한 긁기 모델 (v2.45.109~): 완전 벗겨짐(destination-out alpha 1.0) + 청크 아크 + DPR 선명화
+  const SCRATCH_DPR = Math.min(window.devicePixelRatio || 1, 2);
+  const SCRATCH_BASE_R = 0.062;                            // 브러시 반지름 = 캔버스폭 × 0.062 × 도구배율 (맨손 기준, 목업 동일)
+  const brushMult = toolParams?.brushMult ?? 1.0;          // 맨손 1.0 / 동전 1.6 / 만능 2.15
+  const revealThreshold = toolParams?.threshold ?? 0.83;   // 맨손: 가운데 문양 거의 다 긁어야 공개 (목업 동일)
   const CELL_LAYERS = 1;
   const LAYER_THRESHOLD = 0.28; // 미사용
   // 제목은 그라데이션 클립 텍스트라 이모지를 같이 넣으면 이모지가 잘려 이상하게 보임 → 이모지는 별도 span(클립 밖)으로 분리
@@ -26001,8 +26010,8 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     const canvas = cellEl.querySelector('canvas');
     const symEl  = cellEl.querySelector('.scard-sym-emoji');
     const sym    = slots[idx];
-    canvas.width  = cellEl.offsetWidth  || 90;
-    canvas.height = cellEl.offsetHeight || 72;
+    canvas.width  = Math.round((cellEl.offsetWidth  || 90) * SCRATCH_DPR);  // DPR 선명화 (CSS는 100%로 셀에 맞춤)
+    canvas.height = Math.round((cellEl.offsetHeight || 72) * SCRATCH_DPR);
     const ctx2d = canvas.getContext('2d', { willReadFrequently: true });
     _scardDrawCover(ctx2d, canvas.width, canvas.height, CELL_LAYERS, activeTier.idx);
     return { cellEl, canvas, ctx: ctx2d, symEl, sym, revealed: false, scratching: false,
@@ -26022,39 +26031,34 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
 
   // v2.43.102~ 실제 복권 긁기 느낌 — 다중 라인(메인 + ±오프셋) + 가루 파티클
   // v2.43.120~ 스트로크당 영향력 추가 ↓ (메인 0.40→0.30, 가장자리 0.20→0.12)
-  function scratchLine(c2d, x1, y1, x2, y2) {
+  // 🎟 목업과 동일 — 한 번 그으면 확실히 벗겨지는 긁기 (destination-out 완전 불투명 + 끝점 청크 아크)
+  function scratchLine(c2d, x1, y1, x2, y2, r) {
     c2d.globalCompositeOperation = 'destination-out';
     c2d.lineCap = 'round'; c2d.lineJoin = 'round';
-    // 메인 라인 — 깔끔하게 벗겨지는 느낌(진짜 복권). alpha 0.30→0.85
-    c2d.globalAlpha = 0.85;
-    c2d.lineWidth = brushRadius * 2;
+    c2d.globalAlpha = 1.0;
+    c2d.strokeStyle = 'rgba(0,0,0,1)'; c2d.fillStyle = 'rgba(0,0,0,1)';
+    c2d.lineWidth = r * 2;
     c2d.beginPath(); c2d.moveTo(x1, y1); c2d.lineTo(x2, y2); c2d.stroke();
-    // 거친 가장자리 — 너덜너덜한 자국
-    c2d.globalAlpha = 0.4;
-    c2d.lineWidth = brushRadius * 0.8;
-    for (let i = 0; i < 2; i++) {
-      const ox = (Math.random() - 0.5) * brushRadius * 1.4;
-      const oy = (Math.random() - 0.5) * brushRadius * 1.4;
-      c2d.beginPath();
-      c2d.moveTo(x1 + ox, y1 + oy);
-      c2d.lineTo(x2 + ox, y2 + oy);
-      c2d.stroke();
+    // 끝점 주변 청크(부스러기) — 너덜너덜 떨어져 나가는 느낌
+    for (let i = 0; i < 3; i++) {
+      const ox = (Math.random() - 0.5) * r * 1.6, oy = (Math.random() - 0.5) * r * 1.6;
+      c2d.beginPath(); c2d.arc(x2 + ox, y2 + oy, r * (0.3 + Math.random() * 0.4), 0, Math.PI * 2); c2d.fill();
     }
-    c2d.globalAlpha = 1.0; c2d.globalCompositeOperation = 'source-over';
+    c2d.globalCompositeOperation = 'source-over';
   }
 
   // 가루 파티클 — 긁힌 자리에서 작은 점 1~2개가 짧게 떨어짐
-  function spawnDust(canvas, x, y) {
+  function spawnDust(canvas, x, y, mult = 1) {
     const r = canvas.getBoundingClientRect();
     const sx = r.left + (x / canvas.width)  * r.width;
     const sy = r.top  + (y / canvas.height) * r.height;
     // 🥈🥇🌈 티어별 부스러기 색 (실버/골드/프리즘)
     const PAL = [['#eef3f7','#cfd9e0','#aab6bf','#ffffff'], ['#fff3c8','#f0d98a','#d4a843','#b8860b'], ['#ff9ad8','#9ad0ff','#c0ffb0','#fff0a0','#ffffff']];
     const cols = PAL[activeTier.idx] || PAL[0];
-    const n = 3 + (Math.random() * 2 | 0);
+    const n = (3 + (Math.random() * 2 | 0)) * (mult >= 2 ? 2 : 1);   // 🔑 만능 긁개(2.15)만 부스러기 2배 — 손과 확실히 구분
     for (let i = 0; i < n; i++) {
       const d = document.createElement('div');
-      const sz = 2.5 + Math.random() * 3;
+      const sz = (2.5 + Math.random() * 3) * (mult >= 2 ? 1.3 : 1);
       d.style.cssText = `position:fixed;left:${sx}px;top:${sy}px;width:${sz}px;height:${sz*0.8}px;background:${cols[Math.random()*cols.length|0]};opacity:0.92;border-radius:1.5px;pointer-events:none;z-index:3110;will-change:transform,opacity;`;
       document.body.appendChild(d);
       const ang = -Math.PI/2 + (Math.random()-0.5)*1.7, spd = 22 + Math.random()*40;
@@ -26070,9 +26074,10 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   function scratchAt(st, x, y) {
     if (st.revealed || allDone) return;
     hintEl.style.opacity = '0';
-    scratchLine(st.ctx, st.prevX ?? x, st.prevY ?? y, x, y);
-    // 부스러기 파티클 (벗겨짐 느낌 ↑)
-    if (Math.random() < 0.5) spawnDust(st.canvas, x, y);
+    const r = st.canvas.width * SCRATCH_BASE_R * brushMult;   // 캔버스 해상도(DPR 반영) 기준 브러시 반지름
+    scratchLine(st.ctx, st.prevX ?? x, st.prevY ?? y, x, y, r);
+    // 부스러기 파티클 (벗겨짐 느낌 ↑) — 만능 긁개는 더 많이·크게
+    if (Math.random() < 0.5) spawnDust(st.canvas, x, y, brushMult);
     // 긁기 효과음 — 80ms throttle (너무 자주 울리지 않도록, v2.43.104~)
     const _now = performance.now();
     if (_now - _scratchSndAt > 80) { _scratchSndAt = _now; _lscPlaySound('scratch'); }
@@ -26089,14 +26094,15 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     if (st.revealed) return;
     // v2.45.102~ 공개 판정은 "가운데 문양 영역(중앙 52%)"만 본다.
     // 가장자리만 긁어선 공개 안 됨 → 해골은 가운데를 충분히 긁어야 "발견"으로 처리(조심스럽게 긁는 긴장감).
+    // v2.45.109~ 목업과 동일 — 가운데 문양(중앙 52%)이 "완전히" 벗겨진 비율만 본다 (alpha<40, 5px마다 샘플)
     const w = st.canvas.width, h = st.canvas.height;
     const x0 = Math.floor(w*0.24), y0 = Math.floor(h*0.24);
     const bw = Math.max(1, Math.floor(w*0.52)), bh = Math.max(1, Math.floor(h*0.52));
-    const d = st.ctx.getImageData(x0, y0, bw, bh).data;
-    let cleared = 0;
-    for (let i = 3; i < d.length; i += 4) if (d[i] < 120) cleared++;
-    const pct = cleared / (bw * bh);
-    if (pct >= revealThreshold) revealCell(st);
+    let d;
+    try { d = st.ctx.getImageData(x0, y0, bw, bh).data; } catch (_) { return; }
+    let cleared = 0, total = 0;
+    for (let i = 3; i < d.length; i += 4*5) { total++; if (d[i] < 40) cleared++; }
+    if (total > 0 && cleared / total >= revealThreshold) revealCell(st);
   }
 
   // v2.43.106~ 진행 상태 표시 — 같은 심볼 카운트 + 해골 노출 + net 잠재 금액
@@ -26707,7 +26713,7 @@ async function _buyItemImpl(itemId) {
       const result = rollScratch(tierDef.idx);
       // 무료권은 구매비 0이라 "본전 환급"(emblemRefund)은 미적용. 단, 강화(성능) 당첨금 보너스는 "당첨" 보상이라 적용.
       result.emblemBonus = result.win ? _myLottoPrizeBonus(data) : 0;  // 🪙 강화(성능) 당첨금 보너스 — 당첨 시에만
-      const _mkAside = (revealed) => savePendingScratch({ tierIdx: tierDef.idx, slots: result.slots, win: result.win || null, free: true, emblemBonus: result.emblemBonus || 0, revealed, at: Date.now() });
+      const _mkAside = (revealed) => savePendingScratch({ tierIdx: tierDef.idx, slots: result.slots, win: result.win || null, free: true, emblemBonus: result.emblemBonus || 0, toolId: activeTool?.id || null, revealed, at: Date.now() });
       await _mkAside([]);   // 🎟 구매 즉시 보류 저장 (밖에 나가도 유지)
       const onComplete = async ({ winGold, skullPenalty }) => {
         await clearPendingScratch();   // 보류 먼저 제거(로컬 즉시) — 중복 이어하기/이중 적립 차단
@@ -26745,7 +26751,7 @@ async function _buyItemImpl(itemId) {
     await update(ref(db,'gold/'+key), { [spentKey]: newGoldSpent });
     const result = rollScratch(tierDef.idx);
     result.emblemBonus = result.win ? _myLottoPrizeBonus(data) : 0;  // 🪙 강화(성능) 당첨금 보너스 — 당첨 시에만
-    const _mkAside = (revealed) => savePendingScratch({ tierIdx: tierDef.idx, slots: result.slots, win: result.win || null, free: false, emblemBonus: result.emblemBonus || 0, revealed, at: Date.now() });
+    const _mkAside = (revealed) => savePendingScratch({ tierIdx: tierDef.idx, slots: result.slots, win: result.win || null, free: false, emblemBonus: result.emblemBonus || 0, toolId: activeTool?.id || null, revealed, at: Date.now() });
     await _mkAside([]);   // 🎟 구매 즉시 보류 저장 (밖에 나가도 유지)
     const onComplete = async ({ winGold, skullPenalty }) => {
       await clearPendingScratch();   // 보류 먼저 제거(로컬 즉시) — 중복 이어하기/이중 적립 차단
