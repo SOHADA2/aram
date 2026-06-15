@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>스크래치 복권 셀 크기 프리뷰</title>
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;background:#0a141d;color:#e6edf2;font-family:'Noto Sans KR',-apple-system,sans-serif;padding:14px 10px 60px;}
+  h1{font-size:16px;text-align:center;margin:6px 0 2px;color:#9ad0ff;}
+  .sub{font-size:11px;text-align:center;color:#7d8a96;margin-bottom:14px;line-height:1.5;}
+  .tabs{display:flex;gap:6px;justify-content:center;margin-bottom:12px;flex-wrap:wrap;}
+  .tab{padding:7px 14px;border-radius:8px;border:1px solid #2a3a48;background:#11212e;color:#aeb9c4;font-size:13px;font-weight:700;cursor:pointer;}
+  .tab.on{background:linear-gradient(135deg,#9ad0ff,#c0ffb0);color:#0a141d;border-color:#fff;}
+  /* 컨트롤 */
+  .ctrl{max-width:520px;margin:0 auto 14px;background:#0e1a24;border:1px solid #233442;border-radius:12px;padding:12px 14px;}
+  .ctrl label{font-size:12px;font-weight:700;display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;}
+  .ctrl label b{color:#ffd76a;font-size:15px;font-family:'JetBrains Mono',monospace;}
+  .ctrl input[type=range]{width:100%;accent-color:#9ad0ff;height:26px;}
+  .readout{font-size:12px;color:#9ad0ff;text-align:center;margin-top:6px;}
+  .readout b{color:#fff;font-family:'JetBrains Mono',monospace;}
+  .hint{font-size:11px;color:#86efac;text-align:center;margin-top:8px;background:rgba(134,239,172,0.08);border:1px solid rgba(134,239,172,0.2);border-radius:8px;padding:7px 10px;line-height:1.55;}
+  /* ── 실제 사이트 모달/그리드 CSS (index.html 발췌) ── */
+  .scard-overlay{position:relative;display:flex;align-items:center;justify-content:center;padding:0;}
+  .scard-modal{position:relative;width:100%;max-width:520px;display:flex;flex-direction:column;border-radius:14px;overflow:hidden;
+    background:radial-gradient(ellipse 80% 55% at 50% 0%,#1c3445,transparent 60%),linear-gradient(160deg,#16242f,#0a141d);
+    border:1px solid #2a3a48;box-shadow:0 24px 64px rgba(0,0,0,0.9);}
+  .scard-head{text-align:center;padding:10px;font-weight:800;font-size:15px;letter-spacing:1px;border-bottom:1px solid #233442;}
+  .scard-left{padding:14px 12px 12px;display:flex;flex-direction:column;gap:8px;}
+  .scard-grid{display:grid;gap:7px;padding:4px 0;justify-content:center;align-content:center;}
+  /* tier-0 실버 */
+  .scard-grid.tier-0{grid-template-columns:repeat(6,minmax(0,1fr));}
+  .scard-grid.tier-0>.scard-cell:nth-child(1){grid-column:1/span 3;grid-row:1;}
+  .scard-grid.tier-0>.scard-cell:nth-child(2){grid-column:4/span 3;grid-row:1;}
+  .scard-grid.tier-0>.scard-cell:nth-child(3){grid-column:1/span 3;grid-row:2;}
+  .scard-grid.tier-0>.scard-cell:nth-child(4){grid-column:4/span 3;grid-row:2;}
+  /* tier-1 골드 */
+  .scard-grid.tier-1{grid-template-columns:repeat(3,minmax(0,1fr));}
+  /* tier-2 프리즘 */
+  .scard-grid.tier-2{grid-template-columns:repeat(3,minmax(0,1fr)) clamp(48px,15vw,76px);gap:9px clamp(12px,3.4vw,22px);align-items:center;justify-items:center;}
+  .scard-grid.tier-2>.scard-cell{width:100%;}
+  .scard-grid.tier-2>.scard-cell:nth-child(1){grid-column:1;grid-row:1;}
+  .scard-grid.tier-2>.scard-cell:nth-child(2){grid-column:2;grid-row:1;}
+  .scard-grid.tier-2>.scard-cell:nth-child(3){grid-column:3;grid-row:1;}
+  .scard-grid.tier-2>.scard-cell:nth-child(4){grid-column:1;grid-row:2;}
+  .scard-grid.tier-2>.scard-cell:nth-child(5){grid-column:2;grid-row:2;}
+  .scard-grid.tier-2>.scard-cell:nth-child(6){grid-column:3;grid-row:2;}
+  .scard-grid.tier-2>.scard-cell:nth-child(7){grid-column:4;grid-row:1/span 2;align-self:center;}
+  /* 셀 — 원형 동전(긁는 부분) */
+  .scard-cell{position:relative;aspect-ratio:1/1;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;font-size:22px;}
+  /* 실버 */
+  .tier-0 .scard-cell{background:radial-gradient(circle at 32% 28%,#eef3f7,#aab6bf 75%,#7d8a94);box-shadow:0 0 0 3px rgba(255,255,255,0.5) inset,0 0 0 4px #9aa7b2,0 0 0 6px #6f7d88,0 5px 12px -4px rgba(0,0,0,0.6);}
+  /* 골드 */
+  .tier-1 .scard-cell{background:radial-gradient(circle at 32% 28%,#fff3c8,#e0b352 75%,#a8801f);box-shadow:0 0 0 3px rgba(255,255,255,0.5) inset,0 0 0 4px #d4a843,0 0 0 6px #9a6f1a,0 5px 12px -4px rgba(0,0,0,0.6);}
+  /* 프리즘 — 원형 + 프리즘 링 */
+  .tier-2 .scard-cell{background:radial-gradient(circle at 30% 25%,rgba(255,210,245,0.6),transparent 45%),radial-gradient(circle at 72% 70%,rgba(150,200,255,0.5),transparent 48%),radial-gradient(circle at 50% 50%,#3a1a52,#22103a 52%,#0a0614);box-shadow:0 0 0 3px rgba(255,255,255,0.5) inset,0 0 0 4px #c9a6e8,0 0 0 6px #8a5ad0,0 0 12px 1px rgba(190,120,255,0.42),0 6px 14px -4px rgba(0,0,0,0.55);}
+  .tier-2 .scard-cell:nth-child(7){box-shadow:0 0 0 3px rgba(255,255,255,0.65) inset,0 0 0 4px #ecc8ff,0 0 0 6px #a05ad0,0 0 16px 2px rgba(232,121,249,0.55),0 6px 14px -4px rgba(0,0,0,0.55);}
+  .scard-cell .sym{opacity:0.55;filter:blur(1px);}
+  .scard-cell .lbl{position:absolute;bottom:8%;font-size:8px;letter-spacing:1px;color:rgba(0,0,0,0.45);font-weight:800;}
+  .tier-1 .scard-cell .lbl,.tier-2 .scard-cell .lbl{display:none;}
+  /* 그리드 폭 표시 가이드라인 */
+  .scard-grid{outline:1px dashed rgba(154,208,255,0.25);outline-offset:3px;}
+</style>
+</head>
+<body>
+  <h1>🎟 스크래치 복권 셀 크기 프리뷰</h1>
+  <div class="sub">슬라이더로 <b>그리드 폭</b>을 조절해 보세요. 점선 = 그리드 영역, 원 = 긁는 칸.<br>마음에 드는 폭을 찾으면 아래 <b>숫자(px)</b>를 저에게 알려주세요. (모달 최대폭 520px 동일)</div>
+
+  <div class="tabs">
+    <button class="tab on" data-t="0">🥈 실버 (4칸)</button>
+    <button class="tab" data-t="1">🥇 골드 (6칸)</button>
+    <button class="tab" data-t="2">🌈 프리즘 (7칸)</button>
+  </div>
+
+  <div class="ctrl">
+    <label>그리드 폭 (max-width) <b id="gwval">없음(=모달 꽉참)</b></label>
+    <input type="range" id="gw" min="200" max="520" step="10" value="520">
+    <div class="readout">실제 셀 크기 ≈ <b id="cellsz">—</b> · 칸 사이 간격 <b id="gapsz">7px</b></div>
+    <div class="hint" id="hint">520 = 현재 라이브(상한 없음). 왼쪽으로 줄이면 칸이 작아지고 간격이 넓어져요.</div>
+  </div>
+
+  <div class="scard-overlay">
+    <div class="scard-modal">
+      <div class="scard-head" id="head">🥈 실버 복권</div>
+      <div class="scard-left">
+        <div class="scard-grid tier-0" id="grid"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const TIER = { 0:{cells:4,name:'🥈 실버 복권',gap:7}, 1:{cells:6,name:'🥇 골드 복권',gap:7}, 2:{cells:7,name:'🌈 프리즘 복권',gap:'9 / 12~22'} };
+  const SYM = ['👑','💎','⭐','🌙','🍀','🛡️','⚔️'];
+  let curT = 0;
+  const grid = document.getElementById('grid'), head = document.getElementById('head');
+  const gw = document.getElementById('gw'), gwval = document.getElementById('gwval'), cellsz = document.getElementById('cellsz'), gapsz = document.getElementById('gapsz'), hint = document.getElementById('hint');
+
+  function render(){
+    const t = TIER[curT];
+    grid.className = 'scard-grid tier-' + curT;
+    head.textContent = t.name;
+    gapsz.textContent = (curT===2) ? '9 / 12~22px' : '7px';
+    grid.innerHTML = '';
+    for(let i=0;i<t.cells;i++){
+      const c = document.createElement('div');
+      c.className = 'scard-cell';
+      c.innerHTML = `<span class="sym">${(curT===2&&i===6)?'💗':SYM[i%SYM.length]}</span>${curT===0?'<span class="lbl">SCRATCH</span>':''}`;
+      grid.appendChild(c);
+    }
+    applyW();
+  }
+  function applyW(){
+    const v = +gw.value;
+    if(v>=520){ grid.style.maxWidth=''; grid.style.margin=''; gwval.textContent='없음(=모달 꽉참)'; }
+    else { grid.style.maxWidth=v+'px'; grid.style.margin='0 auto'; gwval.textContent=v+'px'; }
+    requestAnimationFrame(()=>{
+      const cell = grid.querySelector('.scard-cell');
+      cellsz.textContent = cell ? Math.round(cell.getBoundingClientRect().width)+'px' : '—';
+    });
+    hint.textContent = v>=520 ? '520 = 현재 라이브(상한 없음). 왼쪽으로 줄이면 칸이 작아지고 간격이 넓어져요.'
+      : `이 폭이 좋으면 "${curT===0?'실버':curT===1?'골드':'프리즘'} ${v}" 라고 알려주세요.`;
+  }
+  document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); curT=+b.dataset.t; render();
+  });
+  gw.oninput = applyW;
+  window.addEventListener('resize', applyW);
+  render();
+</script>
+</body>
+</html>
