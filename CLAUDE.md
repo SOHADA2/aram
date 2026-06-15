@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.45.122 (🌌 **시즌2 라이브 중 2026-06-10~** — 최근: 🎟 스크래치 복권 목업 정합·레이아웃 다듬기(셀 간격·비율·안내문 하단), 🔑 만능 긁개 모달 내 장착/해제 토글, 🟡 패스 탭 수령가능 닷 버그 수정, 🥈 실버 복권 강화 당첨보너스 차단(EV 음수 유지). 브릿지 **v1.1.35**. 시즌2 라이브 `switchSeason(2)` 완료. 상세는 아래 세션 이력 v2.45.115~122)
+- 현재 버전: v2.45.124 (🌌 **시즌2 라이브 중 2026-06-10~** — 최근: 🎟 복권 긁기 원 밖 끊김 수정(window 바인딩)·뒷배경 스크롤 락(MutationObserver 복원), 🐱 유미 걸작 효과(파견/휴식 단축) 박제 동작 검증. 그 전 복권 목업 정합·만능긁개 모달토글·패스닷 버그·EV 검증. 브릿지 **v1.1.35**. 시즌2 라이브 `switchSeason(2)` 완료. 상세는 아래 세션 이력 v2.45.123~124 + v115~122)
   - ⏳ **레벨 시스템 후속**: ① 패스를 일반/내전 포인트패스 → **S1식 퀘스트 패스(내전 전용)로 되돌리기**(미완) ② 레벨 보상량/곡선 실플레이 튜닝. 레벨 코드맵: `PLV_XP`·`calcPlayerXp`·`plvLevelFromXp`·`plvReward`·`claimPlayerLevels`·`_plvCardHtml`(패스 탭 상단). 데이터 `playerLevelClaimed_s2`. 정수: 경기당+1·상점120G 폐지(레벨업만).
 - ✅ **시즌2 라이브 중** (2026-06-10~) — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 + 세션이력 v2.45.38~49 필독
 
@@ -736,7 +736,15 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.45.115~122 (2026-06-15~16) — 🎟 스크래치 복권 목업 정합·레이아웃 다듬기 + 만능긁개 모달 토글 + 패스닷 버그 + 복권 EV 검증 ← 최신
+### v2.45.123~124 (2026-06-16) — 🎟 스크래치 복권 긁기 끊김 수정(window 바인딩) + 뒷배경 스크롤 락 + 🐱 유미 걸작 효과 검증 ← 최신
+
+> 사용자 제보 2건. 전부 푸시 완료. CHANGELOG/커밋 규칙 동일(주석줄 매칭·모듈 node --check `&&` 게이트).
+
+- **v123 🎟 긁기 원 밖 끊김 수정**: 긁기 이벤트가 각 칸 캔버스에만 `pointerdown/move/up`+`setPointerCapture`로 묶여, 셀(원) 밖으로 드래그 시 일부 환경에서 캡처 풀려 끊김. → **`pointermove`/`pointerup`을 window에 바인딩**(`_activeScratch`로 시작 칸 기억) → 어디로 나가든 그 칸 계속 긁힘. `setPointerCapture`는 유지(이중안전). 모달 닫히면 `document.body.contains(overlay)` 체크로 리스너 자동 정리. 코드 ~L26430(showScratchModal 내 바인딩).
+- **v124 🎟 뒷배경 스크롤 버그**: 복권 모달(`showScratchModal`)만 **body 스크롤 락이 없었음**. → 열 때 `document.body.style.overflow='hidden'`(~L26086) + 모달 `overscroll-behavior:contain`(~L2736 오버레이·~L3109 season-2 모달). 닫는 경로가 8곳(`overlay.remove()`)+`_closeTicket`이라, **MutationObserver로 오버레이 제거 감지→락 복원**(한 곳에서 처리, 8곳 안 건드림). ⚠️ 전체 파일에 `overlay.remove();` 16개(다른 모달 8개 포함)라 전역 치환 금지 → observer 방식 채택.
+- **🐱 유미 걸작 효과 검증(코드리뷰만, 변경 없음)**: `yuumiCut`(파견단축)·`yuumiCool`(휴식단축) **정상 적용** 확인. 핵심=**액션 누르는 시점 박제**: 파견(`deployYuumi`)→`f.forageMs`에 `_yuumiForageMs`(장착걸작 기준) 박제, 수령(`collectYuumi`)→`cooldownUntil`에 `_yuumiCooldownMs` 박제. `_yuumiState`가 `f.forageMs||기본` 사용 → **진행 중 장비 빼/교체해도 그 사이클 안 바뀜, 다음 사이클부터 반영**. yuumiCut=파견시점·yuumiCool=수령시점 평가(시점 다름). 하한 30분. 유미 미보유 시 dead line(의도).
+
+### v2.45.115~122 (2026-06-15~16) — 🎟 스크래치 복권 목업 정합·레이아웃 다듬기 + 만능긁개 모달 토글 + 패스닷 버그 + 복권 EV 검증
 
 > 다른 컴퓨터가 v2.45.85~114 진행(스크래치 셀 목업 정합·크기 프리뷰 등). 이 세션은 v2.45.115부터. 전부 푸시·배포 완료. CHANGELOG/커밋 규칙(주석줄만 매칭·모듈 node --check `&&` 게이트) 동일. 배포 검증=매 푸시 후 pages-build-deployment + APP_VERSION 폴링.
 
