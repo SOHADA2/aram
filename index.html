@@ -6425,7 +6425,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.90';
+const APP_VERSION = 'v2.45.91';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6434,6 +6434,9 @@ const APP_VERSION = 'v2.45.90';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.91', date: '2026-06-15', changes: [
+    { tag: 'improve', text: '🛡️🪙 강철심장 걸작 "해골 감소" 효과 재설계 — (1) 옛 방식은 줄당 성능×3%p 누적이라 고성능에서 한 줄이 -70%까지 차고, 2줄이면 줄 카드가 -140%처럼 보이는 등 직관과 어긋났음. 이제 해골 감소는 줄수 기반(성능 무관): 1줄 -23% / 2줄 -47% / 3줄 -70%로 고정 → 어떤 강화수치+3줄 조합이어도 70%를 넘지 않음. (2) 성능(강화)의 역할은 "당첨금 보너스"로 전환 — 해골감소 줄 보유 시 복권 당첨 시마다 +성능×5G(최대 +150G) 추가 지급. 강화할수록 해골 감소가 아니라 당첨금이 커지는 구조. 대장간·대기화면 효과칩과 복권 결과 화면에 보너스 표기' },
+  ] },
   { ver: 'v2.45.90', date: '2026-06-15', changes: [
     { tag: 'fix', text: '🎰 스크래치 복권 "두 문양 동시 당첨" 버그 수정 — 고급(6칸)·프리미엄(7칸)에서 서로 다른 문양 2종이 동시에 3매칭 나는 경우가 있었음(예: 🍀클로버 ×3 + ⚔️검 ×3). 당첨금은 높은 값으로 정상 지급됐지만 "둘 다 맞았는데 뭐가 당첨이지?" 혼란을 줬음. 다중 매칭 방지 로직이 일반(tier0)에만 걸려 있던 것을 전 티어로 확장 → 이제 항상 한 문양만 매칭(가장 가치 큰 것)으로 깔끔하게 정리(당첨금 동일)' },
     { tag: 'fix', text: '🎰 상점 헤더 스크래치 확률표 툴팁이 옛 시스템(100G·"1일 3장"·왕관 1000G·전 티어 "2개 이상 일치")으로 남아 있던 것 현행화 — 일반 70G 4칸 2개 일치 / 고급 200G 6칸 3개 / 프미 400G 7칸 3개로 정확히 갱신(상세 확률·당첨금은 각 복권 카드 우측 표 안내)' },
@@ -8739,6 +8742,8 @@ function _getToday() {
 //   새 큰 기능을 배포할 때만 최신순 맨 위에 1줄 추가. 다른 컴퓨터에서도 동일 적용.
 const CHANGELOG_MAJOR = [
   // 시크릿 챔피언(유미) 관련 항목은 스포일러 방지로 여기에 넣지 않음
+  { ver:'v2.45.91', date:'2026-06-15', emoji:'🛡️', title:'강철심장 "해골 감소" 재설계 — 강화는 당첨금↑',
+    desc:'복권 해골 감소가 줄수 기준으로 깔끔해졌어요 — 1줄 -23% / 2줄 -47% / 3줄 -70%(여기까지가 최대). 강화(성능)는 이제 해골 감소를 더 키우는 대신, 복권에 "당첨"되면 당첨금을 +성능×5G(최대 +150G) 더 얹어줘요. 즉 해골감소 줄을 모으면 더 안전해지고, 강화할수록 당첨금이 커지는 구조예요. 대장간·대기화면 효과칩과 복권 결과창에서 보너스를 확인하세요.' },
   { ver:'v2.45.85', date:'2026-06-14', emoji:'⚡', title:'강철심장 LP 효과 — 발동 확률제로 변경',
     desc:'승리 LP·패배 방어가 "강화할수록 자주 발동"하는 확률 방식으로 바뀌었어요. 효과량은 걸작 줄당 ±2(최대 ±6)로 고정되고, 강화(성능)는 발동 확률을 올립니다(최대 70%). 패배 방어도 확률이라 가끔은 그대로 잃어요 — 한 판 한 판이 더 의미있어집니다. 이미 강화한 강철심장은 대장간·대기화면에서 "발동 N%"로 확인하세요.' },
   { ver:'v2.45.77', date:'2026-06-11', emoji:'💍', title:'결혼 축하 메시지 이벤트',
@@ -9005,11 +9010,22 @@ function emblemLocked(em)    { return emblemSlotsUsed(em) >= EMBLEM_SLOTS; }
 function emblemEffects(power){
   return { glow: power<=0 ? 'none' : power<10 ? 'silver' : power<25 ? 'gold' : 'prismatic' };
 }
-// 🛡️ 해골 감소 = 본인 복권의 해골 출현 확률을 감소. 줄 1개당 성능×3%p, 같은 효과 줄을 모을수록 강해짐(다른 효과와 동일), 총 상한 -70%.
-//   고급·프리미엄 복권이 더 안전해짐. 골드를 새로 풀지 않아(손실 완화) 인플레 없음.
-const LOTTO_SKULL_K = 0.03;
+// 🛡️ 해골 감소 = 본인 복권의 해골 출현 확률 감소. 줄수 기반(성능 무관) — 줄당 70%/3(≈23.3%p), 3줄 합 -70%(상한).
+//   어떤 강화수치 + 3줄 조합이어도 70%를 넘지 못함(옛 줄당×성능 누적으로 카드상 140%처럼 보이던 문제 해소).
+//   고급·프리미엄 복권이 더 안전해짐. 골드 신규 발행 없음(손실 완화).
 const LOTTO_SKULL_CAP = 0.70;
-function _lottoSkullReduce(power){ return power>0 ? Math.min(LOTTO_SKULL_CAP, power*LOTTO_SKULL_K) : 0; } // 줄 1개 기준(표시용)
+const LOTTO_SKULL_PER_LINE = LOTTO_SKULL_CAP / 3;   // 줄당 ≈0.2333 → 1줄 -23% / 2줄 -47% / 3줄 -70%
+function _lottoSkullReduce(lineCnt){ return lineCnt>0 ? Math.min(LOTTO_SKULL_CAP, lineCnt*LOTTO_SKULL_PER_LINE) : 0; }
+// 🪙 강화(성능) 보상 = 해골감소 줄 보유 시, 복권 "당첨" 금액에 +성능×5G(최대 +150G) 추가. (성능이 해골감소를 키우는 대신 당첨금을 올림)
+const LOTTO_PRIZE_PER_POWER = 5;
+function _lottoPrizeBonusG(power){ return power>0 ? Math.min(150, Math.round(power*LOTTO_PRIZE_PER_POWER)) : 0; }
+function _myLottoPrizeBonus(data){
+  if (CURRENT_SEASON !== 2) return 0;
+  const em = getEmblem(data || getMyGoldData()); if (!em) return 0;
+  const lines = Array.isArray(em.lines) ? em.lines : [];
+  if (!lines.includes('lottoTkt')) return 0;        // 해골감소 줄이 있어야 당첨금 보너스 적용
+  return _lottoPrizeBonusG(emblemPower(em));
+}
 // ⚡🛡️ LP 효과(승리/패배방어) = 효과량 고정(줄당 2·최대 6) + 발동확률 성능 비례(보수적: 사다리 보호·강화 보람·리스크 유지)
 const EMBLEM_LP_CHANCE_K = 0.025, EMBLEM_LP_CHANCE_CAP = 0.70; // 발동확률 = 성능×2.5%, 최대 70%(성능 28+)
 function _emblemLpChance(power){ return power>0 ? Math.min(EMBLEM_LP_CHANCE_CAP, power*EMBLEM_LP_CHANCE_K) : 0; }
@@ -9027,7 +9043,7 @@ const EMBLEM_EFFECTS = {
   magollaG: { id:'magollaG', icon:'🎰', name:'막고라 배당',  color:'#f472b6', base:4,   cap:30, perCap:10, fmt:v=>`+${v}%`,  desc:'막고라 베팅 적중 수익 보너스 · 줄당 최대 +10%(3줄 +30%), 줄당값은 강화(성능)할수록 ↑' },
   winLP:    { id:'winLP',    icon:'⚡', name:'승리 LP',      color:'#60a5fa', base:2, cap:6, fmt:v=>`+${v}LP`, desc:'정규전 승리 시 확률 발동 → 추가 LP. 효과량=걸작 줄당 +2(최대 +6), 발동 확률은 강화(성능)할수록 ↑ (최대 70%)' },
   lossLP:   { id:'lossLP',   icon:'🛡️', name:'패배 방어',    color:'#7dd3fc', base:2, cap:6, fmt:v=>`-${v}LP`, desc:'정규전 패배 시 확률 발동 → 잃는 LP 완화. 효과량=걸작 줄당 2(최대 6), 발동 확률은 강화(성능)할수록 ↑ (최대 70%). 확률이라 100% 안전망 아님' },
-  lottoTkt: { id:'lottoTkt', icon:'🛡️', name:'해골 감소', color:'#7dd3fc', base:1, cap:1, fmt:v=>`-${Math.round(v*100)}%`, desc:'복권 해골 출현 확률 감소 · 줄 1개당 성능×3%p, 같은 효과 줄 모을수록 강해짐 (총 최대 -70%) · 고급·프리미엄이 더 안전' },
+  lottoTkt: { id:'lottoTkt', icon:'🛡️', name:'해골 감소', color:'#7dd3fc', base:1, cap:1, fmt:v=>`-${Math.round(v*100)}%`, desc:'복권 해골 출현 확률 감소 · 줄당 -23%p(1줄 -23%/2줄 -47%/3줄 -70%, 성능 무관) · 강화(성능)는 당첨 시 당첨금 +성능×5G(최대 +150G)로 적용 · 고급·프리미엄이 더 안전' },
   yuumiCut:  { id:'yuumiCut',  icon:'🐱', name:'유미 파견', color:'#c4b5fd', base:4, cap:30, perCap:10, fmt:v=>`-${v}분`, desc:'🐱 유미 파견(자동 줍기) 시간 단축 · 줄당 최대 -10분(3줄 -30분, 1시간→30분), 줄당값은 강화(성능)할수록 ↑ · 유미 보유자 전용' },
   yuumiCool: { id:'yuumiCool', icon:'💤', name:'유미 휴식', color:'#a5b4fc', base:4, cap:30, perCap:10, fmt:v=>`-${v}분`, desc:'💤 유미 휴식(파견 후 쿨다운) 시간 단축 · 줄당 최대 -10분(3줄 -30분, 1시간→30분), 줄당값은 강화(성능)할수록 ↑ · 유미 보유자 전용' },
 };
@@ -9065,7 +9081,7 @@ function _healEmblemLines(){
 // 줄 1개 기여값 (성능 비례, 상한 미적용) — 줄 카드 표시용
 function emblemPerLine(eid, power){
   const d = EMBLEM_EFFECTS[eid]; if (!d) return 0;
-  if (eid === 'lottoTkt') return _lottoSkullReduce(power);  // 🛡️ 성능 비례 해골 감소율(줄수 무관)
+  if (eid === 'lottoTkt') return LOTTO_SKULL_PER_LINE;  // 🛡️ 줄당 해골 감소율(≈23%, 성능 무관)
   if (eid === 'winLP' || eid === 'lossLP') return d.base;   // ⚡🛡️ LP 효과량 = 줄당 고정(2, 성능 무관 — 성능은 발동확률에)
   const v = Math.round(d.base * (1 + power*0.1));
   return d.perCap ? Math.min(d.perCap, v) : v;              // 🎰🐱💤 줄당 상한(있으면) — 카드값×줄수=총합 일치 보장
@@ -9079,7 +9095,7 @@ function emblemEffectsOf(em){
   for (const eid of EMBLEM_EFFECT_POOL){
     const cnt = lines.filter(l=>l===eid).length;
     const d = EMBLEM_EFFECTS[eid];
-    if (eid === 'lottoTkt'){ eff[eid] = cnt ? Math.min(LOTTO_SKULL_CAP, cnt * power * LOTTO_SKULL_K) : 0; continue; }  // 🛡️ 줄수×성능 해골 감소율(상한 70%)
+    if (eid === 'lottoTkt'){ eff[eid] = cnt ? Math.min(LOTTO_SKULL_CAP, cnt * LOTTO_SKULL_PER_LINE) : 0; continue; }  // 🛡️ 줄수 기반 해골 감소율(1줄23/2줄47/3줄70%, 성능 무관)
     if (eid === 'winLP' || eid === 'lossLP'){ eff[eid] = cnt ? Math.min(d.cap, cnt * d.base) : 0; continue; }  // ⚡🛡️ 효과량=줄당2(최대6, 성능 무관) · 발동확률 별도(_emblemLpChance)
     // 줄 1개 값을 먼저 반올림(=카드 표시값) → 총합 = 줄값 × 줄수. 카드 합과 총합이 항상 딱 맞음 (v2.44.40)
     // 🎰🐱💤 perCap 있으면 줄당 상한 적용 → cnt×per 가 항상 깔끔(총합 상한에서 어중간하게 안 깎임)
@@ -9881,9 +9897,12 @@ function renderEmblemBody(){
           const effRows = EMBLEM_EFFECT_POOL.filter(eid=>E.eff[eid]>0).map(eid=>{ const d=EMBLEM_EFFECTS[eid];
             const cnt = E.lines.filter(l=>l===eid).length;
             const _isLp = (eid==='winLP'||eid==='lossLP');
+            const _lottoB = (eid==='lottoTkt') ? _lottoPrizeBonusG(E.power) : 0;
             const valHtml = _isLp
               ? `<span class="fg2-eff-num" style="color:${d.color};">${d.fmt(E.eff[eid])} <span style="color:#8b8b97;font-size:9px;">발동 ${_lpCh}%</span></span>`
-              : `<span class="fg2-eff-num" style="color:${d.color};">${d.fmt(E.eff[eid])}</span>`;
+              : _lottoB > 0
+                ? `<span class="fg2-eff-num" style="color:${d.color};">${d.fmt(E.eff[eid])} <span style="color:#34d399;font-size:9px;">🪙당첨 +${_lottoB}G</span></span>`
+                : `<span class="fg2-eff-num" style="color:${d.color};">${d.fmt(E.eff[eid])}</span>`;
             return `<div class="fg2-eff-row"><span class="fg2-eff-lbl">${d.icon} ${d.name}${cnt>1?` <span style="color:#8b8b97;">×${cnt}</span>`:''}</span>${valHtml}</div>`; }).join('')
             || `<div style="font-size:10px;color:#8b8b97;text-align:center;padding:4px;">성능을 올리고 걸작을 맞춰<br>효과를 발동하세요</div>`;
           return `
@@ -10612,7 +10631,9 @@ function _ftPreviewBadge(){
   const lvl = emblemLevel(em), power = emblemPower(em);
   const _lpCh3 = Math.round(_emblemLpChance(power)*100);
   const chips = EMBLEM_EFFECT_POOL.filter(eid=>E.eff[eid]>0).map(eid=>{ const ef=EMBLEM_EFFECTS[eid];
-    const _suf = (eid==='winLP'||eid==='lossLP') ? ' <span style="opacity:.6;">'+_lpCh3+'%</span>' : '';
+    const _lottoB = (eid==='lottoTkt') ? _lottoPrizeBonusG(power) : 0;
+    const _suf = (eid==='winLP'||eid==='lossLP') ? ' <span style="opacity:.6;">'+_lpCh3+'%</span>'
+               : _lottoB>0 ? ' <span style="opacity:.6;color:#34d399;">🪙+'+_lottoB+'G</span>' : '';
     return '<span class="wm-fx-chip" style="display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;margin:2px 3px 0 0;color:'+ef.color+';border:1px solid '+ef.color+'55;">'+ef.icon+' '+ef.fmt(E.eff[eid])+_suf+'</span>'; }).join('');
   return '<div class="ft-prevbox"><div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px;"><span style="color:#ffd24a;font-weight:800;font-size:12.5px;">🔨 강철심장 +'+lvl+'</span><span style="font-size:10px;color:#8b8b97;font-family:\'JetBrains Mono\',monospace;">성능 '+power+'</span></div><div>'+(chips||'<span style="font-size:10.5px;color:#8b8b97;">걸작을 맞추면 효과가 표시돼요</span>')+'</div></div>';
 }
@@ -23095,7 +23116,9 @@ async function renderS1WaitingCard(el) {
       const _lpCh2 = Math.round(_emblemLpChance(pw)*100);
       const chips = EMBLEM_EFFECT_POOL.filter(eid => E.eff[eid] > 0).map(eid => {
         const ef = EMBLEM_EFFECTS[eid];
-        const _suf = (eid==='winLP'||eid==='lossLP') ? ` <span style="opacity:.6;">${_lpCh2}%</span>` : '';
+        const _lottoB = (eid==='lottoTkt') ? _lottoPrizeBonusG(pw) : 0;
+        const _suf = (eid==='winLP'||eid==='lossLP') ? ` <span style="opacity:.6;">${_lpCh2}%</span>`
+                   : _lottoB>0 ? ` <span style="opacity:.6;color:#34d399;">🪙+${_lottoB}G</span>` : '';
         return `<span class="wm-fx-chip" style="color:${ef.color};border-color:${ef.color}55;">${ef.icon} ${ef.fmt(E.eff[eid])}${_suf}</span>`;
       }).join('') || `<span class="wm-fx-none">효과 없음 · 대장간에서 강화</span>`;
       emCell = `<div class="wm-fx-cell">
@@ -25867,7 +25890,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
       const matched = topCnt >= matchCount;
       progEl.classList.toggle('matched', matched);
       if (matched) {
-        const net = symDef.gold - skullLoss;
+        const net = symDef.gold - skullLoss + (scratchResult.emblemBonus || 0);
         const netCls = net >= 0 ? 'win' : 'loss';
         html = `<span class="pp-sym">${symDef.emoji} ×${topCnt} 매칭!</span> <span class="pp-net ${netCls}">${net >= 0 ? '+' : ''}${net}G</span>`;
         if (skullCount > 0) html += ` <span class="pp-skull">💀 ×${skullCount} (-${skullLoss}G)</span>`;
@@ -25921,14 +25944,18 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     const confirmEl = overlay.querySelector('#scard-confirm');
     const skullPenalty = activeTier.skullPenalty * revealedSkulls;
     const emblemRefund = scratchResult.emblemRefund || 0; // 🔷 시즌2 엠블럼 꽝→본전 환급
+    const emblemBonus = scratchResult.emblemBonus || 0;   // 🪙 강화(성능) 당첨금 보너스
     const winGold = win ? win.gold : 0;
-    const netGold = winGold - skullPenalty + emblemRefund;
+    const netGold = winGold - skullPenalty + emblemRefund + emblemBonus;
     const finalBalance = remainingGold + netGold;
 
     if (win) {
       cellState.forEach(st => { if (st.sym.id === win.id) st.cellEl.classList.add('win-cell'); });
+      const _bonusInline = emblemBonus > 0 ? ` <span style="color:#34d399;">🪙 강화 +${emblemBonus}G</span>` : '';
       if (skullPenalty > 0) {
-        resultEl.innerHTML = `${win.emoji}${win.emoji} ${win.name} 당첨 +${win.gold}G<br><span style="font-size:11px;color:#ef4444;">💀 해골 패널티 -${skullPenalty}G → 실수령 ${netGold >= 0 ? '+' : ''}${netGold}G</span>`;
+        resultEl.innerHTML = `${win.emoji}${win.emoji} ${win.name} 당첨 +${win.gold}G${_bonusInline}<br><span style="font-size:11px;color:#ef4444;">💀 해골 패널티 -${skullPenalty}G → 실수령 ${netGold >= 0 ? '+' : ''}${netGold}G</span>`;
+      } else if (emblemBonus > 0) {
+        resultEl.innerHTML = `${win.emoji}${win.emoji} ${win.name} 당첨! +${win.gold}G <span style="color:#34d399;font-size:12px;">🪙 강화 보너스 +${emblemBonus}G</span> → +${netGold}G`;
       } else {
         resultEl.textContent = `${win.emoji}${win.emoji} ${win.name} 일치 — 당첨! +${win.gold}G`;
       }
@@ -26371,6 +26398,7 @@ async function _buyItemImpl(itemId) {
     // 테스트 모드: 골드 차감·결과 저장 모두 skip (v2.43.100~)
     if (SCRATCH_LOTTERY_TESTMODE) {
       const result = rollScratch(tierDef.idx);
+      result.emblemBonus = result.win ? _myLottoPrizeBonus(data) : 0;  // 🪙 표시 일관성(저장 X)
       showScratchModal(result, currentGold, { tierDef, toolParams, onComplete: async () => {} });
       return;
     }
@@ -26380,13 +26408,15 @@ async function _buyItemImpl(itemId) {
       ft[tierDef.idx] = Math.max(0, (ft[tierDef.idx] || 0) - 1);
       await update(ref(db,'gold/'+key), { [sField('freeScratch')]: ft });
       const result = rollScratch(tierDef.idx);
-      // 무료권은 구매비 0이라 "본전 환급" 개념이 없음 → 엠블럼 복권 부스트 미적용 (의도, v2.44.3 리뷰)
+      // 무료권은 구매비 0이라 "본전 환급"(emblemRefund)은 미적용. 단, 강화(성능) 당첨금 보너스는 "당첨" 보상이라 적용.
+      result.emblemBonus = result.win ? _myLottoPrizeBonus(data) : 0;  // 🪙 강화(성능) 당첨금 보너스 — 당첨 시에만
       const onComplete = async ({ winGold, skullPenalty }) => {
         const latestData = getMyGoldData();
         const lotteryHistory = [...(latestData?.lotteryHistory || []), {
           ts: Date.now(), date: getLocalDateKey(), scratch: true, free: true,
           tierIdx: tierDef.idx, win: result.win?.id ?? null,
-          gold: winGold - skullPenalty, season: CURRENT_SEASON,
+          gold: winGold - skullPenalty + (result.emblemBonus || 0), season: CURRENT_SEASON,
+          ...(result.emblemBonus ? { emblemBonus: result.emblemBonus } : {}),
         }];
         await update(ref(db,'gold/'+key), { lotteryHistory });
       };
@@ -26404,13 +26434,15 @@ async function _buyItemImpl(itemId) {
     const newGoldSpent = (data[spentKey] ?? 0) + tierPrice;
     await update(ref(db,'gold/'+key), { [spentKey]: newGoldSpent });
     const result = rollScratch(tierDef.idx);
+    result.emblemBonus = result.win ? _myLottoPrizeBonus(data) : 0;  // 🪙 강화(성능) 당첨금 보너스 — 당첨 시에만
     const onComplete = async ({ winGold, skullPenalty }) => {
       const latestData = getMyGoldData();
       const lotteryHistory = [...(latestData?.lotteryHistory || []), {
         ts: Date.now(), date: getLocalDateKey(), scratch: true,
         tierIdx: tierDef.idx, win: result.win?.id ?? null,
-        gold: winGold - skullPenalty + (result.emblemRefund || 0), season: CURRENT_SEASON,
+        gold: winGold - skullPenalty + (result.emblemRefund || 0) + (result.emblemBonus || 0), season: CURRENT_SEASON,
         ...(result.emblemRefund ? { emblemRefund: result.emblemRefund } : {}),
+        ...(result.emblemBonus ? { emblemBonus: result.emblemBonus } : {}),
       }];
       await update(ref(db,'gold/'+key), { lotteryHistory });
     };
