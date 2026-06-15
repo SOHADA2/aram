@@ -6442,7 +6442,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.96';
+const APP_VERSION = 'v2.45.97';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6451,6 +6451,9 @@ const APP_VERSION = 'v2.45.96';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.97', date: '2026-06-15', changes: [
+    { tag: 'fix', text: '🎚️ 랭킹 레벨 배지가 안 보이던 것 수정 — v2.45.96에서 레벨을 시즌0(레거시) 랭킹 렌더러에만 넣어, 실제 S1/S2 LP 랭킹을 그리는 renderS1Ranking 에는 빠져 있었음. S2 LP 랭킹 카드(히어로·미니)에 Lv.N 배지를 실제로 표시되게 추가' },
+  ] },
   { ver: 'v2.45.96', date: '2026-06-15', changes: [
     { tag: 'improve', text: '🎚️ 랭킹에 각자 내전 레벨 표시 — 랭킹 카드(TOP3 히어로·목록 미니)와 상세 시트에 "Lv.N" 배지 추가. 내전/일반게임 경험치 기반 레벨(만렙 50, 만렙은 골드 강조). 시즌2 전용(S1 보기에선 미표시)' },
   ] },
@@ -28364,6 +28367,7 @@ function renderS1Ranking() {
     const d    = _rd[normName(p.name)] || s1DefaultPlayer();
     const meta = S1_TIER_META[d.tier] || S1_TIER_META.unranked;
     return { name:p.name, tier:d.tier, lp:d.lp||0, tierRank:meta.rank, d,
+             level: (rankViewSeason === 2) ? plvLevelFromXp(calcPlayerXp(p.name)) : null,   // 🎚️ 내전 레벨(S2 전용)
              me: myName && normName(p.name)===normName(myName),
              motto:p.motto||'', isNewbie:!!p.isNewbie,
              champTier1:p.champTier1||[], champTier2:p.champTier2||[] };
@@ -28436,6 +28440,7 @@ function renderS1HeroCard(r, place, hasChallenger) {
   const cls      = place===1?'first':place===2?'second':'third';
   const meCls    = r.me ? ' me' : '';
   const chips    = renderRankClassChips(r.champTier1, r.champTier2);
+  const lvBadge  = renderRankLevelBadge(r.level);   // 🎚️ 내전 레벨(S2)
   const meta     = S1_TIER_META[r.tier] || S1_TIER_META.unranked;
   const champIcons = champIconsHtml(r.name, 24, CURRENT_SEASON);
 
@@ -28478,7 +28483,7 @@ function renderS1HeroCard(r, place, hasChallenger) {
     <div class="rk-hero-body">
       <div class="rk-hero-name-block">
         <div class="rk-hero-name${hasChallenger&&place===1?' rk-name-gold':''}">${escHtml(r.name)}${emblemShineHtml(r.name, true)}</div>
-        ${chips?`<div class="rk-hero-chips">${chips}</div>`:''}
+        ${(lvBadge||chips)?`<div class="rk-hero-chips">${lvBadge}${chips||''}</div>`:''}
       </div>
       ${r.motto?`<div class="rk-hero-motto-bubble"><span class="rk-motto-text">"${escHtml(r.motto)}"</span></div>`:''}
     </div>
@@ -28532,7 +28537,7 @@ function renderS1MiniCard(r, displayRank, hasChallenger) {
         ${r.isNewbie?'<span class="rk-newbie-emoji">🌱</span>':''}
         ${r.motto?`<div class="rk-mini-motto-bubble"><span class="rk-motto-text">"${escHtml(r.motto)}"</span></div>`:''}
       </div>
-      <div class="rk-mini-meta">${r.me?renderRankMeTag(true):''}${dots}${chips}</div>
+      <div class="rk-mini-meta">${r.me?renderRankMeTag(true):''}${renderRankLevelBadge(r.level,{tiny:true})}${dots}${chips}</div>
     </div>
     <div class="rk-mini-right rk-mini-right-s1">
       <div class="rk-s1-tier-lp">${rightInner}</div>
