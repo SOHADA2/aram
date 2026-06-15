@@ -2748,6 +2748,18 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
   border-bottom:1px solid rgba(200,168,75,0.35);}
 /* 🔑 도구(만능 긁개 등) 배지 — 헤더 제목 줄 아래로 (위쪽 배치) */
 .scard-tool-row{flex-basis:100%;width:100%;text-align:center;line-height:1;}
+/* 🔑 최하단 만능 긁개 장착/해제 토글 행 */
+.scard-equip-row{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:7px;padding-top:7px;border-top:1px dashed rgba(255,255,255,0.12);}
+.scard-equip-name{font-size:11px;font-weight:700;color:rgba(255,255,255,0.62);letter-spacing:0.2px;}
+.scard-equip-state{font-size:10px;font-weight:600;margin-left:3px;opacity:0.7;}
+.scard-equip-btn{font-size:11px;font-weight:800;letter-spacing:0.3px;padding:4px 14px;border-radius:20px;cursor:pointer;border:1px solid rgba(200,168,75,0.5);background:rgba(200,168,75,0.1);color:rgba(200,168,75,0.95);transition:background 0.15s,color 0.15s,border-color 0.15s;}
+.scard-equip-btn:hover{background:rgba(200,168,75,0.2);}
+.scard-equip-btn.on{background:linear-gradient(135deg,#d4a843,#f0c84a);color:#1a1206;border-color:transparent;box-shadow:0 2px 8px rgba(200,168,75,0.35);}
+/* S2 메탈 플레이트 테마 정합 */
+.season-2 .scard-overlay .scard-modal .scard-equip-row{border-top-color:var(--pl-deep)!important;}
+.season-2 .scard-overlay .scard-modal .scard-equip-name{color:var(--pl-shadow)!important;}
+.season-2 .scard-overlay .scard-modal .scard-equip-btn{border:1px solid var(--pl-deep)!important;background:rgba(255,255,255,0.42)!important;color:var(--pl-shadow)!important;}
+.season-2 .scard-overlay .scard-modal .scard-equip-btn.on{background:linear-gradient(135deg,var(--pl-mid),var(--pl-deep))!important;color:#fff!important;border-color:transparent!important;box-shadow:0 2px 8px rgba(0,0,0,0.25)!important;}
 .scard-title-em{font-size:18px;line-height:1;flex-shrink:0;}  /* 제목 이모지 — 그라데이션 클립 밖이라 정상 렌더 */
 .scard-title{font-family:'Black Han Sans',sans-serif;font-size:16px;letter-spacing:2px;flex:1;
   background:linear-gradient(90deg,#c8a84b,#ffe680,#c8a84b);background-size:200% auto;
@@ -6532,7 +6544,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.117';
+const APP_VERSION = 'v2.45.118';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6541,6 +6553,9 @@ const APP_VERSION = 'v2.45.117';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.118', date: '2026-06-15', changes: [
+    { tag: 'new', text: '🔑 스크래치 복권 안에서 만능 긁개 장착/해제 — 헤더에 있던 "적용" 표시를 떼고, 복권 모달 최하단에 "🔑 만능 긁개 · 장착됨/미장착 [장착/장착 해제]" 토글을 추가. 장비 탭에 안 가도 복권 화면에서 바로 장착·해제할 수 있고, 누르면 그 자리에서 브러시 크기·공개 임계가 바로 바뀌어요(보유자에게만 표시). 보류했다 이어 긁을 때도 현재 장착 상태를 따라감' },
+  ] },
   { ver: 'v2.45.117', date: '2026-06-15', changes: [
     { tag: 'improve', text: '🎟 스크래치 복권 레이아웃 다듬기 — 🔑 도구(만능 긁개 등) 배지를 본문 중간에서 헤더 제목 줄 아래(상단)로 올림. 실버 디스크를 키우고(96→106) 상단 여백을 줄여 카드 비율을 더 균형 있게 정리' },
   ] },
@@ -25902,7 +25917,10 @@ window._lhResumeScratch = function(){
     await update(ref(db,'gold/'+key), { lotteryHistory });
   };
   const onSetAside = (revealed) => savePendingScratch({ ...rec, revealed });
-  const toolParams = rec.toolId ? (SCRATCH_TOOLS[rec.toolId] || null) : null;   // 🔑 보류 전 쓰던 긁기 도구(동전/만능) 복원
+  // 🔑 보류 전 쓰던 긁기 도구 복원 · 없으면 현재 장착(active) 상태 반영(모달서 장착했으면 이어할 때도 적용)
+  const toolParams = rec.toolId
+    ? (SCRATCH_TOOLS[rec.toolId] || null)
+    : ((getMyGoldData()?.[sField('items')] || []).some(it => it.id === 'scratch_key' && it.active) ? SCRATCH_TOOLS.scratch_key : null);
   const onDiscard = async () => {   // 🗑 쓰레기통에 버림 — 당첨금 지급 X(gold 0), 시도 기록만
     await clearPendingScratch();
     const latestData = getMyGoldData();
@@ -25930,8 +25948,12 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   // 🎟 목업과 동일한 긁기 모델 (v2.45.109~): 완전 벗겨짐(destination-out alpha 1.0) + 청크 아크 + DPR 선명화
   const SCRATCH_DPR = Math.min(window.devicePixelRatio || 1, 2);
   const SCRATCH_BASE_R = 0.062;                            // 브러시 반지름 = 캔버스폭 × 0.062 × 도구배율 (맨손 기준, 목업 동일)
-  const brushMult = toolParams?.brushMult ?? 1.0;          // 맨손 1.0 / 동전 1.6 / 만능 2.15
-  const revealThreshold = toolParams?.threshold ?? 0.83;   // 맨손: 가운데 문양 거의 다 긁어야 공개 (목업 동일)
+  let brushMult = toolParams?.brushMult ?? 1.0;            // 맨손 1.0 / 만능 2.15 — 모달 안 장착 토글로 라이브 변경(let)
+  let revealThreshold = toolParams?.threshold ?? 0.83;     // 맨손: 가운데 문양 거의 다 긁어야 공개 (목업 동일)
+  // 🔑 만능 긁개 장착/해제 — 보유 시 모달 최하단 토글로 직접 장착·해제 (장비 탭 안 가도 됨)
+  const _scardKeyItem = !testMode ? (getMyGoldData()?.[sField('items')] || []).find(it => it.id === 'scratch_key') : null;
+  const _scardOwnsKey = !!_scardKeyItem;
+  let _scardKeyEquipped = !!(_scardKeyItem && _scardKeyItem.active);
   const CELL_LAYERS = 1;
   const LAYER_THRESHOLD = 0.28; // 미사용
   // 제목은 그라데이션 클립 텍스트라 이모지를 같이 넣으면 이모지가 잘려 이상하게 보임 → 이모지는 별도 span(클립 밖)으로 분리
@@ -25940,6 +25962,12 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   const toolLabel = toolParams
     ? `<span class="scard-tool-badge">${toolParams.threshold ? '🔑 만능 긁개 적용' : '🪙 긁기 동전 적용'}</span>`
     : '';
+  // 🔑 최하단 장착/해제 토글 행 (만능 긁개 보유 시) — 장착해야 긁기 보정(브러시·임계) 적용
+  const equipRowHtml = _scardOwnsKey ? `
+    <div class="scard-equip-row" id="scard-equip-row">
+      <span class="scard-equip-name">🔑 만능 긁개<span class="scard-equip-state" id="scard-equip-state">${_scardKeyEquipped ? '· 장착됨' : '· 미장착'}</span></span>
+      <button class="scard-equip-btn${_scardKeyEquipped ? ' on' : ''}" id="scard-equip-btn">${_scardKeyEquipped ? '장착 해제' : '장착'}</button>
+    </div>` : '';
   // 🛡️🪙 내 강철심장 복권 효과 배너 — 해골감소 줄 보유 시 (해골 감소율 + 당첨 시 보너스)를 복권창 안에 표시
   let _emFxHtml = '';
   if (CURRENT_SEASON === 2) {
@@ -25969,7 +25997,6 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
           <button class="scard-help-btn" id="scard-help-btn" title="게임 방법">?</button>
           <button class="scard-close-btn" id="scard-close-btn" title="닫기">✕</button>
         </div>
-        ${toolLabel ? `<div class="scard-tool-row">${toolLabel}</div>` : ''}
       </div>
       <div class="scard-help-panel" id="scard-help-panel">
         ${(activeTier.skullAppear || 0) > 0 ? `
@@ -26038,6 +26065,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
                 : `<button class="scard-act-btn scard-act-replay" id="scard-replay" style="display:none;">🔁 한 번 더<span class="scard-act-sub">-${activeTier.price}G</span></button>`}
               <button class="scard-act-btn scard-act-confirm" id="scard-confirm"${testMode ? '' : ' style="display:none;"'}>${testMode ? '🔄 다시 긁기' : `확인<span class="scard-act-sub">보유 ${remainingGold}G</span>`}</button>
             </div>
+            ${equipRowHtml}
             <div class="scard-brand"><span class="scard-brand-l">ARAM · HOWLING ABYSS</span><span class="scard-brand-r">칼바람의 행운</span></div>
           </div>
         </div>
@@ -26306,6 +26334,24 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
 
   // X 닫기 = 보류(정산 X) — _closeTicket 로 위임
   overlay.querySelector('#scard-close-btn')?.addEventListener('click', () => { _closeTicket(); });
+
+  // 🔑 만능 긁개 장착/해제 토글 (최하단) — 모달 안에서 직접 장착·해제, 브러시 보정 라이브 적용
+  overlay.querySelector('#scard-equip-btn')?.addEventListener('click', () => {
+    const k = getMyGoldKey(); const d = k ? goldData[k] : null; if (!d) return;
+    const items = (d[sField('items')] || []).map(it => it.id === 'scratch_key' ? { ...it, active: !it.active } : it);
+    const nowOn = items.some(it => it.id === 'scratch_key' && it.active);
+    d[sField('items')] = items;  // 낙관적 즉시 반영
+    update(ref(db, 'gold/' + k), { [sField('items')]: items }).catch(() => {});
+    _scardKeyEquipped = nowOn;
+    // 브러시 보정 라이브 갱신 (다음 긁기 스트로크부터 적용)
+    if (nowOn) { brushMult = SCRATCH_TOOLS.scratch_key.brushMult; revealThreshold = SCRATCH_TOOLS.scratch_key.threshold; }
+    else       { brushMult = 1.0; revealThreshold = 0.83; }
+    const btn = overlay.querySelector('#scard-equip-btn');
+    const stt = overlay.querySelector('#scard-equip-state');
+    if (btn) { btn.textContent = nowOn ? '장착 해제' : '장착'; btn.classList.toggle('on', nowOn); }
+    if (stt) { stt.textContent = nowOn ? '· 장착됨' : '· 미장착'; }
+    try { showGoldToast(nowOn ? '🔑 만능 긁개 장착 — 브러시가 커지고 더 쉽게 긁혀요' : '🔑 만능 긁개 해제 — 맨손으로 긁어요'); } catch (_) {}
+  });
 
   // v2.43.118~ 액션 버튼 3종 — 매칭 완성 또는 모든 셀 reveal 후 활성
   const _canFinalize = () => allDone || revealedCount > 0;
