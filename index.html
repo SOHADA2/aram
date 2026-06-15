@@ -6442,7 +6442,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.97';
+const APP_VERSION = 'v2.45.98';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6451,6 +6451,9 @@ const APP_VERSION = 'v2.45.97';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.98', date: '2026-06-15', changes: [
+    { tag: 'fix', text: '🎰 스크래치 복권 버리기/당첨 흐름 개선 — (1) "🗑 복권 버리기"를 완전 포기로 변경: 쓰레기통에 버린 복권은 당첨이었더라도 당첨금이 들어오지 않아요(버린 것이므로 gold 0 기록). 확인창도 "버리면 당첨이었더라도 받지 못해요"로 명확히. (2) 같은 문양 2개(일반)·3개(고급/프미)가 일치해 당첨이 확정되는 순간, 나머지 칸을 다 안 긁어도 즉시 결과 화면 + "💰 당첨금 받기" 버튼으로 자동 전환(예전엔 당첨 확정 후 넘어갈 방법이 없었음). 당첨 확정 순간 버리기 버튼은 즉시 숨겨 실수로 당첨을 버리는 것 방지' },
+  ] },
   { ver: 'v2.45.97', date: '2026-06-15', changes: [
     { tag: 'fix', text: '🎚️ 랭킹 레벨 배지가 안 보이던 것 수정 — v2.45.96에서 레벨을 시즌0(레거시) 랭킹 렌더러에만 넣어, 실제 S1/S2 LP 랭킹을 그리는 renderS1Ranking 에는 빠져 있었음. S2 LP 랭킹 카드(히어로·미니)에 Lv.N 배지를 실제로 표시되게 추가' },
   ] },
@@ -8777,8 +8780,8 @@ function _getToday() {
 //   새 큰 기능을 배포할 때만 최신순 맨 위에 1줄 추가. 다른 컴퓨터에서도 동일 적용.
 const CHANGELOG_MAJOR = [
   // 시크릿 챔피언(유미) 관련 항목은 스포일러 방지로 여기에 넣지 않음
-  { ver:'v2.45.95', date:'2026-06-15', emoji:'🎟', title:'복권 "보류" — 긁다 나가도 안 사라져요',
-    desc:'스크래치 복권을 긁다가 실수로 화면 밖을 눌러도 이제 복권이 사라지지 않아요! 그대로 보류돼서, 복권창에 다시 들어오면 맨 위 "이어 긁기"로 마저 긁을 수 있어요(밖에 나갔다 와도, 다른 거 하다 와도 유지). 해골이 보여서 그만두고 싶으면 "🗑 복권 버리기"로 정리하세요 — 당첨이 아닌 걸 확인하고 버리는 거예요(혹시 당첨이면 자동으로 받아요). 끝까지 긁어 결과를 확정하거나 버리기 전까진 계속 보관돼요.' },
+  { ver:'v2.45.98', date:'2026-06-15', emoji:'🎟', title:'복권 "보류 & 버리기" — 긁다 나가도 안 사라져요',
+    desc:'스크래치 복권을 긁다가 실수로 화면 밖을 눌러도 이제 복권이 사라지지 않아요! 그대로 보류돼서, 복권창에 다시 들어오면 맨 위 "이어 긁기"로 마저 긁을 수 있어요(밖에 나갔다 와도, 다른 거 하다 와도 유지). 같은 문양이 일치해 당첨이 확정되면 나머지 칸을 다 안 긁어도 "💰 당첨금 받기"로 바로 받을 수 있어요. 해골이 나와서 실패라고 판단되면 "🗑 복권 버리기"로 버리세요 — 버린 복권은 혹시 당첨이었더라도 당첨금이 들어오지 않아요(버린 것이니까). 결과를 확정하거나 버리기 전까진 계속 보관돼요.' },
   { ver:'v2.45.93', date:'2026-06-15', emoji:'🛡️', title:'강철심장 "해골 감소" 재설계 — 강화는 당첨금↑',
     desc:'복권 해골 감소가 줄수 기준으로 깔끔해졌어요 — 1줄 -23% / 2줄 -47% / 3줄 -70%(여기까지가 최대). 강화(성능)는 이제 해골 감소를 더 키우는 대신, 복권에 "당첨"되면 당첨금을 줄당 +성능×1G 더 얹어줘요. 해골감소 줄을 모을수록 더 안전해지고(최대 -70%) 당첨금 보너스도 같이 커져요 — 3줄·만강화면 +90G! 대장간·대기화면 효과칩과 복권 결과창에서 보너스를 확인하세요.' },
   { ver:'v2.45.85', date:'2026-06-14', emoji:'⚡', title:'강철심장 LP 효과 — 발동 확률제로 변경',
@@ -25759,7 +25762,16 @@ window._lhResumeScratch = function(){
     await update(ref(db,'gold/'+key), { lotteryHistory });
   };
   const onSetAside = (revealed) => savePendingScratch({ ...rec, revealed });
-  showScratchModal(result, getMyGold(), { tierDef, onComplete, onSetAside, isResume:true, resumeRevealed: rec.revealed || [] });
+  const onDiscard = async () => {   // 🗑 쓰레기통에 버림 — 당첨금 지급 X(gold 0), 시도 기록만
+    await clearPendingScratch();
+    const latestData = getMyGoldData();
+    const lotteryHistory = [...(latestData?.lotteryHistory || []), {
+      ts: Date.now(), date: getLocalDateKey(), scratch: true, ...(rec.free ? { free:true } : {}),
+      tierIdx: rec.tierIdx, win: null, gold: 0, discarded: true, season: CURRENT_SEASON,
+    }];
+    await update(ref(db,'gold/'+key), { lotteryHistory });
+  };
+  showScratchModal(result, getMyGold(), { tierDef, onComplete, onSetAside, onDiscard, isResume:true, resumeRevealed: rec.revealed || [] });
 };
 
 /* ── 스크래치 복권 모달 (v2.43.91~ 3티어+해골기믹+긁기도구) ── */
@@ -25767,7 +25779,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   const { slots, win, tier: scratchTier } = scratchResult;
   const { testMode = false, testStats = null, onNext = null,
           tierDef = null, toolParams = null, onComplete = null, onCancel = null, freeTicket = false,
-          onSetAside = null, isResume = false, resumeRevealed = null } = opts;
+          onSetAside = null, isResume = false, resumeRevealed = null, onDiscard = null } = opts;
 
   const activeTier = tierDef || SCRATCH_TIERS[0];
   const totalCells = slots.length;
@@ -26049,11 +26061,16 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     // 모든 셀 reveal 시에만 자동 finishReveal (꽝 케이스 + 끝까지 긁은 케이스)
     const winRevealed = win ? cellState.filter(s => s.revealed && s.sym.id === win.id).length : 0;
     const matchDone = winRevealed >= matchCount;
-    // 첫 셀 긁는 순간부터 확인 버튼 활성화 — 해골 피해 중간에 멈출 수 있게
+    // 첫 셀 긁는 순간부터 액션(버리기) 노출 — 해골 피해 중간에 멈출 수 있게
     if (revealedCount >= 1 && !allDone) {
       overlay.querySelector('#scard-actions')?.classList.add('show');
     }
-    if (revealedCount === totalCells && !allDone) {
+    // 🎯 같은 문양 matchCount개 일치(당첨 확정) → 즉시 결과 화면 + "당첨금 받기" 버튼
+    //    (나머지 칸을 다 안 긁어도 받을 수 있게 — 안 긁은 칸은 패널티 없이 넘어감)
+    if (matchDone && !allDone) {
+      const _db = overlay.querySelector('#scard-discard'); if (_db) _db.style.display = 'none';  // 당첨 확정 → 버리기 즉시 숨김(실수 포기 방지)
+      setTimeout(finishReveal, 400);
+    } else if (revealedCount === totalCells && !allDone) {
       setTimeout(finishReveal, 620);
     }
   }
@@ -26113,7 +26130,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     }
 
     if (!testMode) {
-      confirmEl.textContent = `🪙 보유 ${finalBalance}G · 확인`;
+      confirmEl.textContent = win ? `💰 당첨금 받기 (보유 ${finalBalance}G)` : `🪙 보유 ${finalBalance}G · 확인`;
       // 결과 확정 → 🗑 버리기 숨기고 확인·한 번 더 노출
       const _db = overlay.querySelector('#scard-discard'); if (_db) _db.style.display = 'none';
       const _cf = overlay.querySelector('#scard-confirm'); if (_cf) _cf.style.display = '';
@@ -26163,12 +26180,14 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
       if (onCancel) onCancel();
     }
   };
-  // 🗑 복권 버리기 — 확인창 후 정산(끝까지 안 긁어도 당첨이면 자동 지급, 안 긁은 칸 패널티 없음) + pending 제거
+  // 🗑 복권 버리기 — 쓰레기통에 버림(완전 포기). 당첨이었더라도 지급 X(버린 것이므로). + pending 제거
   overlay.querySelector('#scard-discard')?.addEventListener('click', () => {
     if (allDone) return;
-    if (!window.confirm('아직 끝까지 긁지 않았어요.\n당첨이 아닌 걸 확인했다면 이 복권을 버립니다.\n(혹시 당첨이면 자동으로 받아요)\n\n버릴까요?')) return;
-    finishReveal();
-    setTimeout(() => { overlay.remove(); _runComplete(); setTimeout(() => window.openLotteryHub(), 120); }, 250);
+    if (!window.confirm('당첨이 아닌 걸 확인했나요?\n이 복권을 쓰레기통에 버립니다.\n버리면 당첨이었더라도 당첨금은 받지 못해요.\n\n버릴까요?')) return;
+    overlay.remove();
+    if (onDiscard) onDiscard();
+    else if (onCancel) onCancel();   // 폴백(레거시)
+    setTimeout(() => window.openLotteryHub(), 120);
   });
 
   // 확인: 기본 닫기 (테스트 모드면 onNext = 다시 긁기)
@@ -26595,7 +26614,16 @@ async function _buyItemImpl(itemId) {
         await clearPendingScratch();
         showS1Toast?.('↩️ 무료권이 반환됐어요');
       };
-      showScratchModal(result, currentGold, { tierDef, toolParams, onComplete, onCancel, onSetAside: _mkAside, freeTicket: true });
+      const onDiscard = async () => {   // 🗑 쓰레기통에 버림 — 당첨금 지급 X(gold 0), 무료권은 소모됨(반환 X), 시도 기록만
+        await clearPendingScratch();
+        const latestData = getMyGoldData();
+        const lotteryHistory = [...(latestData?.lotteryHistory || []), {
+          ts: Date.now(), date: getLocalDateKey(), scratch: true, free: true,
+          tierIdx: tierDef.idx, win: null, gold: 0, discarded: true, season: CURRENT_SEASON,
+        }];
+        await update(ref(db,'gold/'+key), { lotteryHistory });
+      };
+      showScratchModal(result, currentGold, { tierDef, toolParams, onComplete, onCancel, onSetAside: _mkAside, onDiscard, freeTicket: true });
       return;
     }
     const newGoldSpent = (data[spentKey] ?? 0) + tierPrice;
@@ -26623,7 +26651,16 @@ async function _buyItemImpl(itemId) {
       await clearPendingScratch();
       showS1Toast?.(`↩️ ${tierPrice}G 환불됐어요`);
     };
-    showScratchModal(result, currentGold - tierPrice, { tierDef, toolParams, onComplete, onCancel, onSetAside: _mkAside });
+    const onDiscard = async () => {   // 🗑 쓰레기통에 버림 — 당첨금 지급 X(gold 0), 시도 기록만. 구매비는 이미 차감.
+      await clearPendingScratch();
+      const latestData = getMyGoldData();
+      const lotteryHistory = [...(latestData?.lotteryHistory || []), {
+        ts: Date.now(), date: getLocalDateKey(), scratch: true,
+        tierIdx: tierDef.idx, win: null, gold: 0, discarded: true, season: CURRENT_SEASON,
+      }];
+      await update(ref(db,'gold/'+key), { lotteryHistory });
+    };
+    showScratchModal(result, currentGold - tierPrice, { tierDef, toolParams, onComplete, onCancel, onSetAside: _mkAside, onDiscard });
     return;
   }
 
