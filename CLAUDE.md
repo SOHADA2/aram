@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.45.84 (🌌 **시즌2 라이브 중 2026-06-10~** — 최근: 🐱유미 걸작 효과 2종(파견/휴식 단축)·출석골드 상향·대기화면 패스카드 폰트/배지 수정. 브릿지 **v1.1.35**(종료 버튼 cleanup). 시즌2 라이브는 `switchSeason(2)` 완료. 상세는 아래 세션 이력 v2.45.81~84)
+- 현재 버전: v2.45.109 (🌌 **시즌2 라이브 중 2026-06-10~** — 최근: 🎟 스크래치 복권 **실버/골드/프리즘** 리브랜딩 + 긁는 느낌 목업 정합(완전 벗겨짐·DPR·만능 긁개 차별화)·확률표 ?패널 이동·해골감소 재설계·랭킹 내전레벨 표시. 브릿지 **v1.1.35**. 시즌2 라이브는 `switchSeason(2)` 완료. 상세는 아래 세션 이력 v2.45.88~109)
   - ⏳ **레벨 시스템 후속**: ① 패스를 일반/내전 포인트패스 → **S1식 퀘스트 패스(내전 전용)로 되돌리기**(미완) ② 레벨 보상량/곡선 실플레이 튜닝. 레벨 코드맵: `PLV_XP`·`calcPlayerXp`·`plvLevelFromXp`·`plvReward`·`claimPlayerLevels`·`_plvCardHtml`(패스 탭 상단). 데이터 `playerLevelClaimed_s2`. 정수: 경기당+1·상점120G 폐지(레벨업만).
 - ✅ **시즌2 라이브 중** (2026-06-10~) — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 + 세션이력 v2.45.38~49 필독
 
@@ -736,7 +736,24 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.45.81~84 (웹) + 브릿지 v1.1.35 (2026-06-14) — 🐱 유미 걸작 효과 2종 + 출석 상향 + 패스카드 수정 + 브릿지 종료 정리 ← 최신
+### v2.45.88~109 (2026-06-15) — 🎟 스크래치 복권 리브랜딩(실버/골드/프리즘) + 긁는 느낌 목업 정합 + 해골감소 재설계 + 랭킹 내전레벨 ← 최신
+
+> 이 세션 핵심 = **스크래치 복권 전면 리뉴얼**(컨셉·디자인·긁는 느낌). 목업 `스크래치복권-3종-목업.html`(gitignore 화이트리스트, 배포됨)을 만들어 반복 → 라이브 적용. 그 사이 v85~87·99~100 등 일부는 다른 컴퓨터(in-app CHANGELOG). 전부 푸시·배포 완료. **커밋 규칙 동일**: 모듈 추출 후 `node --check`(작업 디렉토리 리셋되니 `cd /c/Users/sbs_n/Desktop/aram &&` 프리픽스) → 통과 시에만 커밋. CHANGELOG 주석줄만 매칭. 배포 검증 `gh run list`(pages-build-deployment).
+
+- **v88 패스탭 노란불**: S2 `anyClaimable` → **수령 가능한 패스(`_isS2PassClaimable('custom'||'normal')`)일 때만** 점등(빙고/레벨 보상은 제외). `updateS1PassTabBadge` ~L20144.
+- **v89 강철심장 대장간 가이드 텍스트 잘림**: `.fg2-forge-guide` 이모지(👉📱) 제거 + `word-break:keep-all`(단어 중간 안 끊김)로 전문 가시화.
+- **v90 스크래치 2문양 동시당첨 버그**(제보): `rollScratch` 다중매칭 방지를 `tier.idx===0`만 → **전 티어 확장**(다이아+검 같은 dual-match 차단, winSym만 남김). ~L24452.
+- **v91~93 🛡️ 해골감소(`lottoTkt`) 재설계**: 기존 성능 스택(2줄=140% 문제) → **줄수 기반 `LOTTO_SKULL_PER_LINE=0.70/3`**(전 강화+3줄 합쳐 70% cap). 강화(성능)는 **당첨금 보너스로 전환**: `_lottoPrizeBonusG(power,lineCnt)`·`_myLottoPrizeBonus`, `LOTTO_PRIZE_PER_POWER=1`(줄당 최소30G, 3줄 최대 +90G — 일반복권 당첨금 안 넘게 축소). 복권창 안에 효과 배너(`.scard-emblem-fx`: 해골 -N% + 당첨 시 +NG) + 효과설명 표로 표시. `EMBLEM_EFFECTS.lottoTkt`.
+- **v95~98 🎟 보류/이어하기 + 버리기**: 스크래치 창 **밖 클릭=보류(정산X·복권 유지)** — 당첨 확정 전 실수로 나가도 구매비 안 날림(`_closeTicket`). **🗑 버리기=완전 포기**(gold:0, 당첨이어도 미지급). pending 저장 `pendingScratch_s2`(slots+win+revealed) — `savePendingScratch`/`getPendingScratch`/`_lhResumeScratch`(re-roll 안 함, rec 재사용). 매칭 완성 시 즉시 당첨+"받기" 버튼. **이어하기는 같은 복권**(구매 시 1회 roll, 기회 2번 아님).
+- **v96~97 🏆 랭킹 내전 레벨 표시**: `buildRankRow`에 `level:(season===2)?plvLevelFromXp(calcPlayerXp(name)):null` + `renderRankLevelBadge`. ⚠️ **진짜 렌더러는 `renderS1Ranking`/`renderS1HeroCard`/`renderS1MiniCard`**(rankViewSeason>=1) — `renderRankHeroCard`(season-0 레거시)는 안 쓰임(처음 거기 넣어서 "레벨 안 보임" 났었음).
+- **v101 🎟 복권 리브랜딩**: 일반/고급/프리미엄 → **실버/골드/프리즘**. `titleMap=['실버 복권','골드 복권','프리즘 복권']`, `titleEmoji=['🥈','🥇','🌈']`, 토스트·TIER_META 등. ⚠️ 레거시 `lottery`/`lottery_premium`(구형 단일당첨 복권)은 **다른 기능이라 미변경**.
+- **v102~106 ✨ 긁는 느낌 + 메탈플레이트 전면 적용**: 티어색 분리(`_tc`), 프리즘 3×2+보너스 7번칸, **메탈플레이트(밝게) 전면 개편**(`.season-2 .scard-overlay .scard-modal` prefix 블록 ~L3042~3090: `--pl-*` 변수·밝은 카드·어두운 글자). `_scardDrawCover` 티어별(실버/골드/홀로그래픽).
+- **v107~108 📊 확률표 ?패널 이동 + 오버플로 수정**: 항상 떠있던 확률표 → "?" 도움말 패널 안 "📊 확률표"로 이동(목업처럼 단일 컬럼). v108=패널이 커져 모달이 화면 밖으로 넘쳐 안 닫히던 것 → 모달 `max-height:92vh`+스크롤, 패널 캡, 확률표 2열. CSS ~L3079~3093.
+- **v109 🎟 긁는 느낌 목업 정합(이번 마지막)**: 라이브가 `destination-out alpha 0.85` 반투명이라 흐릿 → **목업 모델 이식**: `scratchLine` 완전 불투명(`rgba(0,0,0,1)`)+끝점 청크 아크, 브러시=`캔버스폭×0.062×배율`, **DPR 선명화**(CSS 100% 고정이라 안전), 공개판정 `alpha<40`(완전 벗겨진 비율). **`SCRATCH_TOOLS` 만능 `2.15/0.70`·동전 `1.6/0.78`·맨손 `1.0/0.83`**(목업 동일). 만능만 부스러기 2배. **이어하기 시 toolId 복원**(보류 후 도구 소실 버그 수정). 코드: SCRATCH_TOOLS ~L24510, scratchLine/spawnDust/checkCellReveal ~L26025~26100, _lhResumeScratch ~L25849. 3-에이전트 적대적 검증 PASS.
+- **📬 버그보상 우편**(ap렉사이서폿·럼블홀릭·빛나는언즈): ⚠️ **PowerShell `Invoke-RestMethod`가 한글 본문을 `????`로 깨뜨림** → curl/bash UTF-8 `--data-binary @file` + `xxd` 바이트 검증으로 발송. (메모리 `feedback_mail_send_utf8.md` 저장됨)
+- **⏭️ 참고(미조치)**: 구형 `lottery_premium`(휠 방식 단일당첨 복권, `showLotteryModal`/lsc ~L24877)은 아직 blur 9px 흐린 방식 — 스크래치 복권과 별개 코드라 안 건드림. 통일 원하면 추후.
+
+### v2.45.81~84 (웹) + 브릿지 v1.1.35 (2026-06-14) — 🐱 유미 걸작 효과 2종 + 출석 상향 + 패스카드 수정 + 브릿지 종료 정리
 
 > 다른 컴퓨터가 v2.45.72~80 진행(결혼 이벤트·진행중배너 위치·해골감소 줄수비례 등 — in-app CHANGELOG). 이 세션은 v2.45.81부터. 전부 푸시·배포 완료. CHANGELOG/커밋 규칙(주석줄만 매칭·모듈 node --check를 `&&`로 게이트) 동일. 배포 검증: 매 푸시 후 `gh run list`(pages-build-deployment) + 배포본 APP_VERSION 폴링.
 
