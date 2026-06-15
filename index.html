@@ -2856,6 +2856,8 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 /* 하단 */
 .scard-bottom{display:flex;flex-direction:column;gap:5px;}
 .scard-rule{text-align:center;font-size:9px;color:rgba(200,168,75,0.3);letter-spacing:1px;padding:1px 0;}
+.scard-emblem-fx{text-align:center;font-size:10px;font-weight:700;color:#cfe9ff;margin:4px auto 0;padding:3px 10px;border-radius:7px;background:rgba(125,211,252,0.08);border:1px solid rgba(125,211,252,0.22);max-width:max-content;}
+.scard-emblem-fx b{font-weight:800;}
 .scard-hint{text-align:center;font-size:10px;color:rgba(200,168,75,0.35);letter-spacing:0.5px;animation:lscHintPulse 2s ease infinite;transition:opacity 0.3s;}
 /* 진행 상태 (v2.43.106~) — 셀 reveal 시 같은 심볼 카운트 + 해골 + net 금액 */
 .scard-progress{display:none;text-align:center;min-height:18px;font-size:11px;letter-spacing:0.3px;padding:3px 6px;border-radius:6px;line-height:1.5;}
@@ -6425,7 +6427,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.93';
+const APP_VERSION = 'v2.45.94';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6434,6 +6436,9 @@ const APP_VERSION = 'v2.45.93';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.94', date: '2026-06-15', changes: [
+    { tag: 'improve', text: '🛡️🪙 복권창 안에 내 강철심장 효과 표시 — 해골감소 줄이 있는 강철심장을 장착했으면 스크래치 복권 화면에 "⚒️ 강철심장 · 🛡️ 해골 감소 -N% · 🪙 당첨 시 +NG"를 노출(고급/프미는 해골 감소+보너스, 일반은 보너스만). 당첨 시엔 결과창에 실제 추가 금액(🪙 강화 보너스 +NG → 총 +NG)을 정확히 표시' },
+  ] },
   { ver: 'v2.45.93', date: '2026-06-15', changes: [
     { tag: 'improve', text: '🪙 해골감소 당첨금 보너스 하향 — 줄당 +성능×5G(3줄 최대 +450G)가 일반 복권 당첨금(65~670G)보다 커지는 문제로, 줄당 +성능×1G(줄당 최대 +30G)로 낮춤. 3줄·만강화(성능30) +90G. 구조(줄수×성능 비례)·해골 감소(-23/-47/-70%)는 그대로' },
   ] },
@@ -25683,6 +25688,19 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   const toolLabel = toolParams
     ? `<span class="scard-tool-badge">${toolParams.threshold ? '🔑 만능 긁개 적용' : '🪙 긁기 동전 적용'}</span>`
     : '';
+  // 🛡️🪙 내 강철심장 복권 효과 배너 — 해골감소 줄 보유 시 (해골 감소율 + 당첨 시 보너스)를 복권창 안에 표시
+  let _emFxHtml = '';
+  if (CURRENT_SEASON === 2) {
+    const _myEm = getEmblem(getMyGoldData());
+    const _cut = _myEm ? (emblemEffectsOf(_myEm).eff.lottoTkt || 0) : 0;   // 해골 감소율(0.23/0.47/0.70)
+    if (_cut > 0) {
+      const _bonus = _myLottoPrizeBonus(getMyGoldData());                  // 당첨 시 추가 골드
+      const parts = [];
+      if ((activeTier.skullAppear || 0) > 0) parts.push(`🛡️ 해골 감소 <b style="color:#7dd3fc;">-${Math.round(_cut*100)}%</b>`);
+      if (_bonus > 0) parts.push(`🪙 당첨 시 <b style="color:#34d399;">+${_bonus}G</b>`);
+      if (parts.length) _emFxHtml = `<div class="scard-emblem-fx">⚒️ 강철심장 · ${parts.join(' · ')}</div>`;
+    }
+  }
 
   const overlay = document.createElement('div');
   overlay.className = 'scard-overlay';
@@ -25727,6 +25745,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
             <div class="scard-rule">${(activeTier.skullAppear || 0) > 0
               ? `같은 문양 ${activeTier.matchCount || 2}개 매칭 시 당첨 · 💀 해골 공개 시 -${activeTier.skullPenalty}G`
               : `같은 문양 ${activeTier.matchCount || 2}개 매칭 시 당첨`}</div>
+            ${_emFxHtml}
             <div class="scard-hint" id="scard-hint">🖱 긁어서 문양을 확인하세요</div>
             <div class="scard-progress" id="scard-progress"></div>
             <div class="scard-result" id="scard-result"></div>
