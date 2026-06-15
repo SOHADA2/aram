@@ -6447,7 +6447,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.101';
+const APP_VERSION = 'v2.45.102';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6456,6 +6456,9 @@ const APP_VERSION = 'v2.45.101';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.102', date: '2026-06-15', changes: [
+    { tag: 'improve', text: '🎰 스크래치 복권 긁는 느낌 개편(디자인 2단계) — (1) 흐릿하게 풀리던 것 → 깔끔하게 벗겨지게(alpha 0.30→0.85). (2) 부스러기 강화: 긁을 때 티어색(실버/골드/프리즘) 조각이 튀고 회전하며 떨어짐. (3) 해골 신중판정: 공개 판정을 디스크 전체→"가운데 문양 영역"만 보도록 변경 → 가장자리만 긁어선 안 열리고, 가운데를 충분히 긁어야 발견(해골 형태 보이면 멈춰 회피 가능). (4) 밸런스: 맨손은 가운데 72% 긁어야 공개(빡세게), 만능 긁개는 브러시 3배→2배·임계 완화로 적당하게' },
+  ] },
   { ver: 'v2.45.101', date: '2026-06-15', changes: [
     { tag: 'improve', text: '🎟 스크래치 복권 이름 개편 — 일반→실버 복권 / 고급→골드 복권 / 프리미엄→프리즘 복권. 상점·복권 허브·모달·쓰레기통 무료권 등급 라벨 일괄 변경(기능·가격·확률은 동일). 복권 디자인 개편 1단계' },
   ] },
@@ -24423,8 +24426,8 @@ const SCRATCH_TIERS = [
 // 긁기 도구: brushMult = 브러시 반지름 배율, threshold = 공개 임계값(기본 0.45)
 // v2.43.109~: 기본 임계값 ↑에 맞춰 도구 임계값도 비례 조정
 const SCRATCH_TOOLS = {
-  scratch_coin: { brushMult: 2.0, threshold: 0.40 }, // 브러시 2배 + 약간 더 쉽게
-  scratch_key:  { brushMult: 3.0, threshold: 0.28 }, // 브러시 3배 + 훨씬 쉽게
+  scratch_coin: { brushMult: 1.7, threshold: 0.62 }, // 브러시 1.7배 + 약간 더 쉽게(중앙 기준)
+  scratch_key:  { brushMult: 2.0, threshold: 0.58 }, // 🔑 브러시 2배 + 더 쉽게(중앙 58%). 적당하게(예전 3.0/0.28에서 완화)
 };
 
 // v2.43.110~ 출연 확률(appear) 독립 추첨 + 모든 슬롯 무조건 심볼 + 사후 매칭 판정
@@ -25801,7 +25804,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   // 대신 심볼이 처음부터 살짝 비쳐 보임 (CSS .scard-sym-emoji 기본 opacity 0.12 + blur)
   // v2.43.116~ 임계값 0.45 → 0.55 + 한 스트로크 영향력 ↓ (긁기 시간 ~1.7배 슬로다운)
   const brushRadius = Math.round(14 * (toolParams?.brushMult ?? 1.0));
-  const revealThreshold = toolParams?.threshold ?? 0.55;
+  const revealThreshold = toolParams?.threshold ?? 0.72;   // 맨손: 가운데 문양 72%는 긁어야 공개(조심)
   const CELL_LAYERS = 1;
   const LAYER_THRESHOLD = 0.28; // 미사용
   // 제목은 그라데이션 클립 텍스트라 이모지를 같이 넣으면 이모지가 잘려 이상하게 보임 → 이모지는 별도 span(클립 밖)으로 분리
@@ -25939,13 +25942,13 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   function scratchLine(c2d, x1, y1, x2, y2) {
     c2d.globalCompositeOperation = 'destination-out';
     c2d.lineCap = 'round'; c2d.lineJoin = 'round';
-    // 메인 라인 — 천천히 풀려야 쪼는 맛
-    c2d.globalAlpha = 0.30;
+    // 메인 라인 — 깔끔하게 벗겨지는 느낌(진짜 복권). alpha 0.30→0.85
+    c2d.globalAlpha = 0.85;
     c2d.lineWidth = brushRadius * 2;
     c2d.beginPath(); c2d.moveTo(x1, y1); c2d.lineTo(x2, y2); c2d.stroke();
-    // 거친 가장자리 — 메인 양쪽에 작은 라인 추가로 너덜너덜한 자국 (갯수·alpha ↓)
-    c2d.globalAlpha = 0.12;
-    c2d.lineWidth = brushRadius * 0.7;
+    // 거친 가장자리 — 너덜너덜한 자국
+    c2d.globalAlpha = 0.4;
+    c2d.lineWidth = brushRadius * 0.8;
     for (let i = 0; i < 2; i++) {
       const ox = (Math.random() - 0.5) * brushRadius * 1.4;
       const oy = (Math.random() - 0.5) * brushRadius * 1.4;
@@ -25962,19 +25965,21 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     const r = canvas.getBoundingClientRect();
     const sx = r.left + (x / canvas.width)  * r.width;
     const sy = r.top  + (y / canvas.height) * r.height;
-    const tierIdx = activeTier.idx;
-    const color = tierIdx === 0 ? '#c8a84b' : tierIdx === 1 ? '#a78bfa' : '#e879f9';
-    for (let i = 0; i < 2; i++) {
+    // 🥈🥇🌈 티어별 부스러기 색 (실버/골드/프리즘)
+    const PAL = [['#eef3f7','#cfd9e0','#aab6bf','#ffffff'], ['#fff3c8','#f0d98a','#d4a843','#b8860b'], ['#ff9ad8','#9ad0ff','#c0ffb0','#fff0a0','#ffffff']];
+    const cols = PAL[activeTier.idx] || PAL[0];
+    const n = 3 + (Math.random() * 2 | 0);
+    for (let i = 0; i < n; i++) {
       const d = document.createElement('div');
-      const sz = 2 + Math.random() * 2;
-      const dx = (Math.random() - 0.5) * 18;
-      const dy = 8 + Math.random() * 14;
-      d.style.cssText = `position:fixed;left:${sx}px;top:${sy}px;width:${sz}px;height:${sz}px;background:${color};opacity:0.85;border-radius:50%;pointer-events:none;z-index:3110;`;
+      const sz = 2.5 + Math.random() * 3;
+      d.style.cssText = `position:fixed;left:${sx}px;top:${sy}px;width:${sz}px;height:${sz*0.8}px;background:${cols[Math.random()*cols.length|0]};opacity:0.92;border-radius:1.5px;pointer-events:none;z-index:3110;will-change:transform,opacity;`;
       document.body.appendChild(d);
+      const ang = -Math.PI/2 + (Math.random()-0.5)*1.7, spd = 22 + Math.random()*40;
+      const vx = Math.cos(ang)*spd, vy = Math.sin(ang)*spd - 6, rot = (Math.random()-0.5)*480;
       d.animate([
-        {transform:'translate(-50%,-50%) scale(1)',opacity:0.85},
-        {transform:`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px)) scale(0.4)`,opacity:0}
-      ], {duration:380+Math.random()*180,easing:'cubic-bezier(0.2,0.8,0.3,1)',fill:'forwards'}).onfinish = () => d.remove();
+        {transform:'translate(-50%,-50%) rotate(0deg)',opacity:0.92},
+        {transform:`translate(calc(-50% + ${vx}px),calc(-50% + ${vy+56}px)) rotate(${rot}deg)`,opacity:0}
+      ], {duration:420+Math.random()*300,easing:'cubic-bezier(.3,.6,.5,1)',fill:'forwards'}).onfinish = () => d.remove();
     }
   }
 
@@ -25983,8 +25988,8 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     if (st.revealed || allDone) return;
     hintEl.style.opacity = '0';
     scratchLine(st.ctx, st.prevX ?? x, st.prevY ?? y, x, y);
-    // 1/4 빈도로 가루 파티클 (성능 + 너무 산만하지 않게)
-    if (Math.random() < 0.25) spawnDust(st.canvas, x, y);
+    // 부스러기 파티클 (벗겨짐 느낌 ↑)
+    if (Math.random() < 0.5) spawnDust(st.canvas, x, y);
     // 긁기 효과음 — 80ms throttle (너무 자주 울리지 않도록, v2.43.104~)
     const _now = performance.now();
     if (_now - _scratchSndAt > 80) { _scratchSndAt = _now; _lscPlaySound('scratch'); }
@@ -25999,12 +26004,15 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
 
   function checkCellReveal(st) {
     if (st.revealed) return;
-    const d = st.ctx.getImageData(0, 0, st.canvas.width, st.canvas.height).data;
+    // v2.45.102~ 공개 판정은 "가운데 문양 영역(중앙 52%)"만 본다.
+    // 가장자리만 긁어선 공개 안 됨 → 해골은 가운데를 충분히 긁어야 "발견"으로 처리(조심스럽게 긁는 긴장감).
+    const w = st.canvas.width, h = st.canvas.height;
+    const x0 = Math.floor(w*0.24), y0 = Math.floor(h*0.24);
+    const bw = Math.max(1, Math.floor(w*0.52)), bh = Math.max(1, Math.floor(h*0.52));
+    const d = st.ctx.getImageData(x0, y0, bw, bh).data;
     let cleared = 0;
-    // v2.43.120~ cover alpha 0.75 (191) 시작 → 한 번만 닿으면 200 미만이라 거의 즉시 cleared
-    // → 픽셀 클리어 임계값 200 → 120 으로 강화 (셀당 ~2배 더 많은 스트로크 필요)
     for (let i = 3; i < d.length; i += 4) if (d[i] < 120) cleared++;
-    const pct = cleared / (st.canvas.width * st.canvas.height);
+    const pct = cleared / (bw * bh);
     if (pct >= revealThreshold) revealCell(st);
   }
 
