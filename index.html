@@ -2893,10 +2893,12 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 /* v2.43.118~ 액션 버튼 그룹 (뒤로·한 번 더·확인) */
 .scard-actions{display:none;gap:6px;width:100%;}
 .scard-actions.show{display:flex;}
-.scard-act-btn{padding:11px 6px;border-radius:8px;cursor:pointer;transition:all 0.2s;
-  font-family:'Black Han Sans',sans-serif;font-size:12px;letter-spacing:0.5px;border:none;
-  display:flex;align-items:center;justify-content:center;}
+.scard-act-btn{padding:9px 6px;border-radius:8px;cursor:pointer;transition:all 0.2s;
+  font-family:'Black Han Sans',sans-serif;font-size:13.5px;letter-spacing:0.2px;border:none;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1.18;}
 .scard-act-btn:hover{filter:brightness(1.12);transform:translateY(-1px);}
+/* 버튼 보조 숫자(보유/비용) — 디스플레이체 대신 가독성 좋은 본문체로 분리 */
+.scard-act-sub{font-family:'Noto Sans KR','Apple SD Gothic Neo',sans-serif;font-weight:700;font-size:10.5px;letter-spacing:0;opacity:0.85;}
 .scard-act-back{flex:0 0 70px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.78);
   border:1px solid rgba(255,255,255,0.18);}
 .scard-act-back:hover{background:rgba(255,255,255,0.12);}
@@ -6442,7 +6444,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.98';
+const APP_VERSION = 'v2.45.99';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6451,6 +6453,9 @@ const APP_VERSION = 'v2.45.98';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.99', date: '2026-06-15', changes: [
+    { tag: 'improve', text: '🎰 복권 결과 하단 버튼 시인성 개선 — "당첨금 받기 (보유 N G)" "한 번 더 (-N G)"처럼 두꺼운 디스플레이체(Black Han Sans)에 숫자·괄호가 섞여 뭉개져 읽기 어렵던 것 수정. 메인 라벨(💰 당첨금 받기 / 🔁 한 번 더 / 확인)과 보조 숫자(보유·비용)를 위아래 2줄로 분리하고, 숫자는 가독성 좋은 본문체로 표기' },
+  ] },
   { ver: 'v2.45.98', date: '2026-06-15', changes: [
     { tag: 'fix', text: '🎰 스크래치 복권 버리기/당첨 흐름 개선 — (1) "🗑 복권 버리기"를 완전 포기로 변경: 쓰레기통에 버린 복권은 당첨이었더라도 당첨금이 들어오지 않아요(버린 것이므로 gold 0 기록). 확인창도 "버리면 당첨이었더라도 받지 못해요"로 명확히. (2) 같은 문양 2개(일반)·3개(고급/프미)가 일치해 당첨이 확정되는 순간, 나머지 칸을 다 안 긁어도 즉시 결과 화면 + "💰 당첨금 받기" 버튼으로 자동 전환(예전엔 당첨 확정 후 넘어갈 방법이 없었음). 당첨 확정 순간 버리기 버튼은 즉시 숨겨 실수로 당첨을 버리는 것 방지' },
   ] },
@@ -25861,8 +25866,8 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
               ${testMode ? '' : `<button class="scard-act-btn scard-act-discard" id="scard-discard">🗑 복권 버리기</button>`}
               ${testMode
                 ? ''
-                : `<button class="scard-act-btn scard-act-replay" id="scard-replay" style="display:none;">🔁 한 번 더 (-${activeTier.price}G)</button>`}
-              <button class="scard-act-btn scard-act-confirm" id="scard-confirm"${testMode ? '' : ' style="display:none;"'}>${testMode ? '🔄 다시 긁기' : `🪙 보유 ${remainingGold}G · 확인`}</button>
+                : `<button class="scard-act-btn scard-act-replay" id="scard-replay" style="display:none;">🔁 한 번 더<span class="scard-act-sub">-${activeTier.price}G</span></button>`}
+              <button class="scard-act-btn scard-act-confirm" id="scard-confirm"${testMode ? '' : ' style="display:none;"'}>${testMode ? '🔄 다시 긁기' : `확인<span class="scard-act-sub">보유 ${remainingGold}G</span>`}</button>
             </div>
           </div>
         </div>
@@ -26130,7 +26135,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     }
 
     if (!testMode) {
-      confirmEl.textContent = win ? `💰 당첨금 받기 (보유 ${finalBalance}G)` : `🪙 보유 ${finalBalance}G · 확인`;
+      confirmEl.innerHTML = win ? `💰 당첨금 받기<span class="scard-act-sub">보유 ${finalBalance}G</span>` : `확인<span class="scard-act-sub">보유 ${finalBalance}G</span>`;
       // 결과 확정 → 🗑 버리기 숨기고 확인·한 번 더 노출
       const _db = overlay.querySelector('#scard-discard'); if (_db) _db.style.display = 'none';
       const _cf = overlay.querySelector('#scard-confirm'); if (_cf) _cf.style.display = '';
