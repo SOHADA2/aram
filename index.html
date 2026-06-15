@@ -6538,7 +6538,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.121';
+const APP_VERSION = 'v2.45.122';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6547,6 +6547,9 @@ const APP_VERSION = 'v2.45.121';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.122', date: '2026-06-16', changes: [
+    { tag: 'fix', text: '🥈 실버 복권에는 강철심장 "강화 당첨 보너스"를 미적용 — 해골 감소 걸작을 극단으로 키우면(3줄+만렙) 가장 싼 실버 복권의 기대값이 양수로 넘어가 골드를 푸는 인플레 경로가 될 수 있어서, 해골이 없는 실버 티어에는 당첨 보너스가 안 붙도록 막았어요. 골드·프리즘은 그대로(보너스 받아도 여전히 음수 EV). 기반 당첨 확률·회수율은 변동 없음' },
+  ] },
   { ver: 'v2.45.121', date: '2026-06-16', changes: [
     { tag: 'improve', text: '🎟 스크래치 복권 정리 — (1) 모서리 ㄱ자 장식 제거 (2) 하단 "ARAM · HOWLING ABYSS / 칼바람의 행운" 브랜딩 문구 제거 (3) 결과 후 뜨는 버튼(한 번 더·확인)을 더 작게 + 복권 맨 아래로 이동 — 긁고 나면 카드 최하단에 자연스럽게 나타나도록(중간에 갑자기 끼어드는 느낌 제거)' },
   ] },
@@ -9219,8 +9222,9 @@ function _lottoSkullReduce(lineCnt){ return lineCnt>0 ? Math.min(LOTTO_SKULL_CAP
 const LOTTO_PRIZE_PER_POWER = 1;
 function _lottoPrizeBonusPerLine(power){ return power>0 ? Math.min(30, Math.round(power*LOTTO_PRIZE_PER_POWER)) : 0; }  // 줄 1개 기여(표시용)
 function _lottoPrizeBonusG(power, lineCnt){ return (power>0 && lineCnt>0) ? _lottoPrizeBonusPerLine(power) * lineCnt : 0; }
-function _myLottoPrizeBonus(data){
+function _myLottoPrizeBonus(data, tierIdx){
   if (CURRENT_SEASON !== 2) return 0;
+  if (tierIdx === 0) return 0;   // 🥈 실버(해골 없는 최저가 티어)엔 당첨 보너스 미적용 — 만렙 해골감소 시 EV가 양수로 넘어가는 것 방지
   const em = getEmblem(data || getMyGoldData()); if (!em) return 0;
   const lines = Array.isArray(em.lines) ? em.lines : [];
   const cnt = lines.filter(l => l === 'lottoTkt').length;
@@ -25977,7 +25981,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     const _myEm = getEmblem(getMyGoldData());
     const _cut = _myEm ? (emblemEffectsOf(_myEm).eff.lottoTkt || 0) : 0;   // 해골 감소율(0.23/0.47/0.70)
     if (_cut > 0) {
-      const _bonus = _myLottoPrizeBonus(getMyGoldData());                  // 당첨 시 추가 골드
+      const _bonus = _myLottoPrizeBonus(getMyGoldData(), activeTier.idx);  // 당첨 시 추가 골드 (실버=0)
       const parts = [];
       if ((activeTier.skullAppear || 0) > 0) parts.push(`🛡️ 해골 감소 <b style="color:#7dd3fc;">-${Math.round(_cut*100)}%</b>`);
       if (_bonus > 0) parts.push(`🪙 당첨 시 <b style="color:#34d399;">+${_bonus}G</b>`);
@@ -26804,7 +26808,7 @@ async function _buyItemImpl(itemId) {
     // 테스트 모드: 골드 차감·결과 저장 모두 skip (v2.43.100~)
     if (SCRATCH_LOTTERY_TESTMODE) {
       const result = rollScratch(tierDef.idx);
-      result.emblemBonus = result.win ? _myLottoPrizeBonus(data) : 0;  // 🪙 표시 일관성(저장 X)
+      result.emblemBonus = result.win ? _myLottoPrizeBonus(data, tierDef.idx) : 0;  // 🪙 표시 일관성(저장 X)
       showScratchModal(result, currentGold, { tierDef, toolParams, onComplete: async () => {} });
       return;
     }
@@ -26815,7 +26819,7 @@ async function _buyItemImpl(itemId) {
       await update(ref(db,'gold/'+key), { [sField('freeScratch')]: ft });
       const result = rollScratch(tierDef.idx);
       // 무료권은 구매비 0이라 "본전 환급"(emblemRefund)은 미적용. 단, 강화(성능) 당첨금 보너스는 "당첨" 보상이라 적용.
-      result.emblemBonus = result.win ? _myLottoPrizeBonus(data) : 0;  // 🪙 강화(성능) 당첨금 보너스 — 당첨 시에만
+      result.emblemBonus = result.win ? _myLottoPrizeBonus(data, tierDef.idx) : 0;  // 🪙 강화(성능) 당첨금 보너스 — 당첨 시에만 (실버 제외)
       const _mkAside = (revealed) => savePendingScratch({ tierIdx: tierDef.idx, slots: result.slots, win: result.win || null, free: true, emblemBonus: result.emblemBonus || 0, toolId: activeTool?.id || null, revealed, at: Date.now() });
       await _mkAside([]);   // 🎟 구매 즉시 보류 저장 (밖에 나가도 유지)
       const onComplete = async ({ winGold, skullPenalty }) => {
@@ -26853,7 +26857,7 @@ async function _buyItemImpl(itemId) {
     const newGoldSpent = (data[spentKey] ?? 0) + tierPrice;
     await update(ref(db,'gold/'+key), { [spentKey]: newGoldSpent });
     const result = rollScratch(tierDef.idx);
-    result.emblemBonus = result.win ? _myLottoPrizeBonus(data) : 0;  // 🪙 강화(성능) 당첨금 보너스 — 당첨 시에만
+    result.emblemBonus = result.win ? _myLottoPrizeBonus(data, tierDef.idx) : 0;  // 🪙 강화(성능) 당첨금 보너스 — 당첨 시에만 (실버 제외)
     const _mkAside = (revealed) => savePendingScratch({ tierIdx: tierDef.idx, slots: result.slots, win: result.win || null, free: false, emblemBonus: result.emblemBonus || 0, toolId: activeTool?.id || null, revealed, at: Date.now() });
     await _mkAside([]);   // 🎟 구매 즉시 보류 저장 (밖에 나가도 유지)
     const onComplete = async ({ winGold, skullPenalty }) => {
