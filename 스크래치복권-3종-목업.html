@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>스크래치 복권 3종 목업 · 실버/골드/프리즘</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:'Noto Sans KR',sans-serif;color:#cfe0ee;
+    min-height:100%;display:flex;flex-direction:column;align-items:center;
+    padding:18px 12px 40px;gap:16px;transition:background .5s ease;
+    background:
+      radial-gradient(ellipse 80% 55% at 50% 0%, #2a4a63 0%, transparent 60%),
+      linear-gradient(160deg, #1c3445, #0a141d);
+  }
+  body.theme-gold{background:radial-gradient(ellipse 80% 55% at 50% 0%, #5a3e16 0%, transparent 60%),linear-gradient(160deg, #2c2110, #140d04);}
+  body.theme-prism{background:radial-gradient(ellipse 80% 55% at 50% 0%, #3a2360 0%, transparent 60%),linear-gradient(160deg, #1c1138, #0a0716);}
+
+  /* 탭 */
+  .tabs{display:flex;gap:8px;z-index:2;}
+  .tab{font-family:'Black Han Sans',sans-serif;font-size:13px;letter-spacing:.5px;padding:8px 16px;border-radius:10px;cursor:pointer;border:1.5px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.05);color:#aeb9c4;transition:all .2s;}
+  .tab.on.silver{background:linear-gradient(135deg,#e6edf2,#9aa7b2);color:#2a333a;border-color:#cfd9e0;box-shadow:0 4px 14px -4px rgba(180,200,215,0.6);}
+  .tab.on.gold{background:linear-gradient(135deg,#f0d98a,#c89a3c);color:#3a2a08;border-color:#e8c878;box-shadow:0 4px 14px -4px rgba(200,154,60,0.6);}
+  .tab.on.prism{background:linear-gradient(135deg,#ff9ad8,#9ad0ff,#c0ffb0);color:#2a1840;border-color:#ffffff;box-shadow:0 4px 16px -4px rgba(200,150,255,0.7);}
+
+  /* ───────── 복권 카드 (테마 변수) ───────── */
+  .ticket{
+    --hi:#fbfdff;--lite:#e6edf2;--base:#c4ced6;--mid:#9aa7b2;--deep:#6f7d88;--shadow:#4a555e;--glow:rgba(150,200,235,0.4);
+    position:relative;z-index:1;display:none;
+    width:min(620px, 96vw);aspect-ratio:1.46 / 1;border-radius:20px;
+    padding:clamp(12px,3.2vw,22px);flex-direction:column;
+    background:linear-gradient(135deg, var(--hi) 0%, var(--base) 22%, var(--lite) 46%, var(--mid) 70%, var(--lite) 100%);
+    box-shadow:0 0 0 2px rgba(255,255,255,0.5) inset,0 0 0 7px var(--mid),0 0 0 9px var(--deep),0 2px 0 10px rgba(255,255,255,0.22),0 26px 60px -12px rgba(0,0,0,0.8),0 0 60px -8px var(--glow);
+  }
+  .ticket.show{display:flex;}
+  .ticket.gold{--hi:#fff8e2;--lite:#f3e2ad;--base:#e8c878;--mid:#c89a3c;--deep:#8a6418;--shadow:#5e430e;--glow:rgba(230,180,80,0.45);}
+  .ticket.prism{--hi:#ffffff;--lite:#eaf0ff;--base:#cdd6f5;--mid:#a99ad0;--deep:#7a6aa8;--shadow:#4a3a70;--glow:rgba(190,150,255,0.5);}
+
+  .ticket::before{content:'';position:absolute;inset:9px;border-radius:13px;pointer-events:none;
+    background:repeating-linear-gradient(115deg, rgba(255,255,255,0.10) 0 2px, transparent 2px 5px),radial-gradient(ellipse 90% 80% at 50% 30%, transparent 55%, rgba(0,0,0,0.18) 100%);
+    mix-blend-mode:overlay;opacity:0.7;}
+  .ticket::after{content:'';position:absolute;inset:13px;border-radius:11px;pointer-events:none;border:1.5px solid rgba(255,255,255,0.5);box-shadow:0 0 0 1.5px rgba(0,0,0,0.22);}
+  .ticket.prism::before{background:conic-gradient(from 0deg, rgba(255,160,220,0.10),rgba(160,210,255,0.10),rgba(190,255,180,0.10),rgba(255,240,160,0.10),rgba(255,160,220,0.10));mix-blend-mode:overlay;opacity:0.9;}
+
+  .corner{position:absolute;width:24px;height:24px;z-index:3;border:2.5px solid var(--deep);border-radius:3px;box-shadow:0 1px 0 rgba(255,255,255,0.55);}
+  .corner.tl{top:14px;left:14px;border-right:none;border-bottom:none;}
+  .corner.tr{top:14px;right:14px;border-left:none;border-bottom:none;}
+  .corner.bl{bottom:14px;left:14px;border-right:none;border-top:none;}
+  .corner.br{bottom:14px;right:14px;border-left:none;border-top:none;}
+
+  .head{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;gap:clamp(8px,2vw,16px);margin-top:2px;}
+  .head-ic{font-size:clamp(15px,3.2vw,22px);filter:grayscale(.7) brightness(1.3) drop-shadow(0 1px 0 rgba(255,255,255,0.7));opacity:0.9;}
+  .ticket.gold .head-ic{filter:sepia(.5) saturate(1.6) brightness(1.05) drop-shadow(0 1px 0 rgba(255,255,255,0.6));}
+  .ticket.prism .head-ic{filter:saturate(1.4) drop-shadow(0 1px 0 rgba(255,255,255,0.6));}
+  .title{font-family:'Black Han Sans','Noto Sans KR',sans-serif;font-size:clamp(16px,4.4vw,28px);letter-spacing:0.5px;white-space:nowrap;
+    background:linear-gradient(180deg, #ffffff 0%, var(--lite) 38%, var(--deep) 64%, var(--base) 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 2px 1px rgba(255,255,255,0.5), 0 -1px 1px rgba(0,0,0,0.25);
+    filter:drop-shadow(0 2px 2px rgba(40,40,50,0.4));}
+  .ticket.prism .title{background:linear-gradient(180deg,#ffffff,#ffd0f0 30%,#c0e0ff 55%,#d0ffd0 80%);-webkit-background-clip:text;background-clip:text;}
+
+  .cells{position:relative;z-index:2;flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(8px,2vw,16px);align-items:center;padding:clamp(6px,2vw,14px) clamp(2px,1.2vw,8px);}
+  .cell{position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;}
+  .cell-no{position:absolute;top:18px;left:8%;font-family:'Black Han Sans',sans-serif;font-size:clamp(12px,2.8vw,17px);color:var(--deep);text-shadow:0 1px 0 rgba(255,255,255,0.7);z-index:4;line-height:1;}
+  .cell-label{font-size:clamp(7px,1.6vw,9px);font-weight:800;letter-spacing:2px;color:var(--deep);text-shadow:0 1px 0 rgba(255,255,255,0.6);}
+  .disc{position:relative;width:100%;aspect-ratio:1;border-radius:50%;overflow:hidden;
+    box-shadow:0 0 0 3px rgba(255,255,255,0.5) inset,0 0 0 4px var(--mid),0 0 0 6px var(--deep),0 6px 14px -4px rgba(0,0,0,0.55);}
+  .sym{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(22px,6vw,44px);z-index:1;
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,0.3));}
+  .disc canvas{position:absolute;inset:0;width:100%;height:100%;z-index:2;cursor:grab;touch-action:none;}
+  .disc.done canvas{display:none;}
+  .disc.done{box-shadow:0 0 0 3px rgba(255,255,255,0.5) inset,0 0 0 4px var(--base),0 0 0 6px var(--mid),0 6px 16px -4px rgba(0,0,0,0.5);animation:pop .35s ease;}
+  @keyframes pop{0%{transform:scale(.92)}60%{transform:scale(1.04)}100%{transform:scale(1)}}
+
+  .foot{position:relative;z-index:2;display:flex;flex-direction:column;gap:3px;padding:0 clamp(2px,1vw,8px) 2px;}
+  .rule{font-size:clamp(7px,1.5vw,9.5px);line-height:1.5;color:var(--shadow);font-weight:600;}
+  .rule b{color:#2a2a2a;font-weight:800;}
+  .ticket.silver .rule b{color:#33414c;} .ticket.gold .rule b{color:#4a3408;} .ticket.prism .rule b{color:#3a2860;}
+  .brand{display:flex;align-items:center;justify-content:space-between;margin-top:3px;}
+  .brand-left{font-size:clamp(7px,1.4vw,9px);letter-spacing:2px;font-weight:800;color:var(--deep);opacity:0.85;}
+  .brand-right{font-family:'Black Han Sans',sans-serif;font-size:clamp(8px,1.8vw,12px);letter-spacing:1px;color:var(--shadow);display:flex;align-items:center;gap:5px;}
+  .riot-dot{width:7px;height:7px;border-radius:2px;background:linear-gradient(135deg,var(--mid),var(--deep));box-shadow:0 1px 0 rgba(255,255,255,0.5);}
+
+  .ctrls{z-index:2;display:flex;gap:10px;align-items:center;}
+  .btn{font-family:'Black Han Sans',sans-serif;font-size:12px;letter-spacing:.5px;padding:8px 16px;border-radius:9px;cursor:pointer;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.07);color:#cfe0ee;transition:all .15s;}
+  .btn:hover{background:rgba(255,255,255,0.14);}
+  .sndtoggle{font-size:11px;color:#8fb0c8;display:flex;align-items:center;gap:5px;cursor:pointer;user-select:none;}
+  .note{z-index:1;font-size:11.5px;color:#8fb0c8;text-align:center;line-height:1.6;max-width:560px;}
+  .note b{color:#d6e6f2;}
+
+  /* 부스러기 입자 */
+  .flake{position:fixed;z-index:9999;pointer-events:none;border-radius:1.5px;will-change:transform,opacity;}
+</style>
+</head>
+<body class="theme-silver">
+
+  <div class="tabs">
+    <button class="tab silver on" data-t="silver">🥈 실버복권</button>
+    <button class="tab gold" data-t="gold">🥇 골드복권</button>
+    <button class="tab prism" data-t="prism">🌈 프리즘복권</button>
+  </div>
+
+  <!-- 실버 -->
+  <div class="ticket silver show" data-theme="silver">
+    <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+    <div class="head"><span class="head-ic">⚔️</span><h1 class="title">긁어보세요! 칼바람의 행운!</h1><span class="head-ic">🏆</span></div>
+    <div class="cells">
+      <div class="cell"><span class="cell-no">1</span><span class="cell-label">SCRATCH</span><div class="disc" data-theme="silver"><span class="sym">❄️</span><canvas></canvas></div></div>
+      <div class="cell"><span class="cell-no">2</span><span class="cell-label">SCRATCH</span><div class="disc" data-theme="silver"><span class="sym">⚔️</span><canvas></canvas></div></div>
+      <div class="cell"><span class="cell-no">3</span><span class="cell-label">SCRATCH</span><div class="disc" data-theme="silver"><span class="sym">⚔️</span><canvas></canvas></div></div>
+      <div class="cell"><span class="cell-no">4</span><span class="cell-label">SCRATCH</span><div class="disc" data-theme="silver"><span class="sym">👑</span><canvas></canvas></div></div>
+    </div>
+    <div class="foot">
+      <p class="rule"><b>당첨</b> 같은 문양 <b>2개</b>가 나오면 당첨! 가장 가치 큰 문양의 상금을 받아요.</p>
+      <p class="rule"><b>실버복권</b> 4칸 · 해골 없음 — 마음껏 긁어도 패널티가 없어요.</p>
+      <div class="brand"><span class="brand-left">ARAM · HOWLING ABYSS</span><span class="brand-right"><span class="riot-dot"></span>RIOT GAMES</span></div>
+    </div>
+  </div>
+
+  <!-- 골드 -->
+  <div class="ticket gold" data-theme="gold">
+    <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+    <div class="head"><span class="head-ic">💰</span><h1 class="title">긁어보세요! 황금빛 대박!</h1><span class="head-ic">👑</span></div>
+    <div class="cells">
+      <div class="cell"><span class="cell-no">1</span><span class="cell-label">SCRATCH</span><div class="disc" data-theme="gold"><span class="sym">🪙</span><canvas></canvas></div></div>
+      <div class="cell"><span class="cell-no">2</span><span class="cell-label">SCRATCH</span><div class="disc" data-theme="gold"><span class="sym">⭐</span><canvas></canvas></div></div>
+      <div class="cell"><span class="cell-no">3</span><span class="cell-label">SCRATCH</span><div class="disc" data-theme="gold"><span class="sym">👑</span><canvas></canvas></div></div>
+      <div class="cell"><span class="cell-no">4</span><span class="cell-label">SCRATCH</span><div class="disc" data-theme="gold"><span class="sym">👑</span><canvas></canvas></div></div>
+    </div>
+    <div class="foot">
+      <p class="rule"><b>당첨</b> 같은 문양 <b>3개</b>가 나오면 당첨! 상금이 실버보다 두둑해요.</p>
+      <p class="rule"><b>골드복권</b> 6칸 · 💀 해골 평균 1개(-10G) — 해골 같으면 다 긁지 마세요.</p>
+      <div class="brand"><span class="brand-left">ARAM · HOWLING ABYSS</span><span class="brand-right"><span class="riot-dot"></span>RIOT GAMES</span></div>
+    </div>
+  </div>
+
+  <!-- 프리즘 -->
+  <div class="ticket prism" data-theme="prism">
+    <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+    <div class="head"><span class="head-ic">💎</span><h1 class="title">긁어보세요! 프리즘 잭팟!</h1><span class="head-ic">✨</span></div>
+    <div class="cells">
+      <div class="cell"><span class="cell-no">1</span><span class="cell-label">SCRATCH</span><div class="disc" data-theme="prism"><span class="sym">💎</span><canvas></canvas></div></div>
+      <div class="cell"><span class="cell-no">2</span><span class="cell-label">SCRATCH</span><div class="disc" data-theme="prism"><span class="sym">🔮</span><canvas></canvas></div></div>
+      <div class="cell"><span class="cell-no">3</span><span class="cell-label">SCRATCH</span><div class="disc" data-theme="prism"><span class="sym">💎</span><canvas></canvas></div></div>
+      <div class="cell"><span class="cell-no">4</span><span class="cell-label">SCRATCH</span><div class="disc" data-theme="prism"><span class="sym">👑</span><canvas></canvas></div></div>
+    </div>
+    <div class="foot">
+      <p class="rule"><b>당첨</b> 같은 문양 <b>3개</b>가 나오면 당첨! 최고 등급, 메가잭팟이 숨어있어요.</p>
+      <p class="rule"><b>프리즘복권</b> 7칸 · 💀 해골 평균 2개(-10G) — 큰 위험, 큰 보상.</p>
+      <div class="brand"><span class="brand-left">ARAM · HOWLING ABYSS</span><span class="brand-right"><span class="riot-dot"></span>RIOT GAMES</span></div>
+    </div>
+  </div>
+
+  <div class="ctrls">
+    <button class="btn" id="recover">🔄 다시 덮기</button>
+    <label class="sndtoggle"><input type="checkbox" id="snd" checked> 🔊 긁는 소리</label>
+  </div>
+  <div class="note">
+    <b>실제로 손가락/마우스로 긁어보세요</b> — 깔끔하게 벗겨지고 부스러기가 떨어져요.<br>
+    같은 문양이 매칭(실버 2개·골드/프리즘 3개)되면 디스크가 살짝 튀어요. · <b>다시 덮기</b>로 재시도
+  </div>
+
+<script>
+(function(){
+  const DPR = Math.min(window.devicePixelRatio||1, 2.5);
+  const THEME = {
+    silver:{ stops:[[0,'#fbfdff'],[0.4,'#e6edf2'],[0.7,'#c4ced6'],[1,'#9aa7b2']], brush:'rgba(255,255,255,0.18)', flakes:['#eef3f7','#cfd9e0','#aab6bf','#ffffff'] },
+    gold:{   stops:[[0,'#fff8e2'],[0.4,'#f3e2ad'],[0.7,'#e8c878'],[1,'#c89a3c']], brush:'rgba(255,245,210,0.22)', flakes:['#fff3c8','#f0d98a','#d4a843','#b8860b'] },
+    prism:{  stops:null, brush:'rgba(255,255,255,0.25)', flakes:['#ff9ad8','#9ad0ff','#c0ffb0','#fff0a0','#ffffff'] },
+  };
+
+  // ── 긁는 소리 (Web Audio, 화이트노이즈 + 밴드패스) ──
+  let actx=null, noiseBuf=null, lastSnd=0;
+  function ensureAudio(){
+    if(actx) return;
+    try{
+      actx = new (window.AudioContext||window.webkitAudioContext)();
+      const len = actx.sampleRate*0.4; noiseBuf = actx.createBuffer(1,len,actx.sampleRate);
+      const d = noiseBuf.getChannelData(0); for(let i=0;i<len;i++) d[i]=Math.random()*2-1;
+    }catch(e){}
+  }
+  function playScratch(){
+    if(!actx || !document.getElementById('snd').checked) return;
+    const now = performance.now(); if(now-lastSnd<55) return; lastSnd=now;
+    const src=actx.createBufferSource(); src.buffer=noiseBuf;
+    const bp=actx.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=2600+Math.random()*1400; bp.Q.value=0.8;
+    const g=actx.createGain(); g.gain.setValueAtTime(0.0001,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.12,actx.currentTime+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,actx.currentTime+0.09);
+    src.connect(bp).connect(g).connect(actx.destination); src.start(); src.stop(actx.currentTime+0.1);
+  }
+
+  // ── 부스러기 입자 ──
+  function spawnFlakes(clientX, clientY, theme){
+    const cols = THEME[theme].flakes;
+    const n = 2 + (Math.random()*2|0);
+    for(let i=0;i<n;i++){
+      const f=document.createElement('div'); f.className='flake';
+      const sz = 2.5 + Math.random()*4;
+      f.style.width=sz+'px'; f.style.height=(sz*0.8)+'px';
+      f.style.background = cols[Math.random()*cols.length|0];
+      f.style.left=clientX+'px'; f.style.top=clientY+'px';
+      f.style.opacity='0.95';
+      document.body.appendChild(f);
+      const ang = -Math.PI/2 + (Math.random()-0.5)*1.8;
+      const spd = 30+Math.random()*55;
+      const vx=Math.cos(ang)*spd, vy=Math.sin(ang)*spd - 10;
+      const rot=(Math.random()-0.5)*540;
+      const dur=480+Math.random()*360;
+      f.animate([
+        {transform:`translate(0,0) rotate(0deg)`,opacity:0.95},
+        {transform:`translate(${vx}px, ${vy + 70}px) rotate(${rot}deg)`,opacity:0}
+      ],{duration:dur,easing:'cubic-bezier(.3,.6,.5,1)',fill:'forwards'}).onfinish=()=>f.remove();
+    }
+  }
+
+  // ── 코팅 그리기 ──
+  function drawCoating(cv, theme){
+    const ctx=cv.getContext('2d');
+    const w=cv.width, h=cv.height, cx=w/2, cy=h/2, r=Math.min(w,h)/2;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,w,h);
+    ctx.save(); ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.clip();
+    if(theme==='prism'){
+      const cg=ctx.createConicGradient?ctx.createConicGradient(0,cx,cy):null;
+      if(cg){ ['#ff9ad8','#c0a0ff','#9ad0ff','#a0ffd0','#fff0a0','#ffb0c0','#ff9ad8'].forEach((c,i,a)=>cg.addColorStop(i/(a.length-1),c)); ctx.fillStyle=cg; }
+      else ctx.fillStyle='#cdd6f5';
+      ctx.fillRect(0,0,w,h);
+      const sh=ctx.createRadialGradient(cx*0.7,cy*0.6,r*0.05,cx,cy,r);
+      sh.addColorStop(0,'rgba(255,255,255,0.85)'); sh.addColorStop(0.5,'rgba(255,255,255,0.15)'); sh.addColorStop(1,'rgba(255,255,255,0)');
+      ctx.fillStyle=sh; ctx.fillRect(0,0,w,h);
+    } else {
+      const g=ctx.createRadialGradient(cx*0.68,cy*0.55,r*0.08,cx,cy,r);
+      THEME[theme].stops.forEach(s=>g.addColorStop(s[0],s[1]));
+      ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    }
+    // 브러시드 결
+    ctx.strokeStyle=THEME[theme].brush; ctx.lineWidth=Math.max(1,r*0.02);
+    for(let a=0;a<360;a+=8){ const rad=a*Math.PI/180; ctx.beginPath(); ctx.moveTo(cx+Math.cos(rad)*r*0.15,cy+Math.sin(rad)*r*0.15); ctx.lineTo(cx+Math.cos(rad)*r,cy+Math.sin(rad)*r); ctx.stroke(); }
+    // 대각 광택
+    const sheen=ctx.createLinearGradient(0,0,w,h);
+    sheen.addColorStop(0.40,'rgba(255,255,255,0)'); sheen.addColorStop(0.50,'rgba(255,255,255,0.55)'); sheen.addColorStop(0.60,'rgba(255,255,255,0)');
+    ctx.fillStyle=sheen; ctx.fillRect(0,0,w,h);
+    // "긁기" 글자(은은)
+    ctx.fillStyle='rgba(60,60,70,0.30)'; ctx.font=`800 ${r*0.22}px 'Noto Sans KR',sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText('SCRATCH', cx, cy+r*0.5);
+    ctx.restore();
+    cv._done=false;
+  }
+
+  function sizeCanvas(cv){
+    const rect=cv.getBoundingClientRect();
+    if(!rect.width) return false;
+    cv.width=Math.round(rect.width*DPR); cv.height=Math.round(rect.height*DPR);
+    return true;
+  }
+
+  // ── 긁기 로직 ──
+  function scratchLine(ctx, x0,y0,x1,y1, r){
+    ctx.globalCompositeOperation='destination-out';
+    ctx.lineCap='round'; ctx.lineJoin='round'; ctx.lineWidth=r*2; ctx.strokeStyle='rgba(0,0,0,1)';
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+    // 거친 가장자리 dab(부스러기 느낌)
+    for(let i=0;i<3;i++){ const ox=(Math.random()-0.5)*r*1.6, oy=(Math.random()-0.5)*r*1.6;
+      ctx.beginPath(); ctx.arc(x1+ox,y1+oy,r*(0.3+Math.random()*0.4),0,Math.PI*2); ctx.fill(); }
+    ctx.globalCompositeOperation='source-over';
+  }
+  function clearedRatio(ctx,w,h){
+    try{ const d=ctx.getImageData(0,0,w,h).data; let cl=0,tot=0;
+      for(let i=3;i<d.length;i+=4*7){ tot++; if(d[i]<40) cl++; }
+      return cl/tot; }catch(e){ return 0; }
+  }
+  function revealDisc(disc, cv){
+    if(cv._done) return; cv._done=true; disc.classList.add('done');
+  }
+
+  function initDisc(disc){
+    const cv=disc.querySelector('canvas'); const theme=disc.dataset.theme;
+    if(!sizeCanvas(cv)) return;
+    drawCoating(cv, theme);
+    const ctx=cv.getContext('2d');
+    let drawing=false, px=0, py=0, moved=0;
+    function pos(e){ const r=cv.getBoundingClientRect(); const cx=(e.touches?e.touches[0].clientX:e.clientX); const cy=(e.touches?e.touches[0].clientY:e.clientY);
+      return {x:(cx-r.left)*(cv.width/r.width), y:(cy-r.top)*(cv.height/r.height), clientX:cx, clientY:cy}; }
+    const R = cv.width*0.11;
+    function down(e){ if(cv._done) return; ensureAudio(); if(actx&&actx.state==='suspended')actx.resume(); drawing=true; const p=pos(e); px=p.x; py=p.y; moved=0; scratchLine(ctx,px,py,px+0.1,py+0.1,R); spawnFlakes(p.clientX,p.clientY,theme); playScratch(); e.preventDefault(); }
+    function move(e){ if(!drawing||cv._done) return; const p=pos(e); scratchLine(ctx,px,py,p.x,p.y,R); px=p.x; py=p.y; moved++;
+      if(moved%2===0){ spawnFlakes(p.clientX,p.clientY,theme); playScratch(); }
+      if(moved%6===0 && clearedRatio(ctx,cv.width,cv.height)>0.5){ revealDisc(disc,cv); }
+      e.preventDefault(); }
+    function up(){ if(!drawing) return; drawing=false; if(!cv._done && clearedRatio(ctx,cv.width,cv.height)>0.42) revealDisc(disc,cv); }
+    cv.addEventListener('pointerdown',down); cv.addEventListener('pointermove',move);
+    window.addEventListener('pointerup',up); cv.addEventListener('pointerleave',up);
+  }
+
+  function initVisible(){ document.querySelectorAll('.ticket.show .disc').forEach(initDisc); }
+
+  // 탭 전환
+  const body=document.body;
+  document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+    const th=t.dataset.t;
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on')); t.classList.add('on');
+    document.querySelectorAll('.ticket').forEach(x=>x.classList.toggle('show', x.dataset.theme===th));
+    body.className='theme-'+th;
+    requestAnimationFrame(()=>{ requestAnimationFrame(initVisible); });
+  }));
+  document.getElementById('recover').addEventListener('click',()=>{
+    document.querySelectorAll('.ticket.show .disc').forEach(d=>{ d.classList.remove('done'); const cv=d.querySelector('canvas'); if(sizeCanvas(cv)) drawCoating(cv,d.dataset.theme); });
+  });
+
+  window.addEventListener('load',()=>{ requestAnimationFrame(()=>requestAnimationFrame(initVisible)); });
+  window.addEventListener('resize',()=>{ clearTimeout(window._rz); window._rz=setTimeout(()=>{ document.querySelectorAll('.ticket.show .disc').forEach(d=>{ const cv=d.querySelector('canvas'); const wasDone=cv._done; if(sizeCanvas(cv)){ if(wasDone){d.classList.add('done');} else drawCoating(cv,d.dataset.theme);} }); },200); });
+})();
+</script>
+</body>
+</html>
