@@ -72,6 +72,12 @@
     <button data-act="rotL">↺ 왼쪽으로</button><button data-act="rotR">오른쪽으로 ↻</button>
   </div>
 
+  <div class="grp-title">🕳 폴짝 다이브 (🦘 폴짝 모습일 때 통 속으로)</div>
+  <div class="pad2">
+    <button data-act="deeper">더 깊이 ⬇</button><button data-act="shallow">덜 깊이 ⬆</button>
+    <button data-act="faster">빠르게 ⏩</button><button data-act="slower">느리게 🐢</button>
+  </div>
+
   <div class="out" id="out">불러오는 중…</div>
   <div class="err" id="err"></div>
 </div>
@@ -96,6 +102,7 @@ const keyL=new THREE.DirectionalLight(0xffffff,1.0); keyL.position.set(3,5,4); s
 const clock=new THREE.Clock();
 
 const T = { x:0, y:0, scale:1, rot:0 };   // 사용자 조정값 (x,y=반지름 비율, scale=배율, rot=도)
+let DIG_DIP=0.8, DIG_PERIOD=1.3, _digT=0;   // 폴짝 다이브: 깊이(반지름배)/주기(초)
 let R = 1;
 const STATES=[{key:'idle',file:'yuumi-idle.glb'},{key:'dig',file:'yuumi-dig.glb'}];
 const M={}; let active='idle';
@@ -133,10 +140,16 @@ function applyT(){
     '좌우 X : '+T.x.toFixed(2)+'\n'+
     '상하 Y : '+T.y.toFixed(2)+'\n'+
     '크기   : '+T.scale.toFixed(2)+'\n'+
-    '방향   : '+T.rot+'°';
+    '방향   : '+T.rot+'°\n'+
+    '폴짝 깊이 : '+DIG_DIP.toFixed(2)+' · 주기 : '+DIG_PERIOD.toFixed(2)+'초';
 }
 
-function loop(){ requestAnimationFrame(loop); const dt=clock.getDelta(); for(const k in M){ if(M[k].mixer&&M[k].group.visible) M[k].mixer.update(dt); } renderer.render(scene,camera); }
+function loop(){ requestAnimationFrame(loop); const dt=clock.getDelta();
+  for(const k in M){ if(M[k].mixer&&M[k].group.visible) M[k].mixer.update(dt); }
+  const dg=M['dig'];   // 폴짝 모드: 통 속으로 쏙 들어갔다 나오는 다이브
+  if(dg&&dg.group.visible){ _digT+=dt; const ph=(1-Math.cos(_digT*(2*Math.PI/DIG_PERIOD)))/2; dg.group.position.y=(T.y - DIG_DIP*ph)*R; }
+  renderer.render(scene,camera);
+}
 loop();
 
 const STEP=0.06;
@@ -144,6 +157,8 @@ const acts={
   up:()=>T.y+=STEP, down:()=>T.y-=STEP, left:()=>T.x-=STEP, right:()=>T.x+=STEP,
   bigger:()=>T.scale=Math.min(4,T.scale*1.08), smaller:()=>T.scale=Math.max(0.2,T.scale/1.08),
   rotL:()=>T.rot=((T.rot-15+360)%360), rotR:()=>T.rot=((T.rot+15)%360),
+  deeper:()=>DIG_DIP=Math.min(3,DIG_DIP+0.15), shallow:()=>DIG_DIP=Math.max(0,DIG_DIP-0.15),
+  faster:()=>DIG_PERIOD=Math.max(0.4,DIG_PERIOD-0.15), slower:()=>DIG_PERIOD=Math.min(3,DIG_PERIOD+0.15),
   reset:()=>{ T.x=0;T.y=0;T.scale=1;T.rot=0; },
 };
 document.querySelectorAll('[data-act]').forEach(b=>b.addEventListener('click',()=>{ acts[b.dataset.act](); applyT(); }));
