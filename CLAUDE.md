@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.45.124 (🌌 **시즌2 라이브 중 2026-06-10~** — 최근: 🎟 복권 긁기 원 밖 끊김 수정(window 바인딩)·뒷배경 스크롤 락(MutationObserver 복원), 🐱 유미 걸작 효과(파견/휴식 단축) 박제 동작 검증. 그 전 복권 목업 정합·만능긁개 모달토글·패스닷 버그·EV 검증. 브릿지 **v1.1.35**. 시즌2 라이브 `switchSeason(2)` 완료. 상세는 아래 세션 이력 v2.45.123~124 + v115~122)
+- 현재 버전: v2.45.150 (🌌 **시즌2 라이브 중 2026-06-10~** — 최근: 🐱 **쓰레기통 유미 3D 모델화**(미니유미 GLB·three.js·압축·위치·모션·효과음·모바일 발열 최적화). 그 전 복권 구매팝업 시인성·뒷배경 겹침·허브 호버 번쩍임·만능긁개 모달 통합. 브릿지 **v1.1.35**. 시즌2 라이브 `switchSeason(2)` 완료. 상세는 아래 세션 이력 v2.45.125~150)
   - ⏳ **레벨 시스템 후속**: ① 패스를 일반/내전 포인트패스 → **S1식 퀘스트 패스(내전 전용)로 되돌리기**(미완) ② 레벨 보상량/곡선 실플레이 튜닝. 레벨 코드맵: `PLV_XP`·`calcPlayerXp`·`plvLevelFromXp`·`plvReward`·`claimPlayerLevels`·`_plvCardHtml`(패스 탭 상단). 데이터 `playerLevelClaimed_s2`. 정수: 경기당+1·상점120G 폐지(레벨업만).
 - ✅ **시즌2 라이브 중** (2026-06-10~) — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 + 세션이력 v2.45.38~49 필독
 
@@ -736,7 +736,25 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.45.123~124 (2026-06-16) — 🎟 스크래치 복권 긁기 끊김 수정(window 바인딩) + 뒷배경 스크롤 락 + 🐱 유미 걸작 효과 검증 ← 최신
+### v2.45.125~150 (2026-06-16) — 🐱 쓰레기통 유미 3D 모델화(대장정) + 복권 팝업/겹침/호버 다듬기 ← 최신
+
+> 이 세션 핵심 = **쓰레기통 유미를 2D 컷 → 진짜 3D 모델로** 전환(three.js, 오른 대장간과 동일 패턴). 압축·렌더·위치·모션·효과음·발열까지 길게 반복. 전부 푸시·배포 완료. 커밋 규칙 동일(모듈 `node --check` `cd /c/Users/sbs_n/Desktop/aram &&` 프리픽스 — **작업 디렉토리 리셋되니 절대경로/프리픽스 필수**). **배포 시 버전 항상 명시**(사용자 요청, 메모리 `feedback_state_version_after_deploy`). 그 사이 v110~124는 다른 컴퓨터(스크래치 복권 목업 정합 등).
+
+- **v125~128 복권 다듬기**: 구매확인 팝업 시인성(흰 50%→85%·배경 딤·버튼 글자 tierMeta.fg) / 스크래치 모달 열 때 백드롭 페이드(`lottOvIn`) 제거(뒷배경 겹침) / 허브 카드 호버 시 `backdrop-filter`+`transform` 합성 번쩍임 → `.lh-overlay` 블러 제거+딤↑ / **만능 긁개 구매·장착을 복권 모달로 통합**(허브 도구 섹션 제거, 미보유 시 모달서 인라인 구매=active:true).
+- **v129~130 쓰레기통 재단장(2D)**: `_trashLayoutJunk` 랜덤→바닥 더미(꽉 참, 16개) / 유미를 통 리드 걸터앉기→메인 통에서 뒤지는 2D 모션(이후 3D로 대체됨).
+
+#### 🐱 3D 유미 (v2.45.131~150) — 핵심. 코드: `ensureYuumi3d`/`_setYuumi3d`/`_evacuateYuumi3d`(~L25390~), 마운트 `#yuumi3d-mount`(트래시 HTML), CSS `#yuumi3d-mount`(~L2048), `_renderYuumiPanel` 상태 분기(~L25530)
+- **에셋**: `assets/pets/Yuumi/3d/yuumi-idle.glb`·`yuumi-dig.glb`(둘 다 미니_유미(진입)=`Dance_Loop` 반복)·`yuumi-rest.glb`(미니_유미(휴식)=`Death` 1회+clamp). 원본 GLB는 바탕화면. **gitignore 화이트리스트 `!assets/pets/*/*/*`로 자동 추적**.
+- **⚠️ 압축 교훈 3가지(중요)**: ① `gltf-transform optimize` 프리셋은 **flatten/join/weld가 스킨드 애니 모델을 파손** → 반드시 **`webp`/`meshopt` 개별 변환만**. ② **webp 텍스처 변환이 `KHR_materials_unlit` 모델 외형을 깨뜨림**(unlit=텍스처가 곧 외형) → **PNG 유지 + `meshopt`만**. 최종 명령: `gltf-transform meshopt in out --quantize-position 16 --quantize-normal 14 --quantize-texcoord 16 --quantize-weight 16 --quantize-generic 16` (webp 안 씀, ~1MB). ③ 오른 GLB도 스킨드+meshopt+음수스케일인데 정상 → meshopt·음수스케일 자체는 무해, optimize·webp가 범인. (gltf-transform 4.4.0은 `npm i -g @gltf-transform/cli`로 설치됨)
+- **렌더 패턴**(오른과 동일): 캔버스 1개 holder 보관→마운트 이동, 렌더 루프 **자가복구**(마운트 보이면 캔버스 자동 부착, 안 그러면 영영 안 그려지던 버그). 모델을 `THREE.Group`에 담아 `position/scale/rotation` 변형. **카메라=바운딩 스피어 fit**(전체 보이게).
+- **위치값**(테스트 페이지에서 잡음): `YUUMI_POS={x:0.18,y:-1.92,scale:0.68,rot:0}`(반지름 비율). 마운트 `top:-96;width:272;height:205→349`+카메라 여백 `×2.465`(=1.45×1.7) — **잘림 방지로 캔버스 확대(비례보정해 크기·위치는 동일)**. `DIG_SCALE=0.85`(뒤지기만 작게).
+- **상태 매핑**: foraging→'dig', cooldown→'rest', ready/done→'idle'. 휴식(Death)은 **끝 프레임=책 상태에서 정지(숨기지 않음)**.
+- **연출**: 파견 중 `_yuumiStartJunkJiggle`(430ms마다 `_trashRustle` 랜덤점 → 쓰레기 들썩+사각사각). 효과음 `_trashSfx`에 `recall`(휴식)·`deploy`(파견) 추가. 인공 다이브 `DIG_DIP=0`(Dance_Loop 자체가 뒤지기).
+- **🔥 모바일 발열 완화(v150)**: 렌더 루프 **30fps 캡**(`_y3dLast` throttle)+dt 클램프, **DPR 2→1.5**, `antialias:false`+`powerPreference:'low-power'`, `.trash-overlay` **backdrop-filter 블러 제거**. 뚜껑 깜빡임(canvas 60fps가 뚜껑 위에서 재합성) → `.trash-lid`/`.trash-body`에 `will-change:transform`+`backface-visibility:hidden`로 독립 레이어.
+- **🛠 진단 도구 `유미3d-테스트.html`**(gitignore 화이트리스트, 배포됨): 대기/폴짝/휴식 토글 + **버튼식 위치 조정**(위/아래/크게/작게/회전, 결과 4값 출력) — 슬라이더가 비직관적이라 버튼으로 재작성. 앱과 동일 설정(마운트·카메라·DIG_SCALE) → 값 1:1 적용. 진단용 임시 GLB(raw/safe/pt/mo, 37MB)는 v150 후 삭제 완료.
+- **⏭️ 남은/제안**: 미니 '대기' 전용 모션 없어 ready/done도 Dance 사용(사용자 제공 시 분리). 발열 더 심하면 캔버스 축소·가시성 기반 렌더 정지 여지. 위치/크기/다이브 깊이는 상수(`YUUMI_POS`/`DIG_SCALE`/`DIG_DIP`)로 조절.
+
+### v2.45.123~124 (2026-06-16) — 🎟 스크래치 복권 긁기 끊김 수정(window 바인딩) + 뒷배경 스크롤 락 + 🐱 유미 걸작 효과 검증
 
 > 사용자 제보 2건. 전부 푸시 완료. CHANGELOG/커밋 규칙 동일(주석줄 매칭·모듈 node --check `&&` 게이트).
 
