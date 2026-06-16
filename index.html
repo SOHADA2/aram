@@ -6544,7 +6544,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.127';
+const APP_VERSION = 'v2.45.128';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6553,6 +6553,9 @@ const APP_VERSION = 'v2.45.127';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.128', date: '2026-06-16', changes: [
+    { tag: 'improve', text: '🔑 만능 긁개 구매·장착을 복권 모달 안으로 통합 — 복권 목록(허브)에 있던 "긁기 도구" 구매 섹션을 없애고, 복권을 켰을 때 맨 아래 만능 긁개 행에서 처리하도록 바꿈. 보유 중이면 장착/해제 토글, 아직 없으면 "구매 500G" 버튼이 떠서 그 자리에서 사면 바로 장착돼 더 쉽게 긁혀요(허브·장비 탭 갈 필요 없음)' },
+  ] },
   { ver: 'v2.45.127', date: '2026-06-16', changes: [
     { tag: 'fix', text: '🎟 복권 목록에서 실버 복권 등에 마우스를 올리면(클릭 X) 뒷 배경이 한 번 번쩍 떴다 사라지던 현상 수정 — 카드에 마우스 올릴 때 살짝 떠오르는 효과가 배경 흐림 처리를 재계산시키며 한 프레임 깜빡이던 브라우저 버그. 복권 창 배경 흐림을 빼고 어둠을 더 진하게 해 깜빡임 없이 깔끔하게 가림' },
   ] },
@@ -24361,7 +24364,7 @@ function _renderShopImmediate() {
       <div class="lot-entry-icon">🎟</div>
       <div class="lot-entry-body">
         <div class="lot-entry-title">스크래치 복권 ${_toolBadge}${_lockBadge || _testBadge}</div>
-        <div class="lot-entry-desc">${SCRATCH_LOTTERY_LOCKED ? '⚖️ 밸런스 패치 진행 중 — 잠시만 기다려 주세요' : (SCRATCH_LOTTERY_TESTMODE ? '🧪 테스트 모드 — 골드 차감 없이 자유 체험' : '일반·고급·프리미엄 티어 선택 + 긁기 도구 구매')}</div>
+        <div class="lot-entry-desc">${SCRATCH_LOTTERY_LOCKED ? '⚖️ 밸런스 패치 진행 중 — 잠시만 기다려 주세요' : (SCRATCH_LOTTERY_TESTMODE ? '🧪 테스트 모드 — 골드 차감 없이 자유 체험' : '실버·골드·프리즘 복권을 긁어 골드 획득 · 🔑 만능 긁개로 더 쉽게')}</div>
       </div>
       <div class="lot-entry-arrow">›</div>
     </div>` : '';
@@ -25699,7 +25702,6 @@ window.openLotteryHub = function() {
   const myItems = data?.[sField('items')] || [];
   const myGold = getMyGold();
   const hasCoin = myItems.some(it => it.id === 'scratch_coin');
-  const hasKey  = myItems.some(it => it.id === 'scratch_key');
   const myFreeTickets = data?.[sField('freeScratch')] || {}; // 무료 복권권 (v2.43.194~) {0,1,2}
   // 🌌 S2 = 블랙+골드 톤 (앤틱골드/엘렉트럼골드/프리즈매틱골드), S1 = 기존 오렌지/보라/핑크
   const _tc = (CURRENT_SEASON === 2) ? ['#c4ced6', '#f0c060', '#e0a8ff'] : ['#f59e0b', '#a78bfa', '#e879f9'];
@@ -25711,11 +25713,7 @@ window.openLotteryHub = function() {
     { id:'scratch_premium',  name:'프리즘 복권', price:400, color:_tc[2], emoji:'💎',
       desc:'7칸 · 3개 매칭 시 당첨 · 해골 평균 2개 (-10G)', tierIdx:2 },
   ];
-  // 긁기 도구 단일화 (v2.43.206) — 긁기 동전(2배) 제거, 만능 긁개(3배) 하나만. 기존 동전 보유자는 우편 200G 환불
-  const TOOL_META = [
-    { id:'scratch_key',  name:'만능 긁개', price:500, emoji:'🔑', color:'#fbbf24',
-      desc:'브러시 3배 + 레이어 공개 임계값 완화 · 영구 적용', owned: hasKey },
-  ];
+  // 🔑 긁기 도구(만능 긁개)는 복권 모달 안 장착/구매 행으로 이동 (v2.45.128) — 허브 도구 섹션 제거
   // 티어별 팀 전체 시도 횟수 집계 (goldData 전역 캐시 사용)
   const tierAttemptStats = [0, 1, 2].map(idx => {
     let total = 0, topName = null, topCount = 0;
@@ -25782,21 +25780,6 @@ window.openLotteryHub = function() {
       </div>
     </div>`;
   }).join('');
-  const toolCards = TOOL_META.map(t => {
-    let btnHtml;
-    if (t.owned) btnHtml = `<div class="lh-tool-owned">✓ 보유 중</div>`;
-    else if (t.redundant) btnHtml = `<div class="lh-tool-redundant">🔑 만능 긁개로 대체됨</div>`;
-    else if (myGold < t.price) btnHtml = `<button class="lh-tool-buy disabled" disabled>🪙 ${t.price}G (부족)</button>`;
-    else btnHtml = `<button class="lh-tool-buy" onclick="window._lhBuyTool('${t.id}')">🪙 ${t.price}G · 구매</button>`;
-    return `<div class="lh-tool-card${t.owned ? ' owned' : ''}">
-      <div class="lh-tool-head">
-        <span class="lh-tool-emoji">${t.emoji}</span>
-        <span class="lh-tool-name" style="color:${t.color};">${escHtml(t.name)}</span>
-      </div>
-      <div class="lh-tool-desc">${escHtml(t.desc)}</div>
-      ${btnHtml}
-    </div>`;
-  }).join('');
   document.getElementById('lottery-hub-overlay')?.remove();
   const el = document.createElement('div');
   el.id = 'lottery-hub-overlay';
@@ -25843,9 +25826,7 @@ window.openLotteryHub = function() {
       <div class="lh-section-title">티어 선택</div>
       <div class="lh-tier-grid">${tierCards}</div>
       <div class="lh-divider"></div>
-      <div class="lh-section-title">긁기 도구 <span class="lh-section-sub">한 번 구매 시 영구 적용</span></div>
-      <div class="lh-tool-grid">${toolCards}</div>
-      <div class="lh-divider"></div>
+      <!-- 🔑 긁기 도구(만능 긁개)는 복권 모달 안 장착/구매 행으로 이동 (v2.45.128) -->
       <div class="lh-section-title">🗑️ 뒷골목 <span class="lh-section-sub">공짜로 뒤적뒤적 · 언제든</span></div>
       <div class="lh-trash-entry" onclick="window.openTrashCan()">
         <span class="lh-trash-emoji">🗑️</span>
@@ -25990,12 +25971,16 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   const toolLabel = toolParams
     ? `<span class="scard-tool-badge">${toolParams.threshold ? '🔑 만능 긁개 적용' : '🪙 긁기 동전 적용'}</span>`
     : '';
-  // 🔑 최하단 장착/해제 토글 행 (만능 긁개 보유 시) — 장착해야 긁기 보정(브러시·임계) 적용
-  const equipRowHtml = _scardOwnsKey ? `
+  // 🔑 최하단 행 — 보유 시 장착/해제 토글, 미보유 시 구매(=즉시 장착) 버튼. 테스트 모드는 숨김
+  const KEY_PRICE = (S1_SHOP_ITEMS.find(s => s.id === 'scratch_key')?.price) ?? 500;
+  const equipRowHtml = testMode ? '' : `
     <div class="scard-equip-row" id="scard-equip-row">
-      <span class="scard-equip-name">🔑 만능 긁개<span class="scard-equip-state" id="scard-equip-state">${_scardKeyEquipped ? '· 장착됨' : '· 미장착'}</span></span>
-      <button class="scard-equip-btn${_scardKeyEquipped ? ' on' : ''}" id="scard-equip-btn">${_scardKeyEquipped ? '장착 해제' : '장착'}</button>
-    </div>` : '';
+      ${_scardOwnsKey
+        ? `<span class="scard-equip-name">🔑 만능 긁개<span class="scard-equip-state" id="scard-equip-state">${_scardKeyEquipped ? '· 장착됨' : '· 미장착'}</span></span>
+           <button class="scard-equip-btn${_scardKeyEquipped ? ' on' : ''}" id="scard-equip-btn">${_scardKeyEquipped ? '장착 해제' : '장착'}</button>`
+        : `<span class="scard-equip-name">🔑 만능 긁개<span class="scard-equip-state">· 미보유</span></span>
+           <button class="scard-equip-btn scard-equip-buy" id="scard-equip-buy">구매 ${KEY_PRICE}G</button>`}
+    </div>`;
   // 🛡️🪙 내 강철심장 복권 효과 배너 — 해골감소 줄 보유 시 (해골 감소율 + 당첨 시 보너스)를 복권창 안에 표시
   let _emFxHtml = '';
   if (CURRENT_SEASON === 2) {
@@ -26374,21 +26359,52 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   overlay.querySelector('#scard-close-btn')?.addEventListener('click', () => { _closeTicket(); });
 
   // 🔑 만능 긁개 장착/해제 토글 (최하단) — 모달 안에서 직접 장착·해제, 브러시 보정 라이브 적용
-  overlay.querySelector('#scard-equip-btn')?.addEventListener('click', () => {
+  function _bindScardEquipToggle() {
+    overlay.querySelector('#scard-equip-btn')?.addEventListener('click', () => {
+      const k = getMyGoldKey(); const d = k ? goldData[k] : null; if (!d) return;
+      const items = (d[sField('items')] || []).map(it => it.id === 'scratch_key' ? { ...it, active: !it.active } : it);
+      const nowOn = items.some(it => it.id === 'scratch_key' && it.active);
+      d[sField('items')] = items;  // 낙관적 즉시 반영
+      update(ref(db, 'gold/' + k), { [sField('items')]: items }).catch(() => {});
+      _scardKeyEquipped = nowOn;
+      // 브러시 보정 라이브 갱신 (다음 긁기 스트로크부터 적용)
+      if (nowOn) { brushMult = SCRATCH_TOOLS.scratch_key.brushMult; revealThreshold = SCRATCH_TOOLS.scratch_key.threshold; }
+      else       { brushMult = 1.0; revealThreshold = 0.83; }
+      const btn = overlay.querySelector('#scard-equip-btn');
+      const stt = overlay.querySelector('#scard-equip-state');
+      if (btn) { btn.textContent = nowOn ? '장착 해제' : '장착'; btn.classList.toggle('on', nowOn); }
+      if (stt) { stt.textContent = nowOn ? '· 장착됨' : '· 미장착'; }
+      try { showGoldToast(nowOn ? '🔑 만능 긁개 장착 — 브러시가 커지고 더 쉽게 긁혀요' : '🔑 만능 긁개 해제 — 맨손으로 긁어요'); } catch (_) {}
+    });
+  }
+  _bindScardEquipToggle();
+  // 🔑 미보유 시 "구매" 버튼 — 구매 즉시 장착(active:true) + 행을 장착 토글로 교체 (허브/장비 탭 안 가도 됨)
+  overlay.querySelector('#scard-equip-buy')?.addEventListener('click', async () => {
+    const buyBtn = overlay.querySelector('#scard-equip-buy');
+    if (buyBtn?.dataset.busy) return;
     const k = getMyGoldKey(); const d = k ? goldData[k] : null; if (!d) return;
-    const items = (d[sField('items')] || []).map(it => it.id === 'scratch_key' ? { ...it, active: !it.active } : it);
-    const nowOn = items.some(it => it.id === 'scratch_key' && it.active);
-    d[sField('items')] = items;  // 낙관적 즉시 반영
-    update(ref(db, 'gold/' + k), { [sField('items')]: items }).catch(() => {});
-    _scardKeyEquipped = nowOn;
-    // 브러시 보정 라이브 갱신 (다음 긁기 스트로크부터 적용)
-    if (nowOn) { brushMult = SCRATCH_TOOLS.scratch_key.brushMult; revealThreshold = SCRATCH_TOOLS.scratch_key.threshold; }
-    else       { brushMult = 1.0; revealThreshold = 0.83; }
-    const btn = overlay.querySelector('#scard-equip-btn');
-    const stt = overlay.querySelector('#scard-equip-state');
-    if (btn) { btn.textContent = nowOn ? '장착 해제' : '장착'; btn.classList.toggle('on', nowOn); }
-    if (stt) { stt.textContent = nowOn ? '· 장착됨' : '· 미장착'; }
-    try { showGoldToast(nowOn ? '🔑 만능 긁개 장착 — 브러시가 커지고 더 쉽게 긁혀요' : '🔑 만능 긁개 해제 — 맨손으로 긁어요'); } catch (_) {}
+    const def = S1_SHOP_ITEMS.find(s => s.id === 'scratch_key');
+    const price = def?.price ?? 500;
+    const items0 = d[sField('items')] || [];
+    if (items0.some(it => it.id === 'scratch_key')) return;   // 이미 보유 — 방어
+    if (getMyGold() < price) { try { showGoldToast(`🪙 골드가 부족해요! (보유 ${getMyGold()} / 필요 ${price})`); } catch (_) {} return; }
+    if (buyBtn) { buyBtn.dataset.busy = '1'; buyBtn.textContent = '구매 중…'; }
+    const newItems = [...items0, { id: 'scratch_key', ts: Date.now(), active: true }];   // 구매 = 즉시 장착
+    const newSpent = (d[sField('goldSpent')] ?? 0) + price;
+    const updates = { [sField('items')]: newItems, [sField('goldSpent')]: newSpent };
+    if (def) updates[sField('purchaseLog')] = _appendPurchaseLog(d, def);   // 📒 구매 기록
+    d[sField('items')] = newItems; d[sField('goldSpent')] = newSpent;       // 낙관적 즉시 반영
+    await update(ref(db, 'gold/' + k), updates).catch(() => {});
+    _scardKeyEquipped = true;
+    brushMult = SCRATCH_TOOLS.scratch_key.brushMult; revealThreshold = SCRATCH_TOOLS.scratch_key.threshold;
+    const row = overlay.querySelector('#scard-equip-row');
+    if (row) {
+      row.innerHTML = `<span class="scard-equip-name">🔑 만능 긁개<span class="scard-equip-state" id="scard-equip-state">· 장착됨</span></span>`
+        + `<button class="scard-equip-btn on" id="scard-equip-btn">장착 해제</button>`;
+      _bindScardEquipToggle();
+    }
+    try { showGoldToast(`🔑 만능 긁개 구매·장착 완료! (-${price}G) 이제 더 쉽게 긁혀요`); } catch (_) {}
+    try { renderShop?.(); } catch (_) {}
   });
 
   // v2.43.118~ 액션 버튼 3종 — 매칭 완성 또는 모든 셀 reveal 후 활성
