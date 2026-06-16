@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.45.150 (🌌 **시즌2 라이브 중 2026-06-10~** — 최근: 🐱 **쓰레기통 유미 3D 모델화**(미니유미 GLB·three.js·압축·위치·모션·효과음·모바일 발열 최적화). 그 전 복권 구매팝업 시인성·뒷배경 겹침·허브 호버 번쩍임·만능긁개 모달 통합. 브릿지 **v1.1.35**. 시즌2 라이브 `switchSeason(2)` 완료. 상세는 아래 세션 이력 v2.45.125~150)
+- 현재 버전: v2.45.163 (🌌 **시즌2 라이브 중 2026-06-10~** — 최근: 🕹️ **인형뽑기 미니게임**(프리즘 18종 완성 해금·가챠 엔드게임, **CLAW_ENABLED=false로 라이브 비활성·튜닝중**, 프리뷰=`?claw`/`clawTest()`). 복권 Hub 깜박임·대장간 걸작 이름잘림·버리기 다이얼로그·유미 파견전 숨김/크기. ⚠️**복권 해골감소 인플레(골드·프리즘 양수EV) 미해결**. 🐱 유미 3D(v125~150). 브릿지 **v1.1.35**. 상세는 아래 세션 이력 v2.45.151~163)
   - ⏳ **레벨 시스템 후속**: ① 패스를 일반/내전 포인트패스 → **S1식 퀘스트 패스(내전 전용)로 되돌리기**(미완) ② 레벨 보상량/곡선 실플레이 튜닝. 레벨 코드맵: `PLV_XP`·`calcPlayerXp`·`plvLevelFromXp`·`plvReward`·`claimPlayerLevels`·`_plvCardHtml`(패스 탭 상단). 데이터 `playerLevelClaimed_s2`. 정수: 경기당+1·상점120G 폐지(레벨업만).
 - ✅ **시즌2 라이브 중** (2026-06-10~) — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 + 세션이력 v2.45.38~49 필독
 
@@ -736,7 +736,19 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.45.125~150 (2026-06-16) — 🐱 쓰레기통 유미 3D 모델화(대장정) + 복권 팝업/겹침/호버 다듬기 ← 최신
+### v2.45.151~163 (2026-06-16~17) — 🕹️ 인형뽑기 미니게임(라이브 비활성) + 복권/대장간 다듬기 + 유미 노출/크기 + 복권 EV 후속 + 가챠 데이터 복구 ← 최신
+
+> 이 세션은 v2.45.151부터. 전부 푸시·배포 완료. CHANGELOG/커밋 규칙(주석줄 매칭·모듈 node --check `&&` 게이트) 동일. 배포검증=pages-build-deployment + APP_VERSION 폴링.
+
+- **v151 복권 Hub 깜박임**: gold onValue마다 `openLotteryHub()` 전체 호출(오버레이 remove+recreate)→다른 팀원 복권 시 깜박. `_lhTierAttemptStats`/`_lhSyncAttempts` 추출, 내 골드/freeScratch 변경 시만 전체렌더·아니면 `#lh-attempts-{idx}`만 제자리 갱신.
+- **v152 대장간 걸작 효과 이름 …잘림**: `.fg2-eff-num`을 우측 세로스택으로(값 위/`.fg2-eff-sub` "발동N%"·"🪙당첨+NG" 아래), `.fg2-eff-lbl` flex:1+min-width:0.
+- **v153 🐱 유미 파견 전 숨김**: `_renderYuumiPanel` ready 상태 `_setYuumi3d('idle')→null`(보내야 등장). v155~159 파견중(dig) 크기·위치 튜닝: `DIG_SCALE`(→0.45)·`DIG_DX`(왼쪽 −0.6, dig 상태만). 25460대 `ensureYuumi3d`.
+- **v154 🗑 복권 버리기 다이얼로그**: 네이티브 `window.confirm`→커스텀(`.scard-buy-confirm-*` 재활용 + `.scard-discard-ok` 테라코타). 26700대 scard-discard 핸들러.
+- **🎲 복권 EV 검증/조치 (중요·미완)**: rollScratch 100만 시뮬=기반 음수 EV 정상(실버78.8·골드69.5·프리즘76.3%). **단 강철심장 "해골감소(lottoTkt)" 걸작이 (1)해골셀↓→당첨률↑ (2)페널티↓ (3)`_myLottoPrizeBonus`(해골감소줄 보유 시 당첨 +줄당min(30,성능)G·최대90G)로 골드·프리즘을 양수 EV로 만듦**(럼블홀릭 만렙=성능24·해골감소2줄=해골70%감소+보너스48G → 실측 회수율 116.5%, 시뮬 골드110·프리즘143%). **v122에서 실버만 보너스 차단**(`_myLottoPrizeBonus(data,tierIdx)` tierIdx0→0). ⚠️ **골드·프리즘의 win-rate boost는 미해결** — 사용자 결정 대기(해골감소를 출현↓ 대신 페널티만↓로 변경 / 상한↓ / 보너스 제거 등). 시뮬: SCRATCH_TIERS+rollScratch를 Node 복제, 단순확률 말고 직접실행.
+- **v160 🕹️ 인형뽑기 미니게임 (신규, 가챠 엔드게임)**: 프리즘(s3) 18종 완성 해금. 컬렉션 탭 진입배너(`_clawEntryHtml`). 크레인 좌우 스윕(rAF)→내리기→가장가까운 챔프 정렬도×집기확률(미끄러짐). 성공=그 챔프 인형(`plushies_s2`)+소량골드(`goldBonusLegacy_s2`), 하루3회(`clawCount`/`clawDate_s2`), 18종완성 1회성(정수×3·1000G·`plushieMaster_s2`). CSS는 `#claw-css` 1회주입. **⚠️ v163 `CLAW_ENABLED=false`로 라이브 비활성(튜닝중)** — `_clawEntryHtml` 배너숨김+`openClawMachine` 실사용차단. **프리뷰=콘솔 `clawTest()` 또는 URL `?claw`**(테스트모드 `_clawTest`: 해금·일일제한 무시+Firebase 미기록, 닫으면 해제). 출시=`CLAW_ENABLED=true`. 30680대.
+- **🔑 가챠 테스트 도구 안전화 + 데이터 복구 사건 (교훈)**: `gachaTestGrant()`가 `champCards_s2`를 백업없이 덮어쓰고 `gachaTestReset()`이 null로 지워 **애긔반달곰(key `-OowXInAIfDm6j7PKe0M`) S2 컬렉션 소실**. ⚠️ **gachaLog_s2엔 뽑기 세션비용(450G·10연)만 기록·카드결과 미기록 → 정확복구 불가**(Firebase 버전히스토리 없음). → **130연(5850G) 동등 재현**(확률 3성3%/2성10%/파편87%, 각챔프 최소파편1, 합성안한 원본130장)으로 REST PATCH 복원. **재발방지: gachaTestGrant가 champCardsBak/champCardLogBak에 원본백업, gachaTestReset이 백업복원**(v161).
+
+### v2.45.125~150 (2026-06-16) — 🐱 쓰레기통 유미 3D 모델화(대장정) + 복권 팝업/겹침/호버 다듬기
 
 > 이 세션 핵심 = **쓰레기통 유미를 2D 컷 → 진짜 3D 모델로** 전환(three.js, 오른 대장간과 동일 패턴). 압축·렌더·위치·모션·효과음·발열까지 길게 반복. 전부 푸시·배포 완료. 커밋 규칙 동일(모듈 `node --check` `cd /c/Users/sbs_n/Desktop/aram &&` 프리픽스 — **작업 디렉토리 리셋되니 절대경로/프리픽스 필수**). **배포 시 버전 항상 명시**(사용자 요청, 메모리 `feedback_state_version_after_deploy`). 그 사이 v110~124는 다른 컴퓨터(스크래치 복권 목업 정합 등).
 
