@@ -93,8 +93,8 @@ const mount = document.getElementById('mount');
 mount.style.width=MOUNT_W+'px'; mount.style.height=MOUNT_H+'px'; mount.style.top=MOUNT_TOP+'px';
 const canvas = document.createElement('canvas'); mount.appendChild(canvas);
 
-const renderer = new THREE.WebGLRenderer({ canvas, alpha:true, antialias:true });
-renderer.setPixelRatio(Math.min(devicePixelRatio||1,2)); renderer.setSize(MOUNT_W, MOUNT_H, false);
+const renderer = new THREE.WebGLRenderer({ canvas, alpha:true, antialias:false, powerPreference:'low-power' });
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5)); renderer.setSize(MOUNT_W, MOUNT_H, false);
 renderer.outputColorSpace = THREE.SRGBColorSpace; renderer.setClearAlpha(0);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(30, MOUNT_W/MOUNT_H, 0.1, 5000);
@@ -147,7 +147,10 @@ function applyT(){
     '폴짝 깊이 : '+DIG_DIP.toFixed(2)+' · 주기 : '+DIG_PERIOD.toFixed(2)+'초';
 }
 
-function loop(){ requestAnimationFrame(loop); const dt=clock.getDelta();
+let _last=0;
+function loop(){ requestAnimationFrame(loop);
+  const now=performance.now(); if(now-_last<33) return; _last=now;   // ~30fps 캡(발열 완화)
+  const dt=Math.min(clock.getDelta(),0.1);
   for(const k in M){ if(M[k].mixer&&M[k].group.visible) M[k].mixer.update(dt); }
   const dg=M['dig'];   // 폴짝 모드: 통 속으로 쏙 들어갔다 나오는 다이브
   if(dg&&dg.group.visible){ _digT+=dt; const ph=(1-Math.cos(_digT*(2*Math.PI/DIG_PERIOD)))/2; dg.group.position.y=(T.y - DIG_DIP*ph)*R; }
