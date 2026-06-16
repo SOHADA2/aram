@@ -6560,7 +6560,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.142';
+const APP_VERSION = 'v2.45.143';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6569,6 +6569,9 @@ const APP_VERSION = 'v2.45.142';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.143', date: '2026-06-16', changes: [
+    { tag: 'improve', text: '🐱 파견 중 유미가 쓰레기통 속으로 쏙 들어갔다 나오는 움직임 추가 — 폴짝 모션 위에 통 속으로 다이브하는 상하 동작을 얹어, 진짜로 뒤지는 것처럼 보이게' },
+  ] },
   { ver: 'v2.45.142', date: '2026-06-16', changes: [
     { tag: 'new', text: '🐱 쓰레기통 유미가 3D 모델로 — 2D 컷 대신 진짜 3D 유미가 등장(대기/폴짝 모션). 모델 압축(webp 텍스처 깨짐) 해결 + 렌더/위치 안정화까지 완료' },
   ] },
@@ -25402,6 +25405,7 @@ async function ensureYuumi3d() {
     if (!canvas) { canvas = document.createElement('canvas'); canvas.id = 'yuumi3d'; canvas.style.cssText = 'width:100%;height:100%;display:block;'; holder.appendChild(canvas); }
     const W = 160, H = 205;   // 마운트(160×205) 비율에 맞춤 (테스트 페이지와 동일)
     const YUUMI_POS = { x: 0.18, y: -1.92, scale: 0.68, rot: 0 };   // 테스트 페이지에서 맞춘 위치/크기/방향
+    const DIG_DIP = 0.8, DIG_PERIOD = 1.3;   // 🐱 파견 중 통 속으로 쏙 들어갔다 나오는 깊이(반지름배)/주기(초)
     const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setSize(W, H, false);
     renderer.setClearAlpha(0);   // 완전 투명 배경
@@ -25412,7 +25416,7 @@ async function ensureYuumi3d() {
     const keyL = new THREE.DirectionalLight(0xffffff, 1.0); keyL.position.set(3, 5, 4); scene.add(keyL);
     const clock = new THREE.Clock();
     const STATES = [{ key: 'idle', file: 'yuumi-idle.glb' }, { key: 'dig', file: 'yuumi-dig.glb' }];
-    const M = {}; let active = 'idle', fitted = false;
+    const M = {}; let active = 'idle', fitted = false; let baseR = 1, _digTime = 0;
     const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
     function hideAll() { for (const k in M) { M[k].group.visible = false; if (M[k].action) M[k].action.stop(); } }
     function showState(key) { active = key; const m = M[key]; if (!m) return; hideAll(); m.group.visible = true; if (m.action) { m.action.reset(); m.action.play(); } }
@@ -25424,7 +25428,7 @@ async function ensureYuumi3d() {
         const box = new THREE.Box3().setFromObject(model);
         const ctr = box.getCenter(new THREE.Vector3()); model.position.sub(ctr);   // 모델을 그룹 원점에 센터링
         const group = new THREE.Group(); group.add(model); group.visible = false; scene.add(group);
-        const _r = box.getBoundingSphere(new THREE.Sphere()).radius;
+        const _r = box.getBoundingSphere(new THREE.Sphere()).radius; baseR = _r;
         if (!fitted) {
           fitted = true;   // 테스트 페이지와 동일한 카메라 핏 (여백 1.45, 원점 정면)
           const fov = camera.fov * Math.PI / 180, _asp = W / H;
@@ -25454,6 +25458,13 @@ async function ensureYuumi3d() {
       if (renderer.domElement.parentElement !== mt) mt.appendChild(renderer.domElement);  // 자가복구: 캔버스를 마운트에 부착
       const dt = clock.getDelta();
       for (const k in M) { if (M[k].mixer && M[k].group.visible) M[k].mixer.update(dt); }
+      // 🐱 파견 중(dig): 쓰레기통 속으로 쏙 들어갔다 나오는 상하 움직임 (폴짝 애니 위에 얹음)
+      const _dg = M['dig'];
+      if (_dg && _dg.group.visible) {
+        _digTime += dt;
+        const _ph = (1 - Math.cos(_digTime * (2 * Math.PI / DIG_PERIOD))) / 2;   // 0(나옴)→1(쏙 들어감)→0
+        _dg.group.position.y = (YUUMI_POS.y - DIG_DIP * _ph) * baseR;
+      }
       renderer.render(scene, camera);
     })();
   } catch (e) { console.error('3D 유미 init 실패:', e); _yuumi3dInit = false; }
