@@ -55,6 +55,13 @@
     <button id="btn-idle" class="on">🐱 대기 (Idle01)</button>
     <button id="btn-dig">🦘 폴짝 (Spell1)</button>
   </div>
+  <div class="seg">
+    <button id="side-double" class="on">양면</button>
+    <button id="side-front">앞면</button>
+    <button id="side-back">뒷면</button>
+    <button id="wire-btn">와이어</button>
+  </div>
+  <div id="meshlist" style="font-size:11.5px;color:#cbbd97;margin:2px 0 6px;line-height:2;"></div>
 
   <div class="row"><label>거리 여백 ×</label><input id="s-dist" type="range" min="0.8" max="3" step="0.05" value="1.35"><span class="val" id="v-dist">1.35</span></div>
   <div class="row"><label>모델 Y 오프셋</label><input id="s-my" type="range" min="-1.5" max="1.5" step="0.02" value="0"><span class="val" id="v-my">0.00</span></div>
@@ -97,7 +104,18 @@ const M = {}; let active = 'idle'; let baseRadius = 1;
 const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
 
 function hideAll(){ for (const k in M){ M[k].model.visible=false; if(M[k].action) M[k].action.stop(); } }
-function show(key){ active=key; const m=M[key]; if(!m) return; hideAll(); m.model.visible=true; if(m.action){ m.action.reset(); m.action.play(); } }
+function show(key){ active=key; const m=M[key]; if(!m) return; hideAll(); m.model.visible=true; if(m.action){ m.action.reset(); m.action.play(); } buildMeshList(); }
+
+// ── 진단: 면 모드 / 와이어 / 파트별 숨김 ──
+let sideMode='double', wire=false;
+function sideVal(){ return sideMode==='front'?THREE.FrontSide:(sideMode==='back'?THREE.BackSide:THREE.DoubleSide); }
+function applyRender(){ for(const k in M){ M[k].model.traverse(o=>{ if(o.isMesh&&o.material){ (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ m.side=sideVal(); m.wireframe=wire; m.needsUpdate=true; }); } }); } }
+function buildMeshList(){ const c=document.getElementById('meshlist'); if(!c) return; const m=M[active]; if(!m){ c.textContent=''; return; } c.innerHTML='파트 숨김: '; let i=0; m.model.traverse(o=>{ if(o.isMesh){ const lbl=o.name||(o.material&&o.material.name)||('part'+i); i++; const w=document.createElement('label'); w.style.cssText='display:inline-flex;align-items:center;gap:3px;margin-right:9px;'; const cb=document.createElement('input'); cb.type='checkbox'; cb.checked=o.visible!==false; cb.onchange=()=>{ o.visible=cb.checked; }; w.appendChild(cb); w.appendChild(document.createTextNode(lbl)); c.appendChild(w); } }); }
+function setSide(s,btn){ sideMode=s; ['side-double','side-front','side-back'].forEach(id=>document.getElementById(id).classList.toggle('on', id===btn)); applyRender(); }
+document.getElementById('side-double').onclick=()=>setSide('double','side-double');
+document.getElementById('side-front').onclick=()=>setSide('front','side-front');
+document.getElementById('side-back').onclick=()=>setSide('back','side-back');
+document.getElementById('wire-btn').onclick=()=>{ wire=!wire; document.getElementById('wire-btn').classList.toggle('on',wire); applyRender(); };
 
 STATES.forEach(st=>{
   loader.load('assets/pets/Yuumi/3d/'+st.file+'?v=2', g=>{
@@ -108,6 +126,7 @@ STATES.forEach(st=>{
     const mixer=new THREE.AnimationMixer(model), clip=(g.animations||[])[0];
     let action=null; if(clip){ action=mixer.clipAction(clip); action.setLoop(THREE.LoopRepeat); }
     M[st.key]={model,mixer,action,baseY:0};
+    applyRender();   // 기본 양면 렌더 (음수 스케일 컬링 깨짐 방지)
     if(st.key===active) show(active);
     applyFraming();
   }, undefined, e=>{ document.getElementById('err').textContent='로드 실패 '+st.file+' : '+e; });

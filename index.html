@@ -6560,7 +6560,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.133';
+const APP_VERSION = 'v2.45.134';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6569,6 +6569,9 @@ const APP_VERSION = 'v2.45.133';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.134', date: '2026-06-16', changes: [
+    { tag: 'fix', text: '🐱 3D 유미가 깨진 테두리처럼 보이던 문제 — 게임 모델이 음수 스케일(-1)이라 면 컬링이 뒤집혀 안쪽이 보이던 것으로 추정. 모든 머티리얼을 양면 렌더로 바꿔 해결 시도. 테스트 페이지에 양면/앞면/뒷면/와이어·파트별 숨김 진단 토글 추가' },
+  ] },
   { ver: 'v2.45.133', date: '2026-06-16', changes: [
     { tag: 'fix', text: '🐱 쓰레기통 3D 유미가 찌그러져 보이던 문제 수정 — 모델 압축에 쓴 optimize 프리셋이 뼈대 스킨드 모델을 망가뜨리는 변환(flatten/join/weld)을 포함했던 게 원인. 오른 대장간과 동일한 안전 압축(meshopt+webp, 뼈대 보존)으로 다시 변환해 모델이 정상으로 나오게 함' },
   ] },
@@ -25400,6 +25403,8 @@ async function ensureYuumi3d() {
     STATES.forEach(st => {
       loader.load('assets/pets/Yuumi/3d/' + st.file + '?v=2', g => {
         const model = g.scene; model.visible = false; scene.add(model);
+        // 게임 모델이 음수 스케일(-1)이라 면 컬링이 뒤집혀 깨져 보이는 것 방지 — 양면 렌더
+        model.traverse(o => { if (o.isMesh && o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.side = THREE.DoubleSide; m.needsUpdate = true; }); } });
         const box = new THREE.Box3().setFromObject(model);
         const ctr = box.getCenter(new THREE.Vector3()); model.position.sub(ctr);   // 박스 중심을 원점으로
         if (!fitted) {
