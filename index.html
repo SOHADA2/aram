@@ -2037,7 +2037,19 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .trash-result .tr-emoji{font-size:40px;display:block;margin-bottom:4px;animation:trashPop .42s ease;}
 @keyframes trashPop{0%{transform:scale(0.2) translateY(20px);opacity:0;}60%{transform:scale(1.2);}100%{transform:scale(1);opacity:1;}}
 /* 🐱 유미 파견 패널 (v2.43.245) */
-#yuumi-panel{margin:0 0 12px;}
+#yuumi-panel{margin:11px 0 0;}
+/* 🐱 유미 슬림 바(하단) + 통 리드에 걸터앉은 유미 (v2.45.129) */
+.yuumi-slim{display:flex;align-items:center;gap:9px;padding:7px 11px;border-radius:10px;background:linear-gradient(135deg,rgba(150,110,220,0.14),rgba(90,70,150,0.07));border:1px solid rgba(180,140,255,0.30);}
+.yuumi-slim-tag{font-size:10.5px;font-weight:800;color:#cdb8f0;display:flex;align-items:center;gap:5px;white-space:nowrap;}
+.yuumi-slim-action{flex:1;display:flex;justify-content:flex-end;align-items:center;min-width:0;}
+.yuumi-slim .yuumi-btn{width:auto;padding:6px 14px;font-size:11.5px;white-space:nowrap;box-shadow:none;}
+.yuumi-slim .yuumi-status{font-size:11px;}
+#yuumi-peek{position:absolute;right:4px;top:-15px;width:48px;height:54px;z-index:5;pointer-events:none;}
+#yuumi-peek img{width:100%;height:100%;object-fit:contain;object-position:bottom center;filter:drop-shadow(0 3px 5px rgba(0,0,0,.55));transform-origin:bottom center;}
+#yuumi-peek.idle img{animation:yThumbBob 2.4s ease-in-out infinite;}
+#yuumi-peek.done img{animation:yThumbBob 1.1s ease-in-out infinite;}
+#yuumi-peek.sleep img{filter:grayscale(.5) brightness(.62) drop-shadow(0 3px 5px rgba(0,0,0,.5));}
+#yuumi-peek.sleep::after{content:'💤';position:absolute;top:-4px;right:-7px;font-size:13px;animation:yThumbBob 2.4s ease-in-out infinite;}
 .yuumi-inner{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:11px;background:linear-gradient(135deg,rgba(150,110,220,0.18),rgba(90,70,150,0.10));border:1px solid rgba(180,140,255,0.42);}
 .yuumi-cat{font-size:27px;line-height:1;flex-shrink:0;}
 .yuumi-body{flex:1;min-width:0;text-align:left;}
@@ -6544,7 +6556,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.128';
+const APP_VERSION = 'v2.45.129';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6553,6 +6565,9 @@ const APP_VERSION = 'v2.45.128';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.129', date: '2026-06-16', changes: [
+    { tag: 'improve', text: '🗑️ 쓰레기통 화면 재단장 — (1) 통 속 쓰레기를 완전 랜덤(빈 곳·뭉침) → 바닥에 꽉 쌓이는 더미로 배치(개수도 12→16개, 아래일수록 앞에). (2) 위쪽에 큰 보라 카드로 떠 있던 🐱 유미를 쓰레기통 리드에 걸터앉은 모습으로 옮기고(쉬는 중엔 잠든 💤), 파견/수령/쿨다운 상태는 맨 아래 슬림 바로 정리해 톤·시인성 개선' },
+  ] },
   { ver: 'v2.45.128', date: '2026-06-16', changes: [
     { tag: 'improve', text: '🔑 만능 긁개 구매·장착을 복권 모달 안으로 통합 — 복권 목록(허브)에 있던 "긁기 도구" 구매 섹션을 없애고, 복권을 켰을 때 맨 아래 만능 긁개 행에서 처리하도록 바꿈. 보유 중이면 장착/해제 토글, 아직 없으면 "구매 500G" 버튼이 떠서 그 자리에서 사면 바로 장착돼 더 쉽게 긁혀요(허브·장비 탭 갈 필요 없음)' },
   ] },
@@ -25338,16 +25353,26 @@ function _yuumiPersistWatch() {
   f.watchGold = _yuumiWatchGold;                    // 낙관적 동기화
   update(ref(db, 'gold/' + key), { [sField('yuumiForage') + '/watchGold']: _yuumiWatchGold }).catch(() => {});
 }
+// 🐱 통 리드에 걸터앉은 유미 (idle/sleep/done) · null이면 숨김(파밍 중엔 아래 장면 카드가 보여줌)
+function _setYuumiPeek(stateCls) {
+  const peek = document.getElementById('yuumi-peek');
+  if (!peek) return;
+  if (!stateCls) { peek.style.display = 'none'; return; }
+  if (!peek.dataset.loaded) { peek.innerHTML = _yuumiImgTag('yuumi-peek-img'); peek.dataset.loaded = '1'; }
+  peek.className = stateCls;
+  peek.style.display = 'block';
+}
 function _renderYuumiPanel() {
   const el = document.getElementById('yuumi-panel');
   if (!el) return;
   const s = _yuumiState();
   if (_yuumiTimer) { clearInterval(_yuumiTimer); _yuumiTimer = null; }
   if (_yuumiFindTimer) { clearInterval(_yuumiFindTimer); _yuumiFindTimer = null; }
-  if (s.st === 'none') { el.style.display = 'none'; el.innerHTML = ''; return; }
+  if (s.st === 'none') { el.style.display = 'none'; el.innerHTML = ''; _setYuumiPeek(null); return; }
   el.style.display = 'block';
   const fmt = ms => { const t = Math.max(0, Math.ceil(ms/1000)); return Math.floor(t/60) + '분 ' + String(t%60).padStart(2,'0') + '초'; };
   if (s.st === 'foraging') {
+    _setYuumiPeek(null);   // 파밍 중엔 통 위 유미 숨김 (아래 장면 카드가 보여줌)
     // 저장된 구경 보너스 로드 — 새로고침/재접속 시 이어서 (다운그레이드 방지로 max)
     const _fw = (getMyGoldData() || {})[sField('yuumiForage')] || {};
     _yuumiWatchGold = Math.min(YUUMI_WATCH_CAP, Math.max(_yuumiWatchGold || 0, _fw.watchGold || 0));
@@ -25368,12 +25393,13 @@ function _renderYuumiPanel() {
       const _fm = Math.round(_yuumiForageMs(getMyGoldData()) / 60000); // 🐱 걸작 단축 반영 표시
       const _flbl = _fm >= 60 ? '1시간' : `${_fm}분`;
       const _cutBadge = _fm < 60 ? ` <span style="font-size:9px;color:#c4b5fd;font-weight:700;">⚡단축</span>` : '';
-      body = `<button class="yuumi-btn go" onclick="window.deployYuumi()">🐱 유미 보내기 · ${_flbl} 자동 뒤지기${_cutBadge}</button>`;
+      body = `<button class="yuumi-btn go" onclick="window.deployYuumi()">🐱 보내기 · ${_flbl}${_cutBadge}</button>`;
     }
-    else if (s.st === 'done')     body = `<button class="yuumi-btn collect" onclick="window.collectYuumi()">🎁 유미가 주워온 것 수령!</button>`;
-    else if (s.st === 'cooldown') body = `<div class="yuumi-status cd">😴 유미가 쉬는 중… <b id="yuumi-timer">${fmt(s.endAt - Date.now())}</b> 뒤 재출동</div>`;
-    const thumbCls = 'yuumi-thumb' + (s.st === 'cooldown' ? ' sleep' : ' idle');
-    el.innerHTML = `<div class="yuumi-inner">${_yuumiImgTag(thumbCls)}<div class="yuumi-body"><div class="yuumi-title">유미 — 자동 쓰레기 줍기 <span class="yuumi-secret">SECRET</span></div>${body}</div></div>`;
+    else if (s.st === 'done')     body = `<button class="yuumi-btn collect" onclick="window.collectYuumi()">🎁 주워온 것 수령!</button>`;
+    else if (s.st === 'cooldown') body = `<span class="yuumi-status cd">😴 쉬는 중 · <b id="yuumi-timer">${fmt(s.endAt - Date.now())}</b> 뒤 재출동</span>`;
+    // 하단 슬림 바 + 통 리드에 걸터앉은 유미 (idle/done/sleep)
+    el.innerHTML = `<div class="yuumi-slim"><span class="yuumi-slim-tag">🐱 유미 <span class="yuumi-secret">SECRET</span></span><span class="yuumi-slim-action">${body}</span></div>`;
+    _setYuumiPeek(s.st === 'cooldown' ? 'sleep' : (s.st === 'done' ? 'done' : 'idle'));
   }
   if (s.st === 'foraging' || s.st === 'cooldown') {
     _yuumiTimer = setInterval(() => {
@@ -25482,7 +25508,7 @@ window.openTrashCan = function() {
   const _tf = data?.[sField('trashFree')];
   const _gotToday = (_tf && _tf.date === getLocalDateKey()) ? (_tf.got || {}) : {};
   _trashFreeGot = { 0: !!_gotToday[0], 1: !!_gotToday[1], 2: !!_gotToday[2] };
-  const junkHtml = ['🍌','🥫','🐟','📄','🦴','🧦','🍕','🗞️','🧤','🧻','🍂','🥡'].map(e => `<span class="trash-junk">${e}</span>`).join('');
+  const junkHtml = ['🍌','🥫','🐟','📄','🦴','🧦','🍕','🗞️','🧤','🧻','🍂','🥡','🥤','🧴','📦','🍖'].map(e => `<span class="trash-junk">${e}</span>`).join('');
   const el = document.createElement('div');
   el.id = 'trash-overlay'; el.className = 'trash-overlay';
   el.innerHTML = `
@@ -25492,9 +25518,9 @@ window.openTrashCan = function() {
         <button class="trash-close" onclick="window.closeTrashCan()">✕</button>
       </div>
       <div class="trash-sub">손을 넣고 <b>이리저리 한참 뒤적뒤적</b> 해보세요.<br>대부분은 쓰레기… 운이 좋으면 동전이나 무료 복권이?</div>
-      <div id="yuumi-panel" style="display:none;"></div>
       <div class="trash-digs" id="trash-digs"></div>
       <div class="trash-can" id="trash-can">
+        <div id="yuumi-peek" style="display:none;"></div>
         <div class="trash-fly" style="top:42px;left:30px;">🪰</div>
         <span class="trash-stink" style="left:48px;animation-delay:0s;">〰️</span>
         <span class="trash-stink" style="left:116px;animation-delay:1.3s;">〰️</span>
@@ -25507,6 +25533,7 @@ window.openTrashCan = function() {
       <div class="trash-hint" id="trash-hint">쓰레기통 안을 드래그해서 뒤져보세요</div>
       <div class="trash-result" id="trash-result"></div>
       <div class="trash-earned" id="trash-earned"></div>
+      <div id="yuumi-panel" style="display:none;"></div>
     </div>`;
   el.addEventListener('click', ev => { if (ev.target === el) window.closeTrashCan(); });
   document.body.appendChild(el);
@@ -25517,19 +25544,35 @@ window.openTrashCan = function() {
   _trashBindDrag();
   _renderYuumiPanel(); // 🐱 유미 보유 시 파견 패널 표시
 };
-// 쓰레기 더미를 dig 영역 안에 무작위로 흩뿌려 배치 (드래그하면 밀려남)
+// 쓰레기 더미 배치 — 바닥에 꽉 쌓이는 더미 (바닥 행 균등 채움 + 위로 갈수록 듬성). 드래그하면 밀려남
 function _trashLayoutJunk() {
   const zone = document.getElementById('trash-dig');
   if (!zone) return;
   const rect = zone.getBoundingClientRect();
-  const w = rect.width || 130, h = rect.height || 130;
+  const w = rect.width || 130, h = rect.height || 150;
+  const items = Array.from(zone.querySelectorAll('.trash-junk'));
+  const n = items.length;
   _trashJunkEls = [];
-  zone.querySelectorAll('.trash-junk').forEach(el => {
-    const bx = 6 + Math.random() * Math.max(10, w - 34);
-    const by = 6 + Math.random() * Math.max(10, h - 34);
-    el.style.left = bx + 'px';
-    el.style.top = by + 'px';
-    el.style.transform = `rotate(${(Math.random()-0.5)*30}deg)`;
+  const sz = 26, m = 3;
+  const uW = Math.max(20, w - sz - m * 2);   // 사용 가능 폭
+  const uH = Math.max(20, h - sz - m * 2);   // 사용 가능 높이
+  const baseRow = Math.min(n, Math.max(5, Math.round(n * 0.42)));   // 바닥을 꽉 채우는 행 개수
+  items.forEach((el, i) => {
+    let bx, by;
+    if (i < baseRow) {                       // 바닥 행 — 폭을 균등 분할해 빈틈 없이
+      const cellW = uW / baseRow;
+      bx = m + cellW * (i + 0.5) + (Math.random() - 0.5) * cellW * 0.5;
+      by = m + uH * (0.72 + Math.random() * 0.26);
+    } else {                                 // 위쪽 — 아래로 쏠리게(바닥 가중), 위로 갈수록 듬성
+      const vbias = Math.pow(Math.random(), 0.7);
+      bx = m + uW * Math.random();
+      by = m + uH * (0.10 + 0.62 * vbias);
+    }
+    bx = Math.max(m, Math.min(m + uW, bx));
+    el.style.left = Math.round(bx) + 'px';
+    el.style.top  = Math.round(by) + 'px';
+    el.style.transform = `rotate(${(Math.random() - 0.5) * 36}deg)`;
+    el.style.zIndex = String(10 + Math.round(by));   // 아래(바닥) 쓰레기가 앞에 오도록
     _trashJunkEls.push({ el, bx, by });
   });
 }
