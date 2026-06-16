@@ -6560,7 +6560,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.146';
+const APP_VERSION = 'v2.45.147';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6569,6 +6569,9 @@ const APP_VERSION = 'v2.45.146';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.147', date: '2026-06-16', changes: [
+    { tag: 'improve', text: '🐱 쓰레기통 유미를 미니유미 모델로 교체 — 파견 중엔 댄스(뒤지기) 모션, 쉬는 중엔 마법서로 들어가 책 상태로 정지(되돌아오지 않음). 인공 다이브는 끄고 모션 자체로 표현' },
+  ] },
   { ver: 'v2.45.146', date: '2026-06-16', changes: [
     { tag: 'improve', text: '🔊 유미 행동 효과음 추가 — 뒤적거릴 때(폴짝 다이브에 맞춰 사각사각), 휴식 들어갈 때(마법서로 빨려드는 휙~반짝), 파견 보낼 때(출발음). Web Audio 합성, 가볍게' },
   ] },
@@ -25432,7 +25435,7 @@ async function ensureYuumi3d() {
     if (!canvas) { canvas = document.createElement('canvas'); canvas.id = 'yuumi3d'; canvas.style.cssText = 'width:100%;height:100%;display:block;'; holder.appendChild(canvas); }
     const W = 272, H = 349;   // 마운트(272×349) — 모션 잘림 방지로 캔버스 확대(여백 비례 보정해 yuumi 크기·위치는 동일)
     const YUUMI_POS = { x: 0.18, y: -1.92, scale: 0.68, rot: 0 };   // 테스트 페이지에서 맞춘 위치/크기/방향
-    const DIG_DIP = 0.4, DIG_PERIOD = 1.3;   // 🐱 파견 중 통 속으로 쏙 들어갔다 나오는 깊이(반지름배)/주기(초)
+    const DIG_DIP = 0, DIG_PERIOD = 1.3;   // 🐱 미니유미 Dance_Loop 자체가 뒤지기라 인공 다이브 OFF(0). 주기는 뒤적임 효과음 타이밍
     const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setSize(W, H, false);
     renderer.setClearAlpha(0);   // 완전 투명 배경
@@ -25452,7 +25455,7 @@ async function ensureYuumi3d() {
     function hideAll() { for (const k in M) { M[k].group.visible = false; if (M[k].action) M[k].action.stop(); } }
     function showState(key) { active = key; const m = M[key]; if (!m) return; hideAll(); m.group.visible = true; if (m.action) { m.action.reset(); m.action.play(); } if (key === 'rest') { try { _trashSfx.recall(); } catch (_) {} } }
     STATES.forEach(st => {
-      loader.load('assets/pets/Yuumi/3d/' + st.file + '?v=4', g => {
+      loader.load('assets/pets/Yuumi/3d/' + st.file + '?v=5', g => {
         const model = g.scene;
         // 게임 모델이 음수 스케일(-1)이라 면 컬링이 뒤집혀 깨져 보이는 것 방지 — 양면 + 컬링 off
         model.traverse(o => { if (o.isMesh) { o.frustumCulled = false; if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.side = THREE.DoubleSide; m.needsUpdate = true; }); } });
@@ -25478,7 +25481,7 @@ async function ensureYuumi3d() {
         if (clip) {
           dur = clip.duration; action = mixer.clipAction(clip);
           if (st.loop) action.setLoop(THREE.LoopRepeat);
-          else { action.setLoop(THREE.LoopOnce); action.clampWhenFinished = true; mixer.addEventListener('finished', () => { group.visible = false; }); }   // 리콜=1회 후 숨김(책으로 빨려들어가 사라짐)
+          else { action.setLoop(THREE.LoopOnce); action.clampWhenFinished = true; }   // 휴식(Death)=1회 후 끝 프레임(책 상태)에서 정지 유지 — 숨기지 않음
         }
         M[st.key] = { group, mixer, action, dur };
         if (st.key === active) showState(active);
