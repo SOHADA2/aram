@@ -6560,7 +6560,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.139';
+const APP_VERSION = 'v2.45.140';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -25418,7 +25418,7 @@ async function ensureYuumi3d() {
         console.log('[🐱3D] ③ GLB 로드:', st.file, '| 애니', (g.animations || []).length);
         const model = g.scene; model.visible = false; scene.add(model);
         // 게임 모델이 음수 스케일(-1)이라 면 컬링이 뒤집혀 깨져 보이는 것 방지 — 양면 렌더
-        model.traverse(o => { if (o.isMesh && o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.side = THREE.DoubleSide; m.needsUpdate = true; }); } });
+        model.traverse(o => { if (o.isMesh) { o.frustumCulled = false; if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.side = THREE.DoubleSide; m.needsUpdate = true; }); } });
         const box = new THREE.Box3().setFromObject(model);
         const ctr = box.getCenter(new THREE.Vector3()); model.position.sub(ctr);   // 박스 중심을 원점으로
         if (!fitted) {
@@ -25448,6 +25448,7 @@ async function ensureYuumi3d() {
       if (renderer.domElement.parentElement !== mt) mt.appendChild(renderer.domElement);  // 자가복구: 캔버스를 마운트에 부착
       const dt = clock.getDelta();
       for (const k in M) { if (M[k].mixer && M[k].model.visible) M[k].mixer.update(dt); }
+      if (!window.__y3dR) { window.__y3dR = true; console.log('[🐱3D] ⑤ 첫 렌더 | 보이는모델', Object.keys(M).filter(k => M[k] && M[k].model.visible), '| 캔버스부모', renderer.domElement.parentElement?.id); }
       renderer.render(scene, camera);
     })();
   } catch (e) { console.error('3D 유미 init 실패:', e); _yuumi3dInit = false; }
@@ -25484,7 +25485,7 @@ function _renderYuumiPanel() {
   el.style.display = 'block';
   const fmt = ms => { const t = Math.max(0, Math.ceil(ms/1000)); return Math.floor(t/60) + '분 ' + String(t%60).padStart(2,'0') + '초'; };
   if (s.st === 'foraging') {
-    _setYuumi3d('dig');   // 🐱 폴짝 — 쓰레기통 안으로 들어가는 모션 (Spell1)
+    _setYuumi3d('idle');   // 🐱 임시: 대기로 표시(폴짝 애니가 프레임 밖으로 나가는지 확인 중) — 원래 'dig'
     // 저장된 구경 보너스 로드 — 새로고침/재접속 시 이어서 (다운그레이드 방지로 max)
     const _fw = (getMyGoldData() || {})[sField('yuumiForage')] || {};
     _yuumiWatchGold = Math.min(YUUMI_WATCH_CAP, Math.max(_yuumiWatchGold || 0, _fw.watchGold || 0));
