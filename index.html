@@ -2044,12 +2044,19 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .yuumi-slim-action{flex:1;display:flex;justify-content:flex-end;align-items:center;min-width:0;}
 .yuumi-slim .yuumi-btn{width:auto;padding:6px 14px;font-size:11.5px;white-space:nowrap;box-shadow:none;}
 .yuumi-slim .yuumi-status{font-size:11px;}
-#yuumi-peek{position:absolute;right:4px;top:-15px;width:48px;height:54px;z-index:5;pointer-events:none;}
-#yuumi-peek img{width:100%;height:100%;object-fit:contain;object-position:bottom center;filter:drop-shadow(0 3px 5px rgba(0,0,0,.55));transform-origin:bottom center;}
-#yuumi-peek.idle img{animation:yThumbBob 2.4s ease-in-out infinite;}
-#yuumi-peek.done img{animation:yThumbBob 1.1s ease-in-out infinite;}
-#yuumi-peek.sleep img{filter:grayscale(.5) brightness(.62) drop-shadow(0 3px 5px rgba(0,0,0,.5));}
-#yuumi-peek.sleep::after{content:'💤';position:absolute;top:-4px;right:-7px;font-size:13px;animation:yThumbBob 2.4s ease-in-out infinite;}
+/* 🐱 메인 쓰레기통에서 유미가 직접 뒤지는 모션 (파밍 중) — 별도 통 없이 저 통에서 (v2.45.130) */
+#yuumi-forage{position:absolute;left:50%;top:1px;width:74px;height:86px;z-index:5;pointer-events:none;transform:translateX(-50%);}
+#yuumi-forage img{width:100%;height:100%;object-fit:contain;object-position:bottom center;filter:drop-shadow(0 4px 7px rgba(0,0,0,.5));transform-origin:bottom center;animation:yForageDig .9s ease-in-out infinite;}
+@keyframes yForageDig{0%,100%{transform:translateY(0) rotate(-5deg);}45%{transform:translateY(15px) rotate(5deg);}}
+#yuumi-forage .yf-dust{position:absolute;bottom:22px;left:calc(50% + 22px);font-size:12px;color:#b7a98a;pointer-events:none;animation:yScDust .9s ease-in-out infinite;}
+#yuumi-forage .yf-dust.l{left:calc(50% - 34px);animation-delay:.45s;}
+.trash-can.yuumi-foraging .trash-lid{transform:translateX(-50%) rotate(-16deg) translateY(-4px);}
+.yuumi-slim-info{flex:1;min-width:0;text-align:left;}
+.yuumi-slim .yuumi-find{font-size:11px;font-weight:700;}
+.yuumi-fmeta{font-size:10px;color:#b6a6d8;margin-top:1px;line-height:1.4;}
+.yuumi-fmeta .dim{opacity:.55;}
+.yuumi-fmeta b{color:#fbbf24;font-family:'JetBrains Mono',monospace;}
+.yuumi-fmeta.pop #yuumi-watch{display:inline-block;animation:yuumiCoinPop .3s ease;}
 .yuumi-inner{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:11px;background:linear-gradient(135deg,rgba(150,110,220,0.18),rgba(90,70,150,0.10));border:1px solid rgba(180,140,255,0.42);}
 .yuumi-cat{font-size:27px;line-height:1;flex-shrink:0;}
 .yuumi-body{flex:1;min-width:0;text-align:left;}
@@ -6556,7 +6563,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.129';
+const APP_VERSION = 'v2.45.130';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6565,6 +6572,9 @@ const APP_VERSION = 'v2.45.129';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.130', date: '2026-06-16', changes: [
+    { tag: 'improve', text: '🐱 유미 자동 줍기 연출 변경 — 통 리드에 걸터앉은 유미를 없애고, 파견 중엔 따로 만들어진 작은 통이 아니라 위에 있는 메인 쓰레기통에서 유미가 직접 들락날락 뒤지는 모션(뚜껑 열림·먼지·동전)으로. 상태(구경 골드·남은 시간·발견)는 맨 아래 슬림 바로 정리. 유미가 뒤지는 동안에도 직접 뒤지기는 그대로 가능' },
+  ] },
   { ver: 'v2.45.129', date: '2026-06-16', changes: [
     { tag: 'improve', text: '🗑️ 쓰레기통 화면 재단장 — (1) 통 속 쓰레기를 완전 랜덤(빈 곳·뭉침) → 바닥에 꽉 쌓이는 더미로 배치(개수도 12→16개, 아래일수록 앞에). (2) 위쪽에 큰 보라 카드로 떠 있던 🐱 유미를 쓰레기통 리드에 걸터앉은 모습으로 옮기고(쉬는 중엔 잠든 💤), 파견/수령/쿨다운 상태는 맨 아래 슬림 바로 정리해 톤·시인성 개선' },
   ] },
@@ -25339,10 +25349,10 @@ const _YUUMI_IMG = 'assets/pets/Yuumi/prism/default.png'; // 누끼컷
 let _yuumiTimer = null, _yuumiFindTimer = null, _yuumiWatchGold = 0;
 function _yuumiImgTag(cls) { return `<img class="${cls}" src="${_YUUMI_IMG}" alt="유미" onerror="this.onerror=null;this.src='${_gachaLoadingImg('Yuumi')}';this.onerror=()=>{this.style.opacity=0;}">`; }
 function _yuumiSpawnCoin() {
-  const scene = document.getElementById('yscene'); if (!scene) return;
+  const host = document.getElementById('yuumi-forage'); if (!host || host.style.display === 'none') return;
   const c = document.createElement('div'); c.className = 'ysc-coin'; c.textContent = '🪙';
   c.style.setProperty('--dx', (Math.random()*44 - 22).toFixed(0) + 'px');
-  scene.appendChild(c); setTimeout(() => c.remove(), 850);
+  host.appendChild(c); setTimeout(() => c.remove(), 850);
 }
 // 구경 보너스를 현재 파견(yuumiForage.watchGold)에 저장 — 새로고침/재접속해도 유지. 파밍 중일 때만.
 function _yuumiPersistWatch() {
@@ -25353,14 +25363,17 @@ function _yuumiPersistWatch() {
   f.watchGold = _yuumiWatchGold;                    // 낙관적 동기화
   update(ref(db, 'gold/' + key), { [sField('yuumiForage') + '/watchGold']: _yuumiWatchGold }).catch(() => {});
 }
-// 🐱 통 리드에 걸터앉은 유미 (idle/sleep/done) · null이면 숨김(파밍 중엔 아래 장면 카드가 보여줌)
-function _setYuumiPeek(stateCls) {
-  const peek = document.getElementById('yuumi-peek');
-  if (!peek) return;
-  if (!stateCls) { peek.style.display = 'none'; return; }
-  if (!peek.dataset.loaded) { peek.innerHTML = _yuumiImgTag('yuumi-peek-img'); peek.dataset.loaded = '1'; }
-  peek.className = stateCls;
-  peek.style.display = 'block';
+// 🐱 메인 쓰레기통에서 유미가 직접 들락날락 뒤지는 모션 (파밍 중에만 ON) — 별도 통 없이 저 통에서 진행
+function _showYuumiForage(on) {
+  const f = document.getElementById('yuumi-forage');
+  const can = document.getElementById('trash-can');
+  if (!f) return;
+  if (on && !f.dataset.loaded) {
+    f.innerHTML = _yuumiImgTag('yuumi-forage-img') + '<span class="yf-dust">💨</span><span class="yf-dust l">💨</span>';
+    f.dataset.loaded = '1';
+  }
+  f.style.display = on ? 'block' : 'none';
+  can?.classList.toggle('yuumi-foraging', on);
 }
 function _renderYuumiPanel() {
   const el = document.getElementById('yuumi-panel');
@@ -25368,24 +25381,21 @@ function _renderYuumiPanel() {
   const s = _yuumiState();
   if (_yuumiTimer) { clearInterval(_yuumiTimer); _yuumiTimer = null; }
   if (_yuumiFindTimer) { clearInterval(_yuumiFindTimer); _yuumiFindTimer = null; }
-  if (s.st === 'none') { el.style.display = 'none'; el.innerHTML = ''; _setYuumiPeek(null); return; }
+  if (s.st === 'none') { el.style.display = 'none'; el.innerHTML = ''; _showYuumiForage(false); return; }
   el.style.display = 'block';
   const fmt = ms => { const t = Math.max(0, Math.ceil(ms/1000)); return Math.floor(t/60) + '분 ' + String(t%60).padStart(2,'0') + '초'; };
   if (s.st === 'foraging') {
-    _setYuumiPeek(null);   // 파밍 중엔 통 위 유미 숨김 (아래 장면 카드가 보여줌)
+    _showYuumiForage(true);   // 🐱 메인 쓰레기통에서 유미가 직접 뒤지는 모션 ON (별도 통 X)
     // 저장된 구경 보너스 로드 — 새로고침/재접속 시 이어서 (다운그레이드 방지로 max)
     const _fw = (getMyGoldData() || {})[sField('yuumiForage')] || {};
     _yuumiWatchGold = Math.min(YUUMI_WATCH_CAP, Math.max(_yuumiWatchGold || 0, _fw.watchGold || 0));
-    // 누끼컷이 쓰레기통에서 상반신만 나온 채 들락날락 뒤지는 장면 + 라이브 발견 피드
-    el.innerHTML = `<div class="yuumi-fcard">
-      <div class="yuumi-title">유미 — 자동 쓰레기 줍기 <span class="yuumi-secret">SECRET</span></div>
-      <div class="yuumi-scene" id="yscene">
-        <div class="ysc-mouth"></div>${_yuumiImgTag('yscene-yuumi')}<div class="ysc-body"></div><div class="ysc-lip"></div>
-        <span class="ysc-dust">💨</span><span class="ysc-dust l">💨</span>
+    // 상태/발견 피드는 하단 슬림 바로 (연출은 위 메인 통의 유미가 담당)
+    el.innerHTML = `<div class="yuumi-slim foraging">
+      <span class="yuumi-slim-tag">🐱 유미 <span class="yuumi-secret">SECRET</span></span>
+      <div class="yuumi-slim-info">
+        <div class="yuumi-find" id="yuumi-find">유미가 신나게 뒤지는 중…</div>
+        <div class="yuumi-fmeta" id="yuumi-watch-wrap">🪙 구경 <b id="yuumi-watch">${_yuumiWatchGold}</b>G <span class="dim">(최대 ${YUUMI_WATCH_CAP})</span> · ⏳ <b id="yuumi-timer">${fmt(s.endAt - Date.now())}</b> 뒤 수령</div>
       </div>
-      <div class="yuumi-find" id="yuumi-find">유미가 신나게 뒤지는 중…</div>
-      <div class="yuumi-watch" id="yuumi-watch-wrap">구경하는 동안 유미가 주운 동전 🪙 <b id="yuumi-watch">${_yuumiWatchGold}</b>G <span style="opacity:.55">(최대 ${YUUMI_WATCH_CAP})</span></div>
-      <div class="yuumi-status" style="margin-top:1px;">⏳ <b id="yuumi-timer">${fmt(s.endAt - Date.now())}</b> 뒤 수령</div>
     </div>`;
   } else {
     let body = '';
@@ -25399,7 +25409,7 @@ function _renderYuumiPanel() {
     else if (s.st === 'cooldown') body = `<span class="yuumi-status cd">😴 쉬는 중 · <b id="yuumi-timer">${fmt(s.endAt - Date.now())}</b> 뒤 재출동</span>`;
     // 하단 슬림 바 + 통 리드에 걸터앉은 유미 (idle/done/sleep)
     el.innerHTML = `<div class="yuumi-slim"><span class="yuumi-slim-tag">🐱 유미 <span class="yuumi-secret">SECRET</span></span><span class="yuumi-slim-action">${body}</span></div>`;
-    _setYuumiPeek(s.st === 'cooldown' ? 'sleep' : (s.st === 'done' ? 'done' : 'idle'));
+    _showYuumiForage(false);
   }
   if (s.st === 'foraging' || s.st === 'cooldown') {
     _yuumiTimer = setInterval(() => {
@@ -25411,7 +25421,7 @@ function _renderYuumiPanel() {
   }
   if (s.st === 'foraging') {
     _yuumiFindTimer = setInterval(() => {
-      if (!document.getElementById('yscene')) { clearInterval(_yuumiFindTimer); _yuumiFindTimer = null; return; } // 모달 닫힘
+      if (!document.getElementById('yuumi-find')) { clearInterval(_yuumiFindTimer); _yuumiFindTimer = null; return; } // 모달 닫힘
       const fe = document.getElementById('yuumi-find');
       if (Math.random() < 0.45) {            // 동전 발견 (띠링)
         const n = 1 + Math.floor(Math.random() * 6);
@@ -25520,7 +25530,7 @@ window.openTrashCan = function() {
       <div class="trash-sub">손을 넣고 <b>이리저리 한참 뒤적뒤적</b> 해보세요.<br>대부분은 쓰레기… 운이 좋으면 동전이나 무료 복권이?</div>
       <div class="trash-digs" id="trash-digs"></div>
       <div class="trash-can" id="trash-can">
-        <div id="yuumi-peek" style="display:none;"></div>
+        <div id="yuumi-forage" style="display:none;"></div>
         <div class="trash-fly" style="top:42px;left:30px;">🪰</div>
         <span class="trash-stink" style="left:48px;animation-delay:0s;">〰️</span>
         <span class="trash-stink" style="left:116px;animation-delay:1.3s;">〰️</span>
