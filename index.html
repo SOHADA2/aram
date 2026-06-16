@@ -6560,7 +6560,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.147';
+const APP_VERSION = 'v2.45.148';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6569,6 +6569,9 @@ const APP_VERSION = 'v2.45.147';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.148', date: '2026-06-16', changes: [
+    { tag: 'improve', text: '🐱 유미 뒤지기 다듬기 — 뒤질 때 유미를 살짝 작게, 그리고 유미가 뒤적이는 동안 통 안 쓰레기들도 들썩이게(사각사각 소리와 함께) 해서 진짜 뒤지는 느낌' },
+  ] },
   { ver: 'v2.45.147', date: '2026-06-16', changes: [
     { tag: 'improve', text: '🐱 쓰레기통 유미를 미니유미 모델로 교체 — 파견 중엔 댄스(뒤지기) 모션, 쉬는 중엔 마법서로 들어가 책 상태로 정지(되돌아오지 않음). 인공 다이브는 끄고 모션 자체로 표현' },
   ] },
@@ -25435,7 +25438,7 @@ async function ensureYuumi3d() {
     if (!canvas) { canvas = document.createElement('canvas'); canvas.id = 'yuumi3d'; canvas.style.cssText = 'width:100%;height:100%;display:block;'; holder.appendChild(canvas); }
     const W = 272, H = 349;   // 마운트(272×349) — 모션 잘림 방지로 캔버스 확대(여백 비례 보정해 yuumi 크기·위치는 동일)
     const YUUMI_POS = { x: 0.18, y: -1.92, scale: 0.68, rot: 0 };   // 테스트 페이지에서 맞춘 위치/크기/방향
-    const DIG_DIP = 0, DIG_PERIOD = 1.3;   // 🐱 미니유미 Dance_Loop 자체가 뒤지기라 인공 다이브 OFF(0). 주기는 뒤적임 효과음 타이밍
+    const DIG_DIP = 0, DIG_PERIOD = 1.3, DIG_SCALE = 0.85;   // 🐱 다이브 OFF · DIG_SCALE=뒤지기 때 유미 조금 작게
     const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setSize(W, H, false);
     renderer.setClearAlpha(0);   // 완전 투명 배경
@@ -25474,7 +25477,7 @@ async function ensureYuumi3d() {
         }
         // 테스트 페이지에서 맞춘 위치/크기/방향 적용 (그룹 변형)
         group.position.set(YUUMI_POS.x * _r, YUUMI_POS.y * _r, 0);
-        group.scale.setScalar(YUUMI_POS.scale);
+        group.scale.setScalar(YUUMI_POS.scale * (st.key === 'dig' ? DIG_SCALE : 1));   // 뒤지기(dig)는 조금 작게
         group.rotation.y = YUUMI_POS.rot * Math.PI / 180;
         const mixer = new THREE.AnimationMixer(model), clip = (g.animations || [])[0];
         let action = null, dur = 0;
@@ -25496,15 +25499,13 @@ async function ensureYuumi3d() {
       if (renderer.domElement.parentElement !== mt) mt.appendChild(renderer.domElement);  // 자가복구: 캔버스를 마운트에 부착
       const dt = clock.getDelta();
       for (const k in M) { if (M[k].mixer && M[k].group.visible) M[k].mixer.update(dt); }
-      // 🐱 파견 중(dig): 쓰레기통 속으로 쏙 들어갔다 나오는 상하 움직임 (폴짝 애니 위에 얹음)
+      // 🐱 파견 중(dig): 인공 다이브(DIG_DIP, 현재 0=정지). 뒤적임 소리·쓰레기 움직임은 _yuumiJunkTimer가 담당
       const _dg = M['dig'];
-      if (_dg && _dg.group.visible) {
+      if (_dg && _dg.group.visible && DIG_DIP) {
         _digTime += dt;
-        const _ph = (1 - Math.cos(_digTime * (2 * Math.PI / DIG_PERIOD))) / 2;   // 0(나옴)→1(쏙 들어감)→0
+        const _ph = (1 - Math.cos(_digTime * (2 * Math.PI / DIG_PERIOD))) / 2;
         _dg.group.position.y = (YUUMI_POS.y - DIG_DIP * _ph) * baseR;
-        if (_digPhPrev < 0.5 && _ph >= 0.5) { try { _trashSfx.rustle(); } catch (_) {} }   // 통 속으로 들어갈 때 사각사각
-        _digPhPrev = _ph;
-      } else _digPhPrev = 0;
+      }
       renderer.render(scene, camera);
     })();
   } catch (e) { console.error('3D 유미 init 실패:', e); _yuumi3dInit = false; }
@@ -25514,14 +25515,30 @@ function _evacuateYuumi3d() {
   const cv = document.getElementById('yuumi3d'), holder = document.getElementById('yuumi3d-holder');
   if (cv && holder && cv.parentElement !== holder) holder.appendChild(cv);
 }
-// 🐱 쓰레기통 3D 유미 — 'idle'(대기)/'dig'(폴짝, 파밍 중)/null(미보유 숨김)
+// 🗑️ 파견 중(뒤지기) 쓰레기 휘젓기 — 유미가 뒤질 때 통 안 쓰레기들도 들썩이게 (+ 사각사각 소리)
+let _yuumiJunkTimer = null;
+function _yuumiStartJunkJiggle() {
+  if (_yuumiJunkTimer) return;
+  _yuumiJunkTimer = setInterval(() => {
+    const zone = document.getElementById('trash-dig');
+    if (!zone || !_trashJunkEls.length) return;
+    const r = zone.getBoundingClientRect();
+    // 유미가 손을 휘젓듯 랜덤 지점에서 쓰레기 밀기 (_trashRustle = 쓰레기 들썩 + 사각사각)
+    _trashRustle(r.left + Math.random() * r.width, r.top + r.height * (0.35 + Math.random() * 0.55));
+  }, 430);
+}
+function _yuumiStopJunkJiggle() {
+  if (_yuumiJunkTimer) { clearInterval(_yuumiJunkTimer); _yuumiJunkTimer = null; }
+}
+// 🐱 쓰레기통 3D 유미 — 'idle'(대기)/'dig'(뒤지기, 파밍 중)/'rest'(휴식)/null(미보유)
 function _setYuumi3d(state) {
   const mount = document.getElementById('yuumi3d-mount');
   const can = document.getElementById('trash-can');
-  if (!mount) return;
-  if (!state) { _evacuateYuumi3d(); mount.style.display = 'none'; can?.classList.remove('yuumi-foraging'); return; }
+  if (!mount) { _yuumiStopJunkJiggle(); return; }
+  if (!state) { _yuumiStopJunkJiggle(); _evacuateYuumi3d(); mount.style.display = 'none'; can?.classList.remove('yuumi-foraging'); return; }
   mount.style.display = 'block';
   can?.classList.toggle('yuumi-foraging', state === 'dig');
+  if (state === 'dig') _yuumiStartJunkJiggle(); else _yuumiStopJunkJiggle();   // 뒤지기 중에만 쓰레기 휘저음
   ensureYuumi3d().then(() => {
     const cv = document.getElementById('yuumi3d'), mt = document.getElementById('yuumi3d-mount');
     if (cv && mt && cv.parentElement !== mt) mt.appendChild(cv);
@@ -25761,6 +25778,7 @@ function _trashRustle(px, py) {
 }
 window.closeTrashCan = function() {
   _trashDragging = false;
+  _yuumiStopJunkJiggle();   // 닫으면 쓰레기 휘젓기 정지
   if (_yuumiTimer) { clearInterval(_yuumiTimer); _yuumiTimer = null; }
   _evacuateYuumi3d();   // 3D 캔버스 대피(오버레이 제거로 파괴 방지) → 렌더 루프도 자동 정지
   document.getElementById('trash-overlay')?.remove();
