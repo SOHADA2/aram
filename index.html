@@ -6565,7 +6565,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.159';
+const APP_VERSION = 'v2.45.160';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6574,6 +6574,9 @@ const APP_VERSION = 'v2.45.159';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.160', date: '2026-06-17', changes: [
+    { tag: 'new', text: '🕹️ 인형 뽑기 미니게임 (가챠 엔드게임) — 챔피언 카드 프리즘(★★★) 18종을 모두 모으면 컬렉션 탭에서 해금돼요. 크레인을 좌우로 움직여 원하는 챔피언 인형 위치에 맞춰 "내리기" → 집기 성공은 약간의 확률(미끄러짐). 성공하면 그 챔피언 인형을 획득(🧸 인형 도감 18종 수집) + 소량 골드. 하루 3회 무료. 인형 18종을 다 모으면 1회성 보상(🔶정수 ×3 · +1000G). 미해금 시 진행도(N/18) 티저 표시' },
+  ] },
   { ver: 'v2.45.159', date: '2026-06-17', changes: [
     { tag: 'improve', text: '🐱 파견 중 유미 크기 미세 조정 (0.4→0.45)' },
   ] },
@@ -30682,8 +30685,193 @@ function renderGachaDex() {
     _renderSynGroup('🛡️ 방어형', GACHA_SYNERGY_GROUPS.filter(g => g.archetype === 'def'), activeSyn) +
     _renderSynGroup('💚 지원형', GACHA_SYNERGY_GROUPS.filter(g => g.archetype === 'sup'), activeSyn) +
     _renderSynGroup('💫 리스크형', GACHA_SYNERGY_GROUPS.filter(g => g.archetype === 'risk'), activeSyn);
-  return `<div class="dex-cat-sep" style="margin-top:14px;">◈ 시너지</div>` + synHtml;
+  return _clawEntryHtml() + `<div class="dex-cat-sep" style="margin-top:14px;">◈ 시너지</div>` + synHtml;
 }
+// 🕹️ 인형 뽑기 진입 배너 — 프리즘 18종 완성 시 해금, 미완성은 진행도 티저
+function _clawEntryHtml(){
+  const data = getMyGoldData(); if (CURRENT_SEASON !== 2) return '';
+  const done = _allPrismDone(data), n = _prismCount(data);
+  const uniq = _plushUnique(data), rem = _clawRemaining(data);
+  if (!done) {
+    return `<div class="claw-entry locked"><div class="claw-entry-ic">🕹️</div><div class="claw-entry-body">
+      <div class="claw-entry-title">인형 뽑기 <span class="claw-entry-lock">🔒 잠김</span></div>
+      <div class="claw-entry-sub">프리즘(★★★) <b>18종</b>을 모두 모으면 열려요 · <b>${n}/18</b></div>
+      <div class="claw-entry-bar"><div class="claw-entry-fill" style="width:${Math.round(n/18*100)}%;"></div></div>
+    </div></div>`;
+  }
+  return `<div class="claw-entry open" onclick="window.openClawMachine()"><div class="claw-entry-ic">🕹️</div><div class="claw-entry-body">
+    <div class="claw-entry-title">🧸 인형 뽑기 <span class="claw-entry-go">열기 ›</span></div>
+    <div class="claw-entry-sub">챔피언 인형을 모아요 · 도감 <b>${uniq}/18</b> · 오늘 <b>${rem}</b>회 남음</div>
+  </div></div>`;
+}
+// ════════ 🕹️ 인형 뽑기 미니게임 (프리즘 18종 완성 해금) — v2.45.160 ════════
+const CLAW_DAILY = 3;                       // 하루 무료 플레이
+const CLAW_GOLD_MIN = 12, CLAW_GOLD_MAX = 30;
+const _clawSleep = ms => new Promise(r => setTimeout(r, ms));
+function _plushField(){ return sField('plushies'); }
+function _gachaCardsOf(data){ return (data || getMyGoldData())?.[sField('champCards')] || {}; }
+function _allPrismDone(data){ const cc = _gachaCardsOf(data); return GACHA_CHAMPS.every(c => (cc[c.slug]?.s3||0) >= 1); }
+function _prismCount(data){ const cc = _gachaCardsOf(data); return GACHA_CHAMPS.filter(c => (cc[c.slug]?.s3||0) >= 1).length; }
+function _myPlushies(data){ return { ...((data || getMyGoldData())?.[_plushField()] || {}) }; }
+function _plushUnique(data){ const p = _myPlushies(data); return GACHA_CHAMPS.filter(c => (p[c.slug]||0) > 0).length; }
+function _clawRemaining(data){
+  data = data || getMyGoldData(); const today = getLocalDateKey();
+  const cnt = (data?.[sField('clawDate')] === today) ? (data?.[sField('clawCount')] || 0) : 0;
+  return Math.max(0, CLAW_DAILY - cnt);
+}
+let _clawSweepRAF = null, _clawBusy = false;
+function _clawStopSweep(){ if (_clawSweepRAF){ cancelAnimationFrame(_clawSweepRAF); _clawSweepRAF = null; } }
+function _injectClawCss(){
+  if (document.getElementById('claw-css')) return;
+  const st = document.createElement('style'); st.id = 'claw-css';
+  st.textContent = `
+  .claw-overlay{position:fixed;inset:0;z-index:3300;display:flex;align-items:center;justify-content:center;background:rgba(6,5,12,.88);backdrop-filter:blur(6px);padding:14px;}
+  .claw-cab{width:100%;max-width:360px;background:linear-gradient(180deg,#1c160a,#0e0b06);border:2px solid #caa64a;border-radius:18px;box-shadow:0 18px 60px rgba(0,0,0,.7),0 0 40px rgba(202,166,74,.12);overflow:hidden;}
+  .claw-head{display:flex;align-items:center;gap:8px;padding:11px 14px;background:linear-gradient(90deg,rgba(202,166,74,.22),rgba(202,166,74,.08),rgba(202,166,74,.22));border-bottom:1px solid rgba(202,166,74,.3);}
+  .claw-h-title{font-family:'Black Han Sans',sans-serif;font-size:16px;color:#fbe6bf;flex:1;letter-spacing:.5px;}
+  .claw-h-rem{font-size:11px;font-weight:800;color:#ffd24a;background:rgba(0,0,0,.3);padding:3px 9px;border-radius:10px;}
+  .claw-close{width:24px;height:24px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:rgba(255,255,255,.6);cursor:pointer;font-size:13px;flex-shrink:0;}
+  .claw-glass{position:relative;height:248px;margin:12px;border-radius:12px;overflow:hidden;background:radial-gradient(ellipse at 50% 18%,rgba(120,160,210,.16),transparent 60%),linear-gradient(180deg,#0a1420,#0d1828);border:1px solid rgba(150,190,235,.18);box-shadow:inset 0 2px 18px rgba(0,0,0,.6);}
+  .claw-glass::before{content:'';position:absolute;top:0;left:0;right:0;height:8px;background:linear-gradient(#caa64a,#8a6a20);z-index:4;}
+  .claw-arm{position:absolute;top:8px;transform:translateX(-50%);z-index:6;display:flex;flex-direction:column;align-items:center;transition:left .08s linear;}
+  .claw-cable{width:3px;height:24px;background:linear-gradient(#d8b75a,#8a6a20);transition:height .55s cubic-bezier(.45,0,.5,1);}
+  .claw-cable.down{height:150px;}
+  .claw-grip{position:relative;width:40px;height:26px;}
+  .claw-knot{position:absolute;top:-3px;left:50%;transform:translateX(-50%);width:18px;height:9px;background:#caa64a;border-radius:5px;box-shadow:0 1px 2px rgba(0,0,0,.5);}
+  .claw-grip::before,.claw-grip::after{content:'';position:absolute;top:5px;width:7px;height:24px;background:linear-gradient(#f0c860,#9a7420);border-radius:4px;transition:transform .25s;}
+  .claw-grip::before{left:7px;transform-origin:top center;transform:rotate(20deg);}
+  .claw-grip::after{right:7px;transform-origin:top center;transform:rotate(-20deg);}
+  .claw-arm.closed .claw-grip::before{transform:rotate(6deg);}
+  .claw-arm.closed .claw-grip::after{transform:rotate(-6deg);}
+  .claw-floor{position:absolute;left:0;right:0;bottom:0;height:64px;background:linear-gradient(180deg,transparent,rgba(0,0,0,.35));border-top:1px solid rgba(150,190,235,.12);}
+  .claw-plush{position:absolute;bottom:8px;transform:translateX(-50%);width:46px;text-align:center;transition:bottom .55s cubic-bezier(.45,0,.5,1);z-index:2;}
+  .claw-plush img{width:44px;height:44px;object-fit:contain;filter:drop-shadow(0 3px 4px rgba(0,0,0,.5));}
+  .claw-plush-base{display:block;width:30px;height:6px;margin:1px auto 0;border-radius:50%;background:rgba(0,0,0,.35);filter:blur(1px);}
+  .claw-plush.grabbed{bottom:168px;z-index:7;}
+  .claw-msg{position:absolute;top:9px;left:0;right:0;text-align:center;font-size:12.5px;font-weight:700;color:#cfe0ee;opacity:0;transition:opacity .25s;z-index:8;pointer-events:none;padding:0 10px;}
+  .claw-msg.show{opacity:1;}.claw-msg.win{color:#ffe39a;}.claw-msg.lose{color:#9aa0b4;}
+  .claw-drop-btn{display:block;width:calc(100% - 24px);margin:0 12px 10px;padding:13px;border:none;border-radius:12px;font-family:'Black Han Sans',sans-serif;font-size:16px;letter-spacing:1px;color:#1a1206;background:linear-gradient(135deg,#f0c860,#caa64a);cursor:pointer;box-shadow:0 4px 14px rgba(202,166,74,.4);transition:filter .15s,transform .1s;}
+  .claw-drop-btn:hover{filter:brightness(1.08);}.claw-drop-btn:active{transform:translateY(1px);}
+  .claw-drop-btn:disabled{opacity:.5;cursor:default;filter:grayscale(.5);box-shadow:none;}
+  .claw-coll-wrap{padding:0 12px 14px;}
+  .claw-coll-hd{font-size:11px;color:rgba(247,238,218,.7);margin-bottom:6px;letter-spacing:.3px;}.claw-coll-hd b{color:#ffd24a;}
+  .claw-coll{display:grid;grid-template-columns:repeat(9,1fr);gap:4px;}
+  .claw-coll-cell{aspect-ratio:1;border-radius:7px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  .claw-coll-cell img{width:84%;height:84%;object-fit:contain;filter:grayscale(1) brightness(.25);opacity:.6;}
+  .claw-coll-cell.got{border-color:rgba(202,166,74,.5);background:rgba(202,166,74,.1);}
+  .claw-coll-cell.got img{filter:none;opacity:1;}
+  .claw-entry{display:flex;align-items:center;gap:11px;margin:4px 0 12px;padding:11px 13px;border-radius:12px;border:1px solid rgba(202,166,74,.35);background:linear-gradient(135deg,rgba(202,166,74,.14),rgba(202,166,74,.05));}
+  .claw-entry.open{cursor:pointer;transition:transform .12s,background .15s;}
+  .claw-entry.open:hover{transform:translateY(-2px);background:linear-gradient(135deg,rgba(202,166,74,.22),rgba(202,166,74,.09));}
+  .claw-entry.locked{opacity:.85;border-color:rgba(255,255,255,.12);background:rgba(255,255,255,.03);}
+  .claw-entry-ic{font-size:26px;flex-shrink:0;}
+  .claw-entry-body{flex:1;min-width:0;}
+  .claw-entry-title{font-size:14px;font-weight:800;color:#fbe6bf;display:flex;align-items:center;gap:7px;}
+  .claw-entry.locked .claw-entry-title{color:rgba(255,255,255,.7);}
+  .claw-entry-lock{font-size:9px;font-weight:800;color:#9aa0b4;}.claw-entry-go{font-size:11px;color:#ffd24a;}
+  .claw-entry-sub{font-size:11px;color:rgba(255,255,255,.55);margin-top:2px;}.claw-entry-sub b{color:#ffd24a;}
+  .claw-entry-bar{height:5px;background:rgba(255,255,255,.07);border-radius:3px;overflow:hidden;margin-top:5px;}
+  .claw-entry-fill{height:100%;background:linear-gradient(90deg,#caa64a,#f0c860);border-radius:3px;}`;
+  document.head.appendChild(st);
+}
+async function _clawAward(champ){
+  const key = getMyGoldKey(), data = getMyGoldData(); if (!key || !data) return;
+  const today = getLocalDateKey();
+  const cnt = (data[sField('clawDate')] === today) ? (data[sField('clawCount')] || 0) : 0;
+  const updates = { [sField('clawDate')]: today, [sField('clawCount')]: cnt + 1 };
+  const msg = document.getElementById('claw-msg');
+  if (champ){
+    const g = CLAW_GOLD_MIN + Math.floor(Math.random() * (CLAW_GOLD_MAX - CLAW_GOLD_MIN + 1));
+    const plush = { ...(data[_plushField()] || {}) }; const wasNew = !(plush[champ.slug] > 0);
+    plush[champ.slug] = (plush[champ.slug] || 0) + 1;
+    const gk = sField('goldBonusLegacy');
+    updates[_plushField()] = plush;
+    updates[gk] = (data[gk] || 0) + g;
+    const uniqAfter = GACHA_CHAMPS.filter(c => (plush[c.slug]||0) > 0).length;
+    let completed = false;
+    if (uniqAfter >= 18 && !data[sField('plushieMaster')]){   // 🧸 18종 완성 1회성 보상
+      updates[sField('plushieMaster')] = true;
+      updates[gk] = updates[gk] + 1000;
+      updates[emblemEssenceField()] = getEmblemEssence(data) + 3;
+      completed = true;
+    }
+    if (msg){ msg.className = 'claw-msg show win'; msg.innerHTML = `🧸 <b>${escHtml(champ.kr)}</b> 인형 획득! <span style="color:#ffd24a">+${g}G</span>${wasNew ? ' <span style="color:#4ade80">NEW!</span>' : ''}`; }
+    try { _gSfx?.reveal?.(1); } catch(_){}
+    await update(ref(db, 'gold/' + key), updates);
+    Object.assign(goldData[key], updates);
+    if (completed) setTimeout(() => { try { showS1Toast('🧸 인형 마스터 달성! 18종 인형 완성 · 🔶정수 ×3 · +1000G'); } catch(_){} }, 500);
+  } else {
+    if (msg){ msg.className = 'claw-msg show lose'; msg.textContent = '아쉽게 놓쳤어요…'; }
+    await update(ref(db, 'gold/' + key), updates);
+    Object.assign(goldData[key], updates);
+  }
+  try { renderShop(); } catch(_){}
+}
+window.openClawMachine = function(){
+  if (!myName){ showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
+  const data = getMyGoldData();
+  if (!_allPrismDone(data)){ showS1Toast(`🔒 프리즘 18종을 모두 모아야 열려요 (${_prismCount(data)}/18)`); return; }
+  _injectClawCss();
+  _clawStopSweep(); _clawBusy = false;
+  document.getElementById('claw-overlay')?.remove();
+  const have = _myPlushies(data);
+  const miss = shuffle(GACHA_CHAMPS.filter(c => !((have[c.slug]||0) > 0)));
+  const own  = shuffle(GACHA_CHAMPS.filter(c => (have[c.slug]||0) > 0));
+  let pool = [...miss, ...own].slice(0, 7);
+  while (pool.length < 7) pool.push(shuffle(GACHA_CHAMPS)[0]);
+  pool = shuffle(pool);
+  const XS = [12, 25, 38, 51, 64, 77, 90];
+  const plushHtml = pool.map((c, i) => `<div class="claw-plush" id="cp-${i}" data-x="${XS[i]}" style="left:${XS[i]}%;"><img src="${_gachaPetImg(c.slug,3)}" alt="${escHtml(c.kr)}" onerror="this.onerror=null;this.src='${_gachaLoadingImg(c.slug)}';this.onerror=()=>this.style.opacity='0'"><span class="claw-plush-base"></span></div>`).join('');
+  const collHtml = GACHA_CHAMPS.map(c => { const got = (have[c.slug]||0) > 0; return `<div class="claw-coll-cell ${got?'got':''}" title="${escHtml(c.kr)}${got?` ×${have[c.slug]}`:''}"><img src="${_gachaPetImg(c.slug,3)}" alt="" onerror="this.style.opacity='0'"></div>`; }).join('');
+  const rem = _clawRemaining(data), uniq = _plushUnique(data);
+  const ov = document.createElement('div'); ov.id = 'claw-overlay'; ov.className = 'claw-overlay';
+  ov.innerHTML = `
+    <div class="claw-cab">
+      <div class="claw-head"><span class="claw-h-title">🕹️ 인형 뽑기</span><span class="claw-h-rem">오늘 ${rem}회</span><button class="claw-close" id="claw-close">✕</button></div>
+      <div class="claw-glass">
+        <div class="claw-arm" id="claw-arm" style="left:12%;"><div class="claw-cable" id="claw-cable"></div><div class="claw-grip"><span class="claw-knot"></span></div></div>
+        <div class="claw-floor">${plushHtml}</div>
+        <div class="claw-msg" id="claw-msg"></div>
+      </div>
+      <button class="claw-drop-btn" id="claw-drop"${rem>0?'':' disabled'}>${rem>0 ? '🎯 내리기!' : '오늘 횟수 소진 · 내일 또'}</button>
+      <div class="claw-coll-wrap"><div class="claw-coll-hd">🧸 인형 도감 <b>${uniq}</b>/18</div><div class="claw-coll">${collHtml}</div></div>
+    </div>`;
+  document.body.appendChild(ov);
+  ov.addEventListener('click', e => { if (e.target === ov){ _clawStopSweep(); ov.remove(); } });
+  document.getElementById('claw-close').onclick = () => { _clawStopSweep(); ov.remove(); };
+  const arm = document.getElementById('claw-arm');
+  let dir = 1, x = 12; const LO = 8, HI = 92, SPD = 0.6;
+  function sweep(){ x += dir * SPD; if (x >= HI){ x = HI; dir = -1; } else if (x <= LO){ x = LO; dir = 1; } arm.style.left = x + '%'; _clawSweepRAF = requestAnimationFrame(sweep); }
+  if (rem > 0) sweep();
+  document.getElementById('claw-drop').onclick = async () => {
+    if (_clawBusy) return;
+    if (_clawRemaining(getMyGoldData()) <= 0) return;
+    _clawBusy = true;
+    const btn = document.getElementById('claw-drop'); if (btn) btn.disabled = true;
+    _clawStopSweep();
+    const clawX = parseFloat(arm.style.left) || 50;
+    let best = null, bestD = 999;
+    pool.forEach((c, i) => { const d = Math.abs(clawX - XS[i]); if (d < bestD){ bestD = d; best = { c, i }; } });
+    const pAlign = bestD <= 4 ? 0.85 : bestD <= 8 ? 0.55 : bestD <= 12 ? 0.3 : 0.08;  // 정렬+집기 미끄러짐 반영
+    const success = Math.random() < pAlign;
+    // 정렬 → 하강 → 집기 → 상승
+    arm.style.transition = 'left .25s ease'; arm.style.left = XS[best.i] + '%';
+    await _clawSleep(270); arm.style.transition = '';
+    document.getElementById('claw-cable')?.classList.add('down');
+    await _clawSleep(560);
+    arm.classList.add('closed');
+    await _clawSleep(250);
+    const plushEl = document.getElementById('cp-' + best.i);
+    if (success && plushEl) plushEl.classList.add('grabbed');
+    document.getElementById('claw-cable')?.classList.remove('down');
+    await _clawSleep(580);
+    arm.classList.remove('closed');
+    await _clawAward(success ? best.c : null);
+    await _clawSleep(1200);
+    _clawBusy = false;
+    if (document.getElementById('claw-overlay')) window.openClawMachine();   // 새 진열·도감·횟수로 갱신
+  };
+};
 
 function _renderSynGroup(title, groups, activeSyn) {
   const rows = groups.map(grp => {
