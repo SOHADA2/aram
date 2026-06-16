@@ -6560,7 +6560,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.145';
+const APP_VERSION = 'v2.45.146';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6569,6 +6569,9 @@ const APP_VERSION = 'v2.45.145';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.146', date: '2026-06-16', changes: [
+    { tag: 'improve', text: '🔊 유미 행동 효과음 추가 — 뒤적거릴 때(폴짝 다이브에 맞춰 사각사각), 휴식 들어갈 때(마법서로 빨려드는 휙~반짝), 파견 보낼 때(출발음). Web Audio 합성, 가볍게' },
+  ] },
   { ver: 'v2.45.145', date: '2026-06-16', changes: [
     { tag: 'fix', text: '🐱 3D 유미 — 휴식(리콜)으로 마법서에 빨려들어간 뒤 안 보이게 숨김 처리. 그리고 모션할 때 박스처럼 잘리던 것(캔버스 가장자리에 걸림) 수정 — 렌더 영역을 키워(크기·위치는 동일) 여유 확보, 파견 다이브 깊이도 살짝 완화' },
   ] },
@@ -25280,6 +25283,23 @@ const _trashSfx = {
       o.type='triangle'; o.frequency.value=f; g.gain.setValueAtTime(0.17,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.32);
       o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+0.34); });
   } catch(e){} },
+  recall() { try {                                   // 🐱 휴식 — 마법서로 빨려드는 휙~ + 반짝
+    const c=_trashAC(), t=c.currentTime;
+    const o=c.createOscillator(), g=c.createGain();   // 상승 스윕(빨려듦)
+    o.type='sine'; o.frequency.setValueAtTime(320,t); o.frequency.exponentialRampToValueAtTime(1500,t+0.34);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.16,t+0.05); g.gain.exponentialRampToValueAtTime(0.0001,t+0.4);
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+0.42);
+    [1568,2093].forEach((f,i)=>{ const t2=t+0.18+i*0.07, o2=c.createOscillator(), g2=c.createGain();   // 반짝 띵
+      o2.type='triangle'; o2.frequency.value=f; g2.gain.setValueAtTime(0.1,t2); g2.gain.exponentialRampToValueAtTime(0.0001,t2+0.22);
+      o2.connect(g2); g2.connect(c.destination); o2.start(t2); o2.stop(t2+0.24); });
+  } catch(e){} },
+  deploy() { try {                                   // 🐱 파견 — 신나게 출발(상승 2음)
+    const c=_trashAC();
+    [[523,0],[784,0.1]].forEach(([f,dl])=>{ const t=c.currentTime+dl, o=c.createOscillator(), g=c.createGain();
+      o.type='triangle'; o.frequency.setValueAtTime(f,t); o.frequency.exponentialRampToValueAtTime(f*1.5,t+0.12);
+      g.gain.setValueAtTime(0.16,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.18);
+      o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+0.2); });
+  } catch(e){} },
 };
 // ── 🐱 유미 (시크릿) — 파견형 자동 쓰레기 줍기 (v2.43.245) ──────────
 // 보유 시 쓰레기통 모달에서 "유미 보내기" → 1시간 자동 파밍 → 수령 → 1시간 쿨다운.
@@ -25328,6 +25348,7 @@ window.deployYuumi = async function() {
   _renderYuumiPanel();
   const _mins = Math.round(forageMs / 60000);
   const _lbl = _mins >= 60 ? '1시간' : `${_mins}분`;
+  try { _trashSfx.deploy(); } catch (_) {}   // 🐱 파견 출발 사운드
   showGoldToast(`🐱 유미를 쓰레기통으로 보냈어요! ${_lbl} 뒤 수령하세요`);
 };
 window.collectYuumi = async function() {
@@ -25426,10 +25447,10 @@ async function ensureYuumi3d() {
       { key: 'dig',  file: 'yuumi-dig.glb',  loop: true },
       { key: 'rest', file: 'yuumi-rest.glb', loop: false },   // 🐱 휴식 = 마법서로 빨려들어가는 리콜(1회 재생)
     ];
-    const M = {}; let active = 'idle', fitted = false; let baseR = 1, _digTime = 0;
+    const M = {}; let active = 'idle', fitted = false; let baseR = 1, _digTime = 0, _digPhPrev = 0;
     const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
     function hideAll() { for (const k in M) { M[k].group.visible = false; if (M[k].action) M[k].action.stop(); } }
-    function showState(key) { active = key; const m = M[key]; if (!m) return; hideAll(); m.group.visible = true; if (m.action) { m.action.reset(); m.action.play(); } }
+    function showState(key) { active = key; const m = M[key]; if (!m) return; hideAll(); m.group.visible = true; if (m.action) { m.action.reset(); m.action.play(); } if (key === 'rest') { try { _trashSfx.recall(); } catch (_) {} } }
     STATES.forEach(st => {
       loader.load('assets/pets/Yuumi/3d/' + st.file + '?v=4', g => {
         const model = g.scene;
@@ -25478,7 +25499,9 @@ async function ensureYuumi3d() {
         _digTime += dt;
         const _ph = (1 - Math.cos(_digTime * (2 * Math.PI / DIG_PERIOD))) / 2;   // 0(나옴)→1(쏙 들어감)→0
         _dg.group.position.y = (YUUMI_POS.y - DIG_DIP * _ph) * baseR;
-      }
+        if (_digPhPrev < 0.5 && _ph >= 0.5) { try { _trashSfx.rustle(); } catch (_) {} }   // 통 속으로 들어갈 때 사각사각
+        _digPhPrev = _ph;
+      } else _digPhPrev = 0;
       renderer.render(scene, camera);
     })();
   } catch (e) { console.error('3D 유미 init 실패:', e); _yuumi3dInit = false; }
@@ -25638,6 +25661,7 @@ window.showYuumiDetail = function() {
 };
 window.openTrashCan = function() {
   if (!myName) { showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
+  try { _trashAC(); } catch (_) {}   // 사용자 제스처(쓰레기통 열기)에 오디오 컨텍스트 활성화 → 유미 자동 효과음 허용
   _evacuateYuumi3d();   // 기존 오버레이 제거 전 3D 캔버스 대피(파괴 방지)
   document.getElementById('trash-overlay')?.remove();
   _trashDragging = false; _trashDist = 0; _trashBusy = false;
