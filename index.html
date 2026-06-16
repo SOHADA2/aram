@@ -2987,6 +2987,8 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .scard-buy-confirm-cancel:hover{background:rgba(255,255,255,0.07);}
 .scard-buy-confirm-ok{flex:1.6;padding:10px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:filter 0.15s;}
 .scard-buy-confirm-ok:hover{filter:brightness(1.15);}
+/* 🗑 버리기(파괴적 액션) — 차분한 테라코타 톤 */
+.scard-discard-ok{background:linear-gradient(135deg,#c2604a,#97412f);color:#fff;}
 .scard-help-panel{display:none;padding:10px 16px 9px;border-bottom:1px solid rgba(200,168,75,0.12);font-size:11px;line-height:1.65;color:rgba(255,255,255,0.5);}
 .scard-modal.tier-1 .scard-help-panel{border-bottom-color:rgba(167,139,250,0.12);}
 .scard-modal.tier-2 .scard-help-panel{border-bottom-color:rgba(232,121,249,0.12);}
@@ -6563,7 +6565,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.153';
+const APP_VERSION = 'v2.45.154';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6572,6 +6574,9 @@ const APP_VERSION = 'v2.45.153';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.154', date: '2026-06-17', changes: [
+    { tag: 'improve', text: '🗑 복권 "버리기" 확인창을 톤앤매너에 맞춤 — 투박한 브라우저 기본 팝업(window.confirm)을 복권 구매 확인창과 같은 디자인의 커스텀 확인창으로 교체. "계속 긁기 / 🗑 버리기" 버튼(버리기는 차분한 테라코타 톤)' },
+  ] },
   { ver: 'v2.45.153', date: '2026-06-17', changes: [
     { tag: 'improve', text: '🐱 유미 파견 전엔 유미를 숨김 — 파견 보내기 전(대기 상태)에 3D 유미가 쓰레기통에 미리 노출돼 있던 것을, 보내기 전에는 안 보이게 하고 "유미 보내기"를 누르면 그때 등장해 뒤지도록 변경(시크릿 연출 유지). 수령 대기·휴식 중엔 기존대로 표시' },
   ] },
@@ -26704,11 +26709,28 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   // 🗑 복권 버리기 — 쓰레기통에 버림(완전 포기). 당첨이었더라도 지급 X(버린 것이므로). + pending 제거
   overlay.querySelector('#scard-discard')?.addEventListener('click', () => {
     if (allDone) return;
-    if (!window.confirm('당첨이 아닌 걸 확인했나요?\n이 복권을 쓰레기통에 버립니다.\n버리면 당첨이었더라도 당첨금은 받지 못해요.\n\n버릴까요?')) return;
-    overlay.remove();
-    if (onDiscard) onDiscard();
-    else if (onCancel) onCancel();   // 폴백(레거시)
-    setTimeout(() => window.openLotteryHub(), 120);
+    // 톤앤매너 맞춘 커스텀 확인창 (네이티브 confirm 대체) — 구매 확인창과 동일 스타일
+    const dlg = document.createElement('div');
+    dlg.className = 'scard-buy-confirm-overlay';
+    dlg.innerHTML = `
+      <div class="scard-buy-confirm-box">
+        <h4>🗑 복권 버리기</h4>
+        <p>이 복권을 쓰레기통에 버립니다.<br>버리면 <b>당첨이었더라도 당첨금을 받지 못해요.</b><br><span style="opacity:.65;font-size:12px;">당첨이 아닌 걸 확인했나요?</span></p>
+        <div class="scard-buy-confirm-btns">
+          <button class="scard-buy-confirm-cancel">계속 긁기</button>
+          <button class="scard-buy-confirm-ok scard-discard-ok">🗑 버리기</button>
+        </div>
+      </div>`;
+    document.body.appendChild(dlg);
+    dlg.querySelector('.scard-buy-confirm-cancel').onclick = () => dlg.remove();
+    dlg.addEventListener('click', e => { if (e.target === dlg) dlg.remove(); });
+    dlg.querySelector('.scard-buy-confirm-ok').onclick = () => {
+      dlg.remove();
+      overlay.remove();
+      if (onDiscard) onDiscard();
+      else if (onCancel) onCancel();   // 폴백(레거시)
+      setTimeout(() => window.openLotteryHub(), 120);
+    };
   });
 
   // 확인: 기본 닫기 (테스트 모드면 onNext = 다시 긁기)
