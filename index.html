@@ -6565,7 +6565,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.160';
+const APP_VERSION = 'v2.45.161';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6574,6 +6574,9 @@ const APP_VERSION = 'v2.45.160';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.161', date: '2026-06-17', changes: [
+    { tag: 'fix', text: '🧪 인형뽑기 프리뷰 테스트 모드 + 가챠 테스트 도구 안전화 — (1) 콘솔 clawTest()로 프리즘 18종 안 모아도 인형뽑기를 자유 플레이(보상·횟수 실데이터 미반영, 닫으면 해제). (2) gachaTestGrant()가 진짜 컬렉션을 덮어쓰고 gachaTestReset()이 지워버리던 위험 제거 — 이제 부여 전 원본을 백업하고 리셋 시 원본으로 복원(데이터 손실 방지)' },
+  ] },
   { ver: 'v2.45.160', date: '2026-06-17', changes: [
     { tag: 'new', text: '🕹️ 인형 뽑기 미니게임 (가챠 엔드게임) — 챔피언 카드 프리즘(★★★) 18종을 모두 모으면 컬렉션 탭에서 해금돼요. 크레인을 좌우로 움직여 원하는 챔피언 인형 위치에 맞춰 "내리기" → 집기 성공은 약간의 확률(미끄러짐). 성공하면 그 챔피언 인형을 획득(🧸 인형 도감 18종 수집) + 소량 골드. 하루 3회 무료. 인형 18종을 다 모으면 1회성 보상(🔶정수 ×3 · +1000G). 미해금 시 진행도(N/18) 티저 표시' },
   ] },
@@ -26917,15 +26920,28 @@ window.gachaTestGrant = async function() {
     cards[slug] = {s1:3, s2:3, s3:1};
     log[slug]   = {e1:true, e2:true, e3:true};
   });
-  await update(ref(db, 'gold/' + key), { [sField('champCards')]: cards, [sField('champCardLog')]: log });
-  console.log('✅ 전 챔피언 카드 부여 완료 — 상점 > 챔피언 가챠 > 카드 탭에서 확인');
+  // ⚠️ 안전화 — 부여 전 '진짜' 컬렉션을 백업(이미 백업 있으면 보존). gachaTestReset이 이걸로 복원
+  const upd = { [sField('champCards')]: cards, [sField('champCardLog')]: log };
+  if (data[sField('champCardsBak')] === undefined) {
+    upd[sField('champCardsBak')]   = data[sField('champCards')]   || null;
+    upd[sField('champCardLogBak')] = data[sField('champCardLog')] || null;
+  }
+  await update(ref(db, 'gold/' + key), upd);
+  if (goldData[key]) Object.assign(goldData[key], upd);
+  console.log('✅ 전 챔피언 카드 부여(테스트) — 원본은 백업됨. 되돌리려면 gachaTestReset()');
 };
 window.gachaTestReset = async function() {
   if (!myName) return;
-  const key = getMyGoldKey();
+  const key = getMyGoldKey(), data = getMyGoldData();
   if (!key) return;
-  await update(ref(db, 'gold/' + key), { [sField('champCards')]: null, [sField('champCardLog')]: null });
-  console.log('✅ 가챠 카드 전부 초기화 완료');
+  const hasBak = data && data[sField('champCardsBak')] !== undefined;
+  // 백업 있으면 '진짜' 컬렉션으로 복원, 없으면(레거시) 비움
+  const upd = hasBak
+    ? { [sField('champCards')]: data[sField('champCardsBak')] || null, [sField('champCardLog')]: data[sField('champCardLogBak')] || null, [sField('champCardsBak')]: null, [sField('champCardLogBak')]: null }
+    : { [sField('champCards')]: null, [sField('champCardLog')]: null };
+  await update(ref(db, 'gold/' + key), upd);
+  if (goldData[key]) Object.assign(goldData[key], upd);
+  console.log(hasBak ? '✅ 테스트 종료 — 원본 컬렉션 복원 완료' : '✅ 가챠 카드 초기화(백업 없음)');
 };
 
 window.scratchTest = function(tierIdx = 0) {
@@ -30720,7 +30736,10 @@ function _clawRemaining(data){
   return Math.max(0, CLAW_DAILY - cnt);
 }
 let _clawSweepRAF = null, _clawBusy = false;
+let _clawTest = false, _clawTestPlush = {};   // 🧪 프리뷰 테스트 — 해금/일일제한 무시 + Firebase 미기록(실데이터 무영향)
 function _clawStopSweep(){ if (_clawSweepRAF){ cancelAnimationFrame(_clawSweepRAF); _clawSweepRAF = null; } }
+// 🧪 콘솔: clawTest() — 18종 안 모아도 인형뽑기 자유 테스트(보상 안 들어감). 닫으면 자동 해제
+window.clawTest = function(){ _clawTest = true; _clawTestPlush = {}; window.openClawMachine(); console.log('🧪 인형뽑기 테스트 모드 — 자유 플레이(실데이터 미반영). 닫으면 해제'); };
 function _injectClawCss(){
   if (document.getElementById('claw-css')) return;
   const st = document.createElement('style'); st.id = 'claw-css';
@@ -30775,6 +30794,15 @@ function _injectClawCss(){
   document.head.appendChild(st);
 }
 async function _clawAward(champ){
+  // 🧪 테스트 모드 — Firebase·골드·일일횟수 미반영, 로컬 인형만 갱신
+  if (_clawTest){
+    const msg = document.getElementById('claw-msg');
+    if (champ){ const wasNew = !(_clawTestPlush[champ.slug] > 0); _clawTestPlush[champ.slug] = (_clawTestPlush[champ.slug]||0) + 1;
+      if (msg){ msg.className = 'claw-msg show win'; msg.innerHTML = `🧸 <b>${escHtml(champ.kr)}</b> 인형 획득! <span style="color:#8b8b97;font-size:10px;">(테스트)</span>${wasNew ? ' <span style="color:#4ade80">NEW!</span>' : ''}`; } }
+    else if (msg){ msg.className = 'claw-msg show lose'; msg.textContent = '아쉽게 놓쳤어요… (테스트)'; }
+    try { _gSfx?.reveal?.(1); } catch(_){}
+    return;
+  }
   const key = getMyGoldKey(), data = getMyGoldData(); if (!key || !data) return;
   const today = getLocalDateKey();
   const cnt = (data[sField('clawDate')] === today) ? (data[sField('clawCount')] || 0) : 0;
@@ -30810,11 +30838,11 @@ async function _clawAward(champ){
 window.openClawMachine = function(){
   if (!myName){ showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
   const data = getMyGoldData();
-  if (!_allPrismDone(data)){ showS1Toast(`🔒 프리즘 18종을 모두 모아야 열려요 (${_prismCount(data)}/18)`); return; }
+  if (!_clawTest && !_allPrismDone(data)){ showS1Toast(`🔒 프리즘 18종을 모두 모아야 열려요 (${_prismCount(data)}/18)`); return; }
   _injectClawCss();
   _clawStopSweep(); _clawBusy = false;
   document.getElementById('claw-overlay')?.remove();
-  const have = _myPlushies(data);
+  const have = _clawTest ? { ..._clawTestPlush } : _myPlushies(data);
   const miss = shuffle(GACHA_CHAMPS.filter(c => !((have[c.slug]||0) > 0)));
   const own  = shuffle(GACHA_CHAMPS.filter(c => (have[c.slug]||0) > 0));
   let pool = [...miss, ...own].slice(0, 7);
@@ -30823,11 +30851,13 @@ window.openClawMachine = function(){
   const XS = [12, 25, 38, 51, 64, 77, 90];
   const plushHtml = pool.map((c, i) => `<div class="claw-plush" id="cp-${i}" data-x="${XS[i]}" style="left:${XS[i]}%;"><img src="${_gachaPetImg(c.slug,3)}" alt="${escHtml(c.kr)}" onerror="this.onerror=null;this.src='${_gachaLoadingImg(c.slug)}';this.onerror=()=>this.style.opacity='0'"><span class="claw-plush-base"></span></div>`).join('');
   const collHtml = GACHA_CHAMPS.map(c => { const got = (have[c.slug]||0) > 0; return `<div class="claw-coll-cell ${got?'got':''}" title="${escHtml(c.kr)}${got?` ×${have[c.slug]}`:''}"><img src="${_gachaPetImg(c.slug,3)}" alt="" onerror="this.style.opacity='0'"></div>`; }).join('');
-  const rem = _clawRemaining(data), uniq = _plushUnique(data);
+  const rem = _clawTest ? 99 : _clawRemaining(data);
+  const uniq = _clawTest ? GACHA_CHAMPS.filter(c => (_clawTestPlush[c.slug]||0) > 0).length : _plushUnique(data);
+  const remLbl = _clawTest ? '🧪 테스트' : `오늘 ${rem}회`;
   const ov = document.createElement('div'); ov.id = 'claw-overlay'; ov.className = 'claw-overlay';
   ov.innerHTML = `
     <div class="claw-cab">
-      <div class="claw-head"><span class="claw-h-title">🕹️ 인형 뽑기</span><span class="claw-h-rem">오늘 ${rem}회</span><button class="claw-close" id="claw-close">✕</button></div>
+      <div class="claw-head"><span class="claw-h-title">🕹️ 인형 뽑기</span><span class="claw-h-rem">${remLbl}</span><button class="claw-close" id="claw-close">✕</button></div>
       <div class="claw-glass">
         <div class="claw-arm" id="claw-arm" style="left:12%;"><div class="claw-cable" id="claw-cable"></div><div class="claw-grip"><span class="claw-knot"></span></div></div>
         <div class="claw-floor">${plushHtml}</div>
@@ -30837,15 +30867,15 @@ window.openClawMachine = function(){
       <div class="claw-coll-wrap"><div class="claw-coll-hd">🧸 인형 도감 <b>${uniq}</b>/18</div><div class="claw-coll">${collHtml}</div></div>
     </div>`;
   document.body.appendChild(ov);
-  ov.addEventListener('click', e => { if (e.target === ov){ _clawStopSweep(); ov.remove(); } });
-  document.getElementById('claw-close').onclick = () => { _clawStopSweep(); ov.remove(); };
+  ov.addEventListener('click', e => { if (e.target === ov){ _clawStopSweep(); ov.remove(); _clawTest = false; } });
+  document.getElementById('claw-close').onclick = () => { _clawStopSweep(); ov.remove(); _clawTest = false; };
   const arm = document.getElementById('claw-arm');
   let dir = 1, x = 12; const LO = 8, HI = 92, SPD = 0.6;
   function sweep(){ x += dir * SPD; if (x >= HI){ x = HI; dir = -1; } else if (x <= LO){ x = LO; dir = 1; } arm.style.left = x + '%'; _clawSweepRAF = requestAnimationFrame(sweep); }
   if (rem > 0) sweep();
   document.getElementById('claw-drop').onclick = async () => {
     if (_clawBusy) return;
-    if (_clawRemaining(getMyGoldData()) <= 0) return;
+    if (!_clawTest && _clawRemaining(getMyGoldData()) <= 0) return;
     _clawBusy = true;
     const btn = document.getElementById('claw-drop'); if (btn) btn.disabled = true;
     _clawStopSweep();
