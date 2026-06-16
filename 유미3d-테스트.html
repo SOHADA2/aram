@@ -88,7 +88,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 
-const MOUNT_W=160, MOUNT_H=205, MOUNT_TOP=-24;   // 캔버스 영역(통보다 넉넉히, 투명)
+const MOUNT_W=272, MOUNT_H=349, MOUNT_TOP=-96;   // 캔버스 영역(모션 잘림 방지로 넉넉히, 투명)
 const mount = document.getElementById('mount');
 mount.style.width=MOUNT_W+'px'; mount.style.height=MOUNT_H+'px'; mount.style.top=MOUNT_TOP+'px';
 const canvas = document.createElement('canvas'); mount.appendChild(canvas);
@@ -104,7 +104,7 @@ const clock=new THREE.Clock();
 
 const BASE = { x:0.18, y:-1.92, scale:0.68, rot:0 };   // 앱에 이미 적용된 위치/크기/방향
 const T = { ...BASE };   // 시작값 = 적용된 값 (이미 맞춰둔 위치에서 시작)
-let DIG_DIP=0.8, DIG_PERIOD=1.3, _digT=0;   // 폴짝 다이브: 깊이(반지름배)/주기(초)
+let DIG_DIP=0.4, DIG_PERIOD=1.3, _digT=0;   // 폴짝 다이브: 깊이(반지름배)/주기(초)
 let R = 1;
 const STATES=[{key:'idle',file:'yuumi-idle.glb',loop:true},{key:'dig',file:'yuumi-dig.glb',loop:true},{key:'rest',file:'yuumi-rest.glb',loop:false}];
 const M={}; let active='idle';
@@ -122,7 +122,7 @@ STATES.forEach(st=>{
     const group=new THREE.Group(); group.add(model); group.visible=false; scene.add(group);
     const r=box.getBoundingSphere(new THREE.Sphere()).radius; R=Math.max(R,r);
     const mixer=new THREE.AnimationMixer(model), clip=(g.animations||[])[0];
-    let action=null; if(clip){ action=mixer.clipAction(clip); if(st.loop) action.setLoop(THREE.LoopRepeat); else { action.setLoop(THREE.LoopOnce); action.clampWhenFinished=true; } }
+    let action=null; if(clip){ action=mixer.clipAction(clip); if(st.loop) action.setLoop(THREE.LoopRepeat); else { action.setLoop(THREE.LoopOnce); action.clampWhenFinished=true; mixer.addEventListener('finished',()=>{ group.visible=false; }); } }
     M[st.key]={group,mixer,action};
     fitCamera(); applyT();
     if(st.key===active) show(active);
@@ -132,7 +132,7 @@ STATES.forEach(st=>{
 function fitCamera(){
   const fov=camera.fov*Math.PI/180, asp=MOUNT_W/MOUNT_H;
   const vD=R/Math.sin(fov/2), hf=2*Math.atan(Math.tan(fov/2)*asp), hD=R/Math.sin(hf/2);
-  const d=Math.max(vD,hD)*1.45;
+  const d=Math.max(vD,hD)*2.465;   // 1.45×1.7 (캔버스 확대분 보정 → yuumi 크기 동일)
   camera.position.set(0,0,d); camera.lookAt(0,0,0);
 }
 function applyT(){
