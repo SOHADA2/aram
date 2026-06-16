@@ -1984,6 +1984,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .lh-tier-help{display:none;border-top:1px solid rgba(255,255,255,0.08);padding-top:8px;margin-top:2px;font-size:10.5px;line-height:1.6;color:rgba(255,255,255,0.5);text-align:left;}
 .lh-tier-help.show{display:block;}
 .lh-tier-attempts{font-size:10px;color:rgba(255,255,255,0.38);line-height:1.5;text-align:center;border-top:1px solid rgba(255,255,255,0.06);padding-top:5px;margin-top:1px;}
+.lh-tier-attempts:empty{display:none;}
 .lh-tier-attempts b{color:rgba(255,255,255,0.72);font-weight:600;}
 /* v2.43.194 무료 복권권 배지 */
 .lh-free-badge{position:absolute;top:6px;left:6px;font-size:9px;font-weight:800;letter-spacing:0.2px;padding:2px 6px;border-radius:8px;background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;box-shadow:0 0 8px rgba(34,197,94,0.5);}
@@ -6560,7 +6561,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.150';
+const APP_VERSION = 'v2.45.151';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6569,6 +6570,9 @@ const APP_VERSION = 'v2.45.150';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.151', date: '2026-06-16', changes: [
+    { tag: 'fix', text: '🎟 복권 화면 깜박임 수정 — 다른 팀원이 복권을 긁으면 "팀 총 N회 시도" 숫자가 실시간 갱신되면서 복권 Hub 모달이 통째로 다시 그려져 깜박이던 문제. 이제 내 골드/무료권이 바뀐 경우(내 행동)에만 전체 갱신하고, 다른 팀원의 시도로 횟수만 바뀔 땐 모달 재생성 없이 숫자만 제자리에서 조용히 갱신 → 깜박임 없음' },
+  ] },
   { ver: 'v2.45.150', date: '2026-06-16', changes: [
     { tag: 'fix', text: '🔥 쓰레기통 열 때 모바일 발열 완화 — 3D 유미가 60fps로 계속 렌더되던 것을 30fps로 제한, 렌더 해상도(DPR) 2→1.5, 안티앨리어싱 off + 저전력 모드, 쓰레기통 창 풀스크린 블러 제거. GPU 부담 대폭 감소' },
   ] },
@@ -11923,7 +11927,11 @@ onValue(ref(db, 'gold'), (snapshot) => {
   if (document.getElementById('lottery-hub-overlay')
       && !document.querySelector('.scard-overlay, .scard-buy-confirm-overlay')
       && typeof window.openLotteryHub === 'function') {
-    try { window.openLotteryHub(); } catch(_){}
+    // 내 골드/무료권이 바뀌었으면(=내 액션) 전체 갱신, 아니면(=다른 팀원 시도만) 팀 시도 횟수만 제자리 갱신 → 깜박임 방지 (v2.45.151)
+    const _mg = getMyGold();
+    const _mft = JSON.stringify(getMyGoldData()?.[sField('freeScratch')] || {});
+    if (_mg !== _lhLastMyGold || _mft !== _lhLastMyFt) { _lhLastMyGold = _mg; _lhLastMyFt = _mft; try { window.openLotteryHub(); } catch(_){} }
+    else { try { _lhSyncAttempts(); } catch(_){} }
   }
   // 열려있는 엠블럼 모달 잔액·상태 실시간 갱신 (강화/구매/판매 후 반영, v2.44.0)
   // 단, 강화 연출(_emblemFxBusy) 중에는 스킵 — onValue가 FX 끝나기 전 결과를 미리 노출하는 스포일러 방지 (v2.44.3 리뷰)
@@ -25931,6 +25939,29 @@ async function _trashReveal(elapsed) {
   if (hint) hint.textContent = eggTrigger ? '🦝 당신은 쓰레기통의 지배자!' : '계속 뒤져볼까요? 다시 한참 드래그!';
   _trashBusy = false;
 }
+// 복권 Hub 깜박임 방지 — 다른 팀원 시도(팀 횟수만 변경) 시 모달 재생성 없이 텍스트만 제자리 갱신 (v2.45.151)
+let _lhLastMyGold = null, _lhLastMyFt = null;
+function _lhTierAttemptStats(){
+  return [0,1,2].map(idx => {
+    let total = 0, topName = null, topCount = 0;
+    Object.values(goldData).forEach(d => {
+      if (!d.name) return;
+      const hist = d.lotteryHistory || [];
+      const cnt = hist.filter(h => h.scratch && h.tierIdx === idx && (h.season ?? 1) === CURRENT_SEASON && (h.ts || 0) >= SCRATCH_REOPEN_TS).length;
+      total += cnt;
+      if (cnt > topCount) { topCount = cnt; topName = d.name; }
+    });
+    return { total, topName, topCount };
+  });
+}
+function _lhAttemptInner(s){
+  return s.total > 0 ? `팀 총 <b>${s.total}회</b> 시도${s.topName ? ` · 최다 <b>${escHtml(s.topName)}</b> ${s.topCount}회` : ''}` : '';
+}
+function _lhSyncAttempts(){
+  if (!document.getElementById('lottery-hub-overlay')) return;
+  const st = _lhTierAttemptStats();
+  [0,1,2].forEach(idx => { const el = document.getElementById('lh-attempts-' + idx); if (el) el.innerHTML = _lhAttemptInner(st[idx]); });
+}
 window.openLotteryHub = function() {
   if (SCRATCH_LOTTERY_LOCKED) { showS1Toast('⚖️ 스크래치 복권 밸런스 패치 중입니다!'); return; }
   if (!myName) { showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
@@ -25950,18 +25981,9 @@ window.openLotteryHub = function() {
       desc:'7칸 · 3개 매칭 시 당첨 · 해골 평균 2개 (-10G)', tierIdx:2 },
   ];
   // 🔑 긁기 도구(만능 긁개)는 복권 모달 안 장착/구매 행으로 이동 (v2.45.128) — 허브 도구 섹션 제거
-  // 티어별 팀 전체 시도 횟수 집계 (goldData 전역 캐시 사용)
-  const tierAttemptStats = [0, 1, 2].map(idx => {
-    let total = 0, topName = null, topCount = 0;
-    Object.values(goldData).forEach(d => {
-      if (!d.name) return;
-      const hist = d.lotteryHistory || [];
-      const cnt = hist.filter(h => h.scratch && h.tierIdx === idx && (h.season ?? 1) === CURRENT_SEASON && (h.ts || 0) >= SCRATCH_REOPEN_TS).length;
-      total += cnt;
-      if (cnt > topCount) { topCount = cnt; topName = d.name; }
-    });
-    return { total, topName, topCount };
-  });
+  // 티어별 팀 전체 시도 횟수 집계 (헬퍼 재사용 — 깜박임 방지 제자리 갱신과 동일 로직)
+  const tierAttemptStats = _lhTierAttemptStats();
+  _lhLastMyGold = myGold; _lhLastMyFt = JSON.stringify(myFreeTickets);  // 전체 렌더 직후 내 상태 캐시(다음 onValue 비교용)
   const tierCards = TIER_META.map(t => {
     const isTierLocked = SCRATCH_NORMAL_LOCKED && t.tierIdx === 0;
     const freeCnt = myFreeTickets[t.tierIdx] || 0; // 이 티어 무료권 수
@@ -25998,9 +26020,7 @@ window.openLotteryHub = function() {
       <div class="scard-help-row"><span class="scard-help-icon">🪙</span><span>해골 없음 — 마음껏 긁어도 패널티 없어요!</span></div>
     `;
     const stats = tierAttemptStats[t.tierIdx];
-    const attemptHtml = stats.total > 0
-      ? `<div class="lh-tier-attempts">팀 총 <b>${stats.total}회</b> 시도${stats.topName ? ` · 최다 <b>${escHtml(stats.topName)}</b> ${stats.topCount}회` : ''}</div>`
-      : '';
+    const attemptHtml = `<div class="lh-tier-attempts" id="lh-attempts-${t.tierIdx}">${_lhAttemptInner(stats)}</div>`;
     return `<div class="lh-tier-card${canBuy ? '' : ' disabled'}" style="--accent:${t.color};" onclick="${canBuy ? `window._lhBuyTier('${t.id}')` : ''}">
       <span class="lh-tier-info" onclick="var h=this.closest('.lh-tier-card').querySelector('.lh-tier-help');document.querySelectorAll('.lh-tier-help.show').forEach(function(x){if(x!==h)x.classList.remove('show');});document.querySelectorAll('.lh-tier-info.active').forEach(function(b){if(b!==this)b.classList.remove('active');}.bind(this));h.classList.toggle('show');this.classList.toggle('active');event.stopPropagation();">?</span>
       <div class="lh-tier-header-row">
