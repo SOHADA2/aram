@@ -2045,8 +2045,8 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .yuumi-slim .yuumi-btn{width:auto;padding:6px 14px;font-size:11.5px;white-space:nowrap;box-shadow:none;}
 .yuumi-slim .yuumi-status{font-size:11px;}
 /* 🐱 3D 유미 (쓰레기통 위) — 대기(Idle01)/폴짝(Spell1) GLB. 캔버스 100% 채움 (v2.45.131) */
-#yuumi3d-mount{position:absolute;left:50%;top:-34px;width:120px;height:150px;z-index:5;pointer-events:none;transform:translateX(-50%);}
-#yuumi3d-mount canvas{width:100%;height:100%;display:block;}
+#yuumi3d-mount{position:absolute;left:50%;top:-6px;width:128px;height:140px;z-index:5;pointer-events:none;transform:translateX(-50%);}
+#yuumi3d-mount canvas{width:100%;height:100%;display:block;background:transparent;}
 .trash-can.yuumi-foraging .trash-lid{transform:translateX(-50%) rotate(-16deg) translateY(-4px);}
 .yuumi-slim-info{flex:1;min-width:0;text-align:left;}
 .yuumi-slim .yuumi-find{font-size:11px;font-weight:700;}
@@ -6560,7 +6560,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.131';
+const APP_VERSION = 'v2.45.132';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6569,6 +6569,9 @@ const APP_VERSION = 'v2.45.131';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.132', date: '2026-06-16', changes: [
+    { tag: 'fix', text: '🐱 쓰레기통 3D 유미 위치·프레이밍 수정 — 위쪽 안내문과 겹치고 모델이 덩어리처럼 보이던 문제. 마운트를 통 위로 정렬(텍스트 안 겹침), 카메라를 바운딩 스피어 기준으로 바꿔 전체가 항상 보이게, 렌더러 비율을 마운트에 맞춰 왜곡 제거, 배경 완전 투명 처리' },
+  ] },
   { ver: 'v2.45.131', date: '2026-06-16', changes: [
     { tag: 'new', text: '🐱 쓰레기통 유미를 3D 모델로 — 2D 컷 대신 진짜 3D 유미가 등장. 평소엔 대기 모션, 파견(파밍) 중엔 쓰레기통 안으로 폴짝 들어가 뒤지는 모션. 오른 대장간처럼 three.js로 렌더, 모델은 9.5MB→약 240KB로 압축(meshopt+webp). 쓰레기통 닫으면 렌더 자동 정지(발열 방지)' },
   ] },
@@ -25376,9 +25379,10 @@ async function ensureYuumi3d() {
     if (!holder) { holder = document.createElement('div'); holder.id = 'yuumi3d-holder'; holder.style.cssText = 'position:absolute;left:-9999px;top:0;width:0;height:0;overflow:hidden;'; document.body.appendChild(holder); }
     let canvas = document.getElementById('yuumi3d');
     if (!canvas) { canvas = document.createElement('canvas'); canvas.id = 'yuumi3d'; canvas.style.cssText = 'width:100%;height:100%;display:block;'; holder.appendChild(canvas); }
-    const W = 160, H = 200;
+    const W = 160, H = 175;   // 마운트(128×140) 비율에 맞춤 — 왜곡 방지
     const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
     renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setSize(W, H, false);
+    renderer.setClearAlpha(0);   // 완전 투명 배경
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(30, W / H, 0.1, 5000);
@@ -25396,10 +25400,15 @@ async function ensureYuumi3d() {
         const box = new THREE.Box3().setFromObject(model);
         const ctr = box.getCenter(new THREE.Vector3()); model.position.sub(ctr);   // 박스 중심을 원점으로
         if (!fitted) {
-          fitted = true; const fov = camera.fov * Math.PI / 180, _t = Math.tan(fov / 2), _asp = W / H;
-          const _sz = box.getSize(new THREE.Vector3());
-          const _dist = Math.max(_sz.y / 2 / _t, _sz.x / 2 / (_t * _asp)) * 2.3;   // 여백 ×2.3 (작게)
-          camera.position.set(0, _sz.y * 0.05, _dist); camera.lookAt(0, 0, 0);
+          fitted = true;
+          // 바운딩 스피어 기준 — 모델 전체가 가로·세로 모두 항상 보이도록 (덩어리/잘림 방지)
+          const sph = box.getBoundingSphere(new THREE.Sphere());
+          const fov = camera.fov * Math.PI / 180, _asp = W / H;
+          const vDist = sph.radius / Math.sin(fov / 2);
+          const hfov = 2 * Math.atan(Math.tan(fov / 2) * _asp);
+          const hDist = sph.radius / Math.sin(hfov / 2);
+          const _dist = Math.max(vDist, hDist) * 1.35;   // +35% 여백
+          camera.position.set(0, 0, _dist); camera.lookAt(0, 0, 0);
         }
         const mixer = new THREE.AnimationMixer(model), clip = (g.animations || [])[0];
         let action = null, dur = 0;
