@@ -6560,7 +6560,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.143';
+const APP_VERSION = 'v2.45.144';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6569,6 +6569,9 @@ const APP_VERSION = 'v2.45.143';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.144', date: '2026-06-16', changes: [
+    { tag: 'improve', text: '🐱 유미 쉬는 중(쿨다운) 모션 추가 — 그냥 대기만 하던 것 → 휴식 들어갈 때 마법서로 빨려들어가는 리콜 모션으로 사라짐. (유미 휴식 GLB 적용)' },
+  ] },
   { ver: 'v2.45.143', date: '2026-06-16', changes: [
     { tag: 'improve', text: '🐱 파견 중 유미가 쓰레기통 속으로 쏙 들어갔다 나오는 움직임 추가 — 폴짝 모션 위에 통 속으로 다이브하는 상하 동작을 얹어, 진짜로 뒤지는 것처럼 보이게' },
   ] },
@@ -25415,7 +25418,11 @@ async function ensureYuumi3d() {
     scene.add(new THREE.AmbientLight(0xffffff, 1.1));   // 모델이 unlit이라 라이트 영향 적음(안전용)
     const keyL = new THREE.DirectionalLight(0xffffff, 1.0); keyL.position.set(3, 5, 4); scene.add(keyL);
     const clock = new THREE.Clock();
-    const STATES = [{ key: 'idle', file: 'yuumi-idle.glb' }, { key: 'dig', file: 'yuumi-dig.glb' }];
+    const STATES = [
+      { key: 'idle', file: 'yuumi-idle.glb', loop: true },
+      { key: 'dig',  file: 'yuumi-dig.glb',  loop: true },
+      { key: 'rest', file: 'yuumi-rest.glb', loop: false },   // 🐱 휴식 = 마법서로 빨려들어가는 리콜(1회 재생)
+    ];
     const M = {}; let active = 'idle', fitted = false; let baseR = 1, _digTime = 0;
     const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
     function hideAll() { for (const k in M) { M[k].group.visible = false; if (M[k].action) M[k].action.stop(); } }
@@ -25444,7 +25451,11 @@ async function ensureYuumi3d() {
         group.rotation.y = YUUMI_POS.rot * Math.PI / 180;
         const mixer = new THREE.AnimationMixer(model), clip = (g.animations || [])[0];
         let action = null, dur = 0;
-        if (clip) { dur = clip.duration; action = mixer.clipAction(clip); action.setLoop(THREE.LoopRepeat); }
+        if (clip) {
+          dur = clip.duration; action = mixer.clipAction(clip);
+          if (st.loop) action.setLoop(THREE.LoopRepeat);
+          else { action.setLoop(THREE.LoopOnce); action.clampWhenFinished = true; }   // 리콜=1회 후 끝 프레임 유지(책으로 사라진 채)
+        }
         M[st.key] = { group, mixer, action, dur };
         if (st.key === active) showState(active);
       }, undefined, err => console.error('유미3D 로드 실패 ' + st.file, err));
@@ -25522,7 +25533,7 @@ function _renderYuumiPanel() {
     else if (s.st === 'cooldown') body = `<span class="yuumi-status cd">😴 쉬는 중 · <b id="yuumi-timer">${fmt(s.endAt - Date.now())}</b> 뒤 재출동</span>`;
     // 하단 슬림 바 + 통 리드에 걸터앉은 유미 (idle/done/sleep)
     el.innerHTML = `<div class="yuumi-slim"><span class="yuumi-slim-tag">🐱 유미 <span class="yuumi-secret">SECRET</span></span><span class="yuumi-slim-action">${body}</span></div>`;
-    _setYuumi3d('idle');   // 🐱 대기 (Idle01)
+    _setYuumi3d(s.st === 'cooldown' ? 'rest' : 'idle');   // 🐱 쉬는 중=리콜(마법서로 빨려듦)/그 외=대기
   }
   if (s.st === 'foraging' || s.st === 'cooldown') {
     _yuumiTimer = setInterval(() => {
