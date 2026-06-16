@@ -6560,7 +6560,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.137';
+const APP_VERSION = 'v2.45.138';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6569,6 +6569,9 @@ const APP_VERSION = 'v2.45.137';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.138', date: '2026-06-16', changes: [
+    { tag: 'fix', text: '🐱 쓰레기통에서 3D 유미가 아예 안 보이던 문제 — 캔버스가 마운트에 붙는 타이밍이 어긋나면 렌더 루프가 그리지 않던 것. 루프를 자가복구형으로 바꿔, 쓰레기통이 열려 있으면 캔버스를 자동으로 붙여 항상 렌더되게 함' },
+  ] },
   { ver: 'v2.45.137', date: '2026-06-16', changes: [
     { tag: 'improve', text: '🐱 3D 유미 정면·크기 조정 — 압축 깨짐 해결 후, 쓰레기통 정면에서 적당한 크기로 보이도록 카메라 여백(1.35→1.2)·마운트 위치 조정' },
   ] },
@@ -25435,11 +25438,13 @@ async function ensureYuumi3d() {
       }, undefined, err => console.error('유미3D 로드 실패 ' + st.file, err));
     });
     window.yuumi3d = { play: (key) => showState(key) };
-    // ⚡ 렉 방지 — 캔버스가 쓰레기통(#yuumi3d-mount)에 떠 있고 탭 활성일 때만 렌더
+    // ⚡ 렉 방지 + 자가복구 — 쓰레기통(#yuumi3d-mount)이 열려 보일 때만 렌더, 캔버스가 안 붙어있으면 자동으로 붙임
     (function loop() {
-      requestAnimationFrame(loop); const dt = clock.getDelta();
-      const cvp = renderer.domElement.parentElement;
-      if (document.hidden || !cvp || cvp.id !== 'yuumi3d-mount') return;
+      requestAnimationFrame(loop);
+      const mt = document.getElementById('yuumi3d-mount');
+      if (document.hidden || !mt || mt.style.display === 'none' || !document.body.contains(mt)) return;  // 닫힘/숨김 → 스킵
+      if (renderer.domElement.parentElement !== mt) mt.appendChild(renderer.domElement);  // 자가복구: 캔버스를 마운트에 부착
+      const dt = clock.getDelta();
       for (const k in M) { if (M[k].mixer && M[k].model.visible) M[k].mixer.update(dt); }
       renderer.render(scene, camera);
     })();
