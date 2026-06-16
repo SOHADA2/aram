@@ -6560,7 +6560,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.138';
+const APP_VERSION = 'v2.45.139';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -25393,6 +25393,7 @@ async function ensureYuumi3d() {
     const THREE = await import('three');
     const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
     const { MeshoptDecoder } = await import('three/addons/libs/meshopt_decoder.module.js');
+    console.log('[🐱3D] ② three.js 로드 완료');
     let holder = document.getElementById('yuumi3d-holder');
     if (!holder) { holder = document.createElement('div'); holder.id = 'yuumi3d-holder'; holder.style.cssText = 'position:absolute;left:-9999px;top:0;width:0;height:0;overflow:hidden;'; document.body.appendChild(holder); }
     let canvas = document.getElementById('yuumi3d');
@@ -25411,9 +25412,10 @@ async function ensureYuumi3d() {
     const M = {}; let active = 'idle', fitted = false;
     const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
     function hideAll() { for (const k in M) { M[k].model.visible = false; if (M[k].action) M[k].action.stop(); } }
-    function showState(key) { active = key; const m = M[key]; if (!m) return; hideAll(); m.model.visible = true; if (m.action) { m.action.reset(); m.action.play(); } }
+    function showState(key) { active = key; const m = M[key]; console.log('[🐱3D] ④ showState:', key, '| 모델 준비됨?', !!m); if (!m) return; hideAll(); m.model.visible = true; if (m.action) { m.action.reset(); m.action.play(); } }
     STATES.forEach(st => {
       loader.load('assets/pets/Yuumi/3d/' + st.file + '?v=4', g => {
+        console.log('[🐱3D] ③ GLB 로드:', st.file, '| 애니', (g.animations || []).length);
         const model = g.scene; model.visible = false; scene.add(model);
         // 게임 모델이 음수 스케일(-1)이라 면 컬링이 뒤집혀 깨져 보이는 것 방지 — 양면 렌더
         model.traverse(o => { if (o.isMesh && o.material) { (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.side = THREE.DoubleSide; m.needsUpdate = true; }); } });
@@ -25459,6 +25461,7 @@ function _evacuateYuumi3d() {
 function _setYuumi3d(state) {
   const mount = document.getElementById('yuumi3d-mount');
   const can = document.getElementById('trash-can');
+  console.log('[🐱3D] ① setYuumi3d 호출:', state, '| mount 존재?', !!mount);
   if (!mount) return;
   if (!state) { _evacuateYuumi3d(); mount.style.display = 'none'; can?.classList.remove('yuumi-foraging'); return; }
   mount.style.display = 'block';
@@ -25471,8 +25474,10 @@ function _setYuumi3d(state) {
 }
 function _renderYuumiPanel() {
   const el = document.getElementById('yuumi-panel');
+  console.log('[🐱3D] ⓪ renderYuumiPanel | panel 존재?', !!el);
   if (!el) return;
   const s = _yuumiState();
+  console.log('[🐱3D] ⓪ 유미 상태:', s.st);
   if (_yuumiTimer) { clearInterval(_yuumiTimer); _yuumiTimer = null; }
   if (_yuumiFindTimer) { clearInterval(_yuumiFindTimer); _yuumiFindTimer = null; }
   if (s.st === 'none') { el.style.display = 'none'; el.innerHTML = ''; _setYuumi3d(null); return; }
