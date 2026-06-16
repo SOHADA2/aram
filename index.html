@@ -2044,12 +2044,9 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .yuumi-slim-action{flex:1;display:flex;justify-content:flex-end;align-items:center;min-width:0;}
 .yuumi-slim .yuumi-btn{width:auto;padding:6px 14px;font-size:11.5px;white-space:nowrap;box-shadow:none;}
 .yuumi-slim .yuumi-status{font-size:11px;}
-/* 🐱 메인 쓰레기통에서 유미가 직접 뒤지는 모션 (파밍 중) — 별도 통 없이 저 통에서 (v2.45.130) */
-#yuumi-forage{position:absolute;left:50%;top:1px;width:74px;height:86px;z-index:5;pointer-events:none;transform:translateX(-50%);}
-#yuumi-forage img{width:100%;height:100%;object-fit:contain;object-position:bottom center;filter:drop-shadow(0 4px 7px rgba(0,0,0,.5));transform-origin:bottom center;animation:yForageDig .9s ease-in-out infinite;}
-@keyframes yForageDig{0%,100%{transform:translateY(0) rotate(-5deg);}45%{transform:translateY(15px) rotate(5deg);}}
-#yuumi-forage .yf-dust{position:absolute;bottom:22px;left:calc(50% + 22px);font-size:12px;color:#b7a98a;pointer-events:none;animation:yScDust .9s ease-in-out infinite;}
-#yuumi-forage .yf-dust.l{left:calc(50% - 34px);animation-delay:.45s;}
+/* 🐱 3D 유미 (쓰레기통 위) — 대기(Idle01)/폴짝(Spell1) GLB. 캔버스 100% 채움 (v2.45.131) */
+#yuumi3d-mount{position:absolute;left:50%;top:-34px;width:120px;height:150px;z-index:5;pointer-events:none;transform:translateX(-50%);}
+#yuumi3d-mount canvas{width:100%;height:100%;display:block;}
 .trash-can.yuumi-foraging .trash-lid{transform:translateX(-50%) rotate(-16deg) translateY(-4px);}
 .yuumi-slim-info{flex:1;min-width:0;text-align:left;}
 .yuumi-slim .yuumi-find{font-size:11px;font-weight:700;}
@@ -6563,7 +6560,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.130';
+const APP_VERSION = 'v2.45.131';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6572,6 +6569,9 @@ const APP_VERSION = 'v2.45.130';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.131', date: '2026-06-16', changes: [
+    { tag: 'new', text: '🐱 쓰레기통 유미를 3D 모델로 — 2D 컷 대신 진짜 3D 유미가 등장. 평소엔 대기 모션, 파견(파밍) 중엔 쓰레기통 안으로 폴짝 들어가 뒤지는 모션. 오른 대장간처럼 three.js로 렌더, 모델은 9.5MB→약 240KB로 압축(meshopt+webp). 쓰레기통 닫으면 렌더 자동 정지(발열 방지)' },
+  ] },
   { ver: 'v2.45.130', date: '2026-06-16', changes: [
     { tag: 'improve', text: '🐱 유미 자동 줍기 연출 변경 — 통 리드에 걸터앉은 유미를 없애고, 파견 중엔 따로 만들어진 작은 통이 아니라 위에 있는 메인 쓰레기통에서 유미가 직접 들락날락 뒤지는 모션(뚜껑 열림·먼지·동전)으로. 상태(구경 골드·남은 시간·발견)는 맨 아래 슬림 바로 정리. 유미가 뒤지는 동안에도 직접 뒤지기는 그대로 가능' },
   ] },
@@ -25349,7 +25349,7 @@ const _YUUMI_IMG = 'assets/pets/Yuumi/prism/default.png'; // 누끼컷
 let _yuumiTimer = null, _yuumiFindTimer = null, _yuumiWatchGold = 0;
 function _yuumiImgTag(cls) { return `<img class="${cls}" src="${_YUUMI_IMG}" alt="유미" onerror="this.onerror=null;this.src='${_gachaLoadingImg('Yuumi')}';this.onerror=()=>{this.style.opacity=0;}">`; }
 function _yuumiSpawnCoin() {
-  const host = document.getElementById('yuumi-forage'); if (!host || host.style.display === 'none') return;
+  const host = document.getElementById('yuumi3d-mount'); if (!host || host.style.display === 'none') return;
   const c = document.createElement('div'); c.className = 'ysc-coin'; c.textContent = '🪙';
   c.style.setProperty('--dx', (Math.random()*44 - 22).toFixed(0) + 'px');
   host.appendChild(c); setTimeout(() => c.remove(), 850);
@@ -25363,17 +25363,80 @@ function _yuumiPersistWatch() {
   f.watchGold = _yuumiWatchGold;                    // 낙관적 동기화
   update(ref(db, 'gold/' + key), { [sField('yuumiForage') + '/watchGold']: _yuumiWatchGold }).catch(() => {});
 }
-// 🐱 메인 쓰레기통에서 유미가 직접 들락날락 뒤지는 모션 (파밍 중에만 ON) — 별도 통 없이 저 통에서 진행
-function _showYuumiForage(on) {
-  const f = document.getElementById('yuumi-forage');
+// 🐱 3D 유미 (쓰레기통) — lazy init. 대기(idle)/폴짝(dig) 2개 GLB. 오른 3D와 동일 패턴(캔버스 1개 유지+대피).
+let _yuumi3dInit = false;
+async function ensureYuumi3d() {
+  if (_yuumi3dInit) return;
+  _yuumi3dInit = true;
+  try {
+    const THREE = await import('three');
+    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    const { MeshoptDecoder } = await import('three/addons/libs/meshopt_decoder.module.js');
+    let holder = document.getElementById('yuumi3d-holder');
+    if (!holder) { holder = document.createElement('div'); holder.id = 'yuumi3d-holder'; holder.style.cssText = 'position:absolute;left:-9999px;top:0;width:0;height:0;overflow:hidden;'; document.body.appendChild(holder); }
+    let canvas = document.getElementById('yuumi3d');
+    if (!canvas) { canvas = document.createElement('canvas'); canvas.id = 'yuumi3d'; canvas.style.cssText = 'width:100%;height:100%;display:block;'; holder.appendChild(canvas); }
+    const W = 160, H = 200;
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2)); renderer.setSize(W, H, false);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(30, W / H, 0.1, 5000);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.1));   // 모델이 unlit이라 라이트 영향 적음(안전용)
+    const keyL = new THREE.DirectionalLight(0xffffff, 1.0); keyL.position.set(3, 5, 4); scene.add(keyL);
+    const clock = new THREE.Clock();
+    const STATES = [{ key: 'idle', file: 'yuumi-idle.glb' }, { key: 'dig', file: 'yuumi-dig.glb' }];
+    const M = {}; let active = 'idle', fitted = false;
+    const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
+    function hideAll() { for (const k in M) { M[k].model.visible = false; if (M[k].action) M[k].action.stop(); } }
+    function showState(key) { active = key; const m = M[key]; if (!m) return; hideAll(); m.model.visible = true; if (m.action) { m.action.reset(); m.action.play(); } }
+    STATES.forEach(st => {
+      loader.load('assets/pets/Yuumi/3d/' + st.file, g => {
+        const model = g.scene; model.visible = false; scene.add(model);
+        const box = new THREE.Box3().setFromObject(model);
+        const ctr = box.getCenter(new THREE.Vector3()); model.position.sub(ctr);   // 박스 중심을 원점으로
+        if (!fitted) {
+          fitted = true; const fov = camera.fov * Math.PI / 180, _t = Math.tan(fov / 2), _asp = W / H;
+          const _sz = box.getSize(new THREE.Vector3());
+          const _dist = Math.max(_sz.y / 2 / _t, _sz.x / 2 / (_t * _asp)) * 2.3;   // 여백 ×2.3 (작게)
+          camera.position.set(0, _sz.y * 0.05, _dist); camera.lookAt(0, 0, 0);
+        }
+        const mixer = new THREE.AnimationMixer(model), clip = (g.animations || [])[0];
+        let action = null, dur = 0;
+        if (clip) { dur = clip.duration; action = mixer.clipAction(clip); action.setLoop(THREE.LoopRepeat); }
+        M[st.key] = { model, mixer, action, dur };
+        if (st.key === active) showState(active);
+      }, undefined, err => console.error('유미3D 로드 실패 ' + st.file, err));
+    });
+    window.yuumi3d = { play: (key) => showState(key) };
+    // ⚡ 렉 방지 — 캔버스가 쓰레기통(#yuumi3d-mount)에 떠 있고 탭 활성일 때만 렌더
+    (function loop() {
+      requestAnimationFrame(loop); const dt = clock.getDelta();
+      const cvp = renderer.domElement.parentElement;
+      if (document.hidden || !cvp || cvp.id !== 'yuumi3d-mount') return;
+      for (const k in M) { if (M[k].mixer && M[k].model.visible) M[k].mixer.update(dt); }
+      renderer.render(scene, camera);
+    })();
+  } catch (e) { console.error('3D 유미 init 실패:', e); _yuumi3dInit = false; }
+}
+// 캔버스를 holder로 대피 (쓰레기통 닫힘/재오픈 시 캔버스 파괴 방지)
+function _evacuateYuumi3d() {
+  const cv = document.getElementById('yuumi3d'), holder = document.getElementById('yuumi3d-holder');
+  if (cv && holder && cv.parentElement !== holder) holder.appendChild(cv);
+}
+// 🐱 쓰레기통 3D 유미 — 'idle'(대기)/'dig'(폴짝, 파밍 중)/null(미보유 숨김)
+function _setYuumi3d(state) {
+  const mount = document.getElementById('yuumi3d-mount');
   const can = document.getElementById('trash-can');
-  if (!f) return;
-  if (on && !f.dataset.loaded) {
-    f.innerHTML = _yuumiImgTag('yuumi-forage-img') + '<span class="yf-dust">💨</span><span class="yf-dust l">💨</span>';
-    f.dataset.loaded = '1';
-  }
-  f.style.display = on ? 'block' : 'none';
-  can?.classList.toggle('yuumi-foraging', on);
+  if (!mount) return;
+  if (!state) { _evacuateYuumi3d(); mount.style.display = 'none'; can?.classList.remove('yuumi-foraging'); return; }
+  mount.style.display = 'block';
+  can?.classList.toggle('yuumi-foraging', state === 'dig');
+  ensureYuumi3d().then(() => {
+    const cv = document.getElementById('yuumi3d'), mt = document.getElementById('yuumi3d-mount');
+    if (cv && mt && cv.parentElement !== mt) mt.appendChild(cv);
+    if (window.yuumi3d) window.yuumi3d.play(state);
+  });
 }
 function _renderYuumiPanel() {
   const el = document.getElementById('yuumi-panel');
@@ -25381,11 +25444,11 @@ function _renderYuumiPanel() {
   const s = _yuumiState();
   if (_yuumiTimer) { clearInterval(_yuumiTimer); _yuumiTimer = null; }
   if (_yuumiFindTimer) { clearInterval(_yuumiFindTimer); _yuumiFindTimer = null; }
-  if (s.st === 'none') { el.style.display = 'none'; el.innerHTML = ''; _showYuumiForage(false); return; }
+  if (s.st === 'none') { el.style.display = 'none'; el.innerHTML = ''; _setYuumi3d(null); return; }
   el.style.display = 'block';
   const fmt = ms => { const t = Math.max(0, Math.ceil(ms/1000)); return Math.floor(t/60) + '분 ' + String(t%60).padStart(2,'0') + '초'; };
   if (s.st === 'foraging') {
-    _showYuumiForage(true);   // 🐱 메인 쓰레기통에서 유미가 직접 뒤지는 모션 ON (별도 통 X)
+    _setYuumi3d('dig');   // 🐱 폴짝 — 쓰레기통 안으로 들어가는 모션 (Spell1)
     // 저장된 구경 보너스 로드 — 새로고침/재접속 시 이어서 (다운그레이드 방지로 max)
     const _fw = (getMyGoldData() || {})[sField('yuumiForage')] || {};
     _yuumiWatchGold = Math.min(YUUMI_WATCH_CAP, Math.max(_yuumiWatchGold || 0, _fw.watchGold || 0));
@@ -25409,7 +25472,7 @@ function _renderYuumiPanel() {
     else if (s.st === 'cooldown') body = `<span class="yuumi-status cd">😴 쉬는 중 · <b id="yuumi-timer">${fmt(s.endAt - Date.now())}</b> 뒤 재출동</span>`;
     // 하단 슬림 바 + 통 리드에 걸터앉은 유미 (idle/done/sleep)
     el.innerHTML = `<div class="yuumi-slim"><span class="yuumi-slim-tag">🐱 유미 <span class="yuumi-secret">SECRET</span></span><span class="yuumi-slim-action">${body}</span></div>`;
-    _showYuumiForage(false);
+    _setYuumi3d('idle');   // 🐱 대기 (Idle01)
   }
   if (s.st === 'foraging' || s.st === 'cooldown') {
     _yuumiTimer = setInterval(() => {
@@ -25511,6 +25574,7 @@ window.showYuumiDetail = function() {
 };
 window.openTrashCan = function() {
   if (!myName) { showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
+  _evacuateYuumi3d();   // 기존 오버레이 제거 전 3D 캔버스 대피(파괴 방지)
   document.getElementById('trash-overlay')?.remove();
   _trashDragging = false; _trashDist = 0; _trashBusy = false;
   _trashSessionGold = 0; _trashSessionFree = 0; // 켤 때마다 이번 판 수익 초기화
@@ -25530,7 +25594,7 @@ window.openTrashCan = function() {
       <div class="trash-sub">손을 넣고 <b>이리저리 한참 뒤적뒤적</b> 해보세요.<br>대부분은 쓰레기… 운이 좋으면 동전이나 무료 복권이?</div>
       <div class="trash-digs" id="trash-digs"></div>
       <div class="trash-can" id="trash-can">
-        <div id="yuumi-forage" style="display:none;"></div>
+        <div id="yuumi3d-mount" style="display:none;"></div>
         <div class="trash-fly" style="top:42px;left:30px;">🪰</div>
         <span class="trash-stink" style="left:48px;animation-delay:0s;">〰️</span>
         <span class="trash-stink" style="left:116px;animation-delay:1.3s;">〰️</span>
@@ -25607,6 +25671,7 @@ function _trashRustle(px, py) {
 window.closeTrashCan = function() {
   _trashDragging = false;
   if (_yuumiTimer) { clearInterval(_yuumiTimer); _yuumiTimer = null; }
+  _evacuateYuumi3d();   // 3D 캔버스 대피(오버레이 제거로 파괴 방지) → 렌더 루프도 자동 정지
   document.getElementById('trash-overlay')?.remove();
   document.body.style.overflow = ''; // 스크롤 락 해제
 };
