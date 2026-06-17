@@ -57,7 +57,7 @@
   <span class="pill">집기품질 <b id="gq">—</b></span>
   <span class="pill">남은인형 <b id="cnt">—</b></span>
   <span class="pill">획득 <b id="won">0</b></span>
-  <span class="pill" style="opacity:.5">BUILD 43</span>
+  <span class="pill" style="opacity:.5">BUILD 44</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -87,6 +87,7 @@ try {
 const PRIZE_COUNT   = 16;     // 통 안 인형 수 (8→16, 두 배)
 const DEBUG_COLLIDER= true;   // 🟩 초록=인형 물리 충돌 박스(집게발이 실제로 미는 곳) — 디버그
 const DEBUG_GRAB    = true;   // 🟥 빨강=집게 잡기 반응 범위(GRAB_RADIUS) — 디버그
+const GRAB_PHYSICAL = true;   // ⚙️ true=물리 접촉식(집게발 파랑이 인형 초록에 실제로 닿아야 집힘) · false=근접식(빨강 반경)
 const GRAB_RADIUS   = 0.42;   // 집게 중심에서 이 반경 안 인형 집힘(좁게 = 빨강 박스 작게·정확히 조준해야 집힘)
 const GRAB_MIN_Q    = 0.12;   // 이 품질 미만이면 헛집음(낮춰서 웬만하면 잡힘)
 const MAX_SLIP_RATE = 0.5;    // 품질 0일 때 초당 슬립확률(낮춰서 잘 안 놓침)
@@ -355,13 +356,15 @@ function makePrize(i){
     // 🟥 빨강 = 집게 잡기 반응 범위(중심에서 GRAB_RADIUS 안에 집게가 오면 잡힘) — 수평 반경이라 회전 없음. 항상 위에 그려 잘 보이게(depthTest 끔)
     dbgGrab=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(GRAB_RADIUS*2, 0.35, GRAB_RADIUS*2)), new THREE.LineBasicMaterial({color:0xff2d4a, depthTest:false, transparent:true})); dbgGrab.renderOrder=999; scene.add(dbgGrab);
   }
-  prizes.push({ body, mesh:grp, dbg, dbgGrab, won:false, coy: chy, vtop:(proto?proto.vh:1.2)-chy });   // vtop=몸통중심→머리 높이(집게 멈춤 기준)
+  const pr = { body, mesh:grp, dbg, dbgGrab, won:false, coy: chy, vtop:(proto?proto.vh:1.2)-chy };   // vtop=몸통중심→머리 높이(집게 멈춤 기준)
+  body._prize = pr;                                     // 충돌 이벤트에서 인형 역참조
+  prizes.push(pr);
 }
 function resetPrizes(){
   for(const p of prizes){ world.removeBody(p.body); scene.remove(p.mesh); if(p.dbg) scene.remove(p.dbg); if(p.dbgGrab) scene.remove(p.dbgGrab); }
   prizes.length = 0;
   for(let i=0;i<PRIZE_COUNT;i++) makePrize(i);
-  state='READY'; held=null; grabConstraint=null; _grabbing=null; wonCount=0; updHud(); document.getElementById('won').textContent='0';
+  state='READY'; held=null; grabConstraint=null; _grabbing=null; _collectTouch=false; _prongTouch.clear(); wonCount=0; updHud(); document.getElementById('won').textContent='0';
 }
 
 // ══════════ 집게 ══════════
@@ -404,8 +407,16 @@ const prongBodies = [], _tmpV = new THREE.Vector3(), _tmpQ = new THREE.Quaternio
 for(let k=0;k<3;k++){
   const pb = new CANNON.Body({ mass:0, type:CANNON.Body.KINEMATIC, material:mClaw, shape:new CANNON.Box(new CANNON.Vec3(0.18,0.4,0.22)) });
   pb.collisionFilterGroup = 4; pb.collisionFilterMask = 2;   // 집게발=그룹4, 인형(그룹2)만 밀침. 잡는 인형은 grab 시 그룹4 제외(끼임 방지)
+  pb._prongIdx = k;
+  pb.addEventListener('collide', ev=>{                       // 🤝 물리 접촉식: 집게발이 닿은 인형 기록(닫히는 동안만)
+    if(!_collectTouch) return;
+    const other = ev.body, pr = other && other._prize;
+    if(pr && !pr.won){ let set=_prongTouch.get(pr); if(!set){ set=new Set(); _prongTouch.set(pr,set); } set.add(k); }
+  });
   world.addBody(pb); prongBodies.push(pb);
 }
+let _collectTouch = false;          // CLOSING 동안만 접촉 수집
+const _prongTouch = new Map();      // prize → 닿은 집게발 인덱스 Set
 // 🟦 집게발 물리 반응 박스(파랑) — 디버그. 인형을 실제로 밀치는 충돌 범위
 const prongDbg = [];
 if(DEBUG_GRAB){
@@ -461,6 +472,22 @@ function stepConfetti(dt){
 // 집게발(그룹4) 충돌 무시 토글 — 잡는/잡은 인형은 케이지에 안 끼게 prong 제외, 바닥·벽·다른 인형은 그대로
 function setProngIgnore(p, ig){ if(p && p.body) p.body.collisionFilterMask = ig ? -5 : -1; }
 function tryGrab(){
+  if(GRAB_PHYSICAL){
+    _collectTouch = false;
+    // 닫히는 동안 집게발(파랑)이 실제로 닿은 인형 중, 가장 많은 발이 닿은 1개를 집음
+    let target=null, bestN=0;
+    for(const [pr,set] of _prongTouch){ if(!pr.won && set.size>bestN){ bestN=set.size; target=pr; } }
+    _prongTouch.clear();
+    if(!target || bestN<1){ grabQ=0; _grabbing=null; return; }   // 아무 발도 안 닿음 → 헛집음
+    // 닿은 발 수가 많을수록 단단히 잡힘(1발=헐겁게 잘 미끄러짐 / 3발=꽉)
+    grabQ = Math.max(0, Math.min(1, bestN/3 * (0.8+0.2*Math.random())));
+    if(grabQ < GRAB_MIN_Q){ grabQ=0; _grabbing=null; return; }
+    setProngIgnore(target, true);
+    grabConstraint = new CANNON.LockConstraint(clawBody, target.body);
+    world.addConstraint(grabConstraint);
+    held = target; _grabbing=null;
+    return;
+  }
   const best = _grabbing;   // CLOSING 진입 때 정한 대상(닫히는 발이 안 밀게 미리 prong 제외됨)
   if(!best || best.won){ grabQ=0; _grabbing=null; return; }
   const dx=best.body.position.x-clawPos.x, dz=best.body.position.z-clawPos.z;
@@ -556,8 +583,12 @@ function loop(now){
     let stopY = CLAW_DROP_Y;                              // 밑에 인형 없으면 바닥까지
     if(best && bestD<=GRAB_RADIUS) stopY = Math.min(CLAW_TOP_Y-0.2, best.body.position.y + (best.vtop||1)*0.48);  // 인형 몸통 속까지 더 깊이 내려가 확실히 집음
     if(clawPos.y<=stopY){ clawPos.y=stopY; state='CLOSING'; closeTimer=0;
-      _grabbing = (best && bestD<=GRAB_RADIUS) ? best : null;
-      if(_grabbing) setProngIgnore(_grabbing, true);   // 닫히는 집게발이 잡을 인형은 안 밀치게(끼임·튕김 방지)
+      if(GRAB_PHYSICAL){
+        _prongTouch.clear(); _collectTouch = true; _grabbing = null;   // 닫히는 집게발이 실제로 닿는 인형을 수집(밀침 허용)
+      } else {
+        _grabbing = (best && bestD<=GRAB_RADIUS) ? best : null;
+        if(_grabbing) setProngIgnore(_grabbing, true);   // 근접식: 닫히는 집게발이 잡을 인형은 안 밀치게(끼임·튕김 방지)
+      }
     }
   } else if(state==='CLOSING'){
     closeTimer+=dt; setFingerOpen(Math.max(0,1-closeTimer/0.45));
