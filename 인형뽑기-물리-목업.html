@@ -92,14 +92,17 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0c0c16);
 scene.fog = new THREE.Fog(0x0c0c16, 55, 120);   // 안개 멀리 — 내부가 안개로 어둡던 문제 해결
 const camera = new THREE.PerspectiveCamera(46, innerWidth/innerHeight, 0.1, 100);
-// 📱 세로화면(모바일)일수록 카메라를 뒤로 빼서 기계 전체가 작게·다 보이게(시점 방향은 유지)
-const _camTarget = new THREE.Vector3(0, 2.0, 0);
-const _camOffset = new THREE.Vector3(0, 6, 18.5);   // 기본 시점(0,8,18.5) − 타겟(0,2,0)
+// 📷 화면 비율에 맞춰 플레이 영역(통+집게+레일)을 항상 담기 — 가로폭은 늘 다 보이게(모바일 세로 대응)
+const _camTarget = new THREE.Vector3(0, 2.7, 0);
+const _camDir = new THREE.Vector3(0, 0.28, 1).normalize();   // 살짝 위에서·거의 정면(레일이 타이틀에 안 가리게)
 function placeCamera(){
   const aspect = innerWidth/innerHeight;
   camera.aspect = aspect;
-  const zoom = aspect >= 0.9 ? 1 : Math.min(1.6, 1 + (0.9 - aspect) * 1.1);  // 세로일수록 ↑(최대 1.6배 뒤로)
-  camera.position.copy(_camTarget).addScaledVector(_camOffset, zoom);
+  const vFov = camera.fov * Math.PI/180;
+  const hFov = 2*Math.atan(Math.tan(vFov/2)*aspect);
+  const fitW = 8.6, fitH = 8.8;                              // 담을 가로/세로(여유 포함) — 둘 다 들어가게 거리 계산
+  const dist = Math.max((fitW/2)/Math.tan(hFov/2), (fitH/2)/Math.tan(vFov/2));
+  camera.position.copy(_camTarget).addScaledVector(_camDir, dist);
   camera.lookAt(_camTarget);
   camera.updateProjectionMatrix();
 }
@@ -287,14 +290,17 @@ function makePrize(i){
   const c = PRIZE_COLORS[i % PRIZE_COLORS.length];
   const proto = prizeProtos.length ? prizeProtos[(Math.random()*prizeProtos.length)|0] : null;
   const hx = proto ? proto.hx : 0.5, hy = proto ? proto.hy : 0.55, hz = proto ? proto.hz : 0.45;  // 측정한 시각 반치수
-  const chx=hx*0.38, chy=hy*0.95, chz=hz*0.38;   // 충돌체 = 시각보다 훨씬 작게(가로·세로 38% = 인형끼리 더 겹치며 빽빽·초록박스 < 티모), 세로는 거의 맞춤(바닥)
+  const chx=hx*0.45, chy=hy*0.92, chz=hz*0.45;   // 충돌체 = 시각보다 작게(가로·세로 45% = 시각이 겹치며 빽빽·초록박스 < 티모), 세로 92%
   const body = new CANNON.Body({ mass: 3.0, material: mPrize, allowSleep:true, sleepSpeedLimit:0.3, sleepTimeLimit:0.4 });
   body.addShape(new CANNON.Box(new CANNON.Vec3(chx, chy, chz)));
-  // 위에서 떨구지 않고 바로 배치(구멍 코너 회피). 살짝 층지게
-  let px,pz,t=0;
-  do { px=(Math.random()-0.5)*(BIN.x*2-1.6); pz=(Math.random()-0.5)*(BIN.z*2-1.6); t++; }
-  while(t<30 && px < HOME.x+HOLE_R+0.5 && pz > HOME.z-HOLE_R-0.5);
-  body.position.set(px, chy + 0.05 + (i%4)*(chy*1.2), pz);
+  // 4×4 격자 + 약간 지터로 배치 — 겹쳐 스폰돼 폭발·통 밖으로 튕기던 버그 방지(바닥에 빽빽)
+  const gx = i % 4, gz = (i/4|0);
+  const usable = BIN.x*2 - 1.2;                 // 양옆 0.6 여유
+  const cell = usable/4;
+  let px = -usable/2 + (gx+0.5)*cell + (Math.random()-0.5)*cell*0.25;
+  let pz = -usable/2 + (gz+0.5)*cell + (Math.random()-0.5)*cell*0.25;
+  if(px < HOME.x+HOLE_R+0.35 && pz > HOME.z-HOLE_R-0.35) pz -= cell;   // 골인 구멍 코너 비우기
+  body.position.set(px, chy + 0.05 + ((gx+gz)%2)*chy*0.5, pz);        // 체크무늬로 살짝만 층(자연스러운 더미)
   const q=new CANNON.Quaternion(); q.setFromEuler(Math.random()*6.283, Math.random()*6.283, Math.random()*6.283); body.quaternion.copy(q);
   body.angularDamping = 0.7; body.linearDamping = 0.12;   // 묵직·푹신
   world.addBody(body);
@@ -505,8 +511,8 @@ function bakeStatic(root){   // 스킨드 메시 → bind 포즈 정적 BufferGe
     if(!(o.isMesh && o.geometry)) return;
     const src=o.geometry, sp=src.attributes.position, n=sp.count, arr=new Float32Array(n*3);
     for(let i=0;i<n;i++){
-      if(o.isSkinnedMesh) o.getVertexPosition(i, v); else v.fromBufferAttribute(sp,i);
-      v.applyMatrix4(o.matrixWorld);
+      v.fromBufferAttribute(sp,i);   // ⚠️ bind 포즈 원본 정점만 사용(스킨 변형 getVertexPosition 안 씀)
+      v.applyMatrix4(o.matrixWorld); //    → getVertexPosition+matrixWorld 이중적용(k²)으로 bbox가 부풀던 버그 제거. bbox가 실제 외형에 딱 맞음
       arr[i*3]=v.x; arr[i*3+1]=v.y; arr[i*3+2]=v.z;
     }
     const geo=new THREE.BufferGeometry();
