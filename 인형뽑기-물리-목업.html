@@ -93,14 +93,14 @@ scene.background = new THREE.Color(0x0c0c16);
 scene.fog = new THREE.Fog(0x0c0c16, 55, 120);   // 안개 멀리 — 내부가 안개로 어둡던 문제 해결
 const camera = new THREE.PerspectiveCamera(46, innerWidth/innerHeight, 0.1, 100);
 // 📷 화면 비율에 맞춰 기계 전체가 여백 두고 보이게 — 모바일(세로)에서 화면 안 가리게 충분히 뒤로
-const _camTarget = new THREE.Vector3(0, 1.3, 0);
+const _camTarget = new THREE.Vector3(0, 1.7, 0);
 const _camDir = new THREE.Vector3(0, 0.33, 1).normalize();   // 살짝 위에서·거의 정면
 function placeCamera(){
   const aspect = innerWidth/innerHeight;
   camera.aspect = aspect;
   const vFov = camera.fov * Math.PI/180;
   const hFov = 2*Math.atan(Math.tan(vFov/2)*aspect);
-  const fitW = 10.5, fitH = 16;                              // 담을 가로/세로(기계 전체+여백). 세로화면이면 가로폭이 거리를 키워 더 작게 보임
+  const fitW = 10.5, fitH = 17;                              // 담을 가로/세로(올린 헤더까지+여백). 세로화면이면 가로폭이 거리를 키워 더 작게 보임
   const dist = Math.max((fitW/2)/Math.tan(hFov/2), (fitH/2)/Math.tan(vFov/2));
   camera.position.copy(_camTarget).addScaledVector(_camDir, dist);
   camera.lookAt(_camTarget);
@@ -239,7 +239,7 @@ function makeBadge(text, bg, fg){
   M(new THREE.BoxGeometry(W*0.46+0.24, 2.1, 0.08), goldM, 0, -4.4, D/2-0.02);                  // 경품 도어 프레임(골드)
   M(new THREE.BoxGeometry(W*0.46, 1.9, 0.1), new THREE.MeshStandardMaterial({color:0x05040a,roughness:0.2,metalness:0.4}), 0, -4.4, D/2+0.03); // 경품 도어 창
   // 🏆 헤더 — 블랙 + 골드 프레임 + 타이틀 텍스처
-  const hy=CH+1.0;
+  const hy=CH+1.9;   // 헤더(타이틀+마퀴조명)를 위로 — 글라스 안 집게 레일(파이프라인)이 안 가리게
   M(new THREE.BoxGeometry(W+0.3, 1.55, D+0.3), black, 0, hy, 0);
   M(new THREE.BoxGeometry(W+0.44, 0.16, D+0.44), goldM, 0, hy+0.82, 0);
   M(new THREE.BoxGeometry(W+0.44, 0.16, D+0.44), goldM, 0, hy-0.82, 0);
@@ -298,7 +298,7 @@ function makePrize(i){
   // 4×4 격자 배치 — 겹쳐 스폰돼 폭발·통 밖으로 튕기던 버그 방지(바닥에 빽빽). 콜라이더가 작아 시각은 서로 겹침
   const COLS = Math.ceil(Math.sqrt(PRIZE_COUNT)), ROWS = Math.ceil(PRIZE_COUNT/COLS);
   const gx = i % COLS, gz = (i/COLS|0);
-  const usable = BIN.x*2 - 1.4;                 // 양옆 0.7 여유(벽에서 띄움)
+  const usable = BIN.x*2 - 2.4;                 // 양옆 1.2 여유(벽에서 더 띄움 — 큰 인형 벽 뚫림 방지)
   const cellX = usable/COLS, cellZ = usable/ROWS;
   let px = -usable/2 + (gx+0.5)*cellX + (Math.random()-0.5)*cellX*0.2;
   let pz = -usable/2 + (gz+0.5)*cellZ + (Math.random()-0.5)*cellZ*0.2;
@@ -492,7 +492,7 @@ function loop(now){
   }
 
   world.step(1/60, dt, 3);
-  const CLAMP=3.0;   // 통 안 한계(벽 안쪽). 어떤 이유로 새도 여기로 강제 복귀
+  const CLAMP=2.7;   // 통 안 한계(벽에서 더 안쪽). 큰 인형 몸통이 유리 안 뚫게 + 어떤 이유로 새도 복귀
   for(const p of prizes){
     const b=p.body, v=b.velocity, P=b.position;
     const sp=Math.hypot(v.x,v.y,v.z); if(sp>8){ const f=8/sp; v.x*=f; v.y*=f; v.z*=f; } // 속도 상한
@@ -523,7 +523,7 @@ function loop(now){
 // 🧸 인형 모델 로드 → 스킨드 메시를 "정적 메시로 베이크"(bind 포즈 고정).
 //    스킨드는 부모 스케일이 이중 적용(k²)돼 시각이 작아지고 떠 보임 → 정적으로 구우면 스케일/측정이 정확.
 // ▶ 여러 형태 추가: PRIZE_FILES 에 {file, target}(원하는 최대 치수) 추가
-const PRIZE_FILES = [ { file:'teemo.glb', target:4.6 } ];   // target = 키(세로) 단위(↑일수록 크게). 가로(팔벌림) 아닌 키 기준. 2.4→4.6(약 2배)
+const PRIZE_FILES = [ { file:'teemo.glb', target:4.3 } ];   // target = 키(세로) 단위(↑일수록 크게). 가로(팔벌림) 아닌 키 기준
 function bakeStatic(root){   // 스킨드 메시 → bind 포즈 정적 BufferGeometry(월드 좌표)
   root.updateWorldMatrix(true, true);
   const group = new THREE.Group(), v = new THREE.Vector3();
@@ -539,8 +539,12 @@ function bakeStatic(root){   // 스킨드 메시 → bind 포즈 정적 BufferGe
     geo.setAttribute('position', new THREE.BufferAttribute(arr,3));
     if(src.attributes.uv) geo.setAttribute('uv', src.attributes.uv.clone());
     if(src.index) geo.setIndex(src.index.clone());
-    geo.computeVertexNormals();
-    // 모델 노드의 거울 스케일(-1)로 면 winding이 뒤집혀 뒷면컬링으로 속이 비쳐 보임 → 양면 렌더로 해결
+    // 거울 스케일(det<0)이면 삼각형 winding이 뒤집혀 노멀이 안쪽 향함(렌더링 어둡고 이상) → 인덱스 뒤집어 바로잡기
+    if(o.matrixWorld.determinant() < 0 && geo.index){
+      const ix=geo.index.array; for(let t=0;t+2<ix.length;t+=3){ const tmp=ix[t+1]; ix[t+1]=ix[t+2]; ix[t+2]=tmp; }
+    }
+    geo.computeVertexNormals();   // winding 바로잡은 뒤 노멀 재계산 → 바깥쪽(정상 라이팅)
+    // 안전하게 양면 렌더(거울모델·얇은 면 대비)
     const dmat = Array.isArray(o.material)
       ? o.material.map(m=>{ const c=m.clone(); c.side=THREE.DoubleSide; return c; })
       : (()=>{ const c=o.material.clone(); c.side=THREE.DoubleSide; return c; })();
