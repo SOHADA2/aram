@@ -57,7 +57,7 @@
   <span class="pill">집기품질 <b id="gq">—</b></span>
   <span class="pill">남은인형 <b id="cnt">—</b></span>
   <span class="pill">획득 <b id="won">0</b></span>
-  <span class="pill" style="opacity:.5">BUILD 28 · claw</span>
+  <span class="pill" style="opacity:.5">BUILD 29 · claw</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -86,9 +86,10 @@ try {
 // ══════════ 튜닝 상수 (이 숫자들로 "느낌" 조절) ══════════
 const PRIZE_COUNT   = 16;     // 통 안 인형 수 (8→16, 두 배)
 const DEBUG_COLLIDER= false;  // 🟩 충돌체 초록/빨강 와이어프레임 — 디버그용(필요시 true)
-const GRAB_RADIUS   = 0.9;    // 집게 중심에서 이 반경 안 인형만 집힘(좁게 = 정확히 위에 와야 잡힘)
-const GRAB_MIN_Q    = 0.28;   // 이 품질 미만이면 헛집음(아예 못 잡음)
-const MAX_SLIP_RATE = 1.6;    // 품질 0일 때 초당 슬립확률(품질 높을수록 ↓)
+const GRAB_RADIUS   = 1.3;    // 집게 중심에서 이 반경 안 인형 집힘(넉넉히 = 잘 잡힘)
+const GRAB_MIN_Q    = 0.12;   // 이 품질 미만이면 헛집음(낮춰서 웬만하면 잡힘)
+const MAX_SLIP_RATE = 0.5;    // 품질 0일 때 초당 슬립확률(낮춰서 잘 안 놓침)
+const CLAW_SCALE    = 1.35;   // 집게 크기 배율(↑ 더 크게)
 const CLAW_TOP_Y    = 6.2;    // 집게 대기 높이
 const GANTRY_Y      = 6.7;    // 크레인 줄이 매달린 트롤리/레일 높이(유리 안). 줄이 위로 안 삐져나오게
 const CLAW_DROP_Y   = 1.7;    // 집게 내려가는 바닥 높이(큰 인형 더미 위에 닿게)
@@ -362,7 +363,7 @@ const clawBody = new CANNON.Body({ mass:0, type:CANNON.Body.KINEMATIC, material:
 clawBody.collisionFilterMask = -3;   // 인형(그룹2)과 물리충돌 안 함 — 잡기는 LockConstraint로(케이지 끼임 방지)
 clawBody.position.set(0, CLAW_TOP_Y, 0); world.addBody(clawBody);
 
-const clawGroup = new THREE.Group(); scene.add(clawGroup);
+const clawGroup = new THREE.Group(); clawGroup.scale.setScalar(CLAW_SCALE); scene.add(clawGroup);   // 집게 크게
 const steel = new THREE.MeshStandardMaterial({color:0xcfd6e0, roughness:0.28, metalness:0.85});
 // 몸통
 const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.34,0.42,0.5,16), steel); clawGroup.add(hub);
@@ -421,11 +422,10 @@ function tryGrab(){
     if(d<bestD){ bestD=d; best=p; }
   }
   if(!best || bestD>GRAB_RADIUS) { grabQ=0; return; }
-  // 집기품질 = 중심 정렬도 × 약간의 랜덤 (인형 머리 높이 보너스)
+  // 집기품질 = 중심 정렬도 기반 + 넉넉한 기본치(확실히 잡히게)
   const align = 1 - (bestD/GRAB_RADIUS);          // 0~1
-  const headBonus = Math.max(0, Math.min(0.2,(best.body.position.y-1.0)*0.15));
-  grabQ = Math.max(0, Math.min(1, align*(0.7+0.3*Math.random()) + headBonus));
-  if(grabQ < GRAB_MIN_Q){ grabQ=0; return; }       // 헛집음
+  grabQ = Math.max(0, Math.min(1, 0.2 + align*0.8*(0.85+0.15*Math.random())));
+  if(grabQ < GRAB_MIN_Q){ grabQ=0; return; }       // 헛집음(거의 안 일어남)
   // 물리 잠금(집힘) — 집게에 인형을 락
   grabConstraint = new CANNON.LockConstraint(clawBody, best.body);
   world.addConstraint(grabConstraint);
@@ -508,7 +508,7 @@ function loop(now){
     let best=null,bestD=1e9;
     for(const p of prizes){ if(p.won)continue; const ddx=p.body.position.x-clawPos.x,ddz=p.body.position.z-clawPos.z; const d=Math.hypot(ddx,ddz); if(d<bestD){bestD=d;best=p;} }
     let stopY = CLAW_DROP_Y;                              // 밑에 인형 없으면 바닥까지
-    if(best && bestD<=GRAB_RADIUS) stopY = Math.min(CLAW_TOP_Y-0.2, best.body.position.y + (best.vtop||1)*0.7);  // 인형 시각 머리 근처에서 멈춤(낮은 콜라이더 무시)
+    if(best && bestD<=GRAB_RADIUS) stopY = Math.min(CLAW_TOP_Y-0.2, best.body.position.y + (best.vtop||1)*0.48);  // 인형 몸통 속까지 더 깊이 내려가 확실히 집음
     if(clawPos.y<=stopY){ clawPos.y=stopY; state='CLOSING'; closeTimer=0; }
   } else if(state==='CLOSING'){
     closeTimer+=dt; setFingerOpen(Math.max(0,1-closeTimer/0.45));
