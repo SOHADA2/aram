@@ -53,6 +53,7 @@
 <div id="controls">
   <div id="stick"><div id="knob"></div></div>
   <div class="btns">
+    <button id="rotate" class="ghost" onclick="rotateView()">🔄 시점</button>
     <button id="reset" class="ghost">리셋</button>
     <button id="drop">집기!</button>
   </div>
@@ -92,21 +93,27 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0c0c16);
 scene.fog = new THREE.Fog(0x0c0c16, 55, 120);   // 안개 멀리 — 내부가 안개로 어둡던 문제 해결
 const camera = new THREE.PerspectiveCamera(46, innerWidth/innerHeight, 0.1, 100);
-// 📷 화면 비율에 맞춰 기계 전체가 여백 두고 보이게 — 모바일(세로)에서 화면 안 가리게 충분히 뒤로
+// 📷 화면 비율에 맞춰 기계 전체가 여백 두고 보이게 + 시점 회전(camYaw)
 const _camTarget = new THREE.Vector3(0, 2.2, 0);
-const _camDir = new THREE.Vector3(0, 0.33, 1).normalize();   // 살짝 위에서·거의 정면
+const _camElev = 0.33;                 // 위에서 내려보는 정도(수평성분 대비)
+let camYaw = 0, camYawTarget = 0;      // 시점 회전각(0=정면, +면 좌측, -면 우측)
 function placeCamera(){
   const aspect = innerWidth/innerHeight;
   camera.aspect = aspect;
   const vFov = camera.fov * Math.PI/180;
   const hFov = 2*Math.atan(Math.tan(vFov/2)*aspect);
-  const fitW = 10.5, fitH = 18.8;                            // 담을 가로/세로(올린 천장·헤더까지+여백). 세로화면이면 가로폭이 거리를 키워 더 작게 보임
+  const fitW = 10.5, fitH = 18.8;                            // 담을 가로/세로(천장·헤더까지+여백)
   const dist = Math.max((fitW/2)/Math.tan(hFov/2), (fitH/2)/Math.tan(vFov/2));
-  camera.position.copy(_camTarget).addScaledVector(_camDir, dist);
+  const dir = new THREE.Vector3(Math.sin(camYaw), _camElev, Math.cos(camYaw)).normalize();  // yaw로 수평 회전
+  camera.position.copy(_camTarget).addScaledVector(dir, dist);
   camera.lookAt(_camTarget);
   camera.updateProjectionMatrix();
 }
 placeCamera();
+// 🔄 시점 전환 — 정면 → 좌측 → 우측 순환(옆에서도 보며 집게 조작)
+const CAM_VIEWS = [0, 0.95, -0.95];    // 라디안(약 ±54°)
+let _camViewIdx = 0;
+window.rotateView = function(){ _camViewIdx = (_camViewIdx+1) % CAM_VIEWS.length; camYawTarget = CAM_VIEWS[_camViewIdx]; };
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference:'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
@@ -265,24 +272,6 @@ function makeEmblem(emoji, bg, ring){
       b.position.set(x, yy, D/2+0.24); scene.add(b); marqueeBulbs.push(b);
     }
   }
-  // 💠 스티커(칼바람/증강 테마 배지) — 본체 앞면
-  const sticker=(tex,w,h,x,y,z)=>{ const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h), new THREE.MeshBasicMaterial({map:tex,transparent:true})); m.position.set(x,y,z); scene.add(m); };
-  const round=(tex,d,x,y,z,ry)=>{ const m=new THREE.Mesh(new THREE.CircleGeometry(d/2,32), new THREE.MeshBasicMaterial({map:tex,transparent:true})); m.position.set(x,y,z); if(ry)m.rotation.y=ry; scene.add(m); };
-  sticker(makeBadge('⚔️ 칼바람','#0b0b12','#ffd24a'), 1.9,0.62, -W/2+1.25, -1.7, D/2+0.07);
-  sticker(makeBadge('✨ 증강','#0b0b12','#39d6c8'), 1.5,0.62, W/2-1.5, -1.7, D/2+0.07);
-  sticker(makeBadge('❄️ 칼바람 나락','#0b1018','#7fd5ff'), 2.5,0.6, 0, -2.6, D/2+0.07);   // ARAM 맵
-  sticker(makeBadge('무작위 총력전','#0b0b12','#ffd24a'), 2.0,0.54, -W/2+1.5, -3.75, D/2+0.07);
-  sticker(makeBadge('5:5 난투','#0b0b12','#39d6c8'), 1.5,0.54, W/2-1.4, -3.75, D/2+0.07);
-  sticker(makeBadge('🏆 아수라장','#0b0b12','#ffd24a'), 2.2,0.6, 0, -5.7, D/2+0.07);
-  // 🐾 포로·눈송이 원형 엠블럼(ARAM 마스코트/서리 톤)
-  round(makeEmblem('🐾','#0e1726','#9fe0ff'), 0.92, -W/2+0.75, -5.0, D/2+0.07);
-  round(makeEmblem('❄️','#0e1726','#9fe0ff'), 0.72, W/2-0.7, -5.2, D/2+0.07);
-  round(makeEmblem('🐹','#1a1206','#ffd24a'), 0.78, W/2-0.8, -2.55, D/2+0.07);   // 티모(경품)
-  // ❄️ 서리 눈송이 데칼 — 유리 옆면/본체에 흩뿌려 ARAM 분위기
-  const flake=(x,y,z,sz,ry)=>{ const m=new THREE.Mesh(new THREE.PlaneGeometry(sz,sz), new THREE.MeshBasicMaterial({map:makeLabelTexture('❄',{w:128,h:128,font:'96px "Noto Sans KR",sans-serif',fg:'#bfeaff',stroke:'#bfeaff',shadow:'#7fd5ff'}),transparent:true})); m.position.set(x,y,z); if(ry)m.rotation.y=ry; scene.add(m); };
-  flake(-CW-0.03, 5.2, -1.0, 0.5, Math.PI/2); flake(-CW-0.03, 3.2, 1.2, 0.4, Math.PI/2);   // 좌측 유리
-  flake( CW+0.03, 4.6, 0.6, 0.5, -Math.PI/2);  flake( CW+0.03, 2.6, -1.4, 0.4, -Math.PI/2); // 우측 유리
-  flake(-2.0, 6.4, CD+0.03, 0.45, 0); flake(2.2, 6.0, CD+0.03, 0.4, 0);                       // 앞면 상단
   for(const sx of [-1,1]) for(const sz of [-1,1]) M(new THREE.CylinderGeometry(0.22,0.22,0.5,10), goldM, sx*(W/2-0.5), bBot-0.25, sz*(D/2-0.5)); // 다리
 })();
 
@@ -473,14 +462,25 @@ function loop(now){
   requestAnimationFrame(loop);
   const dt = Math.min(0.033,(now-last)/1000); last=now;
 
-  // 집게 X/Z 추종(READY일 때만)
+  // 🔄 시점 부드럽게 회전
+  if(Math.abs(camYaw-camYawTarget) > 0.001){
+    camYaw += (camYawTarget-camYaw)*Math.min(1, dt*8);
+    if(Math.abs(camYaw-camYawTarget) < 0.001) camYaw=camYawTarget;
+    placeCamera();
+  }
+
+  // 집게 X/Z 추종(READY일 때만) — 이동은 현재 시점(camYaw) 기준이라 옆에서 봐도 직관적
   if(state==='READY'){
     let dx=moveDir.x, dz=moveDir.z;                                            // 조이스틱(모바일)
     if(keys['a']||keys['arrowleft']) dx=-1;  if(keys['d']||keys['arrowright']) dx=1;   // WASD/방향키(PC)
     if(keys['w']||keys['arrowup'])   dz=-1;  if(keys['s']||keys['arrowdown'])  dz=1;
     const kl=Math.hypot(dx,dz); if(kl>1){ dx/=kl; dz/=kl; }
-    clawPos.x = Math.max(-BIN.x, Math.min(BIN.x, clawPos.x + dx*JOY_SPEED*dt));
-    clawPos.z = Math.max(-BIN.z, Math.min(BIN.z, clawPos.z + dz*JOY_SPEED*dt));
+    // 카메라 기준: 위(dz<0)=화면 안쪽(forward), 오른쪽(dx>0)=화면 오른쪽
+    const fX=-Math.sin(camYaw), fZ=-Math.cos(camYaw);   // forward(카메라→타겟 수평)
+    const rX= Math.cos(camYaw), rZ=-Math.sin(camYaw);   // right
+    const mX = dx*rX + (-dz)*fX, mZ = dx*rZ + (-dz)*fZ;
+    clawPos.x = Math.max(-BIN.x, Math.min(BIN.x, clawPos.x + mX*JOY_SPEED*dt));
+    clawPos.z = Math.max(-BIN.z, Math.min(BIN.z, clawPos.z + mZ*JOY_SPEED*dt));
     clawPos.y = CLAW_TOP_Y; setFingerOpen(1);
   } else if(state==='LOWERING'){
     setFingerOpen(1);                                     // 내려갈 땐 활짝 열림
