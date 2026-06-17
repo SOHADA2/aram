@@ -24,9 +24,9 @@
   #result{position:fixed;top:46%;left:0;right:0;text-align:center;font-size:34px;font-weight:900;
     text-shadow:0 2px 10px #000;pointer-events:none;opacity:0;transition:opacity .2s;}
   #result.show{opacity:1;}
-  #controls{position:fixed;left:0;right:0;bottom:0;padding:16px 16px calc(18px + env(safe-area-inset-bottom));
+  #controls{position:fixed;left:0;right:0;bottom:0;padding:14px 16px calc(18px + env(safe-area-inset-bottom));
     display:flex;gap:10px;align-items:flex-end;justify-content:space-between;
-    background:linear-gradient(0deg,#070710 0%,#070710 60%,rgba(7,7,16,0.92) 82%,rgba(7,7,16,0) 100%);}
+    background:linear-gradient(0deg,rgba(0,0,0,0.6),transparent);}
   .hint{font-size:11px;color:#9aa;line-height:1.5;max-width:55%;}
   .btns{display:flex;flex-direction:column;gap:8px;align-items:flex-end;}
   .view-row,.main-row{display:flex;gap:8px;}
@@ -133,26 +133,15 @@ app.appendChild(renderer.domElement);
 const _pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = _pmrem.fromScene(new RoomEnvironment(), 0.05).texture;
 
-scene.add(new THREE.HemisphereLight(0xd6e6ff, 0x26263a, 1.05));   // 은은한 채움(스포트가 살아나게 낮춤)
-const dir = new THREE.DirectionalLight(0xfff0d0, 1.0);
+scene.add(new THREE.HemisphereLight(0xe0eeff, 0x303048, 1.6));   // 전체 밝게
+const dir = new THREE.DirectionalLight(0xfff0d0, 1.4);
 dir.position.set(6, 14, 8); dir.castShadow = true;
 dir.shadow.mapSize.set(1024,1024);
 dir.shadow.camera.left=-8;dir.shadow.camera.right=8;dir.shadow.camera.top=8;dir.shadow.camera.bottom=-8;
 scene.add(dir);
-// 🔦 천장 스포트라이트 — 천장에서 아래로 쏘는 느낌 + 보이는 조명 기구(인형 더미에 밝은 풀 형성)
-const CEIL_Y = 8.15;
-function ceilingSpot(x,z,color,intensity,aim){
-  const sp=new THREE.SpotLight(color, intensity, 18, Math.PI*0.32, 0.55, 1.3);
-  sp.position.set(x, CEIL_Y, z); sp.target.position.set(aim?aim[0]:0, 0, aim?aim[1]:0); scene.add(sp.target); scene.add(sp);
-  const house=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.42,0.24,18), new THREE.MeshStandardMaterial({color:0x0e0e16, metalness:0.85, roughness:0.35, envMapIntensity:1.2}));
-  house.position.set(x, CEIL_Y+0.05, z); scene.add(house);
-  const lens=new THREE.Mesh(new THREE.CircleGeometry(0.27,22), new THREE.MeshBasicMaterial({color:color}));
-  lens.position.set(x, CEIL_Y-0.12, z); lens.rotation.x=-Math.PI/2; scene.add(lens);
-}
-ceilingSpot(-1.5, 1.3, 0xfff4e0, 130, [-0.5,0.4]);
-ceilingSpot( 1.7,-1.1, 0xffe8cc, 110, [0.6,-0.3]);
-ceilingSpot( 0.0, 0.0, 0xffffff,  85, [0,0]);
-const fill = new THREE.PointLight(0xbcd0ff, 7, 20, 2); fill.position.set(0, 4, 5); scene.add(fill);  // 앞쪽 약한 채움
+// 🔦 내부 조명 — 유리 안 천장에서 인형 더미를 환하게 비춤
+const pin1 = new THREE.PointLight(0xffffff, 45, 22, 2); pin1.position.set(-1.6, 5.6, 1.4); scene.add(pin1);
+const pin2 = new THREE.PointLight(0xffe8d0, 38, 22, 2); pin2.position.set(1.8, 5.2, -1.4); scene.add(pin2);
 
 // ── 절차적 텍스처(질감 업그레이드 · 외부 파일 없이 캔버스로) ──
 function _canvasTex(draw, sz, rep){
@@ -251,7 +240,7 @@ function makeEmblem(emoji, bg, ring){
   const panel=(w,h,d,x,y,z)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),glass); m.position.set(x,y,z); scene.add(m); };
   panel(CW*2, CH, 0.04,  0, CH/2,  CD); panel(CW*2, CH, 0.04,  0, CH/2, -CD);
   panel(0.04, CH, CD*2,  CW, CH/2, 0);  panel(0.04, CH, CD*2, -CW, CH/2, 0);
-  const goldMat = new THREE.MeshStandardMaterial({color:GOLD, roughness:0.3, metalness:1.0, roughnessMap:TEX_BRUSHED, envMapIntensity:1.65});  // 브러시드 골드(또렷한 반사)
+  const goldMat = new THREE.MeshStandardMaterial({color:GOLD, roughness:0.42, metalness:1.0, roughnessMap:TEX_BRUSHED, envMapIntensity:1.4});  // 브러시드 골드(반사↑)
   const post=(x,z)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(0.22,CH,0.22),goldMat); m.position.set(x,CH/2,z); m.castShadow=true; scene.add(m); };
   post(CW,CD);post(-CW,CD);post(CW,-CD);post(-CW,-CD);
   const roof=new THREE.Mesh(new THREE.BoxGeometry(CW*2+0.34,0.42,CD*2+0.34),goldMat); roof.position.set(0,CH+0.06,0); scene.add(roof);
@@ -271,7 +260,7 @@ function makeEmblem(emoji, bg, ring){
   const W=CW*2+0.5, D=CD*2+0.5;
   const black = new THREE.MeshStandardMaterial({color:0x16141d, roughness:0.62, metalness:0.55, roughnessMap:TEX_NOISE, envMapIntensity:0.95});
   const blackD= new THREE.MeshStandardMaterial({color:0x0d0b13, roughness:0.68, metalness:0.45, roughnessMap:TEX_NOISE, envMapIntensity:0.85});
-  const goldM = new THREE.MeshStandardMaterial({color:GOLD, roughness:0.3, metalness:1.0, roughnessMap:TEX_BRUSHED, envMapIntensity:1.65});  // 브러시드 골드(또렷한 반사)
+  const goldM = new THREE.MeshStandardMaterial({color:GOLD, roughness:0.42, metalness:1.0, roughnessMap:TEX_BRUSHED, envMapIntensity:1.4});  // 브러시드 골드(반사↑)
   const dark  = new THREE.MeshStandardMaterial({color:0x07060a, roughness:0.55, metalness:0.3, roughnessMap:TEX_NOISE});
   const M=(g,mat,x,y,z,rx)=>{ const m=new THREE.Mesh(g,mat); m.position.set(x,y,z); if(rx)m.rotation.x=rx; m.castShadow=true; m.receiveShadow=true; scene.add(m); return m; };
   const bTop=-0.4, bBot=-6.4;
