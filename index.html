@@ -1986,6 +1986,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .lh-tier-attempts{font-size:10px;color:rgba(255,255,255,0.38);line-height:1.5;text-align:center;border-top:1px solid rgba(255,255,255,0.06);padding-top:5px;margin-top:1px;}
 .lh-tier-attempts:empty{display:none;}
 .lh-tier-attempts b{color:rgba(255,255,255,0.72);font-weight:600;}
+.lh-tier-attempts b.lh-att-mine{color:var(--accent);font-weight:800;}
 /* v2.43.194 무료 복권권 배지 */
 .lh-free-badge{position:absolute;top:6px;left:6px;font-size:9px;font-weight:800;letter-spacing:0.2px;padding:2px 6px;border-radius:8px;background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;box-shadow:0 0 8px rgba(34,197,94,0.5);}
 /* ── 🗑️ 쓰레기통 뒤지기 (v2.43.225) ── */
@@ -6565,7 +6566,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.163';
+const APP_VERSION = 'v2.45.165';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6574,6 +6575,12 @@ const APP_VERSION = 'v2.45.163';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.165', date: '2026-06-17', changes: [
+    { tag: 'improve', text: '🎟 스크래치 복권 — 종류별(실버/골드/프리즘)로 내가 몇 장 긁었는지 각 티어 카드에 "내가 N회"로 표시. 기존 팀 총 횟수·최다 옆에 본인 기록을 함께 보여줘 한눈에 확인 가능' },
+  ] },
+  { ver: 'v2.45.164', date: '2026-06-17', changes: [
+    { tag: 'improve', text: '🗃️ [개발] 가챠 컬렉션 감사 추적 — 이제 뽑기·합성·재조합의 결과(어떤 챔피언 몇 성)가 기록으로 남아요. 데이터가 잘못되면 정확히 되돌리거나 검증할 수 있어요(콘솔 gachaVerify("닉네임")로 저장값↔기록 대조). 기존엔 소모 골드만 남아 정확 복구가 불가능했던 문제 보완' },
+  ] },
   { ver: 'v2.45.163', date: '2026-06-17', changes: [
     { tag: 'improve', text: '🕹️ [개발] 인형뽑기 라이브 비활성(튜닝 중) — CLAW_ENABLED=false로 컬렉션 탭 진입 배너 숨김 + 실사용 차단. 프리뷰(?claw / clawTest())는 계속 동작. 출시 준비되면 플래그만 켜면 됨' },
   ] },
@@ -22182,7 +22189,7 @@ function _s1HofTMI(){
   let attendTot=0, attendMax=0, attendMaxName='';
   Object.values(goldData||{}).forEach(gd=>{ if(!gd) return; const nm=gd.name||'';
     (gd.lotteryHistory||[]).forEach(h=>{ if((h.season??1)!==1||!h.scratch) return; lottoBuys++; const g=h.gold||0; if(g>0){ lottoWinTot+=g; if(g>lottoMaxWin){lottoMaxWin=g;lottoMaxName=nm;} } });
-    (gd.gachaLog_s1||[]).forEach(g=>{ gachaPulls += (g.times||1); });
+    (gd.gachaLog_s1||[]).forEach(g=>{ if(g.op && g.op!=='pull') return; gachaPulls += (g.times||1); }); // 합성/재조합 이벤트는 뽑기 횟수서 제외(v2.45.164~)
     const cc=gd.champCards_s1||{}; for(const slug in cc){ const cd=cc[slug]||{}; gachaCardsTot+=(cd.s1||0)+(cd.s2||0)+(cd.s3||0); gacha3+=(cd.s3||0); }
     if(gd.activeSynergy_s1&&gd.activeSynergy_s1.sid) synergyOwners++;
     const a=(gd.attendanceHistory||[]).length; attendTot+=a; if(a>attendMax){attendMax=a;attendMaxName=nm;}
@@ -25984,20 +25991,24 @@ async function _trashReveal(elapsed) {
 // 복권 Hub 깜박임 방지 — 다른 팀원 시도(팀 횟수만 변경) 시 모달 재생성 없이 텍스트만 제자리 갱신 (v2.45.151)
 let _lhLastMyGold = null, _lhLastMyFt = null;
 function _lhTierAttemptStats(){
+  // 종류별 긁은 횟수 — lotteryHistory(tierIdx 기록)에서 집계. 팀 총계·최다·본인(mine) 모두 동일 필터(시즌+재오픈 이후)
+  const _scratchCnt = (d, idx) => (d?.lotteryHistory || []).filter(h => h.scratch && h.tierIdx === idx && (h.season ?? 1) === CURRENT_SEASON && (h.ts || 0) >= SCRATCH_REOPEN_TS).length;
+  const myData = getMyGoldData();
   return [0,1,2].map(idx => {
     let total = 0, topName = null, topCount = 0;
     Object.values(goldData).forEach(d => {
       if (!d.name) return;
-      const hist = d.lotteryHistory || [];
-      const cnt = hist.filter(h => h.scratch && h.tierIdx === idx && (h.season ?? 1) === CURRENT_SEASON && (h.ts || 0) >= SCRATCH_REOPEN_TS).length;
+      const cnt = _scratchCnt(d, idx);
       total += cnt;
       if (cnt > topCount) { topCount = cnt; topName = d.name; }
     });
-    return { total, topName, topCount };
+    return { total, topName, topCount, mine: _scratchCnt(myData, idx) };
   });
 }
 function _lhAttemptInner(s){
-  return s.total > 0 ? `팀 총 <b>${s.total}회</b> 시도${s.topName ? ` · 최다 <b>${escHtml(s.topName)}</b> ${s.topCount}회` : ''}` : '';
+  const mine = `<b class="lh-att-mine">내가 ${s.mine}회</b>`;  // 본인이 이 종류를 몇 장 긁었는지 (항상 표시)
+  const team = s.total > 0 ? ` · 팀 <b>${s.total}회</b>${s.topName ? ` · 최다 <b>${escHtml(s.topName)}</b> ${s.topCount}회` : ''}` : '';
+  return mine + team;
 }
 function _lhSyncAttempts(){
   if (!document.getElementById('lottery-hub-overlay')) return;
@@ -26950,6 +26961,55 @@ window.gachaTestReset = async function() {
   await update(ref(db, 'gold/' + key), upd);
   if (goldData[key]) Object.assign(goldData[key], upd);
   console.log(hasBak ? '✅ 테스트 종료 — 원본 컬렉션 복원 완료' : '✅ 가챠 카드 초기화(백업 없음)');
+};
+
+// ── 가챠 컬렉션 감사/검증 (콘솔: gachaVerify('닉네임')) — v2.45.164~ ──
+// baseline(최초 박제 스냅샷) + gachaLog 의 op 이벤트(pull/merge/recombine3)를 재생해
+// "있어야 할 컬렉션"을 재구성하고, 실제 저장된 champCards 와 대조한다.
+// 일치 → 로그 밖 변조 없음(무결). 불일치 → 누군가 로그 없이 champCards 를 바꿈(손상/테스트도구/수기수정).
+// recon(재구성 결과)은 손상 시 복원용 페이로드로 그대로 쓸 수 있음.
+window.gachaVerify = function(name) {
+  const nm = (name || myName || '').trim();
+  if (!nm) { console.log('사용법: gachaVerify("닉네임")'); return; }
+  const entry = Object.entries(goldData||{}).find(([,v]) => v && (v.name||'').trim() === nm);
+  if (!entry) { console.log('❓ 골드 데이터를 못 찾음:', nm); return; }
+  const [key, data] = entry;
+  const stored   = data[sField('champCards')] || {};
+  const baseline = data[sField('champCardsBaseline')];
+  const logArr   = Array.isArray(data[sField('gachaLog')]) ? data[sField('gachaLog')] : [];
+  if (baseline === undefined) {
+    console.log(`⚠️ ${nm}: baseline 없음 — v2.45.164 배포 이후 가챠 활동(뽑기/합성/재조합)이 아직 없어 재구성 불가.`);
+    console.log('   현재 champCards 자체가 기준선이며, 다음 가챠 활동 시 baseline 이 자동 박제됩니다.');
+    return;
+  }
+  const recon = {};
+  const base = baseline || {};
+  for (const slug in base) recon[slug] = { s1: base[slug].s1||0, s2: base[slug].s2||0, s3: base[slug].s3||0 };
+  const add = (slug, star, n) => { recon[slug] = recon[slug] || {s1:0,s2:0,s3:0}; recon[slug][`s${star}`] = (recon[slug][`s${star}`]||0) + n; };
+  let pulls = 0, merges = 0, recombines = 0;
+  logArr.forEach(g => {
+    if (g.op === 'pull') { pulls++; (g.pulls||[]).forEach(p => { if (p.secret) return; add(p.slug, p.star, 1); }); }
+    else if (g.op === 'merge') { merges++; add(g.slug, g.fromStar, -3); add(g.slug, g.toStar, 1); }
+    else if (g.op === 'recombine3') { recombines++; (g.consumed||[]).forEach(s => add(s, 3, -1)); if (!g.yuumi && g.got) add(g.got, 3, 1); }
+    // op 없는 레거시 항목({ts,times,cost})은 baseline 에 이미 반영됨 → 건너뜀
+  });
+  const slugs = new Set([...Object.keys(stored), ...Object.keys(recon)]);
+  const diffs = [];
+  slugs.forEach(slug => ['s1','s2','s3'].forEach(st => {
+    const a = (stored[slug] && stored[slug][st]) || 0;
+    const b = (recon[slug]  && recon[slug][st])  || 0;
+    if (a !== b) diffs.push(`${slug}.${st}: 저장=${a} vs 기록재구성=${b} (Δ${a-b})`);
+  }));
+  console.log(`📊 ${nm} 가챠 로그: 뽑기 ${pulls}회 · 합성 ${merges}회 · 재조합 ${recombines}회`);
+  if (!diffs.length) {
+    console.log(`✅ 검증 통과 — 저장된 컬렉션이 기록 재구성과 100% 일치(무결)`);
+  } else {
+    console.warn(`❌ 불일치 ${diffs.length}건 — 로그 밖에서 champCards 가 변경됨(손상 의심)`);
+    diffs.forEach(d => console.log('   ', d));
+    console.log('↩️ 복원하려면 아래 recon 을 champCards 로 PATCH 하세요.');
+  }
+  console.log('recon(복원용):', JSON.parse(JSON.stringify(recon)));
+  return { key, stored, recon, baseline, diffs };
 };
 
 window.scratchTest = function(tierIdx = 0) {
@@ -31163,14 +31223,18 @@ window.doGachaPull = async function(times) {
   try {
     const spentKey = sField('goldSpent');
     // 가챠 소모 추적 (v2.43.157~) — 롤백/감사용. goldSpent 합산과 별도로 gachaSpent_s1 누적 + 로그 기록
+    // 결과 추적 (v2.45.164~): 각 뽑기 카드(slug/star)를 pulls 에 기록 → 손상 시 정확 재구성·검증 가능(gachaVerify)
     const gachaLog = Array.isArray(data[sField('gachaLog')]) ? data[sField('gachaLog')].slice() : [];
-    gachaLog.push({ ts: Date.now(), times, cost });
+    const pulls = results.map(r => ({ slug: r.slug, star: r.star, ...(r.secret ? { secret: true } : {}) }));
+    gachaLog.push({ ts: Date.now(), op: 'pull', times, cost, pulls });
+    const needBase = data[sField('champCardsBaseline')] === undefined; // 최초 1회 직전 컬렉션을 baseline 으로 박제(재구성 시작점)
     await update(ref(db, 'gold/' + key), {
       [spentKey]: (data[spentKey] || 0) + cost,
       [sField('gachaSpent')]: (data[sField('gachaSpent')] || 0) + cost,
       [sField('gachaLog')]: gachaLog,
       [sField('champCards')]: cards,
       [sField('champCardLog')]: log,
+      ...(needBase ? { [sField('champCardsBaseline')]: data[sField('champCards')] || null } : {}),
       ...(gotYuumi ? { [sField('secretYuumi')]: true } : {}),
     });
     if (gotYuumi && goldData[key]) goldData[key][sField('secretYuumi')] = true; // 즉시 반영
@@ -31200,8 +31264,12 @@ window.doGachaMerge = async function(slug, fromStar) {
   if ((card[`s${fromStar}`]||0) < 3) { showGoldToast('재료 부족! (같은 카드 3개 필요)'); return; }
   cards[slug] = {...card, [`s${fromStar}`]: card[`s${fromStar}`]-3, [`s${fromStar+1}`]: (card[`s${fromStar+1}`]||0)+1};
   log[slug] = {...(log[slug]||{}), [`e${fromStar+1}`]: true};
+  // 합성 이벤트 로그(v2.45.164~) — 3×s{fromStar} → 1×s{toStar}. 재구성/검증·baseline 박제
+  const gachaLog = Array.isArray(data[sField('gachaLog')]) ? data[sField('gachaLog')].slice() : [];
+  gachaLog.push({ ts: Date.now(), op: 'merge', slug, fromStar, toStar: fromStar + 1 });
+  const needBase = data[sField('champCardsBaseline')] === undefined;
   try {
-    await update(ref(db, 'gold/' + key), { [sField('champCards')]: cards, [sField('champCardLog')]: log });
+    await update(ref(db, 'gold/' + key), { [sField('champCards')]: cards, [sField('champCardLog')]: log, [sField('gachaLog')]: gachaLog, ...(needBase ? { [sField('champCardsBaseline')]: data[sField('champCards')] || null } : {}) });
   } catch(e) {
     showGoldToast('❌ 합성 실패 — 다시 시도해주세요');
     return;
@@ -31221,16 +31289,23 @@ window.doGachaRecombine3 = async function() {
   const sur = slug => Math.max(0, (cards[slug]?.s3||0) - 1); // 잉여(중복) 3성 수
   if (GACHA_CHAMPS.reduce((s,c)=>s+sur(c.slug),0) < 2) { showGoldToast('남는 3성이 부족해요 (같은 카드 중복 2장 필요)'); return; }
   // 잉여 가장 많은 챔프부터 2장 소모 (마지막 1장은 보호)
+  const consumed = [];
   for (let i=0;i<2;i++){
     let best=null, bestSur=0;
     for (const c of GACHA_CHAMPS){ const s=sur(c.slug); if(s>bestSur){bestSur=s;best=c.slug;} }
     if (!best) { showGoldToast('남는 3성이 부족해요'); return; }
     cards[best].s3 -= 1;
+    consumed.push(best);
   }
+  // 재조합 이벤트 로그(v2.45.164~) — 소모 2장(consumed) + 결과. baseline 박제. 유미/일반 양 경로서 공용
+  const gachaLog = Array.isArray(data[sField('gachaLog')]) ? data[sField('gachaLog')].slice() : [];
+  const needBase = data[sField('champCardsBaseline')] === undefined;
+  const _baseUpd = needBase ? { [sField('champCardsBaseline')]: data[sField('champCards')] || null } : {};
   // 🐱 시크릿 유미 — 3성 재조합 시 8%(미보유 시). 소모한 카드는 저장하고 유미로 리빌
   if (!_ownsYuumi(data) && Math.random() < YUUMI_RECOMBINE_RATE) {
+    gachaLog.push({ ts: Date.now(), op: 'recombine3', consumed, yuumi: true });
     try {
-      await update(ref(db,'gold/'+key), { [sField('champCards')]: cards, [sField('secretYuumi')]: true });
+      await update(ref(db,'gold/'+key), { [sField('champCards')]: cards, [sField('secretYuumi')]: true, [sField('gachaLog')]: gachaLog, ..._baseUpd });
     } catch(e){ showGoldToast('❌ 재조합 실패 — 다시 시도해주세요'); return; }
     if (goldData[key]) goldData[key][sField('secretYuumi')] = true;
     if (typeof updateGachaNavBadge === 'function') updateGachaNavBadge();
@@ -31244,8 +31319,9 @@ window.doGachaRecombine3 = async function() {
   const prev = cards[result.slug] || {s1:0,s2:0,s3:0};
   cards[result.slug] = {...prev, s3:(prev.s3||0)+1};
   log[result.slug] = {...(log[result.slug]||{}), e3:true};
+  gachaLog.push({ ts: Date.now(), op: 'recombine3', consumed, got: result.slug });
   try {
-    await update(ref(db,'gold/'+key), { [sField('champCards')]: cards, [sField('champCardLog')]: log });
+    await update(ref(db,'gold/'+key), { [sField('champCards')]: cards, [sField('champCardLog')]: log, [sField('gachaLog')]: gachaLog, ..._baseUpd });
   } catch(e){ showGoldToast('❌ 재조합 실패 — 다시 시도해주세요'); return; }
   if (typeof updateGachaNavBadge === 'function') updateGachaNavBadge();
   showGachaReveal(result, 3); // 결과 리빌 (3성 연출)
