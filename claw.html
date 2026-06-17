@@ -57,7 +57,7 @@
   <span class="pill">집기품질 <b id="gq">—</b></span>
   <span class="pill">남은인형 <b id="cnt">—</b></span>
   <span class="pill">획득 <b id="won">0</b></span>
-  <span class="pill" style="opacity:.5">BUILD 45 · claw</span>
+  <span class="pill" style="opacity:.5">BUILD 46 · claw</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -95,7 +95,8 @@ const CLAW_SCALE    = 1.35;   // 집게 크기 배율(↑ 더 크게)
 const CLAW_TOP_Y    = 6.2;    // 집게 대기 높이
 const GANTRY_Y      = 6.7;    // 크레인 줄이 매달린 트롤리/레일 높이(유리 안). 줄이 위로 안 삐져나오게
 const CLAW_DROP_Y   = 1.15;   // 집게 내려가는 바닥 높이(더 아래까지 — 발끝이 인형 콜라이더에 닿게)
-const PRONG_REACH   = 0.95;   // 물리식: 인형 중심 위 이 높이까지 하강(↓ 더 깊이 내려가 발끝이 초록박스 감쌈)
+const PRONG_REACH   = 0.95;   // (근접식 잔여) 인형 중심 위 하강 높이
+const PRONG_SINK    = 0.45;   // 물리식: 집게발이 인형에 처음 닿은 뒤 추가로 더 박는 깊이(↑ 더 깊이)
 const LOWER_SPD     = 4.2;    // 내리기 속도(빠르게 = 더미에 박는 임팩트)
 const RAISE_SPD     = 3.2;    // 올리기 속도
 const RETURN_SPD    = 1.6;    // 출구 복귀 속도(직선·천천히)
@@ -365,7 +366,7 @@ function resetPrizes(){
   for(const p of prizes){ world.removeBody(p.body); scene.remove(p.mesh); if(p.dbg) scene.remove(p.dbg); if(p.dbgGrab) scene.remove(p.dbgGrab); }
   prizes.length = 0;
   for(let i=0;i<PRIZE_COUNT;i++) makePrize(i);
-  state='READY'; held=null; grabConstraint=null; _grabbing=null; _collectTouch=false; _prongTouch.clear(); wonCount=0; updHud(); document.getElementById('won').textContent='0';
+  state='READY'; held=null; grabConstraint=null; _grabbing=null; _collectTouch=false; _lowerContactY=null; _prongTouch.clear(); wonCount=0; updHud(); document.getElementById('won').textContent='0';
 }
 
 // ══════════ 집게 ══════════
@@ -416,7 +417,8 @@ for(let k=0;k<3;k++){
   });
   world.addBody(pb); prongBodies.push(pb);
 }
-let _collectTouch = false;          // CLOSING 동안만 접촉 수집
+let _collectTouch = false;          // 하강·CLOSING 동안 접촉 수집
+let _lowerContactY = null;          // 하강 중 집게발이 인형에 처음 닿은 높이
 const _prongTouch = new Map();      // prize → 닿은 집게발 인덱스 Set
 // 🟦 집게발 물리 반응 박스(파랑) — 디버그. 인형을 실제로 밀치는 충돌 범위
 const prongDbg = [];
@@ -578,22 +580,25 @@ function loop(now){
   } else if(state==='LOWERING'){
     setFingerOpen(1);                                     // 내려갈 땐 활짝 열림
     clawPos.y -= LOWER_SPD*dt; clawSpin += SPIN_SPD*dt;   // 회전하며 하강
-    // 가장 가까운 인형의 윗부분에 닿으면 그 높이에서 멈춰 집기 — 바닥까지 안 내려감(2층 인형도 잡힘)
-    let best=null,bestD=1e9;
-    for(const p of prizes){ if(p.won)continue; const ddx=p.body.position.x-clawPos.x,ddz=p.body.position.z-clawPos.z; const d=Math.hypot(ddx,ddz); if(d<bestD){bestD=d;best=p;} }
-    let stopY = CLAW_DROP_Y;                              // 밑에 인형 없으면 바닥까지
     if(GRAB_PHYSICAL){
-      // 물리식: 발끝이 인형 콜라이더(초록)에 닿을 만큼 깊이 하강(가장 가까운 인형 위)
-      if(best && bestD <= 0.95) stopY = Math.max(CLAW_DROP_Y, best.body.position.y + PRONG_REACH);
-    } else if(best && bestD<=GRAB_RADIUS){
-      stopY = Math.min(CLAW_TOP_Y-0.2, best.body.position.y + (best.vtop||1)*0.48);  // 근접식: 인형 몸통 속까지
-    }
-    if(clawPos.y<=stopY){ clawPos.y=stopY; state='CLOSING'; closeTimer=0;
-      if(GRAB_PHYSICAL){
-        _prongTouch.clear(); _collectTouch = true; _grabbing = null;   // 닫히는 집게발이 실제로 닿는 인형을 수집(밀침 허용)
-      } else {
+      // 🤝 물리식: 집게발(파랑)이 인형(초록)에 닿으면 거기서부터 살짝 더 박고 멈춤.
+      //    아무것도 안 닿으면 바닥(CLAW_DROP_Y)까지 최대로 하강. 2층 인형은 더 높은 데서 닿아 거기서 잡음.
+      if(!_collectTouch){ _collectTouch=true; _prongTouch.clear(); _lowerContactY=null; }   // 하강 시작 = 접촉 수집 ON
+      if(_prongTouch.size>0 && _lowerContactY===null) _lowerContactY = clawPos.y;            // 첫 접촉 높이 기록
+      const sankEnough = _lowerContactY!==null && clawPos.y <= _lowerContactY - PRONG_SINK;  // 접촉 후 조금 더 박음
+      if(sankEnough || clawPos.y<=CLAW_DROP_Y){
+        clawPos.y = Math.max(clawPos.y, CLAW_DROP_Y);    // 바닥 아래로는 안 감
+        state='CLOSING'; closeTimer=0; _grabbing=null;   // _collectTouch 유지 → 닫으며 닿는 발 계속 누적
+      }
+    } else {
+      // 근접식: 가장 가까운 인형 위에서 멈춤
+      let best=null,bestD=1e9;
+      for(const p of prizes){ if(p.won)continue; const ddx=p.body.position.x-clawPos.x,ddz=p.body.position.z-clawPos.z; const d=Math.hypot(ddx,ddz); if(d<bestD){bestD=d;best=p;} }
+      let stopY = CLAW_DROP_Y;
+      if(best && bestD<=GRAB_RADIUS) stopY = Math.min(CLAW_TOP_Y-0.2, best.body.position.y + (best.vtop||1)*0.48);
+      if(clawPos.y<=stopY){ clawPos.y=stopY; state='CLOSING'; closeTimer=0;
         _grabbing = (best && bestD<=GRAB_RADIUS) ? best : null;
-        if(_grabbing) setProngIgnore(_grabbing, true);   // 근접식: 닫히는 집게발이 잡을 인형은 안 밀치게(끼임·튕김 방지)
+        if(_grabbing) setProngIgnore(_grabbing, true);
       }
     }
   } else if(state==='CLOSING'){
