@@ -93,14 +93,14 @@ scene.background = new THREE.Color(0x0c0c16);
 scene.fog = new THREE.Fog(0x0c0c16, 55, 120);   // 안개 멀리 — 내부가 안개로 어둡던 문제 해결
 const camera = new THREE.PerspectiveCamera(46, innerWidth/innerHeight, 0.1, 100);
 // 📷 화면 비율에 맞춰 기계 전체가 여백 두고 보이게 — 모바일(세로)에서 화면 안 가리게 충분히 뒤로
-const _camTarget = new THREE.Vector3(0, 2.0, 0);
+const _camTarget = new THREE.Vector3(0, 2.2, 0);
 const _camDir = new THREE.Vector3(0, 0.33, 1).normalize();   // 살짝 위에서·거의 정면
 function placeCamera(){
   const aspect = innerWidth/innerHeight;
   camera.aspect = aspect;
   const vFov = camera.fov * Math.PI/180;
   const hFov = 2*Math.atan(Math.tan(vFov/2)*aspect);
-  const fitW = 10.5, fitH = 18;                              // 담을 가로/세로(올린 천장·헤더까지+여백). 세로화면이면 가로폭이 거리를 키워 더 작게 보임
+  const fitW = 10.5, fitH = 18.8;                            // 담을 가로/세로(올린 천장·헤더까지+여백). 세로화면이면 가로폭이 거리를 키워 더 작게 보임
   const dist = Math.max((fitW/2)/Math.tan(hFov/2), (fitH/2)/Math.tan(vFov/2));
   camera.position.copy(_camTarget).addScaledVector(_camDir, dist);
   camera.lookAt(_camTarget);
@@ -193,7 +193,7 @@ function makeBadge(text, bg, fg){
 }
 // ── 🪟 유리 박스(헥스텍 골드 프레임 + 네온 트림) ──
 (function buildCabinet(){
-  const CW = BIN.x+0.55, CH = 8.0, CD = BIN.z+0.55;   // 천장 살짝 ↑(7.2→8.0). 집게·레일은 그대로
+  const CW = BIN.x+0.55, CH = 8.4, CD = BIN.z+0.55;   // 천장 ↑(→8.4). 집게·레일은 그대로
   const glass = new THREE.MeshPhysicalMaterial({color:0xcfeaff, transparent:true, opacity:0.05, roughness:0.0, metalness:0, side:THREE.DoubleSide, depthWrite:false, clearcoat:1, clearcoatRoughness:0});
   const panel=(w,h,d,x,y,z)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),glass); m.position.set(x,y,z); scene.add(m); };
   panel(CW*2, CH, 0.04,  0, CH/2,  CD); panel(CW*2, CH, 0.04,  0, CH/2, -CD);
@@ -214,7 +214,7 @@ function makeBadge(text, bg, fg){
 
 // 🏆 하부 본체 + 헤더 — 헥스텍 블랙+골드(증강 칼바람 아수라장 테마). 코인/카드/조이스틱/경품도어/타이틀/마퀴/스티커
 (function buildMachine(){
-  const CW=BIN.x+0.55, CD=BIN.z+0.55, CH=8.0;     // 유리부와 동일 footprint(천장 7.2→8.0)
+  const CW=BIN.x+0.55, CD=BIN.z+0.55, CH=8.4;     // 유리부와 동일 footprint(천장 →8.4)
   const W=CW*2+0.5, D=CD*2+0.5;
   const black = new THREE.MeshStandardMaterial({color:0x16141d, roughness:0.5, metalness:0.45});
   const blackD= new THREE.MeshStandardMaterial({color:0x0d0b13, roughness:0.55, metalness:0.35});
@@ -294,6 +294,7 @@ function makePrize(i){
   // 🟩 물리 콜라이더 = 작고 낮은 박스(몸통 하부)뿐 — 인형끼리 빽빽 겹치게. 집기는 근접판정(GRAB_RADIUS)이라 별개
   const chx = proto ? proto.cox : 0.34, chy = proto ? proto.coy : 0.45, chz = proto ? proto.coz : 0.34;
   const body = new CANNON.Body({ mass: 3.0, material: mPrize, allowSleep:true, sleepSpeedLimit:0.3, sleepTimeLimit:0.4 });
+  body.collisionFilterGroup = 2;   // 인형 그룹 — 집게/prong(mask -3)은 이 그룹과 충돌 안 함(끼임 방지). 바닥·벽·인형끼리는 정상
   body.addShape(new CANNON.Box(new CANNON.Vec3(chx, chy, chz)));
   // 4×4 격자 배치 — 겹쳐 스폰돼 폭발·통 밖으로 튕기던 버그 방지(바닥에 빽빽). 콜라이더가 작아 시각은 서로 겹침
   const COLS = Math.ceil(Math.sqrt(PRIZE_COUNT)), ROWS = Math.ceil(PRIZE_COUNT/COLS);
@@ -323,6 +324,7 @@ function resetPrizes(){
 // ══════════ 집게 ══════════
 const clawBody = new CANNON.Body({ mass:0, type:CANNON.Body.KINEMATIC, material:mClaw,
   shape:new CANNON.Box(new CANNON.Vec3(0.35,0.35,0.35)) });
+clawBody.collisionFilterMask = -3;   // 인형(그룹2)과 물리충돌 안 함 — 잡기는 LockConstraint로(케이지 끼임 방지)
 clawBody.position.set(0, CLAW_TOP_Y, 0); world.addBody(clawBody);
 
 const clawGroup = new THREE.Group(); scene.add(clawGroup);
@@ -358,6 +360,7 @@ for(let k=0;k<3;k++){
 const prongBodies = [], _tmpV = new THREE.Vector3(), _tmpQ = new THREE.Quaternion();
 for(let k=0;k<3;k++){
   const pb = new CANNON.Body({ mass:0, type:CANNON.Body.KINEMATIC, material:mClaw, shape:new CANNON.Box(new CANNON.Vec3(0.1,0.26,0.12)) });
+  pb.collisionFilterMask = -3;   // 인형(그룹2)과 물리충돌 안 함 — 집게발 케이지에 인형이 끼어 빨려올라가던 버그 방지
   world.addBody(pb); prongBodies.push(pb);
 }
 function setFingerOpen(t){ // t: 0(닫힘)~1(열림) — 열림=바깥으로 활짝, 닫힘=tips 모임
