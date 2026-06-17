@@ -191,6 +191,14 @@ function makeBadge(text, bg, fg){
   x.fillStyle=fg; x.textAlign='center'; x.textBaseline='middle'; x.font='900 86px "Noto Sans KR",sans-serif'; x.fillText(text,w/2,h/2+4);
   const t=new THREE.CanvasTexture(c); t.anisotropy=8; return t;
 }
+// 원형 엠블럼(포로·눈송이 등) — 큰 이모지 + 링
+function makeEmblem(emoji, bg, ring){
+  const s=256, c=document.createElement('canvas'); c.width=c.height=s; const x=c.getContext('2d');
+  x.fillStyle=bg; x.beginPath(); x.arc(s/2,s/2,s/2-6,0,7); x.fill();
+  x.lineWidth=14; x.strokeStyle=ring; x.beginPath(); x.arc(s/2,s/2,s/2-12,0,7); x.stroke();
+  x.textAlign='center'; x.textBaseline='middle'; x.font='150px "Noto Sans KR",sans-serif'; x.fillText(emoji,s/2,s/2+10);
+  const t=new THREE.CanvasTexture(c); t.anisotropy=8; return t;
+}
 // ── 🪟 유리 박스(헥스텍 골드 프레임 + 네온 트림) ──
 (function buildCabinet(){
   const CW = BIN.x+0.55, CH = 8.4, CD = BIN.z+0.55;   // 천장 ↑(→8.4). 집게·레일은 그대로
@@ -259,9 +267,22 @@ function makeBadge(text, bg, fg){
   }
   // 💠 스티커(칼바람/증강 테마 배지) — 본체 앞면
   const sticker=(tex,w,h,x,y,z)=>{ const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h), new THREE.MeshBasicMaterial({map:tex,transparent:true})); m.position.set(x,y,z); scene.add(m); };
-  sticker(makeBadge('⚔️ 칼바람','#0b0b12','#ffd24a'), 1.9,0.68, -W/2+1.25, -1.7, D/2+0.07);
-  sticker(makeBadge('✨ 증강','#0b0b12','#39d6c8'), 1.5,0.68, W/2-1.6, -3.7, D/2+0.07);
-  sticker(makeBadge('🏆 아수라장','#0b0b12','#ffd24a'), 2.2,0.68, 0, -5.7, D/2+0.07);
+  const round=(tex,d,x,y,z,ry)=>{ const m=new THREE.Mesh(new THREE.CircleGeometry(d/2,32), new THREE.MeshBasicMaterial({map:tex,transparent:true})); m.position.set(x,y,z); if(ry)m.rotation.y=ry; scene.add(m); };
+  sticker(makeBadge('⚔️ 칼바람','#0b0b12','#ffd24a'), 1.9,0.62, -W/2+1.25, -1.7, D/2+0.07);
+  sticker(makeBadge('✨ 증강','#0b0b12','#39d6c8'), 1.5,0.62, W/2-1.5, -1.7, D/2+0.07);
+  sticker(makeBadge('❄️ 칼바람 나락','#0b1018','#7fd5ff'), 2.5,0.6, 0, -2.6, D/2+0.07);   // ARAM 맵
+  sticker(makeBadge('무작위 총력전','#0b0b12','#ffd24a'), 2.0,0.54, -W/2+1.5, -3.75, D/2+0.07);
+  sticker(makeBadge('5:5 난투','#0b0b12','#39d6c8'), 1.5,0.54, W/2-1.4, -3.75, D/2+0.07);
+  sticker(makeBadge('🏆 아수라장','#0b0b12','#ffd24a'), 2.2,0.6, 0, -5.7, D/2+0.07);
+  // 🐾 포로·눈송이 원형 엠블럼(ARAM 마스코트/서리 톤)
+  round(makeEmblem('🐾','#0e1726','#9fe0ff'), 0.92, -W/2+0.75, -5.0, D/2+0.07);
+  round(makeEmblem('❄️','#0e1726','#9fe0ff'), 0.72, W/2-0.7, -5.2, D/2+0.07);
+  round(makeEmblem('🐹','#1a1206','#ffd24a'), 0.78, W/2-0.8, -2.55, D/2+0.07);   // 티모(경품)
+  // ❄️ 서리 눈송이 데칼 — 유리 옆면/본체에 흩뿌려 ARAM 분위기
+  const flake=(x,y,z,sz,ry)=>{ const m=new THREE.Mesh(new THREE.PlaneGeometry(sz,sz), new THREE.MeshBasicMaterial({map:makeLabelTexture('❄',{w:128,h:128,font:'96px "Noto Sans KR",sans-serif',fg:'#bfeaff',stroke:'#bfeaff',shadow:'#7fd5ff'}),transparent:true})); m.position.set(x,y,z); if(ry)m.rotation.y=ry; scene.add(m); };
+  flake(-CW-0.03, 5.2, -1.0, 0.5, Math.PI/2); flake(-CW-0.03, 3.2, 1.2, 0.4, Math.PI/2);   // 좌측 유리
+  flake( CW+0.03, 4.6, 0.6, 0.5, -Math.PI/2);  flake( CW+0.03, 2.6, -1.4, 0.4, -Math.PI/2); // 우측 유리
+  flake(-2.0, 6.4, CD+0.03, 0.45, 0); flake(2.2, 6.0, CD+0.03, 0.4, 0);                       // 앞면 상단
   for(const sx of [-1,1]) for(const sz of [-1,1]) M(new THREE.CylinderGeometry(0.22,0.22,0.5,10), goldM, sx*(W/2-0.5), bBot-0.25, sz*(D/2-0.5)); // 다리
 })();
 
@@ -588,7 +609,7 @@ for(const pf of PRIZE_FILES){
     // 🟩 물리 콜라이더 = 작고 낮은 박스(몸통 하부). 작을수록 인형끼리 더 빽빽이 겹침. 집기는 근접판정이라 무관
     const cox = Math.max(0.26, core.hx*s*0.72);                     // 가로 (팔 제외 몸통의 72%) — 좁게 = 가로 빽빽
     const coz = Math.max(0.28, core.hz*s*0.60);                     // 깊이
-    const coy = size.y*s*0.13;                                      // 더 낮게(키의 26%) — 초록 박스 작게. 똑바로 고정이라 짧아도 안 뜸
+    const coy = size.y*s*0.17;                                      // 살짝 길쭉(키의 34%). 똑바로 고정이라 안 뜸
     const yshift = (size.y*s/2) - coy;                             // 발이 콜라이더 바닥에 닿도록 시각을 올림
     prizeProtos.push({ static:baked, s, cx:ctr.x, cy:ctr.y, cz:ctr.z, cox, coy, coz, yshift, vh:size.y*s });  // vh=시각 키(집게 멈춤 기준)
     resetPrizes();
