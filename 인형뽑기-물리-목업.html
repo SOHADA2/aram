@@ -295,6 +295,7 @@ function makePrize(i){
   const chx = proto ? proto.cox : 0.34, chy = proto ? proto.coy : 0.45, chz = proto ? proto.coz : 0.34;
   const body = new CANNON.Body({ mass: 3.0, material: mPrize, allowSleep:true, sleepSpeedLimit:0.3, sleepTimeLimit:0.4 });
   body.collisionFilterGroup = 2;   // 인형 그룹 — 집게/prong(mask -3)은 이 그룹과 충돌 안 함(끼임 방지). 바닥·벽·인형끼리는 정상
+  body.angularFactor.set(0,1,0);   // 안 쓰러지게(Y회전만) — 짧은 콜라이더로도 시각이 안 뜸
   body.addShape(new CANNON.Box(new CANNON.Vec3(chx, chy, chz)));
   // 4×4 격자 배치 — 겹쳐 스폰돼 폭발·통 밖으로 튕기던 버그 방지(바닥에 빽빽). 콜라이더가 작아 시각은 서로 겹침
   const COLS = Math.ceil(Math.sqrt(PRIZE_COUNT)), ROWS = Math.ceil(PRIZE_COUNT/COLS);
@@ -305,7 +306,7 @@ function makePrize(i){
   let pz = -usable/2 + (gz+0.5)*cellZ + (Math.random()-0.5)*cellZ*0.2;
   if(px < HOME.x+HOLE_R+0.35 && pz > HOME.z-HOLE_R-0.35) pz -= cellZ;  // 골인 구멍 코너 비우기
   body.position.set(px, chy + 0.04, pz);                              // 한 층(거의 안 겹침 → 폭발 0)
-  const q=new CANNON.Quaternion(); q.setFromEuler((Math.random()-0.5)*0.16, Math.random()*6.283, (Math.random()-0.5)*0.16); body.quaternion.copy(q);  // 거의 똑바로(살짝만 기울임 — 안 쓰러지게)
+  const q=new CANNON.Quaternion(); q.setFromEuler(0, Math.random()*6.283, 0); body.quaternion.copy(q);  // 똑바로(Y회전만, 방향만 랜덤)
   body.angularDamping = 0.7; body.linearDamping = 0.12;   // 묵직·푹신
   world.addBody(body);
   const grp = proto ? buildPrizeVisual(proto) : buildBlobVisual(c);
@@ -314,10 +315,10 @@ function makePrize(i){
   if(DEBUG_COLLIDER){
     // 🟩 초록 = 인형끼리 부딪히는 물리 충돌 박스(인형 따라 회전)
     dbg=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(chx*2, chy*2, chz*2)), new THREE.LineBasicMaterial({color:0x00ff88})); scene.add(dbg);
-    // 🟥 빨강 = 집게 잡기 반응 범위(중심에서 GRAB_RADIUS 안에 집게가 오면 잡힘) — 수평 반경이라 회전 없음
-    dbgGrab=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(GRAB_RADIUS*2, chy*2, GRAB_RADIUS*2)), new THREE.LineBasicMaterial({color:0xff3344})); scene.add(dbgGrab);
+    // 🟥 빨강 = 집게 잡기 반응 범위(중심에서 GRAB_RADIUS 안에 집게가 오면 잡힘) — 수평 반경이라 회전 없음. 항상 위에 그려 잘 보이게(depthTest 끔)
+    dbgGrab=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(GRAB_RADIUS*2, chy*2, GRAB_RADIUS*2)), new THREE.LineBasicMaterial({color:0xff2d4a, depthTest:false, transparent:true})); dbgGrab.renderOrder=999; scene.add(dbgGrab);
   }
-  prizes.push({ body, mesh:grp, dbg, dbgGrab, won:false, coy: chy });   // coy=콜라이더 반높이(닿으면 멈춤 판정용)
+  prizes.push({ body, mesh:grp, dbg, dbgGrab, won:false, coy: chy, vtop:(proto?proto.vh:1.2)-chy });   // vtop=몸통중심→머리 높이(집게 멈춤 기준)
 }
 function resetPrizes(){
   for(const p of prizes){ world.removeBody(p.body); scene.remove(p.mesh); if(p.dbg) scene.remove(p.dbg); if(p.dbgGrab) scene.remove(p.dbgGrab); }
@@ -467,7 +468,7 @@ function loop(now){
     let best=null,bestD=1e9;
     for(const p of prizes){ if(p.won)continue; const ddx=p.body.position.x-clawPos.x,ddz=p.body.position.z-clawPos.z; const d=Math.hypot(ddx,ddz); if(d<bestD){bestD=d;best=p;} }
     let stopY = CLAW_DROP_Y;                              // 밑에 인형 없으면 바닥까지
-    if(best && bestD<=GRAB_RADIUS) stopY = Math.min(CLAW_TOP_Y-0.2, best.body.position.y + (best.coy||0.5)*0.5 + 0.2);  // 인형 몸통 중상부에서 멈춤
+    if(best && bestD<=GRAB_RADIUS) stopY = Math.min(CLAW_TOP_Y-0.2, best.body.position.y + (best.vtop||1)*0.7);  // 인형 시각 머리 근처에서 멈춤(낮은 콜라이더 무시)
     if(clawPos.y<=stopY){ clawPos.y=stopY; state='CLOSING'; closeTimer=0; }
   } else if(state==='CLOSING'){
     closeTimer+=dt; setFingerOpen(Math.max(0,1-closeTimer/0.45));
@@ -587,9 +588,9 @@ for(const pf of PRIZE_FILES){
     // 🟩 물리 콜라이더 = 작고 낮은 박스(몸통 하부). 작을수록 인형끼리 더 빽빽이 겹침. 집기는 근접판정이라 무관
     const cox = Math.max(0.26, core.hx*s*0.72);                     // 가로 (팔 제외 몸통의 72%) — 좁게 = 가로 빽빽
     const coz = Math.max(0.28, core.hz*s*0.60);                     // 깊이
-    const coy = size.y*s*0.46;                                      // 키의 92%(몸통 전체) — 콜라이더가 시각과 정렬돼 기울어도 안 뜸
+    const coy = size.y*s*0.22;                                      // 낮게(키의 44%) — 박스 짧게. 똑바로 고정이라 짧아도 안 뜸
     const yshift = (size.y*s/2) - coy;                             // 발이 콜라이더 바닥에 닿도록 시각을 올림
-    prizeProtos.push({ static:baked, s, cx:ctr.x, cy:ctr.y, cz:ctr.z, cox, coy, coz, yshift });
+    prizeProtos.push({ static:baked, s, cx:ctr.x, cy:ctr.y, cz:ctr.z, cox, coy, coz, yshift, vh:size.y*s });  // vh=시각 키(집게 멈춤 기준)
     resetPrizes();
     console.log('✅ size', size.toArray().map(v=>+v.toFixed(1)), 'collider', [cox,coy,coz].map(v=>+v.toFixed(2)), 'yshift', yshift.toFixed(2), 's', s.toFixed(4));
   }, undefined, err => { console.warn(pf.file+' 로드 실패', err); });
