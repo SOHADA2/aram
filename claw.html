@@ -57,7 +57,7 @@
   <span class="pill">집기품질 <b id="gq">—</b></span>
   <span class="pill">남은인형 <b id="cnt">—</b></span>
   <span class="pill">획득 <b id="won">0</b></span>
-  <span class="pill" style="opacity:.5">BUILD 42 · claw</span>
+  <span class="pill" style="opacity:.5">BUILD 43 · claw</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -406,6 +406,14 @@ for(let k=0;k<3;k++){
   pb.collisionFilterGroup = 4; pb.collisionFilterMask = 2;   // 집게발=그룹4, 인형(그룹2)만 밀침. 잡는 인형은 grab 시 그룹4 제외(끼임 방지)
   world.addBody(pb); prongBodies.push(pb);
 }
+// 🟦 집게발 물리 반응 박스(파랑) — 디버그. 인형을 실제로 밀치는 충돌 범위
+const prongDbg = [];
+if(DEBUG_GRAB){
+  for(let k=0;k<3;k++){
+    const d = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.36,0.8,0.44)), new THREE.LineBasicMaterial({color:0x39b6ff, depthTest:false, transparent:true}));
+    d.renderOrder=999; scene.add(d); prongDbg.push(d);
+  }
+}
 function setFingerOpen(t){ // t: 0(닫힘)~1(열림) — 열림=바깥으로 활짝, 닫힘=tips 모임
   for(const f of fingers){ f.rotation.x = 0.5 - t*0.85; }
 }
@@ -593,6 +601,7 @@ function loop(now){
     prongTips[k].getWorldPosition(_tmpV); prongTips[k].getWorldQuaternion(_tmpQ);
     prongBodies[k].position.set(_tmpV.x, _tmpV.y, _tmpV.z);
     prongBodies[k].quaternion.set(_tmpQ.x, _tmpQ.y, _tmpQ.z, _tmpQ.w);
+    if(prongDbg[k]){ prongDbg[k].position.copy(_tmpV); prongDbg[k].quaternion.copy(_tmpQ); }
   }
 
   world.step(1/60, dt, 3);
