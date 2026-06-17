@@ -57,7 +57,7 @@
   <span class="pill">집기품질 <b id="gq">—</b></span>
   <span class="pill">남은인형 <b id="cnt">—</b></span>
   <span class="pill">획득 <b id="won">0</b></span>
-  <span class="pill" style="opacity:.5">BUILD 40 · claw</span>
+  <span class="pill" style="opacity:.5">BUILD 41 · claw</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -419,6 +419,37 @@ let held=null, grabConstraint=null, grabQ=0, _grabbing=null;
 let wonCount=0;
 const clawPos = new THREE.Vector3(HOME.x, CLAW_TOP_Y, HOME.z);   // 입구(왼쪽·카메라쪽)에서 시작
 
+// 🎉 컨페티(폭죽) — 골인 성공 시 뒤편(통 뒤쪽 z-)에서 앞으로 뻥! 터뜨림
+const confetti = [];   // {mesh, vx,vy,vz, life}
+const _confColors = [0xffd24a,0xff5a5a,0x4ad7ff,0x6cff8a,0xff7adf,0xfff0a0,0xffffff];
+const _confGeo = new THREE.PlaneGeometry(0.14, 0.22);
+function fireConfetti(){
+  // 뒤·위에서 카메라 쪽(+z)·위로 부채꼴 분사
+  const ox = (Math.random()-0.5)*1.6, oy = 5.6, oz = -(BIN.z+WALL)+0.3;
+  for(let i=0;i<46;i++){
+    const m = new THREE.Mesh(_confGeo, new THREE.MeshBasicMaterial({ color:_confColors[(Math.random()*_confColors.length)|0], side:THREE.DoubleSide }));
+    m.position.set(ox+(Math.random()-0.5)*0.8, oy+(Math.random()-0.5)*0.6, oz);
+    m.rotation.set(Math.random()*6.28, Math.random()*6.28, Math.random()*6.28);
+    scene.add(m);
+    const ang = (Math.random()-0.5)*1.1;             // 좌우 퍼짐
+    const up  = 3.2 + Math.random()*3.0;             // 위로 솟구침
+    const fwd = 2.6 + Math.random()*3.4;             // 앞으로(+z, 카메라 쪽)
+    confetti.push({ mesh:m, vx:Math.sin(ang)*fwd*0.5, vy:up, vz:fwd,
+      rvx:(Math.random()-0.5)*10, rvy:(Math.random()-0.5)*10, life:1.6+Math.random()*0.7 });
+  }
+}
+function stepConfetti(dt){
+  for(let i=confetti.length-1;i>=0;i--){
+    const c = confetti[i];
+    c.vy -= 9.0*dt;                                  // 중력
+    c.mesh.position.x += c.vx*dt; c.mesh.position.y += c.vy*dt; c.mesh.position.z += c.vz*dt;
+    c.mesh.rotation.x += c.rvx*dt; c.mesh.rotation.y += c.rvy*dt;
+    c.life -= dt;
+    if(c.life < 0.5){ c.mesh.material.opacity = Math.max(0, c.life/0.5); c.mesh.material.transparent = true; }
+    if(c.life <= 0 || c.mesh.position.y < -2){ scene.remove(c.mesh); c.mesh.material.dispose(); confetti.splice(i,1); }
+  }
+}
+
 // 집게발(그룹4) 충돌 무시 토글 — 잡는/잡은 인형은 케이지에 안 끼게 prong 제외, 바닥·벽·다른 인형은 그대로
 function setProngIgnore(p, ig){ if(p && p.body) p.body.collisionFilterMask = ig ? -5 : -1; }
 function tryGrab(){
@@ -581,13 +612,21 @@ function loop(now){
     if(p.dbg){ p.dbg.position.copy(P); p.dbg.quaternion.copy(b.quaternion); }
     if(p.dbgGrab){ p.dbgGrab.position.copy(P); }   // 빨강(잡기범위)은 회전 없이 위치만(수평 반경)
   }
-  // 🎯 골인 판정 — 구멍(앞·좌 코너) 안으로 떨어진 인형 = 획득
+  // 🎯 골인 판정 — 구멍(앞·좌 코너) 안으로 떨어진 인형 = 획득 → 즉시 회수(쌓이지 않게)
   for(const p of prizes){
     if(p.won) continue; const b=p.body.position;
     if(b.y < -0.5 && Math.abs(b.x-HOME.x) < HOLE_R+0.25 && Math.abs(b.z-HOME.z) < HOLE_R+0.25){
       p.won=true; wonCount++; document.getElementById('won').textContent=wonCount; showResult('🎉 골인!','#ffd24a');
+      fireConfetti();                                  // 🎉 뒤편 폭죽
+      // 회수: 입구에 쌓이지 않게 인형 제거(획득=데이터로 기록될 대상). 물리/시각/디버그박스 모두 정리
+      world.removeBody(p.body);
+      scene.remove(p.mesh);
+      if(p.dbg) scene.remove(p.dbg);
+      if(p.dbgGrab) scene.remove(p.dbgGrab);
+      p.collected = true;
     }
   }
+  stepConfetti(dt);                                                // 🎉 폭죽 갱신
   for(let i=0;i<marqueeBulbs.length;i++){ marqueeBulbs[i].material.emissiveIntensity = 0.35 + 0.85*(0.5+0.5*Math.sin(now*0.005 + i*0.6)); } // ✨ 마퀴 깜빡임
   updHud();
   renderer.render(scene,camera);
