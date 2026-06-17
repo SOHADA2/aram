@@ -57,7 +57,7 @@
   <span class="pill">집기품질 <b id="gq">—</b></span>
   <span class="pill">남은인형 <b id="cnt">—</b></span>
   <span class="pill">획득 <b id="won">0</b></span>
-  <span class="pill" style="opacity:.5">BUILD 46 · claw</span>
+  <span class="pill" style="opacity:.5">BUILD 47 · claw</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -88,7 +88,7 @@ const PRIZE_COUNT   = 16;     // 통 안 인형 수 (8→16, 두 배)
 const DEBUG_COLLIDER= true;   // 🟩 초록=인형 물리 충돌 박스(집게발이 실제로 미는 곳) — 디버그
 const DEBUG_GRAB    = true;   // 🟥 빨강=집게 잡기 반응 범위(GRAB_RADIUS) — 디버그
 const GRAB_PHYSICAL = true;   // ⚙️ true=물리 접촉식(집게발 파랑이 인형 초록에 실제로 닿아야 집힘) · false=근접식(빨강 반경)
-const GRAB_RADIUS   = 0.42;   // 집게 중심에서 이 반경 안 인형 집힘(좁게 = 빨강 박스 작게·정확히 조준해야 집힘)
+const GRAB_RADIUS   = 0.58;   // 빨강 박스(잡기/충돌 반경) 크기 기준. ↑ 충돌·잡기 잘됨
 const GRAB_MIN_Q    = 0.12;   // 이 품질 미만이면 헛집음(낮춰서 웬만하면 잡힘)
 const MAX_SLIP_RATE = 0.5;    // 품질 0일 때 초당 슬립확률(낮춰서 잘 안 놓침)
 const CLAW_SCALE    = 1.35;   // 집게 크기 배율(↑ 더 크게)
@@ -474,16 +474,21 @@ function stepConfetti(dt){
 
 // 집게발(그룹4) 충돌 무시 토글 — 잡는/잡은 인형은 케이지에 안 끼게 prong 제외, 바닥·벽·다른 인형은 그대로
 function setProngIgnore(p, ig){ if(p && p.body) p.body.collisionFilterMask = ig ? -5 : -1; }
+function mostTouchedPrize(){   // 집게발이 가장 많이 닿은 인형
+  let t=null,n=0; for(const [pr,set] of _prongTouch){ if(!pr.won && set.size>n){ n=set.size; t=pr; } } return {prize:t, n};
+}
 function tryGrab(){
   if(GRAB_PHYSICAL){
     _collectTouch = false;
-    // 닫히는 동안 집게발(파랑)이 실제로 닿은 인형 중, 가장 많은 발이 닿은 1개를 집음
-    let target=null, bestN=0;
-    for(const [pr,set] of _prongTouch){ if(!pr.won && set.size>bestN){ bestN=set.size; target=pr; } }
+    // 하강·닫힘 동안 닿은 인형(가장 많이 닿은 것) = 집을 대상. _grabbing이 이미 정해졌으면 그걸 우선
+    let target = (_grabbing && !_grabbing.won) ? _grabbing : null;
+    const {prize, n} = mostTouchedPrize();
+    if(!target) target = prize;
+    const cnt = target ? (_prongTouch.get(target)?.size || 0) : 0;
     _prongTouch.clear();
-    if(!target || bestN<1){ grabQ=0; _grabbing=null; return; }   // 아무 발도 안 닿음 → 헛집음
-    // 닿은 발 수가 많을수록 단단히 잡힘(1발=헐겁게 잘 미끄러짐 / 3발=꽉)
-    grabQ = Math.max(0, Math.min(1, bestN/3 * (0.8+0.2*Math.random())));
+    if(!target){ grabQ=0; _grabbing=null; return; }              // 아무 발도 안 닿음 → 헛집음
+    // 닿은 발 수가 많을수록 단단(기본 넉넉히 — 닿기만 하면 웬만큼 잡힘, 발 적으면 잘 미끄러짐)
+    grabQ = Math.max(0, Math.min(1, 0.4 + (cnt/3)*0.6*(0.85+0.15*Math.random())));
     if(grabQ < GRAB_MIN_Q){ grabQ=0; _grabbing=null; return; }
     setProngIgnore(target, true);
     grabConstraint = new CANNON.LockConstraint(clawBody, target.body);
@@ -588,7 +593,11 @@ function loop(now){
       const sankEnough = _lowerContactY!==null && clawPos.y <= _lowerContactY - PRONG_SINK;  // 접촉 후 조금 더 박음
       if(sankEnough || clawPos.y<=CLAW_DROP_Y){
         clawPos.y = Math.max(clawPos.y, CLAW_DROP_Y);    // 바닥 아래로는 안 감
-        state='CLOSING'; closeTimer=0; _grabbing=null;   // _collectTouch 유지 → 닫으며 닿는 발 계속 누적
+        state='CLOSING'; closeTimer=0;
+        const {prize} = mostTouchedPrize();              // 하강 중 닿은 인형을 잡기 대상으로
+        _grabbing = prize || null;
+        if(_grabbing) setProngIgnore(_grabbing, true);   // 닫을 때 대상은 안 밀쳐 튕겨나가지 않게(다른 인형은 계속 밀침)
+        // _collectTouch 유지 → 닫으며 닿는 발 계속 누적(품질 산정)
       }
     } else {
       // 근접식: 가장 가까운 인형 위에서 멈춤
@@ -603,6 +612,10 @@ function loop(now){
     }
   } else if(state==='CLOSING'){
     closeTimer+=dt; setFingerOpen(Math.max(0,1-closeTimer/0.45));
+    if(GRAB_PHYSICAL && !_grabbing){                      // 닫는 중 새로 닿은 인형이 생기면 대상 확정·보호(튕김 방지)
+      const {prize} = mostTouchedPrize();
+      if(prize){ _grabbing = prize; setProngIgnore(prize, true); }
+    }
     if(closeTimer>=0.45){ tryGrab(); state='RAISING'; }
   } else if(state==='RAISING'){
     clawPos.y += RAISE_SPD*dt;
@@ -733,9 +746,9 @@ for(const pf of PRIZE_FILES){
     const s = (pf.target||2.4) / size.y;                            // 🔑 키(세로) 기준 정규화 — 팔벌림(가로)이 더 커도 안 휘둘림
     const core = bodyCore(baked, ctr);                             // 몸통 코어(로컬 단위)
     // 🟩 물리 콜라이더 = 작고 낮은 박스(몸통 하부). 작을수록 인형끼리 더 빽빽이 겹침. 집기는 근접판정이라 무관
-    const cox = GRAB_RADIUS + 0.10;                                 // 빨강 잡기범위보다 살짝만 크게(가로)
-    const coz = GRAB_RADIUS + 0.10;                                 // 빨강보다 살짝만 크게(깊이)
-    const coy = Math.min(size.y*s*0.23, 0.30);                      // 빨강보다 살짝 높은 정도로 캡
+    const cox = GRAB_RADIUS + 0.16;                                 // 초록(물리 충돌) = 빨강보다 살짝 크게(가로)
+    const coz = GRAB_RADIUS + 0.16;                                 // 깊이
+    const coy = Math.min(size.y*s*0.28, 0.40);                      // 박스 키(조금 키움 — 충돌 잘 잡히게)
     const yshift = (size.y*s/2) - coy;                             // 발이 콜라이더 바닥에 닿도록 시각을 올림
     prizeProtos.push({ static:baked, s, cx:ctr.x, cy:ctr.y, cz:ctr.z, cox, coy, coz, yshift, vh:size.y*s });  // vh=시각 키(집게 멈춤 기준)
     resetPrizes();
