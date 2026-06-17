@@ -57,7 +57,7 @@
   <span class="pill">집기품질 <b id="gq">—</b></span>
   <span class="pill">남은인형 <b id="cnt">—</b></span>
   <span class="pill">획득 <b id="won">0</b></span>
-  <span class="pill" style="opacity:.5">BUILD 29 · claw</span>
+  <span class="pill" style="opacity:.5">BUILD 30 · claw</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -243,6 +243,7 @@ function makeEmblem(emoji, bg, ring){
   }
 })();
 
+let decoStick=null;   // 기계에 붙은 장식 조이스틱(스틱+공) pivot — HTML 조이스틱 입력에 따라 기움
 // 🏆 하부 본체 + 헤더 — 헥스텍 블랙+골드(증강 칼바람 아수라장 테마). 코인/카드/조이스틱/경품도어/타이틀/마퀴/스티커
 (function buildMachine(){
   const CW=BIN.x+0.55, CD=BIN.z+0.55, CH=8.4;     // 유리부와 동일 footprint(천장 →8.4)
@@ -263,8 +264,11 @@ function makeEmblem(emoji, bg, ring){
   M(new THREE.BoxGeometry(3.8, 0.07, 1.5), goldM, -0.35, sy+0.11, sz, 0.13);                   // 상판 골드 테두리
   // 조이스틱(좌) — 셸프 위에 서 있어 유리보다 앞
   M(new THREE.CylinderGeometry(0.27,0.33,0.16,16), dark, -1.45, sy+0.18, sz+0.02);             // 베이스
-  M(new THREE.CylinderGeometry(0.07,0.09,0.48,12), goldM, -1.45, sy+0.45, sz+0.04);            // 스틱
-  M(new THREE.SphereGeometry(0.17,16,12), new THREE.MeshStandardMaterial({color:0xd11,roughness:0.3}), -1.45, sy+0.68, sz+0.06); // 빨간 공
+  // 움직이는 스틱+공 — HTML 조이스틱 입력에 따라 기우는 pivot(베이스에서 꺾임)
+  const _sp = new THREE.Group(); _sp.position.set(-1.45, sy+0.24, sz+0.03); scene.add(_sp);
+  const _stk = new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.09,0.48,12), goldM); _stk.position.set(0,0.21,0.01); _stk.castShadow=true; _sp.add(_stk);
+  const _bll = new THREE.Mesh(new THREE.SphereGeometry(0.17,16,12), new THREE.MeshStandardMaterial({color:0xd11,roughness:0.3})); _bll.position.set(0,0.44,0.03); _bll.castShadow=true; _sp.add(_bll);
+  decoStick = _sp;
   // 버튼(우) 2개
   M(new THREE.CylinderGeometry(0.23,0.23,0.13,18), new THREE.MeshStandardMaterial({color:0xffcf5a,emissive:0xffcf5a,emissiveIntensity:0.5,roughness:0.3,metalness:0.5}), 0.5, sy+0.15, sz+0.02); // 버튼(골드)
   M(new THREE.CylinderGeometry(0.23,0.23,0.13,18), new THREE.MeshStandardMaterial({color:0x39d6c8,emissive:0x39d6c8,emissiveIntensity:0.5,roughness:0.3}), 1.2, sy+0.15, sz+0.02); // 버튼(청록)
@@ -489,11 +493,13 @@ function loop(now){
   }
 
   // 집게 X/Z 추종(READY일 때만) — 이동은 현재 시점(camYaw) 기준이라 옆에서 봐도 직관적
+  let dcoTX=0, dcoTZ=0;   // 장식 조이스틱 목표 기울기(입력 따라)
   if(state==='READY'){
     let dx=moveDir.x, dz=moveDir.z;                                            // 조이스틱(모바일)
     if(keys['a']||keys['arrowleft']) dx=-1;  if(keys['d']||keys['arrowright']) dx=1;   // WASD/방향키(PC)
     if(keys['w']||keys['arrowup'])   dz=-1;  if(keys['s']||keys['arrowdown'])  dz=1;
     const kl=Math.hypot(dx,dz); if(kl>1){ dx/=kl; dz/=kl; }
+    dcoTX = dz*0.5; dcoTZ = -dx*0.5;   // 입력 방향으로 장식 조이스틱 기울임(밀면 같이 꺾임)
     // 카메라 기준: 위(dz<0)=화면 안쪽(forward), 오른쪽(dx>0)=화면 오른쪽
     const fX=-Math.sin(camYaw), fZ=-Math.cos(camYaw);   // forward(카메라→타겟 수평)
     const rX= Math.cos(camYaw), rZ=-Math.sin(camYaw);   // right
@@ -529,6 +535,11 @@ function loop(now){
     releaseTimer+=dt; setFingerOpen(Math.min(1,releaseTimer/0.3));
     if(releaseTimer>=0.3){ releaseHeld(); state='READY'; grabQ=0; }   // 구멍에 들어가면 checkHole()이 골인 처리
   }
+
+  // 🕹️ 장식 조이스틱 — HTML 조이스틱/WASD 입력에 맞춰 부드럽게 기울임(안 누르면 다시 똑바로)
+  if(decoStick){ const k=Math.min(1,dt*12);
+    decoStick.rotation.x += (dcoTX-decoStick.rotation.x)*k;
+    decoStick.rotation.z += (dcoTZ-decoStick.rotation.z)*k; }
 
   // 집게 시각 갱신
   clawBody.position.set(clawPos.x, clawPos.y, clawPos.z);
