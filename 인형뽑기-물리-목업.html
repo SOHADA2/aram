@@ -92,8 +92,18 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0c0c16);
 scene.fog = new THREE.Fog(0x0c0c16, 55, 120);   // 안개 멀리 — 내부가 안개로 어둡던 문제 해결
 const camera = new THREE.PerspectiveCamera(46, innerWidth/innerHeight, 0.1, 100);
-camera.position.set(0, 8, 18.5);   // 살짝 당겨 — 인형/플레이 영역이 크게 보이게(기계도 대부분 보임)
-camera.lookAt(0, 2.0, 0);
+// 📱 세로화면(모바일)일수록 카메라를 뒤로 빼서 기계 전체가 작게·다 보이게(시점 방향은 유지)
+const _camTarget = new THREE.Vector3(0, 2.0, 0);
+const _camOffset = new THREE.Vector3(0, 6, 18.5);   // 기본 시점(0,8,18.5) − 타겟(0,2,0)
+function placeCamera(){
+  const aspect = innerWidth/innerHeight;
+  camera.aspect = aspect;
+  const zoom = aspect >= 0.9 ? 1 : Math.min(1.6, 1 + (0.9 - aspect) * 1.1);  // 세로일수록 ↑(최대 1.6배 뒤로)
+  camera.position.copy(_camTarget).addScaledVector(_camOffset, zoom);
+  camera.lookAt(_camTarget);
+  camera.updateProjectionMatrix();
+}
+placeCamera();
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference:'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
@@ -277,7 +287,7 @@ function makePrize(i){
   const c = PRIZE_COLORS[i % PRIZE_COLORS.length];
   const proto = prizeProtos.length ? prizeProtos[(Math.random()*prizeProtos.length)|0] : null;
   const hx = proto ? proto.hx : 0.5, hy = proto ? proto.hy : 0.55, hz = proto ? proto.hz : 0.45;  // 측정한 시각 반치수
-  const chx=hx*0.5, chy=hy*0.95, chz=hz*0.5;   // 충돌체 = 시각보다 작게(가로·세로 50% = 인형끼리 겹치며 빽빽), 세로는 거의 맞춤(바닥)
+  const chx=hx*0.38, chy=hy*0.95, chz=hz*0.38;   // 충돌체 = 시각보다 훨씬 작게(가로·세로 38% = 인형끼리 더 겹치며 빽빽·초록박스 < 티모), 세로는 거의 맞춤(바닥)
   const body = new CANNON.Body({ mass: 3.0, material: mPrize, allowSleep:true, sleepSpeedLimit:0.3, sleepTimeLimit:0.4 });
   body.addShape(new CANNON.Box(new CANNON.Vec3(chx, chy, chz)));
   // 위에서 떨구지 않고 바로 배치(구멍 코너 회피). 살짝 층지게
@@ -487,7 +497,7 @@ function loop(now){
 // 🧸 인형 모델 로드 → 스킨드 메시를 "정적 메시로 베이크"(bind 포즈 고정).
 //    스킨드는 부모 스케일이 이중 적용(k²)돼 시각이 작아지고 떠 보임 → 정적으로 구우면 스케일/측정이 정확.
 // ▶ 여러 형태 추가: PRIZE_FILES 에 {file, target}(원하는 최대 치수) 추가
-const PRIZE_FILES = [ { file:'teemo.glb', target:3.0 } ];
+const PRIZE_FILES = [ { file:'teemo.glb', target:3.5 } ];   // 티모 최대 치수(↑일수록 크게)
 function bakeStatic(root){   // 스킨드 메시 → bind 포즈 정적 BufferGeometry(월드 좌표)
   root.updateWorldMatrix(true, true);
   const group = new THREE.Group(), v = new THREE.Vector3();
@@ -522,7 +532,7 @@ for(const pf of PRIZE_FILES){
 }
 resetPrizes();
 requestAnimationFrame(loop);
-addEventListener('resize', ()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+addEventListener('resize', ()=>{ placeCamera(); renderer.setSize(innerWidth,innerHeight); });
 
 } catch(err){
   const e=document.getElementById('err'); e.style.display='flex';
