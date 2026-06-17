@@ -485,10 +485,22 @@ function loop(now){
   }
 
   world.step(1/60, dt, 3);
+  const CLAMP=3.0;   // 통 안 한계(벽 안쪽). 어떤 이유로 새도 여기로 강제 복귀
   for(const p of prizes){
-    const v=p.body.velocity, sp=Math.hypot(v.x,v.y,v.z); if(sp>8){ const f=8/sp; v.x*=f; v.y*=f; v.z*=f; } // 속도 상한 — 튕겨 날아가/벽 관통 방지
-    p.mesh.position.copy(p.body.position); p.mesh.quaternion.copy(p.body.quaternion);
-    if(p.dbg){ p.dbg.position.copy(p.body.position); p.dbg.quaternion.copy(p.body.quaternion); }
+    const b=p.body, v=b.velocity, P=b.position;
+    const sp=Math.hypot(v.x,v.y,v.z); if(sp>8){ const f=8/sp; v.x*=f; v.y*=f; v.z*=f; } // 속도 상한
+    // 🧱 통 밖으로 새는 것 강제 차단(터널링·집게 밀림·폭발 무관). 집힌 인형/골인 구멍은 예외
+    if(p!==held && !p.won){
+      const inHole = (P.x < -1.6 && P.z > 1.6);        // 골인 구멍 코너만 아래로 허용
+      if(P.x> CLAMP){ P.x= CLAMP; if(v.x>0)v.x=0; }
+      if(P.x<-CLAMP){ P.x=-CLAMP; if(v.x<0)v.x=0; }
+      if(P.z> CLAMP){ P.z= CLAMP; if(v.z>0)v.z=0; }
+      if(P.z<-CLAMP){ P.z=-CLAMP; if(v.z<0)v.z=0; }
+      if(P.y> 6.6){ P.y= 6.6; if(v.y>0)v.y=0; }        // 천장(위로 안 튀게)
+      if(!inHole && P.y < -0.25){ P.y=0.25; v.set(0,0,0); }  // 구멍 아닌데 바닥 아래로 새면 복귀
+    }
+    p.mesh.position.copy(P); p.mesh.quaternion.copy(b.quaternion);
+    if(p.dbg){ p.dbg.position.copy(P); p.dbg.quaternion.copy(b.quaternion); }
   }
   // 🎯 골인 판정 — 구멍(앞·좌 코너) 안으로 떨어진 인형 = 획득
   for(const p of prizes){
