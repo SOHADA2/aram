@@ -125,6 +125,9 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;   // 시네마틱 톤(하이라이트·반사 고급스럽게)
+renderer.toneMappingExposure = 1.18;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 app.appendChild(renderer.domElement);
 // 환경맵 — 유리·골드·크롬에 부드러운 반사(고급스러움)
 const _pmrem = new THREE.PMREMGenerator(renderer);
@@ -139,6 +142,24 @@ scene.add(dir);
 // 🔦 내부 조명 — 유리 안 천장에서 인형 더미를 환하게 비춤
 const pin1 = new THREE.PointLight(0xffffff, 45, 22, 2); pin1.position.set(-1.6, 5.6, 1.4); scene.add(pin1);
 const pin2 = new THREE.PointLight(0xffe8d0, 38, 22, 2); pin2.position.set(1.8, 5.2, -1.4); scene.add(pin2);
+
+// ── 절차적 텍스처(질감 업그레이드 · 외부 파일 없이 캔버스로) ──
+function _canvasTex(draw, sz, rep){
+  const c=document.createElement('canvas'); c.width=c.height=sz||512; const x=c.getContext('2d'); draw(x, sz||512);
+  const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(rep||1, rep||1); t.anisotropy=8; return t;
+}
+// 브러시드 메탈 거칠기맵 — 미세 세로 결(골드/스틸 고급 질감)
+const TEX_BRUSHED = _canvasTex((x,s)=>{
+  x.fillStyle='#8f8f8f'; x.fillRect(0,0,s,s);
+  for(let i=0;i<3000;i++){ const gx=Math.random()*s;
+    x.globalAlpha=0.03+Math.random()*0.07; x.strokeStyle=Math.random()<0.5?'#ffffff':'#363636'; x.lineWidth=0.5+Math.random()*1.3;
+    x.beginPath(); x.moveTo(gx, Math.random()*s); x.lineTo(gx+(Math.random()-0.5)*3, Math.random()*s); x.stroke(); }
+  x.globalAlpha=1;
+}, 512, 2);
+// 미세 노이즈 거칠기맵 — 도장/무광면 살짝 변주(플라스틱 느낌 제거)
+const TEX_NOISE = _canvasTex((x,s)=>{
+  const img=x.createImageData(s,s); for(let i=0;i<img.data.length;i+=4){ const v=150+(Math.random()*50-25); img.data[i]=img.data[i+1]=img.data[i+2]=v; img.data[i+3]=255; } x.putImageData(img,0,0);
+}, 256, 3);
 
 // ══════════ cannon-es ══════════
 const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -18, 0) });   // 묵직하게 떨어지게
@@ -215,11 +236,11 @@ function makeEmblem(emoji, bg, ring){
 // ── 🪟 유리 박스(헥스텍 골드 프레임 + 네온 트림) ──
 (function buildCabinet(){
   const CW = BIN.x+0.55, CH = 8.4, CD = BIN.z+0.55;   // 천장 ↑(→8.4). 집게·레일은 그대로
-  const glass = new THREE.MeshPhysicalMaterial({color:0xcfeaff, transparent:true, opacity:0.05, roughness:0.0, metalness:0, side:THREE.DoubleSide, depthWrite:false, clearcoat:1, clearcoatRoughness:0});
+  const glass = new THREE.MeshPhysicalMaterial({color:0xdff0ff, transparent:true, opacity:0.06, roughness:0.02, metalness:0, side:THREE.DoubleSide, depthWrite:false, clearcoat:1, clearcoatRoughness:0.02, reflectivity:0.6, envMapIntensity:1.5});
   const panel=(w,h,d,x,y,z)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),glass); m.position.set(x,y,z); scene.add(m); };
   panel(CW*2, CH, 0.04,  0, CH/2,  CD); panel(CW*2, CH, 0.04,  0, CH/2, -CD);
   panel(0.04, CH, CD*2,  CW, CH/2, 0);  panel(0.04, CH, CD*2, -CW, CH/2, 0);
-  const goldMat = new THREE.MeshStandardMaterial({color:GOLD, roughness:0.22, metalness:0.95});
+  const goldMat = new THREE.MeshStandardMaterial({color:GOLD, roughness:0.42, metalness:1.0, roughnessMap:TEX_BRUSHED, envMapIntensity:1.4});  // 브러시드 골드(반사↑)
   const post=(x,z)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(0.22,CH,0.22),goldMat); m.position.set(x,CH/2,z); m.castShadow=true; scene.add(m); };
   post(CW,CD);post(-CW,CD);post(CW,-CD);post(-CW,-CD);
   const roof=new THREE.Mesh(new THREE.BoxGeometry(CW*2+0.34,0.42,CD*2+0.34),goldMat); roof.position.set(0,CH+0.06,0); scene.add(roof);
@@ -237,10 +258,10 @@ function makeEmblem(emoji, bg, ring){
 (function buildMachine(){
   const CW=BIN.x+0.55, CD=BIN.z+0.55, CH=8.4;     // 유리부와 동일 footprint(천장 →8.4)
   const W=CW*2+0.5, D=CD*2+0.5;
-  const black = new THREE.MeshStandardMaterial({color:0x16141d, roughness:0.5, metalness:0.45});
-  const blackD= new THREE.MeshStandardMaterial({color:0x0d0b13, roughness:0.55, metalness:0.35});
-  const goldM = new THREE.MeshStandardMaterial({color:GOLD, roughness:0.22, metalness:0.95});
-  const dark  = new THREE.MeshStandardMaterial({color:0x07060a, roughness:0.5, metalness:0.25});
+  const black = new THREE.MeshStandardMaterial({color:0x16141d, roughness:0.62, metalness:0.55, roughnessMap:TEX_NOISE, envMapIntensity:0.95});
+  const blackD= new THREE.MeshStandardMaterial({color:0x0d0b13, roughness:0.68, metalness:0.45, roughnessMap:TEX_NOISE, envMapIntensity:0.85});
+  const goldM = new THREE.MeshStandardMaterial({color:GOLD, roughness:0.42, metalness:1.0, roughnessMap:TEX_BRUSHED, envMapIntensity:1.4});  // 브러시드 골드(반사↑)
+  const dark  = new THREE.MeshStandardMaterial({color:0x07060a, roughness:0.55, metalness:0.3, roughnessMap:TEX_NOISE});
   const M=(g,mat,x,y,z,rx)=>{ const m=new THREE.Mesh(g,mat); m.position.set(x,y,z); if(rx)m.rotation.x=rx; m.castShadow=true; m.receiveShadow=true; scene.add(m); return m; };
   const bTop=-0.4, bBot=-6.4;
   M(new THREE.BoxGeometry(W, bTop-bBot, D), black, 0, (bTop+bBot)/2, 0);                       // 하부 본체(블랙)
@@ -350,14 +371,14 @@ clawBody.collisionFilterMask = -3;   // 인형(그룹2)과 물리충돌 안 함 
 clawBody.position.set(0, CLAW_TOP_Y, 0); world.addBody(clawBody);
 
 const clawGroup = new THREE.Group(); scene.add(clawGroup);
-const steel = new THREE.MeshStandardMaterial({color:0xcfd6e0, roughness:0.28, metalness:0.85});
+const steel = new THREE.MeshStandardMaterial({color:0xdfe6f0, roughness:0.42, metalness:0.92, roughnessMap:TEX_BRUSHED, envMapIntensity:1.25});
 // 몸통
 const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.34,0.42,0.5,16), steel); clawGroup.add(hub);
 // 케이블 — clawGroup 밖(독립). 매 프레임 집게~트롤리(GANTRY_Y)만큼만 그려 위로 안 삐져나옴
 const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,1,8), new THREE.MeshStandardMaterial({color:0x9aa0ad, metalness:0.4, roughness:0.4}));
 scene.add(cable);
 // 🛤 크레인 레일(파이프라인) — 잘 보이게 굵은 골드+발광
-const railMat = new THREE.MeshStandardMaterial({color:0xffcf5a, emissive:0xffae20, emissiveIntensity:0.55, roughness:0.3, metalness:0.9});
+const railMat = new THREE.MeshStandardMaterial({color:0xffcf5a, emissive:0xffae20, emissiveIntensity:0.5, roughness:0.42, metalness:1.0, roughnessMap:TEX_BRUSHED, envMapIntensity:1.2});
 const trolley = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.3,0.8), railMat); scene.add(trolley);            // 레일 위 트롤리
 const gantryBeam = new THREE.Mesh(new THREE.BoxGeometry(BIN.x*2+1.0, 0.26, 0.5), railMat); scene.add(gantryBeam); // X빔(Z로 이동) — 굵게
 // 양옆 고정 레일(Z방향, 유리 안쪽) — 갠트리 빔이 이 위를 Z로 이동(크레인 트랙 가시화)
