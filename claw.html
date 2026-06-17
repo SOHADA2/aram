@@ -57,7 +57,7 @@
   <span class="pill">집기품질 <b id="gq">—</b></span>
   <span class="pill">남은인형 <b id="cnt">—</b></span>
   <span class="pill">획득 <b id="won">0</b></span>
-  <span class="pill" style="opacity:.5">BUILD 30 · claw</span>
+  <span class="pill" style="opacity:.5">BUILD 31 · claw</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -358,7 +358,7 @@ function resetPrizes(){
   for(const p of prizes){ world.removeBody(p.body); scene.remove(p.mesh); if(p.dbg) scene.remove(p.dbg); if(p.dbgGrab) scene.remove(p.dbgGrab); }
   prizes.length = 0;
   for(let i=0;i<PRIZE_COUNT;i++) makePrize(i);
-  state='READY'; held=null; grabConstraint=null; wonCount=0; updHud(); document.getElementById('won').textContent='0';
+  state='READY'; held=null; grabConstraint=null; _grabbing=null; wonCount=0; updHud(); document.getElementById('won').textContent='0';
 }
 
 // ══════════ 집게 ══════════
@@ -400,7 +400,7 @@ for(let k=0;k<3;k++){
 const prongBodies = [], _tmpV = new THREE.Vector3(), _tmpQ = new THREE.Quaternion();
 for(let k=0;k<3;k++){
   const pb = new CANNON.Body({ mass:0, type:CANNON.Body.KINEMATIC, material:mClaw, shape:new CANNON.Box(new CANNON.Vec3(0.1,0.26,0.12)) });
-  pb.collisionFilterMask = -3;   // 인형(그룹2)과 물리충돌 안 함 — 집게발 케이지에 인형이 끼어 빨려올라가던 버그 방지
+  pb.collisionFilterGroup = 4; pb.collisionFilterMask = 2;   // 집게발=그룹4, 인형(그룹2)만 밀침. 잡는 인형은 grab 시 그룹4 제외(끼임 방지)
   world.addBody(pb); prongBodies.push(pb);
 }
 function setFingerOpen(t){ // t: 0(닫힘)~1(열림) — 열림=바깥으로 활짝, 닫힘=tips 모임
@@ -412,32 +412,30 @@ let state='READY';            // READY · LOWERING · CLOSING · RAISING · RETU
 let openT=1, closeTimer=0, releaseTimer=0;
 let clawSpin=0;
 let targetX=0, targetZ=0;     // 드래그 목표
-let held=null, grabConstraint=null, grabQ=0;
+let held=null, grabConstraint=null, grabQ=0, _grabbing=null;
 let wonCount=0;
 const clawPos = new THREE.Vector3(HOME.x, CLAW_TOP_Y, HOME.z);   // 입구(왼쪽·카메라쪽)에서 시작
 
+// 집게발(그룹4) 충돌 무시 토글 — 잡는/잡은 인형은 케이지에 안 끼게 prong 제외, 바닥·벽·다른 인형은 그대로
+function setProngIgnore(p, ig){ if(p && p.body) p.body.collisionFilterMask = ig ? -5 : -1; }
 function tryGrab(){
-  // 집게 중심 아래에서 가장 가까운(수평) 인형 탐색
-  let best=null, bestD=1e9;
-  for(const p of prizes){
-    if(p.won) continue;
-    const dx=p.body.position.x-clawPos.x, dz=p.body.position.z-clawPos.z;
-    const d=Math.hypot(dx,dz);
-    if(d<bestD){ bestD=d; best=p; }
-  }
-  if(!best || bestD>GRAB_RADIUS) { grabQ=0; return; }
+  const best = _grabbing;   // CLOSING 진입 때 정한 대상(닫히는 발이 안 밀게 미리 prong 제외됨)
+  if(!best || best.won){ grabQ=0; _grabbing=null; return; }
+  const dx=best.body.position.x-clawPos.x, dz=best.body.position.z-clawPos.z;
+  const bestD=Math.hypot(dx,dz);
+  if(bestD>GRAB_RADIUS){ grabQ=0; setProngIgnore(best,false); _grabbing=null; return; }  // 빗나감 → 충돌 복원
   // 집기품질 = 중심 정렬도 기반 + 넉넉한 기본치(확실히 잡히게)
-  const align = 1 - (bestD/GRAB_RADIUS);          // 0~1
+  const align = 1 - (bestD/GRAB_RADIUS);
   grabQ = Math.max(0, Math.min(1, 0.2 + align*0.8*(0.85+0.15*Math.random())));
-  if(grabQ < GRAB_MIN_Q){ grabQ=0; return; }       // 헛집음(거의 안 일어남)
-  // 물리 잠금(집힘) — 집게에 인형을 락
+  if(grabQ < GRAB_MIN_Q){ grabQ=0; setProngIgnore(best,false); _grabbing=null; return; }  // 헛집음 → 복원
+  // 물리 잠금(집힘) — 집게에 인형을 락(prong 제외 유지)
   grabConstraint = new CANNON.LockConstraint(clawBody, best.body);
   world.addConstraint(grabConstraint);
-  held = best;
+  held = best; _grabbing=null;
 }
 function releaseHeld(){
   if(grabConstraint){ world.removeConstraint(grabConstraint); grabConstraint=null; }
-  if(held) held.body.wakeUp();
+  if(held){ held.body.wakeUp(); setProngIgnore(held,false); }   // 집게발 충돌 복원
   held=null;   // 골인 판정은 checkHole()이 위치로(구멍에 들어가야 획득)
 }
 
@@ -515,7 +513,10 @@ function loop(now){
     for(const p of prizes){ if(p.won)continue; const ddx=p.body.position.x-clawPos.x,ddz=p.body.position.z-clawPos.z; const d=Math.hypot(ddx,ddz); if(d<bestD){bestD=d;best=p;} }
     let stopY = CLAW_DROP_Y;                              // 밑에 인형 없으면 바닥까지
     if(best && bestD<=GRAB_RADIUS) stopY = Math.min(CLAW_TOP_Y-0.2, best.body.position.y + (best.vtop||1)*0.48);  // 인형 몸통 속까지 더 깊이 내려가 확실히 집음
-    if(clawPos.y<=stopY){ clawPos.y=stopY; state='CLOSING'; closeTimer=0; }
+    if(clawPos.y<=stopY){ clawPos.y=stopY; state='CLOSING'; closeTimer=0;
+      _grabbing = (best && bestD<=GRAB_RADIUS) ? best : null;
+      if(_grabbing) setProngIgnore(_grabbing, true);   // 닫히는 집게발이 잡을 인형은 안 밀치게(끼임·튕김 방지)
+    }
   } else if(state==='CLOSING'){
     closeTimer+=dt; setFingerOpen(Math.max(0,1-closeTimer/0.45));
     if(closeTimer>=0.45){ tryGrab(); state='RAISING'; }
