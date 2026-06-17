@@ -92,15 +92,15 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0c0c16);
 scene.fog = new THREE.Fog(0x0c0c16, 55, 120);   // 안개 멀리 — 내부가 안개로 어둡던 문제 해결
 const camera = new THREE.PerspectiveCamera(46, innerWidth/innerHeight, 0.1, 100);
-// 📷 화면 비율에 맞춰 플레이 영역(통+집게+레일)을 항상 담기 — 가로폭은 늘 다 보이게(모바일 세로 대응)
-const _camTarget = new THREE.Vector3(0, 2.7, 0);
-const _camDir = new THREE.Vector3(0, 0.28, 1).normalize();   // 살짝 위에서·거의 정면(레일이 타이틀에 안 가리게)
+// 📷 화면 비율에 맞춰 기계 전체가 여백 두고 보이게 — 모바일(세로)에서 화면 안 가리게 충분히 뒤로
+const _camTarget = new THREE.Vector3(0, 1.3, 0);
+const _camDir = new THREE.Vector3(0, 0.33, 1).normalize();   // 살짝 위에서·거의 정면
 function placeCamera(){
   const aspect = innerWidth/innerHeight;
   camera.aspect = aspect;
   const vFov = camera.fov * Math.PI/180;
   const hFov = 2*Math.atan(Math.tan(vFov/2)*aspect);
-  const fitW = 8.6, fitH = 8.8;                              // 담을 가로/세로(여유 포함) — 둘 다 들어가게 거리 계산
+  const fitW = 10.5, fitH = 16;                              // 담을 가로/세로(기계 전체+여백). 세로화면이면 가로폭이 거리를 키워 더 작게 보임
   const dist = Math.max((fitW/2)/Math.tan(hFov/2), (fitH/2)/Math.tan(vFov/2));
   camera.position.copy(_camTarget).addScaledVector(_camDir, dist);
   camera.lookAt(_camTarget);
@@ -282,26 +282,27 @@ function buildBlobVisual(c){
 function buildPrizeVisual(proto){
   const g = proto.static.clone(true);   // 정적 메시 클론(geometry 공유, 스케일 정확 — k² 문제 없음)
   g.scale.setScalar(proto.s);
-  g.position.set(-proto.cx*proto.s, -proto.cy*proto.s, -proto.cz*proto.s);   // 측정 center를 콜라이더 원점으로
+  // 콜라이더는 작고 낮음(몸통 하부) → 시각을 yshift만큼 올려 발이 콜라이더 바닥에 닿게(안 뜨고 안 가라앉게)
+  g.position.set(-proto.cx*proto.s, -proto.cy*proto.s + (proto.yshift||0), -proto.cz*proto.s);
   g.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.frustumCulled=false; } });
   const wrap = new THREE.Group(); wrap.add(g); return wrap;
 }
 function makePrize(i){
   const c = PRIZE_COLORS[i % PRIZE_COLORS.length];
   const proto = prizeProtos.length ? prizeProtos[(Math.random()*prizeProtos.length)|0] : null;
-  // 🟩 콜라이더 = 몸통 코어(팔·무기 제외) — 팔은 시각적으로만 이웃과 겹쳐 빽빽, 물리는 몸통만
-  const chx = proto ? proto.bhx : 0.42, chy = proto ? proto.bhy : 0.5, chz = proto ? proto.bhz : 0.4;
+  // 🟩 물리 콜라이더 = 작고 낮은 박스(몸통 하부)뿐 — 인형끼리 빽빽 겹치게. 집기는 근접판정(GRAB_RADIUS)이라 별개
+  const chx = proto ? proto.cox : 0.34, chy = proto ? proto.coy : 0.45, chz = proto ? proto.coz : 0.34;
   const body = new CANNON.Body({ mass: 3.0, material: mPrize, allowSleep:true, sleepSpeedLimit:0.3, sleepTimeLimit:0.4 });
   body.addShape(new CANNON.Box(new CANNON.Vec3(chx, chy, chz)));
-  // 4×4 격자 + 약간 지터로 배치 — 겹쳐 스폰돼 폭발·통 밖으로 튕기던 버그 방지(바닥에 빽빽)
+  // 4×4 격자 배치 — 겹쳐 스폰돼 폭발·통 밖으로 튕기던 버그 방지(바닥에 빽빽). 콜라이더가 작아 시각은 서로 겹침
   const gx = i % 4, gz = (i/4|0);
-  const usable = BIN.x*2 - 1.2;                 // 양옆 0.6 여유
+  const usable = BIN.x*2 - 1.4;                 // 양옆 0.7 여유(벽에서 띄움)
   const cell = usable/4;
-  let px = -usable/2 + (gx+0.5)*cell + (Math.random()-0.5)*cell*0.25;
-  let pz = -usable/2 + (gz+0.5)*cell + (Math.random()-0.5)*cell*0.25;
+  let px = -usable/2 + (gx+0.5)*cell + (Math.random()-0.5)*cell*0.2;
+  let pz = -usable/2 + (gz+0.5)*cell + (Math.random()-0.5)*cell*0.2;
   if(px < HOME.x+HOLE_R+0.35 && pz > HOME.z-HOLE_R-0.35) pz -= cell;   // 골인 구멍 코너 비우기
-  body.position.set(px, chy + 0.05 + ((gx+gz)%2)*chy*0.5, pz);        // 체크무늬로 살짝만 층(자연스러운 더미)
-  const q=new CANNON.Quaternion(); q.setFromEuler(Math.random()*6.283, Math.random()*6.283, Math.random()*6.283); body.quaternion.copy(q);
+  body.position.set(px, chy + 0.04, pz);                              // 한 층(거의 안 겹침 → 폭발 0)
+  const q=new CANNON.Quaternion(); q.setFromEuler((Math.random()-0.5)*0.5, Math.random()*6.283, (Math.random()-0.5)*0.5); body.quaternion.copy(q);  // 똑바로 선 채 약간만 기울임
   body.angularDamping = 0.7; body.linearDamping = 0.12;   // 묵직·푹신
   world.addBody(body);
   const grp = proto ? buildPrizeVisual(proto) : buildBlobVisual(c);
@@ -540,11 +541,14 @@ for(const pf of PRIZE_FILES){
     const size = new THREE.Vector3(), ctr = new THREE.Vector3(); box.getSize(size); box.getCenter(ctr);
     const s = (pf.target||2.4) / size.y;                            // 🔑 키(세로) 기준 정규화 — 팔벌림(가로)이 더 커도 안 휘둘림
     const core = bodyCore(baked, ctr);                             // 몸통 코어(로컬 단위)
-    prizeProtos.push({ static:baked, s, cx:ctr.x, cy:ctr.y, cz:ctr.z,
-      hx:size.x*s/2, hy:size.y*s/2, hz:size.z*s/2,                  // 시각 전체 반치수(참고)
-      bhx:core.hx*s, bhy:core.hy*s, bhz:core.hz*s });               // 🟩 콜라이더 = 몸통 코어(팔 제외)
+    // 🟩 물리 콜라이더 = 작고 낮은 박스(몸통 하부). 작을수록 인형끼리 더 빽빽이 겹침. 집기는 근접판정이라 무관
+    const cox = Math.max(0.26, core.hx*s*0.72);                     // 가로 (팔 제외 몸통의 72%)
+    const coz = Math.max(0.28, core.hz*s*0.60);                     // 깊이
+    const coy = Math.min(0.52, size.y*s*0.22);                      // 낮게(키의 22%)
+    const yshift = (size.y*s/2) - coy;                             // 발이 콜라이더 바닥에 닿도록 시각을 올림
+    prizeProtos.push({ static:baked, s, cx:ctr.x, cy:ctr.y, cz:ctr.z, cox, coy, coz, yshift });
     resetPrizes();
-    console.log('✅ size', size.toArray().map(v=>+v.toFixed(1)), 'core(scaled)', [core.hx*s,core.hy*s,core.hz*s].map(v=>+v.toFixed(2)), 's', s.toFixed(4));
+    console.log('✅ size', size.toArray().map(v=>+v.toFixed(1)), 'collider', [cox,coy,coz].map(v=>+v.toFixed(2)), 'yshift', yshift.toFixed(2), 's', s.toFixed(4));
   }, undefined, err => { console.warn(pf.file+' 로드 실패', err); });
 }
 resetPrizes();
