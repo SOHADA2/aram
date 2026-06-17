@@ -15,11 +15,14 @@
 - **파일**: `인형뽑기-물리-목업.html`(메인) · `teemo.glb`(인형 모델, KADA modelviewer.lol 추출 4.96MB 무압축) · `_clawserve.mjs`(로컬 정적서버)
 - **실행**: ① 배포본 `https://sohada2.github.io/aram/인형뽑기-물리-목업.html`(https라 GLB 로드 OK) ② 로컬 `node _clawserve.mjs "<aram경로>"` → `http://localhost:8731/` (⚠️ `file://`은 CORS로 GLB 못 불러옴 → 반드시 http 서버)
 - **스택**: three.js 0.160 + **cannon-es 0.20**(물리) + GLTFLoader/SkeletonUtils/RoomEnvironment. importmap 사용. CDN(jsdelivr).
-- **메커닉(구현됨)**: 3발 집게가 회전하며 하강 → `grabQuality`(집게 중심-인형 수평거리=위치 실력) → 들 때 **확률적 슬립**. 집게발=물리 강체(인형 밀침). **골인 구멍(앞·좌 코너, 턱 lip)에 떨궈야 획득**(`checkHole`). 조작=**WASD/방향키/스페이스**(PC)+아날로그 조이스틱(모바일). 헥스텍 블랙+골드 테마+타이틀 "증강 칼바람 내전 인형뽑기"+마퀴전구/네온/스티커(`makeLabelTexture`/`makeBadge`).
-- **⚠️ 마지막 미해결(이어서 할 것)**: 티모가 **콜라이더(초록 디버그박스)보다 작게·떠 보이던 버그**. 원인=**스킨드 메시는 부모 그룹 스케일이 이중 적용(k²)** → 시각만 작아짐. **해결책 적용함: 로드 시 스킨드→정적 메시 베이크**(`bakeStatic`, `getVertexPosition`로 bind포즈 굽기) + 캐시 차단(서버 no-cache). **이 수정 후 "티모가 초록박스보다 큰지" 확인이 아직 안 됨 → 그것부터 검증.**
-- **콜라이더**: 시각보다 작게(가로·세로 50%, `chx/chy/chz`) = 인형끼리 겹치며 빽빽. `DEBUG_COLLIDER=true`(초록 와이어프레임 — 확인 후 false).
-- **튜닝 상수**(파일 상단): `PRIZE_COUNT`(16)·`GRAB_RADIUS`·`GRAB_MIN_Q`·`MAX_SLIP_RATE`·`LOWER_SPD`·`JOY_SPEED`·`RETURN_SPD`. 인형 크기/추가=`PRIZE_FILES=[{file,target}]`(target=원하는 최대치수).
-- **다음 작업**: ① 베이크 후 크기·그라운딩 확인→`DEBUG_COLLIDER=false` ② 인형 여러 종 추가(PRIZE_FILES) ③ 보상/경제 Firebase 통합 ④ 모바일 성능(meshopt 압축·정적 베이크는 이미 함).
+- **메커닉(구현됨)**: 3발 집게가 회전하며 하강 → 잡기 → 들 때 **확률적 슬립**. 집게발=KINEMATIC 물리 강체(인형 밀침). **골인 구멍(앞·좌 코너, 턱 lip)에 떨궈야 획득**(`checkHole`). 조작=**WASD/방향키/스페이스**(PC)+아날로그 조이스틱(모바일, 카메라 기준 이동). 헥스텍 블랙+골드 테마. 시점 회전 5스냅(`camViewIdx` -2..+2, 좌2·중앙·우2). 장식 조이스틱(`decoStick`)이 HTML 조이스틱과 연동 기울임.
+- **현재 BUILD 52** (HUD 우상단 `BUILD N` pill로 확인 — 배포 캐시 디버깅용). **메인=`인형뽑기-물리-목업.html`, 캐시우회 사본=`claw.html`**(둘 다 `.gitignore` 화이트리스트, 매 수정마다 cp+sed로 BUILD 태그만 다르게 동기화). **푸시 흐름**: 작업브랜치 `claude/project-overview-skvq0h`에 커밋 후 `git push origin HEAD:main`으로 GitHub Pages 배포(1~3분 지연 + 모바일 캐시 강함 → 시크릿/새탭 권장). 인라인 모듈 `node --check`로 검증 후 커밋.
+- **🎯 잡기 방식 — 물리 접촉식**(`GRAB_PHYSICAL=true`, 토글 상수): 집게발(파랑 박스, 그룹4)이 인형 콜라이더(초록 박스, 그룹2)에 **collide 이벤트로 실제 닿은 것**을 수집(`_prongTouch` Map, `_collectTouch` 플래그). 하강 중 닿으면 그 높이서 `PRONG_SINK`(0.6) 더 박고 닫음(2층 인형은 더 높이서 잡힘). 안 닿으면 `CLAW_DROP_Y`(0.55, 바닥)까지 최대 하강. **대상 인형은 `setProngIgnore`로 닫힐 때 밀침 제외(안 튕기게)**, 나머지는 계속 밀침. 잡기품질=닿은 발 수(0.4 + cnt/3*0.6). `mostTouchedPrize()`로 대상 선정. **근접식(빨강 `GRAB_RADIUS` 반경)은 `GRAB_PHYSICAL=false`일 때만 — 현재 미사용**.
+- **콜라이더(초록, `cox/coy/coz`)**: 가로/깊이 `GRAB_RADIUS+0.08`(좁게=인형끼리 안 부딪힘), 키 `size.y*s*0.22`(cap 0.8). 인형(`PRIZE_FILES` target=**4.3**, 키 기준)이 집게보다 커서 미스매치 있음 → **인형을 줄이는(target↓) 게 근본 개선**으로 사용자에 제안해둠(미결정).
+- **디버그 박스 3종 플래그**(파일 상단): `DEBUG_COLLIDER`(🟩초록=인형 충돌, 현재 true) · `DEBUG_PRONG`(🟦파랑=집게발, 현재 true) · `DEBUG_GRAB`(🟥빨강=근접 반경, 현재 **false 숨김** — 물리식에선 무의미). 출시 전 전부 false.
+- **🎉 골인 연출**: `fireConfetti()` 뒤편(z-)에서 컨페티 46장 분사. **획득 시 인형 즉시 회수**(world/scene/디버그 제거, `p.collected` — 추후 데이터 기록 훅 지점). 빈손 복귀는 2.2배 빠름.
+- **튜닝 상수**(파일 상단): `PRIZE_COUNT`(16)·`GRAB_PHYSICAL`·`GRAB_RADIUS`·`GRAB_MIN_Q`·`MAX_SLIP_RATE`·`CLAW_DROP_Y`·`PRONG_REACH`·`PRONG_SINK`·`CLAW_SCALE`(1.35)·`LOWER_SPD`·`JOY_SPEED`·`RETURN_SPD`·`PRIZE_FILES`.
+- **다음 작업**: ① 인형 크기 vs 집게 밸런스(인형 target↓ 또는 집게↑ — 사용자 결정 대기) ② 디버그 박스 끄고 실사용감 확인 ③ 인형 여러 종 추가(`PRIZE_FILES`) ④ 보상/경제 Firebase 통합(`p.collected` 시점) ⑤ 앱 통합 시 `CLAW_ENABLED` 대체 검토.
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
