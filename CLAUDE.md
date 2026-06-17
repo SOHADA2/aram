@@ -8,6 +8,18 @@
 - 현재 버전: v2.45.163 (🌌 **시즌2 라이브 중 2026-06-10~** — 최근: 🕹️ **인형뽑기 미니게임**(프리즘 18종 완성 해금·가챠 엔드게임, **CLAW_ENABLED=false로 라이브 비활성·튜닝중**, 프리뷰=`?claw`/`clawTest()`). 복권 Hub 깜박임·대장간 걸작 이름잘림·버리기 다이얼로그·유미 파견전 숨김/크기. ⚠️**복권 해골감소 인플레(골드·프리즘 양수EV) 미해결**. 🐱 유미 3D(v125~150). 브릿지 **v1.1.35**. 상세는 아래 세션 이력 v2.45.151~163)
   - ⏳ **레벨 시스템 후속**: ① 패스를 일반/내전 포인트패스 → **S1식 퀘스트 패스(내전 전용)로 되돌리기**(미완) ② 레벨 보상량/곡선 실플레이 튜닝. 레벨 코드맵: `PLV_XP`·`calcPlayerXp`·`plvLevelFromXp`·`plvReward`·`claimPlayerLevels`·`_plvCardHtml`(패스 탭 상단). 데이터 `playerLevelClaimed_s2`. 정수: 경기당+1·상점120G 폐지(레벨업만).
 - ✅ **시즌2 라이브 중** (2026-06-10~) — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 + 세션이력 v2.45.38~49 필독
+- (배포 앱 현재 v2.45.167: 가챠 감사추적 `gachaVerify`·복권 종류별 "내가 N회"·프로필 대시보드 리디자인·시너지 균형(신성한개입 꾸준형). in-app CHANGELOG 참조)
+
+## 🕹️ 인형뽑기 물리 프로토타입 (WIP · 다른 컴퓨터 핸드오프) ★새 세션 필독
+> **앱(index.html)과 분리된 독립 3D 물리 인형뽑기.** Poki "Lucky Claw Machine"급을 목표로 자체 제작 중. 향후 앱의 인형뽑기 미니게임(`CLAW_ENABLED`)을 이걸로 대체 검토.
+- **파일**: `인형뽑기-물리-목업.html`(메인) · `teemo.glb`(인형 모델, KADA modelviewer.lol 추출 4.96MB 무압축) · `_clawserve.mjs`(로컬 정적서버)
+- **실행**: ① 배포본 `https://sohada2.github.io/aram/인형뽑기-물리-목업.html`(https라 GLB 로드 OK) ② 로컬 `node _clawserve.mjs "<aram경로>"` → `http://localhost:8731/` (⚠️ `file://`은 CORS로 GLB 못 불러옴 → 반드시 http 서버)
+- **스택**: three.js 0.160 + **cannon-es 0.20**(물리) + GLTFLoader/SkeletonUtils/RoomEnvironment. importmap 사용. CDN(jsdelivr).
+- **메커닉(구현됨)**: 3발 집게가 회전하며 하강 → `grabQuality`(집게 중심-인형 수평거리=위치 실력) → 들 때 **확률적 슬립**. 집게발=물리 강체(인형 밀침). **골인 구멍(앞·좌 코너, 턱 lip)에 떨궈야 획득**(`checkHole`). 조작=**WASD/방향키/스페이스**(PC)+아날로그 조이스틱(모바일). 헥스텍 블랙+골드 테마+타이틀 "증강 칼바람 내전 인형뽑기"+마퀴전구/네온/스티커(`makeLabelTexture`/`makeBadge`).
+- **⚠️ 마지막 미해결(이어서 할 것)**: 티모가 **콜라이더(초록 디버그박스)보다 작게·떠 보이던 버그**. 원인=**스킨드 메시는 부모 그룹 스케일이 이중 적용(k²)** → 시각만 작아짐. **해결책 적용함: 로드 시 스킨드→정적 메시 베이크**(`bakeStatic`, `getVertexPosition`로 bind포즈 굽기) + 캐시 차단(서버 no-cache). **이 수정 후 "티모가 초록박스보다 큰지" 확인이 아직 안 됨 → 그것부터 검증.**
+- **콜라이더**: 시각보다 작게(가로·세로 50%, `chx/chy/chz`) = 인형끼리 겹치며 빽빽. `DEBUG_COLLIDER=true`(초록 와이어프레임 — 확인 후 false).
+- **튜닝 상수**(파일 상단): `PRIZE_COUNT`(16)·`GRAB_RADIUS`·`GRAB_MIN_Q`·`MAX_SLIP_RATE`·`LOWER_SPD`·`JOY_SPEED`·`RETURN_SPD`. 인형 크기/추가=`PRIZE_FILES=[{file,target}]`(target=원하는 최대치수).
+- **다음 작업**: ① 베이크 후 크기·그라운딩 확인→`DEBUG_COLLIDER=false` ② 인형 여러 종 추가(PRIZE_FILES) ③ 보상/경제 Firebase 통합 ④ 모바일 성능(meshopt 압축·정적 베이크는 이미 함).
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
