@@ -57,7 +57,7 @@
   <span class="pill">집기품질 <b id="gq">—</b></span>
   <span class="pill">남은인형 <b id="cnt">—</b></span>
   <span class="pill">획득 <b id="won">0</b></span>
-  <span class="pill" style="opacity:.5">BUILD 32 · claw</span>
+  <span class="pill" style="opacity:.5">BUILD 33 · claw</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -85,7 +85,8 @@ import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/+esm';
 try {
 // ══════════ 튜닝 상수 (이 숫자들로 "느낌" 조절) ══════════
 const PRIZE_COUNT   = 16;     // 통 안 인형 수 (8→16, 두 배)
-const DEBUG_COLLIDER= false;  // 🟩 충돌체 초록/빨강 와이어프레임 — 디버그용(필요시 true)
+const DEBUG_COLLIDER= false;  // 🟩 초록=인형 물리 충돌 박스(집게발이 실제로 미는 곳) — 디버그
+const DEBUG_GRAB    = true;   // 🟥 빨강=집게 잡기 반응 범위(GRAB_RADIUS) — 디버그
 const GRAB_RADIUS   = 1.3;    // 집게 중심에서 이 반경 안 인형 집힘(넉넉히 = 잘 잡힘)
 const GRAB_MIN_Q    = 0.12;   // 이 품질 미만이면 헛집음(낮춰서 웬만하면 잡힘)
 const MAX_SLIP_RATE = 0.5;    // 품질 0일 때 초당 슬립확률(낮춰서 잘 안 놓침)
@@ -340,7 +341,7 @@ function makePrize(i){
   let pz = -usable/2 + (gz+0.5)*cellZ + (Math.random()-0.5)*cellZ*0.2;
   if(px < HOME.x+HOLE_R+0.35 && pz > HOME.z-HOLE_R-0.35) pz -= cellZ;  // 골인 구멍 코너 비우기
   body.position.set(px, chy + 0.04, pz);                              // 한 층(거의 안 겹침 → 폭발 0)
-  const q=new CANNON.Quaternion(); q.setFromEuler(0, Math.random()*6.283, 0); body.quaternion.copy(q);  // 똑바로(Y회전만, 방향만 랜덤)
+  const q=new CANNON.Quaternion(); q.setFromEuler((Math.random()-0.5)*0.5, Math.random()*6.283, (Math.random()-0.5)*0.5); body.quaternion.copy(q);  // 방향 랜덤 + 살짝 기울여 스폰(서서 고정 X — 자유낙하·집게에 넘어져 누울 수 있음)
   body.angularDamping = 0.35; body.linearDamping = 0.05;   // 감쇠↓ → 밀리고 흩어지는 반응 큼
   world.addBody(body);
   const grp = proto ? buildPrizeVisual(proto) : buildBlobVisual(c);
@@ -349,6 +350,8 @@ function makePrize(i){
   if(DEBUG_COLLIDER){
     // 🟩 초록 = 인형끼리 부딪히는 물리 충돌 박스(인형 따라 회전)
     dbg=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(chx*2, chy*2, chz*2)), new THREE.LineBasicMaterial({color:0x00ff88})); scene.add(dbg);
+  }
+  if(DEBUG_GRAB){
     // 🟥 빨강 = 집게 잡기 반응 범위(중심에서 GRAB_RADIUS 안에 집게가 오면 잡힘) — 수평 반경이라 회전 없음. 항상 위에 그려 잘 보이게(depthTest 끔)
     dbgGrab=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(GRAB_RADIUS*2, chy*2, GRAB_RADIUS*2)), new THREE.LineBasicMaterial({color:0xff2d4a, depthTest:false, transparent:true})); dbgGrab.renderOrder=999; scene.add(dbgGrab);
   }
