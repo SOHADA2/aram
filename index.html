@@ -6585,7 +6585,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.167';
+const APP_VERSION = 'v2.45.168';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6594,6 +6594,9 @@ const APP_VERSION = 'v2.45.167';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.168', date: '2026-06-17', changes: [
+    { tag: 'fix', text: '🪪 [시즌2] 프로필 패스 표시 수정 — 리디자인된 프로필의 🎫 패스 배지가 옛 S1 패스 데이터(seasonPassClaimed)를 읽어 S2에서 항상 LV0으로 잘못 나오던 문제. S2 퀘스트 패스(passQuestClaimed_s2 · calcS2PassCurrentLevel)를 읽도록 시즌별 분기 — 이제 프로필 패스 레벨이 실제 진행도와 일치' },
+  ] },
   { ver: 'v2.45.167', date: '2026-06-17', changes: [
     { tag: 'improve', text: '💚 [시즌2] 가챠 시너지 균형 — 신성한 개입(서폿)·해적의 보물(빌지워터)이 둘 다 2장 수집 + 승리 30/50% +40/60G로 거의 같은데 해적만 연승 보너스가 붙어 한쪽이 강했던 불균형 수정. 신성한 개입을 "꾸준형"으로 차별화 — 승리 보너스 유지 + 발동 시 패배해도 위로금 +15/25G. 해적=연승 폭발형 / 신성=승패 무관 안정형으로 정체성 분리' },
   ] },
@@ -18422,9 +18425,12 @@ async function _openS1ProfileModal(fbKey, player) {
     </div>`;
   }
 
-  // 시즌 패스 레벨 + 보유 골드
+  // 시즌 패스 레벨 + 보유 골드 (S2 = 퀘스트 패스 passQuestClaimed_s2 / S1 = seasonPassClaimed)
   const myGoldEntry = Object.values(goldData).find(g => normName(g.name) === normName(name));
-  const passLv = calcS1PassCurrentLevel(myGoldEntry?.[sField('seasonPassClaimed')] || {});
+  const passMax = CURRENT_SEASON === 2 ? S2_PASS_MAX_LEVEL : S1_PASS_MAX_LEVEL;
+  const passLv = CURRENT_SEASON === 2
+    ? calcS2PassCurrentLevel(myGoldEntry?.[sField('passQuestClaimed')] || {})
+    : calcS1PassCurrentLevel(myGoldEntry?.[sField('seasonPassClaimed')] || {});
   let playerGold = 0;
   if (myGoldEntry) {
     const _spent = myGoldEntry[sField('goldSpent')] ?? 0;
@@ -18551,7 +18557,7 @@ async function _openS1ProfileModal(fbKey, player) {
         ${gridHtml}
         ${profileChampSectionHtml(name, CURRENT_SEASON)}
         <div class="pm-s1-bottom-row">
-          <div class="pm-s1-pass-badge">🎫 패스 <span class="lv">LV ${passLv}</span><span style="color:var(--rk-text-muted);"> / ${S1_PASS_MAX_LEVEL}</span></div>
+          <div class="pm-s1-pass-badge">🎫 패스 <span class="lv">LV ${passLv}</span><span style="color:var(--rk-text-muted);"> / ${passMax}</span></div>
           <div class="pm-s1-bottom-right">
             <div class="pm-s1-gold-badge">🪙 ${playerGold}G</div>
             ${streakHtml}
