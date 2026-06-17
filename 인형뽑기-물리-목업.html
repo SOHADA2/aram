@@ -57,7 +57,7 @@
   <span class="pill">집기품질 <b id="gq">—</b></span>
   <span class="pill">남은인형 <b id="cnt">—</b></span>
   <span class="pill">획득 <b id="won">0</b></span>
-  <span class="pill" style="opacity:.5">BUILD 31</span>
+  <span class="pill" style="opacity:.5">BUILD 32</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -93,7 +93,7 @@ const CLAW_SCALE    = 1.35;   // 집게 크기 배율(↑ 더 크게)
 const CLAW_TOP_Y    = 6.2;    // 집게 대기 높이
 const GANTRY_Y      = 6.7;    // 크레인 줄이 매달린 트롤리/레일 높이(유리 안). 줄이 위로 안 삐져나오게
 const CLAW_DROP_Y   = 1.7;    // 집게 내려가는 바닥 높이(큰 인형 더미 위에 닿게)
-const LOWER_SPD     = 3.0;    // 내리기 속도 (천천히)
+const LOWER_SPD     = 4.2;    // 내리기 속도(빠르게 = 더미에 박는 임팩트)
 const RAISE_SPD     = 3.2;    // 올리기 속도
 const RETURN_SPD    = 1.6;    // 출구 복귀 속도(직선·천천히)
 const JOY_SPEED     = 2.0;    // 조이스틱 이동 속도(유닛/초) — 아날로그(밀기 정도에 비례)
@@ -327,9 +327,9 @@ function makePrize(i){
   const proto = prizeProtos.length ? prizeProtos[(Math.random()*prizeProtos.length)|0] : null;
   // 🟩 물리 콜라이더 = 작고 낮은 박스(몸통 하부)뿐 — 인형끼리 빽빽 겹치게. 집기는 근접판정(GRAB_RADIUS)이라 별개
   const chx = proto ? proto.cox : 0.34, chy = proto ? proto.coy : 0.45, chz = proto ? proto.coz : 0.34;
-  const body = new CANNON.Body({ mass: 3.0, material: mPrize, allowSleep:true, sleepSpeedLimit:0.3, sleepTimeLimit:0.4 });
-  body.collisionFilterGroup = 2;   // 인형 그룹 — 집게/prong(mask -3)은 이 그룹과 충돌 안 함(끼임 방지). 바닥·벽·인형끼리는 정상
-  body.angularFactor.set(0,1,0);   // 안 쓰러지게(Y회전만) — 짧은 콜라이더로도 시각이 안 뜸
+  const body = new CANNON.Body({ mass: 1.5, material: mPrize, allowSleep:true, sleepSpeedLimit:0.4, sleepTimeLimit:0.5 });   // 가볍게 → 잘 밀림
+  body.collisionFilterGroup = 2;   // 인형 그룹 — 집게/prong은 잡는 인형만 제외(끼임 방지). 바닥·벽·인형끼리는 정상
+  // 회전 자유(밀면 쓰러짐) — 콜라이더가 몸통 전체라 기울어도 시각 안 뜸
   body.addShape(new CANNON.Box(new CANNON.Vec3(chx, chy, chz)));
   // 4×4 격자 배치 — 겹쳐 스폰돼 폭발·통 밖으로 튕기던 버그 방지(바닥에 빽빽). 콜라이더가 작아 시각은 서로 겹침
   const COLS = Math.ceil(Math.sqrt(PRIZE_COUNT)), ROWS = Math.ceil(PRIZE_COUNT/COLS);
@@ -341,7 +341,7 @@ function makePrize(i){
   if(px < HOME.x+HOLE_R+0.35 && pz > HOME.z-HOLE_R-0.35) pz -= cellZ;  // 골인 구멍 코너 비우기
   body.position.set(px, chy + 0.04, pz);                              // 한 층(거의 안 겹침 → 폭발 0)
   const q=new CANNON.Quaternion(); q.setFromEuler(0, Math.random()*6.283, 0); body.quaternion.copy(q);  // 똑바로(Y회전만, 방향만 랜덤)
-  body.angularDamping = 0.7; body.linearDamping = 0.12;   // 묵직·푹신
+  body.angularDamping = 0.35; body.linearDamping = 0.05;   // 감쇠↓ → 밀리고 흩어지는 반응 큼
   world.addBody(body);
   const grp = proto ? buildPrizeVisual(proto) : buildBlobVisual(c);
   scene.add(grp);
@@ -399,7 +399,7 @@ for(let k=0;k<3;k++){
 // 집게발 물리 바디 — 매 프레임 시각 tip 위치에 동기화 → 인형을 실제로 밀치고 접촉(통과 X)
 const prongBodies = [], _tmpV = new THREE.Vector3(), _tmpQ = new THREE.Quaternion();
 for(let k=0;k<3;k++){
-  const pb = new CANNON.Body({ mass:0, type:CANNON.Body.KINEMATIC, material:mClaw, shape:new CANNON.Box(new CANNON.Vec3(0.1,0.26,0.12)) });
+  const pb = new CANNON.Body({ mass:0, type:CANNON.Body.KINEMATIC, material:mClaw, shape:new CANNON.Box(new CANNON.Vec3(0.18,0.4,0.22)) });
   pb.collisionFilterGroup = 4; pb.collisionFilterMask = 2;   // 집게발=그룹4, 인형(그룹2)만 밀침. 잡는 인형은 grab 시 그룹4 제외(끼임 방지)
   world.addBody(pb); prongBodies.push(pb);
 }
@@ -563,7 +563,7 @@ function loop(now){
   const CLAMP=2.7;   // 통 안 한계(벽에서 더 안쪽). 큰 인형 몸통이 유리 안 뚫게 + 어떤 이유로 새도 복귀
   for(const p of prizes){
     const b=p.body, v=b.velocity, P=b.position;
-    const sp=Math.hypot(v.x,v.y,v.z); if(sp>8){ const f=8/sp; v.x*=f; v.y*=f; v.z*=f; } // 속도 상한
+    const sp=Math.hypot(v.x,v.y,v.z); if(sp>13){ const f=13/sp; v.x*=f; v.y*=f; v.z*=f; } // 속도 상한(↑ 더 역동적, CLAMP가 가둠)
     // 🧱 통 밖으로 새는 것 강제 차단(터널링·집게 밀림·폭발 무관). 집힌 인형/골인 구멍은 예외
     if(p!==held && !p.won){
       const inHole = (P.x < -1.6 && P.z > 1.6);        // 골인 구멍 코너만 아래로 허용
@@ -640,7 +640,7 @@ for(const pf of PRIZE_FILES){
     // 🟩 물리 콜라이더 = 작고 낮은 박스(몸통 하부). 작을수록 인형끼리 더 빽빽이 겹침. 집기는 근접판정이라 무관
     const cox = Math.max(0.26, core.hx*s*0.72);                     // 가로 (팔 제외 몸통의 72%) — 좁게 = 가로 빽빽
     const coz = Math.max(0.28, core.hz*s*0.60);                     // 깊이
-    const coy = size.y*s*0.17;                                      // 살짝 길쭉(키의 34%). 똑바로 고정이라 안 뜸
+    const coy = size.y*s*0.46;                                      // 몸통 전체 높이 → 시각과 정렬(쓰러져도 안 뜸), 회전 자유 대응
     const yshift = (size.y*s/2) - coy;                             // 발이 콜라이더 바닥에 닿도록 시각을 올림
     prizeProtos.push({ static:baked, s, cx:ctr.x, cy:ctr.y, cz:ctr.z, cox, coy, coz, yshift, vh:size.y*s });  // vh=시각 키(집게 멈춤 기준)
     resetPrizes();
