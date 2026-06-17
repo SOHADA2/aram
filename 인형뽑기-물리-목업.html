@@ -68,8 +68,8 @@ import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/+esm';
 
 try {
 // ══════════ 튜닝 상수 (이 숫자들로 "느낌" 조절) ══════════
-const PRIZE_COUNT   = 16;     // 통 안 인형 수 (가득)
-const DEBUG_COLLIDER= true;   // 🟩 충돌체(물리 박스)를 초록 와이어프레임으로 — 확인용(이제 시각보다 작아야 정상). 확인 후 false
+const PRIZE_COUNT   = 8;      // 통 안 인형 수 (티모 2배 확대로 8개)
+const DEBUG_COLLIDER= false;  // 🟩 충돌체 초록 와이어프레임 — 디버그용(필요시 true)
 const GRAB_RADIUS   = 1.4;    // 집게 중심에서 이 반경 안 인형만 집힘(큰 인형 맞춤)
 const GRAB_MIN_Q    = 0.22;   // 이 품질 미만이면 헛집음(아예 못 잡음)
 const MAX_SLIP_RATE = 1.6;    // 품질 0일 때 초당 슬립확률(품질 높을수록 ↓)
@@ -168,9 +168,10 @@ staticBox(BX+wt, wh, wt, 0, wh-0.3,  BZ, wallC, false);   // 앞벽
 staticBox(BX+wt, wh, wt, 0, wh-0.3, -BZ, wallC, false);   // 뒷벽
 staticBox(wt, wh, BZ,  BX, wh-0.3, 0, wallC, false);     // 우벽
 staticBox(wt, wh, BZ, -BX, wh-0.3, 0, wallC, false);     // 좌벽
-// 턱(lip) — 골인 구멍 안쪽 2면(나머지 2면은 통 좌·앞벽). 굴러들지 않게, 위에서 떨궈 넣어야 골인
-staticBox(0.07, 0.18, HOLE_R, holeX1, 0.18, HOME.z, 0x4a4a6a);   // 구멍 우측 턱
-staticBox(HOLE_R, 0.18, 0.07, HOME.x, 0.18, holeZ0, 0x4a4a6a);   // 구멍 뒤쪽 턱
+// 입구 벽(lip) — 골인 구멍 안쪽 2면(나머지 2면은 통 좌·앞벽). 높여서 굴러들지 않게 — 집게로 들어 위에서 떨궈야 골인
+const LIP_H = 0.9;   // 입구 벽 반높이(=1.8 높이) — 큰 인형이 못 넘게
+staticBox(0.09, LIP_H, HOLE_R, holeX1, LIP_H, HOME.z, 0x6a6a8a);   // 구멍 우측 벽
+staticBox(HOLE_R, LIP_H, 0.09, HOME.x, LIP_H, holeZ0, 0x6a6a8a);   // 구멍 뒤쪽 벽
 
 // ── 🎨 장식 헬퍼 + 테마(헥스텍 블랙+골드) ──
 const GOLD=0xd9b24a, GOLD_E=0xffcf5a, TEAL_E=0x39d6c8;
@@ -295,12 +296,13 @@ function makePrize(i){
   const body = new CANNON.Body({ mass: 3.0, material: mPrize, allowSleep:true, sleepSpeedLimit:0.3, sleepTimeLimit:0.4 });
   body.addShape(new CANNON.Box(new CANNON.Vec3(chx, chy, chz)));
   // 4×4 격자 배치 — 겹쳐 스폰돼 폭발·통 밖으로 튕기던 버그 방지(바닥에 빽빽). 콜라이더가 작아 시각은 서로 겹침
-  const gx = i % 4, gz = (i/4|0);
+  const COLS = Math.ceil(Math.sqrt(PRIZE_COUNT)), ROWS = Math.ceil(PRIZE_COUNT/COLS);
+  const gx = i % COLS, gz = (i/COLS|0);
   const usable = BIN.x*2 - 1.4;                 // 양옆 0.7 여유(벽에서 띄움)
-  const cell = usable/4;
-  let px = -usable/2 + (gx+0.5)*cell + (Math.random()-0.5)*cell*0.2;
-  let pz = -usable/2 + (gz+0.5)*cell + (Math.random()-0.5)*cell*0.2;
-  if(px < HOME.x+HOLE_R+0.35 && pz > HOME.z-HOLE_R-0.35) pz -= cell;   // 골인 구멍 코너 비우기
+  const cellX = usable/COLS, cellZ = usable/ROWS;
+  let px = -usable/2 + (gx+0.5)*cellX + (Math.random()-0.5)*cellX*0.2;
+  let pz = -usable/2 + (gz+0.5)*cellZ + (Math.random()-0.5)*cellZ*0.2;
+  if(px < HOME.x+HOLE_R+0.35 && pz > HOME.z-HOLE_R-0.35) pz -= cellZ;  // 골인 구멍 코너 비우기
   body.position.set(px, chy + 0.04, pz);                              // 한 층(거의 안 겹침 → 폭발 0)
   const q=new CANNON.Quaternion(); q.setFromEuler((Math.random()-0.5)*0.5, Math.random()*6.283, (Math.random()-0.5)*0.5); body.quaternion.copy(q);  // 똑바로 선 채 약간만 기울임
   body.angularDamping = 0.7; body.linearDamping = 0.12;   // 묵직·푹신
@@ -516,7 +518,7 @@ function loop(now){
 // 🧸 인형 모델 로드 → 스킨드 메시를 "정적 메시로 베이크"(bind 포즈 고정).
 //    스킨드는 부모 스케일이 이중 적용(k²)돼 시각이 작아지고 떠 보임 → 정적으로 구우면 스케일/측정이 정확.
 // ▶ 여러 형태 추가: PRIZE_FILES 에 {file, target}(원하는 최대 치수) 추가
-const PRIZE_FILES = [ { file:'teemo.glb', target:2.4 } ];   // target = 키(세로) 단위(↑일수록 크게). 가로(팔벌림) 아닌 키 기준
+const PRIZE_FILES = [ { file:'teemo.glb', target:4.6 } ];   // target = 키(세로) 단위(↑일수록 크게). 가로(팔벌림) 아닌 키 기준. 2.4→4.6(약 2배)
 function bakeStatic(root){   // 스킨드 메시 → bind 포즈 정적 BufferGeometry(월드 좌표)
   root.updateWorldMatrix(true, true);
   const group = new THREE.Group(), v = new THREE.Vector3();
@@ -556,7 +558,7 @@ for(const pf of PRIZE_FILES){
     // 🟩 물리 콜라이더 = 작고 낮은 박스(몸통 하부). 작을수록 인형끼리 더 빽빽이 겹침. 집기는 근접판정이라 무관
     const cox = Math.max(0.26, core.hx*s*0.72);                     // 가로 (팔 제외 몸통의 72%)
     const coz = Math.max(0.28, core.hz*s*0.60);                     // 깊이
-    const coy = Math.min(0.52, size.y*s*0.22);                      // 낮게(키의 22%)
+    const coy = size.y*s*0.30;                                      // 키의 30%(큰 인형도 안 쓰러지게 비례)
     const yshift = (size.y*s/2) - coy;                             // 발이 콜라이더 바닥에 닿도록 시각을 올림
     prizeProtos.push({ static:baked, s, cx:ctr.x, cy:ctr.y, cz:ctr.z, cox, coy, coz, yshift });
     resetPrizes();
