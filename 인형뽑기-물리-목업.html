@@ -289,8 +289,8 @@ function buildPrizeVisual(proto){
 function makePrize(i){
   const c = PRIZE_COLORS[i % PRIZE_COLORS.length];
   const proto = prizeProtos.length ? prizeProtos[(Math.random()*prizeProtos.length)|0] : null;
-  const hx = proto ? proto.hx : 0.5, hy = proto ? proto.hy : 0.55, hz = proto ? proto.hz : 0.45;  // 측정한 시각 반치수
-  const chx=hx*0.45, chy=hy*0.92, chz=hz*0.45;   // 충돌체 = 시각보다 작게(가로·세로 45% = 시각이 겹치며 빽빽·초록박스 < 티모), 세로 92%
+  // 🟩 콜라이더 = 몸통 코어(팔·무기 제외) — 팔은 시각적으로만 이웃과 겹쳐 빽빽, 물리는 몸통만
+  const chx = proto ? proto.bhx : 0.42, chy = proto ? proto.bhy : 0.5, chz = proto ? proto.bhz : 0.4;
   const body = new CANNON.Body({ mass: 3.0, material: mPrize, allowSleep:true, sleepSpeedLimit:0.3, sleepTimeLimit:0.4 });
   body.addShape(new CANNON.Box(new CANNON.Vec3(chx, chy, chz)));
   // 4×4 격자 + 약간 지터로 배치 — 겹쳐 스폰돼 폭발·통 밖으로 튕기던 버그 방지(바닥에 빽빽)
@@ -503,7 +503,7 @@ function loop(now){
 // 🧸 인형 모델 로드 → 스킨드 메시를 "정적 메시로 베이크"(bind 포즈 고정).
 //    스킨드는 부모 스케일이 이중 적용(k²)돼 시각이 작아지고 떠 보임 → 정적으로 구우면 스케일/측정이 정확.
 // ▶ 여러 형태 추가: PRIZE_FILES 에 {file, target}(원하는 최대 치수) 추가
-const PRIZE_FILES = [ { file:'teemo.glb', target:3.5 } ];   // 티모 최대 치수(↑일수록 크게)
+const PRIZE_FILES = [ { file:'teemo.glb', target:2.4 } ];   // target = 키(세로) 단위(↑일수록 크게). 가로(팔벌림) 아닌 키 기준
 function bakeStatic(root){   // 스킨드 메시 → bind 포즈 정적 BufferGeometry(월드 좌표)
   root.updateWorldMatrix(true, true);
   const group = new THREE.Group(), v = new THREE.Vector3();
@@ -524,16 +524,27 @@ function bakeStatic(root){   // 스킨드 메시 → bind 포즈 정적 BufferGe
   });
   return group;
 }
+// 몸통 코어 반치수 — 정점을 중심 기준 |거리| 분위로 트림(팔·무기·모자끝 아웃라이어 제외)
+function bodyCore(root, ctr){
+  const X=[],Y=[],Z=[];
+  root.traverse(o=>{ if(o.isMesh&&o.geometry){ const p=o.geometry.attributes.position;
+    for(let i=0;i<p.count;i++){ X.push(Math.abs(p.getX(i)-ctr.x)); Y.push(Math.abs(p.getY(i)-ctr.y)); Z.push(Math.abs(p.getZ(i)-ctr.z)); } } });
+  const q=(a,p)=>{ a.sort((m,n)=>m-n); return a[Math.floor((a.length-1)*p)]||0.5; };
+  return { hx:q(X,0.80), hy:q(Y,0.92), hz:q(Z,0.82) };   // 가로/깊이 80%(팔·무기 컷), 세로 92%(모자끝만 컷)
+}
 const _gl = new GLTFLoader();
 for(const pf of PRIZE_FILES){
   _gl.load(pf.file, gltf => {
     const baked = bakeStatic(skeletonClone(gltf.scene));            // 정적으로 구움
     const box = new THREE.Box3().setFromObject(baked);             // 정적이라 정확
     const size = new THREE.Vector3(), ctr = new THREE.Vector3(); box.getSize(size); box.getCenter(ctr);
-    const s = (pf.target||2.5) / Math.max(size.x, size.y, size.z, 0.001);
-    prizeProtos.push({ static:baked, s, cx:ctr.x, cy:ctr.y, cz:ctr.z, hx:size.x*s/2, hy:size.y*s/2, hz:size.z*s/2 });
+    const s = (pf.target||2.4) / size.y;                            // 🔑 키(세로) 기준 정규화 — 팔벌림(가로)이 더 커도 안 휘둘림
+    const core = bodyCore(baked, ctr);                             // 몸통 코어(로컬 단위)
+    prizeProtos.push({ static:baked, s, cx:ctr.x, cy:ctr.y, cz:ctr.z,
+      hx:size.x*s/2, hy:size.y*s/2, hz:size.z*s/2,                  // 시각 전체 반치수(참고)
+      bhx:core.hx*s, bhy:core.hy*s, bhz:core.hz*s });               // 🟩 콜라이더 = 몸통 코어(팔 제외)
     resetPrizes();
-    console.log('✅ baked size', size.toArray().map(v=>+v.toFixed(2)), 'center', ctr.toArray().map(v=>+v.toFixed(2)), 'scale', s.toFixed(4));
+    console.log('✅ size', size.toArray().map(v=>+v.toFixed(1)), 'core(scaled)', [core.hx*s,core.hy*s,core.hz*s].map(v=>+v.toFixed(2)), 's', s.toFixed(4));
   }, undefined, err => { console.warn(pf.file+' 로드 실패', err); });
 }
 resetPrizes();
