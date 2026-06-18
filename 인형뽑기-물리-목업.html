@@ -21,6 +21,9 @@
     background:linear-gradient(180deg,rgba(0,0,0,0.55),transparent);font-size:12px;pointer-events:none;}
   #hud .pill{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:4px 10px;font-family:'JetBrains Mono',monospace;}
   #hud .pill b{color:#ffd24a;}
+  #hud .pill.urgent{background:rgba(255,80,80,0.22);border-color:rgba(255,90,90,0.7);animation:pillPulse 1s infinite;}
+  #hud .pill.urgent b{color:#ff7a7a;}
+  @keyframes pillPulse{0%,100%{opacity:1;}50%{opacity:0.45;}}
   #result{position:fixed;top:46%;left:0;right:0;text-align:center;font-size:34px;font-weight:900;
     text-shadow:0 2px 10px #000;pointer-events:none;opacity:0;transition:opacity .2s;}
   #result.show{opacity:1;}
@@ -64,7 +67,8 @@
   <span class="pill">남은인형 <b id="cnt">—</b></span>
   <span class="pill">획득 <b id="won">0</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
-  <span class="pill" style="opacity:.5">BUILD 96</span>
+  <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
+  <span class="pill" style="opacity:.5">BUILD 97</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -96,6 +100,57 @@ import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/+esm';
 try {
 // 📱 터치 기기 감지 → body.is-touch (CSS로 안내문·키힌트 숨기고 조작바 슬림). 미디어쿼리가 일부 안드로이드서 안 먹어 JS로 판정
 if(('ontouchstart' in window) || (navigator.maxTouchPoints>0) || window.matchMedia('(pointer:coarse)').matches){ document.body.classList.add('is-touch'); }
+
+// ══════════ 🔊 효과음 (WebAudio 합성 — 외부 파일 없음, 첫 사용자 입력에 unlock) ══════════
+const Sfx = (()=>{
+  let ac=null, master=null, motorOsc=null, motorGain=null, ok=true;
+  function ctx(){ if(!ac && ok){ try{ ac=new (window.AudioContext||window.webkitAudioContext)(); master=ac.createGain(); master.gain.value=0.45; master.connect(ac.destination); }catch(e){ ok=false; } } return ac; }
+  function unlock(){ const c=ctx(); if(c && c.state==='suspended') c.resume(); }
+  function tone(freq,dur,type='sine',vol=0.3,slideTo=null,delay=0){
+    const c=ctx(); if(!c) return; const t=c.currentTime+delay;
+    const o=c.createOscillator(), g=c.createGain();
+    o.type=type; o.frequency.setValueAtTime(freq,t);
+    if(slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1,slideTo),t+dur);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol,t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t+dur+0.03);
+  }
+  function noise(dur,vol=0.2,hp=800){
+    const c=ctx(); if(!c) return; const t=c.currentTime;
+    const n=Math.max(1,Math.floor(c.sampleRate*dur)), buf=c.createBuffer(1,n,c.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);
+    const src=c.createBufferSource(); src.buffer=buf;
+    const f=c.createBiquadFilter(); f.type='highpass'; f.frequency.value=hp;
+    const g=c.createGain(); g.gain.value=vol;
+    src.connect(f); f.connect(g); g.connect(master); src.start(t);
+  }
+  return {
+    unlock,
+    motor(on){ const c=ctx(); if(!c) return;
+      if(on){ if(motorOsc) return; motorOsc=c.createOscillator(); motorGain=c.createGain();
+        const f=c.createBiquadFilter(); f.type='lowpass'; f.frequency.value=440;
+        motorOsc.type='sawtooth'; motorOsc.frequency.value=68;
+        motorGain.gain.setValueAtTime(0.0001,c.currentTime); motorGain.gain.exponentialRampToValueAtTime(0.085,c.currentTime+0.05);
+        motorOsc.connect(f); f.connect(motorGain); motorGain.connect(master); motorOsc.start();
+      } else if(motorOsc){ const g=motorGain, o=motorOsc; motorOsc=null; motorGain=null;
+        g.gain.exponentialRampToValueAtTime(0.0001,c.currentTime+0.08); o.stop(c.currentTime+0.12); } },
+    click(){ tone(540,0.06,'square',0.16,400); },
+    rotate(){ tone(320,0.16,'sine',0.16,680); },
+    descend(){ tone(380,0.22,'sawtooth',0.16,150); },                                   // 하강 시작 끼익
+    clamp(){ noise(0.07,0.22,1300); tone(190,0.1,'square',0.16,110); },                 // 집게 닫힘 철컥
+    grab(){ tone(460,0.08,'square',0.2,680); tone(680,0.12,'triangle',0.18,920,0.06); },// 잡힘 띠링
+    miss(){ tone(230,0.12,'sine',0.12,150); },                                          // 헛집음
+    slip(){ tone(440,0.16,'sine',0.16,150); noise(0.08,0.1,500); },                     // 미끄러짐
+    win(){ [523,659,784,1047].forEach((f,i)=>tone(f,0.16,'triangle',0.22,null,i*0.085)); }, // 획득 팡파레
+    dud(){ tone(200,0.16,'square',0.2,120); tone(150,0.2,'square',0.18,90,0.12); },     // 꽝 부저
+    confetti(){ noise(0.22,0.16,2200); },                                               // 폭죽 파스스
+    tick(){ tone(900,0.05,'square',0.22,860); },                                        // 카운트다운 틱
+    autodrop(){ tone(680,0.1,'square',0.24,460); tone(460,0.16,'square',0.22,320,0.1); },// 자동 집기 경보
+    error(){ tone(160,0.24,'sawtooth',0.2,120); },                                      // 한도 소진
+  };
+})();
+addEventListener('pointerdown', ()=>Sfx.unlock(), {passive:true});
+addEventListener('keydown', ()=>Sfx.unlock());
 // ══════════ 튜닝 상수 (이 숫자들로 "느낌" 조절) ══════════
 const PRIZE_COUNT   = 20;     // 통 안 인형 수 (16→20). 단층 격자 상한 근처 — 더 늘리면 다층 더미 스폰 필요
 const DEBUG_COLLIDER= false;  // 🟩 초록=인형↔인형 거리조절(빽빽 겹침) 충돌 박스 — 잡기와 무관
@@ -151,7 +206,7 @@ placeCamera();
 // 🔄 시점 전환 — 좌2·가운데·우2 5단 스냅(끝에서도 정면이 보이는 각도). ◀=왼쪽 보기 / ▶=오른쪽 보기
 let camViewIdx = 0;                 // -2(완전좌) ~ +2(완전우)
 const VIEW_STEP = 0.5;             // 스텝당 회전각(라디안, ±2=±1.0rad≈57°)
-window.rotateView = function(dir){ camViewIdx = Math.max(-2, Math.min(2, camViewIdx + dir)); camYawTarget = camViewIdx * VIEW_STEP; };
+window.rotateView = function(dir){ const p=camViewIdx; camViewIdx = Math.max(-2, Math.min(2, camViewIdx + dir)); camYawTarget = camViewIdx * VIEW_STEP; if(camViewIdx!==p){ Sfx.unlock(); Sfx.rotate(); } };
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference:'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));   // 2→1.5: 고해상도 화면 픽셀 부담 ↓ (렉 완화)
 renderer.setSize(innerWidth, innerHeight);
@@ -568,6 +623,9 @@ let clawSpin=0;
 let targetX=0, targetZ=0;     // 드래그 목표
 let held=null, grabConstraint=null, grabQ=0, _grabbing=null;
 let wonCount=0;
+let _lastState=null;          // 효과음 상태전이 감지용
+const AUTO_DROP_MS = 30000;   // ⏱️ READY 후 이 시간 안에 안 내리면 자동 집기
+let readyDeadline=0, _lastTickSec=-1;   // 자동 집기 마감시각·마지막 틱 초
 const clawPos = new THREE.Vector3(HOME.x, CLAW_TOP_Y, HOME.z);   // 입구(왼쪽·카메라쪽)에서 시작
 
 // 🎉 컨페티(폭죽) — 골인 성공 시 뒤편(통 뒤쪽 z-)에서 앞으로 뻥! 터뜨림
@@ -674,12 +732,13 @@ function updDailyHud(){ const el=document.getElementById('plays'); if(el) el.tex
 window.resetPlays = ()=>{ playsUsed=0; _saveDaily(); updDailyHud(); console.log('일일 횟수 초기화'); };   // 테스트용(콘솔에서 호출)
 function tryDrop(){
   if(state!=='READY') return;
-  if(playsUsed>=DAILY_MAX){ showResult('오늘 횟수 소진! ('+DAILY_MAX+'/'+DAILY_MAX+')','#ff8a8a'); return; }
+  if(playsUsed>=DAILY_MAX){ Sfx.error(); showResult('오늘 횟수 소진! ('+DAILY_MAX+'/'+DAILY_MAX+')','#ff8a8a'); return; }
   playsUsed++; _saveDaily(); updDailyHud();
+  readyDeadline=0;                          // 집기 시작 → 자동하강 타이머 해제
   stickEnd(); state='LOWERING'; clawSpin=0;
 }
-document.getElementById('drop').onclick = tryDrop;
-document.getElementById('reset').onclick = ()=>{ if(state==='READY'||held===null) resetPrizes(); };
+document.getElementById('drop').onclick = ()=>{ Sfx.unlock(); if(state==='READY' && playsUsed<DAILY_MAX) Sfx.click(); tryDrop(); };
+document.getElementById('reset').onclick = ()=>{ Sfx.unlock(); if(state==='READY'||held===null){ Sfx.click(); resetPrizes(); } };
 // ⌨️ PC 조작 — WASD/방향키 이동, 스페이스로 내리기
 const keys = {};
 addEventListener('keydown', e=>{
@@ -698,6 +757,7 @@ function updHud(){
   document.getElementById('st').textContent=state;
   document.getElementById('gq').textContent= grabQ? (grabQ*100|0)+'%' : (state==='READY'?'—':'0%');
   document.getElementById('cnt').textContent= prizes.filter(p=>!p.won).length;
+  if(state!=='READY'){ const tp=document.getElementById('timer'); if(tp) tp.textContent='—'; const pl=document.getElementById('timer-pill'); if(pl) pl.classList.remove('urgent'); }
 }
 
 // ══════════ 루프 ══════════
@@ -705,6 +765,17 @@ let last=performance.now();
 function loop(now){
   requestAnimationFrame(loop);
   const dt = Math.min(0.033,(now-last)/1000); last=now;
+
+  // 🔊 상태 전이 효과음 + ⏱️ 자동 집기 타이머 재무장
+  if(_lastState !== state){
+    if(state==='LOWERING')      Sfx.descend();
+    else if(state==='CLOSING')  Sfx.clamp();
+    else if(state==='RAISING')  { held ? Sfx.grab() : Sfx.miss(); }
+    else if(state==='READY')    { readyDeadline = (playsUsed<DAILY_MAX) ? (now+AUTO_DROP_MS) : 0; _lastTickSec=-1; }
+    _lastState = state;
+  }
+  // 🔊 모터 험 — 집게가 움직이는 동안만 지속
+  Sfx.motor(state==='LOWERING'||state==='RAISING'||state==='RETURN_X'||state==='RETURN_Z');
 
   // 🔄 시점 부드럽게 회전
   if(Math.abs(camYaw-camYawTarget) > 0.001){
@@ -728,6 +799,14 @@ function loop(now){
     clawPos.x = Math.max(-BIN.x, Math.min(BIN.x, clawPos.x + mX*JOY_SPEED*dt));
     clawPos.z = Math.max(-BIN.z, Math.min(BIN.z, clawPos.z + mZ*JOY_SPEED*dt));
     clawPos.y = CLAW_TOP_Y; setFingerOpen(1);
+    // ⏱️ 자동 집기 카운트다운 — 30초 안에 안 내리면 자동 하강(마지막 5초 틱 효과음)
+    if(readyDeadline && playsUsed<DAILY_MAX){
+      const rem = Math.max(0, Math.ceil((readyDeadline-now)/1000));
+      const tp=document.getElementById('timer'); if(tp) tp.textContent = rem;
+      const pill=document.getElementById('timer-pill'); if(pill) pill.classList.toggle('urgent', rem<=5);
+      if(rem<=5 && rem>0 && rem!==_lastTickSec){ _lastTickSec=rem; Sfx.tick(); }
+      if(now>=readyDeadline){ readyDeadline=0; Sfx.autodrop(); showResult('⏱️ 자동 집기!','#ffd24a'); tryDrop(); }
+    }
   } else if(state==='LOWERING'){
     setFingerOpen(1);                                     // 내려갈 땐 활짝 열림
     clawPos.y -= LOWER_SPD*dt; clawSpin += SPIN_SPD*dt;   // 회전하며 하강
@@ -770,19 +849,19 @@ function loop(now){
     if(closeTimer>=0.45){ tryGrab(); state='RAISING'; }
   } else if(state==='RAISING'){
     clawPos.y += RAISE_SPD*dt;
-    if(held){ const slipPerSec = (1-grabQ)*MAX_SLIP_RATE; if(Math.random() < slipPerSec*dt){ releaseHeld(); } }   // 미끄러짐(무음 — 떨어지는 게 보임)
+    if(held){ const slipPerSec = (1-grabQ)*MAX_SLIP_RATE; if(Math.random() < slipPerSec*dt){ Sfx.slip(); releaseHeld(); } }   // 미끄러짐
     // (놓침 연출 제거 — 디테일 이전 상태. 집게는 닫힌 채 유지)
     if(clawPos.y>=CLAW_TOP_Y){ clawPos.y=CLAW_TOP_Y; state='RETURN_X'; }
   } else if(state==='RETURN_X'){            // 출구로 직선 복귀 ① X축만 이동 (대각선 금지)
     const rspd = held ? RETURN_SPD : RETURN_SPD*2.2;   // 빈손(완전 실패)이면 빠르게 복귀
     const d = HOME.x - clawPos.x; clawPos.x += Math.sign(d)*Math.min(Math.abs(d), rspd*dt);
-    if(held && Math.random() < (1-grabQ)*MAX_SLIP_RATE*0.5*dt){ releaseHeld(); }   // 복귀 중 미끄러짐(무음)
+    if(held && Math.random() < (1-grabQ)*MAX_SLIP_RATE*0.5*dt){ Sfx.slip(); releaseHeld(); }   // 복귀 중 미끄러짐
     // (놓침 연출 제거 — 디테일 이전 상태. 집게는 닫힌 채 유지)
     if(Math.abs(HOME.x-clawPos.x) < 0.03) state='RETURN_Z';
   } else if(state==='RETURN_Z'){            // ② Z축만 이동 → 출구(구멍) 위 도착
     const rspd = held ? RETURN_SPD : RETURN_SPD*2.2;   // 빈손이면 빠르게
     const d = HOME.z - clawPos.z; clawPos.z += Math.sign(d)*Math.min(Math.abs(d), rspd*dt);
-    if(held && Math.random() < (1-grabQ)*MAX_SLIP_RATE*0.5*dt){ releaseHeld(); }   // 복귀 중 미끄러짐(무음)
+    if(held && Math.random() < (1-grabQ)*MAX_SLIP_RATE*0.5*dt){ Sfx.slip(); releaseHeld(); }   // 복귀 중 미끄러짐
     // (놓침 연출 제거 — 디테일 이전 상태. 집게는 닫힌 채 유지)
     if(Math.abs(HOME.z-clawPos.z) < 0.03){ state='RELEASE'; releaseTimer=0; }
   } else if(state==='RELEASE'){
@@ -843,9 +922,11 @@ function loop(now){
     if(b.y < 0.5 && Math.abs(b.x-HOME.x) < HOLE_R+0.3 && Math.abs(b.z-HOME.z) < HOLE_R+0.3){   // 구멍 위에서 바닥 높이 이하로 내려오면 획득(관대 — 출구 걸친 것도 인정). 바닥 인형(y≈0.65)은 제외
       p.won=true;
       if(p.proto && p.proto.dud){                      // 🐾 포로 = 꽝
+        Sfx.dud();                                     // 🔊 꽝 부저
         showResult('꽝! 포로 🐾','#ff8a8a');
       } else {
         wonCount++; document.getElementById('won').textContent=wonCount; showResult('🎉 획득!','#ffd24a');
+        Sfx.win(); Sfx.confetti();                      // 🔊 획득 팡파레 + 폭죽
         fireConfetti();                                // 🎉 뒤편 폭죽
         awardTrophy(p.proto);                          // 🏆 정면 연출 → 선반 진열
       }
