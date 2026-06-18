@@ -68,7 +68,7 @@
   <span class="pill">획득 <b id="won">0</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" style="opacity:.5">BUILD 113 · claw</span>
+  <span class="pill" style="opacity:.5">BUILD 114 · claw</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -654,21 +654,8 @@ function setFingerOpen(t){ // t: 0(닫힘)~1(열림). 2마디 관절 — 뿌리(
     knuckles[i].rotation.x = 0.1 + (1-t)*0.75;   // 너클: 닫힐수록 끝마디가 더 안으로 말림(움켜쥠)
   }
 }
-// 🤏 손가락 끝 반경 측정(열림/닫힘) — 잡은 인형 크기만큼만 오므리려고(관통 방지)
-let _closeFloor = 0;   // 이 t 미만으론 안 닫힘(0=완전 닫힘). 잡은 인형 반지름으로 결정
-function _measTipRadius(){
-  clawPivot.updateMatrixWorld(true);
-  const c=new THREE.Vector3(), tp=new THREE.Vector3(); clawGroup.getWorldPosition(c);
-  let s=0; for(const tm of prongTips){ tm.getWorldPosition(tp); s+=Math.hypot(tp.x-c.x, tp.z-c.z); }
-  return s/prongTips.length;
-}
-setFingerOpen(1); const FINGER_R_OPEN=_measTipRadius();
-setFingerOpen(0); const FINGER_R_CLOSED=_measTipRadius();
-setFingerOpen(1);
-function closeFloorForRadius(cr){   // 인형 콜라이더 반지름(world) → 손가락이 멈출 t
-  const target = cr*1.18;          // 시각이 콜라이더보다 약간 커서 살짝 키움
-  return Math.max(0, Math.min(0.9, (target - FINGER_R_CLOSED)/Math.max(0.01, FINGER_R_OPEN - FINGER_R_CLOSED)));
-}
+// 🤏 손가락 최소 열림 — 닫을 때 이 t 미만으로 안 감(끝까지 닫으면 손가락끼리 겹쳐 오바 → 디자인 깨짐). 잡든 못잡든 항상 이만큼 오므림
+const CLOSE_MIN = 0.13;
 
 // ══════════ 상태머신 ══════════
 let state='READY';            // READY · LOWERING · CLOSING · RAISING · RETURN_X · RETURN_Z · RELEASE
@@ -738,7 +725,7 @@ function tryGrab(){
     target.body.wakeUp();                          // 잠든 인형도 집으면 깨워야 집게 따라옴
     grabConstraint = new CANNON.LockConstraint(clawBody, target.body);
     world.addConstraint(grabConstraint);
-    held = target; _grabbing=null; _closeFloor = closeFloorForRadius(target.cr);   // 인형 크기만큼만 오므림
+    held = target; _grabbing=null;
     return;
   }
   const best = _grabbing;   // CLOSING 진입 때 정한 대상(닫히는 발이 안 밀게 미리 prong 제외됨)
@@ -754,7 +741,7 @@ function tryGrab(){
   best.body.wakeUp();                              // 잠든 인형도 집으면 깨움
   grabConstraint = new CANNON.LockConstraint(clawBody, best.body);
   world.addConstraint(grabConstraint);
-  held = best; _grabbing=null; _closeFloor = closeFloorForRadius(best.cr);   // 인형 크기만큼만 오므림
+  held = best; _grabbing=null;
 }
 function releaseHeld(){
   if(grabConstraint){ world.removeConstraint(grabConstraint); grabConstraint=null; }
@@ -830,7 +817,7 @@ function loop(now){
   if(_lastState !== state){
     if(state==='LOWERING')      Sfx.descend();
     else if(state==='CLOSING')  Sfx.clamp();                                            // 집게 닫힘
-    else if(state==='RAISING')  { if(held){ setFingerOpen(_closeFloor); Sfx.grab(); } else { _closeFloor=0; setFingerOpen(0); Sfx.miss(); } }   // 잡았으면 인형 크기만큼만 오므림 / 헛집음이면 완전히 닫힘
+    else if(state==='RAISING')  { setFingerOpen(CLOSE_MIN); held ? Sfx.grab() : Sfx.miss(); }   // 잡든 못잡든 CLOSE_MIN까지 오므림(오바 X)
     else if(state==='RELEASE')  Sfx.open();                                             // 집게 열림(놓기)
     else if(state==='READY')    { readyDeadline = (!ENFORCE_DAILY_LIMIT || playsUsed<DAILY_MAX) ? (now+AUTO_DROP_MS) : 0; _lastTickSec=-1; }
     _lastState = state;
@@ -909,10 +896,8 @@ function loop(now){
       const {prize} = mostTouchedPrize();
       if(prize){ _grabbing = prize; setProngIgnore(prize, true); }
     }
-    // 🤏 닫는 대상(인형) 반지름만큼만 오므림 — 손가락이 인형 관통 안 하게(없으면 완전히 닫힘)
-    const _cand = (_grabbing && !_grabbing.won) ? _grabbing : null;
-    const _floor = _cand ? closeFloorForRadius(_cand.cr) : 0;
-    setFingerOpen(Math.max(_floor, 1-closeTimer/0.45));
+    // 🤏 닫기 — 항상 CLOSE_MIN까지 오므림(잡든 못잡든). 끝까지 안 닫아 손가락 겹침(오바) 방지
+    setFingerOpen(Math.max(CLOSE_MIN, 1-closeTimer/0.45));
     if(closeTimer>=0.45){ tryGrab(); state='RAISING'; }
   } else if(state==='RAISING'){
     clawPos.y += RAISE_SPD*dt;
