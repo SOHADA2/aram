@@ -68,7 +68,7 @@
   <span class="pill">획득 <b id="won">0</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" style="opacity:.5">BUILD 107 · claw</span>
+  <span class="pill" style="opacity:.5">BUILD 108 · claw</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -241,6 +241,7 @@ const pin2 = new THREE.PointLight(0xffe8d0, 38, 22, 2); pin2.position.set(1.8, 5
 const world = new CANNON.World({ gravity: new CANNON.Vec3(0, -18, 0) });   // 묵직하게 떨어지게
 world.broadphase = new CANNON.SAPBroadphase(world);
 world.solver.iterations = 18;
+world.allowSleep = true;   // 정착한 인형은 재워서 미세 떨림(통통) 방지
 world.allowSleep = true;
 // 푹신·안 튕김 — 접촉을 부드럽게(낮은 stiffness·높은 relaxation) + 반발 0
 world.defaultContactMaterial.contactEquationStiffness = 4e6;
@@ -543,7 +544,8 @@ function makePrize(i){
   if(px < HOME.x+HOLE_R+0.35 && pz > HOME.z-HOLE_R-0.35) pz -= cellZ;  // 골인 구멍 코너 비우기
   body.position.set(px, chy + 0.4 + ((gx+gz)%2)*0.9, pz);             // 체커보드 높이 stagger → 인접끼리 같은 높이서 안 겹침(폭발 X) + 떨어지며 골고루 펼쳐짐
   const q=new CANNON.Quaternion(); q.setFromEuler((Math.random()-0.5)*1.8, Math.random()*6.283, (Math.random()-0.5)*1.8); body.quaternion.copy(q);  // 큰 랜덤 기울기 → 서지 않고 쓰러져 누움(실제 뽑기 더미처럼)
-  body.angularDamping = 0.5; body.linearDamping = 0.22;   // 감쇠↑ → 집게에 밀려도 멀리 안 날아가고 자연스럽게 밀림
+  body.angularDamping = 0.5; body.linearDamping = 0.26;   // 감쇠↑ → 집게에 밀려도 멀리 안 날아가고 자연스럽게 밀림
+  body.allowSleep = true; body.sleepSpeedLimit = 0.32; body.sleepTimeLimit = 0.4;   // 느려지면 재워서 미세 떨림(통통) 멈춤(충돌 시 자동 깸)
   world.addBody(body);
   const grp = proto ? buildPrizeVisual(proto) : buildBlobVisual(c);
   scene.add(grp);
@@ -704,6 +706,7 @@ function tryGrab(){
     grabQ = Math.max(0, Math.min(1, 0.4 + (cnt/3)*0.6*(0.85+0.15*Math.random())));
     if(grabQ < GRAB_MIN_Q){ grabQ=0; _grabbing=null; return; }
     setProngIgnore(target, true);
+    target.body.wakeUp();                          // 잠든 인형도 집으면 깨워야 집게 따라옴
     grabConstraint = new CANNON.LockConstraint(clawBody, target.body);
     world.addConstraint(grabConstraint);
     held = target; _grabbing=null;
@@ -719,6 +722,7 @@ function tryGrab(){
   grabQ = Math.max(0, Math.min(1, 0.2 + align*0.8*(0.85+0.15*Math.random())));
   if(grabQ < GRAB_MIN_Q){ grabQ=0; setProngIgnore(best,false); _grabbing=null; return; }  // 헛집음 → 복원
   // 물리 잠금(집힘) — 집게에 인형을 락(prong 제외 유지)
+  best.body.wakeUp();                              // 잠든 인형도 집으면 깨움
   grabConstraint = new CANNON.LockConstraint(clawBody, best.body);
   world.addConstraint(grabConstraint);
   held = best; _grabbing=null;
@@ -909,22 +913,21 @@ function loop(now){
     decoStick.rotation.x += (dcoTX-decoStick.rotation.x)*k;
     decoStick.rotation.z += (dcoTZ-decoStick.rotation.z)*k; }
 
-  // 🪀 펜듈럼 — 트롤리(clawPos) 가속도로 매달린 집게가 흔들림. 비관성 진자: s'' = -ω²s - c·s' - a_tr롤리
+  // 🪀 펜듈럼 — 매달린 집게가 트롤리 이동에 끌려 뒤로 처지고(이동 중) 멈추면 휘릭 넘어가 흔들림(스프링 진자)
   if(dt>0.0001){
-    const vx=(clawPos.x-_pPX)/dt, vz=(clawPos.z-_pPZ)/dt;
-    let ax=(vx-_pVX)/dt, az=(vz-_pVZ)/dt;
-    const AMAX=90; ax=Math.max(-AMAX,Math.min(AMAX,ax)); az=Math.max(-AMAX,Math.min(AMAX,az));   // 가속도 스파이크 제한
-    const STIFF=52, DAMP=6.5, GAIN=0.011, SMAX=0.55;
-    swayVX += (-STIFF*swayX - DAMP*swayVX - ax*GAIN)*dt; swayX += swayVX*dt;
-    swayVZ += (-STIFF*swayZ - DAMP*swayVZ - az*GAIN)*dt; swayZ += swayVZ*dt;
+    const vx=(clawPos.x-_pPX)/dt, vz=(clawPos.z-_pPZ)/dt;   // 트롤리 속도
+    const LEAD=0.24, STIFF=44, DAMP=4.2, SMAX=0.85;         // LEAD=끌림폭 · STIFF/DAMP=진자(낮은 DAMP=오래 흔들림)
+    const tgtX=Math.max(-SMAX,Math.min(SMAX,-vx*LEAD)), tgtZ=Math.max(-SMAX,Math.min(SMAX,-vz*LEAD));   // 속도 반대로 매달려 끌림
+    swayVX += (STIFF*(tgtX-swayX) - DAMP*swayVX)*dt; swayX += swayVX*dt;
+    swayVZ += (STIFF*(tgtZ-swayZ) - DAMP*swayVZ)*dt; swayZ += swayVZ*dt;
     swayX=Math.max(-SMAX,Math.min(SMAX,swayX)); swayZ=Math.max(-SMAX,Math.min(SMAX,swayZ));
-    _pPX=clawPos.x; _pPZ=clawPos.z; _pVX=vx; _pVZ=vz;
+    _pPX=clawPos.x; _pPZ=clawPos.z;
   }
   const swX=clawPos.x+swayX, swZ=clawPos.z+swayZ;   // 집게 실제(흔들린) 위치
   // 집게 시각 갱신 — 흔들린 위치 + 케이블 방향으로 살짝 기울임(매달려 흔들리는 느낌)
   clawBody.position.set(swX, clawPos.y, swZ);
   clawGroup.position.set(swX, clawPos.y, swZ);
-  const TILT=0.55; clawGroup.rotation.set(swayZ*TILT, clawSpin, -swayX*TILT);
+  const TILT=0.7; clawGroup.rotation.set(swayZ*TILT, clawSpin, -swayX*TILT);
   // 케이블 — 고정된 트롤리(clawPos.x,z 위)에서 흔들린 집게 상단으로 비스듬히 연결
   _cTopV.set(clawPos.x, GANTRY_Y, clawPos.z); _cBotV.set(swX, clawPos.y+0.3, swZ);
   const _cLen=Math.max(0.05,_cTopV.distanceTo(_cBotV));
