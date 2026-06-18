@@ -6585,7 +6585,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.168';
+const APP_VERSION = 'v2.45.169';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6594,6 +6594,9 @@ const APP_VERSION = 'v2.45.168';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.169', date: '2026-06-18', changes: [
+    { tag: 'new', text: '🃏 [시즌2/실험] 프리즘 ★★★ 18종 컴플리트 시 컬렉션 3성 탭에서 카드가 트럼프처럼 부채꼴로 묶여 표시(각 카드 탭=상세보기) + 「🕹️ 인형뽑기 테스트 참여하기」 버튼으로 3D 인형뽑기 프로토타입 진입. ⚙️ 아직 실험용 테스트라 보상·경제는 미연동(런칭 아님)' },
+  ] },
   { ver: 'v2.45.168', date: '2026-06-17', changes: [
     { tag: 'fix', text: '🪪 [시즌2] 프로필 패스 표시 수정 — 리디자인된 프로필의 🎫 패스 배지가 옛 S1 패스 데이터(seasonPassClaimed)를 읽어 S2에서 항상 LV0으로 잘못 나오던 문제. S2 퀘스트 패스(passQuestClaimed_s2 · calcS2PassCurrentLevel)를 읽도록 시즌별 분기 — 이제 프로필 패스 레벨이 실제 진행도와 일치' },
   ] },
@@ -24531,7 +24534,11 @@ function renderGachaTab() {
       ? `<button class="cz-merge-action" style="background:linear-gradient(135deg,#6d3bbf,#a878f0);border-color:rgba(205,165,255,0.65);margin:2px 0 10px;" onclick="window.doGachaRecombine3()">남는 3성 2장 → 랜덤 3성 <span style="opacity:0.82;font-weight:600;font-size:11px;">· 잉여 ${surplus3}장</span></button>`
       : `<div class="czd-merge-hint" style="margin:2px 0 10px;background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.12);border-radius:8px;padding:9px;">중복된 3성 2장이 모이면 랜덤 3성으로 재조합할 수 있어요 (미보유 챔프 우선)</div>`;
   }
-  list.innerHTML = tabHtml + tierTabs + _yuumiDexSection() + recombineHtml + `<div class="pet-grid">${cardsHtml}</div>` + renderGachaDex();
+  // 🃏 3성 18종 컴플리트 → 카드를 트럼프처럼 부채꼴로 묶고 인형뽑기 테스트 버튼 노출(미완성은 일반 그리드)
+  const gridHtml = (gachaStar === 3 && _allPrismDone(getMyGoldData()))
+    ? _prismDeckHtml(getMyGoldData())
+    : `<div class="pet-grid">${cardsHtml}</div>`;
+  list.innerHTML = tabHtml + tierTabs + _yuumiDexSection() + recombineHtml + gridHtml + renderGachaDex();
   _markSynergiesSeen();   // 시너지 섹션을 확인했으니 신규 표시 해제
   updateGachaNavBadge();
 }
@@ -30882,6 +30889,46 @@ function _clawEntryHtml(){
     <div class="claw-entry-sub">챔피언 인형을 모아요 · 도감 <b>${uniq}/18</b> · 오늘 <b>${rem}</b>회 남음</div>
   </div></div>`;
 }
+// ════════ 🃏 3성 18종 컴플리트 — 트럼프식 부채꼴 덱 + 3D 인형뽑기 테스트 진입(실험용) ════════
+function _injectPrismDeckCss(){
+  if (document.getElementById('prism-deck-css')) return;
+  const s = document.createElement('style'); s.id = 'prism-deck-css';
+  s.textContent = `
+  .prism-deck-wrap{margin:14px 0 6px;padding:14px 12px;border-radius:14px;background:linear-gradient(160deg,rgba(150,90,230,0.16),rgba(40,20,60,0.28));border:1px solid rgba(205,165,255,0.42);}
+  .prism-deck-head{font-size:12.5px;font-weight:800;color:#dcbcff;text-align:center;}
+  .prism-deck-head span{display:block;font-size:10px;font-weight:600;color:#b7a2d4;margin-top:3px;}
+  .prism-deck{display:flex;overflow-x:auto;padding:14px 12px 16px;scrollbar-width:thin;-webkit-overflow-scrolling:touch;}
+  .prism-deck-card{position:relative;flex:0 0 auto;width:74px;height:104px;margin-left:-40px;border-radius:9px;overflow:hidden;cursor:pointer;border:1.5px solid rgba(205,165,255,0.6);background:#1a1228;box-shadow:0 3px 10px rgba(0,0,0,0.5);transition:transform .16s,box-shadow .16s;transform-origin:bottom center;}
+  .prism-deck-card:first-child{margin-left:0;}
+  .prism-deck-card:hover,.prism-deck-card:active{transform:translateY(-13px) scale(1.05);z-index:6;box-shadow:0 9px 20px rgba(150,90,230,0.55);}
+  .prism-deck-card img{width:100%;height:100%;object-fit:cover;}
+  .pdc-name{position:absolute;left:0;right:0;bottom:0;font-size:8.5px;font-weight:700;text-align:center;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,0.88));padding:9px 2px 3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .prism-claw-btn{display:block;width:100%;margin-top:4px;padding:13px;border-radius:11px;border:1px solid rgba(255,200,90,0.6);background:linear-gradient(135deg,#c98a2a,#f0c04a);color:#1a1206;font-size:13.5px;font-weight:800;cursor:pointer;box-shadow:0 4px 12px rgba(240,190,70,0.3);}
+  .prism-claw-btn:active{transform:translateY(1px);}
+  .prism-claw-note{font-size:9.5px;color:#9aa0b4;text-align:center;margin-top:7px;line-height:1.5;}`;
+  document.head.appendChild(s);
+}
+function _prismDeckHtml(data){
+  _injectPrismDeckCss();
+  const cards = GACHA_CHAMPS.map(({slug,kr})=>{
+    const cnt = (gachaGp(slug).s3||0);
+    return `<div class="prism-deck-card" title="${escHtml(kr)}" onclick="window.showGachaCardZoom('${slug}',3,${cnt})">
+      <img src="${_gachaPetImg(slug,3)}" alt="" onerror="this.onerror=null;this.style.opacity='0'">
+      <span class="pdc-name">${escHtml(kr)}</span>
+    </div>`;
+  }).join('');
+  return `<div class="prism-deck-wrap">
+    <div class="prism-deck-head">🏆 프리즘 ★★★ 18종 컴플리트!<span>모든 3성 카드를 모았어요 · 카드를 탭하면 상세보기</span></div>
+    <div class="prism-deck">${cards}</div>
+    <button class="prism-claw-btn" onclick="window.openClawTest3D()">🕹️ 인형뽑기 테스트 참여하기</button>
+    <div class="prism-claw-note">⚙️ 실험용 테스트입니다 · 보상은 아직 지급되지 않아요</div>
+  </div>`;
+}
+// 🕹️ 3D 인형뽑기 프로토타입(실험용 테스트)을 새 탭으로 — 아직 보상/경제 미연동
+window.openClawTest3D = function(){
+  const w = window.open('claw.html', '_blank');
+  if (!w) location.href = 'claw.html';   // 팝업 차단 시 같은 탭으로
+};
 // ════════ 🕹️ 인형 뽑기 미니게임 (프리즘 18종 완성 해금) — v2.45.160 ════════
 const CLAW_ENABLED = false;                  // ⚠️ 라이브 비활성(튜닝 중) — 실사용 차단, 프리뷰(?claw/clawTest)는 계속 동작. 출시 시 true
 const CLAW_DAILY = 3;                       // 하루 무료 플레이
