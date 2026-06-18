@@ -68,7 +68,7 @@
   <span class="pill">획득 <b id="won">0</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" style="opacity:.5">BUILD 114</span>
+  <span class="pill" style="opacity:.5">BUILD 115</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -648,14 +648,16 @@ if(DEBUG_PRONG){
     d.renderOrder=999; scene.add(d); prongDbg.push(d);
   }
 }
-function setFingerOpen(t){ // t: 0(닫힘)~1(열림). 2마디 관절 — 뿌리(벌림) + 너클(끝마디 말림)
-  for(let i=0;i<fingers.length;i++){
-    fingers[i].rotation.x = 0.5 - t*0.95;        // 뿌리 관절: 열림=바깥 활짝(음수), 닫힘=안쪽 모임(양수)
-    knuckles[i].rotation.x = 0.1 + (1-t)*0.75;   // 너클: 닫힐수록 끝마디가 더 안으로 말림(움켜쥠)
-  }
+// 손가락 관절 각(열림↔닫힘). 닫힘 각은 발톱 끝이 중심에서 만나 멈추게 계산(서로 넘어가 반대편으로 안 가게).
+const BASE_OPEN=-0.45, BASE_CLOSED=0.08;     // 뿌리 관절(벌림↔모음)
+const KNUCK_OPEN=0.10, KNUCK_CLOSED=0.55;    // 너클(끝마디 말림) — 닫힘서 발톱이 갈고리처럼 중심에 모임
+function setFingerOpen(t){ // t: 0(닫힘)~1(열림). 두 관절(뿌리+너클) 동시 보간
+  const b = BASE_CLOSED + (BASE_OPEN-BASE_CLOSED)*t;
+  const k = KNUCK_CLOSED + (KNUCK_OPEN-KNUCK_CLOSED)*t;
+  for(let i=0;i<fingers.length;i++){ fingers[i].rotation.x=b; knuckles[i].rotation.x=k; }
 }
-// 🤏 손가락 최소 열림 — 닫을 때 이 t 미만으로 안 감(끝까지 닫으면 손가락끼리 겹쳐 오바 → 디자인 깨짐). 잡든 못잡든 항상 이만큼 오므림
-const CLOSE_MIN = 0.13;
+// 🤏 손가락 최소 열림 — 닫힘 포즈(t=0)가 이미 발톱이 중심서 만나는 형태라 끝까지(0) 닫아도 안 넘어감
+const CLOSE_MIN = 0;
 
 // ══════════ 상태머신 ══════════
 let state='READY';            // READY · LOWERING · CLOSING · RAISING · RETURN_X · RETURN_Z · RELEASE
