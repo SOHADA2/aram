@@ -68,7 +68,7 @@
   <span class="pill">획득 <b id="won">0</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" style="opacity:.5">BUILD 105 · claw</span>
+  <span class="pill" style="opacity:.5">BUILD 106 · claw</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -937,6 +937,14 @@ function loop(now){
       if(P.z<-CLAMP){ P.z=-CLAMP; if(v.z<0)v.z=0; }
       if(P.y> 6.6){ P.y= 6.6; if(v.y>0)v.y=0; }        // 천장(위로 안 튀게)
       if(!inHole && P.y < -0.25){ P.y=0.25; v.set(0,0,0); }  // 구멍 아닌데 바닥 아래로 새면 복귀
+      // 🚧 입구 머리 오버행 방지 — 콜라이더는 펜스에 막혀도 큰 시각(머리/팔)이 벽을 뚫고 입구를 가림.
+      //    → 구멍 둘레에 여유 apron 두고 인형 몸체를 안쪽으로 밀어 시각이 펜스 안 넘게. 떨군 인형(구멍 안)은 예외.
+      const _hx1=HOME.x+HOLE_R, _hz0=HOME.z-HOLE_R, GUARD=0.85;
+      const insideHole = (P.x < _hx1 && P.z > _hz0);
+      if(!insideHole && P.x < _hx1+GUARD && P.z > _hz0-GUARD){
+        const pushX=(_hx1+GUARD)-P.x, pushZ=P.z-(_hz0-GUARD);   // +x 또는 -z 중 가까운 쪽으로 밀어냄
+        if(pushX < pushZ){ P.x=_hx1+GUARD; if(v.x<0)v.x=0; } else { P.z=_hz0-GUARD; if(v.z>0)v.z=0; }
+      }
     }
     p.mesh.position.copy(P); p.mesh.quaternion.copy(b.quaternion);
     if(p.mixer && p===held) p.mixer.update(dt*1.5);   // 🪄 평소엔 정지(랜덤 포즈로 굳음) → 집게가 잡은 인형만 살아나 꿈틀(1.5배 빠르게)
