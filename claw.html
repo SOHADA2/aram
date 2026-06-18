@@ -68,7 +68,7 @@
   <span class="pill">획득 <b id="won">0</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" style="opacity:.5">BUILD 100 · claw</span>
+  <span class="pill" style="opacity:.5">BUILD 101 · claw</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -409,7 +409,19 @@ let decoStick=null;   // 기계에 붙은 장식 조이스틱(스틱+공) pivot 
   for(let i=0;i<NB;i++){ const x=-(W/2)+ (i/(NB-1))*W;
     for(const yy of [hy+0.82, hy-0.82]){
       const b=new THREE.Mesh(bulbGeo, new THREE.MeshStandardMaterial({color:0x141019, emissive:(i%2?0x39d6c8:0xffcf5a), emissiveIntensity:1.4}));  // 골드/틸 2색(헥스텍)
-      b.position.set(x, yy, D/2+0.24); scene.add(b); marqueeBulbs.push(b);
+      b.position.set(x, yy, D/2+0.24); b.userData.phase=x; scene.add(b); marqueeBulbs.push(b);
+    }
+  }
+  // 🪧 좌우 측면 간판 — 시점 회전(좌2/우2)으로 옆에서 봐도 동일한 타이틀+백글로우+마퀴(W===D라 크기 동일)
+  for(const side of [1,-1]){                                   // 1=오른쪽(+x), -1=왼쪽(-x)
+    const ry = side*Math.PI/2;
+    const sg=new THREE.Mesh(new THREE.PlaneGeometry(tw*1.2, th*2.8), glowMat.clone()); sg.position.set(side*(D/2+0.16), hy, 0); sg.rotation.y=ry; scene.add(sg);   // 측면 백글로우
+    const stp=new THREE.Mesh(new THREE.PlaneGeometry(tw, th), titleMat.clone()); stp.position.set(side*(D/2+0.22), hy, 0); stp.rotation.y=ry; stp.renderOrder=2; scene.add(stp);  // 측면 타이틀
+    for(let i=0;i<NB;i++){ const z=-(W/2)+ (i/(NB-1))*W;        // 측면 마퀴(앞뒤 z방향 배열)
+      for(const yy of [hy+0.82, hy-0.82]){
+        const b=new THREE.Mesh(bulbGeo, new THREE.MeshStandardMaterial({color:0x141019, emissive:(i%2?0x39d6c8:0xffcf5a), emissiveIntensity:1.4}));
+        b.position.set(side*(D/2+0.24), yy, z); b.userData.phase=z; scene.add(b); marqueeBulbs.push(b);
+      }
     }
   }
   for(const sx of [-1,1]) for(const sz of [-1,1]) M(new THREE.CylinderGeometry(0.22,0.22,0.5,10), goldM, sx*(W/2-0.5), bBot-0.25, sz*(D/2-0.5)); // 다리
@@ -954,7 +966,7 @@ function loop(now){
   }
   stepConfetti(dt);                                                // 🎉 폭죽 갱신
   stepReveal(dt);                                                  // 🏆 뽑은 인형 정면연출/선반 진열
-  for(let i=0;i<marqueeBulbs.length;i++){ const b=marqueeBulbs[i]; b.material.emissiveIntensity = 0.2 + 1.9*(0.5+0.5*Math.sin(now*0.006 - b.position.x*0.9)); } // ✨ 마퀴 러닝라이트(좌→우 체이스)
+  for(let i=0;i<marqueeBulbs.length;i++){ const b=marqueeBulbs[i]; const ph=(b.userData.phase!==undefined)?b.userData.phase:b.position.x; b.material.emissiveIntensity = 0.2 + 1.9*(0.5+0.5*Math.sin(now*0.006 - ph*0.9)); } // ✨ 마퀴 러닝라이트(면별 체이스)
   updHud();
   renderer.render(scene,camera);
 }
