@@ -68,7 +68,7 @@
   <span class="pill">획득 <b id="won">0</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" style="opacity:.5">BUILD 98</span>
+  <span class="pill" style="opacity:.5">BUILD 99</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -103,7 +103,7 @@ if(('ontouchstart' in window) || (navigator.maxTouchPoints>0) || window.matchMed
 
 // ══════════ 🔊 효과음 (WebAudio 합성 — 외부 파일 없음, 첫 사용자 입력에 unlock) ══════════
 const Sfx = (()=>{
-  let ac=null, master=null, motorOsc=null, motorGain=null, ok=true;
+  let ac=null, master=null, motorOsc=null, motorGain=null, moveOsc=null, moveGain=null, ok=true;
   function ctx(){ if(!ac && ok){ try{ ac=new (window.AudioContext||window.webkitAudioContext)(); master=ac.createGain(); master.gain.value=0.45; master.connect(ac.destination); }catch(e){ ok=false; } } return ac; }
   function unlock(){ const c=ctx(); if(c && c.state==='suspended') c.resume(); }
   function tone(freq,dur,type='sine',vol=0.3,slideTo=null,delay=0){
@@ -134,10 +134,20 @@ const Sfx = (()=>{
         motorOsc.connect(f); f.connect(motorGain); motorGain.connect(master); motorOsc.start();
       } else if(motorOsc){ const g=motorGain, o=motorOsc; motorOsc=null; motorGain=null;
         g.gain.exponentialRampToValueAtTime(0.0001,c.currentTime+0.08); o.stop(c.currentTime+0.12); } },
+    // 🕹️ 집게 이동 험(READY에서 좌우 이동 중 지속) — 모터보다 가볍고 높게
+    trolley(on){ const c=ctx(); if(!c) return;
+      if(on){ if(moveOsc) return; moveOsc=c.createOscillator(); moveGain=c.createGain();
+        const f=c.createBiquadFilter(); f.type='bandpass'; f.frequency.value=620; f.Q.value=2;
+        moveOsc.type='triangle'; moveOsc.frequency.value=128;
+        moveGain.gain.setValueAtTime(0.0001,c.currentTime); moveGain.gain.exponentialRampToValueAtTime(0.05,c.currentTime+0.05);
+        moveOsc.connect(f); f.connect(moveGain); moveGain.connect(master); moveOsc.start();
+      } else if(moveOsc){ const g=moveGain, o=moveOsc; moveOsc=null; moveGain=null;
+        g.gain.exponentialRampToValueAtTime(0.0001,c.currentTime+0.06); o.stop(c.currentTime+0.1); } },
     click(){ tone(540,0.06,'square',0.16,400); },
     rotate(){ tone(320,0.16,'sine',0.16,680); },
     descend(){ tone(380,0.22,'sawtooth',0.16,150); },                                   // 하강 시작 끼익
-    clamp(){ noise(0.07,0.22,1300); tone(190,0.1,'square',0.16,110); },                 // 집게 닫힘 철컥
+    clamp(){ noise(0.07,0.22,1300); tone(150,0.18,'square',0.16,95); tone(300,0.14,'sawtooth',0.12,180); },  // 집게 닫힘 철컥+서보
+    open(){ tone(170,0.18,'sawtooth',0.14,340); noise(0.05,0.1,1500); },                // 집게 열림 서보 상승
     grab(){ tone(460,0.08,'square',0.2,680); tone(680,0.12,'triangle',0.18,920,0.06); },// 잡힘 띠링
     miss(){ tone(230,0.12,'sine',0.12,150); },                                          // 헛집음
     slip(){ tone(440,0.16,'sine',0.16,150); noise(0.08,0.1,500); },                     // 미끄러짐
@@ -770,13 +780,15 @@ function loop(now){
   // 🔊 상태 전이 효과음 + ⏱️ 자동 집기 타이머 재무장
   if(_lastState !== state){
     if(state==='LOWERING')      Sfx.descend();
-    else if(state==='CLOSING')  Sfx.clamp();
+    else if(state==='CLOSING')  Sfx.clamp();                                            // 집게 닫힘
     else if(state==='RAISING')  { held ? Sfx.grab() : Sfx.miss(); }
+    else if(state==='RELEASE')  Sfx.open();                                             // 집게 열림(놓기)
     else if(state==='READY')    { readyDeadline = (!ENFORCE_DAILY_LIMIT || playsUsed<DAILY_MAX) ? (now+AUTO_DROP_MS) : 0; _lastTickSec=-1; }
     _lastState = state;
   }
-  // 🔊 모터 험 — 집게가 움직이는 동안만 지속
+  // 🔊 모터 험 — 집게가 상하/복귀로 움직이는 동안 지속
   Sfx.motor(state==='LOWERING'||state==='RAISING'||state==='RETURN_X'||state==='RETURN_Z');
+  if(state!=='READY') Sfx.trolley(false);   // READY 밖에선 이동음 끔(READY 안에선 아래에서 입력따라 토글)
 
   // 🔄 시점 부드럽게 회전
   if(Math.abs(camYaw-camYawTarget) > 0.001){
@@ -792,6 +804,7 @@ function loop(now){
     if(keys['a']||keys['arrowleft']) dx=-1;  if(keys['d']||keys['arrowright']) dx=1;   // WASD/방향키(PC)
     if(keys['w']||keys['arrowup'])   dz=-1;  if(keys['s']||keys['arrowdown'])  dz=1;
     const kl=Math.hypot(dx,dz); if(kl>1){ dx/=kl; dz/=kl; }
+    Sfx.trolley(Math.abs(dx)>0.02 || Math.abs(dz)>0.02);   // 🔊 집게 좌우 이동 중 험
     dcoTX = dz*0.5; dcoTZ = -dx*0.5;   // 입력 방향으로 장식 조이스틱 기울임(밀면 같이 꺾임)
     // 카메라 기준: 위(dz<0)=화면 안쪽(forward), 오른쪽(dx>0)=화면 오른쪽
     const fX=-Math.sin(camYaw), fZ=-Math.cos(camYaw);   // forward(카메라→타겟 수평)
