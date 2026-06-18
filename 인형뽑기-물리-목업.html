@@ -68,7 +68,7 @@
   <span class="pill">획득 <b id="won">0</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" style="opacity:.5">BUILD 111</span>
+  <span class="pill" style="opacity:.5">BUILD 112</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -590,8 +590,11 @@ const clawPivot = new THREE.Group(); scene.add(clawPivot);
 const clawGroup = new THREE.Group(); clawGroup.scale.setScalar(CLAW_SCALE); clawGroup.position.y = -JOINT_H; clawPivot.add(clawGroup);   // 집게 크게, 관절 아래로
 clawPivot.add(new THREE.Mesh(new THREE.SphereGeometry(0.15,14,12), new THREE.MeshStandardMaterial({color:0xffcf5a, metalness:0.85, roughness:0.3})));   // 관절 볼(고정)
 const armRod = new THREE.Mesh(new THREE.CylinderGeometry(0.055,0.055,JOINT_H,8), steel); armRod.position.y=-JOINT_H/2; clawPivot.add(armRod);   // 관절↔집게 연결 암(집게 따라 흔들림)
-// 몸통
-const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.34,0.42,0.5,16), steel); clawGroup.add(hub);
+// ✋ 손바닥(몸통) — 얇고 날렵하게 + 관절 하우징 보이게(투박한 통원기둥 대체)
+const jointMat = new THREE.MeshStandardMaterial({color:0xb9a05a, metalness:0.95, roughness:0.38});  // 관절 핀=황동톤(강철과 대비 → 관절 잘 보임)
+const palm = new THREE.Mesh(new THREE.CylinderGeometry(0.27,0.30,0.12,18), steel); clawGroup.add(palm);                 // 얇은 손바닥 판
+const dome = new THREE.Mesh(new THREE.SphereGeometry(0.17,18,12,0,Math.PI*2,0,Math.PI*0.55), steel); dome.position.y=0.05; clawGroup.add(dome);  // 위쪽 작은 돔(관절 하우징)
+const collar = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.11,0.14,12), jointMat); collar.position.y=0.15; clawGroup.add(collar);          // 손목 관절 칼라(황동)
 // 케이블 — clawGroup 밖(독립). 매 프레임 집게~트롤리(GANTRY_Y)만큼만 그려 위로 안 삐져나옴
 const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,1,8), new THREE.MeshStandardMaterial({color:0x9aa0ad, metalness:0.4, roughness:0.4}));
 scene.add(cable);
@@ -604,18 +607,22 @@ for(const sx of [BIN.x+0.42, -(BIN.x+0.42)]){
   const r = new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.11,BIN.z*2+1.2,16), railMat); r.rotation.x=Math.PI/2;
   r.position.set(sx, GANTRY_Y+0.2, 0); scene.add(r);
 }
-// 3개 집게발 — pivot 그룹으로 열고닫기
-const fingers = [], prongTips = [];
+// 🖐 3개 손가락 — 얇은 2마디 + 실제 구부러지는 너클 관절(베이스 관절 + 중간 너클)
+const fingers = [], knuckles = [], prongTips = [];
 for(let k=0;k<3;k++){
-  const pivot = new THREE.Group();
-  pivot.rotation.y = k*(Math.PI*2/3);
-  const upper = new THREE.Mesh(new THREE.BoxGeometry(0.12,0.6,0.16), steel); upper.position.set(0,-0.3,0.34); upper.castShadow=true;
-  const lower = new THREE.Group(); lower.position.set(0,-0.58,0.34);
-  const tip = new THREE.Mesh(new THREE.BoxGeometry(0.12,0.42,0.16), steel); tip.position.set(0,-0.18,0.06); tip.rotation.x=0.5; tip.castShadow=true;
-  lower.add(tip);
-  const arm = new THREE.Group(); arm.add(upper); arm.add(lower);
-  pivot.add(arm); clawGroup.add(pivot);
-  fingers.push(arm); prongTips.push(tip);
+  const pivot = new THREE.Group(); pivot.rotation.y = k*(Math.PI*2/3); clawGroup.add(pivot);
+  // 뿌리 관절(base) — 손바닥 가장자리. 여기서 손가락 전체가 벌어졌다 모임
+  const base = new THREE.Group(); base.position.set(0,-0.04,0.24); pivot.add(base);
+  const bpin = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.2,10), jointMat); bpin.rotation.z=Math.PI/2; base.add(bpin);   // 뿌리 너클 핀(가로 황동 실린더)
+  // 윗마디(얇음)
+  const upper = new THREE.Mesh(new THREE.BoxGeometry(0.085,0.44,0.085), steel); upper.position.set(0,-0.22,0); upper.castShadow=true; base.add(upper);
+  // 중간 너클(구부러지는 관절) — 윗마디 끝
+  const knuckle = new THREE.Group(); knuckle.position.set(0,-0.44,0); base.add(knuckle);
+  const kpin = new THREE.Mesh(new THREE.CylinderGeometry(0.052,0.052,0.17,10), jointMat); kpin.rotation.z=Math.PI/2; knuckle.add(kpin);  // 너클 핀(황동)
+  // 아랫마디(끝으로 갈수록 가늘게) + 발톱
+  const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.028,0.07,0.34,8), steel); lower.position.set(0,-0.17,0); lower.castShadow=true; knuckle.add(lower);
+  const tip = new THREE.Mesh(new THREE.ConeGeometry(0.045,0.13,8), steel); tip.position.set(0,-0.36,0); tip.castShadow=true; knuckle.add(tip);  // 뾰족 발톱(물리 tip 기준)
+  fingers.push(base); knuckles.push(knuckle); prongTips.push(tip);
 }
 // 집게발 물리 바디 — 매 프레임 시각 tip 위치에 동기화 → 인형을 실제로 밀치고 접촉(통과 X)
 const prongBodies = [], _tmpV = new THREE.Vector3(), _tmpQ = new THREE.Quaternion();
@@ -641,8 +648,11 @@ if(DEBUG_PRONG){
     d.renderOrder=999; scene.add(d); prongDbg.push(d);
   }
 }
-function setFingerOpen(t){ // t: 0(닫힘)~1(열림) — 열림=바깥으로 활짝, 닫힘=tips 모임
-  for(const f of fingers){ f.rotation.x = 0.5 - t*0.85; }
+function setFingerOpen(t){ // t: 0(닫힘)~1(열림). 2마디 관절 — 뿌리(벌림) + 너클(끝마디 말림)
+  for(let i=0;i<fingers.length;i++){
+    fingers[i].rotation.x = 0.5 - t*0.95;        // 뿌리 관절: 열림=바깥 활짝(음수), 닫힘=안쪽 모임(양수)
+    knuckles[i].rotation.x = 0.1 + (1-t)*0.75;   // 너클: 닫힐수록 끝마디가 더 안으로 말림(움켜쥠)
+  }
 }
 
 // ══════════ 상태머신 ══════════
