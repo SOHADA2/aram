@@ -68,7 +68,7 @@
   <span class="pill">획득 <b id="won">0</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" style="opacity:.5">BUILD 116</span>
+  <span class="pill" style="opacity:.5">BUILD 117</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -560,7 +560,10 @@ function makePrize(i){
     // 🟥 빨강 = 집게 잡기 반응 범위(중심에서 GRAB_RADIUS 안에 집게가 오면 잡힘) — 수평 반경이라 회전 없음. 항상 위에 그려 잘 보이게(depthTest 끔)
     dbgGrab=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(GRAB_RADIUS*2, 0.35, GRAB_RADIUS*2)), new THREE.LineBasicMaterial({color:0xff2d4a, depthTest:false, transparent:true})); dbgGrab.renderOrder=999; scene.add(dbgGrab);
   }
-  const pr = { body, mesh:grp, proto, mixer:(grp.userData&&grp.userData.mixer)||null, dbg, dbgGrab, won:false, coy: chy, cr:(chx+chz)/2, vtop:(proto?proto.vh:1.2)-chy };   // proto=뽑았을 때 트로피용 · cr=콜라이더 반지름(손가락 오므림 한계용)
+  const _vr = proto ? (proto.vr||0.9) : 0.9;
+  const pr = { body, mesh:grp, proto, mixer:(grp.userData&&grp.userData.mixer)||null, dbg, dbgGrab, won:false, coy: chy, cr:(chx+chz)/2,
+    clamp: Math.min(2.7, BX - _vr*0.92),   // 🧱 유리 뚫음 방지 한계 — 가분수 챔피언(vr 큼)일수록 더 안쪽에 가둠. 작은 포로는 2.7
+    vtop:(proto?proto.vh:1.2)-chy };   // proto=뽑았을 때 트로피용 · cr=콜라이더 반지름(손가락 오므림 한계용)
   body._prize = pr;                                     // 충돌 이벤트에서 인형 역참조
   prizes.push(pr);
 }
@@ -967,17 +970,20 @@ function loop(now){
   }
 
   world.step(1/60, dt, 3);
-  const CLAMP=2.7;   // 통 안 한계(벽에서 더 안쪽). 큰 인형 몸통이 유리 안 뚫게 + 어떤 이유로 새도 복귀
   for(const p of prizes){
     const b=p.body, v=b.velocity, P=b.position;
     const sp=Math.hypot(v.x,v.y,v.z); if(sp>6){ const f=6/sp; v.x*=f; v.y*=f; v.z*=f; } // 속도 상한↓ — 집게에 밀려도 안 날아감(적당히 밀고 지나감)
     // 🧱 통 밖으로 새는 것 강제 차단(터널링·집게 밀림·폭발 무관). 집힌 인형/골인 구멍은 예외
     if(p!==held && !p.won){
       const inHole = (Math.abs(P.x-HOME.x) < HOLE_RX+0.4 && Math.abs(P.z-HOME.z) < HOLE_RZ+0.4);  // 골인존(checkHole보다 넓게) 아래로 허용 — 가장자리서 위로 튕겨 복원되던 것 방지
-      if(P.x> CLAMP){ P.x= CLAMP; if(v.x>0)v.x=0; }
-      if(P.x<-CLAMP){ P.x=-CLAMP; if(v.x<0)v.x=0; }
-      if(P.z> CLAMP){ P.z= CLAMP; if(v.z>0)v.z=0; }
-      if(P.z<-CLAMP){ P.z=-CLAMP; if(v.z<0)v.z=0; }
+      // 가분수(머리 큰 챔피언)가 쓰러져 누우면 시각이 콜라이더보다 한참 길어 유리를 뚫음 → 인형별 한계(p.clamp)로 더 안쪽에 가둠. 구멍 영역은 예외(떨군 인형 골인).
+      const CLAMP = p.clamp || 2.7;
+      if(!inHole){
+        if(P.x> CLAMP){ P.x= CLAMP; if(v.x>0)v.x=0; }
+        if(P.x<-CLAMP){ P.x=-CLAMP; if(v.x<0)v.x=0; }
+        if(P.z> CLAMP){ P.z= CLAMP; if(v.z>0)v.z=0; }
+        if(P.z<-CLAMP){ P.z=-CLAMP; if(v.z<0)v.z=0; }
+      }
       if(P.y> 6.6){ P.y= 6.6; if(v.y>0)v.y=0; }        // 천장(위로 안 튀게)
       if(!inHole && P.y < -0.25){ P.y=0.25; v.set(0,0,0); }  // 구멍 아닌데 바닥 아래로 새면 복귀
       // 🚧 입구 머리 오버행 방지 — 콜라이더는 펜스에 막혀도 큰 시각(머리/팔)이 벽을 뚫고 입구를 가림.
@@ -1094,7 +1100,8 @@ for(const pf of PRIZE_FILES){
     const coz = COLLIDER_R*_ar(_fd/_favg);                          // 깊이 — 길쭉한 캐릭터는 깊게
     const coy = Math.min(size.y*s*0.22, 0.8);                       // 박스 키(낮춤) — 집게 닫힐 때 하부에 닿아 잡힘
     const yshift = (size.y*s/2) - coy;                             // 발이 콜라이더 바닥에 닿도록 시각을 올림
-    prizeProtos.push({ static:baked, scene:gltf.scene, anims:gltf.animations, dud:pf.dud, count:pf.count, s, cx:ctr.x, cy:ctr.y, cz:ctr.z, cox, coy, coz, yshift, vh:size.y*s });  // dud=꽝(포로), count=마릿수
+    const vr = 0.5*Math.max(size.x, size.y, size.z)*s;             // 시각 반지름(가장 긴 축의 절반) — 누웠을 때 최대로 뻗는 거리
+    prizeProtos.push({ static:baked, scene:gltf.scene, anims:gltf.animations, dud:pf.dud, count:pf.count, s, cx:ctr.x, cy:ctr.y, cz:ctr.z, cox, coy, coz, yshift, vr, vh:size.y*s });  // dud=꽝(포로), count=마릿수 · vr=시각반지름(유리 뚫음 방지 클램프용)
     if(++_loaded === PRIZE_FILES.length) resetPrizes();   // 전부 로드 완료 후 한 번만 — 모든 종류 등장
     console.log('✅ size', size.toArray().map(v=>+v.toFixed(1)), 'collider', [cox,coy,coz].map(v=>+v.toFixed(2)), 'yshift', yshift.toFixed(2), 's', s.toFixed(4));
   }, undefined, err => { console.warn(pf.file+' 로드 실패', err); if(++_loaded === PRIZE_FILES.length) resetPrizes(); });
