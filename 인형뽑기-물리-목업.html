@@ -68,7 +68,7 @@
   <span class="pill">획득 <b id="won">0</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" style="opacity:.5">BUILD 118</span>
+  <span class="pill" style="opacity:.5">BUILD 119</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -206,11 +206,20 @@ function placeCamera(){
   camera.aspect = aspect;
   const vFov = camera.fov * Math.PI/180;
   const hFov = 2*Math.atan(Math.tan(vFov/2)*aspect);
-  const fitW = 12.5, fitH = 21.5;                            // 담을 가로/세로(↑=줌아웃, 기계 작게·여백). 너무 가깝지 않게
+  // 🖥️ 상단 HUD·하단 컨트롤바가 가리는 만큼 빼고, '보이는 밴드'에 기계를 맞춤 (PC에서 글자가 기계 가리던 문제)
+  const topI = document.getElementById('hud')?.offsetHeight || 0;
+  const botI = document.getElementById('controls')?.offsetHeight || 0;
+  const availH = Math.max(innerHeight * 0.45, innerHeight - topI - botI);   // 너무 작아지지 않게 하한
+  const fitW = 12.5, baseFitH = 21.5;                       // 담을 가로/세로(↑=줌아웃, 기계 작게·여백)
+  const fitH = baseFitH * innerHeight / availH;             // 밴드 높이에 맞게 줌아웃 → 위아래 바에 안 가림
   const dist = Math.max((fitW/2)/Math.tan(hFov/2), (fitH/2)/Math.tan(vFov/2));
   const dir = new THREE.Vector3(Math.sin(camYaw), _camElev, Math.cos(camYaw)).normalize();  // yaw로 수평 회전
   camera.position.copy(_camTarget).addScaledVector(dir, dist);
   camera.lookAt(_camTarget);
+  // 밴드 중심으로 수직 이동(하단 컨트롤바가 더 크니 콘텐츠를 위로) — 픽셀 단위 frustum 시프트
+  const shift = (botI - topI) / 2;
+  camera.clearViewOffset();
+  if (Math.abs(shift) > 1) camera.setViewOffset(innerWidth, innerHeight, 0, shift, innerWidth, innerHeight);
   camera.updateProjectionMatrix();
 }
 placeCamera();
@@ -1110,6 +1119,8 @@ resetPrizes();
 updDailyHud();
 requestAnimationFrame(loop);
 addEventListener('resize', ()=>{ placeCamera(); renderer.setSize(innerWidth,innerHeight); });
+addEventListener('load', ()=> placeCamera());   // 폰트·레이아웃 확정 후 HUD/컨트롤 높이 다시 반영
+if (document.fonts?.ready) document.fonts.ready.then(()=> placeCamera());
 
 } catch(err){
   const e=document.getElementById('err'); e.style.display='flex';
