@@ -68,7 +68,7 @@
   <span class="pill">획득 <b id="won">0</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" style="opacity:.5">BUILD 109 · claw</span>
+  <span class="pill" style="opacity:.5">BUILD 110 · claw</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -174,8 +174,8 @@ const TSHELF = { y:-0.5, z:4.6, lx:-2.3, rx:2.3, gap:0.66, perSide:3, rowH:0.92,
 const GRAB_MIN_Q    = 0.12;   // 이 품질 미만이면 헛집음(낮춰서 웬만하면 잡힘)
 const MAX_SLIP_RATE = 0.5;    // 품질 0일 때 초당 슬립확률(낮춰서 잘 안 놓침)
 const CLAW_SCALE    = 1.35;   // 집게 크기 배율(↑ 더 크게)
-const CLAW_TOP_Y    = 6.2;    // 집게 대기 높이
-const GANTRY_Y      = 6.7;    // 크레인 줄이 매달린 트롤리/레일 높이(유리 안). 줄이 위로 안 삐져나오게
+const CLAW_TOP_Y    = 6.85;   // 집게 대기 높이(천장 쪽으로 살짝 올림)
+const GANTRY_Y      = 7.35;   // 크레인 레일 높이(유리 안, 천장 8.4보다 ~1 아래 — 너무 안 붙게)
 const CLAW_DROP_Y   = 0.55;   // 집게 내려가는 바닥 높이(더 아래까지 — 발끝이 인형 콜라이더에 깊이)
 const PRONG_REACH   = 0.95;   // (근접식 잔여) 인형 중심 위 하강 높이
 const PRONG_SINK    = 0.6;    // 물리식: 집게발이 인형에 처음 닿은 뒤 추가로 더 박는 깊이(↑ 더 깊이)
@@ -585,7 +585,7 @@ clawBody.position.set(0, CLAW_TOP_Y, 0); world.addBody(clawBody);
 
 const steel = new THREE.MeshStandardMaterial({color:0xcfd6e0, roughness:0.28, metalness:0.85});
 // 🦾 손목 관절(clawPivot) = 트롤리 바로 아래 고정점. 집게(clawGroup)는 이 관절 아래 매달려 진자 운동(관절은 안 흔들림)
-const JOINT_H = 0.78;   // 관절~집게 거리(이 길이로 흔들림)
+const JOINT_H = 0.48;   // 관절~집게 거리(짧게 — 관절 볼이 집게 손목 가까이로 내려옴)
 const clawPivot = new THREE.Group(); scene.add(clawPivot);
 const clawGroup = new THREE.Group(); clawGroup.scale.setScalar(CLAW_SCALE); clawGroup.position.y = -JOINT_H; clawPivot.add(clawGroup);   // 집게 크게, 관절 아래로
 clawPivot.add(new THREE.Mesh(new THREE.SphereGeometry(0.15,14,12), new THREE.MeshStandardMaterial({color:0xffcf5a, metalness:0.85, roughness:0.3})));   // 관절 볼(고정)
@@ -597,11 +597,11 @@ const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,1,8), new THRE
 scene.add(cable);
 // 🛤 크레인 레일(파이프라인) — 잘 보이게 굵은 골드+발광
 const railMat = new THREE.MeshStandardMaterial({color:0xffcf5a, emissive:0xffae20, emissiveIntensity:0.55, roughness:0.3, metalness:0.9});
-const trolley = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.3,0.8), railMat); scene.add(trolley);            // 레일 위 트롤리
-const gantryBeam = new THREE.Mesh(new THREE.BoxGeometry(BIN.x*2+1.0, 0.26, 0.5), railMat); scene.add(gantryBeam); // X빔(Z로 이동) — 굵게
-// 양옆 고정 레일(Z방향, 유리 안쪽) — 갠트리 빔이 이 위를 Z로 이동(크레인 트랙 가시화)
+const trolley = new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,0.56,16), railMat); trolley.rotation.z=Math.PI/2; scene.add(trolley);   // 레일 위 원형 트롤리(롤러)
+const gantryBeam = new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,BIN.x*2+1.0,16), railMat); gantryBeam.rotation.z=Math.PI/2; scene.add(gantryBeam); // X 원형 파이프(Z로 이동)
+// 양옆 고정 레일(Z방향, 유리 안쪽) — 원형 파이프. 갠트리 빔이 이 위를 Z로 이동(크레인 트랙 가시화)
 for(const sx of [BIN.x+0.42, -(BIN.x+0.42)]){
-  const r = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, BIN.z*2+1.2), railMat);
+  const r = new THREE.Mesh(new THREE.CylinderGeometry(0.11,0.11,BIN.z*2+1.2,16), railMat); r.rotation.x=Math.PI/2;
   r.position.set(sx, GANTRY_Y+0.2, 0); scene.add(r);
 }
 // 3개 집게발 — pivot 그룹으로 열고닫기
