@@ -15,17 +15,18 @@
 - **파일**: `인형뽑기-물리-목업.html`(메인) · GLB 8종(`teemo gwen vex ekko yone neeko lux poro`, modelviewer.lol 추출, 각 ~0.5~5MB, 전부 `.gitignore` 화이트리스트) · `_clawserve.mjs`(로컬서버) · `claw.html`(배포 캐시우회 사본 — 로컬작업 중엔 미동기화, 배포 때만 cp+BUILD태그)
 - **실행**: 로컬 `node _clawserve.mjs "<aram경로>"`(백그라운드) → `http://localhost:8731/` (⚠️ `file://`은 CORS로 GLB 못 부름 → 반드시 http). 배포본 `https://sohada2.github.io/aram/인형뽑기-물리-목업.html`
 - **스택**: three.js 0.160 + **cannon-es 0.20** + GLTFLoader/SkeletonUtils/RoomEnvironment. importmap·CDN(jsdelivr).
-- **현재 BUILD 91** (HUD `BUILD N` pill로 확인). 매 수정 BUILD +1 + 인라인 `<script type=module>` 추출해 `node --check`(임시 .mjs, `os.tmpdir()` 경로) 검증. **푸시**: `main`에서 직접 커밋 후 `git push origin main`(Pages 자동배포 1~3분, 모바일 캐시 강함 → 시크릿). 한글 커밋=Git Bash heredoc UTF-8.
-- **🎁 경품(`PRIZE_FILES` {file,target,dud,count})**: 8종 — **포로 20마리(`dud:true`=꽝)** + 챔피언 7종 각 1 = 27. `resetPrizes`가 count만큼 풀고 Fisher-Yates 셔플→`_composition`, `makePrize(i)`가 참조(`_prizeTotal`로 격자 계산). target=키(세로)정규화(teemo 3.2/챔프 2.89/poro 2.0). **포로 골인=꽝**(획득·트로피·폭죽 X, `checkHole`에서 `proto.dud` 분기).
-- **🧸 모델 처리(로드 콜백)**: 스킨드 GLB → ①재질 `BLEND→alphaTest 0.5` 컷아웃(눈/얼굴 데칼 안 가려짐, 눈/표정엔 polygonOffset) ②`bakeStatic`(스킨드→정적 BufferGeometry, 측정+트로피용) ③통 안 시각=`skeletonClone`+`AnimationMixer`(`Idle_Base` 아이들). 스케일=측정 s(스킨드 부모스케일 k² 회피의 핵심). **전부 로드된 뒤 1회만 스폰**(`_loaded` 카운터 == `PRIZE_FILES.length`).
-- **🟢 콜라이더**: `COLLIDER_SHAPE='cyl'`(원기둥, cannon-es Cylinder는 **Y축 직립** — 회전불필요 확인됨). 반지름=캐릭터별 footprint(`bodyCore` hx/hz 비율, 0.62~1.5 클램프)×`COLLIDER_R`(0.52). `'box'` 토글 가능(convex라 box보다 무거움 → 렉↓).
-- **🦾 잡기=근접식**(`GRAB_PHYSICAL=false`): 하강 중 `GRAB_RADIUS`(0.8) 안 가장 가까운 인형 커밋(`setProngIgnore` mask -13으로 닫힐 때 밀침 제외) → 닫고 `LockConstraint`. `grabQ`=중심정렬도(`tryGrab`, 0.2+align×0.8). 들/복귀 중 `(1-grabQ)*MAX_SLIP_RATE(0.5)` 확률 슬립 = **무음**(떨어지는 게 보임, 팝업 제거). 스폰=체커보드 높이 stagger(겹침 폭발 방지)+큰 랜덤 기울기(쓰러져 더미).
-- **🎯 골인**(`checkHole`): 구멍(앞·좌 `HOME`, 턱=group8) 위에서 **`y<0.5`(관대)** + `HOLE_R+0.3` 내 → 획득. RELEASE 때 **구멍 정중앙 스냅+직하강**(`mask=-13` 턱 통과)으로 확실히 골인. 들고있는 인형(`p===held`) 제외. `fireConfetti()` 폭죽.
-- **🏆 뽑은 인형**(챔피언만): `awardTrophy`→**정면 클로즈업**(카메라 앞 1.6s, `stepReveal` 스킨드+애니)→**콘솔 양옆 날개 선반**(`TSHELF`)으로 날아가 정적 트로피 진열(좌우 각3, max6, `relayoutTrophies`로 재정렬). ⚠️왼쪽 날개가 골인구멍 가릴 가능성(미확인).
-- **⏱️ 일일제한**: `DAILY_MAX=10`, localStorage 일자별(`claw_daily`). 집기1회=1플레이(`tryDrop` 게이트), 소진 시 집기버튼 비활성+안내. HUD "오늘 N/10". **테스트=콘솔 `resetPlays()`**.
-- **🎛️ 조작**: PC **WASD/방향키 이동·Space 집기·R 리셋·Q/E 시점** + 모바일 조이스틱/버튼(`#stick`/`#drop`/`#reset`/시점). 시점 5스냅(`rotateView`±2). 버튼에 키 힌트, 중앙 `.hint` 안내.
-- **디버그**: `DEBUG_COLLIDER/GRAB/PRONG` **전부 false**(숨김). 성능=`pixelRatio 1.5`+인형 그림자 off. **27마리라 렉 여지** — 심하면 포로 일부 정적/수↓.
-- **다음 작업/미결정**: ① 보상·경제 구조(챔피언별 보상, 포로 패널티, 횟수충전) — Firebase 서버검증 필요 ② 27마리 성능 ③ 트로피 선반 위치(왼쪽 구멍가림?·`TSHELF` 튜닝) ④ 앱 통합 시 `CLAW_ENABLED` 대체.
+- **현재 BUILD 118** (HUD `BUILD N` pill로 확인). 매 수정 BUILD +1 + 인라인 `<script type=module>` 추출해 `node --check`(임시 .mjs) 검증 후에만 커밋. **푸시**: 작업브랜치 `claude/project-overview-skvq0h`에 커밋 후 `git push origin HEAD:main` + `HEAD:claude/project-overview-skvq0h` 둘 다(Pages 자동배포 1~3분, 모바일 캐시 강함 → 시크릿/새탭). `claw.html`=캐시우회 사본(매 빌드 `cp` 후 `sed`로 `BUILD N · claw` 태그). 한글 커밋=heredoc UTF-8.
+- **🎁 경품(`PRIZE_FILES` {file,target,dud,count})**: 8종 — **포로 20마리(`dud:true`=꽝, target 1.54)** + 챔피언 7종 각 1(target 2.89) = 27. **포로 골인=`showResult('포로다! 🐾')`**(획득·트로피·폭죽 X, 빨강 아님). `proto.dud` 분기.
+- **🧸 모델 처리(로드 콜백)**: 스킨드 GLB → 재질 컷아웃 + `bakeStatic`(정적 측정/트로피용) + 통 안 시각=`skeletonClone`+`AnimationMixer`(`Idle_Base`). **⚠️ 아이들 애니는 평소 정지(스폰 시 랜덤 포즈로 굳음=더미느낌), 집힌 인형(`p===held`)만 `mixer.update(dt*1.5)`로 살아나 꿈틀**(루프 ~L941). proto에 `vr`(시각반지름=최장축½) 저장.
+- **🟢 콜라이더**: `COLLIDER_SHAPE='cyl'`(원기둥 Y직립). 반지름 = footprint × `COLLIDER_R`(**0.63**). 인형별 `p.cr`(콜라이더 반지름)·`p.clamp`(벽 한계) 저장. 디버그 박스 3플래그(전부 false): `DEBUG_COLLIDER`(🟩초록=인형 충돌)·`DEBUG_PRONG`(🟦파랑=집게발)·`DEBUG_GRAB`(🟥빨강=근접반경).
+- **🦾 잡기=물리 접촉식**(`GRAB_PHYSICAL=true`): 집게발 prong 바디(그룹4·`pb._prongIdx`)가 인형(그룹2)에 `collide` 이벤트로 닿은 걸 `_prongTouch` Map(`_collectTouch` 동안)에 수집 → 하강 중 닿으면 `_lowerContactY`서 `PRONG_SINK`(0.6) 더 박고 CLOSING. `mostTouchedPrize()`로 대상 선정·`setProngIgnore`(mask -13)로 그 인형만 안 밀침(나머지는 밀침=물리감) → `LockConstraint`. grabQ=닿은 발수(0.4+cnt/3·0.6). 근접식(빨강 `GRAB_RADIUS`)은 `false`일 때만.
+- **🖐 집게 디자인/관절**: 손목 관절 `clawPivot`(트롤리 바로 아래 고정, 케이블 수직) 아래 `clawGroup`이 `JOINT_H`(0.48) 매달려 **2축 스프링 진자**(`thetaX/thetaZ`, 이동 반대로 처지고 멈추면 출렁, 루프 ~L912). 손바닥=얇은 판+돔+황동칼라. 손가락=2마디(뿌리관절+너클, 황동핀) **발톱이 중심서 만나 멈춤**(과회전 X): `BASE_OPEN/CLOSED`·`KNUCK_OPEN/CLOSED`·`CLOSE_MIN`(0)으로 `setFingerOpen(t)`. prong 바디는 발톱끝(tip) 추종.
+- **📐 높이/구멍/벽**: `CLAW_TOP_Y`6.4·`GANTRY_Y`7.35(레일 천장근처·원형 파이프)·`CLAW_DROP_Y`**1.2**(헛집음 시 발끝이 바닥서 멈춤=바닥관통 방지). 출구=세로 직사각 `HOLE_RX`0.95/`HOLE_RZ`1.25. **벽 클램프 인형별 `p.clamp=min(2.7, BX-vr·0.92)`**(가분수 챔피언이 누워 유리 뚫는 것 방지·구멍영역 예외). 입구 머리 오버행 방지 apron(구멍 둘레 GUARD 0.85). world `allowSleep`+바디 sleep(미세떨림 방지, 집을 때 wakeUp).
+- **🔊 효과음**(WebAudio 합성, 첫 입력에 unlock — `Sfx` ~L104): 버튼/리셋·시점회전·하강·**모터험**(상하·복귀 중)·**이동험 trolley**(READY 좌우이동, lowpass)·집게닫힘·열림·잡힘/헛집음·미끄러짐·획득팡파레+폭죽·꽝부저·카운트다운틱·자동집기경보·한도소진.
+- **⏱️ 자동 집기**: READY 후 `AUTO_DROP_MS`(30초) 안 안내리면 자동 하강(HUD ⏱ 카운트다운, 마지막5초 빨강펄스+틱). **일일제한 `ENFORCE_DAILY_LIMIT=false`(테스트 중 OFF)** — `true`로 켜면 `DAILY_MAX`(10)/일. HUD "오늘 ∞".
+- **🎛️ 조작**: PC WASD/방향키·Space·R·Q/E + 모바일 조이스틱/버튼. **터치기기(`body.is-touch`, JS감지)=안내문·키힌트 숨김+조작바 슬림(시야확보)**. 🪧 좌우 측면에도 간판(`userData.phase`로 면별 마퀴 체이스).
+- **🎉 골인 연출**: `fireConfetti()` 뒤편 폭죽 + 챔피언 `awardTrophy`(클로즈업→`TSHELF` 선반). **획득 즉시 인형 회수**(`p.collected`, 추후 데이터훅 지점).
+- **다음 작업/미결정**: ① 보상·경제 구조(챔피언별 보상·포로 패널티·횟수충전) Firebase 서버검증 ② 27마리 성능 ③ 실기기서 진자/발톱/벽클램프/바닥 미세튠 ④ 앱 통합 시 `CLAW_ENABLED` 대체. **출시 전 디버그 플래그 전부 false 확인·`ENFORCE_DAILY_LIMIT=true`.**
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
