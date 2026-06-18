@@ -68,7 +68,7 @@
   <span class="pill">획득 <b id="won">0</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" style="opacity:.5">BUILD 106 · claw</span>
+  <span class="pill" style="opacity:.5">BUILD 107 · claw</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -649,6 +649,10 @@ let _lastState=null;          // 효과음 상태전이 감지용
 const AUTO_DROP_MS = 30000;   // ⏱️ READY 후 이 시간 안에 안 내리면 자동 집기
 let readyDeadline=0, _lastTickSec=-1;   // 자동 집기 마감시각·마지막 틱 초
 const clawPos = new THREE.Vector3(HOME.x, CLAW_TOP_Y, HOME.z);   // 입구(왼쪽·카메라쪽)에서 시작
+// 🪀 집게 펜듈럼(손목 흔들림) — 트롤리 가속도에 따라 매달린 집게가 휘릭 흔들림(스프링-댐퍼)
+let _pPX=HOME.x, _pPZ=HOME.z, _pVX=0, _pVZ=0;      // 이전 트롤리 위치·속도
+let swayX=0, swayZ=0, swayVX=0, swayVZ=0;          // 흔들림 오프셋·속도(수평)
+const _Y_UP=new THREE.Vector3(0,1,0), _cTopV=new THREE.Vector3(), _cBotV=new THREE.Vector3(), _cDir=new THREE.Vector3();
 
 // 🎉 컨페티(폭죽) — 골인 성공 시 뒤편(통 뒤쪽 z-)에서 앞으로 뻥! 터뜨림
 const confetti = [];   // {mesh, vx,vy,vz, life}
@@ -905,13 +909,27 @@ function loop(now){
     decoStick.rotation.x += (dcoTX-decoStick.rotation.x)*k;
     decoStick.rotation.z += (dcoTZ-decoStick.rotation.z)*k; }
 
-  // 집게 시각 갱신
-  clawBody.position.set(clawPos.x, clawPos.y, clawPos.z);
-  clawGroup.position.copy(clawPos);
-  clawGroup.rotation.y = clawSpin;
-  // 케이블/트롤리/갠트리 — 줄은 집게~GANTRY_Y 만큼만(위로 안 삐져나옴)
-  const _cTop=GANTRY_Y, _cBot=clawPos.y+0.3, _cLen=Math.max(0.05,_cTop-_cBot);
-  cable.position.set(clawPos.x, (_cTop+_cBot)/2, clawPos.z); cable.scale.y=_cLen;
+  // 🪀 펜듈럼 — 트롤리(clawPos) 가속도로 매달린 집게가 흔들림. 비관성 진자: s'' = -ω²s - c·s' - a_tr롤리
+  if(dt>0.0001){
+    const vx=(clawPos.x-_pPX)/dt, vz=(clawPos.z-_pPZ)/dt;
+    let ax=(vx-_pVX)/dt, az=(vz-_pVZ)/dt;
+    const AMAX=90; ax=Math.max(-AMAX,Math.min(AMAX,ax)); az=Math.max(-AMAX,Math.min(AMAX,az));   // 가속도 스파이크 제한
+    const STIFF=52, DAMP=6.5, GAIN=0.011, SMAX=0.55;
+    swayVX += (-STIFF*swayX - DAMP*swayVX - ax*GAIN)*dt; swayX += swayVX*dt;
+    swayVZ += (-STIFF*swayZ - DAMP*swayVZ - az*GAIN)*dt; swayZ += swayVZ*dt;
+    swayX=Math.max(-SMAX,Math.min(SMAX,swayX)); swayZ=Math.max(-SMAX,Math.min(SMAX,swayZ));
+    _pPX=clawPos.x; _pPZ=clawPos.z; _pVX=vx; _pVZ=vz;
+  }
+  const swX=clawPos.x+swayX, swZ=clawPos.z+swayZ;   // 집게 실제(흔들린) 위치
+  // 집게 시각 갱신 — 흔들린 위치 + 케이블 방향으로 살짝 기울임(매달려 흔들리는 느낌)
+  clawBody.position.set(swX, clawPos.y, swZ);
+  clawGroup.position.set(swX, clawPos.y, swZ);
+  const TILT=0.55; clawGroup.rotation.set(swayZ*TILT, clawSpin, -swayX*TILT);
+  // 케이블 — 고정된 트롤리(clawPos.x,z 위)에서 흔들린 집게 상단으로 비스듬히 연결
+  _cTopV.set(clawPos.x, GANTRY_Y, clawPos.z); _cBotV.set(swX, clawPos.y+0.3, swZ);
+  const _cLen=Math.max(0.05,_cTopV.distanceTo(_cBotV));
+  cable.position.copy(_cTopV).add(_cBotV).multiplyScalar(0.5); cable.scale.y=_cLen;
+  _cDir.copy(_cTopV).sub(_cBotV).normalize(); cable.quaternion.setFromUnitVectors(_Y_UP, _cDir);
   trolley.position.set(clawPos.x, GANTRY_Y+0.05, clawPos.z);
   gantryBeam.position.set(0, GANTRY_Y+0.2, clawPos.z);
   // 집게발 물리 바디를 시각 tip 위치/회전에 동기화 → 인형과 실제 충돌
