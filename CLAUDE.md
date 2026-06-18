@@ -11,18 +11,21 @@
 - (배포 앱 현재 v2.45.167: 가챠 감사추적 `gachaVerify`·복권 종류별 "내가 N회"·프로필 대시보드 리디자인·시너지 균형(신성한개입 꾸준형). in-app CHANGELOG 참조)
 
 ## 🕹️ 인형뽑기 물리 프로토타입 (WIP · 다른 컴퓨터 핸드오프) ★새 세션 필독
-> **앱(index.html)과 분리된 독립 3D 물리 인형뽑기.** Poki "Lucky Claw Machine"급을 목표로 자체 제작 중. 향후 앱의 인형뽑기 미니게임(`CLAW_ENABLED`)을 이걸로 대체 검토.
-- **파일**: `인형뽑기-물리-목업.html`(메인) · `teemo.glb`(인형 모델, KADA modelviewer.lol 추출 4.96MB 무압축) · `_clawserve.mjs`(로컬 정적서버)
-- **실행**: ① 배포본 `https://sohada2.github.io/aram/인형뽑기-물리-목업.html`(https라 GLB 로드 OK) ② 로컬 `node _clawserve.mjs "<aram경로>"` → `http://localhost:8731/` (⚠️ `file://`은 CORS로 GLB 못 불러옴 → 반드시 http 서버)
-- **스택**: three.js 0.160 + **cannon-es 0.20**(물리) + GLTFLoader/SkeletonUtils/RoomEnvironment. importmap 사용. CDN(jsdelivr).
-- **메커닉(구현됨)**: 3발 집게가 회전하며 하강 → 잡기 → 들 때 **확률적 슬립**. 집게발=KINEMATIC 물리 강체(인형 밀침). **골인 구멍(앞·좌 코너, 턱 lip)에 떨궈야 획득**(`checkHole`). 조작=**WASD/방향키/스페이스**(PC)+아날로그 조이스틱(모바일, 카메라 기준 이동). 헥스텍 블랙+골드 테마. 시점 회전 5스냅(`camViewIdx` -2..+2, 좌2·중앙·우2). 장식 조이스틱(`decoStick`)이 HTML 조이스틱과 연동 기울임.
-- **현재 BUILD 52** (HUD 우상단 `BUILD N` pill로 확인 — 배포 캐시 디버깅용). **메인=`인형뽑기-물리-목업.html`, 캐시우회 사본=`claw.html`**(둘 다 `.gitignore` 화이트리스트, 매 수정마다 cp+sed로 BUILD 태그만 다르게 동기화). **푸시 흐름**: 작업브랜치 `claude/project-overview-skvq0h`에 커밋 후 `git push origin HEAD:main`으로 GitHub Pages 배포(1~3분 지연 + 모바일 캐시 강함 → 시크릿/새탭 권장). 인라인 모듈 `node --check`로 검증 후 커밋.
-- **🎯 잡기 방식 — 물리 접촉식**(`GRAB_PHYSICAL=true`, 토글 상수): 집게발(파랑 박스, 그룹4)이 인형 콜라이더(초록 박스, 그룹2)에 **collide 이벤트로 실제 닿은 것**을 수집(`_prongTouch` Map, `_collectTouch` 플래그). 하강 중 닿으면 그 높이서 `PRONG_SINK`(0.6) 더 박고 닫음(2층 인형은 더 높이서 잡힘). 안 닿으면 `CLAW_DROP_Y`(0.55, 바닥)까지 최대 하강. **대상 인형은 `setProngIgnore`로 닫힐 때 밀침 제외(안 튕기게)**, 나머지는 계속 밀침. 잡기품질=닿은 발 수(0.4 + cnt/3*0.6). `mostTouchedPrize()`로 대상 선정. **근접식(빨강 `GRAB_RADIUS` 반경)은 `GRAB_PHYSICAL=false`일 때만 — 현재 미사용**.
-- **콜라이더(초록, `cox/coy/coz`)**: 가로/깊이 `GRAB_RADIUS+0.08`(좁게=인형끼리 안 부딪힘), 키 `size.y*s*0.22`(cap 0.8). 인형(`PRIZE_FILES` target=**4.3**, 키 기준)이 집게보다 커서 미스매치 있음 → **인형을 줄이는(target↓) 게 근본 개선**으로 사용자에 제안해둠(미결정).
-- **디버그 박스 3종 플래그**(파일 상단): `DEBUG_COLLIDER`(🟩초록=인형 충돌, 현재 true) · `DEBUG_PRONG`(🟦파랑=집게발, 현재 true) · `DEBUG_GRAB`(🟥빨강=근접 반경, 현재 **false 숨김** — 물리식에선 무의미). 출시 전 전부 false.
-- **🎉 골인 연출**: `fireConfetti()` 뒤편(z-)에서 컨페티 46장 분사. **획득 시 인형 즉시 회수**(world/scene/디버그 제거, `p.collected` — 추후 데이터 기록 훅 지점). 빈손 복귀는 2.2배 빠름.
-- **튜닝 상수**(파일 상단): `PRIZE_COUNT`(16)·`GRAB_PHYSICAL`·`GRAB_RADIUS`·`GRAB_MIN_Q`·`MAX_SLIP_RATE`·`CLAW_DROP_Y`·`PRONG_REACH`·`PRONG_SINK`·`CLAW_SCALE`(1.35)·`LOWER_SPD`·`JOY_SPEED`·`RETURN_SPD`·`PRIZE_FILES`.
-- **다음 작업**: ① 인형 크기 vs 집게 밸런스(인형 target↓ 또는 집게↑ — 사용자 결정 대기) ② 디버그 박스 끄고 실사용감 확인 ③ 인형 여러 종 추가(`PRIZE_FILES`) ④ 보상/경제 Firebase 통합(`p.collected` 시점) ⑤ 앱 통합 시 `CLAW_ENABLED` 대체 검토.
+> **앱(index.html)과 분리된 독립 3D 물리 인형뽑기.** Poki "Lucky Claw Machine"급 자체 제작. 향후 앱 미니게임(`CLAW_ENABLED`) 대체 검토. **보상/경제 구조 아직 미정.**
+- **파일**: `인형뽑기-물리-목업.html`(메인) · GLB 8종(`teemo gwen vex ekko yone neeko lux poro`, modelviewer.lol 추출, 각 ~0.5~5MB, 전부 `.gitignore` 화이트리스트) · `_clawserve.mjs`(로컬서버) · `claw.html`(배포 캐시우회 사본 — 로컬작업 중엔 미동기화, 배포 때만 cp+BUILD태그)
+- **실행**: 로컬 `node _clawserve.mjs "<aram경로>"`(백그라운드) → `http://localhost:8731/` (⚠️ `file://`은 CORS로 GLB 못 부름 → 반드시 http). 배포본 `https://sohada2.github.io/aram/인형뽑기-물리-목업.html`
+- **스택**: three.js 0.160 + **cannon-es 0.20** + GLTFLoader/SkeletonUtils/RoomEnvironment. importmap·CDN(jsdelivr).
+- **현재 BUILD 91** (HUD `BUILD N` pill로 확인). 매 수정 BUILD +1 + 인라인 `<script type=module>` 추출해 `node --check`(임시 .mjs, `os.tmpdir()` 경로) 검증. **푸시**: `main`에서 직접 커밋 후 `git push origin main`(Pages 자동배포 1~3분, 모바일 캐시 강함 → 시크릿). 한글 커밋=Git Bash heredoc UTF-8.
+- **🎁 경품(`PRIZE_FILES` {file,target,dud,count})**: 8종 — **포로 20마리(`dud:true`=꽝)** + 챔피언 7종 각 1 = 27. `resetPrizes`가 count만큼 풀고 Fisher-Yates 셔플→`_composition`, `makePrize(i)`가 참조(`_prizeTotal`로 격자 계산). target=키(세로)정규화(teemo 3.2/챔프 2.89/poro 2.0). **포로 골인=꽝**(획득·트로피·폭죽 X, `checkHole`에서 `proto.dud` 분기).
+- **🧸 모델 처리(로드 콜백)**: 스킨드 GLB → ①재질 `BLEND→alphaTest 0.5` 컷아웃(눈/얼굴 데칼 안 가려짐, 눈/표정엔 polygonOffset) ②`bakeStatic`(스킨드→정적 BufferGeometry, 측정+트로피용) ③통 안 시각=`skeletonClone`+`AnimationMixer`(`Idle_Base` 아이들). 스케일=측정 s(스킨드 부모스케일 k² 회피의 핵심). **전부 로드된 뒤 1회만 스폰**(`_loaded` 카운터 == `PRIZE_FILES.length`).
+- **🟢 콜라이더**: `COLLIDER_SHAPE='cyl'`(원기둥, cannon-es Cylinder는 **Y축 직립** — 회전불필요 확인됨). 반지름=캐릭터별 footprint(`bodyCore` hx/hz 비율, 0.62~1.5 클램프)×`COLLIDER_R`(0.52). `'box'` 토글 가능(convex라 box보다 무거움 → 렉↓).
+- **🦾 잡기=근접식**(`GRAB_PHYSICAL=false`): 하강 중 `GRAB_RADIUS`(0.8) 안 가장 가까운 인형 커밋(`setProngIgnore` mask -13으로 닫힐 때 밀침 제외) → 닫고 `LockConstraint`. `grabQ`=중심정렬도(`tryGrab`, 0.2+align×0.8). 들/복귀 중 `(1-grabQ)*MAX_SLIP_RATE(0.5)` 확률 슬립 = **무음**(떨어지는 게 보임, 팝업 제거). 스폰=체커보드 높이 stagger(겹침 폭발 방지)+큰 랜덤 기울기(쓰러져 더미).
+- **🎯 골인**(`checkHole`): 구멍(앞·좌 `HOME`, 턱=group8) 위에서 **`y<0.5`(관대)** + `HOLE_R+0.3` 내 → 획득. RELEASE 때 **구멍 정중앙 스냅+직하강**(`mask=-13` 턱 통과)으로 확실히 골인. 들고있는 인형(`p===held`) 제외. `fireConfetti()` 폭죽.
+- **🏆 뽑은 인형**(챔피언만): `awardTrophy`→**정면 클로즈업**(카메라 앞 1.6s, `stepReveal` 스킨드+애니)→**콘솔 양옆 날개 선반**(`TSHELF`)으로 날아가 정적 트로피 진열(좌우 각3, max6, `relayoutTrophies`로 재정렬). ⚠️왼쪽 날개가 골인구멍 가릴 가능성(미확인).
+- **⏱️ 일일제한**: `DAILY_MAX=10`, localStorage 일자별(`claw_daily`). 집기1회=1플레이(`tryDrop` 게이트), 소진 시 집기버튼 비활성+안내. HUD "오늘 N/10". **테스트=콘솔 `resetPlays()`**.
+- **🎛️ 조작**: PC **WASD/방향키 이동·Space 집기·R 리셋·Q/E 시점** + 모바일 조이스틱/버튼(`#stick`/`#drop`/`#reset`/시점). 시점 5스냅(`rotateView`±2). 버튼에 키 힌트, 중앙 `.hint` 안내.
+- **디버그**: `DEBUG_COLLIDER/GRAB/PRONG` **전부 false**(숨김). 성능=`pixelRatio 1.5`+인형 그림자 off. **27마리라 렉 여지** — 심하면 포로 일부 정적/수↓.
+- **다음 작업/미결정**: ① 보상·경제 구조(챔피언별 보상, 포로 패널티, 횟수충전) — Firebase 서버검증 필요 ② 27마리 성능 ③ 트로피 선반 위치(왼쪽 구멍가림?·`TSHELF` 튜닝) ④ 앱 통합 시 `CLAW_ENABLED` 대체.
 
 ## 기술 스택
 - **순수 HTML/CSS/JS** (프레임워크·빌드 없음, 파일 1개)
