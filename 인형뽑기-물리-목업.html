@@ -69,7 +69,7 @@
   <span class="pill">획득 <b id="won">0</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 127</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 128</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -448,28 +448,29 @@ let decoStick=null;   // 기계에 붙은 장식 조이스틱(스틱+공) pivot 
   }
 })();
 
-// 🏟️ 뒤편 아케이드 배경 — 실제 작동 안 하는 장식 기계들(눈속임). 좌우 회전 시야 방해 않게 뒤편(-z)으로만 줄세움.
-// 어두운 배경에 안 묻히게 자체발광(emissive) 위주 — 진짜 불 켜진 기계들이 늘어선 느낌.
+// 🏟️ 뒤편 아케이드 배경 — 평면 그림(눈속임). 3D 기계는 메인 투명 유리로 비쳐 "안에 든 것"처럼 보여서,
+//    멀리 떨어진 "납작한 배경 그림"으로 그려 넣음(=절대 캐비닛 안처럼 안 보임). canvas로 기계들 줄지어 그림.
 (function buildArcadeBackdrop(){
-  const mqCols=[0xff5a8a,0x4ad7ff,0xffcf5a,0x9a6aff,0x5aff9a,0xff8a3a];
-  const bodyMat = new THREE.MeshStandardMaterial({color:0x201e33, roughness:0.7, metalness:0.45, emissive:0x110f22, emissiveIntensity:0.5});  // 어두운 몸체(형태만)
-  const glassMat= new THREE.MeshStandardMaterial({color:0x0d1420, roughness:0.25, metalness:0.4, transparent:true, opacity:0.16});           // 유리 — 거의 안 빛남(블롭 방지)
-  function deco(cx,cz,sc){
-    const g=new THREE.Group(); g.position.set(cx,0,cz); g.scale.setScalar(sc); scene.add(g);
-    const W=6.4,D=5.4;
-    const mc=mqCols[Math.abs(Math.round(cx*5+cz))%mqCols.length];
-    const frameMat= new THREE.MeshStandardMaterial({color:0xc9a85a, roughness:0.4, metalness:0.9, emissive:0x9a7820, emissiveIntensity:0.7}); // 빛나는 골드 기둥(형태 정의)
-    g.add(new THREE.Mesh(new THREE.BoxGeometry(W,5.6,D),bodyMat)).position.y=-3.2;                                    // 하부 몸체
-    g.add(new THREE.Mesh(new THREE.BoxGeometry(W-0.5,7.2,D-0.5),glassMat)).position.y=3.4;                            // 유리 캐비닛(거의 투명)
-    for(const sx of [-1,1]) for(const sz of [-1,1]){ const p=new THREE.Mesh(new THREE.BoxGeometry(0.24,7.2,0.24),frameMat); p.position.set(sx*(W/2-0.16),3.4,sz*(D/2-0.16)); g.add(p); } // 골드 기둥4(형태)
-    g.add(new THREE.Mesh(new THREE.BoxGeometry(W+0.3,1.4,D+0.3),bodyMat)).position.y=7.7;                             // 헤더
-    g.add(new THREE.Mesh(new THREE.BoxGeometry(W*0.86,0.9,0.14),new THREE.MeshBasicMaterial({color:mc}))).position.set(0,7.7,D/2+0.22);   // 마퀴 간판(앞)
-    g.add(new THREE.Mesh(new THREE.BoxGeometry(W*0.86,0.9,0.14),new THREE.MeshBasicMaterial({color:mc}))).position.set(0,7.7,-(D/2+0.22)); // 마퀴 간판(뒤)
-    return g;
+  const cw=1600, ch=560, cv=document.createElement('canvas'); cv.width=cw; cv.height=ch; const x=cv.getContext('2d');
+  const bg=x.createLinearGradient(0,0,0,ch); bg.addColorStop(0,'#0a0a17'); bg.addColorStop(0.7,'#08080f'); bg.addColorStop(1,'#050509'); x.fillStyle=bg; x.fillRect(0,0,cw,ch);
+  // 바닥
+  x.fillStyle='#100f1c'; x.fillRect(0,ch*0.78,cw,ch*0.22);
+  x.strokeStyle='rgba(255,200,90,0.12)'; x.lineWidth=3; x.beginPath(); x.moveTo(0,ch*0.78); x.lineTo(cw,ch*0.78); x.stroke();
+  const cols=['#ff5a8a','#4ad7ff','#ffcf5a','#9a6aff','#5aff9a','#ff8a3a','#ff6ad5'];
+  const n=8, mw=140, gap=(cw-n*mw)/(n+1), top=ch*0.30, bh=ch*0.46;   // 기계 줄
+  for(let i=0;i<n;i++){
+    const mx=gap+i*(mw+gap), col=cols[i%cols.length];
+    x.fillStyle='#191728'; x.fillRect(mx,top,mw,bh);                                   // 몸체
+    x.fillStyle='rgba(130,150,190,0.09)'; x.fillRect(mx+9,top+14,mw-18,bh*0.5);        // 유리(은은)
+    x.fillStyle='#a98f48'; x.fillRect(mx,top,7,bh); x.fillRect(mx+mw-7,top,7,bh);       // 골드 기둥
+    x.fillStyle='#0e0d18'; x.fillRect(mx,top+bh,mw,ch*0.10);                            // 하단 베이스
+    x.save(); x.shadowColor=col; x.shadowBlur=26; x.fillStyle=col; x.fillRect(mx-5,top-34,mw+10,30); x.restore();  // 마퀴 간판(글로우)
+    x.globalAlpha=0.5; for(let b=0;b<7;b++){ x.beginPath(); x.arc(mx+8+b*((mw-16)/6),top-44,3,0,6.28); x.fillStyle='#ffe9a0'; x.fill(); } x.globalAlpha=1;  // 전구
   }
-  // 메인 유리(투명 뒷면)로 비쳐 "안에 든 것"처럼 보이지 않게 — 충분히 멀리(원근+안개로 거리감). 멀면 중앙도 OK.
-  const gap=10.5; for(let i=-4;i<=4;i++) deco(i*gap, -56, 1.0);          // 먼 배경줄(넓게)
-  const gap2=9.5; for(let i=-4;i<=4;i++) deco(i*gap2+gap2/2, -80, 0.95); // 더 먼 줄(엇갈리게)
+  const tex=new THREE.CanvasTexture(cv); tex.colorSpace=THREE.SRGBColorSpace;
+  const pw=170, ph=pw*ch/cw;
+  const bd=new THREE.Mesh(new THREE.PlaneGeometry(pw,ph), new THREE.MeshBasicMaterial({map:tex, fog:true}));
+  bd.position.set(0, 6, -52); scene.add(bd);   // 멀리 뒤편 평면 배경
 })();
 
 // 인형(경품) — 머리(구)+몸통(박스) 복합 콜라이더 → 어디를 집느냐로 품질 갈림
