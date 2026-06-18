@@ -69,7 +69,7 @@
   <span class="pill">획득 <b id="won">0</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 122 · claw</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 123 · claw</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -449,25 +449,27 @@ let decoStick=null;   // 기계에 붙은 장식 조이스틱(스틱+공) pivot 
 })();
 
 // 🏟️ 뒤편 아케이드 배경 — 실제 작동 안 하는 장식 기계들(눈속임). 좌우 회전 시야 방해 않게 뒤편(-z)으로만 줄세움.
+// 어두운 배경에 안 묻히게 자체발광(emissive) 위주 — 진짜 불 켜진 기계들이 늘어선 느낌.
 (function buildArcadeBackdrop(){
-  const bodyMat = new THREE.MeshStandardMaterial({color:0x0e0d15, roughness:0.78, metalness:0.4});
-  const frameMat= new THREE.MeshStandardMaterial({color:0x3e3318, roughness:0.5, metalness:0.85, emissive:0x231b09, emissiveIntensity:0.3});
-  const glassMat= new THREE.MeshStandardMaterial({color:0x0a1622, roughness:0.15, metalness:0.4, transparent:true, opacity:0.5, emissive:0x0a1226, emissiveIntensity:0.35});
-  const mqCols=[0xff6a8a,0x5ad1ff,0xffcf5a,0x8a6aff,0x5aff9a,0xff9a4a];
+  const mqCols=[0xff5a8a,0x4ad7ff,0xffcf5a,0x9a6aff,0x5aff9a,0xff8a3a];
   function deco(cx,cz,sc,glow){
     const g=new THREE.Group(); g.position.set(cx,0,cz); g.scale.setScalar(sc); scene.add(g);
-    const W=7.2,D=6.6;
-    const lb=new THREE.Mesh(new THREE.BoxGeometry(W,6,D),bodyMat); lb.position.y=-3.4; g.add(lb);                       // 하부 몸체
-    const gc=new THREE.Mesh(new THREE.BoxGeometry(W-0.5,7.8,D-0.5),glassMat); gc.position.y=3.6; g.add(gc);            // 유리 캐비닛
-    for(const sx of [-1,1]) for(const sz of [-1,1]){ const p=new THREE.Mesh(new THREE.BoxGeometry(0.2,7.8,0.2),frameMat); p.position.set(sx*(W/2-0.18),3.6,sz*(D/2-0.18)); g.add(p); } // 골드 기둥4
-    g.add(new THREE.Mesh(new THREE.BoxGeometry(W+0.3,1.4,D+0.3),bodyMat)).position.y=8.3;                              // 헤더
+    const W=6.8,D=6.0;
     const mc=mqCols[Math.abs(Math.round(cx*3+cz))%mqCols.length];
-    const mq=new THREE.Mesh(new THREE.BoxGeometry(W*0.82,0.78,0.12),new THREE.MeshBasicMaterial({color:mc,transparent:true,opacity:glow})); mq.position.set(0,8.3,D/2+0.2); g.add(mq);  // 마퀴 간판(빛)
-    const ig=new THREE.Mesh(new THREE.BoxGeometry(W-1.2,0.08,D-1.2),new THREE.MeshBasicMaterial({color:mc,transparent:true,opacity:glow*0.16})); ig.position.y=7.0; g.add(ig);          // 내부 은은한 빛
+    const bodyMat = new THREE.MeshStandardMaterial({color:0x2a2840, roughness:0.6, metalness:0.5, emissive:0x16142c, emissiveIntensity:1.0});   // 밝은 회보라+자체발광(배경서 안 묻힘)
+    const frameMat= new THREE.MeshStandardMaterial({color:0xffcf5a, roughness:0.35, metalness:0.9, emissive:0xffae20, emissiveIntensity:0.8});  // 빛나는 골드 기둥
+    const glassMat= new THREE.MeshStandardMaterial({color:mc, roughness:0.2, metalness:0.3, transparent:true, opacity:0.32, emissive:mc, emissiveIntensity:glow}); // 캐비닛 안 색불빛
+    const lb=new THREE.Mesh(new THREE.BoxGeometry(W,6,D),bodyMat); lb.position.y=-3.4; g.add(lb);                       // 하부 몸체
+    const gc=new THREE.Mesh(new THREE.BoxGeometry(W-0.5,7.6,D-0.5),glassMat); gc.position.y=3.5; g.add(gc);            // 유리 캐비닛(색불빛)
+    for(const sx of [-1,1]) for(const sz of [-1,1]){ const p=new THREE.Mesh(new THREE.BoxGeometry(0.22,7.6,0.22),frameMat); p.position.set(sx*(W/2-0.18),3.5,sz*(D/2-0.18)); g.add(p); } // 빛나는 골드 기둥4
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(W+0.3,1.5,D+0.3),bodyMat)).position.y=8.1;                              // 헤더
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(W*0.88,1.0,0.14),new THREE.MeshBasicMaterial({color:mc}))).position.set(0,8.1,D/2+0.22);   // 마퀴 간판(앞·풀발광)
+    g.add(new THREE.Mesh(new THREE.BoxGeometry(W*0.88,1.0,0.14),new THREE.MeshBasicMaterial({color:mc}))).position.set(0,8.1,-(D/2+0.22)); // 뒤 간판
     return g;
   }
-  for(const x of [-15.5,-7.8,0,7.8,15.5]) deco(x, -14.5, 0.92, 0.8);   // 가까운 뒤줄
-  for(const x of [-11.5,-3.8,3.8,11.5])   deco(x, -23.5, 0.8, 0.45);   // 먼 뒤줄(작고 어둡게)
+  // 진짜 아케이드처럼 어깨 맞대 줄세움(간격 ≈ 기계 폭). 뒤로 갈수록 작고 은은.
+  const g1=6.8*0.95+0.3; for(let i=-3;i<=3;i++) deco(i*g1, -11, 0.95, 1.2);          // 가까운 뒤줄 7대
+  const g2=6.8*0.82+0.3; for(let i=-3;i<=3;i++) deco(i*g2+g2/2, -17.5, 0.82, 0.8);   // 먼 뒤줄 7대(엇갈리게)
 })();
 
 // 인형(경품) — 머리(구)+몸통(박스) 복합 콜라이더 → 어디를 집느냐로 품질 갈림
