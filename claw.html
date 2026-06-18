@@ -11,7 +11,7 @@
 }}
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Do+Hyeon&family=Gugi&family=Jua&family=Noto+Sans+KR:wght@800;900&display=swap" rel="stylesheet">
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{height:100%;background:#0a0a12;overflow:hidden;font-family:'Noto Sans KR',system-ui,sans-serif;color:#eee;}
@@ -33,7 +33,9 @@
   #stick-base{display:flex;align-items:center;justify-content:center;padding:10px;border-radius:24px;
     background:radial-gradient(circle at 50% 40%,#1c1c2a,#0c0c14);border:1px solid rgba(255,255,255,0.08);
     box-shadow:inset 0 2px 6px rgba(0,0,0,0.6),0 2px 4px rgba(0,0,0,0.4);}
-  .hint{font-size:11px;color:#9aa;line-height:1.5;max-width:55%;}
+  .hint{font-size:11px;color:#9aa;line-height:1.65;opacity:0.62;text-align:center;align-self:center;flex:1 1 auto;padding:0 6px;pointer-events:none;}
+  .hint b{color:#d8bd7e;font-weight:800;}
+  .kh{display:block;font-size:9px;font-weight:700;opacity:0.5;margin-top:2px;letter-spacing:.5px;}
   .btns{display:flex;flex-direction:column;gap:8px;align-items:flex-end;}
   .view-row,.main-row{display:flex;gap:8px;}
   button{font-family:inherit;font-weight:800;font-size:15px;border:none;border-radius:14px;padding:14px 20px;color:#1a1305;cursor:pointer;
@@ -57,19 +59,24 @@
   <span class="pill">집기품질 <b id="gq">—</b></span>
   <span class="pill">남은인형 <b id="cnt">—</b></span>
   <span class="pill">획득 <b id="won">0</b></span>
-  <span class="pill" style="opacity:.5">BUILD 52 · claw</span>
+  <span class="pill">오늘 <b id="plays">0/10</b></span>
+  <span class="pill" style="opacity:.5">BUILD 91 · claw</span>
 </div>
 <div id="result"></div>
 <div id="controls">
   <div id="stick-base"><div id="stick"><div id="knob"></div></div></div>
+  <div class="hint">
+    🖥️ 이동 <b>WASD</b>·방향키 · 집기 <b>Space</b> · 리셋 <b>R</b> · 시점 <b>Q</b>/<b>E</b><br>
+    📱 조이스틱으로 이동 · 아래 버튼으로 조작
+  </div>
   <div class="btns">
     <div class="view-row">
-      <button class="vbtn" onclick="rotateView(-1)">◀ 시점</button>
-      <button class="vbtn" onclick="rotateView(1)">시점 ▶</button>
+      <button class="vbtn" onclick="rotateView(-1)">◀ 시점<span class="kh">Q</span></button>
+      <button class="vbtn" onclick="rotateView(1)">시점 ▶<span class="kh">E</span></button>
     </div>
     <div class="main-row">
-      <button id="reset" class="ghost">리셋</button>
-      <button id="drop">집기!</button>
+      <button id="reset" class="ghost">리셋<span class="kh">R</span></button>
+      <button id="drop">집기!<span class="kh">Space</span></button>
     </div>
   </div>
 </div>
@@ -84,12 +91,15 @@ import * as CANNON from 'https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/+esm';
 
 try {
 // ══════════ 튜닝 상수 (이 숫자들로 "느낌" 조절) ══════════
-const PRIZE_COUNT   = 16;     // 통 안 인형 수 (8→16, 두 배)
-const DEBUG_COLLIDER= true;   // 🟩 초록=인형 물리 충돌 박스(집게발이 실제로 미는 곳) — 디버그
-const DEBUG_GRAB    = false;  // 🟥 빨강=근접식 잡기범위(물리식에선 미사용 → 숨김)
-const DEBUG_PRONG   = true;   // 🟦 파랑=집게발 물리 충돌 박스 — 디버그
-const GRAB_PHYSICAL = true;   // ⚙️ true=물리 접촉식(집게발 파랑이 인형 초록에 실제로 닿아야 집힘) · false=근접식(빨강 반경)
-const GRAB_RADIUS   = 0.58;   // 빨강 박스(잡기/충돌 반경) 크기 기준. ↑ 충돌·잡기 잘됨
+const PRIZE_COUNT   = 20;     // 통 안 인형 수 (16→20). 단층 격자 상한 근처 — 더 늘리면 다층 더미 스폰 필요
+const DEBUG_COLLIDER= false;  // 🟩 초록=인형↔인형 거리조절(빽빽 겹침) 충돌 박스 — 잡기와 무관
+const DEBUG_GRAB    = false;  // 🟥 빨강=집기 히트박스(집게가 여기 들어오면 실제로 잡힘)
+const DEBUG_PRONG   = false;  // 🟦 파랑=집게(집게발 물리 박스)
+const GRAB_PHYSICAL = false;  // ⚙️ false=집게가 빨강 히트박스에 들면 확실히 잡힘 · true=물리 접촉식(불안정 → 추후 디버깅)
+const GRAB_RADIUS   = 0.8;    // 빨강 히트박스(수평 기준). ↑ 잡기 쉬움 (디테일 이전 값으로 원복)
+const COLLIDER_R    = 0.52;   // 🟩 초록(인형↔인형 거리조절) 기준 반치수 ↑(간극 늘림). 캐릭터별 가로:깊이 비율은 측정 footprint로 반영
+const COLLIDER_SHAPE= 'cyl';  // 인형 충돌 모양: 'box' | 'cyl'(원기둥, 축=Y로 서 있음). cyl=둥근 footprint·안 구름. convex라 box보다 약간 무거움 → 렉 심하면 'box'로
+const TSHELF = { y:-0.5, z:4.6, lx:-2.3, rx:2.3, gap:0.66, perSide:3, rowH:0.92, scale:0.8, faceY:0 };  // 🏆 콘솔 양옆 날개 진열. lx/rx=좌우 안쪽 시작 x. faceY: 정면 보정(뒤돌면 Math.PI)
 const GRAB_MIN_Q    = 0.12;   // 이 품질 미만이면 헛집음(낮춰서 웬만하면 잡힘)
 const MAX_SLIP_RATE = 0.5;    // 품질 0일 때 초당 슬립확률(낮춰서 잘 안 놓침)
 const CLAW_SCALE    = 1.35;   // 집게 크기 배율(↑ 더 크게)
@@ -98,6 +108,7 @@ const GANTRY_Y      = 6.7;    // 크레인 줄이 매달린 트롤리/레일 높
 const CLAW_DROP_Y   = 0.55;   // 집게 내려가는 바닥 높이(더 아래까지 — 발끝이 인형 콜라이더에 깊이)
 const PRONG_REACH   = 0.95;   // (근접식 잔여) 인형 중심 위 하강 높이
 const PRONG_SINK    = 0.6;    // 물리식: 집게발이 인형에 처음 닿은 뒤 추가로 더 박는 깊이(↑ 더 깊이)
+const PRONG_GRAB_DROP = 1.0;  // 물리식: 인형 콜라이더 위 이만큼서 멈춰 닫음 — 닫힌 집게발이 콜라이더 높이에 닿게(안 그러면 바닥까지 내려가 어긋남). ↑ 더 높이서 멈춤
 const LOWER_SPD     = 4.2;    // 내리기 속도(빠르게 = 더미에 박는 임팩트)
 const RAISE_SPD     = 3.2;    // 올리기 속도
 const RETURN_SPD    = 1.6;    // 출구 복귀 속도(직선·천천히)
@@ -136,7 +147,7 @@ let camViewIdx = 0;                 // -2(완전좌) ~ +2(완전우)
 const VIEW_STEP = 0.5;             // 스텝당 회전각(라디안, ±2=±1.0rad≈57°)
 window.rotateView = function(dir){ camViewIdx = Math.max(-2, Math.min(2, camViewIdx + dir)); camYawTarget = camViewIdx * VIEW_STEP; };
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference:'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));   // 2→1.5: 고해상도 화면 픽셀 부담 ↓ (렉 완화)
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -197,20 +208,42 @@ staticBox(BX+wt, wh, wt, 0, wh-0.3, -BZ, wallC, false);   // 뒷벽
 staticBox(wt, wh, BZ,  BX, wh-0.3, 0, wallC, false);     // 우벽
 staticBox(wt, wh, BZ, -BX, wh-0.3, 0, wallC, false);     // 좌벽
 // 입구 벽(lip) — 골인 구멍 안쪽 2면(나머지 2면은 통 좌·앞벽). 높여서 굴러들지 않게 — 집게로 들어 위에서 떨궈야 골인
-const LIP_H = 0.9;   // 입구 벽 반높이(=1.8 높이) — 큰 인형이 못 넘게
-staticBox(0.09, LIP_H, HOLE_R, holeX1, LIP_H, HOME.z, 0x6a6a8a);   // 구멍 우측 벽
-staticBox(HOLE_R, LIP_H, 0.09, HOME.x, LIP_H, holeZ0, 0x6a6a8a);   // 구멍 뒤쪽 벽
+const LIP_H = 0.8;   // 입구 벽 반높이(=1.6) — 유지(다른 인형 굴러들기 방지). 떨군 인형은 group8 무시로 통과
+staticBox(0.09, LIP_H, HOLE_R, holeX1, LIP_H, HOME.z, 0x6a6a8a).collisionFilterGroup = 8;   // 구멍 우측 벽(턱=group8)
+staticBox(HOLE_R, LIP_H, 0.09, HOME.x, LIP_H, holeZ0, 0x6a6a8a).collisionFilterGroup = 8;   // 구멍 뒤쪽 벽(턱=group8)
 
 // ── 🎨 장식 헬퍼 + 테마(헥스텍 블랙+골드) ──
 const GOLD=0xd9b24a, GOLD_E=0xffcf5a, TEAL_E=0x39d6c8;
 const marqueeBulbs=[];   // 마퀴 전구(루프에서 깜빡임 애니)
 function makeLabelTexture(text, o={}){
   const w=o.w||1400, h=o.h||300, c=document.createElement('canvas'); c.width=w; c.height=h; const x=c.getContext('2d');
-  x.textAlign='center'; x.textBaseline='middle'; x.font=o.font||'900 130px "Black Han Sans","Noto Sans KR",sans-serif';
-  x.shadowColor=o.shadow||'#ffcf5a'; x.shadowBlur=28;
-  x.lineWidth=14; x.strokeStyle=o.stroke||'#241a04'; x.strokeText(text,w/2,h/2);
-  x.shadowBlur=0; x.fillStyle=o.fg||'#ffd24a'; x.fillText(text,w/2,h/2);
-  const t=new THREE.CanvasTexture(c); t.anisotropy=8; return t;
+  const fam = o.fam || '"Black Han Sans","Noto Sans KR",sans-serif';   // 디스플레이 폰트(Do Hyeon/Gugi/Jua 로도 교체 가능)
+  const A = o.neon||'#ffcf5a', B = o.neon2||'#39d6c8';                 // 헥스텍 톤(골드 메인 / 틸 보조) — 통 테마와 일치
+  function draw(){
+    x.clearRect(0,0,w,h);
+    x.textAlign='center'; x.textBaseline='middle'; x.lineJoin='round'; x.lineCap='round';
+    let fs = o.size||166;                                              // 가로 84%에 맞게 자동 축소(글로우 여유)
+    x.font = `normal ${fs}px ${fam}`;
+    while(x.measureText(text).width > w*0.84 && fs>40){ fs-=4; x.font=`normal ${fs}px ${fam}`; }
+    const cx=w/2, cy=h/2+4;
+    // 1) 발광 — 골드 누적 + 틸 외곽 보조(헥스텍 에너지)
+    x.save();
+    x.shadowColor=A; x.shadowBlur=46; x.fillStyle=A; x.fillText(text,cx,cy); x.fillText(text,cx,cy);
+    x.shadowColor=B; x.shadowBlur=30; x.fillStyle=B; x.fillText(text,cx,cy);
+    x.restore();
+    // 2) 글자 분리용 얇은 어두운 외곽
+    x.lineWidth=fs*0.05; x.strokeStyle='rgba(26,18,4,0.62)'; x.strokeText(text,cx,cy);
+    // 3) 메탈릭 골드 그라데이션 본체
+    const g=x.createLinearGradient(0,cy-fs*0.58,0,cy+fs*0.58);
+    g.addColorStop(0,'#fff4cc'); g.addColorStop(0.32,'#ffd84f'); g.addColorStop(0.52,'#f2a51c'); g.addColorStop(0.55,'#9c6410'); g.addColorStop(0.78,'#ffd35a'); g.addColorStop(1,'#a8650c');
+    x.shadowColor=A; x.shadowBlur=8; x.fillStyle=g; x.fillText(text,cx,cy);
+    // 4) 화이트-핫 코어(가운데 점등 라인)
+    x.shadowBlur=0; x.lineWidth=fs*0.025; x.strokeStyle='rgba(255,250,222,0.9)'; x.strokeText(text,cx,cy);
+  }
+  draw();
+  const t=new THREE.CanvasTexture(c); t.anisotropy=8;
+  if(document.fonts && document.fonts.ready){ document.fonts.ready.then(()=>{ draw(); t.needsUpdate=true; }); }  // 웹폰트 로드 후 재렌더(밋밋 폰트 방지)
+  return t;
 }
 function makeBadge(text, bg, fg){
   const w=560,h=200, c=document.createElement('canvas'); c.width=w; c.height=h; const x=c.getContext('2d');
@@ -287,27 +320,43 @@ let decoStick=null;   // 기계에 붙은 장식 조이스틱(스틱+공) pivot 
   M(new THREE.BoxGeometry(W+0.3, 1.55, D+0.3), black, 0, hy, 0);
   M(new THREE.BoxGeometry(W+0.44, 0.16, D+0.44), goldM, 0, hy+0.82, 0);
   M(new THREE.BoxGeometry(W+0.44, 0.16, D+0.44), goldM, 0, hy-0.82, 0);
-  const titleTex = makeLabelTexture('증강 칼바람 내전 인형뽑기');
-  const titleMat = new THREE.MeshBasicMaterial({map:titleTex, transparent:true});
+  const titleTex = makeLabelTexture('아수라장 뽑기');
+  const titleMat = new THREE.MeshBasicMaterial({map:titleTex, transparent:true, depthWrite:false});
   const tw=W*0.86, th=tw*300/1400;
-  const tp=new THREE.Mesh(new THREE.PlaneGeometry(tw,th), titleMat); tp.position.set(0, hy, D/2+0.2); scene.add(tp);
-  const tp2=tp.clone(); tp2.position.z=-D/2-0.2; tp2.rotation.y=Math.PI; scene.add(tp2);
+  // 🌈 타이틀 뒤 네온 백글로우(은은한 발광판) — 요즘 간판 느낌
+  const glowTex=(()=>{ const s=512,gc=document.createElement('canvas'); gc.width=gc.height=s; const gx=gc.getContext('2d');
+    const rg=gx.createRadialGradient(s/2,s/2,8,s/2,s/2,s/2); rg.addColorStop(0,'rgba(255,201,80,0.55)'); rg.addColorStop(0.4,'rgba(255,160,40,0.2)'); rg.addColorStop(0.72,'rgba(57,214,200,0.12)'); rg.addColorStop(1,'rgba(0,0,0,0)');  // 골드 코어 → 틸 링(헥스텍)
+    gx.fillStyle=rg; gx.fillRect(0,0,s,s); return new THREE.CanvasTexture(gc); })();
+  const glowMat=new THREE.MeshBasicMaterial({map:glowTex, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false});
+  const gp=new THREE.Mesh(new THREE.PlaneGeometry(tw*1.2, th*2.8), glowMat); gp.position.set(0, hy, D/2+0.16); scene.add(gp);     // 앞 백글로우
+  const tp=new THREE.Mesh(new THREE.PlaneGeometry(tw,th), titleMat); tp.position.set(0, hy, D/2+0.22); tp.renderOrder=2; scene.add(tp);
+  const gp2=gp.clone(); gp2.position.z=-D/2-0.16; gp2.rotation.y=Math.PI; scene.add(gp2);                                          // 뒤 백글로우
+  const tp2=tp.clone(); tp2.position.z=-D/2-0.22; tp2.rotation.y=Math.PI; scene.add(tp2);
   // ✨ 마퀴 전구 — 헤더 위/아래 줄(앞면)
-  const bulbGeo=new THREE.SphereGeometry(0.1,10,8);
-  const NB=13;
+  const bulbGeo=new THREE.SphereGeometry(0.11,12,10);
+  const NB=15;
   for(let i=0;i<NB;i++){ const x=-(W/2)+ (i/(NB-1))*W;
     for(const yy of [hy+0.82, hy-0.82]){
-      const b=new THREE.Mesh(bulbGeo, new THREE.MeshStandardMaterial({color:0xfff8e0, emissive:0xffd24a, emissiveIntensity:1}));
+      const b=new THREE.Mesh(bulbGeo, new THREE.MeshStandardMaterial({color:0x141019, emissive:(i%2?0x39d6c8:0xffcf5a), emissiveIntensity:1.4}));  // 골드/틸 2색(헥스텍)
       b.position.set(x, yy, D/2+0.24); scene.add(b); marqueeBulbs.push(b);
     }
   }
   for(const sx of [-1,1]) for(const sz of [-1,1]) M(new THREE.CylinderGeometry(0.22,0.22,0.5,10), goldM, sx*(W/2-0.5), bBot-0.25, sz*(D/2-0.5)); // 다리
+  // 🏆 트로피 진열 선반 — 콘솔(조이스틱/버튼) 양옆 빈 공간을 채워 진열대로
+  for(const sgn of [-1,1]){
+    const wx = sgn*2.75;
+    M(new THREE.BoxGeometry(2.1, 0.16, 1.4), black, wx, sy, sz, 0.13);       // 날개 상판
+    M(new THREE.BoxGeometry(2.2, 0.07, 1.5), goldM, wx, sy+0.11, sz, 0.13);  // 골드 테두리
+    M(new THREE.BoxGeometry(2.1, 0.95, 1.2), blackD, wx, sy-0.55, sz-0.25);  // 날개 몸체(받침)
+  }
 })();
 
 // 인형(경품) — 머리(구)+몸통(박스) 복합 콜라이더 → 어디를 집느냐로 품질 갈림
 const PRIZE_COLORS = [0xff6b8a,0x6bd3ff,0xffd24a,0x9b6bff,0x6bffb0,0xff9b5b,0xff6bd3,0x8ad0ff];
 const prizes = [];
-let prizeProtos = [];   // 로드된 인형 모델들 {scene,s,cx,cy,cz,hx,hy,hz}(런타임 측정값) — 여러 형태 추가 가능(랜덤)
+let prizeProtos = [];   // 로드된 인형 모델들 {scene,s,cx,cy,cz,...,dud,count}(런타임 측정값)
+let _composition = [];  // 이번 판 구성(각 종류 count만큼, 셔플됨) — makePrize가 참조
+let _prizeTotal = PRIZE_COUNT;   // 실제 인형 수(구성 합)
 // 폴백 블롭 시각(모델 로드 전/실패 시)
 function buildBlobVisual(c){
   const grp = new THREE.Group();
@@ -320,54 +369,127 @@ function buildBlobVisual(c){
 // 실모델 시각 — ⚠️ 스킨드 메시(뼈대)는 SkeletonUtils.clone 으로 스켈레톤째 복제(일반 clone은 공유→스케일 무시·겹침).
 // 스케일/센터는 런타임 측정값(proto.s/cx/cy/cz)으로 정렬. 물리 충돌체는 측정 크기(hx/hy/hz) 박스.
 function buildPrizeVisual(proto){
-  const g = proto.static.clone(true);   // 정적 메시 클론(geometry 공유, 스케일 정확 — k² 문제 없음)
+  const g = proto.scene ? skeletonClone(proto.scene) : proto.static.clone(true);   // 🕺 스킨드(아이들 애니) 우선, 없으면 정적
   g.scale.setScalar(proto.s);
   // 콜라이더는 작고 낮음(몸통 하부) → 시각을 yshift만큼 올려 발이 콜라이더 바닥에 닿게(안 뜨고 안 가라앉게)
   g.position.set(-proto.cx*proto.s, -proto.cy*proto.s + (proto.yshift||0), -proto.cz*proto.s);
-  g.traverse(o=>{ if(o.isMesh){ o.castShadow=true; o.frustumCulled=false; } });
-  const wrap = new THREE.Group(); wrap.add(g); return wrap;
+  g.traverse(o=>{ if(o.isMesh){ o.castShadow=false; o.frustumCulled=false; } });   // 인형 그림자 캐스팅 OFF(스킨드 20개 그림자맵 재렌더가 가장 비쌈 → 렉 완화)
+  const wrap = new THREE.Group(); wrap.add(g);
+  if(proto.anims && proto.anims.length){               // 아이들 애니메이션 재생
+    const mixer = new THREE.AnimationMixer(g);
+    const act = mixer.clipAction(proto.anims[0]); act.play(); act.time = Math.random()*(proto.anims[0].duration||1);  // 인형마다 위상 다르게(동기화 방지)
+    wrap.userData.mixer = mixer;
+  }
+  return wrap;
+}
+// ══════════ 🏆 뽑은 인형: 정면 연출 + 선반 진열 ══════════
+const trophies = [];      // 선반 위 인형들 {mesh}
+let revealAnim = null;    // 진행 중 연출 {mesh, mixer, proto, t, slot}
+const TROPHY_MAX = 6;     // 선반 최대(좌우 각 3 — 초과 시 오래된 것부터 제거)
+function trophySlotPos(i){            // 콘솔 양옆 날개에 좌우 번갈아 진열(안→밖)
+  const left = (i%2===0), k=(i/2)|0;
+  const row=(k/TSHELF.perSide)|0, col=k%TSHELF.perSide;
+  const x = left ? (TSHELF.lx - col*TSHELF.gap) : (TSHELF.rx + col*TSHELF.gap);
+  return new THREE.Vector3(x, TSHELF.y + row*TSHELF.rowH, TSHELF.z);
+}
+function relayoutTrophies(){ for(let i=0;i<trophies.length;i++){ trophies[i].mesh.position.copy(trophySlotPos(i)); trophies[i].mesh.rotation.y=TSHELF.faceY; } }
+function buildTrophy(proto){   // 정적 메시(가벼움) — 발이 원점, 진열 크기로 정규화
+  const g = proto.static.clone(true);
+  const box = new THREE.Box3().setFromObject(g); const size=new THREE.Vector3(); box.getSize(size);
+  g.position.set(-(box.min.x+box.max.x)/2, -box.min.y, -(box.min.z+box.max.z)/2);
+  g.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; o.castShadow=false; } });
+  const wrap=new THREE.Group(); wrap.add(g); wrap.scale.setScalar(TSHELF.scale/(size.y||1));
+  return wrap;
+}
+function finalizeReveal(){
+  const r = revealAnim; if(!r) return; revealAnim=null;
+  scene.remove(r.mesh);
+  const tr = buildTrophy(r.proto);
+  tr.position.copy(trophySlotPos(r.slot)); tr.rotation.y = TSHELF.faceY;
+  scene.add(tr); trophies.push({ mesh:tr });
+  while(trophies.length > TROPHY_MAX){ const old=trophies.shift(); scene.remove(old.mesh); }
+  relayoutTrophies();
+}
+function awardTrophy(proto){
+  if(!proto) return;
+  if(revealAnim) finalizeReveal();           // 이전 연출 즉시 선반行
+  const mesh = buildPrizeVisual(proto);       // 스킨드(아이들 애니) 클론 — 연출용
+  scene.add(mesh);
+  revealAnim = { mesh, mixer:(mesh.userData&&mesh.userData.mixer)||null, proto, t:0, slot: trophies.length };
+}
+function clearTrophies(){
+  if(revealAnim){ scene.remove(revealAnim.mesh); revealAnim=null; }
+  for(const t of trophies) scene.remove(t.mesh);
+  trophies.length = 0;
+}
+function stepReveal(dt){
+  if(!revealAnim) return;
+  const r = revealAnim; r.t += dt; if(r.mixer) r.mixer.update(dt);
+  const REV=1.6, MOV=0.85;
+  const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
+  const front = camera.position.clone().addScaledVector(fwd, 8); front.y -= 0.3;
+  const vh = r.proto.vh||3, sBig=2.4/vh, sShelf=TSHELF.scale/vh;
+  if(r.t < REV){                              // 정면 클로즈업(카메라 바라보며 살짝 bob)
+    r.mesh.position.copy(front); r.mesh.position.y += Math.sin(r.t*4)*0.12;
+    r.mesh.scale.setScalar(sBig);
+    r.mesh.lookAt(camera.position); r.mesh.rotateY(TSHELF.faceY);
+  } else if(r.t < REV+MOV){                    // 선반으로 이동(보간 + 축소)
+    const k=(r.t-REV)/MOV, e=k*k*(3-2*k);
+    r.mesh.position.lerpVectors(front, trophySlotPos(r.slot), e);
+    r.mesh.scale.setScalar(sBig+(sShelf-sBig)*e);
+    r.mesh.lookAt(camera.position); r.mesh.rotateY(TSHELF.faceY);
+  } else finalizeReveal();                     // 선반 안착(정적 트로피로 교체)
 }
 function makePrize(i){
   const c = PRIZE_COLORS[i % PRIZE_COLORS.length];
-  const proto = prizeProtos.length ? prizeProtos[(Math.random()*prizeProtos.length)|0] : null;
+  const proto = _composition[i] || null;   // 이번 판 구성(포로 다수 + 챔피언 1마리씩, 셔플됨)
   // 🟩 물리 콜라이더 = 작고 낮은 박스(몸통 하부)뿐 — 인형끼리 빽빽 겹치게. 집기는 근접판정(GRAB_RADIUS)이라 별개
   const chx = proto ? proto.cox : 0.34, chy = proto ? proto.coy : 0.45, chz = proto ? proto.coz : 0.34;
   const body = new CANNON.Body({ mass: 1.5, material: mPrize, allowSleep:true, sleepSpeedLimit:0.4, sleepTimeLimit:0.5 });   // 가볍게 → 잘 밀림
   body.collisionFilterGroup = 2;   // 인형 그룹 — 집게/prong은 잡는 인형만 제외(끼임 방지). 바닥·벽·인형끼리는 정상
   // 회전 자유(밀면 쓰러짐) — 콜라이더가 몸통 전체라 기울어도 시각 안 뜸
-  body.addShape(new CANNON.Box(new CANNON.Vec3(chx, chy, chz)));
+  if(COLLIDER_SHAPE==='cyl'){ const _cr=(chx+chz)/2; body.addShape(new CANNON.Cylinder(_cr,_cr,chy*2,8)); }  // 원기둥(서 있음, 반지름=가로·깊이 평균)
+  else body.addShape(new CANNON.Box(new CANNON.Vec3(chx, chy, chz)));
   // 4×4 격자 배치 — 겹쳐 스폰돼 폭발·통 밖으로 튕기던 버그 방지(바닥에 빽빽). 콜라이더가 작아 시각은 서로 겹침
-  const COLS = Math.ceil(Math.sqrt(PRIZE_COUNT)), ROWS = Math.ceil(PRIZE_COUNT/COLS);
+  const COLS = Math.ceil(Math.sqrt(_prizeTotal)), ROWS = Math.ceil(_prizeTotal/COLS);
   const gx = i % COLS, gz = (i/COLS|0);
   const usable = BIN.x*2 - 2.4;                 // 양옆 1.2 여유(벽에서 더 띄움 — 큰 인형 벽 뚫림 방지)
   const cellX = usable/COLS, cellZ = usable/ROWS;
   let px = -usable/2 + (gx+0.5)*cellX + (Math.random()-0.5)*cellX*0.2;
   let pz = -usable/2 + (gz+0.5)*cellZ + (Math.random()-0.5)*cellZ*0.2;
   if(px < HOME.x+HOLE_R+0.35 && pz > HOME.z-HOLE_R-0.35) pz -= cellZ;  // 골인 구멍 코너 비우기
-  body.position.set(px, chy + 0.04, pz);                              // 한 층(거의 안 겹침 → 폭발 0)
-  const q=new CANNON.Quaternion(); q.setFromEuler((Math.random()-0.5)*0.5, Math.random()*6.283, (Math.random()-0.5)*0.5); body.quaternion.copy(q);  // 방향 랜덤 + 살짝 기울여 스폰(서서 고정 X — 자유낙하·집게에 넘어져 누울 수 있음)
-  body.angularDamping = 0.35; body.linearDamping = 0.05;   // 감쇠↓ → 밀리고 흩어지는 반응 큼
+  body.position.set(px, chy + 0.4 + ((gx+gz)%2)*0.9, pz);             // 체커보드 높이 stagger → 인접끼리 같은 높이서 안 겹침(폭발 X) + 떨어지며 골고루 펼쳐짐
+  const q=new CANNON.Quaternion(); q.setFromEuler((Math.random()-0.5)*1.8, Math.random()*6.283, (Math.random()-0.5)*1.8); body.quaternion.copy(q);  // 큰 랜덤 기울기 → 서지 않고 쓰러져 누움(실제 뽑기 더미처럼)
+  body.angularDamping = 0.5; body.linearDamping = 0.22;   // 감쇠↑ → 집게에 밀려도 멀리 안 날아가고 자연스럽게 밀림
   world.addBody(body);
   const grp = proto ? buildPrizeVisual(proto) : buildBlobVisual(c);
   scene.add(grp);
   let dbg=null, dbgGrab=null;
   if(DEBUG_COLLIDER){
     // 🟩 초록 = 인형끼리 부딪히는 물리 충돌 박스(인형 따라 회전)
-    dbg=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(chx*2, chy*2, chz*2)), new THREE.LineBasicMaterial({color:0x00ff88})); scene.add(dbg);
+    const _dg = COLLIDER_SHAPE==='cyl' ? new THREE.CylinderGeometry((chx+chz)/2,(chx+chz)/2,chy*2,16) : new THREE.BoxGeometry(chx*2, chy*2, chz*2);
+    dbg=new THREE.LineSegments(new THREE.EdgesGeometry(_dg), new THREE.LineBasicMaterial({color:0x00ff88})); scene.add(dbg);
   }
   if(DEBUG_GRAB){
     // 🟥 빨강 = 집게 잡기 반응 범위(중심에서 GRAB_RADIUS 안에 집게가 오면 잡힘) — 수평 반경이라 회전 없음. 항상 위에 그려 잘 보이게(depthTest 끔)
     dbgGrab=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(GRAB_RADIUS*2, 0.35, GRAB_RADIUS*2)), new THREE.LineBasicMaterial({color:0xff2d4a, depthTest:false, transparent:true})); dbgGrab.renderOrder=999; scene.add(dbgGrab);
   }
-  const pr = { body, mesh:grp, dbg, dbgGrab, won:false, coy: chy, vtop:(proto?proto.vh:1.2)-chy };   // vtop=몸통중심→머리 높이(집게 멈춤 기준)
+  const pr = { body, mesh:grp, proto, mixer:(grp.userData&&grp.userData.mixer)||null, dbg, dbgGrab, won:false, coy: chy, vtop:(proto?proto.vh:1.2)-chy };   // proto=뽑았을 때 트로피용
   body._prize = pr;                                     // 충돌 이벤트에서 인형 역참조
   prizes.push(pr);
 }
 function resetPrizes(){
   for(const p of prizes){ world.removeBody(p.body); scene.remove(p.mesh); if(p.dbg) scene.remove(p.dbg); if(p.dbgGrab) scene.remove(p.dbgGrab); }
   prizes.length = 0;
-  for(let i=0;i<PRIZE_COUNT;i++) makePrize(i);
-  state='READY'; held=null; grabConstraint=null; _grabbing=null; _collectTouch=false; _lowerContactY=null; _prongTouch.clear(); wonCount=0; updHud(); document.getElementById('won').textContent='0';
+  // 🎲 구성: 각 종류를 count만큼(포로 20 + 챔피언 각 1) 넣고 Fisher-Yates로 잘 섞기
+  _composition = [];
+  if(prizeProtos.length){
+    for(const pr of prizeProtos){ const n=pr.count||1; for(let k=0;k<n;k++) _composition.push(pr); }
+    for(let i=_composition.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; const t=_composition[i]; _composition[i]=_composition[j]; _composition[j]=t; }
+  } else { _composition = new Array(PRIZE_COUNT).fill(null); }   // 로드 전 폴백(블롭)
+  _prizeTotal = _composition.length;
+  for(let i=0;i<_prizeTotal;i++) makePrize(i);
+  state='READY'; held=null; grabConstraint=null; _grabbing=null; _collectTouch=false; _lowerContactY=null; _prongTouch.clear(); wonCount=0; clearTrophies(); updHud(); document.getElementById('won').textContent='0';
 }
 
 // ══════════ 집게 ══════════
@@ -408,7 +530,7 @@ for(let k=0;k<3;k++){
 // 집게발 물리 바디 — 매 프레임 시각 tip 위치에 동기화 → 인형을 실제로 밀치고 접촉(통과 X)
 const prongBodies = [], _tmpV = new THREE.Vector3(), _tmpQ = new THREE.Quaternion();
 for(let k=0;k<3;k++){
-  const pb = new CANNON.Body({ mass:0, type:CANNON.Body.KINEMATIC, material:mClaw, shape:new CANNON.Box(new CANNON.Vec3(0.18,0.4,0.22)) });
+  const pb = new CANNON.Body({ mass:0, type:CANNON.Body.KINEMATIC, material:mClaw, shape:new CANNON.Box(new CANNON.Vec3(0.09,0.28,0.11)) });   // 시각 집게발에 밀착(작게)
   pb.collisionFilterGroup = 4; pb.collisionFilterMask = 2;   // 집게발=그룹4, 인형(그룹2)만 밀침. 잡는 인형은 grab 시 그룹4 제외(끼임 방지)
   pb._prongIdx = k;
   pb.addEventListener('collide', ev=>{                       // 🤝 물리 접촉식: 집게발이 닿은 인형 기록(닫히는 동안만)
@@ -425,7 +547,7 @@ const _prongTouch = new Map();      // prize → 닿은 집게발 인덱스 Set
 const prongDbg = [];
 if(DEBUG_PRONG){
   for(let k=0;k<3;k++){
-    const d = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.36,0.8,0.44)), new THREE.LineBasicMaterial({color:0x39b6ff, depthTest:false, transparent:true}));
+    const d = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.18,0.56,0.22)), new THREE.LineBasicMaterial({color:0x39b6ff, depthTest:false, transparent:true}));   // 파랑 = 줄인 집게발 박스(시각 밀착)
     d.renderOrder=999; scene.add(d); prongDbg.push(d);
   }
 }
@@ -474,7 +596,7 @@ function stepConfetti(dt){
 }
 
 // 집게발(그룹4) 충돌 무시 토글 — 잡는/잡은 인형은 케이지에 안 끼게 prong 제외, 바닥·벽·다른 인형은 그대로
-function setProngIgnore(p, ig){ if(p && p.body) p.body.collisionFilterMask = ig ? -5 : -1; }
+function setProngIgnore(p, ig){ if(p && p.body) p.body.collisionFilterMask = ig ? -13 : -1; }   // -13 = 집게발(4) + 입구턱(8) 무시(잡힌 인형은 턱 통과)
 function mostTouchedPrize(){   // 집게발이 가장 많이 닿은 인형
   let t=null,n=0; for(const [pr,set] of _prongTouch){ if(!pr.won && set.size>n){ n=set.size; t=pr; } } return {prize:t, n};
 }
@@ -536,14 +658,31 @@ stick.addEventListener('pointerdown', e=>{ e.preventDefault(); stickActive=true;
 addEventListener('pointermove', stickUpdate);
 addEventListener('pointerup', stickEnd);
 addEventListener('pointercancel', stickEnd);
-document.getElementById('drop').onclick = ()=>{ if(state==='READY'){ stickEnd(); state='LOWERING'; clawSpin=0; } };
+// ⏱️ 하루 최대 횟수(프로토타입 — localStorage 일자별). 집기 1회 = 1플레이
+const DAILY_MAX = 10;
+function _todayKey(){ return new Date().toISOString().slice(0,10); }
+function _loadDaily(){ try{ const d=JSON.parse(localStorage.getItem('claw_daily')||'{}'); if(d.date===_todayKey()) return d.count||0; }catch(e){} return 0; }
+let playsUsed = _loadDaily();
+function _saveDaily(){ try{ localStorage.setItem('claw_daily', JSON.stringify({date:_todayKey(), count:playsUsed})); }catch(e){} }
+function updDailyHud(){ const el=document.getElementById('plays'); if(el) el.textContent=playsUsed+'/'+DAILY_MAX; const d=document.getElementById('drop'); if(d) d.disabled = playsUsed>=DAILY_MAX; }
+window.resetPlays = ()=>{ playsUsed=0; _saveDaily(); updDailyHud(); console.log('일일 횟수 초기화'); };   // 테스트용(콘솔에서 호출)
+function tryDrop(){
+  if(state!=='READY') return;
+  if(playsUsed>=DAILY_MAX){ showResult('오늘 횟수 소진! ('+DAILY_MAX+'/'+DAILY_MAX+')','#ff8a8a'); return; }
+  playsUsed++; _saveDaily(); updDailyHud();
+  stickEnd(); state='LOWERING'; clawSpin=0;
+}
+document.getElementById('drop').onclick = tryDrop;
 document.getElementById('reset').onclick = ()=>{ if(state==='READY'||held===null) resetPrizes(); };
 // ⌨️ PC 조작 — WASD/방향키 이동, 스페이스로 내리기
 const keys = {};
 addEventListener('keydown', e=>{
   const k = e.key.toLowerCase();
   if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
-  if(k===' '){ if(state==='READY'){ stickEnd(); state='LOWERING'; clawSpin=0; } return; }
+  if(k===' '){ tryDrop(); return; }
+  if(k==='r'){ if(state==='READY'||held===null) resetPrizes(); return; }   // 리셋
+  if(k==='q'){ rotateView(-1); return; }                                   // 시점 ◀
+  if(k==='e'){ rotateView(1); return; }                                    // 시점 ▶
   keys[k]=true;
 });
 addEventListener('keyup', e=>{ keys[e.key.toLowerCase()]=false; });
@@ -587,13 +726,16 @@ function loop(now){
     setFingerOpen(1);                                     // 내려갈 땐 활짝 열림
     clawPos.y -= LOWER_SPD*dt; clawSpin += SPIN_SPD*dt;   // 회전하며 하강
     if(GRAB_PHYSICAL){
-      // 🤝 물리식: 집게발(파랑)이 인형(초록)에 닿으면 거기서부터 살짝 더 박고 멈춤.
-      //    아무것도 안 닿으면 바닥(CLAW_DROP_Y)까지 최대로 하강. 2층 인형은 더 높은 데서 닿아 거기서 잡음.
+      // 🤝 물리식: 가장 가까운 인형 콜라이더 높이(prize.y+PRONG_GRAB_DROP)에서 멈춰 닫음.
+      //    ★버그수정: 바닥(CLAW_DROP_Y)까지 가면 닫힌 집게발 끝이 인형 콜라이더보다 한참 아래라 영영 안 닿았음.
+      //    이제 인형 위에서 멈춰 닫으면 닫히는 집게발이 콜라이더를 쓸고 지나가며 접촉 → 잡힘.
       if(!_collectTouch){ _collectTouch=true; _prongTouch.clear(); _lowerContactY=null; }   // 하강 시작 = 접촉 수집 ON
+      let near=null,nd=1e9; for(const p of prizes){ if(p.won)continue; const d=Math.hypot(p.body.position.x-clawPos.x, p.body.position.z-clawPos.z); if(d<nd){nd=d;near=p;} }
+      const stopY = (near && nd<=GRAB_RADIUS+0.35) ? Math.max(CLAW_DROP_Y, near.body.position.y + PRONG_GRAB_DROP) : CLAW_DROP_Y;
       if(_prongTouch.size>0 && _lowerContactY===null) _lowerContactY = clawPos.y;            // 첫 접촉 높이 기록
       const sankEnough = _lowerContactY!==null && clawPos.y <= _lowerContactY - PRONG_SINK;  // 접촉 후 조금 더 박음
-      if(sankEnough || clawPos.y<=CLAW_DROP_Y){
-        clawPos.y = Math.max(clawPos.y, CLAW_DROP_Y);    // 바닥 아래로는 안 감
+      if(sankEnough || clawPos.y<=stopY){
+        clawPos.y = Math.max(clawPos.y, stopY);          // 인형 콜라이더 높이서 멈춤(바닥 아래로 안 감)
         state='CLOSING'; closeTimer=0;
         const {prize} = mostTouchedPrize();              // 하강 중 닿은 인형을 잡기 대상으로
         _grabbing = prize || null;
@@ -601,15 +743,17 @@ function loop(now){
         // _collectTouch 유지 → 닫으며 닿는 발 계속 누적(품질 산정)
       }
     } else {
-      // 근접식: 가장 가까운 인형 위에서 멈춤
+      // 근접식: 빨강 히트박스 안 인형이 잡기 대상. 내려가는 내내 ① 대상은 안 밀침(보호) ② 나머지는 집게가 밀침
       let best=null,bestD=1e9;
       for(const p of prizes){ if(p.won)continue; const ddx=p.body.position.x-clawPos.x,ddz=p.body.position.z-clawPos.z; const d=Math.hypot(ddx,ddz); if(d<bestD){bestD=d;best=p;} }
-      let stopY = CLAW_DROP_Y;
-      if(best && bestD<=GRAB_RADIUS) stopY = Math.min(CLAW_TOP_Y-0.2, best.body.position.y + (best.vtop||1)*0.48);
-      if(clawPos.y<=stopY){ clawPos.y=stopY; state='CLOSING'; closeTimer=0;
-        _grabbing = (best && bestD<=GRAB_RADIUS) ? best : null;
-        if(_grabbing) setProngIgnore(_grabbing, true);
+      const tgt = (best && bestD<=GRAB_RADIUS) ? best : null;
+      if(tgt !== _grabbing){                              // 대상 바뀌면 이전 대상 밀침 복원, 새 대상 보호
+        if(_grabbing) setProngIgnore(_grabbing, false);
+        _grabbing = tgt;
+        if(_grabbing) setProngIgnore(_grabbing, true);    // 빨강↔집게 대상 = 안 밀침(잡을 거니까)
       }
+      const stopY = tgt ? Math.max(CLAW_DROP_Y, tgt.body.position.y + PRONG_GRAB_DROP) : CLAW_DROP_Y;  // 인형 콜라이더 높이까지 디그인
+      if(clawPos.y<=stopY){ clawPos.y=stopY; state='CLOSING'; closeTimer=0; }
     }
   } else if(state==='CLOSING'){
     closeTimer+=dt; setFingerOpen(Math.max(0,1-closeTimer/0.45));
@@ -620,21 +764,29 @@ function loop(now){
     if(closeTimer>=0.45){ tryGrab(); state='RAISING'; }
   } else if(state==='RAISING'){
     clawPos.y += RAISE_SPD*dt;
-    if(held){ const slipPerSec = (1-grabQ)*MAX_SLIP_RATE; if(Math.random() < slipPerSec*dt){ releaseHeld(); showResult('미끄러졌다…','#ff8a8a'); } }
+    if(held){ const slipPerSec = (1-grabQ)*MAX_SLIP_RATE; if(Math.random() < slipPerSec*dt){ releaseHeld(); } }   // 미끄러짐(무음 — 떨어지는 게 보임)
+    // (놓침 연출 제거 — 디테일 이전 상태. 집게는 닫힌 채 유지)
     if(clawPos.y>=CLAW_TOP_Y){ clawPos.y=CLAW_TOP_Y; state='RETURN_X'; }
   } else if(state==='RETURN_X'){            // 출구로 직선 복귀 ① X축만 이동 (대각선 금지)
     const rspd = held ? RETURN_SPD : RETURN_SPD*2.2;   // 빈손(완전 실패)이면 빠르게 복귀
     const d = HOME.x - clawPos.x; clawPos.x += Math.sign(d)*Math.min(Math.abs(d), rspd*dt);
-    if(held && Math.random() < (1-grabQ)*MAX_SLIP_RATE*0.5*dt){ releaseHeld(); showResult('아깝다!','#ffb45b'); }
+    if(held && Math.random() < (1-grabQ)*MAX_SLIP_RATE*0.5*dt){ releaseHeld(); }   // 복귀 중 미끄러짐(무음)
+    // (놓침 연출 제거 — 디테일 이전 상태. 집게는 닫힌 채 유지)
     if(Math.abs(HOME.x-clawPos.x) < 0.03) state='RETURN_Z';
   } else if(state==='RETURN_Z'){            // ② Z축만 이동 → 출구(구멍) 위 도착
     const rspd = held ? RETURN_SPD : RETURN_SPD*2.2;   // 빈손이면 빠르게
     const d = HOME.z - clawPos.z; clawPos.z += Math.sign(d)*Math.min(Math.abs(d), rspd*dt);
-    if(held && Math.random() < (1-grabQ)*MAX_SLIP_RATE*0.5*dt){ releaseHeld(); showResult('아깝다!','#ffb45b'); }
+    if(held && Math.random() < (1-grabQ)*MAX_SLIP_RATE*0.5*dt){ releaseHeld(); }   // 복귀 중 미끄러짐(무음)
+    // (놓침 연출 제거 — 디테일 이전 상태. 집게는 닫힌 채 유지)
     if(Math.abs(HOME.z-clawPos.z) < 0.03){ state='RELEASE'; releaseTimer=0; }
   } else if(state==='RELEASE'){
     releaseTimer+=dt; setFingerOpen(Math.min(1,releaseTimer/0.3));
-    if(releaseTimer>=0.3){ releaseHeld(); state='READY'; grabQ=0; }   // 구멍에 들어가면 checkHole()이 골인 처리
+    if(releaseTimer>=0.3){ const dropped=held; releaseHeld();
+      if(dropped){ dropped.body.collisionFilterMask=-13;                              // 턱(group8) 통과
+        dropped.body.position.x=HOME.x; dropped.body.position.z=HOME.z;              // 구멍 정중앙으로 스냅 → 빗나가 안 들어가는 일 없게
+        dropped.body.velocity.set(0,-1.5,0); dropped.body.angularVelocity.set(0,0,0); dropped.body.wakeUp();  // 똑바로 낙하 → 확실히 골인
+      }
+      state='READY'; grabQ=0; }
   }
 
   // 🕹️ 장식 조이스틱 — HTML 조이스틱/WASD 입력에 맞춰 부드럽게 기울임(안 누르면 다시 똑바로)
@@ -664,10 +816,10 @@ function loop(now){
   const CLAMP=2.7;   // 통 안 한계(벽에서 더 안쪽). 큰 인형 몸통이 유리 안 뚫게 + 어떤 이유로 새도 복귀
   for(const p of prizes){
     const b=p.body, v=b.velocity, P=b.position;
-    const sp=Math.hypot(v.x,v.y,v.z); if(sp>13){ const f=13/sp; v.x*=f; v.y*=f; v.z*=f; } // 속도 상한(↑ 더 역동적, CLAMP가 가둠)
+    const sp=Math.hypot(v.x,v.y,v.z); if(sp>6){ const f=6/sp; v.x*=f; v.y*=f; v.z*=f; } // 속도 상한↓ — 집게에 밀려도 안 날아감(적당히 밀고 지나감)
     // 🧱 통 밖으로 새는 것 강제 차단(터널링·집게 밀림·폭발 무관). 집힌 인형/골인 구멍은 예외
     if(p!==held && !p.won){
-      const inHole = (P.x < -1.6 && P.z > 1.6);        // 골인 구멍 코너만 아래로 허용
+      const inHole = (Math.abs(P.x-HOME.x) < HOLE_R+0.4 && Math.abs(P.z-HOME.z) < HOLE_R+0.4);  // 골인존(checkHole보다 넓게) 아래로 허용 — 가장자리서 위로 튕겨 복원되던 것 방지
       if(P.x> CLAMP){ P.x= CLAMP; if(v.x>0)v.x=0; }
       if(P.x<-CLAMP){ P.x=-CLAMP; if(v.x<0)v.x=0; }
       if(P.z> CLAMP){ P.z= CLAMP; if(v.z>0)v.z=0; }
@@ -675,16 +827,22 @@ function loop(now){
       if(P.y> 6.6){ P.y= 6.6; if(v.y>0)v.y=0; }        // 천장(위로 안 튀게)
       if(!inHole && P.y < -0.25){ P.y=0.25; v.set(0,0,0); }  // 구멍 아닌데 바닥 아래로 새면 복귀
     }
-    p.mesh.position.copy(P); p.mesh.quaternion.copy(b.quaternion);
+    p.mesh.position.copy(P); p.mesh.quaternion.copy(b.quaternion); if(p.mixer) p.mixer.update(dt);   // 아이들 애니 진행
     if(p.dbg){ p.dbg.position.copy(P); p.dbg.quaternion.copy(b.quaternion); }
     if(p.dbgGrab){ p.dbgGrab.position.copy(P); }   // 빨강(잡기범위)은 회전 없이 위치만(수평 반경)
   }
   // 🎯 골인 판정 — 구멍(앞·좌 코너) 안으로 떨어진 인형 = 획득 → 즉시 회수(쌓이지 않게)
   for(const p of prizes){
-    if(p.won) continue; const b=p.body.position;
-    if(b.y < -0.5 && Math.abs(b.x-HOME.x) < HOLE_R+0.25 && Math.abs(b.z-HOME.z) < HOLE_R+0.25){
-      p.won=true; wonCount++; document.getElementById('won').textContent=wonCount; showResult('🎉 골인!','#ffd24a');
-      fireConfetti();                                  // 🎉 뒤편 폭죽
+    if(p.won || p===held) continue; const b=p.body.position;
+    if(b.y < 0.5 && Math.abs(b.x-HOME.x) < HOLE_R+0.3 && Math.abs(b.z-HOME.z) < HOLE_R+0.3){   // 구멍 위에서 바닥 높이 이하로 내려오면 획득(관대 — 출구 걸친 것도 인정). 바닥 인형(y≈0.65)은 제외
+      p.won=true;
+      if(p.proto && p.proto.dud){                      // 🐾 포로 = 꽝
+        showResult('꽝! 포로 🐾','#ff8a8a');
+      } else {
+        wonCount++; document.getElementById('won').textContent=wonCount; showResult('🎉 획득!','#ffd24a');
+        fireConfetti();                                // 🎉 뒤편 폭죽
+        awardTrophy(p.proto);                          // 🏆 정면 연출 → 선반 진열
+      }
       // 회수: 입구에 쌓이지 않게 인형 제거(획득=데이터로 기록될 대상). 물리/시각/디버그박스 모두 정리
       world.removeBody(p.body);
       scene.remove(p.mesh);
@@ -694,14 +852,24 @@ function loop(now){
     }
   }
   stepConfetti(dt);                                                // 🎉 폭죽 갱신
-  for(let i=0;i<marqueeBulbs.length;i++){ marqueeBulbs[i].material.emissiveIntensity = 0.35 + 0.85*(0.5+0.5*Math.sin(now*0.005 + i*0.6)); } // ✨ 마퀴 깜빡임
+  stepReveal(dt);                                                  // 🏆 뽑은 인형 정면연출/선반 진열
+  for(let i=0;i<marqueeBulbs.length;i++){ const b=marqueeBulbs[i]; b.material.emissiveIntensity = 0.2 + 1.9*(0.5+0.5*Math.sin(now*0.006 - b.position.x*0.9)); } // ✨ 마퀴 러닝라이트(좌→우 체이스)
   updHud();
   renderer.render(scene,camera);
 }
 // 🧸 인형 모델 로드 → 스킨드 메시를 "정적 메시로 베이크"(bind 포즈 고정).
 //    스킨드는 부모 스케일이 이중 적용(k²)돼 시각이 작아지고 떠 보임 → 정적으로 구우면 스케일/측정이 정확.
 // ▶ 여러 형태 추가: PRIZE_FILES 에 {file, target}(원하는 최대 치수) 추가
-const PRIZE_FILES = [ { file:'teemo.glb', target:4.3 } ];   // target = 키(세로) 단위(↑일수록 크게). 가로(팔벌림) 아닌 키 기준
+const PRIZE_FILES = [   // target = 키(세로) 단위(↑일수록 크게). 7종 랜덤 혼합 — 전부 동일 구조(스킨드+Idle_Base 애니+BLEND재질)
+  { file:'teemo.glb', target:3.2 },
+  { file:'gwen.glb',  target:2.89 },   // 미니티모 외 5%↓ (3.2→3.04)
+  { file:'vex.glb',   target:2.89 },
+  { file:'ekko.glb',  target:2.89 },
+  { file:'yone.glb',  target:2.89 },
+  { file:'neeko.glb', target:2.89 },
+  { file:'lux.glb',   target:2.89 },
+  { file:'poro.glb',  target:2.0, dud:true, count:20 },   // 🐾 꽝 — 20마리(대부분). 둥글어 부피 커서 키는 작게. 챔피언은 각 1마리
+];
 function bakeStatic(root){   // 스킨드 메시 → bind 포즈 정적 BufferGeometry(월드 좌표)
   root.updateWorldMatrix(true, true);
   const group = new THREE.Group(), v = new THREE.Vector3();
@@ -739,24 +907,35 @@ function bodyCore(root, ctr){
   return { hx:q(X,0.80), hy:q(Y,0.92), hz:q(Z,0.82) };   // 가로/깊이 80%(팔·무기 컷), 세로 92%(모자끝만 컷)
 }
 const _gl = new GLTFLoader();
+let _loaded = 0;   // 로드 완료 카운터(성공/실패 모두) — 전부 끝나면 한 번만 스폰
 for(const pf of PRIZE_FILES){
   _gl.load(pf.file, gltf => {
+    gltf.scene.traverse(o=>{ if(o.isMesh && o.material){           // 🎨 unlit BLEND 재질 → 컷아웃(alphaTest): 깊이 정상화 → 눈/얼굴 데칼이 머리에 안 가려짐
+      for(const m of (Array.isArray(o.material)?o.material:[o.material])){
+        if(m.transparent){ m.transparent=false; m.alphaTest=0.5; m.depthWrite=true; }
+        if(/eye|smile|surprise|anger|steadfast/i.test(m.name||'')){ m.polygonOffset=true; m.polygonOffsetFactor=-2; m.polygonOffsetUnits=-2; }  // 눈/표정 데칼 살짝 앞으로(z-fighting 방지)
+        m.needsUpdate=true;
+      }
+    }});
     const baked = bakeStatic(skeletonClone(gltf.scene));            // 정적으로 구움
     const box = new THREE.Box3().setFromObject(baked);             // 정적이라 정확
     const size = new THREE.Vector3(), ctr = new THREE.Vector3(); box.getSize(size); box.getCenter(ctr);
     const s = (pf.target||2.4) / size.y;                            // 🔑 키(세로) 기준 정규화 — 팔벌림(가로)이 더 커도 안 휘둘림
     const core = bodyCore(baked, ctr);                             // 몸통 코어(로컬 단위)
     // 🟩 물리 콜라이더 = 작고 낮은 박스(몸통 하부). 작을수록 인형끼리 더 빽빽이 겹침. 집기는 근접판정이라 무관
-    const cox = GRAB_RADIUS + 0.08;                                 // 초록(물리 충돌) 가로 — 좁게(인형끼리 안 부딪히게). 잡기는 닫힐 때 접촉으로
-    const coz = GRAB_RADIUS + 0.08;                                 // 깊이
+    const _fw=core.hx, _fd=core.hz, _favg=(_fw+_fd)/2||1;           // 측정 footprint → 캐릭터별 가로:깊이 비율
+    const _ar=v=>Math.min(Math.max(v,0.62),1.5);                   // 비율 클램프(너무 납작/길쭉 방지)
+    const cox = COLLIDER_R*_ar(_fw/_favg);                          // 🟩 초록 가로 — 넓은 캐릭터는 넓게(특성 반영). 잡기(빨강)와 독립
+    const coz = COLLIDER_R*_ar(_fd/_favg);                          // 깊이 — 길쭉한 캐릭터는 깊게
     const coy = Math.min(size.y*s*0.22, 0.8);                       // 박스 키(낮춤) — 집게 닫힐 때 하부에 닿아 잡힘
     const yshift = (size.y*s/2) - coy;                             // 발이 콜라이더 바닥에 닿도록 시각을 올림
-    prizeProtos.push({ static:baked, s, cx:ctr.x, cy:ctr.y, cz:ctr.z, cox, coy, coz, yshift, vh:size.y*s });  // vh=시각 키(집게 멈춤 기준)
-    resetPrizes();
+    prizeProtos.push({ static:baked, scene:gltf.scene, anims:gltf.animations, dud:pf.dud, count:pf.count, s, cx:ctr.x, cy:ctr.y, cz:ctr.z, cox, coy, coz, yshift, vh:size.y*s });  // dud=꽝(포로), count=마릿수
+    if(++_loaded === PRIZE_FILES.length) resetPrizes();   // 전부 로드 완료 후 한 번만 — 모든 종류 등장
     console.log('✅ size', size.toArray().map(v=>+v.toFixed(1)), 'collider', [cox,coy,coz].map(v=>+v.toFixed(2)), 'yshift', yshift.toFixed(2), 's', s.toFixed(4));
-  }, undefined, err => { console.warn(pf.file+' 로드 실패', err); });
+  }, undefined, err => { console.warn(pf.file+' 로드 실패', err); if(++_loaded === PRIZE_FILES.length) resetPrizes(); });
 }
 resetPrizes();
+updDailyHud();
 requestAnimationFrame(loop);
 addEventListener('resize', ()=>{ placeCamera(); renderer.setSize(innerWidth,innerHeight); });
 
