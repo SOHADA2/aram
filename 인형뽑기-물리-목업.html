@@ -68,7 +68,7 @@
   <span class="pill">획득 <b id="won">0</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" style="opacity:.5">BUILD 97</span>
+  <span class="pill" style="opacity:.5">BUILD 98</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -723,21 +723,22 @@ addEventListener('pointermove', stickUpdate);
 addEventListener('pointerup', stickEnd);
 addEventListener('pointercancel', stickEnd);
 // ⏱️ 하루 최대 횟수(프로토타입 — localStorage 일자별). 집기 1회 = 1플레이
+const ENFORCE_DAILY_LIMIT = false;   // ⚠️ 테스트 중 OFF — 나중에 true로 켜면 하루 DAILY_MAX회 제한 적용
 const DAILY_MAX = 10;
 function _todayKey(){ return new Date().toISOString().slice(0,10); }
 function _loadDaily(){ try{ const d=JSON.parse(localStorage.getItem('claw_daily')||'{}'); if(d.date===_todayKey()) return d.count||0; }catch(e){} return 0; }
 let playsUsed = _loadDaily();
 function _saveDaily(){ try{ localStorage.setItem('claw_daily', JSON.stringify({date:_todayKey(), count:playsUsed})); }catch(e){} }
-function updDailyHud(){ const el=document.getElementById('plays'); if(el) el.textContent=playsUsed+'/'+DAILY_MAX; const d=document.getElementById('drop'); if(d) d.disabled = playsUsed>=DAILY_MAX; }
+function updDailyHud(){ const el=document.getElementById('plays'); if(el) el.textContent= ENFORCE_DAILY_LIMIT ? (playsUsed+'/'+DAILY_MAX) : '∞'; const d=document.getElementById('drop'); if(d) d.disabled = ENFORCE_DAILY_LIMIT && playsUsed>=DAILY_MAX; }
 window.resetPlays = ()=>{ playsUsed=0; _saveDaily(); updDailyHud(); console.log('일일 횟수 초기화'); };   // 테스트용(콘솔에서 호출)
 function tryDrop(){
   if(state!=='READY') return;
-  if(playsUsed>=DAILY_MAX){ Sfx.error(); showResult('오늘 횟수 소진! ('+DAILY_MAX+'/'+DAILY_MAX+')','#ff8a8a'); return; }
+  if(ENFORCE_DAILY_LIMIT && playsUsed>=DAILY_MAX){ Sfx.error(); showResult('오늘 횟수 소진! ('+DAILY_MAX+'/'+DAILY_MAX+')','#ff8a8a'); return; }
   playsUsed++; _saveDaily(); updDailyHud();
   readyDeadline=0;                          // 집기 시작 → 자동하강 타이머 해제
   stickEnd(); state='LOWERING'; clawSpin=0;
 }
-document.getElementById('drop').onclick = ()=>{ Sfx.unlock(); if(state==='READY' && playsUsed<DAILY_MAX) Sfx.click(); tryDrop(); };
+document.getElementById('drop').onclick = ()=>{ Sfx.unlock(); if(state==='READY' && (!ENFORCE_DAILY_LIMIT || playsUsed<DAILY_MAX)) Sfx.click(); tryDrop(); };
 document.getElementById('reset').onclick = ()=>{ Sfx.unlock(); if(state==='READY'||held===null){ Sfx.click(); resetPrizes(); } };
 // ⌨️ PC 조작 — WASD/방향키 이동, 스페이스로 내리기
 const keys = {};
@@ -771,7 +772,7 @@ function loop(now){
     if(state==='LOWERING')      Sfx.descend();
     else if(state==='CLOSING')  Sfx.clamp();
     else if(state==='RAISING')  { held ? Sfx.grab() : Sfx.miss(); }
-    else if(state==='READY')    { readyDeadline = (playsUsed<DAILY_MAX) ? (now+AUTO_DROP_MS) : 0; _lastTickSec=-1; }
+    else if(state==='READY')    { readyDeadline = (!ENFORCE_DAILY_LIMIT || playsUsed<DAILY_MAX) ? (now+AUTO_DROP_MS) : 0; _lastTickSec=-1; }
     _lastState = state;
   }
   // 🔊 모터 험 — 집게가 움직이는 동안만 지속
@@ -800,7 +801,7 @@ function loop(now){
     clawPos.z = Math.max(-BIN.z, Math.min(BIN.z, clawPos.z + mZ*JOY_SPEED*dt));
     clawPos.y = CLAW_TOP_Y; setFingerOpen(1);
     // ⏱️ 자동 집기 카운트다운 — 30초 안에 안 내리면 자동 하강(마지막 5초 틱 효과음)
-    if(readyDeadline && playsUsed<DAILY_MAX){
+    if(readyDeadline && (!ENFORCE_DAILY_LIMIT || playsUsed<DAILY_MAX)){
       const rem = Math.max(0, Math.ceil((readyDeadline-now)/1000));
       const tp=document.getElementById('timer'); if(tp) tp.textContent = rem;
       const pill=document.getElementById('timer-pill'); if(pill) pill.classList.toggle('urgent', rem<=5);
