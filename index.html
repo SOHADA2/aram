@@ -1665,8 +1665,11 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 @media(max-width:440px){.wm-fx-grid{grid-template-columns:1fr;}}
 /* 🔗 시너지 변경 아코디언 (대기화면) */
 .wm-syn-head{cursor:pointer;}
-.wm-syn-chev{margin-left:auto;font-size:10px;color:var(--rk-text-muted);transition:transform .2s;}
+.wm-syn-chev{margin-left:auto;}
 .wm-fx-card:has(.wm-syn-body.open) .wm-syn-chev{transform:rotate(180deg);}
+/* 🔽 아코디언 펼침 화살표 — 잘 보이게 골드 원형 + 은은한 펄스 (시너지·강철심장 공용) */
+.wm-syn-chev,.wm-em-chev{flex-shrink:0;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;line-height:1;color:#1a1206;background:linear-gradient(180deg,#ffe08a,#f0c060);transition:transform .2s;animation:wmChevPulse 1.8s ease-in-out infinite;}
+@keyframes wmChevPulse{0%,100%{box-shadow:0 0 0 1px rgba(240,192,96,0.45),0 0 5px rgba(240,192,96,0.35);}50%{box-shadow:0 0 0 1px rgba(240,192,96,0.8),0 0 13px rgba(240,192,96,0.75);}}
 .wm-syn-body{display:none;margin-top:8px;border-top:1px solid rgba(255,255,255,0.08);padding-top:9px;flex-direction:column;gap:5px;}
 .wm-syn-body.open{display:flex;animation:wmSynIn .2s ease;}
 @keyframes wmSynIn{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:none;}}
@@ -1685,7 +1688,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .wm-fx-stack{display:flex;flex-direction:column;gap:8px;}
 .wm-fx-unit{display:flex;flex-direction:column;min-width:0;}
 .wm-em-head{cursor:pointer;}
-.wm-em-chev{margin-left:6px;flex-shrink:0;font-size:10px;color:var(--rk-text-muted);transition:transform .2s;}
+.wm-em-chev{margin-left:6px;}
 .wm-fx-card:has(.wm-em-body.open) .wm-em-chev{transform:rotate(180deg);}
 .wm-em-body{display:none;margin-top:8px;border-top:1px solid rgba(255,255,255,0.08);padding-top:9px;flex-direction:column;gap:5px;}
 .wm-em-body.open{display:flex;animation:wmSynIn .2s ease;}
@@ -6627,7 +6630,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.181';
+const APP_VERSION = 'v2.45.182';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6636,6 +6639,9 @@ const APP_VERSION = 'v2.45.181';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.182', date: '2026-06-20', changes: [
+    { tag: 'improve', text: '🔽 [시즌2] 대기화면 전투 준비 효과 — ① 펼치기 화살표를 잘 보이게 골드 원형 + 은은한 펄스로 강조(탭하면 펼쳐진다는 걸 명확히) ② 강철심장은 성능 높은 순, 시너지는 3성 먼저(성능 좋은 순)로 상단 배치' },
+  ] },
   { ver: 'v2.45.181', date: '2026-06-20', changes: [
     { tag: 'improve', text: '🔨 [시즌2] 대기화면 강철심장 효과 표시를 이모지 칩 → 간단한 텍스트 행으로 변경. 걸작 효과 3줄을 모두 풀어서(예: 경기 골드 +5 / 승리 LP +2 발동 70% / 해골 감소 -23%) 행을 맞춰 보여줘 한눈에 비교 가능' },
   ] },
@@ -23649,8 +23655,8 @@ async function renderS1WaitingCard(el) {
         <div class="wm-fx-cell-top"><span class="wm-fx-ico">🔨</span><span class="wm-fx-name" style="color:#ffd24a;">강철심장</span><span class="wm-fx-perf">성능 ${pw}</span><span class="wm-em-chev">▾</span></div>
         <div class="wm-em-efflist">${_emEffLines(em)}</div>
       </div>`;
-      // 바디(펼침): 보유한 강철심장 목록 → 선택해서 장착 (시너지와 동일)
-      const emblems = getEmblems(myGoldData);
+      // 바디(펼침): 보유한 강철심장 목록 → 선택해서 장착 (성능 높은 순 상단)
+      const emblems = getEmblems(myGoldData).slice().sort((a,b)=> emblemPower(b)-emblemPower(a));
       const eqId = getEquippedId(myGoldData);
       const emRows = emblems.map(e => {
         const on = (e.id === eqId), pwe = emblemPower(e), gm = _emGrade(pwe);
@@ -31449,6 +31455,7 @@ function _ownedSynergyList(cards){
     if(has3) out.push({grp, tier:3});
     else if(has2) out.push({grp, tier:2});
   }
+  out.sort((a,b)=> b.tier - a.tier);  // 성능 높은(3성) 순 상단 — 같은 티어는 정의 순서 유지(안정 정렬)
   return out;
 }
 // 대기화면 아코디언에서 시너지 장착/해제 → 메인 재렌더 (같은 거 재선택=해제)
