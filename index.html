@@ -3654,6 +3654,9 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .save-confirm-title{font-family:'Black Han Sans',sans-serif;font-size:15px;color:#f0a020;margin-bottom:10px;letter-spacing:1px;}
 .save-confirm-body{font-size:12px;color:var(--text-dim);line-height:1.9;margin-bottom:20px;}
 .save-confirm-btns{display:flex;gap:8px;justify-content:center;}
+.season-2 .save-confirm-modal{background:linear-gradient(160deg,#16130b,#0c0a06);border-color:rgba(240,192,96,0.45);box-shadow:0 18px 60px rgba(0,0,0,0.7),0 0 40px rgba(240,192,96,0.06);}
+.season-2 .save-confirm-title{color:var(--gold-light);}
+#bridge-warn-overlay .save-confirm-body b{color:var(--gold-light);}
 .achievement-cat{margin-bottom:8px;}
 .achievement-cat-header{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);cursor:pointer;user-select:none;transition:border-color 0.15s;}
 .achievement-cat-header:hover{border-color:rgba(255,255,255,0.25);}
@@ -6386,6 +6389,17 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
   </div>
 </div>
 
+<div class="save-confirm-overlay" id="bridge-warn-overlay" style="display:none;">
+  <div class="save-confirm-modal">
+    <div class="save-confirm-title">🔌 브릿지가 연결되지 않았어요</div>
+    <div class="save-confirm-body">LCU 브릿지가 켜져 있지 않아요.<br>이대로 진행하면 <b>자동 승패 감지</b>와<br><b>전적(KDA·딜량·골드)·시너지 조건</b>이<br>수집되지 않아요.<br><br>브릿지를 켠 뒤 진행하길 권장해요.</div>
+    <div class="save-confirm-btns">
+      <button class="btn btn-ghost btn-sm" onclick="closeBridgeWarn()">취소</button>
+      <button class="btn btn-gold btn-sm" onclick="proceedBridgeWarn()">그래도 진행</button>
+    </div>
+  </div>
+</div>
+
 <footer>
   ARAM CUSTOM TEAM BUILDER · 칼바람 아수라장
   <div style="margin-top:8px;">
@@ -6639,7 +6653,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.188';
+const APP_VERSION = 'v2.45.189';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6648,6 +6662,9 @@ const APP_VERSION = 'v2.45.188';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.189', date: '2026-06-20', changes: [
+    { tag: 'new', text: '🔌 브릿지 미연결 경고 — 브릿지(LCU)가 켜져 있지 않은 상태로 팀 구성 단계로 넘어가면 팝업으로 안내해요. 이대로 진행하면 자동 승패 감지·전적(KDA·딜량·골드)·시너지 조건이 수집되지 않는다는 안내 + [취소]/[그래도 진행]. 일반·고정 매치에만 뜨고 이벤트·막고라는 제외, 브릿지가 연결돼 있으면 안 떠요' },
+  ] },
   { ver: 'v2.45.188', date: '2026-06-20', changes: [
     { tag: 'improve', text: '🃏 [밸런스] 가챠 시너지 「공허 균열」 3성 하향 — 패배를 50% 확률로 전액 방어하는데 실패 페널티가 −4뿐이라 도박이 사실상 일방적 이득(다른 시너지의 5배 효율)이던 것을, 실패 −4 → −10으로 조정해 정상 범위로. 도박(전액 방어 or 추가 손실) 성격은 유지. 2성(실패 −6)은 공정해서 유지. 나머지 9종은 균형이 맞아 변경 없음' },
   ] },
@@ -12527,6 +12544,12 @@ function _updateBridgeDot() {
   dot.className = 'sync-dot ' + (connected ? 'ok' : 'err');
   msg.textContent = connected ? '브릿지 연결됨' : '브릿지 없음';
 }
+// 🔌 브릿지(진행자) 연결 여부 — operators 최근 120s 또는 레거시 heartbeat (팀 구성 진입 경고용)
+function _isBridgeConnected() {
+  const now = Date.now();
+  if (_bridgeOperators && Object.values(_bridgeOperators).some(o => o && o.at && (now - o.at < 120000))) return true;
+  return !!(_bridgeHeartbeat && (now - _bridgeHeartbeat < 120000));
+}
 
 // 다중 진행자: bridge/operators/{id} = {name, at} (aram-bridge v1.1.32~)
 onValue(ref(db, 'bridge/operators'), (snap) => {
@@ -14533,7 +14556,7 @@ window.confirmNewTeam = function() {
   if (_pendingNewTeamFn) { _pendingNewTeamFn(); _pendingNewTeamFn = null; }
 };
 
-window.startItemPhase = function() {
+window.startItemPhase = function(_bridgeOk) {
   // 팀 결과가 있고 아직 저장 안 된 경우 확인 팝업
   if ((currentTeamA.length > 0 || currentTeamB.length > 0) && !matchSaved) {
     _pendingNewTeamFn = () => { currentTeamA=[]; currentTeamB=[]; window.startItemPhase(); };
@@ -14544,6 +14567,9 @@ window.startItemPhase = function() {
   if (isEventMatch) { makeTeams(); return; }
 
   if (matchType === 'magolla') { openMagollaModal(); return; }
+
+  // 🔌 브릿지 미연결 경고 — 저장되는 일반/고정 매치에서 브릿지 꺼져 있으면 1회 안내(그래도 진행 가능)
+  if (!_bridgeOk && !_isBridgeConnected()) { _showBridgeWarn(); return; }
 
   // 고정 팀짜기 모드: 팀빌더 먼저 열기
   if (mode === 'fixed') {
@@ -14562,6 +14588,11 @@ window.startItemPhase = function() {
   // Firebase에 아이템 사용 단계 기록 → 모든 기기에 동기화
   set(ref(db, 'session'), { phase: 'item', itemPhaseEnd: Date.now() + 15000 }).catch(console.error);
 };
+
+// 🔌 브릿지 미연결 경고 팝업 (팀 구성 진입 시)
+function _showBridgeWarn(){ const o=document.getElementById('bridge-warn-overlay'); if(o) o.style.display='flex'; }
+window.closeBridgeWarn   = function(){ const o=document.getElementById('bridge-warn-overlay'); if(o) o.style.display='none'; };
+window.proceedBridgeWarn = function(){ const o=document.getElementById('bridge-warn-overlay'); if(o) o.style.display='none'; window.startItemPhase(true); };
 
 // ── 카운트다운 사운드 (Web Audio API — 파일 불필요) ────────────
 let _audioCtx = null;
