@@ -6653,7 +6653,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.190';
+const APP_VERSION = 'v2.45.191';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6662,6 +6662,9 @@ const APP_VERSION = 'v2.45.190';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.191', date: '2026-06-20', changes: [
+    { tag: 'fix', text: '🎟 스크래치 복권 — 당첨(같은 문양 매칭)이 확정되면 남은 칸이 더 안 긁히던 문제 수정. 결과·당첨금은 확정 시점에 그대로 고정해 두고, 남은 칸은 구경용으로 계속 긁을 수 있게 분리. 확정 후 긁어서 나온 해골은 패널티 없음(당첨금 불변)' },
+  ] },
   { ver: 'v2.45.190', date: '2026-06-20', changes: [
     { tag: 'improve', text: '🃏 시너지 「유레카」·「공허 균열」 효과 설명 명확화 — 유레카: 승리 보너스는 딜량 25,000+ 달성 + 발동확률 둘 다 필요, 패배 페널티는 조건 없이 발동확률만(승리 보너스만 조건 필요)임을 명시. 공허 균열: 패배할 때만 발동하며 확률로 손실 전액 방어(0) / 실패 시 추가 손실, 승리 시엔 효과 없음을 명시' },
   ] },
@@ -26724,7 +26727,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
 
   let _scratchSndAt = 0;
   function scratchAt(st, x, y) {
-    if (st.revealed || allDone) return;
+    if (st.revealed) return;   // 결과 확정(allDone) 후에도 남은 칸은 계속 긁기 가능 — 결과는 불변(확정 시점 고정)
     hintEl.style.opacity = '0';
     const r = st.canvas.width * SCRATCH_BASE_R * brushMult;   // 캔버스 해상도(DPR 반영) 기준 브러시 반지름
     scratchLine(st.ctx, st.prevX ?? x, st.prevY ?? y, x, y, r);
@@ -26805,7 +26808,8 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   function revealCell(st, fromSkip = false) {
     if (st.revealed) return;
     st.revealed = true;
-    const isSkullHit = st.sym.id === 'skull' && !fromSkip;
+    // 결과 확정(allDone) 후 긁어서 나온 해골은 패널티 없음 — 당첨금은 이미 고정됨(구경용 공개)
+    const isSkullHit = st.sym.id === 'skull' && !fromSkip && !allDone;
     if (isSkullHit) { revealedSkulls++; st.cellEl.classList.add('skull-hit'); }
     st.symEl.style.transition = 'opacity 0.25s ease, filter 0.5s ease, transform 0.5s cubic-bezier(0.34,1.56,0.64,1)';
     st.symEl.style.opacity = '1';
