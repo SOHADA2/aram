@@ -6630,7 +6630,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.182';
+const APP_VERSION = 'v2.45.183';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6639,6 +6639,9 @@ const APP_VERSION = 'v2.45.182';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.183', date: '2026-06-20', changes: [
+    { tag: 'improve', text: '📖 [시즌2] 가챠 컬렉션을 "컬렉션 북"으로 개편 — 파편/2성/3성 모두 동일 톤의 액자(등급 색 + 수집 진행도 바 N/18)에 카드를 펼쳐 담음. 3성 18종을 다 모으면 카드를 부채꼴로 묶던 것을 없애고(다 모은 카드를 그대로 펼쳐 보여 뿌듯함 유지) 「🏆 컴플리트」 리본 + 인형뽑기 테스트 버튼으로 표시. 각 등급을 다 모아도 컴플리트 리본이 떠요' },
+  ] },
   { ver: 'v2.45.182', date: '2026-06-20', changes: [
     { tag: 'improve', text: '🔽 [시즌2] 대기화면 전투 준비 효과 — ① 펼치기 화살표를 잘 보이게 골드 원형 + 은은한 펄스로 강조(탭하면 펼쳐진다는 걸 명확히) ② 강철심장은 성능 높은 순, 시너지는 3성 먼저(성능 좋은 순)로 상단 배치' },
   ] },
@@ -24626,10 +24629,9 @@ function renderGachaTab() {
       ? `<button class="cz-merge-action" style="background:linear-gradient(135deg,#6d3bbf,#a878f0);border-color:rgba(205,165,255,0.65);margin:2px 0 10px;" onclick="window.doGachaRecombine3()">남는 3성 2장 → 랜덤 3성 <span style="opacity:0.82;font-weight:600;font-size:11px;">· 잉여 ${surplus3}장</span></button>`
       : `<div class="czd-merge-hint" style="margin:2px 0 10px;background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.12);border-radius:8px;padding:9px;">중복된 3성 2장이 모이면 랜덤 3성으로 재조합할 수 있어요 (미보유 챔프 우선)</div>`;
   }
-  // 🃏 3성 18종 컴플리트 → 카드를 트럼프처럼 부채꼴로 묶고 인형뽑기 테스트 버튼 노출(미완성은 일반 그리드). _prismDeckPreview=프리뷰 강제
-  const gridHtml = (gachaStar === 3 && (_allPrismDone(getMyGoldData()) || _prismDeckPreview))
-    ? _prismDeckHtml(getMyGoldData())
-    : `<div class="pet-grid">${cardsHtml}</div>`;
+  // 📖 컬렉션 북 — 등급별 동일 톤(액자+페이지+수집 진행도). 카드는 그대로 펼쳐 보여줌. 3성 컴플리트 시 인형뽑기 테스트 버튼 노출
+  const _clawComplete = (gachaStar === 3 && (_allPrismDone(getMyGoldData()) || _prismDeckPreview));
+  const gridHtml = _gachaBookHtml(gachaStar, cardsHtml, _clawComplete) + (_clawComplete ? _prismClawHtml() : '');
   list.innerHTML = tabHtml + tierTabs + _yuumiDexSection() + recombineHtml + gridHtml + renderGachaDex();
   _markSynergiesSeen();   // 시너지 섹션을 확인했으니 신규 표시 해제
   updateGachaNavBadge();
@@ -31020,18 +31022,47 @@ function _injectPrismDeckCss(){
   .prism-claw-note{font-size:9.5px;color:#9aa0b4;text-align:center;margin-top:7px;line-height:1.5;}`;
   document.head.appendChild(s);
 }
-function _prismDeckHtml(data){
+// 📖 가챠 컬렉션 북 — 등급별 동일 톤(액자+페이지+수집 진행도). 카드는 모으지 않고 그대로 펼쳐 보여줌
+function _injectGachaBookCss(){
+  if (document.getElementById('gacha-book-css')) return;
+  const s = document.createElement('style'); s.id = 'gacha-book-css';
+  s.textContent = `
+  .gacha-book{margin:2px 0 10px;border-radius:14px;padding:11px 11px 13px;background:linear-gradient(165deg,var(--bk-bg),rgba(14,11,20,0.96));border:1px solid var(--bk-bd);box-shadow:0 6px 18px rgba(0,0,0,0.38),inset 0 1px 0 rgba(255,255,255,0.05);}
+  .gacha-book-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
+  .gbh-title{font-size:13px;font-weight:800;color:var(--bk);display:flex;align-items:center;gap:6px;letter-spacing:0.3px;}
+  .gbh-star{font-size:12px;}
+  .gbh-done{font-size:10px;font-weight:800;color:#1a1206;background:linear-gradient(180deg,#ffe08a,#f0c060);padding:2px 9px;border-radius:20px;box-shadow:0 0 10px rgba(240,192,96,0.5);}
+  .gbh-prog{display:flex;align-items:center;gap:8px;flex:1;min-width:130px;max-width:210px;}
+  .gbh-prog-bar{flex:1;height:7px;border-radius:4px;background:rgba(255,255,255,0.08);overflow:hidden;}
+  .gbh-prog-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--bk),rgba(255,255,255,0.45));box-shadow:0 0 8px var(--bk);transition:width .4s;}
+  .gbh-prog-n{font-size:11px;font-weight:800;font-family:'JetBrains Mono',monospace;color:var(--bk);flex-shrink:0;}
+  .gacha-book-page{border-radius:10px;background:rgba(0,0,0,0.2);border:1px solid rgba(255,255,255,0.045);padding:10px;}`;
+  document.head.appendChild(s);
+}
+function _gachaTierProgress(star){
+  const owned = GACHA_CHAMPS.filter(c => (gachaGp(c.slug)[`s${star}`]||0) >= 1).length;
+  return { owned, total: GACHA_CHAMPS.length };
+}
+function _gachaBookHtml(star, cardsHtml, forceDone){
+  _injectGachaBookCss();
+  const meta = {1:{l:'파편',ic:'◇'},2:{l:'2성',ic:'★★'},3:{l:'3성',ic:'★★★'}}[star] || {l:'',ic:''};
+  const col  = {1:'#bcd7e8',2:'#e8b93c',3:'#d49bff'}[star] || '#bcd7e8';
+  const { owned, total } = _gachaTierProgress(star);
+  const done = forceDone || owned >= total;
+  const pct = Math.round(owned/total*100);
+  return `<div class="gacha-book" style="--bk:${col};--bk-bg:${col}1c;--bk-bd:${col}59;">
+    <div class="gacha-book-head">
+      <div class="gbh-title"><span class="gbh-star">${meta.ic}</span> ${meta.l} 컬렉션 ${done?'<span class="gbh-done">🏆 컴플리트</span>':''}</div>
+      <div class="gbh-prog"><div class="gbh-prog-bar"><div class="gbh-prog-fill" style="width:${pct}%;"></div></div><span class="gbh-prog-n">${owned}/${total}</span></div>
+    </div>
+    <div class="gacha-book-page"><div class="pet-grid">${cardsHtml}</div></div>
+  </div>`;
+}
+// 🏆 3성 18종 컴플리트 — 인형뽑기 테스트 진입(실험용). 컬렉션 북 아래 축하 블록
+function _prismClawHtml(){
   _injectPrismDeckCss();
-  const cards = GACHA_CHAMPS.map(({slug,kr})=>{
-    const cnt = (gachaGp(slug).s3||0);
-    return `<div class="prism-deck-card" title="${escHtml(kr)}" onclick="window.showGachaCardZoom('${slug}',3,${cnt})">
-      <img src="${_gachaPetImg(slug,3)}" alt="" onerror="this.onerror=null;this.style.opacity='0'">
-      <span class="pdc-name">${escHtml(kr)}</span>
-    </div>`;
-  }).join('');
-  return `<div class="prism-deck-wrap">
-    <div class="prism-deck-head">🏆 프리즘 ★★★ 18종 컴플리트!<span>모든 3성 카드를 모았어요 · 카드를 탭하면 상세보기</span></div>
-    <div class="prism-deck">${cards}</div>
+  return `<div class="prism-deck-wrap" style="text-align:center;">
+    <div class="prism-deck-head">🏆 프리즘 ★★★ 18종 컴플리트!<span>모든 3성 카드를 모았어요</span></div>
     <button class="prism-claw-btn" onclick="window.openClawTest3D()">🕹️ 인형뽑기 테스트 참여하기</button>
     <div class="prism-claw-note">⚙️ 실험용 테스트입니다 · 보상은 아직 지급되지 않아요</div>
   </div>`;
