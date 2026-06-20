@@ -1699,7 +1699,12 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .wm-em-opt-nm.dim{color:var(--rk-text-muted);}
 .wm-em-grade{font-size:9px;font-weight:800;letter-spacing:0.3px;padding:1px 6px;border:1px solid;border-radius:5px;font-family:'JetBrains Mono',monospace;}
 .wm-em-on-tag{font-size:9px;font-weight:800;color:var(--gold-light);}
-.wm-em-opt-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;}
+.wm-em-efflist{display:flex;flex-direction:column;gap:3px;margin-top:6px;}
+.wm-em-eff-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10.5px;line-height:1.4;padding:3px 8px;background:rgba(255,255,255,0.03);border-radius:6px;}
+.wm-em-eff-nm{color:var(--rk-text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.wm-em-eff-v{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:10.5px;flex-shrink:0;}
+.wm-em-eff-sub{font-size:8.5px;opacity:.6;font-weight:600;}
+.wm-em-eff-empty{font-size:10px;color:var(--rk-text-muted);padding:5px 8px;background:rgba(255,255,255,0.02);border-radius:6px;}
 .wm-fx-grade{font-size:9px;font-weight:800;letter-spacing:0.3px;padding:1px 6px;border:1px solid;border-radius:5px;font-family:'JetBrains Mono',monospace;flex-shrink:0;}
 .wm-fx-itemdesc{font-size:10px;color:var(--rk-text-dim);line-height:1.45;}
 .wm-fx-forge-row{display:flex;align-items:center;gap:8px;}
@@ -6622,7 +6627,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.180';
+const APP_VERSION = 'v2.45.181';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6631,6 +6636,9 @@ const APP_VERSION = 'v2.45.180';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.181', date: '2026-06-20', changes: [
+    { tag: 'improve', text: '🔨 [시즌2] 대기화면 강철심장 효과 표시를 이모지 칩 → 간단한 텍스트 행으로 변경. 걸작 효과 3줄을 모두 풀어서(예: 경기 골드 +5 / 승리 LP +2 발동 70% / 해골 감소 -23%) 행을 맞춰 보여줘 한눈에 비교 가능' },
+  ] },
   { ver: 'v2.45.180', date: '2026-06-20', changes: [
     { tag: 'new', text: '🔨 [시즌2] 대기화면에서 강철심장 바로 변경 — "전투 준비 효과" 카드의 강철심장 칸을 탭하면 시너지처럼 아코디언으로 보유한 강철심장이 쭉 펼쳐지고(등급·성능·걸작 효과 표시), 골라서 바로 장착/해제. 접힌 상태에서도 장착 중인 강철심장의 효과가 칩으로 보임. 헤더는 강화 횟수(+N) 대신 성능치를 강조. 대장간에 안 가도 됨' },
   ] },
@@ -23622,24 +23630,24 @@ async function renderS1WaitingCard(el) {
     // ── 강철심장(걸작) 셀 — 시너지와 동형 아코디언: 헤더(장착 중 효과) + 펼쳐서 보유 강철심장 선택·장착 ──
     let emCell, emBody = '';
     const em = getEmblem(myGoldData);  // 장착된 강철심장
-    // 강철심장 1개의 걸작 효과 칩 HTML (헤더 요약 + 보유목록 행 공용)
-    const _emChipsHtml = (e) => {
-      const pwe = emblemPower(e), Ee = emblemEffectsOf(e), lpc = Math.round(_emblemLpChance(pwe)*100);
-      return EMBLEM_EFFECT_POOL.filter(eid => Ee.eff[eid] > 0).map(eid => {
-        const ef = EMBLEM_EFFECTS[eid];
-        const _lottoB = (eid==='lottoTkt') ? _lottoPrizeBonusG(pwe, Ee.lines.filter(l=>l==='lottoTkt').length) : 0;
-        const _suf = (eid==='winLP'||eid==='lossLP') ? ` <span style="opacity:.6;">${lpc}%</span>`
-                   : _lottoB>0 ? ` <span style="opacity:.6;color:#34d399;">🪙+${_lottoB}G</span>` : '';
-        return `<span class="wm-fx-chip" style="color:${ef.color};border-color:${ef.color}55;">${ef.icon} ${ef.fmt(Ee.eff[eid])}${_suf}</span>`;
-      }).join('') || `<span class="wm-fx-none">걸작 효과 없음 · 대장간에서 제작</span>`;
+    // 강철심장 1개의 걸작 효과 — 3줄 모두 풀어서 텍스트 행으로 (이모지 없이, 행 정렬). 헤더 요약 + 보유목록 공용
+    const _emEffLines = (e) => {
+      const pwe = emblemPower(e), lpc = Math.round(_emblemLpChance(pwe)*100);
+      const lines = Array.isArray(e?.lines) ? e.lines.filter(eid => EMBLEM_EFFECTS[eid]) : [];
+      if (!lines.length) return `<div class="wm-em-eff-empty">걸작 미제작 · 대장간에서 제작</div>`;
+      return lines.map(eid => {
+        const ef = EMBLEM_EFFECTS[eid], per = emblemPerLine(eid, pwe);
+        const sub = (eid==='winLP'||eid==='lossLP') ? ` <span class="wm-em-eff-sub">발동 ${lpc}%</span>` : '';
+        return `<div class="wm-em-eff-row"><span class="wm-em-eff-nm">${escHtml(ef.name)}</span><span class="wm-em-eff-v" style="color:${ef.color};">${ef.fmt(per)}${sub}</span></div>`;
+      }).join('');
     };
     const _emGrade = (pwe) => ({ silver:{t:'실버',c:'#cbd5e1'}, gold:{t:'골드',c:'#ffd24a'}, prismatic:{t:'프리즘',c:'#e879f9'}, none:{t:'미강화',c:'#8f857c'} }[emblemEffects(pwe).glow] || {t:'',c:'#cbd5e1'});
     if (em) {
       const pw = emblemPower(em);
-      // 헤더(접힘): 장착 중인 강철심장 + 성능치 + 효과 칩 (강화 횟수는 표시 안 함)
+      // 헤더(접힘): 장착 중인 강철심장 + 성능치 + 걸작 효과 3줄 (강화 횟수는 표시 안 함)
       emCell = `<div class="wm-fx-cell wm-em-head" onclick="this.closest('.wm-fx-card').querySelector('.wm-em-body').classList.toggle('open')">
         <div class="wm-fx-cell-top"><span class="wm-fx-ico">🔨</span><span class="wm-fx-name" style="color:#ffd24a;">강철심장</span><span class="wm-fx-perf">성능 ${pw}</span><span class="wm-em-chev">▾</span></div>
-        <div class="wm-fx-chips">${_emChipsHtml(em)}</div>
+        <div class="wm-em-efflist">${_emEffLines(em)}</div>
       </div>`;
       // 바디(펼침): 보유한 강철심장 목록 → 선택해서 장착 (시너지와 동일)
       const emblems = getEmblems(myGoldData);
@@ -23647,10 +23655,9 @@ async function renderS1WaitingCard(el) {
       const emRows = emblems.map(e => {
         const on = (e.id === eqId), pwe = emblemPower(e), gm = _emGrade(pwe);
         return `<div class="wm-em-opt${on?' on':''}" onclick="window.equipEmblemFromMain(${e.id})">
-          <span class="wm-em-opt-ico">🔨</span>
           <div class="wm-em-opt-tx">
             <div class="wm-em-opt-nm">강철심장 <span class="wm-em-grade" style="color:${gm.c};border-color:${gm.c}66;">${gm.t} · 성능 ${pwe}</span>${on?' <span class="wm-em-on-tag">· 장착중</span>':''}</div>
-            <div class="wm-em-opt-chips">${_emChipsHtml(e)}</div>
+            <div class="wm-em-efflist">${_emEffLines(e)}</div>
           </div>
         </div>`;
       }).join('');
