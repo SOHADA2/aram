@@ -5450,7 +5450,7 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .s2q-name{font-size:12.5px;font-weight:800;color:#e8eaf0;}
 .s2q-now{font-size:9px;font-weight:800;color:#7dd3fc;background:rgba(125,211,252,0.14);border-radius:5px;padding:1px 5px;margin-left:4px;vertical-align:middle;}
 .s2q-desc{font-size:10.5px;color:#9aa0b4;margin-top:1px;}
-.s2q-reward{flex-shrink:0;display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end;max-width:96px;}
+.s2q-reward{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;}
 .s2q-chip{display:inline-block;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;border:1px solid rgba(255,255,255,0.14);background:rgba(255,255,255,0.04);white-space:nowrap;}
 .s2q-chip.gold{color:#ffd24a;border-color:rgba(255,210,74,0.4);}
 .s2q-chip.ess{color:#fbbf24;border-color:rgba(251,191,36,0.4);}
@@ -6653,7 +6653,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.192';
+const APP_VERSION = 'v2.45.193';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6662,6 +6662,9 @@ const APP_VERSION = 'v2.45.192';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.193', date: '2026-06-20', changes: [
+    { tag: 'improve', text: '🎫 [시즌2] 패스 보상 표시 직관화 — 보상이 이모지만(🪙숫자·🔶숫자·🏷️) 떠서 뭘 주는지 모호하던 것을, 텍스트 라벨로 명확하게(예: 🪙 골드 250G · 🟢 안정 강화권 ×3 · 🔶 걸작의 정수 ×1 · 🏷️ 칭호 "증바람의 증인"). 좁은 칸 대신 퀘스트 설명 아래 줄로 옮겨 잘 보이게' },
+  ] },
   { ver: 'v2.45.192', date: '2026-06-20', changes: [
     { tag: 'improve', text: '🔶 [시즌2] 걸작의 정수 가격 120G → 250G로 상향 (상점 소비 탭, 내전 만렙 해금). 되팔기 가격도 자동 반영(95% = 238G)' },
   ] },
@@ -19673,12 +19676,15 @@ async function claimS2PassLevel(level){
 }
 window.claimS2PassLevel = claimS2PassLevel;
 function _s2PassRewardChips(reward){
-  const ic=(typeof _PASS_TICKET_IC!=='undefined')?_PASS_TICKET_IC:{stable:'🟢',precise:'🟡',overload:'🔴'};
   const c=[];
-  if(reward.gold) c.push(`<span class="s2q-chip gold">🪙${reward.gold}</span>`);
-  if(reward.tickets) for(const t in reward.tickets) c.push(`<span class="s2q-chip">${ic[t]}${reward.tickets[t]}</span>`);
-  if(reward.essence) c.push(`<span class="s2q-chip ess">🔶${reward.essence}</span>`);
-  if(reward.title) c.push(`<span class="s2q-chip title">🏷️</span>`);
+  if(reward.gold) c.push(`<span class="s2q-chip gold">🪙 골드 ${reward.gold}G</span>`);
+  if(reward.tickets) for(const t in reward.tickets){
+    const tk=(typeof EMBLEM_TICKETS!=='undefined')?EMBLEM_TICKETS[t]:null;
+    const nm=tk?tk.name:t, col=tk?tk.color:'#cbd5e1', icn=tk?tk.icon:'🎟';
+    c.push(`<span class="s2q-chip" style="color:${col};border-color:${col}55;">${icn} ${nm} ×${reward.tickets[t]}</span>`);
+  }
+  if(reward.essence) c.push(`<span class="s2q-chip ess">🔶 걸작의 정수 ×${reward.essence}</span>`);
+  if(reward.title) c.push(`<span class="s2q-chip title">🏷️ 칭호 "${escHtml(reward.title)}"</span>`);
   return c.join('');
 }
 // 🎫 S2 패스 = 내전 전용 "퀘스트 패스" (활성). 2종 포인트 패스(renderS2PointPass)는 보류 — 나중에 추가 예정.
@@ -19707,8 +19713,7 @@ window.renderS2Pass = function renderS2Pass(){
     const cls=['s2q-row']; if(isClaimed)cls.push('done'); else if(met)cls.push('claimable'); else if(isCurrent)cls.push('current'); else cls.push('locked'); if(mile)cls.push('mile');
     return `<div class="${cls.join(' ')}">
       <div class="s2q-lv">${q.icon} <b>LV${q.lv}</b>${mile?' ⭐':''}</div>
-      <div class="s2q-info"><div class="s2q-name">${q.name}${isCurrent?' <span class="s2q-now">도전 중</span>':''}</div><div class="s2q-desc">${q.desc}</div></div>
-      <div class="s2q-reward">${_s2PassRewardChips(reward)}</div>
+      <div class="s2q-info"><div class="s2q-name">${q.name}${isCurrent?' <span class="s2q-now">도전 중</span>':''}</div><div class="s2q-desc">${q.desc}</div><div class="s2q-reward">${_s2PassRewardChips(reward)}</div></div>
       <div class="s2q-btn">${btn}</div>
     </div>`;
   }).join('');
