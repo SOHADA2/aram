@@ -1,0 +1,53 @@
+name: claw-compensate
+
+# 🕹️ 인형뽑기 5번째 플레이 버그 피해자 6명 보상(1회).
+# 각자 clawCoins_s2 +1(헛쓴 코인 환급) + clawPlays_s2=0·clawPlayDate_s2=오늘(KST)
+# (일일 5회 한도로 막혀 있어 오늘 플레이 기회를 다시 확보). 실행 후 파일 제거.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/claw-compensate.yml'
+  workflow_dispatch:
+
+jobs:
+  compensate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply compensation
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request
+          from datetime import datetime, timezone, timedelta
+          DB = "https://aramchaos-ca022-default-rtdb.asia-southeast1.firebasedatabase.app"
+          TARGETS = ['나랑듀오해듀오','빛나는언즈','ap렉사이서폿','럼블홀릭','IfCES','애긔반달곰']
+          today = datetime.now(timezone(timedelta(hours=9))).strftime('%Y-%m-%d')  # KST
+          def norm(s): return ' '.join((s or '').split())
+          tset = {norm(t) for t in TARGETS}
+
+          data = json.load(urllib.request.urlopen(DB + "/gold.json"))
+          done = []
+          for key, u in (data or {}).items():
+              if not isinstance(u, dict): continue
+              if norm(u.get('name','')) not in tset: continue
+              old_coins = u.get('clawCoins_s2') or 0
+              new_coins = old_coins + 1
+              body = json.dumps({
+                  'clawCoins_s2': new_coins,
+                  'clawPlays_s2': 0,
+                  'clawPlayDate_s2': today,
+              }).encode()
+              req = urllib.request.Request(DB + "/gold/" + key + ".json", data=body,
+                                           method='PATCH', headers={'Content-Type':'application/json'})
+              resp = urllib.request.urlopen(req)
+              code = resp.getcode()
+              done.append((u.get('name'), key, old_coins, new_coins, code))
+              print(f"✔ {u.get('name'):<16} key={key} coins {old_coins}→{new_coins} plays→0 date→{today} (HTTP {code})")
+
+          print(f"\n처리 완료: {len(done)}/{len(TARGETS)}명")
+          got = {norm(n) for n,_,_,_,_ in done}
+          missing = [t for t in TARGETS if norm(t) not in got]
+          if missing:
+              print("⚠️ 못 찾은 닉네임:", missing)
+          assert not missing, "일부 대상 미발견"
+          PY
