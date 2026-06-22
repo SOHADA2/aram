@@ -15,7 +15,7 @@
 - **파일**: `인형뽑기-물리-목업.html`(메인) · GLB 8종(`teemo gwen vex ekko yone neeko lux poro`, modelviewer.lol 추출, 각 ~0.5~5MB, 전부 `.gitignore` 화이트리스트) · `_clawserve.mjs`(로컬서버) · `claw.html`(배포 캐시우회 사본 — 로컬작업 중엔 미동기화, 배포 때만 cp+BUILD태그)
 - **실행**: 로컬 `node _clawserve.mjs "<aram경로>"`(백그라운드) → `http://localhost:8731/` (⚠️ `file://`은 CORS로 GLB 못 부름 → 반드시 http). 배포본 `https://sohada2.github.io/aram/인형뽑기-물리-목업.html`
 - **스택**: three.js 0.160 + **cannon-es 0.20** + GLTFLoader/SkeletonUtils/RoomEnvironment. importmap·CDN(jsdelivr).
-- **현재 BUILD 131** (HUD `BUILD N` pill로 확인 — 상단 정보 pill은 숨김, `#build-pill`만 노출). 매 수정 BUILD +1 + 인라인 `<script type=module>` 추출해 `node --check`(임시 .mjs) 검증 후에만 커밋. **푸시**: 작업브랜치 `claude/project-overview-skvq0h`에 커밋 후 `git push origin HEAD:main` + `HEAD:claude/project-overview-skvq0h` 둘 다(Pages 자동배포 1~3분, 모바일 캐시 강함 → 시크릿/새탭). `claw.html`=캐시우회 사본(매 빌드 `cp` 후 `sed`로 `BUILD N · claw` 태그 — **소스+claw.html 둘 다 수정 필수**). 한글 커밋=heredoc UTF-8.
+- **현재 BUILD 133** (HUD `BUILD N` pill로 확인 — 상단 정보 pill은 숨김, `#build-pill`만 노출). 매 수정 BUILD +1 + 인라인 `<script type=module>` 추출해 `node --check`(임시 .mjs) 검증 후에만 커밋. **푸시**: 작업브랜치 `claude/project-overview-skvq0h`에 커밋 후 `git push origin HEAD:main` + `HEAD:claude/project-overview-skvq0h` 둘 다(Pages 자동배포 1~3분, 모바일 캐시 강함 → 시크릿/새탭). `claw.html`=캐시우회 사본(매 빌드 `cp` 후 `sed`로 `BUILD N · claw` 태그 — **소스+claw.html 둘 다 수정 필수**). 한글 커밋=heredoc UTF-8.
 - **🖥️ 앱 통합(실험·v2.45.176)**: index.html 가챠 컬렉션 **3성 탭에서 프리즘 18종 완성(`_allPrismDone`) 시** 카드를 트럼프식 부채꼴 덱(`_prismDeckHtml`/`.prism-deck`)으로 묶고 「🕹️ 인형뽑기 테스트 참여하기」 버튼 노출 → `window.openClawTest3D()`가 **앱 안 "브라우저 창" 모달**(타이틀바+가짜주소창+최소화/최대화/닫기, `claw.html?embed=ts` iframe)로 띄움. **프리뷰**: URL `?prismdeck` 또는 콘솔 `prismDeckPreview()`(실데이터 무수정). ⚙️ 보상·경제 미연동(런칭 아님). 창 크기 dvh 기반(모바일 100vh 버그 회피).
 - **🏟️ 배경**: 뒤편 아케이드는 **납작한 canvas 그림 평면**(z=-52, `buildArcadeBackdrop`)으로 함 — 3D 기계를 뒤에 두면 메인 **투명 뒷유리로 비쳐 "캐비닛 안"처럼 보이는 근본문제** 때문(거리로 안 풀림). 안개 `Fog(42,150)`·카메라 far 240. 뒤편 다른 기계 추가 시 평면 그림만 수정.
 - **🎁 경품(`PRIZE_FILES` {file,target,dud,count})**: 8종 — **포로 20마리(`dud:true`=꽝, target 1.54)** + 챔피언 7종 각 1(target 2.89) = 27. **포로 골인=`showResult('포로다! 🐾')`**(획득·트로피·폭죽 X, 빨강 아님). `proto.dud` 분기.
@@ -28,7 +28,15 @@
 - **⏱️ 자동 집기**: READY 후 `AUTO_DROP_MS`(30초) 자동 하강(HUD ⏱·마지막5초 펄스+틱). **일일제한 `ENFORCE_DAILY_LIMIT=false`(테스트 OFF)** → `true`면 `DAILY_MAX`(10)/일.
 - **🎛️ 조작**: PC WASD/방향키·Space·R·Q/E + 모바일 조이스틱/버튼. **터치(`body.is-touch`)=안내문·키힌트 숨김+조작바 슬림**. 🪧 좌우 측면 간판. 카메라 핏 `fitW`10.3/`baseFitH`17.8(가까이).
 - **🎉 골인 연출**: `fireConfetti()` + 챔피언 `awardTrophy`(클로즈업→`TSHELF`). **획득 즉시 회수**(`p.collected`, 데이터훅 지점).
-- **🎯 컬렉션 게임화 (BUILD 131~ 구현 중)**: 2단계 콘텐츠. **하루 5회**(`DAILY_MAX=5`, 개발중 `ENFORCE_DAILY_LIMIT=false`로 ∞). 통=챔피언 7종(각1)+포로20. **[1단계·구현됨]** 포로 제외 챔피언 7종 전부 수집(localStorage `claw_collected`, 영구). checkHole에서 포로=꽝·이미수집=중복꽝·새챔=수집(`proto.file`로 식별). **선반=내 컬렉션**(`_loadCollectionTrophies`로 복원, 통 리셋해도 유지, `TROPHY_MAX=7`). HUD "수집 N/7"(`#coll`/`updColl`). 7종 완성→`_onCollectionComplete`(배너). 테스트=콘솔 `resetCollection()`. **[2단계·미구현]** 완성 후 **반려인형 1종 선택→연승/연패 스택 능력**: 내전 연승중=연승스택↑·연패중=연패스택↑(승패 번갈면 리셋), 스택 클수록 보상↑, 유저가 원할 때 "수령"하면 스택 초기화+보상(다음 경기 예측 도박). ⚠️ **연승/연패 데이터=앱 내전 기록 필요 → 앱 통합 단계에서만 가능**(프로토타입 단독 불가).
+- **🎯 컬렉션 게임화 (BUILD 131~133 구현)**: 2단계 콘텐츠. 통=챔피언 7종(각1)+포로20.
+  - **[1단계·구현]** 포로 제외 챔피언 7종 수집(localStorage `claw_collected`, 영구). checkHole: 포로=꽝·이미수집=중복꽝·새챔=수집(`proto.file` 식별). 7종 완성→`_onCollectionComplete`(배너). 테스트 `resetCollection()`.
+  - **[상단 컬렉션 패널·BUILD132]** `#collection-bar`(최상단): 7칸, 수집=ddragon 초상화(`.../cdn/img/champion/loading/{Key}_0.jpg`, `_ddKey`=파일명 첫글자 대문자), 미수집=잠금"?". `renderCollectionBar`(updColl·init서 호출). 3D 선반(`_loadCollectionTrophies`/`TROPHY_MAX=7`)은 디테일로 유지. HUD pill은 `top:48px`로 내림(정보 pill 숨김상태라 패널이 주 UI).
+  - **[🪙 코인 경제·BUILD133]** localStorage `claw_coins{coins,date,plays}`. 하루 +5코인 누적(`DAILY_GRANT`, 미접속 최대7일치 소급). `canPlay()`: 개발(`ENFORCE_DAILY_LIMIT=false`)=∞·코인미소모 / 1단계=하루5회(`DAILY_MAX`)+코인 / 2단계(컬렉션완성 `_collComplete`)=횟수무제한·코인만. tryDrop서 `coins--`/`playsUsed++`(ENFORCE시만). 패널 `#cb-info`에 🪙·상태. 테스트 `addCoins(n)`/`resetPlays()`. **출시 시 `ENFORCE_DAILY_LIMIT=true`.**
+  - **[2단계·미구현]** 완성→반려인형 1종 선택→그 인형 뽑을 때마다 강화 + **연승/연패 스택 능력**(내전 연승중=연승스택↑·연패중=연패스택↑·번갈면 리셋·원할 때 수령=스택0+보상=예측도박). ⚠️ 연승/연패=앱 내전기록 필요→앱 통합 단계만 가능.
+  - **[2단계 보상 명세·확정(S1 286경기 달성률 보정)]** 스택N 연장확률 ≈50%/스택(동전던지기), **3→4가 난이도 절벽(런중도달 27%→11%)**, 7은 ~1%(대부분 시즌 내내 못 봄). 단조증가·완만곡선(정수는 7 전용):
+    - 🟢연승(스펙업): 2=🪙150 / 3=안정강화권×2+🪙100 / 4=골드복권×1+정밀강화권×1 / 5=과부하강화권×1+골드복권×1 / 6=프리즘복권×1+과부하강화권×1 / 7=걸작의정수×2+프리즘복권×1 (골드환산 150→180→300→450→650→900)
+    - 🔴연패(LP회복·골드아님): 2=🪙150 / 3=패배방어권×1 / 4=LP2배권×1 / 5=방어권+LP2배권 / 6+=LP2배권×2+방어권 (깊이 질수록 반등도구↑)
+  - 아이템 골드값 참고: 강화권 안정40·정밀100·과부하250 / 복권 실버70·골드200·프리즘400 / 정수250.
 - **다음 작업/미결정**: ① 컬렉션 2단계(반려인형+스택 능력) = 앱 통합 필요 ② 보상·경제 구조 Firebase 서버검증 ③ 27마리 성능 ④ **앱 통합 런칭 시** `claw.html`에 Firebase 연결(닉네임=localStorage 공유, 해금/일일/수집/보상 서버검증). **출시 전 디버그 플래그 false·`ENFORCE_DAILY_LIMIT=true`.**
 
 ## 🃏 가챠 시너지 재설계 (v2.45.178 구현·배포 완료) ★다른 컴퓨터 핸드오프

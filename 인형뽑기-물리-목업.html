@@ -17,7 +17,20 @@
   html,body{height:100%;background:#0a0a12;overflow:hidden;font-family:'Noto Sans KR',system-ui,sans-serif;color:#eee;}
   #app{position:fixed;inset:0;}
   canvas{display:block;touch-action:none;}
-  #hud{position:fixed;top:0;left:0;right:0;padding:10px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+  /* 🧸 최상단 인형 컬렉션 패널 */
+  #collection-bar{position:fixed;top:0;left:0;right:0;z-index:7;display:flex;align-items:center;gap:9px;padding:7px 12px;
+    background:linear-gradient(180deg,rgba(8,7,14,0.96),rgba(8,7,14,0.55));backdrop-filter:blur(5px);border-bottom:1px solid rgba(240,200,90,0.3);}
+  .cb-title{font-size:12px;font-weight:900;color:#f0c060;font-family:'Black Han Sans','Noto Sans KR',sans-serif;letter-spacing:.3px;white-space:nowrap;flex-shrink:0;}
+  .cb-title b{color:#ffe39a;}
+  .cb-slots{display:flex;gap:5px;overflow-x:auto;flex:1;padding-bottom:1px;}
+  .cb-slots::-webkit-scrollbar{height:0;}
+  .cb-slot{width:34px;height:34px;border-radius:8px;flex-shrink:0;overflow:hidden;border:1.5px solid rgba(255,255,255,0.12);background:rgba(255,255,255,0.05);display:flex;align-items:center;justify-content:center;}
+  .cb-slot.got{border-color:rgba(240,200,90,0.75);box-shadow:0 0 9px rgba(240,200,90,0.35);}
+  .cb-slot.got img{width:100%;height:100%;object-fit:cover;object-position:center top;}
+  .cb-slot.locked{color:rgba(255,255,255,0.22);font-weight:900;font-size:16px;}
+  .cb-info{font-size:11px;font-weight:800;color:#ffe39a;white-space:nowrap;flex-shrink:0;font-family:'JetBrains Mono',monospace;}
+  .cb-info b{color:#ffd24a;}
+  #hud{position:fixed;top:48px;left:0;right:0;padding:10px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
     background:linear-gradient(180deg,rgba(0,0,0,0.55),transparent);font-size:12px;pointer-events:none;}
   #hud .pill{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:4px 10px;font-family:'JetBrains Mono',monospace;}
   #hud .pill:not(#build-pill){display:none;}   /* 상단 정보 숨김(깔끔) — BUILD만 유지 */
@@ -62,6 +75,11 @@
 </head>
 <body>
 <div id="app"></div>
+<div id="collection-bar">
+  <div class="cb-title">🧸 컬렉션 <b id="cb-count">0/7</b></div>
+  <div class="cb-slots" id="cb-slots"></div>
+  <div class="cb-info" id="cb-info">🪙 0</div>
+</div>
 <div id="hud">
   <span class="pill">상태 <b id="st">READY</b></span>
   <span class="pill">집기품질 <b id="gq">—</b></span>
@@ -69,7 +87,7 @@
   <span class="pill">수집 <b id="coll">0/7</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 131</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 133</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -812,22 +830,46 @@ addEventListener('pointermove', stickUpdate);
 addEventListener('pointerup', stickEnd);
 addEventListener('pointercancel', stickEnd);
 // ⏱️ 하루 최대 횟수(프로토타입 — localStorage 일자별). 집기 1회 = 1플레이
-const ENFORCE_DAILY_LIMIT = false;   // ⚠️ 테스트 중 OFF — 나중에 true로 켜면 하루 DAILY_MAX회 제한 적용
-const DAILY_MAX = 5;   // 하루 5회 고정 (게임 규칙). 개발 중엔 ENFORCE_DAILY_LIMIT=false라 ∞, 출시/테스트 시 true
+// 🪙 코인 경제 — 하루 5코인 지급(누적). 1단계(컬렉션 미완성)=하루 5회+코인 / 2단계(완성)=횟수무제한, 코인만
+const ENFORCE_DAILY_LIMIT = false;   // ⚠️ 개발 OFF(∞·코인 미소모). 출시/테스트 시 true → 코인 경제 작동
+const DAILY_MAX = 5;     // 1단계 하루 최대 횟수
+const DAILY_GRANT = 5;   // 하루 지급 코인(누적)
 function _todayKey(){ return new Date().toISOString().slice(0,10); }
-function _loadDaily(){ try{ const d=JSON.parse(localStorage.getItem('claw_daily')||'{}'); if(d.date===_todayKey()) return d.count||0; }catch(e){} return 0; }
-let playsUsed = _loadDaily();
-function _saveDaily(){ try{ localStorage.setItem('claw_daily', JSON.stringify({date:_todayKey(), count:playsUsed})); }catch(e){} }
-function updDailyHud(){ const el=document.getElementById('plays'); if(el) el.textContent= ENFORCE_DAILY_LIMIT ? (playsUsed+'/'+DAILY_MAX) : '∞'; const d=document.getElementById('drop'); if(d) d.disabled = ENFORCE_DAILY_LIMIT && playsUsed>=DAILY_MAX; }
-window.resetPlays = ()=>{ playsUsed=0; _saveDaily(); updDailyHud(); console.log('일일 횟수 초기화'); };   // 테스트용(콘솔에서 호출)
+function _collComplete(){ return collected.length >= CHAMP_TOTAL; }   // 컬렉션 완성 = 2단계(횟수 무제한)
+let _cs = (()=>{ try{ return JSON.parse(localStorage.getItem('claw_coins')||'{}'); }catch(e){ return {}; } })();
+let coins = _cs.coins || 0;
+let playsUsed = (_cs.date === _todayKey()) ? (_cs.plays||0) : 0;
+function _saveCoins(){ try{ localStorage.setItem('claw_coins', JSON.stringify({coins, date:_todayKey(), plays:playsUsed})); }catch(e){} }
+(function _grantDaily(){   // 새 날이면 코인 +5×경과일(최대 7일치 누적) + 일일 플레이 리셋
+  const today=_todayKey(), last=_cs.date;
+  if(last !== today){
+    const days = last ? Math.max(1, Math.min(7, Math.round((Date.parse(today)-Date.parse(last))/86400000))) : 1;
+    coins += DAILY_GRANT * days; playsUsed = 0; _cs.date = today; _saveCoins();
+  }
+})();
+function canPlay(){   // 개발(ENFORCE off)=∞ / 1단계=하루5회+코인 / 2단계=코인만
+  if(!ENFORCE_DAILY_LIMIT) return true;
+  if(coins <= 0) return false;
+  if(!_collComplete() && playsUsed >= DAILY_MAX) return false;
+  return true;
+}
+function updDailyHud(){
+  const el=document.getElementById('cb-info');
+  if(el){ const cap = !ENFORCE_DAILY_LIMIT ? '∞' : (_collComplete() ? '무제한' : `오늘 ${playsUsed}/${DAILY_MAX}`);
+    el.innerHTML = `🪙 <b>${coins}</b> · ${cap}`; }
+  const d=document.getElementById('drop'); if(d) d.disabled = !canPlay();
+}
+window.resetPlays = ()=>{ playsUsed=0; _saveCoins(); updDailyHud(); console.log('일일 횟수 초기화'); };   // 테스트용
+window.addCoins = (n)=>{ coins=Math.max(0,coins+(n==null?5:n)); _saveCoins(); updDailyHud(); console.log('🪙 코인',coins); };  // 테스트용
 function tryDrop(){
   if(state!=='READY') return;
-  if(ENFORCE_DAILY_LIMIT && playsUsed>=DAILY_MAX){ Sfx.error(); showResult('오늘 횟수 소진! ('+DAILY_MAX+'/'+DAILY_MAX+')','#ff8a8a'); return; }
-  playsUsed++; _saveDaily(); updDailyHud();
+  if(!canPlay()){ Sfx.error(); showResult(coins<=0 ? '코인이 없어요 (내일 +5)' : '오늘 5회 소진! (코인은 모임)','#ffb86b'); return; }
+  if(ENFORCE_DAILY_LIMIT){ coins--; playsUsed++; _saveCoins(); }
+  updDailyHud();
   readyDeadline=0;                          // 집기 시작 → 자동하강 타이머 해제
   stickEnd(); state='LOWERING'; clawSpin=0;
 }
-document.getElementById('drop').onclick = ()=>{ Sfx.unlock(); if(state==='READY' && (!ENFORCE_DAILY_LIMIT || playsUsed<DAILY_MAX)) Sfx.click(); tryDrop(); };
+document.getElementById('drop').onclick = ()=>{ Sfx.unlock(); if(state==='READY' && canPlay()) Sfx.click(); tryDrop(); };
 document.getElementById('reset').onclick = ()=>{ Sfx.unlock(); if(state==='READY'||held===null){ Sfx.click(); resetPrizes(); } };
 // ⌨️ PC 조작 — WASD/방향키 이동, 스페이스로 내리기
 const keys = {};
@@ -862,7 +904,7 @@ function loop(now){
     else if(state==='CLOSING')  Sfx.clamp();                                            // 집게 닫힘
     else if(state==='RAISING')  { setFingerOpen(CLOSE_MIN); held ? Sfx.grab() : Sfx.miss(); }   // 잡든 못잡든 CLOSE_MIN까지 오므림(오바 X)
     else if(state==='RELEASE')  Sfx.open();                                             // 집게 열림(놓기)
-    else if(state==='READY')    { readyDeadline = (!ENFORCE_DAILY_LIMIT || playsUsed<DAILY_MAX) ? (now+AUTO_DROP_MS) : 0; _lastTickSec=-1; }
+    else if(state==='READY')    { readyDeadline = canPlay() ? (now+AUTO_DROP_MS) : 0; _lastTickSec=-1; }
     _lastState = state;
   }
   // 🔊 모터 험 — 집게가 상하/복귀로 움직이는 동안 지속
@@ -893,7 +935,7 @@ function loop(now){
     clawPos.z = Math.max(-BIN.z, Math.min(BIN.z, clawPos.z + mZ*JOY_SPEED*dt));
     clawPos.y = CLAW_TOP_Y; setFingerOpen(1);
     // ⏱️ 자동 집기 카운트다운 — 30초 안에 안 내리면 자동 하강(마지막 5초 틱 효과음)
-    if(readyDeadline && (!ENFORCE_DAILY_LIMIT || playsUsed<DAILY_MAX)){
+    if(readyDeadline && canPlay()){
       const rem = Math.max(0, Math.ceil((readyDeadline-now)/1000));
       const tp=document.getElementById('timer'); if(tp) tp.textContent = rem;
       const pill=document.getElementById('timer-pill'); if(pill) pill.classList.toggle('urgent', rem<=5);
@@ -1084,12 +1126,22 @@ const PRIZE_FILES = [   // target = 키(세로) 단위(↑일수록 크게). 7�
 ];
 // ══════════ 🎯 컬렉션 (1단계: 포로 제외 챔피언 전부 수집 · localStorage 영구저장) ══════════
 const CHAMP_TOTAL = PRIZE_FILES.filter(f=>!f.dud).length;   // 포로 제외 챔피언 수
+const CHAMP_FILES = PRIZE_FILES.filter(f=>!f.dud).map(f=>f.file);   // 챔피언 file 목록(컬렉션 패널용)
+function _ddKey(file){ const s=file.replace(/\.glb$/i,''); return s.charAt(0).toUpperCase()+s.slice(1); }  // file→ddragon 챔피언 키
+function renderCollectionBar(){   // 🧸 최상단 컬렉션 패널 — 얻은 챔피언 초상화 / 미수집은 잠금(?)
+  const slotsEl=document.getElementById('cb-slots'), cntEl=document.getElementById('cb-count');
+  if(slotsEl) slotsEl.innerHTML = CHAMP_FILES.map(file=>{ const key=_ddKey(file);
+    return isCollected(file)
+      ? `<div class="cb-slot got" title="${key}"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${key}_0.jpg" alt="${key}" loading="lazy" onerror="this.style.display='none'"></div>`
+      : `<div class="cb-slot locked"><span>?</span></div>`; }).join('');
+  if(cntEl){ cntEl.textContent=collected.length+'/'+CHAMP_TOTAL; cntEl.style.color = collected.length>=CHAMP_TOTAL?'#9fffa0':'#ffe39a'; }
+}
 function _loadCollected(){ try{ return JSON.parse(localStorage.getItem('claw_collected')||'[]'); }catch(e){ return []; } }
 let collected = _loadCollected();    // 수집한 챔피언 file 배열 (영구)
 let _collDone = collected.length >= CHAMP_TOTAL;
 function _saveCollected(){ try{ localStorage.setItem('claw_collected', JSON.stringify(collected)); }catch(e){} }
 function isCollected(file){ return collected.includes(file); }
-function updColl(){ const el=document.getElementById('coll'); if(el){ el.textContent=collected.length+'/'+CHAMP_TOTAL; el.style.color = collected.length>=CHAMP_TOTAL ? '#9fffa0' : ''; } }
+function updColl(){ const el=document.getElementById('coll'); if(el){ el.textContent=collected.length+'/'+CHAMP_TOTAL; el.style.color = collected.length>=CHAMP_TOTAL ? '#9fffa0' : ''; } renderCollectionBar(); }
 function _loadCollectionTrophies(){   // 선반 = 내 컬렉션 (localStorage 복원). 통 리셋해도 유지
   for(const t of trophies) scene.remove(t.mesh); trophies.length=0;
   for(const file of collected){ const proto=prizeProtos.find(pr=>pr.file===file && !pr.dud); if(!proto) continue;
@@ -1101,7 +1153,8 @@ function _onCollectionComplete(){   // 7종 다 모음 → Phase 2(반려인형)
   showResult('🎉 모든 인형 수집 완료! — 반려인형 선택 (다음 업데이트)','#9fffa0');
   // TODO Phase 2: 반려인형 1종 선택 → 연승/연패 스택 능력 (내전 승패 데이터 = 앱 통합 필요)
 }
-window.resetCollection = ()=>{ collected=[]; _collDone=false; _saveCollected(); _loadCollectionTrophies(); console.log('🎯 컬렉션 초기화'); };  // 테스트용(콘솔)
+window.resetCollection = ()=>{ collected=[]; _collDone=false; _saveCollected(); _loadCollectionTrophies(); renderCollectionBar(); console.log('🎯 컬렉션 초기화'); };  // 테스트용(콘솔)
+renderCollectionBar();   // 초기 1회 — 페이지 로드 시 컬렉션 패널 표시
 function bakeStatic(root){   // 스킨드 메시 → bind 포즈 정적 BufferGeometry(월드 좌표)
   root.updateWorldMatrix(true, true);
   const group = new THREE.Group(), v = new THREE.Vector3();
