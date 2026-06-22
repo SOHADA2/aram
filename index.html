@@ -6653,7 +6653,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.195';
+const APP_VERSION = 'v2.45.196';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6662,6 +6662,9 @@ const APP_VERSION = 'v2.45.195';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.196', date: '2026-06-22', changes: [
+    { tag: 'new', text: '🧸 [시즌2] 단짝인형 — 인형뽑기 챔피언 7종을 다 모으면 평생 단짝 1명을 선정(⚠️변경 불가)! 단짝이 생기면 내전 연승/연패가 스택으로 쌓이고, 원할 때 수령해 보상을 받아요(연승=골드·강화권·복권·정수 / 연패=LP 회복 도구). 인형뽑기서 내 단짝을 또 뽑으면 단짝이 강화돼(확률) 보상이 더 좋아져요. 컬렉션 탭 인형뽑기 입구에서 선정·수령. 연승/연패 스택은 경기 결과에 따라 자동 반영' },
+  ] },
   { ver: 'v2.45.195', date: '2026-06-22', changes: [
     { tag: 'improve', text: '🧸 [개발] 단짝인형(인형뽑기 2단계) 백엔드 구현 — 챔피언 7종 수집 완성 후 단짝 1종 선정 → 연승/연패 스택 보상 + 단짝 뽑을 때마다 강화(확률). 보상·강화·수령을 전부 역추적 로그(결과 스냅샷)로 기록. 아직 콘솔 전용(선정/수령 UI·경기 자동연동은 다음 단계) — 수집 완성자 한정이라 라이브 영향 없음' },
   ] },
@@ -12165,6 +12168,7 @@ onValue(ref(db, 'matches'), (snapshot) => {
   renderAllWhenReady();
   // 경기 추가/삭제 시 골드 표시도 갱신 (동적 계산 기반)
   if (goldLoaded) { updateMyInfoBar(); renderShop(); }
+  if (goldLoaded && myName) { try{ _buddyProcessMatches(); }catch(_){} }   // 🧸 단짝 연승/연패 스택 자동 반영(미처리 매치)
 }, (err) => {
   setSyncStatus('err', '연결 실패');
 });
@@ -31142,6 +31146,7 @@ function _prismClawHtml(){
     <div class="prism-deck-head">🏆 프리즘 ★★★ 18종 컴플리트!<span>인형뽑기가 열렸어요</span></div>
     <button class="prism-claw-btn" onclick="window.openClawTest3D()">🕹️ 인형뽑기 하러 가기</button>
     <div class="prism-claw-note">🪙 출석으로 코인을 모아 챔피언 7종을 수집하세요 (오픈 기념 5코인 지급)</div>
+    ${_buddyEntryHtml()}
   </div>`;
 }
 // 🕹️ 3D 인형뽑기 프로토타입(실험용 테스트) — 앱 안 "브라우저 창"처럼 띄움(타이틀바+최소화/최대화/닫기). 같은 출처라 iframe 임베드 OK
@@ -31231,6 +31236,7 @@ window.openClawTest3D = function(){
     if(d.type==='ready'){ try{ frame.contentWindow.postMessage({source:'app', type:'init', ..._claw3dInit()}, '*'); }catch(_){} }
     else if(d.type==='save'){ _claw3dSave(d); }
     else if(d.type==='pull'){ _buddyOnPull(d.champion); }   // 🧸 챔피언 집기 → 단짝이면 강화 시도
+    else if(d.type==='complete'){ try{ _buddyMaybePrompt(); }catch(_){} }   // 🧸 7종 완성 → 단짝 선정 프롬프트
   };
   window.addEventListener('message', onClawMsg);
   ov.querySelector('.claw-win').addEventListener('click', e=>{
@@ -31332,6 +31338,100 @@ window.buddySelect=buddySelect; window.buddyClaim=buddyClaim;
 window.buddyMatch=(won)=>_buddyOnMatch(!!won);                 // 경기 시뮬(연승/연패 스택 쌓기)
 window.buddyState=()=>{ console.log('단짝:',_buddyData(),'· 스택:',_buddyStreakData()); };
 window.buddyReset=()=>{ const key=getMyGoldKey(); if(!key) return; update(ref(db,'gold/'+key),{[sField('buddy')]:null,[sField('buddyStreak')]:null,[sField('buddyUpgradeLog')]:null,[sField('buddyClaimLog')]:null}).then(()=>console.log('🧸 단짝 데이터 초기화')); };
+// 🧸 단짝인형 UI — 선정 모달 / 스택·수령 패널 / 경기 자동연동
+function _clawDdKey(file){ const s=String(file).replace(/\.glb$/i,''); return s.charAt(0).toUpperCase()+s.slice(1); }
+function _injectBuddyCss(){
+  if(document.getElementById('buddy-css')) return; const s=document.createElement('style'); s.id='buddy-css';
+  s.textContent=`
+  .buddy-ov{position:fixed;inset:0;z-index:3600;display:flex;align-items:center;justify-content:center;background:rgba(6,5,12,.9);backdrop-filter:blur(6px);padding:16px;}
+  .buddy-sheet{background:linear-gradient(180deg,#16131f,#0e0c16);border:1px solid rgba(240,200,90,.35);border-radius:18px;max-width:440px;width:100%;max-height:88vh;overflow:auto;padding:20px 18px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6);}
+  .buddy-h{font-family:'Black Han Sans','Noto Sans KR',sans-serif;font-size:20px;color:#ffd24a;margin-bottom:6px;}
+  .buddy-sub{font-size:12.5px;color:#c8cad6;line-height:1.55;margin-bottom:16px;}
+  .buddy-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(82px,1fr));gap:9px;margin-bottom:14px;}
+  .buddy-pick{background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.12);border-radius:12px;padding:6px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;transition:.15s;}
+  .buddy-pick:hover{border-color:rgba(240,200,90,.8);box-shadow:0 0 12px rgba(240,200,90,.3);transform:translateY(-2px);}
+  .buddy-pick img{width:100%;aspect-ratio:1;object-fit:cover;object-position:center top;border-radius:8px;}
+  .buddy-pick span{font-size:11px;font-weight:700;color:#e6e8f0;}
+  .buddy-cancel{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#aeb2c0;border-radius:10px;padding:8px 18px;cursor:pointer;font-size:12.5px;}
+  .buddy-card{background:rgba(255,255,255,.04);border:1px solid rgba(240,200,90,.3);border-radius:14px;padding:14px;text-align:left;}
+  .buddy-row{display:flex;align-items:center;gap:11px;margin-bottom:12px;}
+  .buddy-av{width:52px;height:52px;border-radius:11px;object-fit:cover;object-position:center top;border:2px solid rgba(240,200,90,.6);}
+  .buddy-name{font-weight:800;font-size:15px;color:#ffe39a;}
+  .buddy-lv{font-size:11.5px;color:#9aa0b4;margin-top:2px;}
+  .buddy-streak{text-align:center;padding:10px;border-radius:10px;margin-bottom:10px;font-weight:800;}
+  .buddy-streak.win{background:rgba(240,200,90,.12);color:#ffd24a;}
+  .buddy-streak.loss{background:rgba(120,160,255,.12);color:#8fb6ff;}
+  .buddy-streak.none{background:rgba(255,255,255,.05);color:#9aa0b4;font-weight:600;}
+  .buddy-reward{font-size:12.5px;color:#c8cad6;line-height:1.6;background:rgba(0,0,0,.2);border-radius:9px;padding:9px 11px;margin-bottom:11px;}
+  .buddy-claim{width:100%;background:linear-gradient(90deg,#f0c060,#e0a030);border:0;color:#1a1208;font-weight:800;border-radius:11px;padding:11px;cursor:pointer;font-size:14px;}
+  .buddy-claim:disabled{opacity:.4;cursor:not-allowed;filter:grayscale(1);}`;
+  document.head.appendChild(s);
+}
+function _buddyOpenSelect(coll){
+  if(document.getElementById('buddy-select')) return; _injectBuddyCss();
+  coll = coll || (getMyGoldData()?.[sField('clawCollected')]||[]);
+  if(!coll.length) return showS1Toast('수집한 챔피언이 없어요');
+  const ov=document.createElement('div'); ov.id='buddy-select'; ov.className='buddy-ov';
+  ov.innerHTML=`<div class="buddy-sheet"><div class="buddy-h">🧸 단짝인형 선정</div>
+    <div class="buddy-sub">평생 함께할 <b>단짝 한 명</b>을 골라요.<br><b style="color:#ff8a8a;">⚠️ 한 번 정하면 절대 바꿀 수 없어요!</b></div>
+    <div class="buddy-grid">${coll.map(f=>{const k=_clawDdKey(f);return `<button class="buddy-pick" data-f="${f}"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'"><span>${k}</span></button>`;}).join('')}</div>
+    <button class="buddy-cancel">나중에</button></div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('.buddy-cancel').onclick=()=>ov.remove();
+  ov.querySelectorAll('.buddy-pick').forEach(btn=>btn.onclick=()=>{ const f=btn.dataset.f, k=_clawDdKey(f);
+    if(confirm(`${k}을(를) 단짝으로 정할까요?\n\n⚠️ 한 번 정하면 절대 바꿀 수 없어요!`)){
+      buddySelect(f).then(ok=>{ if(ok){ ov.remove(); showS1Toast(`🧸 ${k} — 평생 단짝이 됐어요!`); try{renderGachaTab();}catch(_){}} }); } });
+}
+function _buddyRewardText(r){ if(!r) return '—'; const p=[];
+  if(r.gold) p.push(`🪙 ${r.gold}G`);
+  if(r.tickets){ const nm={stable:'안정',precise:'정밀',overload:'과부하'}; for(const t in r.tickets) p.push(`${nm[t]||t}강화권×${r.tickets[t]}`); }
+  if(r.scratch){ const nm=['실버','골드','프리즘']; for(const s in r.scratch) p.push(`${nm[s]||s}복권×${r.scratch[s]}`); }
+  if(r.essence) p.push(`🔶정수×${r.essence}`); if(r.lp2x) p.push(`💜LP2배권×${r.lp2x}`); if(r.insurance) p.push(`🛡방어권×${r.insurance}`);
+  return p.join(' · ');
+}
+function _buddyOpenPanel(){
+  const b=_buddyData(); if(!b) return _buddyMaybePrompt(); _injectBuddyCss();
+  if(document.getElementById('buddy-panel')) return;
+  const st=_buddyStreakData(), type=st.type, stack=st.count||0, k=_clawDdKey(b.champion), lv=b.level||1;
+  const cur=(type&&stack>=2)?_buddyRewardAt(type,stack):null;
+  const next=type?_buddyRewardAt(type, Math.max(stack+1,2)):null;
+  const streakTxt=type?`${type==='win'?'🔥 연승':'🛡 연패'} ${stack}스택`:'스택 없음 (경기를 하면 쌓여요)';
+  const ov=document.createElement('div'); ov.id='buddy-panel'; ov.className='buddy-ov';
+  ov.innerHTML=`<div class="buddy-sheet"><div class="buddy-h">🧸 내 단짝</div>
+    <div class="buddy-card">
+      <div class="buddy-row"><img class="buddy-av" src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'">
+        <div><div class="buddy-name">${k}</div><div class="buddy-lv">강화 Lv${lv}/5 · 누적 ${b.pulls||0}회 뽑음</div></div></div>
+      <div class="buddy-streak ${type||'none'}">${streakTxt}</div>
+      <div class="buddy-reward">${cur?`지금 수령: <b>${_buddyRewardText(cur)}</b>`:'아직 수령할 보상 없음 (2스택부터)'}${(type&&next&&stack>=2)?`<br><span style="opacity:.6;">한 판 더 이기면: ${_buddyRewardText(next)}</span>`:''}</div>
+      <button class="buddy-claim" ${cur?'':'disabled'}>${cur?'🎁 보상 수령 (스택 0으로)':'수령 불가'}</button>
+    </div><button class="buddy-cancel" style="margin-top:12px;">닫기</button></div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('.buddy-cancel').onclick=()=>ov.remove();
+  const cb=ov.querySelector('.buddy-claim'); if(cur) cb.onclick=()=>{ buddyClaim().then(ok=>{ ov.remove(); if(ok){ showS1Toast('🎁 단짝 보상을 받았어요!'); try{updateMyInfoBar();}catch(_){}} }); };
+}
+function _buddyMaybePrompt(){ const data=getMyGoldData()||{}; if(_buddyData()) return false; if(!_allPrismDone(data)) return false;
+  const coll=Array.isArray(data[sField('clawCollected')])?data[sField('clawCollected')]:[]; if(coll.length>=7){ _buddyOpenSelect(coll); return true; } return false; }
+function _buddyEntryHtml(){
+  const data=getMyGoldData()||{}, b=_buddyData(); const coll=Array.isArray(data[sField('clawCollected')])?data[sField('clawCollected')]:[];
+  if(b){ const k=_clawDdKey(b.champion), st=_buddyStreakData(); const t=st.type?`${st.type==='win'?'연승':'연패'} ${st.count}`:'스택없음';
+    return `<button class="prism-claw-btn" style="margin-top:8px;background:linear-gradient(90deg,#9b6cff,#6c4ad6);" onclick="window._buddyOpenPanel()">🧸 단짝 ${k} (Lv${b.level||1} · ${t})</button>`; }
+  if(coll.length>=7) return `<button class="prism-claw-btn" style="margin-top:8px;background:linear-gradient(90deg,#ff9ec4,#e0609a);" onclick="window._buddyOpenSelect()">🧸 단짝인형 선정하기</button>`;
+  return '';
+}
+let _buddyProcessing=false;
+async function _buddyProcessMatches(){   // 내가 참가한 S2 매치(미처리분) 시간순 → 스택 반영(+안전망)
+  if(_buddyProcessing) return; const b=_buddyData(); if(!b || !myName) return;
+  const me=normName(myName), data=getMyGoldData()||{}, lastTs=data[sField('buddyLastMatchTs')]||b.selectedAt||0;
+  const mine=Object.values(matches||{}).filter(m=>m&&m.winner&&(m.season===2)&&(m.timestamp||0)>lastTs
+    &&((m.teamA||[]).some(n=>normName(n)===me)||(m.teamB||[]).some(n=>normName(n)===me)))
+    .sort((a,b)=>(a.timestamp||0)-(b.timestamp||0));
+  if(!mine.length) return; _buddyProcessing=true;
+  try{ for(const m of mine){ const won=((m.teamA||[]).some(n=>normName(n)===me)&&m.winner==='blue')||((m.teamB||[]).some(n=>normName(n)===me)&&m.winner==='red'); await _buddyOnMatch(won); }
+    const key=getMyGoldKey(), newTs=mine[mine.length-1].timestamp||Date.now();
+    if(goldData[key]) goldData[key][sField('buddyLastMatchTs')]=newTs; await update(ref(db,'gold/'+key),{[sField('buddyLastMatchTs')]:newTs});
+  }finally{ _buddyProcessing=false; }
+}
+window._buddyOpenSelect=_buddyOpenSelect; window._buddyOpenPanel=_buddyOpenPanel;
 // 🃏 프리뷰 — 3성 18종 안 모아도 부채꼴 덱+버튼을 미리 보기(실데이터 무수정). URL ?prismdeck 또는 콘솔 prismDeckPreview()
 let _prismDeckPreview = /[?&]prismdeck\b/i.test(location.search);
 window.prismDeckPreview = function(on){ _prismDeckPreview = (on !== false); try{ gachaStar = 3; renderGachaTab(); }catch(_){} console.log('🃏 프리즘 덱 프리뷰', _prismDeckPreview?'ON (컬렉션 3성 탭 확인)':'OFF'); };
