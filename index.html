@@ -6704,7 +6704,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.207';
+const APP_VERSION = 'v2.45.208';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6713,6 +6713,9 @@ const APP_VERSION = 'v2.45.207';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.208', date: '2026-06-22', changes: [
+    { tag: 'improve', text: '📬 공지 전용 우편 지원 — 보상 없이 안내 내용만 담은 우편을 보낼 수 있어요. 우편함에선 "보상 받기" 대신 "확인" 버튼으로 표시돼요(공지·이벤트 안내용).' },
+  ] },
   { ver: 'v2.45.206', date: '2026-06-22', changes: [
     { tag: 'improve', text: '⚔️ 팀 짤 때 효과까지 한 번에 — 팀 구성(아이템 페이즈) 카운트다운 중 상단에 뜨는 팀원 배너에서, 아이템 구매·활성화에 더해 🃏 시너지 변경과 🔨 강철심장(걸작) 변경도 바로 할 수 있어요(아코디언). 게임 시작 전 각자 자기 아이템+효과를 손쉽게 세팅! (시즌2 톤·시인성도 개선)' },
   ] },
@@ -21171,16 +21174,19 @@ window.openMailbox = function() {
   if (!myName) { showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
   document.getElementById('mailbox-overlay')?.remove();
   const mails = _myMails();
-  const rows = mails.length ? mails.map(m => `
+  const rows = mails.length ? mails.map(m => {
+    const hasRw = m.rewards && Object.keys(m.rewards).length;   // 보상 없으면 = 공지 전용 우편
+    return `
     <div class="mail-item${m.claimed ? ' claimed' : ''}">
       <div class="mail-item-top">
         <span class="mail-item-title">${m.claimed ? '✅ ' : '📩 '}${escHtml(m.title || '우편')}</span>
-        ${m.claimed ? '<span class="mail-item-done">수령 완료</span>' : ''}
+        ${m.claimed ? `<span class="mail-item-done">${hasRw ? '수령 완료' : '확인 완료'}</span>` : ''}
       </div>
       ${m.desc ? `<div class="mail-item-desc">${escHtml(m.desc)}</div>` : ''}
-      <div class="mail-item-rewards">${_mailRewardChips(m.rewards)}</div>
-      ${m.claimed ? '' : `<button class="mail-claim-btn" onclick="window.claimMail('${m.id}')">보상 받기</button>`}
-    </div>`).join('')
+      ${hasRw ? `<div class="mail-item-rewards">${_mailRewardChips(m.rewards)}</div>` : ''}
+      ${m.claimed ? '' : `<button class="mail-claim-btn" onclick="window.claimMail('${m.id}')">${hasRw ? '보상 받기' : '확인'}</button>`}
+    </div>`;
+  }).join('')
     : `<div class="mail-empty">📭 받은 우편이 없어요</div>`;
   const el = document.createElement('div');
   el.id = 'mailbox-overlay';
@@ -21237,8 +21243,8 @@ window.claimMail = async function(mailId) {
     const cf = sField('mailClaimed');
     goldData[key][cf] = { ...(goldData[key][cf] || {}), [mailId]: { at: _now, title: mail.title || '', rewards: rw } };
   }
-  showGoldToast(`📬 보상을 받았어요! ${_mailRewardChips(rw).replace(/<[^>]+>/g,' ').trim()}`);
-  openMailbox(); // 즉시 재렌더 — 수령한 우편은 회색 '수령 완료'로 표시
+  showGoldToast(Object.keys(rw).length ? `📬 보상을 받았어요! ${_mailRewardChips(rw).replace(/<[^>]+>/g,' ').trim()}` : '📬 확인했어요!');
+  openMailbox(); // 즉시 재렌더 — 수령한 우편은 회색 '수령/확인 완료'로 표시
   updateMailBadge();
 };
 
@@ -21250,7 +21256,8 @@ window.sendMail = async function(opts = {}) {
   if (freeScratch) rewards.freeScratch = freeScratch;
   if (items) rewards.items = items;
   if (essence) rewards.essence = essence;
-  if (!Object.keys(rewards).length) { console.warn('보상이 비어있어요. gold/freeScratch/items 중 하나는 필요.'); return; }
+  if (!Object.keys(rewards).length && !desc) { console.warn('빈 우편이에요. 보상(gold/freeScratch/items/essence) 또는 desc(공지 내용) 중 하나는 필요해요.'); return; }
+  // 보상 없이 desc만 있으면 = 공지 전용 우편(rewards:{}). 우편함에선 '확인' 버튼으로 표시됨
   const mail = { title, desc, rewards, target, season: CURRENT_SEASON, sentAt: Date.now(), sentBy: myName || 'admin' };
   const r = await push(ref(db, 'mailbox'), mail);
   console.log(`✅ 우편 발송 완료 (id: ${r.key})`, mail);
