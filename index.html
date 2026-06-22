@@ -940,6 +940,7 @@ select option{background:var(--surface2);}
 .qib-opt{display:flex;gap:8px;align-items:flex-start;padding:7px 9px;border-radius:9px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.02);cursor:pointer;transition:border-color .15s,background .15s;}
 .qib-opt:active{background:rgba(255,255,255,0.06);}
 .qib-opt.on{border-color:rgba(240,200,90,0.55);background:rgba(240,200,90,0.08);}
+.qib-opt.off{opacity:0.72;}
 .qib-opt-ic{font-size:16px;flex-shrink:0;line-height:1.2;}
 .qib-opt-tx{min-width:0;flex:1;}
 .qib-opt-tx b{font-size:12px;font-weight:800;display:block;}
@@ -6703,7 +6704,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.206';
+const APP_VERSION = 'v2.45.207';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -15779,17 +15780,18 @@ function _qibSynAccordion(data){
   const opts = owned.length ? owned.map(({grp,tier})=>{
     const on = act && act.sid===grp.sid && act.tier===tier;
     return `<div class="qib-opt ${on?'on':''}" onclick="window.qibEquipSyn('${grp.sid}',${tier})"><span class="qib-opt-ic">${grp.icon}</span><span class="qib-opt-tx"><b style="color:${grp.color}">${escHtml(grp.name)} ${tier}성</b><i>${_synEffTxt(grp,tier)}</i></span><span class="qib-opt-st">${on?'✓':''}</span></div>`;
-  }).join('') : '<div class="qib-opt-empty">보유한 시너지가 없어요 · 가챠 컬렉션에서 모으세요</div>';
+  }).join('')+(actGrp?`<div class="qib-opt off" onclick="window.qibEquipSyn(null,0)"><span class="qib-opt-ic">🚫</span><span class="qib-opt-tx"><b>시너지 해제</b></span></div>`:'') : '<div class="qib-opt-empty">보유한 시너지가 없어요 · 가챠 컬렉션에서 모으세요</div>';
   return `<div class="qib-acc${actGrp?' has':''}"><div class="qib-acc-hd" onclick="this.parentNode.classList.toggle('open')">🃏 시너지 ${head}<span class="qib-acc-chev">▾</span></div><div class="qib-acc-body">${opts}</div></div>`;
 }
 // 🔨 강철심장(걸작) 변경 아코디언
 function _qibEmAccordion(data){
-  const ems = getEmblems(data), eqId = getEquippedId(data), eq = ems.find(e=>e.id===eqId);
-  const head = eq ? `<b style="color:#ffd24a">🔨 +${emblemLevel(eq)} · 성능 ${emblemPower(eq)}</b>` : '<b class="qib-acc-none">미장착</b>';
+  const ems = getEmblems(data).slice().sort((a,b)=>emblemPower(b)-emblemPower(a)), eqId = getEquippedId(data), eq = ems.find(e=>e.id===eqId);
+  const _gr = pw => ({silver:'실버',gold:'골드',prismatic:'프리즘'}[emblemEffects(pw).glow]||'미강화');
+  const head = eq ? `<b style="color:#ffd24a">🔨 ${_gr(emblemPower(eq))} · 성능 ${emblemPower(eq)}</b>` : '<b class="qib-acc-none">미장착</b>';
   const opts = ems.length ? ems.map(em=>{
-    const on = em.id===eqId;
-    return `<div class="qib-opt ${on?'on':''}" onclick="window.qibEquipEm(${em.id})"><span class="qib-opt-ic">🔨</span><span class="qib-opt-tx"><b style="color:#ffd24a">강철심장 +${emblemLevel(em)}</b><i>성능 ${emblemPower(em)}</i></span><span class="qib-opt-st">${on?'✓':''}</span></div>`;
-  }).join('') : '<div class="qib-opt-empty">보유한 강철심장이 없어요 · 대장간에서 만드세요</div>';
+    const on = em.id===eqId, pw=emblemPower(em);
+    return `<div class="qib-opt ${on?'on':''}" onclick="window.qibEquipEm(${em.id})"><span class="qib-opt-ic">🔨</span><span class="qib-opt-tx"><b style="color:#ffd24a">강철심장 +${emblemLevel(em)} · ${_gr(pw)}</b><i>성능 ${pw}${on?' · 장착중':''}</i></span><span class="qib-opt-st">${on?'✓':''}</span></div>`;
+  }).join('')+(eq?`<div class="qib-opt off" onclick="window.qibEquipEm(${eqId})"><span class="qib-opt-ic">🚫</span><span class="qib-opt-tx"><b>장착 해제</b></span></div>`:'') : '<div class="qib-opt-empty">보유한 강철심장이 없어요 · 대장간에서 만드세요</div>';
   return `<div class="qib-acc${eq?' has':''}"><div class="qib-acc-hd" onclick="this.parentNode.classList.toggle('open')">🔨 강철심장 ${head}<span class="qib-acc-chev">▾</span></div><div class="qib-acc-body">${opts}</div></div>`;
 }
 // ⚔️ 전투 준비 패널 (퀵 구매바 prep) — 아이템 + 시너지 + 강철심장 한 곳에서
