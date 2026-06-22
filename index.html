@@ -6653,7 +6653,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.194';
+const APP_VERSION = 'v2.45.195';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6662,6 +6662,9 @@ const APP_VERSION = 'v2.45.194';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.195', date: '2026-06-22', changes: [
+    { tag: 'improve', text: '🧸 [개발] 단짝인형(인형뽑기 2단계) 백엔드 구현 — 챔피언 7종 수집 완성 후 단짝 1종 선정 → 연승/연패 스택 보상 + 단짝 뽑을 때마다 강화(확률). 보상·강화·수령을 전부 역추적 로그(결과 스냅샷)로 기록. 아직 콘솔 전용(선정/수령 UI·경기 자동연동은 다음 단계) — 수집 완성자 한정이라 라이브 영향 없음' },
+  ] },
   { ver: 'v2.45.194', date: '2026-06-22', changes: [
     { tag: 'new', text: '🕹️ [시즌2] 3D 인형뽑기 정식 오픈 — 가챠 프리즘 ★★★ 18종을 모두 모은 사람에게 열려요. 출석으로 코인을 모아(오전 +2·오후 +3 = 하루 5) 하루 최대 5번 인형을 뽑고, 포로(꽝)를 제외한 챔피언 7종을 모으는 컬렉션 게임. 컬렉션 탭(3성 완성)에서 「🕹️ 인형뽑기 하러 가기」로 진입. 오픈 기념으로 자격자에게 첫 진입 시 5코인 지급. 진행(수집·코인)은 계정에 저장돼 여러 날에 걸쳐 모을 수 있어요. (※ 7종 완성 후 "반려인형" 콘텐츠는 다음 업데이트)' },
   ] },
@@ -31227,6 +31230,7 @@ window.openClawTest3D = function(){
     const d=e.data; if(!d || d.source!=='claw') return;
     if(d.type==='ready'){ try{ frame.contentWindow.postMessage({source:'app', type:'init', ..._claw3dInit()}, '*'); }catch(_){} }
     else if(d.type==='save'){ _claw3dSave(d); }
+    else if(d.type==='pull'){ _buddyOnPull(d.champion); }   // 🧸 챔피언 집기 → 단짝이면 강화 시도
   };
   window.addEventListener('message', onClawMsg);
   ov.querySelector('.claw-win').addEventListener('click', e=>{
@@ -31242,6 +31246,92 @@ window.openClawTest3D = function(){
     else if(a==='reload'){ frame.src='claw.html?embed='+Date.now(); }                           // 가짜 주소창 새로고침(실제로 iframe 리로드)
   });
 };
+// ════════ 🧸 단짝인형 (Phase 2) — 연승/연패 스택 보상 + 강화 (역추적 전부 로그) ════════
+// 보상 묶음 {gold, tickets:{stable,precise,overload}, scratch:{0,1,2}, essence, lp2x, insurance}
+const BUDDY_WIN_REWARDS = { 2:{gold:150}, 3:{gold:100,tickets:{stable:2}}, 4:{scratch:{1:1},tickets:{precise:1}}, 5:{tickets:{overload:1},scratch:{1:1}}, 6:{scratch:{2:1},tickets:{overload:1}}, 7:{essence:2,scratch:{2:1}} };
+const BUDDY_LOSS_REWARDS = { 2:{gold:150}, 3:{insurance:1}, 4:{lp2x:1}, 5:{insurance:1,lp2x:1}, 6:{lp2x:2,insurance:1} };
+const BUDDY_WIN_MAX = 7, BUDDY_LOSS_MAX = 6, BUDDY_MAX_LV = 5;
+const BUDDY_UP_RATE = { 1:0.30, 2:0.20, 3:0.15, 4:0.10 };   // Lv N→N+1 성공률
+function _buddyData(){ return getMyGoldData()?.[sField('buddy')] || null; }
+function _buddyStreakData(){ return getMyGoldData()?.[sField('buddyStreak')] || {type:null,count:0}; }
+function _buddyCap(type, s){ return Math.min(s, type==='win'?BUDDY_WIN_MAX:BUDDY_LOSS_MAX); }
+function _buddyRewardAt(type, stack){ const tbl=type==='win'?BUDDY_WIN_REWARDS:BUDDY_LOSS_REWARDS; const s=_buddyCap(type,stack); return s>=2?tbl[s]:null; }
+// 단짝 선정 (변경 불가)
+async function buddySelect(champFile){
+  const key=getMyGoldKey(); if(!key) return console.warn('닉네임 먼저');
+  if(_buddyData()) return console.warn('이미 단짝을 정했어요 (변경 불가)');
+  const data=getMyGoldData()||{}; const coll=Array.isArray(data[sField('clawCollected')])?data[sField('clawCollected')]:[];
+  if(!coll.includes(champFile)) return console.warn('수집한 챔피언만 단짝 가능:', coll);
+  const b={ champion:champFile, level:1, selectedAt:Date.now(), pulls:0 };
+  const u={ [sField('buddy')]:b }; if(goldData[key]) Object.assign(goldData[key],u);
+  await update(ref(db,'gold/'+key),u); console.log('🧸 단짝 선정 완료(변경불가):', champFile); return true;
+}
+// 단짝 강화 시도 (단짝을 뽑을 때)
+async function _buddyUpgradeAttempt(){
+  const key=getMyGoldKey(); const b=_buddyData(); if(!key||!b) return null;
+  const lv=b.level||1, pulls=(b.pulls||0)+1; let success=false, rate=0;
+  if(lv<BUDDY_MAX_LV){ rate=BUDDY_UP_RATE[lv]||0; success=Math.random()<rate; }
+  const newLv=success?lv+1:lv; const logE={ at:Date.now(), fromLv:lv, toLv:newLv, success, rate };
+  const data=getMyGoldData()||{}; const log=[...(data[sField('buddyUpgradeLog')]||[]), logE];
+  const u={ [sField('buddy')]:{...b, level:newLv, pulls}, [sField('buddyUpgradeLog')]:log };
+  if(goldData[key]) Object.assign(goldData[key],u); await update(ref(db,'gold/'+key),u);
+  console.log(`🧸 강화 Lv${lv}→${newLv} (${success?'✅성공':'❌실패'}, ${Math.round(rate*100)}%)`); return logE;
+}
+function _buddyOnPull(champFile){   // 브릿지 pull 수신 → 단짝이면 강화 시도(만렙이면 pulls만)
+  const b=_buddyData(); if(!b || b.champion!==champFile) return;
+  if((b.level||1)<BUDDY_MAX_LV){ _buddyUpgradeAttempt(); return; }
+  const key=getMyGoldKey(); if(key) update(ref(db,'gold/'+key),{[sField('buddy')]:{...b,pulls:(b.pulls||0)+1}}).catch(()=>{});
+}
+// 보상 지급 (묶음 배열 + 보너스골드) → 기존 필드
+async function _buddyGrant(rewards, bonusGold){
+  const key=getMyGoldKey(); if(!key) return; const data=getMyGoldData()||{};
+  let gold=bonusGold||0; const tk=getEmblemTickets(data); const ft={...(data[sField('freeScratch')]||{})};
+  let essence=data[sField('emblemEssence')]||0; const items=[...(data[sField('items')]||[])];
+  for(const r of rewards){ if(!r) continue;
+    if(r.gold) gold+=r.gold;
+    if(r.tickets) for(const t in r.tickets) tk[t]=(tk[t]||0)+r.tickets[t];
+    if(r.scratch) for(const s in r.scratch) ft[s]=(ft[s]||0)+r.scratch[s];
+    if(r.essence) essence+=r.essence;
+    if(r.lp2x) for(let i=0;i<r.lp2x;i++) items.push({id:'s1_lp2x',active:false});
+    if(r.insurance) for(let i=0;i<r.insurance;i++) items.push({id:'insurance',active:false});
+  }
+  const u={ [sField('goldBonusLegacy')]:(data[sField('goldBonusLegacy')]||0)+gold, [emblemTicketsField()]:tk, [sField('freeScratch')]:ft, [sField('emblemEssence')]:essence, [sField('items')]:items };
+  if(goldData[key]) Object.assign(goldData[key],u); await update(ref(db,'gold/'+key),u);
+}
+// 스택 보상 수령 (현재 스택 → 보상 + 강화효과(보너스/덤) + 로그 + 리셋)
+async function buddyClaim(){
+  const key=getMyGoldKey(); const b=_buddyData(); if(!key||!b) return console.warn('단짝 없음');
+  const st=_buddyStreakData(); const type=st.type, stack=st.count||0;
+  if(!type || stack<2) return console.warn('수령할 스택 없음 (2스택부터)');
+  const reward=_buddyRewardAt(type,stack); if(!reward) return; const lv=b.level||1, capped=_buddyCap(type,stack);
+  const dumChance=lv>=5?0.35:(lv>=4?0.20:0), dumDup=dumChance>0&&Math.random()<dumChance;
+  const bonusGold=lv>=2?capped*(lv>=5?50:25):0;
+  await _buddyGrant(dumDup?[reward,reward]:[reward], bonusGold);
+  const data=getMyGoldData()||{};
+  const cl=[...(data[sField('buddyClaimLog')]||[]), { at:Date.now(), type, stack, lv, reward, bonusGold, dumDup, safety:false }];
+  const u={ [sField('buddyClaimLog')]:cl, [sField('buddyStreak')]:{type:null,count:0,lastTs:Date.now()} };
+  if(goldData[key]) Object.assign(goldData[key],u); await update(ref(db,'gold/'+key),u);
+  console.log(`🎁 ${type==='win'?'연승':'연패'} ${stack}스택 수령${dumDup?' +덤2배':''}${bonusGold?' +'+bonusGold+'G':''} (Lv${lv})`); return true;
+}
+// 경기 결과 → 스택 갱신 (+ Lv3 안전망=두 단계 아래). saveMatch 참가자별 호출 예정(현재 콘솔 buddyMatch로 테스트)
+async function _buddyOnMatch(won){
+  const key=getMyGoldKey(); const b=_buddyData(); if(!key||!b) return;
+  const cur={..._buddyStreakData()}; const newType=won?'win':'loss'; let safety=null, safeStack=0, brokeType=cur.type;
+  if(cur.type===newType){ cur.count=(cur.count||0)+1; }
+  else { if((b.level||1)>=3 && cur.type && (cur.count||0)>=2){ safeStack=(cur.count||0)-2; if(safeStack>=2) safety=_buddyRewardAt(cur.type,safeStack); }
+    cur.type=newType; cur.count=1; }
+  cur.lastTs=Date.now();
+  if(safety){ await _buddyGrant([safety],0);
+    const data=getMyGoldData()||{}; const cl=[...(data[sField('buddyClaimLog')]||[]), { at:Date.now(), type:brokeType, stack:safeStack, lv:b.level||1, reward:safety, bonusGold:0, dumDup:false, safety:true }];
+    if(goldData[key]) goldData[key][sField('buddyClaimLog')]=cl; await update(ref(db,'gold/'+key),{[sField('buddyClaimLog')]:cl}); }
+  if(goldData[key]) goldData[key][sField('buddyStreak')]=cur; await update(ref(db,'gold/'+key),{[sField('buddyStreak')]:cur});
+  console.log(`📊 ${won?'승':'패'} → ${cur.type==='win'?'연승':'연패'} ${cur.count}스택${safety?' (🛡안전망 '+safeStack+'스택 지급)':''}`);
+}
+// 콘솔 테스트
+window.buddySelect=buddySelect; window.buddyClaim=buddyClaim;
+window.buddyMatch=(won)=>_buddyOnMatch(!!won);                 // 경기 시뮬(연승/연패 스택 쌓기)
+window.buddyState=()=>{ console.log('단짝:',_buddyData(),'· 스택:',_buddyStreakData()); };
+window.buddyReset=()=>{ const key=getMyGoldKey(); if(!key) return; update(ref(db,'gold/'+key),{[sField('buddy')]:null,[sField('buddyStreak')]:null,[sField('buddyUpgradeLog')]:null,[sField('buddyClaimLog')]:null}).then(()=>console.log('🧸 단짝 데이터 초기화')); };
 // 🃏 프리뷰 — 3성 18종 안 모아도 부채꼴 덱+버튼을 미리 보기(실데이터 무수정). URL ?prismdeck 또는 콘솔 prismDeckPreview()
 let _prismDeckPreview = /[?&]prismdeck\b/i.test(location.search);
 window.prismDeckPreview = function(on){ _prismDeckPreview = (on !== false); try{ gachaStar = 3; renderGachaTab(); }catch(_){} console.log('🃏 프리즘 덱 프리뷰', _prismDeckPreview?'ON (컬렉션 3성 탭 확인)':'OFF'); };
