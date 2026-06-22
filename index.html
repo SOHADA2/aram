@@ -556,6 +556,13 @@ header{text-align:center;padding:48px 0 24px;position:relative;}
 .sched-claim-btn{margin-top:11px;width:100%;background:linear-gradient(90deg,#f0c060,#e0a82e);border:0;color:#1a1208;font-weight:800;border-radius:10px;padding:10px;cursor:pointer;font-size:13.5px;animation:schedGiftPulse 1.5s ease-in-out infinite;}
 .sched-claimed{margin-top:11px;text-align:center;font-size:12.5px;color:#9fffa0;font-weight:700;}
 .sched-rw-hint{margin-top:11px;text-align:center;font-size:11.5px;color:var(--text-dim,#9aa0b4);}
+.sched-edit-rows{display:flex;flex-direction:column;gap:6px;}
+.sched-edit-row{display:flex;align-items:center;gap:8px;}
+.sched-edit-row .sched-edit-chip{min-width:46px;text-align:center;flex:0 0 auto;}
+.sched-time-in{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);color:#e6e8f0;border-radius:7px;padding:3px 7px;font-size:12px;color-scheme:dark;}
+.sched-time-hint{font-size:10.5px;color:var(--text-dim,#9aa0b4);font-weight:400;}
+.sched-name-time{margin-left:5px;font-size:10px;color:var(--gold-light,#e8c95a);font-weight:700;}
+.season-2 .sched-name-time{color:#ffe39a;}
 .sched-actions{display:flex;gap:8px;margin-top:14px;}
 .sched-actions button{flex:1;padding:11px;border-radius:10px;font-size:13px;font-weight:800;cursor:pointer;border:1px solid transparent;transition:filter .12s;}
 .sched-actions button:hover{filter:brightness(1.12);}
@@ -6661,7 +6668,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.203';
+const APP_VERSION = 'v2.45.204';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6670,6 +6677,10 @@ const APP_VERSION = 'v2.45.203';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.204', date: '2026-06-22', changes: [
+    { tag: 'new', text: '🕐 일정 시간 설정 — 일정 달력에서 참여 가능한 날을 고를 때 날짜별로 시간(예: 20:00)도 정할 수 있어요. 그 날 명단에 누가 몇 시에 오는지 표시돼요. (시간은 선택사항, 일정 보상과는 무관)' },
+    { tag: 'improve', text: '🎁 일정 보상은 "미리 정해둔" 날만 — 당일에 일정을 적고 그 날 게임하면 보상이 안 나와요. 전날까지(하루 전 이상) 미리 참여 가능으로 등록해둔 날에 게임해야 복권 1세트를 받을 수 있어요.' },
+  ] },
   { ver: 'v2.45.203', date: '2026-06-22', changes: [
     { tag: 'improve', text: '🎁 일정 보상은 오늘(2026-06-22)부터 적용 — 그 전 날짜는 소급 지급하지 않아요(오늘 이후 약속한 날 게임하면 지급).' },
   ] },
@@ -24336,7 +24347,7 @@ let _scheduleData = {};   // {dateKey: {normName: true}}
 let _schedView = null;    // {y, m(0-index)}
 let _schedSel = null;     // 선택 날짜키
 let _schedMode = 'view';  // 'view'(날짜 클릭=명단보기) | 'edit'(내 참여일 체크 스테이징)
-let _schedEditSet = null; // 편집 중 내가 고른 날짜키 Set (확정 전까지 로컬)
+let _schedEditMap = null; // 편집 중 {dateKey: time|''} (확정 전까지 로컬)
 onValue(ref(db, 'availability'), (snap) => {
   _scheduleData = snap.val() || {};
   updateScheduleBadge();
@@ -24354,7 +24365,7 @@ window.openSchedule = function() {
   const t = new Date();
   if (!_schedView) _schedView = { y: t.getFullYear(), m: t.getMonth() };
   _schedSel = getLocalDateKey(); // 열 때마다 오늘로 초점
-  _schedMode = 'view'; _schedEditSet = null; // 항상 보기 모드로 시작
+  _schedMode = 'view'; _schedEditMap = null; // 항상 보기 모드로 시작
   document.getElementById('sched-overlay').classList.add('show');
   _renderSchedule();
 };
@@ -24370,8 +24381,8 @@ function _schedCanEdit() { return !!myName && !liveMode; }
 window.schedDayClick = function(dateKey) {
   if (_schedMode === 'edit') {
     if (dateKey < getLocalDateKey()) { if (typeof showGoldToast === 'function') showGoldToast('🗓️ 지난 날짜는 체크할 수 없어요 (오늘부터 가능)'); return; } // 지난 날짜는 편집 불가 — 조용히 막지 말고 안내
-    if (_schedEditSet.has(dateKey)) _schedEditSet.delete(dateKey);
-    else _schedEditSet.add(dateKey);
+    if (_schedEditMap[dateKey] !== undefined) delete _schedEditMap[dateKey];
+    else _schedEditMap[dateKey] = _availTime((_scheduleData[dateKey]||{})[normName(myName)]) || '';   // 추가 시 기존 시간 유지
   }
   _schedSel = dateKey;
   _renderSchedule();
@@ -24380,29 +24391,36 @@ window.schedDayClick = function(dateKey) {
 window.schedEnterEdit = function() {
   if (!_schedCanEdit()) return;
   const k = normName(myName);
-  _schedEditSet = new Set();
-  Object.keys(_scheduleData).forEach(dk => { if (_scheduleData[dk] && _scheduleData[dk][k]) _schedEditSet.add(dk); });
+  _schedEditMap = {};
+  Object.keys(_scheduleData).forEach(dk => { const v=_scheduleData[dk]&&_scheduleData[dk][k]; if (v) _schedEditMap[dk] = _availTime(v)||''; });
   _schedMode = 'edit';
   _renderSchedule();
 };
 window.schedCancelEdit = function() {
-  _schedMode = 'view'; _schedEditSet = null;
+  _schedMode = 'view'; _schedEditMap = null;
   _renderSchedule();
 };
+window.schedSetTime = function(dk, val){ if (_schedEditMap && _schedEditMap[dk] !== undefined) _schedEditMap[dk] = val || ''; };   // 편집 중 날짜별 시간 설정
 // 확정 — 원본 대비 추가/제거만 Firebase 멀티패스 업데이트
 window.schedConfirmEdit = async function() {
-  if (!_schedCanEdit() || !_schedEditSet) return;
+  if (!_schedCanEdit() || !_schedEditMap) return;
   const k = normName(myName);
-  const orig = new Set();
-  Object.keys(_scheduleData).forEach(dk => { if (_scheduleData[dk] && _scheduleData[dk][k]) orig.add(dk); });
+  const orig = {};
+  Object.keys(_scheduleData).forEach(dk => { const v=_scheduleData[dk]&&_scheduleData[dk][k]; if (v) orig[dk]=v; });
   const updates = {};
-  _schedEditSet.forEach(dk => { if (!orig.has(dk)) updates['availability/'+dk+'/'+k] = true; });
-  orig.forEach(dk => { if (!_schedEditSet.has(dk)) updates['availability/'+dk+'/'+k] = null; });
+  // 추가/시간변경 — { at(최초 등록시각 유지), time }
+  Object.keys(_schedEditMap).forEach(dk => {
+    const time = _schedEditMap[dk] || null, ov = orig[dk];
+    if (!ov) updates['availability/'+dk+'/'+k] = { at: Date.now(), time };
+    else if (typeof ov!=='object' || (_availTime(ov)||null)!==(time||null)) updates['availability/'+dk+'/'+k] = { at: _availAt(ov)||Date.now(), time };
+  });
+  // 제거
+  Object.keys(orig).forEach(dk => { if (_schedEditMap[dk]===undefined) updates['availability/'+dk+'/'+k] = null; });
   // 로컬 즉시 반영
-  _schedEditSet.forEach(dk => { if (!_scheduleData[dk]) _scheduleData[dk] = {}; _scheduleData[dk][k] = true; });
-  orig.forEach(dk => { if (!_schedEditSet.has(dk) && _scheduleData[dk]) delete _scheduleData[dk][k]; });
+  Object.keys(_schedEditMap).forEach(dk => { if (!_scheduleData[dk]) _scheduleData[dk]={}; const ov=orig[dk]; _scheduleData[dk][k] = { at: (ov&&_availAt(ov))||Date.now(), time: _schedEditMap[dk]||null }; });
+  Object.keys(orig).forEach(dk => { if (_schedEditMap[dk]===undefined && _scheduleData[dk]) delete _scheduleData[dk][k]; });
   const changed = Object.keys(updates).length;
-  _schedMode = 'view'; _schedEditSet = null;
+  _schedMode = 'view'; _schedEditMap = null;
   _renderSchedule(); updateScheduleBadge();
   if (!changed) { if (typeof showGoldToast === 'function') showGoldToast('변경된 내용이 없어요'); return; }
   try {
@@ -24414,7 +24432,8 @@ window.schedConfirmEdit = async function() {
 window.schedClaimReward = async function(dk){
   const key=getMyGoldKey(); if(!key) return; const myk=normName(myName); const data=getMyGoldData()||{};
   if(dk > getLocalDateKey() || dk < SCHED_REWARD_FROM) return;
-  if(!(_scheduleData[dk]||{})[myk]) return showGoldToast('내가 정한 날이 아니에요');
+  const _v=(_scheduleData[dk]||{})[myk]; if(!_v) return showGoldToast('내가 정한 날이 아니에요');
+  const _at=_availAt(_v); if(!_at || _tsDateKey(_at)>=dk) return showGoldToast('당일 작성한 일정은 보상 대상이 아니에요 (전날까지 등록)');
   const claimed={...(data[sField('schedRewardClaimed')]||{})};
   if(claimed[dk]) return showGoldToast('이미 받았어요');
   if(!_myPlayedDates().has(dk)) return showGoldToast('이 날 게임 기록이 없어요');
@@ -24429,6 +24448,8 @@ window.schedClaimReward = async function(dk){
 // 🎁 일정 보상 — 내가 정한 날 실제로 게임(내전 or 일반)하면 복권 1세트(그 날짜 셀에서 수령)
 const SCHED_REWARD_FROM = '2026-06-22';   // 🎁 일정 보상 시작일 — 그 전 날짜는 소급 지급 X(오늘부터)
 function _tsDateKey(ts){ const d=new Date(ts); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function _availAt(v){ return (v && typeof v==='object') ? (v.at||null) : (typeof v==='number'?v:null); }   // 일정 등록 시각(ts) / 레거시 true→null
+function _availTime(v){ return (v && typeof v==='object') ? (v.time||null) : null; }   // 참여 시간 'HH:MM'
 function _myPlayedDates(){
   const myk=myName?normName(myName):null; const set=new Set(); if(!myk) return set;
   for(const m of Object.values(matches||{})){ if(!m||!m.timestamp) continue;
@@ -24438,14 +24459,18 @@ function _myPlayedDates(){
   return set;
 }
 function _schedRewardClaimed(){ return getMyGoldData()?.[sField('schedRewardClaimed')] || {}; }
-function _schedRewardState(dk, scheduledMine, playedSet, claimed, todayKey){
-  if(!myName || dk>todayKey || dk<SCHED_REWARD_FROM || !scheduledMine) return null;   // 시작일 이전 소급 X
+function _schedRewardState(dk, myVal, playedSet, claimed, todayKey){
+  if(!myName || dk>todayKey || dk<SCHED_REWARD_FROM || !myVal) return null;   // 시작일 이전 소급 X
+  const at=_availAt(myVal); if(!at || _tsDateKey(at) >= dk) return null;      // 🚫 당일(또는 그 이후) 작성한 일정은 보상 X — 사전 등록만
   if(claimed[dk]) return 'claimed';
   return playedSet.has(dk) ? 'claimable' : null;
 }
 function _hasClaimableSchedReward(){
   if(!myName) return false; const myk=normName(myName), played=_myPlayedDates(), claimed=_schedRewardClaimed(), today=getLocalDateKey();
-  for(const dk in _scheduleData){ if(dk>today||dk<SCHED_REWARD_FROM||!(_scheduleData[dk]||{})[myk]||claimed[dk]) continue; if(played.has(dk)) return true; }
+  for(const dk in _scheduleData){ const v=(_scheduleData[dk]||{})[myk];
+    if(dk>today||dk<SCHED_REWARD_FROM||!v||claimed[dk]) continue;
+    const at=_availAt(v); if(!at||_tsDateKey(at)>=dk) continue;
+    if(played.has(dk)) return true; }
   return false;
 }
 function _renderSchedule() {
@@ -24480,7 +24505,7 @@ function _renderSchedule() {
     let mineOn;
     if (editing) {
       const committedMine = !!(myk && data[myk]);
-      mineOn = _schedEditSet.has(dk);
+      mineOn = _schedEditMap[dk] !== undefined;
       if (committedMine && !mineOn) cnt -= 1;   // 카운트를 스테이징 값으로 보정
       if (!committedMine && mineOn) cnt += 1;
     } else {
@@ -24490,7 +24515,7 @@ function _renderSchedule() {
       dk===todayKey?'today':'', mineOn?'mine':'', dk===_schedSel?'sel':'',
       isPast?'past':'', editing?'editing':'', (editing&&isPast)?'noedit':''
     ].filter(Boolean).join(' ');
-    const _rw = !editing ? _schedRewardState(dk, !!(myk && data[myk]), _playedSet, _claimed, todayKey) : null;   // 🎁 커밋된 일정 기준
+    const _rw = !editing ? _schedRewardState(dk, (myk?data[myk]:null), _playedSet, _claimed, todayKey) : null;   // 🎁 커밋된 일정 기준
     cells += `<div class="${cls}" onclick="window.schedDayClick('${dk}')">`
       + `<span class="sched-daynum">${day}</span>`
       + (cnt>0?`<span class="sched-cnt">${cnt}</span>`:'')
@@ -24503,10 +24528,10 @@ function _renderSchedule() {
   // 상단 리스트 영역: 편집 모드 → 내가 고른 날 칩 / 보기 모드 → 선택 날짜 참여 명단
   const listEl = document.getElementById('sched-list');
   if (editing) {
-    const picked = [..._schedEditSet].filter(dk => dk >= todayKey).sort();
-    let html = `<div class="sched-list-date">✏️ 내가 고른 참여 가능일 (${picked.length}일)</div>`;
+    const picked = Object.keys(_schedEditMap).filter(dk => dk >= todayKey).sort();
+    let html = `<div class="sched-list-date">✏️ 내가 고른 참여 가능일 (${picked.length}일) <span class="sched-time-hint">· 시간은 선택사항</span></div>`;
     html += picked.length
-      ? `<div class="sched-edit-chips">${picked.map(dk=>{const q=dk.split('-');return `<span class="sched-edit-chip">${+q[1]}/${+q[2]}</span>`;}).join('')}</div>`
+      ? `<div class="sched-edit-rows">${picked.map(dk=>{const q=dk.split('-');return `<div class="sched-edit-row"><span class="sched-edit-chip">${+q[1]}/${+q[2]}</span><input type="time" class="sched-time-in" value="${_schedEditMap[dk]||''}" onchange="window.schedSetTime('${dk}', this.value)"></div>`;}).join('')}</div>`
       : `<div class="sched-empty-names">아직 고른 날이 없어요. 달력에서 참여 가능한 날을 눌러주세요.</div>`;
     listEl.innerHTML = html;
   } else {
@@ -24516,11 +24541,11 @@ function _renderSchedule() {
     const isToday = _schedSel === todayKey;
     let html = `<div class="sched-list-date">${isToday?'오늘 · ':''}${+p[1]}월 ${+p[2]}일 참여 가능 (${names.length}명)</div>`;
     html += names.length
-      ? `<div class="sched-names">${names.map(n=>`<span class="sched-name${myk===normName(n)?' me':''}">${escHtml(n)}</span>`).join('')}</div>`
+      ? `<div class="sched-names">${names.map(n=>{const tm=_availTime(avail[n]); return `<span class="sched-name${myk===normName(n)?' me':''}">${escHtml(n)}${tm?`<small class="sched-name-time">${tm}</small>`:''}</span>`;}).join('')}</div>`
       : `<div class="sched-empty-names">아직 이 날 참여 가능자가 없어요.</div>`;
     // 🎁 일정 보상 — 내가 정한 날 + 게임함 → 복권 1세트 수령
-    const _selMine = !!(myk && (_scheduleData[_schedSel]||{})[myk]);
-    const _rwSel = _schedRewardState(_schedSel, _selMine, _playedSet, _claimed, todayKey);
+    const _selVal = myk ? (_scheduleData[_schedSel]||{})[myk] : null, _selMine = !!_selVal;
+    const _rwSel = _schedRewardState(_schedSel, _selVal, _playedSet, _claimed, todayKey);
     if (_rwSel==='claimable') html += `<button class="sched-claim-btn" onclick="window.schedClaimReward('${_schedSel}')">🎁 일정 보상 받기 · 복권 1세트</button>`;
     else if (_rwSel==='claimed') html += `<div class="sched-claimed">✓ 일정 보상(복권 1세트)을 받았어요</div>`;
     else if (_selMine && _schedSel<=todayKey && _schedSel>=SCHED_REWARD_FROM && !_playedSet.has(_schedSel)) html += `<div class="sched-rw-hint">이 날 내전·일반게임을 하면 🎁 복권 1세트를 받을 수 있어요</div>`;
