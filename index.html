@@ -6653,7 +6653,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.199';
+const APP_VERSION = 'v2.45.200';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6662,6 +6662,9 @@ const APP_VERSION = 'v2.45.199';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.200', date: '2026-06-22', changes: [
+    { tag: 'improve', text: '🧸 단짝 정보 패널 보강 — 단짝 패널에서 챔피언·강화 Lv·연승/연패 스택·수령에 더해, 강화 단계(Lv1~5 효과·잠금 상태·다음 강화 성공률)와 능력 설명을 한눈에 볼 수 있어요. 컬렉션 탭(인형뽑기 입구)의 「🧸 단짝」 버튼으로 들어가요' },
+  ] },
   { ver: 'v2.45.199', date: '2026-06-22', changes: [
     { tag: 'improve', text: '🧸 단짝 강화 연출을 3D로 — 강화 시도 시 단짝 챔피언의 실제 3D 인형이 빙글빙글 등장하며 성공/실패가 떠요(인형뽑기 창 안). (개발: 인형뽑기 연 상태에서 buddyUpgradePreview(true/false, 레벨)로 3D 미리보기 — 데이터 무변경)' },
   ] },
@@ -31394,7 +31397,22 @@ function _injectBuddyCss(){
   .bup-eff span{display:block;font-weight:500;font-size:11.5px;color:#c8cad6;margin-top:3px;}
   @keyframes bupSpin{to{transform:rotate(360deg);}}
   @keyframes bupPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
-  @keyframes bupPop{0%{transform:scale(.5);opacity:0;}60%{transform:scale(1.15);}100%{transform:scale(1);opacity:1;}}`;
+  @keyframes bupPop{0%{transform:scale(.5);opacity:0;}60%{transform:scale(1.15);}100%{transform:scale(1);opacity:1;}}
+  .bl-card{margin-top:10px;}
+  .bl-head{font-weight:800;color:#ffe39a;font-size:13px;margin-bottom:6px;}
+  .bl-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid rgba(255,255,255,.06);}
+  .bl-row.off{opacity:.42;}
+  .bl-lv{flex:0 0 32px;font-weight:800;font-size:12px;color:#9fb4ff;font-family:'JetBrains Mono',monospace;}
+  .bl-nm{flex:1;font-size:12.5px;font-weight:700;color:#e6e8f0;text-align:left;}
+  .bl-nm i{display:block;font-style:normal;font-weight:400;font-size:11px;color:#9aa0b4;margin-top:1px;}
+  .bl-row.on .bl-nm{color:#ffd24a;}
+  .bl-st{flex:0 0 auto;font-size:13px;}
+  .bl-next{margin-top:9px;font-size:11.5px;color:#c8cad6;text-align:center;background:rgba(240,200,90,.08);border-radius:8px;padding:7px;}
+  .bl-next b{color:#ffd24a;}
+  .buddy-help{margin-top:10px;text-align:left;}
+  .buddy-help summary{cursor:pointer;color:#ffe39a;font-weight:700;font-size:12.5px;padding:5px 0;}
+  .buddy-help>div{margin-top:6px;font-size:12px;color:#c8cad6;line-height:1.6;background:rgba(0,0,0,.2);border-radius:9px;padding:9px 11px;}
+  .buddy-help b{color:#ffe39a;}`;
   document.head.appendChild(s);
 }
 function _buddyOpenSelect(coll){
@@ -31419,6 +31437,14 @@ function _buddyRewardText(r){ if(!r) return '—'; const p=[];
   if(r.essence) p.push(`🔶정수×${r.essence}`); if(r.lp2x) p.push(`💜LP2배권×${r.lp2x}`); if(r.insurance) p.push(`🛡방어권×${r.insurance}`);
   return p.join(' · ');
 }
+function _buddyLvListHtml(lv){   // ⚙️ 강화 단계 1~5 (현재/잠금 + 다음 성공률)
+  let h=`<div class="bl-head">⚙️ 강화 단계 (Lv ${lv}/5)</div>`;
+  h+=`<div class="bl-row on"><span class="bl-lv">Lv1</span><span class="bl-nm">각성<i>연승/연패 스택 보상 능력</i></span><span class="bl-st">✓</span></div>`;
+  for(let i=2;i<=5;i++){ const on=lv>=i;
+    h+=`<div class="bl-row ${on?'on':'off'}"><span class="bl-lv">Lv${i}</span><span class="bl-nm">${BUDDY_LV_NAMES[i]}<i>${BUDDY_LV_DESC[i]||''}</i></span><span class="bl-st">${on?'✓':'🔒'}</span></div>`; }
+  h+= lv<5 ? `<div class="bl-next">다음 <b>Lv${lv+1}</b> 강화 성공률 <b>${Math.round((BUDDY_UP_RATE[lv]||0)*100)}%</b> — 인형뽑기서 내 단짝을 뽑으면 시도</div>` : `<div class="bl-next">👑 최고 레벨 달성!</div>`;
+  return h;
+}
 function _buddyOpenPanel(){
   const b=_buddyData(); if(!b) return _buddyMaybePrompt(); _injectBuddyCss();
   if(document.getElementById('buddy-panel')) return;
@@ -31434,7 +31460,11 @@ function _buddyOpenPanel(){
       <div class="buddy-streak ${type||'none'}">${streakTxt}</div>
       <div class="buddy-reward">${cur?`지금 수령: <b>${_buddyRewardText(cur)}</b>`:'아직 수령할 보상 없음 (2스택부터)'}${(type&&next&&stack>=2)?`<br><span style="opacity:.6;">한 판 더 이기면: ${_buddyRewardText(next)}</span>`:''}</div>
       <button class="buddy-claim" ${cur?'':'disabled'}>${cur?'🎁 보상 수령 (스택 0으로)':'수령 불가'}</button>
-    </div><button class="buddy-cancel" style="margin-top:12px;">닫기</button></div>`;
+    </div>
+    <div class="buddy-card bl-card">${_buddyLvListHtml(lv)}</div>
+    <details class="buddy-help"><summary>❔ 단짝 능력이 뭔가요?</summary>
+      <div>내전에서 <b>연승</b>(또는 <b>연패</b>)하면 스택이 쌓여요. 원할 때 <b>수령</b>하면 그만큼 보상(연승=골드·강화권·복권·정수 / 연패=LP 회복 도구)을 받고 스택은 0이 돼요. 승패가 번갈리면 끊겨요. 인형뽑기서 <b>내 단짝을 뽑을 때마다</b> 확률로 강화돼 보상이 더 좋아져요.</div></details>
+    <button class="buddy-cancel" style="margin-top:12px;">닫기</button></div>`;
   document.body.appendChild(ov);
   ov.querySelector('.buddy-cancel').onclick=()=>ov.remove();
   const cb=ov.querySelector('.buddy-claim'); if(cur) cb.onclick=()=>{ buddyClaim().then(ok=>{ ov.remove(); if(ok){ showS1Toast('🎁 단짝 보상을 받았어요!'); try{updateMyInfoBar();}catch(_){}} }); };
