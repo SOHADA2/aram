@@ -134,7 +134,7 @@
   <span class="pill">수집 <b id="coll">0/7</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 142 · claw</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 143 · claw</span>
 </div>
 <div id="result"></div>
 <div id="coin-fx"></div>
@@ -964,7 +964,7 @@ function updDailyHud(){
   const el=document.getElementById('cb-info');
   if(el){ const cap = !ENF ? '∞' : (_collComplete() ? '무제한' : `오늘 ${playsUsed}/${DAILY_MAX}`);
     el.innerHTML = `🪙 <b>${coins}</b> · ${cap}`; }
-  const d=document.getElementById('drop'); if(d) d.disabled = !canPlay();
+  const d=document.getElementById('drop'); if(d) d.disabled = (state==='IDLE') ? !canPlay() : false;   // 게임 진행 중(READY 등)엔 항상 집기 가능 — 코인은 START서 이미 지불. canPlay는 START만 게이트(5번째 플레이서 마지막 코인 소진→집기 버튼 먹통이던 버그 수정)
 }
 window.resetPlays = ()=>{ playsUsed=0; _saveCoins(); updDailyHud(); console.log('일일 횟수 초기화'); };   // 테스트용
 window.addCoins = (n)=>{ coins=Math.max(0,coins+(n==null?5:n)); _saveCoins(); updDailyHud(); console.log('🪙 코인',coins); };  // 테스트용
@@ -978,8 +978,8 @@ function startGame(){
   if(state!=='IDLE') return; Sfx.unlock();
   if(!canPlay()){ Sfx.error(); showResult(coins<=0 ? '코인이 없어요 (출석으로 충전)' : '오늘 5회 소진! (코인은 모임)','#ffb86b'); return; }
   if(ENF){ coins--; playsUsed++; _saveCoins(); }
+  state='READY'; updControls();   // ⚠️ updDailyHud보다 먼저 — HUD가 READY를 반영해야 집기 버튼이 안 잠김(마지막 코인 소진 후에도 진행 중 게임은 집기 가능)
   updDailyHud(); _coinDropFx(); Sfx.coin(); _bgmStart();
-  state='READY'; updControls();
 }
 function updControls(){ const c=document.getElementById('controls'); if(c) c.classList.toggle('idle', state==='IDLE'); }
 window.startGame = startGame;
