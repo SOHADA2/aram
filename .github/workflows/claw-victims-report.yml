@@ -1,0 +1,53 @@
+name: claw-victims-report
+
+# 🕹️ 인형뽑기 5번째 플레이 버그(BUILD143 이전) 피해자 조회용 1회 리포트.
+# 이 환경은 Firebase egress가 막혀 직접 못 읽으므로 제한 없는 러너에서 GET.
+# 닉네임 + claw 플레이수/코인/날짜만 출력(저사양 게임 데이터). 실행 후 파일 제거.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/claw-victims-report.yml'
+  workflow_dispatch:
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch gold node
+        run: |
+          DB="https://aramchaos-ca022-default-rtdb.asia-southeast1.firebasedatabase.app"
+          curl -s "$DB/gold.json" -o gold.json
+          echo "fetched bytes: $(wc -c < gold.json)"
+      - name: Analyze claw plays
+        run: |
+          python3 - <<'PY'
+          import json
+          data = json.load(open('gold.json'))
+          rows = []
+          for key, u in (data or {}).items():
+              if not isinstance(u, dict): continue
+              plays = u.get('clawPlays_s2')
+              coins = u.get('clawCoins_s2')
+              date  = u.get('clawPlayDate_s2')
+              coll  = u.get('clawCollected_s2') or []
+              ncoll = len(coll) if isinstance(coll, list) else 0
+              if (plays or coins is not None or ncoll or date):
+                  rows.append({'name': u.get('name','?'), 'plays': plays or 0,
+                               'coins': coins, 'date': date, 'collected': ncoll})
+          rows.sort(key=lambda r: -(r['plays'] or 0))
+          print("── claw 활동 유저 (plays 내림차순) ──")
+          for r in rows:
+              print(f"{r['name']:<16} plays={r['plays']} coins={r['coins']} date={r['date']} collected={r['collected']}")
+          print()
+          victims = [r for r in rows if (r['plays'] or 0) >= 5]
+          print(f"=== 5번째 도달(버그 피해 후보) : {len(victims)}명 ===")
+          for r in victims:
+              print(f"  {r['name']}  (plays={r['plays']}, coins={r['coins']}, date={r['date']})")
+          # 코인 소진(마지막 코인 플레이가 버그였을 가능성) — plays 1~4인데 coins 0
+          edge = [r for r in rows if (r['coins'] == 0) and 1 <= (r['plays'] or 0) < 5]
+          if edge:
+              print(f"\n=== 참고: 코인 전부 소진이나 plays<5 (코인이 5 미만이었을 수 있음) : {len(edge)}명 ===")
+              for r in edge:
+                  print(f"  {r['name']}  (plays={r['plays']}, coins={r['coins']}, date={r['date']})")
+          PY
