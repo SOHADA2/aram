@@ -6653,7 +6653,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.197';
+const APP_VERSION = 'v2.45.198';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6662,6 +6662,9 @@ const APP_VERSION = 'v2.45.197';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.198', date: '2026-06-22', changes: [
+    { tag: 'improve', text: '🧸 단짝 강화 연출 추가 — 인형뽑기서 내 단짝을 뽑으면 "두근두근→성공(레벨업+새 효과 공개)/실패" 강화 화면이 떠요. (개발: 데이터 변경 없이 미리보는 콘솔 buddyUpgradePreview(true/false, 레벨))' },
+  ] },
   { ver: 'v2.45.196', date: '2026-06-22', changes: [
     { tag: 'new', text: '🧸 [시즌2] 단짝인형 — 인형뽑기 챔피언 7종을 다 모으면 평생 단짝 1명을 선정(⚠️변경 불가)! 단짝이 생기면 내전 연승/연패가 스택으로 쌓이고, 원할 때 수령해 보상을 받아요(연승=골드·강화권·복권·정수 / 연패=LP 회복 도구). 인형뽑기서 내 단짝을 또 뽑으면 단짝이 강화돼(확률) 보상이 더 좋아져요. 컬렉션 탭 인형뽑기 입구에서 선정·수령. 연승/연패 스택은 경기 결과에 따라 자동 반영' },
   ] },
@@ -31259,6 +31262,8 @@ const BUDDY_WIN_REWARDS = { 2:{gold:150}, 3:{gold:100,tickets:{stable:2}}, 4:{sc
 const BUDDY_LOSS_REWARDS = { 2:{gold:150}, 3:{insurance:1}, 4:{lp2x:1}, 5:{insurance:1,lp2x:1}, 6:{lp2x:2,insurance:1} };
 const BUDDY_WIN_MAX = 7, BUDDY_LOSS_MAX = 6, BUDDY_MAX_LV = 5;
 const BUDDY_UP_RATE = { 1:0.30, 2:0.20, 3:0.15, 4:0.10 };   // Lv N→N+1 성공률
+const BUDDY_LV_NAMES = { 1:'각성', 2:'💰 후한 손길', 3:'🛡 미련 없이', 4:'🎁 덤', 5:'👑 단짝 만개' };
+const BUDDY_LV_DESC = { 2:'수령 시 추가 골드 (스택 ×25G)', 3:'스택 끊겨도 두 단계 아래 보상 자동 수령', 4:'수령 시 20% 확률로 보상 한 번 더', 5:'덤 35% + 골드 보너스 2배 (스택×50G)' };
 function _buddyData(){ return getMyGoldData()?.[sField('buddy')] || null; }
 function _buddyStreakData(){ return getMyGoldData()?.[sField('buddyStreak')] || {type:null,count:0}; }
 function _buddyCap(type, s){ return Math.min(s, type==='win'?BUDDY_WIN_MAX:BUDDY_LOSS_MAX); }
@@ -31282,7 +31287,9 @@ async function _buddyUpgradeAttempt(){
   const data=getMyGoldData()||{}; const log=[...(data[sField('buddyUpgradeLog')]||[]), logE];
   const u={ [sField('buddy')]:{...b, level:newLv, pulls}, [sField('buddyUpgradeLog')]:log };
   if(goldData[key]) Object.assign(goldData[key],u); await update(ref(db,'gold/'+key),u);
-  console.log(`🧸 강화 Lv${lv}→${newLv} (${success?'✅성공':'❌실패'}, ${Math.round(rate*100)}%)`); return logE;
+  console.log(`🧸 강화 Lv${lv}→${newLv} (${success?'✅성공':'❌실패'}, ${Math.round(rate*100)}%)`);
+  try{ _buddyUpgradeFx({ champion:b.champion, fromLv:lv, toLv:newLv, success, rate }); }catch(_){}
+  return logE;
 }
 function _buddyOnPull(champFile){   // 브릿지 pull 수신 → 단짝이면 강화 시도(만렙이면 pulls만)
   const b=_buddyData(); if(!b || b.champion!==champFile) return;
@@ -31365,7 +31372,26 @@ function _injectBuddyCss(){
   .buddy-streak.none{background:rgba(255,255,255,.05);color:#9aa0b4;font-weight:600;}
   .buddy-reward{font-size:12.5px;color:#c8cad6;line-height:1.6;background:rgba(0,0,0,.2);border-radius:9px;padding:9px 11px;margin-bottom:11px;}
   .buddy-claim{width:100%;background:linear-gradient(90deg,#f0c060,#e0a030);border:0;color:#1a1208;font-weight:800;border-radius:11px;padding:11px;cursor:pointer;font-size:14px;}
-  .buddy-claim:disabled{opacity:.4;cursor:not-allowed;filter:grayscale(1);}`;
+  .buddy-claim:disabled{opacity:.4;cursor:not-allowed;filter:grayscale(1);}
+  .bup-stage{position:relative;width:138px;height:138px;margin:14px auto 6px;display:flex;align-items:center;justify-content:center;}
+  .bup-av{width:94px;height:94px;border-radius:14px;object-fit:cover;object-position:center top;border:3px solid rgba(240,200,90,.5);transition:.4s;}
+  .bup-ring{position:absolute;inset:6px;border-radius:50%;border:3px solid rgba(255,255,255,.1);border-top-color:#ffd24a;animation:bupSpin .8s linear infinite;}
+  .bup-stage.rolling .bup-av{animation:bupPulse .5s ease-in-out infinite;}
+  .bup-stage.win .bup-ring,.bup-stage.fail .bup-ring{display:none;}
+  .bup-stage.win .bup-av{border-color:#ffd24a;box-shadow:0 0 32px rgba(240,200,90,.9);transform:scale(1.08);}
+  .bup-stage.fail .bup-av{border-color:#5a5a64;filter:grayscale(.75) brightness(.65);}
+  .bup-rate{position:absolute;bottom:-4px;left:0;right:0;text-align:center;font-size:11px;color:#9aa0b4;font-family:'JetBrains Mono',monospace;}
+  .bup-result{min-height:64px;}
+  .bup-big{font-size:23px;font-weight:900;font-family:'Black Han Sans','Noto Sans KR',sans-serif;}
+  .bup-big.win{color:#ffd24a;animation:bupPop .45s;}
+  .bup-big.fail{color:#9aa0b4;}
+  .bup-lv{font-size:14px;color:#e6e8f0;margin-top:4px;}
+  .bup-lv b{color:#ffe39a;font-size:18px;}
+  .bup-eff{margin:11px auto 0;max-width:280px;background:rgba(240,200,90,.1);border:1px solid rgba(240,200,90,.32);border-radius:11px;padding:9px;font-weight:800;color:#ffd24a;font-size:13.5px;}
+  .bup-eff span{display:block;font-weight:500;font-size:11.5px;color:#c8cad6;margin-top:3px;}
+  @keyframes bupSpin{to{transform:rotate(360deg);}}
+  @keyframes bupPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+  @keyframes bupPop{0%{transform:scale(.5);opacity:0;}60%{transform:scale(1.15);}100%{transform:scale(1);opacity:1;}}`;
   document.head.appendChild(s);
 }
 function _buddyOpenSelect(coll){
@@ -31432,6 +31458,29 @@ async function _buddyProcessMatches(){   // 내가 참가한 S2 매치(미처리
     if(goldData[key]) goldData[key][sField('buddyLastMatchTs')]=newTs; await update(ref(db,'gold/'+key),{[sField('buddyLastMatchTs')]:newTs});
   }finally{ _buddyProcessing=false; }
 }
+function _buddyUpgradeFx(r){   // 🧸 강화 연출 — 두근두근 후 성공/실패 리빌
+  _injectBuddyCss(); const k=_clawDdKey(r.champion||'teemo.glb'), ok=r.success, toLv=r.toLv;
+  const ov=document.createElement('div'); ov.className='buddy-ov';
+  ov.innerHTML=`<div class="buddy-sheet"><div class="buddy-h">🧸 단짝 강화</div>
+    <div class="bup-stage rolling"><div class="bup-ring"></div>
+      <img class="bup-av" src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'">
+      <div class="bup-rate">성공 확률 ${Math.round((r.rate||0)*100)}%</div></div>
+    <div class="bup-result"></div>
+    <button class="buddy-cancel" style="margin-top:8px;display:none;">확인</button></div>`;
+  document.body.appendChild(ov);
+  const closeBtn=ov.querySelector('.buddy-cancel'); closeBtn.onclick=()=>ov.remove();
+  setTimeout(()=>{
+    const stage=ov.querySelector('.bup-stage'); stage.classList.remove('rolling'); stage.classList.add(ok?'win':'fail');
+    const res=ov.querySelector('.bup-result');
+    if(ok){ res.innerHTML=`<div class="bup-big win">✨ 강화 성공!</div><div class="bup-lv">Lv${r.fromLv} → <b>Lv${toLv}</b></div>`
+        + (BUDDY_LV_NAMES[toLv]?`<div class="bup-eff">${BUDDY_LV_NAMES[toLv]}${BUDDY_LV_DESC[toLv]?`<span>${BUDDY_LV_DESC[toLv]}</span>`:''}</div>`:''); }
+    else { res.innerHTML=`<div class="bup-big fail">아쉽게 실패…</div><div class="bup-lv">Lv${r.fromLv} 유지 · 다음 기회에!</div>`; }
+    closeBtn.style.display='';
+  }, 1400);
+}
+window.buddyUpgradePreview = (success, lv)=>{ lv=lv||1; const ok=(success!==false);   // 🧸 강화 연출 프리뷰(Firebase 미기록·데이터 무변경)
+  _buddyUpgradeFx({ champion:(_buddyData()?.champion)||'teemo.glb', fromLv:lv, toLv:ok?Math.min(lv+1,5):lv, success:ok, rate:BUDDY_UP_RATE[lv]||0.3 });
+  console.log('🧸 강화 연출 프리뷰 (데이터 무변경) — buddyUpgradePreview(true=성공/false=실패, 레벨 1~4)'); };
 window._buddyOpenSelect=_buddyOpenSelect; window._buddyOpenPanel=_buddyOpenPanel;
 // 🃏 프리뷰 — 3성 18종 안 모아도 부채꼴 덱+버튼을 미리 보기(실데이터 무수정). URL ?prismdeck 또는 콘솔 prismDeckPreview()
 let _prismDeckPreview = /[?&]prismdeck\b/i.test(location.search);
