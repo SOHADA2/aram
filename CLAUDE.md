@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.45.194 (🌌 **시즌2 라이브 중 2026-06-10~** — 최근: 🃏 **가챠 시너지 11종 재설계+밸런스**(유레카·공허 하향), 🔨 **강철심장/시너지 대기화면 아코디언**(보유 선택·장착·효과 텍스트), 📖 **가챠 컬렉션 북**, 🪟 **프로필 모달 중앙 창화**(시즌2 헤더), 🎟 스크래치 당첨후 잠김 버그수정, 🔶 정수 250G, 🎫 패스 보상 텍스트 라벨. ⏭️ **성능 최적화(헥스필드 등) 진단만 완료·미적용** — 이어서 적용 예정. ⚠️**복권 해골감소 인플레 미해결**. 🕹️ **3D 인형뽑기 정식 오픈**(v194·프리즘18종 해금·출석코인) + 🧸 **단짝인형 구현**(v195~196·7종완성→단짝 선정→연승/연패 스택 보상+강화, 경기 자동연동·역추적 로그). 브릿지 **v1.1.35**. 상세는 아래 세션 이력 v2.45.177~196)
+- 현재 버전: v2.45.207 (🌌 **시즌2 라이브 중 2026-06-10~** — 최근: 🃏 **가챠 시너지 11종 재설계+밸런스**(유레카·공허 하향), 🔨 **강철심장/시너지 대기화면 아코디언**(보유 선택·장착·효과 텍스트), 📖 **가챠 컬렉션 북**, 🪟 **프로필 모달 중앙 창화**(시즌2 헤더), 🎟 스크래치 당첨후 잠김 버그수정, 🔶 정수 250G, 🎫 패스 보상 텍스트 라벨. ⏭️ **성능 최적화(헥스필드 등) 진단만 완료·미적용** — 이어서 적용 예정. ⚠️**복권 해골감소 인플레 미해결**. 🕹️ **3D 인형뽑기 정식 오픈**(v194·프리즘18종 해금·출석코인) + 🧸 **단짝인형 구현**(v195~201·선정→연승/연패 스택 보상+강화 3D연출·정보패널·역추적), 🎁 **일정 보상**(v202~204·약속한 날 게임=복권1세트·당일작성 제외·날짜별 시간), ⚔️ **팀원 아이템페이즈 배너에 시너지/강철심장 변경**(v205~207). 브릿지 **v1.1.35**. 상세는 아래 세션 이력 v2.45.177~207)
   - ⏳ **레벨 시스템 후속**: ① 패스를 일반/내전 포인트패스 → **S1식 퀘스트 패스(내전 전용)로 되돌리기**(미완) ② 레벨 보상량/곡선 실플레이 튜닝. 레벨 코드맵: `PLV_XP`·`calcPlayerXp`·`plvLevelFromXp`·`plvReward`·`claimPlayerLevels`·`_plvCardHtml`(패스 탭 상단). 데이터 `playerLevelClaimed_s2`. 정수: 경기당+1·상점120G 폐지(레벨업만).
 - ✅ **시즌2 라이브 중** (2026-06-10~) — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 + 세션이력 v2.45.38~49 필독
 - (배포 앱 현재 v2.45.167: 가챠 감사추적 `gachaVerify`·복권 종류별 "내가 N회"·프로필 대시보드 리디자인·시너지 균형(신성한개입 꾸준형). in-app CHANGELOG 참조)
@@ -15,7 +15,7 @@
 - **파일**: `인형뽑기-물리-목업.html`(메인) · GLB 8종(`teemo gwen vex ekko yone neeko lux poro`, modelviewer.lol 추출, 각 ~0.5~5MB, 전부 `.gitignore` 화이트리스트) · `_clawserve.mjs`(로컬서버) · `claw.html`(배포 캐시우회 사본 — 로컬작업 중엔 미동기화, 배포 때만 cp+BUILD태그)
 - **실행**: 로컬 `node _clawserve.mjs "<aram경로>"`(백그라운드) → `http://localhost:8731/` (⚠️ `file://`은 CORS로 GLB 못 부름 → 반드시 http). 배포본 `https://sohada2.github.io/aram/인형뽑기-물리-목업.html`
 - **스택**: three.js 0.160 + **cannon-es 0.20** + GLTFLoader/SkeletonUtils/RoomEnvironment. importmap·CDN(jsdelivr).
-- **현재 BUILD 137** (HUD `BUILD N` pill로 확인 — 상단 정보 pill은 숨김, `#build-pill`만 노출). 매 수정 BUILD +1 + 인라인 `<script type=module>` 추출해 `node --check`(임시 .mjs) 검증 후에만 커밋. **푸시**: 작업브랜치 `claude/project-overview-skvq0h`에 커밋 후 `git push origin HEAD:main` + `HEAD:claude/project-overview-skvq0h` 둘 다(Pages 자동배포 1~3분, 모바일 캐시 강함 → 시크릿/새탭). `claw.html`=캐시우회 사본(매 빌드 `cp` 후 `sed`로 `BUILD N · claw` 태그 — **소스+claw.html 둘 다 수정 필수**). 한글 커밋=heredoc UTF-8.
+- **현재 BUILD 141** (HUD `BUILD N` pill로 확인 — 상단 정보 pill은 숨김, `#build-pill`만 노출). 매 수정 BUILD +1 + 인라인 `<script type=module>` 추출해 `node --check`(임시 .mjs) 검증 후에만 커밋. **푸시**: 작업브랜치 `claude/project-overview-skvq0h`에 커밋 후 `git push origin HEAD:main` + `HEAD:claude/project-overview-skvq0h` 둘 다(Pages 자동배포 1~3분, 모바일 캐시 강함 → 시크릿/새탭). `claw.html`=캐시우회 사본(매 빌드 `cp` 후 `sed`로 `BUILD N · claw` 태그 — **소스+claw.html 둘 다 수정 필수**). 한글 커밋=heredoc UTF-8.
 - **🖥️ 앱 통합(실험·v2.45.176)**: index.html 가챠 컬렉션 **3성 탭에서 프리즘 18종 완성(`_allPrismDone`) 시** 카드를 트럼프식 부채꼴 덱(`_prismDeckHtml`/`.prism-deck`)으로 묶고 「🕹️ 인형뽑기 테스트 참여하기」 버튼 노출 → `window.openClawTest3D()`가 **앱 안 "브라우저 창" 모달**(타이틀바+가짜주소창+최소화/최대화/닫기, `claw.html?embed=ts` iframe)로 띄움. **프리뷰**: URL `?prismdeck` 또는 콘솔 `prismDeckPreview()`(실데이터 무수정). ⚙️ 보상·경제 미연동(런칭 아님). 창 크기 dvh 기반(모바일 100vh 버그 회피).
 - **🏟️ 배경**: 뒤편 아케이드는 **납작한 canvas 그림 평면**(z=-52, `buildArcadeBackdrop`)으로 함 — 3D 기계를 뒤에 두면 메인 **투명 뒷유리로 비쳐 "캐비닛 안"처럼 보이는 근본문제** 때문(거리로 안 풀림). 안개 `Fog(42,150)`·카메라 far 240. 뒤편 다른 기계 추가 시 평면 그림만 수정.
 - **🎁 경품(`PRIZE_FILES` {file,target,dud,count})**: 8종 — **포로 20마리(`dud:true`=꽝, target 1.54)** + 챔피언 7종 각 1(target 2.89) = 27. **포로 골인=`showResult('포로다! 🐾')`**(획득·트로피·폭죽 X, 빨강 아님). `proto.dud` 분기.
@@ -32,7 +32,7 @@
   - **[1단계·구현]** 포로 제외 챔피언 7종 수집(localStorage `claw_collected`, 영구). checkHole: 포로=꽝·이미수집=중복꽝·새챔=수집(`proto.file` 식별). 7종 완성→`_onCollectionComplete`(배너). 테스트 `resetCollection()`.
   - **[상단 컬렉션 패널·BUILD132]** `#collection-bar`(최상단): 7칸, 수집=ddragon 초상화(`.../cdn/img/champion/loading/{Key}_0.jpg`, `_ddKey`=파일명 첫글자 대문자), 미수집=잠금"?". `renderCollectionBar`(updColl·init서 호출). 3D 선반(`_loadCollectionTrophies`/`TROPHY_MAX=7`)은 디테일로 유지. HUD pill은 `top:48px`로 내림(정보 pill 숨김상태라 패널이 주 UI).
   - **[🪙 코인 경제·BUILD133]** localStorage `claw_coins{coins,date,plays}`. 하루 +5코인 누적(`DAILY_GRANT`, 미접속 최대7일치 소급). `canPlay()`: 개발(`ENFORCE_DAILY_LIMIT=false`)=∞·코인미소모 / 1단계=하루5회(`DAILY_MAX`)+코인 / 2단계(컬렉션완성 `_collComplete`)=횟수무제한·코인만. tryDrop서 `coins--`/`playsUsed++`(ENFORCE시만). 패널 `#cb-info`에 🪙·상태. 테스트 `addCoins(n)`/`resetPlays()`. **출시 시 `ENFORCE_DAILY_LIMIT=true`.** **(BUILD137)** 코인소모를 집기→**START 버튼**으로 이전: 상태 `IDLE`(정지·`#controls.idle`서 START만)↔`READY`. `startGame()`서 코인 1소모→READY(이동+집기 1회)→집기 끝(RELEASE)나면 `IDLE` 복귀(코인 헛소모 방지). 동전 모션 `_coinDropFx`/`#coin-fx`+`Sfx.coin`, 시작 BGM `_bgmStart`(아르페지오 루프). `placeCamera` topI에 `#collection-bar` 높이 더해 간판 안 가림.
-  - **[2단계·미구현]** 완성→반려인형 1종 선택→그 인형 뽑을 때마다 강화 + **연승/연패 스택 능력**(내전 연승중=연승스택↑·연패중=연패스택↑·번갈면 리셋·원할 때 수령=스택0+보상=예측도박). ⚠️ 연승/연패=앱 내전기록 필요→앱 통합 단계만 가능.
+  - **[2단계·구현됨 v195~201]** 완성→**단짝인형** 1종 선택(변경불가)→그 인형 뽑을 때마다 강화(확률·3D연출) + **연승/연패 스택 능력**(내전 연승중=연승스택↑·연패중=연패스택↑·번갈면 리셋·원할 때 수령=스택0+보상=예측도박). 경기 자동연동·역추적 로그. 상세=세션이력 v195~207.
   - **[2단계 보상 명세·확정(S1 286경기 달성률 보정)]** 스택N 연장확률 ≈50%/스택(동전던지기), **3→4가 난이도 절벽(런중도달 27%→11%)**, 7은 ~1%(대부분 시즌 내내 못 봄). 단조증가·완만곡선(정수는 7 전용):
     - 🟢연승(스펙업): 2=🪙150 / 3=안정강화권×2+🪙100 / 4=골드복권×1+정밀강화권×1 / 5=과부하강화권×1+골드복권×1 / 6=프리즘복권×1+과부하강화권×1 / 7=걸작의정수×2+프리즘복권×1 (골드환산 150→180→300→450→650→900)
     - 🔴연패(LP회복·골드아님): 2=🪙150 / 3=패배방어권×1 / 4=LP2배권×1 / 5=방어권+LP2배권 / 6+=LP2배권×2+방어권 (깊이 질수록 반등도구↑)
@@ -41,7 +41,7 @@
     - **레벨업=시도식 확률**(단짝 1개=1시도, 성공=Lv+1·실패=소모): Lv1→2 **30%** / 2→3 **20%** / 3→4 **15%** / 4→5 **10%**. 만렙 Lv5 평균 **~25개**. (불운방지 약한 천장=N연속 실패 시 다음 100% 추가 가능). 2단계 통은 단짝 출현율 ~1/6(단짝+포로 위주, 나머지 6종 빠짐)으로 ≈한 달.
     - **강화 효과(% 안 씀=아이템·LP도 정수연산)**: Lv2 💰골드 보너스(수령 시 +스택×25G) / Lv3 🛡안전망(스택 끊기면 **두 단계 아래** 보상 묶음 자동수령·3스택↓ 끊김은 없음) / Lv4 🎁덤(수령 시 20% 확률 보상 한 번 더) / Lv5 👑만개(덤 35% + 골드보너스 2배 스택×50G). ※% 곱셈 금지(강화권/복권/정수/방어권/LP2배권 이산이라).
     - **🔍 역추적 schema(필수 — 보상·업그레이드 전부 로그, 앱 신뢰모델+데이터손실 교훈)**: `/gold/{key}` — `buddy_s2{champion,level,selectedAt,pulls}` · `buddyUpgradeLog_s2[{at,fromLv,toLv,success,rate}]`(강화 시도 전부·성공실패·그시점 확률) · `buddyClaimLog_s2[{at,type,stack,lv,reward:{gold,tickets,scratch,essence,lp2x,insurance},bonusGold,dumDup}]`(스택 보상 수령=**실제 지급 결과 스냅샷**) · `buddyStreak_s2{type,count,lastTs}`(현재 스택). 원칙=**delta 아닌 결과 스냅샷**(emblemEffects/synergyEffects처럼 역산·감사 가능).
-    - **구현 완료 (v2.45.195~196)**: 백엔드+UI+자동연동 전부. 코드맵(index.html, `_prismClawHtml` 부근 ~L31206대): 백엔드 `BUDDY_WIN/LOSS_REWARDS`·`BUDDY_UP_RATE`·`buddySelect`·`_buddyUpgradeAttempt`·`_buddyOnPull`·`_buddyGrant`·`buddyClaim`·`_buddyOnMatch` / UI `_buddyOpenSelect`(7종완성 선정·변경불가 confirm)·`_buddyOpenPanel`(스택+수령)·`_buddyEntryHtml`(입구 버튼)·`_injectBuddyCss` / 자동연동 `_buddyProcessMatches`(매치 리스너 L12168서 호출, 내 S2 참가매치 미처리분 시간순 스택 반영, `buddyLastMatchTs_s2`로 중복방지). 브릿지: 프로토타입 checkHole `_postParent('pull',{champion})`·`_onCollectionComplete`→`_postParent('complete')`, 앱 onClawMsg서 `pull`→`_buddyOnPull`·`complete`→`_buddyMaybePrompt`. 보상 지급=기존 필드(골드 goldBonusLegacy_s2·강화권 emblemTickets·복권 freeScratch·정수 emblemEssence·LP2배권/방어권 items push). 콘솔 `buddySelect/buddyMatch/buddyClaim/buddyState/buddyReset`.
+    - **구현 완료 (v2.45.195~201)**: 백엔드+UI+자동연동+강화 3D연출(`_showUpgradeFx`)+정보패널(`_buddyLvListHtml`)+프리뷰(`buddyUpgradePreview`/`buddyPanelPreview`). 코드맵(index.html, `_prismClawHtml` 부근 ~L31206대): 백엔드 `BUDDY_WIN/LOSS_REWARDS`·`BUDDY_UP_RATE`·`buddySelect`·`_buddyUpgradeAttempt`·`_buddyOnPull`·`_buddyGrant`·`buddyClaim`·`_buddyOnMatch` / UI `_buddyOpenSelect`(7종완성 선정·변경불가 confirm)·`_buddyOpenPanel`(스택+수령)·`_buddyEntryHtml`(입구 버튼)·`_injectBuddyCss` / 자동연동 `_buddyProcessMatches`(매치 리스너 L12168서 호출, 내 S2 참가매치 미처리분 시간순 스택 반영, `buddyLastMatchTs_s2`로 중복방지). 브릿지: 프로토타입 checkHole `_postParent('pull',{champion})`·`_onCollectionComplete`→`_postParent('complete')`, 앱 onClawMsg서 `pull`→`_buddyOnPull`·`complete`→`_buddyMaybePrompt`. 보상 지급=기존 필드(골드 goldBonusLegacy_s2·강화권 emblemTickets·복권 freeScratch·정수 emblemEssence·LP2배권/방어권 items push). 콘솔 `buddySelect/buddyMatch/buddyClaim/buddyState/buddyReset`.
     - **⚠️ 미검증/주의**: ① 7종 완성자 아직 없어 **실기기 미검증**(브라우저 postMessage·UI 못 돌려봄) ② 연패 보상 LP2배권/방어권(items push)이 **S2 LP에서 실제 작동하는지 확인 필요**(S0/S1 아이템) ③ `_buddyOnMatch` 안전망 자동지급=자기 기기서만(per-client). 다음=실기기 검증 후 튜닝.
 - **🖥️ 앱 통합 정식 오픈 (v2.45.194·BUILD134)**: 3D 인형뽑기를 앱(index.html)에 iframe(`openClawTest3D`→`claw.html?embed=`)으로 띄우고 **postMessage 브릿지 + Firebase** 연동. **해금=가챠 프리즘 ★★★ 18종 완성(`_allPrismDone`)** → 컬렉션 3성탭 `_prismClawHtml` 「🕹️ 인형뽑기 하러 가기」.
   - **브릿지**: 프로토타입에 `EMBED`(=`?embed`)·`_postParent`·`ENF`(임베드면 코인경제 강제). 앱→iframe `init{collected,coins,plays,eligible}` / iframe→앱 `ready`·`save{...}`. 임베드 시 `_saveCollected`/`_saveCoins`가 localStorage 대신 parent로 post. 앱쪽 `_claw3dInit`(읽기+오픈기념)·`_claw3dSave`·`openClawTest3D` 메시지 리스너(L31169대).
@@ -799,7 +799,28 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.45.194 (2026-06-22) — 🕹️ 3D 인형뽑기 앱 통합 정식 오픈 (컬렉션 게임 1단계) ← 최신
+### v2.45.195~207 (2026-06-22) — 🧸 단짝인형 구현 + 🎁 일정 보상 + ⚔️ 팀원배너 효과변경 ← 최신
+
+> v2.45.194(3D 인형뽑기 오픈)에서 이어서. 전부 푸시·배포 완료. 커밋 규칙 동일(인라인 모듈 `node --check` 후 커밋, 한글 heredoc UTF-8). 프로토타입 변경 시 claw.html 재생성(cp+`BUILD N · claw` sed).
+
+#### 🧸 단짝인형 Phase 2 구현 (v195~201) — index.html `_prismClawHtml` 부근(~L31250대)
+- **백엔드(v195)**: `BUDDY_WIN/LOSS_REWARDS`·`BUDDY_UP_RATE`{1:.3,2:.2,3:.15,4:.1}·`BUDDY_LV_NAMES/DESC`·`buddySelect`(변경불가)·`_buddyUpgradeAttempt`(확률강화)·`_buddyOnPull`·`_buddyGrant`(보상→기존필드)·`buddyClaim`·`_buddyOnMatch`(스택+Lv3안전망). Firebase `buddy_s2{champion,level,selectedAt,pulls}`·`buddyStreak_s2`·`buddyUpgradeLog_s2`·`buddyClaimLog_s2`·`buddyLastMatchTs_s2`(결과 스냅샷=역산).
+- **UI+자동연동(v196)**: `_buddyOpenSelect`(7종완성 선정)·`_buddyOpenPanel`(스택+수령+강화단계 리스트)·`_buddyEntryHtml`(컬렉션탭 인형뽑기 입구 버튼)·`_buddyProcessMatches`(매치 리스너 L12168서 내 S2 참가매치 시간순 스택 자동반영, `buddyLastMatchTs`로 중복방지). 브릿지: 프로토타입 checkHole `_postParent('pull',{champion})`·`_onCollectionComplete`→`complete`, 앱 onClawMsg `pull`→`_buddyOnPull`·`complete`→`_buddyMaybePrompt`.
+- **강화 연출 3D(v198~199)**: 단짝 뽑으면 인형뽑기(iframe) 안에서 그 챔피언 **3D 모델 클로즈업** 연출. 앱 `_buddyShowUpgradeFx`(iframe에 `upgradeFx` 메시지)→프로토타입 `_showUpgradeFx`/`_stepUpgradeFx`(등장→충전(회전가속+글로우)→리빌 성공/실패+플래시+광선+폭죽, `Sfx.charge/boom`). 2D 폴백 `_buddyUpgradeFx`. 프리뷰 `buddyUpgradePreview(t/f,lv,champ)`(인형뽑기 열고 실행=3D).
+- **정보패널(v200~201)**: 패널에 `_buddyLvListHtml`(Lv1~5 효과·잠금·다음 성공률)+능력 설명. 프리뷰 `buddyPanelPreview(lv,type,count,champ)`(데이터 무변경).
+- **콘솔 테스트**: `buddySelect/buddyMatch/buddyClaim/buddyState/buddyReset` · `clawCompleteAll()`(컬렉션 7종 즉시완성, v197). ⚠️ 미검증: 7종 완성자 아직 없어 실기기 미검증 / 연패 LP아이템(LP2배권·방어권 items push) S2 작동 확인 필요. 보상명세는 위 "컬렉션 2단계 보상/단짝 강화" 섹션 참조.
+
+#### 🎁 일정 보상 (v202~204) — index.html `_renderSchedule` 부근(~L24430대)
+- **규칙**: 일정 달력서 "참여 가능"으로 **사전 등록**한 날 + 그 날 실제 게임(내전 matches OR 일반 normalMatches)=**복권 1세트**(freeScratch 실버/골드/프리즘 각1) 그 날짜 셀에서 수령. 셀 🎁(가능)/✓(받음), 코너배지 🎁.
+- **소급 X / 당일작성 X**: `SCHED_REWARD_FROM='2026-06-22'`(그 전 제외) + **등록시각(at)이 일정날짜보다 전이어야**(당일 작성 보상X). 헬퍼 `_tsDateKey`·`_myPlayedDates`·`_schedRewardState`·`schedClaimReward`. 저장 `schedRewardClaimed_s2={dk:true}`. 매치 리스너서 배지 갱신.
+- **⚠️ availability 값 구조 변경(v204)**: `availability/{dk}/{name}` = `true` → **`{at(최초등록ms), time('HH:MM')}`** (레거시 true 호환, `_availAt`/`_availTime` 헬퍼). 편집플로우 `_schedEditSet`(Set)→`_schedEditMap`(날짜→시간), 칩에 `<input type=time>`(`schedSetTime`), 명단에 시간 표시. **시간만 수정 시 `at` 유지**(`at:_availAt(ov)||now`)라 사전등록 자격 안 깨짐.
+
+#### ⚔️ 팀원 아이템페이즈 배너에 시너지/강철심장 변경 (v205~207) — index.html ~L15700대
+- **목적**: 라이브 계정 아닌 **팀원 각자**가 팀구성 카운트다운 중 자기 **아이템+시너지+강철심장**을 한 곳에서 변경. (라이브 prep바 아님 — 원복)
+- 배너(`member-item-phase-bar`, `startItemCountdown`서 빌드)에 `#mipb-fx` 추가 → `_mipbRenderFx`가 `_qibSynAccordion`+`_qibEmAccordion` 렌더.
+- 시너지=`_ownedSynergyList`+`equipSynFromMain`(대기화면 L23899/23904와 **동일 함수**) / 강철심장=`getEmblems`(성능순)+`equipEmblemFromMain`(L23858/23862와 동일)+등급(실버/골드/프리즘)·해제. 래퍼 `qibEquipSyn`/`qibEquipEm`(장착후 `renderQuickItemBar`). 칩 추출 `_qibChipsHtml`. S2 톤 CSS(`.qib-acc`/`.qib-opt`/`.season-2 .qib-*` 골드). ✅ 코드대조=메인과 동일·보유분만.
+
+### v2.45.194 (2026-06-22) — 🕹️ 3D 인형뽑기 앱 통합 정식 오픈 (컬렉션 게임 1단계)
 
 > 독립 3D 프로토타입(`인형뽑기-물리-목업.html` BUILD134)을 앱에 **iframe + postMessage 브릿지 + Firebase**로 통합. **상세 설계·코드맵은 위 "🕹️ 인형뽑기 물리 프로토타입 > 🖥️ 앱 통합 정식 오픈" 섹션 참조(완전판).** 요약:
 - **해금**=가챠 프리즘 18종 완성자만. **코인**=출석으로 지급(오전+2·오후+3=하루5, `doBingoAttendance`), **오픈기념 5코인** 1회. **게임**=포로 제외 챔피언 7종 수집(여러 날). Firebase `clawCollected/Coins/Plays/PlayDate/LaunchBonus_s2`.
