@@ -87,7 +87,7 @@
   <span class="pill">수집 <b id="coll">0/7</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 133</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 134</span>
 </div>
 <div id="result"></div>
 <div id="controls">
@@ -829,33 +829,37 @@ stick.addEventListener('pointerdown', e=>{ e.preventDefault(); stickActive=true;
 addEventListener('pointermove', stickUpdate);
 addEventListener('pointerup', stickEnd);
 addEventListener('pointercancel', stickEnd);
-// ⏱️ 하루 최대 횟수(프로토타입 — localStorage 일자별). 집기 1회 = 1플레이
+// 🔗 앱 임베드 브릿지 — iframe(앱) 안(?embed)에서 돌 때 collected/coins를 앱(Firebase)과 동기화. 독립 실행 시 localStorage.
+const EMBED = new URLSearchParams(location.search).has('embed');
+function _postParent(type, extra){ if(EMBED){ try{ window.parent.postMessage({source:'claw', type, ...(extra||{})}, '*'); }catch(e){} } }
+// ⏱️ 하루 최대 횟수. 집기 1회 = 1플레이
 // 🪙 코인 경제 — 하루 5코인 지급(누적). 1단계(컬렉션 미완성)=하루 5회+코인 / 2단계(완성)=횟수무제한, 코인만
-const ENFORCE_DAILY_LIMIT = false;   // ⚠️ 개발 OFF(∞·코인 미소모). 출시/테스트 시 true → 코인 경제 작동
+const ENFORCE_DAILY_LIMIT = false;   // ⚠️ 개발 OFF(∞·코인 미소모). 출시/테스트 시 true. 앱 임베드에선 자동 강제(ENF).
+const ENF = ENFORCE_DAILY_LIMIT || EMBED;   // 코인/일일제한 강제 여부 (앱 임베드면 항상 강제)
 const DAILY_MAX = 5;     // 1단계 하루 최대 횟수
 const DAILY_GRANT = 5;   // 하루 지급 코인(누적)
 function _todayKey(){ return new Date().toISOString().slice(0,10); }
 function _collComplete(){ return collected.length >= CHAMP_TOTAL; }   // 컬렉션 완성 = 2단계(횟수 무제한)
-let _cs = (()=>{ try{ return JSON.parse(localStorage.getItem('claw_coins')||'{}'); }catch(e){ return {}; } })();
+let _cs = EMBED ? {} : (()=>{ try{ return JSON.parse(localStorage.getItem('claw_coins')||'{}'); }catch(e){ return {}; } })();
 let coins = _cs.coins || 0;
 let playsUsed = (_cs.date === _todayKey()) ? (_cs.plays||0) : 0;
-function _saveCoins(){ try{ localStorage.setItem('claw_coins', JSON.stringify({coins, date:_todayKey(), plays:playsUsed})); }catch(e){} }
-(function _grantDaily(){   // 새 날이면 코인 +5×경과일(최대 7일치 누적) + 일일 플레이 리셋
+function _saveCoins(){ if(EMBED){ _postParent('save', {coins, plays:playsUsed}); return; } try{ localStorage.setItem('claw_coins', JSON.stringify({coins, date:_todayKey(), plays:playsUsed})); }catch(e){} }
+if(!EMBED)(function _grantDaily(){   // 새 날이면 코인 +5×경과일(최대 7일치 누적) + 일일 플레이 리셋. 임베드는 앱이 지급.
   const today=_todayKey(), last=_cs.date;
   if(last !== today){
     const days = last ? Math.max(1, Math.min(7, Math.round((Date.parse(today)-Date.parse(last))/86400000))) : 1;
     coins += DAILY_GRANT * days; playsUsed = 0; _cs.date = today; _saveCoins();
   }
 })();
-function canPlay(){   // 개발(ENFORCE off)=∞ / 1단계=하루5회+코인 / 2단계=코인만
-  if(!ENFORCE_DAILY_LIMIT) return true;
+function canPlay(){   // 개발(ENF off)=∞ / 1단계=하루5회+코인 / 2단계=코인만
+  if(!ENF) return true;
   if(coins <= 0) return false;
   if(!_collComplete() && playsUsed >= DAILY_MAX) return false;
   return true;
 }
 function updDailyHud(){
   const el=document.getElementById('cb-info');
-  if(el){ const cap = !ENFORCE_DAILY_LIMIT ? '∞' : (_collComplete() ? '무제한' : `오늘 ${playsUsed}/${DAILY_MAX}`);
+  if(el){ const cap = !ENF ? '∞' : (_collComplete() ? '무제한' : `오늘 ${playsUsed}/${DAILY_MAX}`);
     el.innerHTML = `🪙 <b>${coins}</b> · ${cap}`; }
   const d=document.getElementById('drop'); if(d) d.disabled = !canPlay();
 }
@@ -864,7 +868,7 @@ window.addCoins = (n)=>{ coins=Math.max(0,coins+(n==null?5:n)); _saveCoins(); up
 function tryDrop(){
   if(state!=='READY') return;
   if(!canPlay()){ Sfx.error(); showResult(coins<=0 ? '코인이 없어요 (내일 +5)' : '오늘 5회 소진! (코인은 모임)','#ffb86b'); return; }
-  if(ENFORCE_DAILY_LIMIT){ coins--; playsUsed++; _saveCoins(); }
+  if(ENF){ coins--; playsUsed++; _saveCoins(); }
   updDailyHud();
   readyDeadline=0;                          // 집기 시작 → 자동하강 타이머 해제
   stickEnd(); state='LOWERING'; clawSpin=0;
@@ -1137,9 +1141,9 @@ function renderCollectionBar(){   // 🧸 최상단 컬렉션 패널 — 얻은 
   if(cntEl){ cntEl.textContent=collected.length+'/'+CHAMP_TOTAL; cntEl.style.color = collected.length>=CHAMP_TOTAL?'#9fffa0':'#ffe39a'; }
 }
 function _loadCollected(){ try{ return JSON.parse(localStorage.getItem('claw_collected')||'[]'); }catch(e){ return []; } }
-let collected = _loadCollected();    // 수집한 챔피언 file 배열 (영구)
+let collected = EMBED ? [] : _loadCollected();    // 수집한 챔피언 file 배열 (영구 / 임베드는 앱이 주입)
 let _collDone = collected.length >= CHAMP_TOTAL;
-function _saveCollected(){ try{ localStorage.setItem('claw_collected', JSON.stringify(collected)); }catch(e){} }
+function _saveCollected(){ if(EMBED){ _postParent('save', {collected: collected.slice()}); return; } try{ localStorage.setItem('claw_collected', JSON.stringify(collected)); }catch(e){} }
 function isCollected(file){ return collected.includes(file); }
 function updColl(){ const el=document.getElementById('coll'); if(el){ el.textContent=collected.length+'/'+CHAMP_TOTAL; el.style.color = collected.length>=CHAMP_TOTAL ? '#9fffa0' : ''; } renderCollectionBar(); }
 function _loadCollectionTrophies(){   // 선반 = 내 컬렉션 (localStorage 복원). 통 리셋해도 유지
@@ -1155,6 +1159,18 @@ function _onCollectionComplete(){   // 7종 다 모음 → Phase 2(반려인형)
 }
 window.resetCollection = ()=>{ collected=[]; _collDone=false; _saveCollected(); _loadCollectionTrophies(); renderCollectionBar(); console.log('🎯 컬렉션 초기화'); };  // 테스트용(콘솔)
 renderCollectionBar();   // 초기 1회 — 페이지 로드 시 컬렉션 패널 표시
+if(EMBED){   // 🔗 앱 임베드: 앱이 보낸 상태(init)로 초기화 + 준비완료 통지
+  window.addEventListener('message', (e)=>{
+    const d=e.data; if(!d || d.source!=='app') return;
+    if(d.type==='init'){
+      collected = Array.isArray(d.collected) ? d.collected.slice() : [];
+      coins = d.coins||0; playsUsed = d.plays||0;
+      _collDone = collected.length >= CHAMP_TOTAL;
+      _loadCollectionTrophies(); updColl(); renderCollectionBar(); updDailyHud();
+    }
+  });
+  _postParent('ready');
+}
 function bakeStatic(root){   // 스킨드 메시 → bind 포즈 정적 BufferGeometry(월드 좌표)
   root.updateWorldMatrix(true, true);
   const group = new THREE.Group(), v = new THREE.Vector3();
