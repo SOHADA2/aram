@@ -30,6 +30,18 @@
   .cb-slot.locked{color:rgba(255,255,255,0.22);font-weight:900;font-size:16px;}
   .cb-info{font-size:11px;font-weight:800;color:#ffe39a;white-space:nowrap;flex-shrink:0;font-family:'JetBrains Mono',monospace;}
   .cb-info b{color:#ffd24a;}
+  /* ▶ START 버튼 + 동전 투입 모션 */
+  #start-btn{display:none;width:100%;max-width:300px;margin:0 auto;padding:15px 16px;border:0;border-radius:16px;
+    background:linear-gradient(135deg,#ffd96a,#e0a82e);color:#1a1208;font-family:'Black Han Sans','Noto Sans KR',sans-serif;font-size:21px;font-weight:900;letter-spacing:.5px;
+    cursor:pointer;box-shadow:0 6px 22px rgba(240,200,90,.5);flex-direction:column;align-items:center;gap:1px;animation:startPulse 1.5s ease-in-out infinite;}
+  #start-btn .sb-sub{font-size:11px;font-weight:600;opacity:.65;font-family:'Noto Sans KR',sans-serif;letter-spacing:0;}
+  @keyframes startPulse{0%,100%{transform:scale(1);box-shadow:0 6px 22px rgba(240,200,90,.5);}50%{transform:scale(1.04);box-shadow:0 9px 30px rgba(240,200,90,.75);}}
+  #controls.idle #start-btn{display:flex;}
+  #controls.idle #stick-base,#controls.idle .hint,#controls.idle .btns{display:none;}
+  #coin-fx{position:fixed;left:50%;top:44%;width:30px;height:30px;margin-left:-15px;border-radius:50%;z-index:9;opacity:0;pointer-events:none;
+    background:radial-gradient(circle at 36% 30%,#fff0c0,#e6b23a 55%,#a9781c);box-shadow:0 0 12px rgba(240,200,90,.8),inset 0 -3px 5px rgba(0,0,0,.35),inset 0 2px 3px rgba(255,255,255,.5);}
+  #coin-fx.go{animation:coinDrop .72s cubic-bezier(.5,0,.7,1) forwards;}
+  @keyframes coinDrop{0%{opacity:1;transform:translateY(-70px) scaleX(1) rotate(0);}45%{transform:translateY(0) scaleX(.82) rotate(360deg);}70%{opacity:1;transform:translateY(38px) scaleX(.4) rotate(560deg);}100%{opacity:0;transform:translateY(54px) scaleX(.14) rotate(720deg);}}
   #hud{position:fixed;top:48px;left:0;right:0;padding:10px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
     background:linear-gradient(180deg,rgba(0,0,0,0.55),transparent);font-size:12px;pointer-events:none;}
   #hud .pill{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:4px 10px;font-family:'JetBrains Mono',monospace;}
@@ -87,10 +99,12 @@
   <span class="pill">수집 <b id="coll">0/7</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 136</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 137</span>
 </div>
 <div id="result"></div>
-<div id="controls">
+<div id="coin-fx"></div>
+<div id="controls" class="idle">
+  <button id="start-btn" onclick="startGame()">🪙 START<span class="sb-sub">코인 1개 · 1게임</span></button>
   <div id="stick-base"><div id="stick"><div id="knob"></div></div></div>
   <div class="hint">
     🖥️ 이동 <b>WASD</b>·방향키 · 집기 <b>Space</b> · 리셋 <b>R</b> · 시점 <b>Q</b>/<b>E</b><br>
@@ -176,10 +190,19 @@ const Sfx = (()=>{
     tick(){ tone(900,0.05,'square',0.22,860); },                                        // 카운트다운 틱
     autodrop(){ tone(680,0.1,'square',0.24,460); tone(460,0.16,'square',0.22,320,0.1); },// 자동 집기 경보
     error(){ tone(160,0.24,'sawtooth',0.2,120); },                                      // 한도 소진
+    coin(){ tone(900,0.07,'square',0.2,1240); tone(1340,0.13,'triangle',0.17,1640,0.05); noise(0.04,0.06,3200); },  // 🪙 동전 투입 짤랑
+    bgmNote(f,g){ tone(f,0.22,'triangle',g||0.045); },                                   // 🎵 BGM 한 음(부드러운 저음량)
   };
 })();
 addEventListener('pointerdown', ()=>Sfx.unlock(), {passive:true});
 addEventListener('keydown', ()=>Sfx.unlock());
+// 🎵 게임 BGM — START 시 시작(가벼운 아르페지오 루프)
+let _bgmTimer=null, _bgmStep=0;
+const BGM_NOTES=[523,659,784,659, 587,784,988,784, 440,659,880,659, 392,587,784,587];
+function _bgmStart(){ if(_bgmTimer) return; Sfx.unlock(); _bgmStep=0;
+  _bgmTimer=setInterval(()=>{ const f=BGM_NOTES[_bgmStep%BGM_NOTES.length]; _bgmStep++; Sfx.bgmNote(f, _bgmStep%4===1?0.058:0.04); }, 270); }
+function _bgmStop(){ if(_bgmTimer){ clearInterval(_bgmTimer); _bgmTimer=null; } }
+function _coinDropFx(){ const c=document.getElementById('coin-fx'); if(!c) return; c.classList.remove('go'); void c.offsetWidth; c.classList.add('go'); }
 // ══════════ 튜닝 상수 (이 숫자들로 "느낌" 조절) ══════════
 const PRIZE_COUNT   = 20;     // 통 안 인형 수 (16→20). 단층 격자 상한 근처 — 더 늘리면 다층 더미 스폰 필요
 const DEBUG_COLLIDER= false;  // 🟩 초록=인형↔인형 거리조절(빽빽 겹침) 충돌 박스 — 잡기와 무관
@@ -226,7 +249,7 @@ function placeCamera(){
   const vFov = camera.fov * Math.PI/180;
   const hFov = 2*Math.atan(Math.tan(vFov/2)*aspect);
   // 🖥️ 상단 HUD·하단 컨트롤바가 가리는 만큼 빼고, '보이는 밴드'에 기계를 맞춤 (PC에서 글자가 기계 가리던 문제)
-  const topI = document.getElementById('hud')?.offsetHeight || 0;
+  const topI = (document.getElementById('collection-bar')?.offsetHeight || 0) + (document.getElementById('hud')?.offsetHeight || 0);   // 🧸 콜렉션바 + BUILD pill 만큼 위 인셋(간판 안 가리게)
   const botI = document.getElementById('controls')?.offsetHeight || 0;
   const availH = Math.max(innerHeight * 0.45, innerHeight - topI - botI);   // 너무 작아지지 않게 하한
   const fitW = 10.3, baseFitH = 17.8;                       // 담을 가로/세로(↑=줌아웃, 기계 작게·여백) — 줄여서 더 가까이
@@ -633,7 +656,7 @@ function resetPrizes(){
   } else { _composition = new Array(PRIZE_COUNT).fill(null); }   // 로드 전 폴백(블롭)
   _prizeTotal = _composition.length;
   for(let i=0;i<_prizeTotal;i++) makePrize(i);
-  state='READY'; held=null; grabConstraint=null; _grabbing=null; _collectTouch=false; _lowerContactY=null; _prongTouch.clear(); if(revealAnim){scene.remove(revealAnim.mesh);revealAnim=null;} _loadCollectionTrophies(); updHud();
+  state='IDLE'; held=null; grabConstraint=null; _grabbing=null; _collectTouch=false; _lowerContactY=null; _prongTouch.clear(); if(revealAnim){scene.remove(revealAnim.mesh);revealAnim=null;} _loadCollectionTrophies(); updHud(); if(typeof updControls==='function') updControls();
 }
 
 // ══════════ 집게 ══════════
@@ -719,7 +742,7 @@ function setFingerOpen(t){ // t: 0(닫힘)~1(열림). 두 관절(뿌리+너클) 
 const CLOSE_MIN = 0;
 
 // ══════════ 상태머신 ══════════
-let state='READY';            // READY · LOWERING · CLOSING · RAISING · RETURN_X · RETURN_Z · RELEASE
+let state='IDLE';            // IDLE(정지·START 대기) · READY(1게임 진행) · LOWERING · CLOSING · RAISING · RETURN_X · RETURN_Z · RELEASE
 let openT=1, closeTimer=0, releaseTimer=0;
 let clawSpin=0;
 let targetX=0, targetZ=0;     // 드래그 목표
@@ -866,21 +889,28 @@ function updDailyHud(){
 window.resetPlays = ()=>{ playsUsed=0; _saveCoins(); updDailyHud(); console.log('일일 횟수 초기화'); };   // 테스트용
 window.addCoins = (n)=>{ coins=Math.max(0,coins+(n==null?5:n)); _saveCoins(); updDailyHud(); console.log('🪙 코인',coins); };  // 테스트용
 function tryDrop(){
-  if(state!=='READY') return;
-  if(!canPlay()){ Sfx.error(); showResult(coins<=0 ? '코인이 없어요 (내일 +5)' : '오늘 5회 소진! (코인은 모임)','#ffb86b'); return; }
-  if(ENF){ coins--; playsUsed++; _saveCoins(); }
-  updDailyHud();
+  if(state!=='READY') return;               // READY = START로 코인 지불 후 1게임 진행 중(집기 1회)
   readyDeadline=0;                          // 집기 시작 → 자동하강 타이머 해제
   stickEnd(); state='LOWERING'; clawSpin=0;
 }
-document.getElementById('drop').onclick = ()=>{ Sfx.unlock(); if(state==='READY' && canPlay()) Sfx.click(); tryDrop(); };
+// ▶ START — 코인 1개 소모 → 1게임(이동+집기) 시작. 집기 끝나면 다시 IDLE(정지) → 코인 헛소모 방지
+function startGame(){
+  if(state!=='IDLE') return; Sfx.unlock();
+  if(!canPlay()){ Sfx.error(); showResult(coins<=0 ? '코인이 없어요 (출석으로 충전)' : '오늘 5회 소진! (코인은 모임)','#ffb86b'); return; }
+  if(ENF){ coins--; playsUsed++; _saveCoins(); }
+  updDailyHud(); _coinDropFx(); Sfx.coin(); _bgmStart();
+  state='READY'; updControls();
+}
+function updControls(){ const c=document.getElementById('controls'); if(c) c.classList.toggle('idle', state==='IDLE'); }
+window.startGame = startGame;
+document.getElementById('drop').onclick = ()=>{ Sfx.unlock(); if(state==='READY') Sfx.click(); tryDrop(); };
 document.getElementById('reset').onclick = ()=>{ Sfx.unlock(); if(state==='READY'||held===null){ Sfx.click(); resetPrizes(); } };
 // ⌨️ PC 조작 — WASD/방향키 이동, 스페이스로 내리기
 const keys = {};
 addEventListener('keydown', e=>{
   const k = e.key.toLowerCase();
   if(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
-  if(k===' '){ tryDrop(); return; }
+  if(k===' '){ if(state==='IDLE') startGame(); else tryDrop(); return; }
   if(k==='r'){ if(state==='READY'||held===null) resetPrizes(); return; }   // 리셋
   if(k==='q'){ rotateView(-1); return; }                                   // 시점 ◀
   if(k==='e'){ rotateView(1); return; }                                    // 시점 ▶
@@ -908,7 +938,7 @@ function loop(now){
     else if(state==='CLOSING')  Sfx.clamp();                                            // 집게 닫힘
     else if(state==='RAISING')  { setFingerOpen(CLOSE_MIN); held ? Sfx.grab() : Sfx.miss(); }   // 잡든 못잡든 CLOSE_MIN까지 오므림(오바 X)
     else if(state==='RELEASE')  Sfx.open();                                             // 집게 열림(놓기)
-    else if(state==='READY')    { readyDeadline = canPlay() ? (now+AUTO_DROP_MS) : 0; _lastTickSec=-1; }
+    else if(state==='READY')    { readyDeadline = now+AUTO_DROP_MS; _lastTickSec=-1; }   // 코인은 START서 지불 → 무조건 무장
     _lastState = state;
   }
   // 🔊 모터 험 — 집게가 상하/복귀로 움직이는 동안 지속
@@ -939,7 +969,7 @@ function loop(now){
     clawPos.z = Math.max(-BIN.z, Math.min(BIN.z, clawPos.z + mZ*JOY_SPEED*dt));
     clawPos.y = CLAW_TOP_Y; setFingerOpen(1);
     // ⏱️ 자동 집기 카운트다운 — 30초 안에 안 내리면 자동 하강(마지막 5초 틱 효과음)
-    if(readyDeadline && canPlay()){
+    if(readyDeadline){
       const rem = Math.max(0, Math.ceil((readyDeadline-now)/1000));
       const tp=document.getElementById('timer'); if(tp) tp.textContent = rem;
       const pill=document.getElementById('timer-pill'); if(pill) pill.classList.toggle('urgent', rem<=5);
@@ -1012,7 +1042,7 @@ function loop(now){
         dropped.body.position.x=HOME.x; dropped.body.position.z=HOME.z;              // 구멍 정중앙으로 스냅 → 빗나가 안 들어가는 일 없게
         dropped.body.velocity.set(0,-1.5,0); dropped.body.angularVelocity.set(0,0,0); dropped.body.wakeUp();  // 똑바로 낙하 → 확실히 골인
       }
-      state='READY'; grabQ=0; }
+      state='IDLE'; grabQ=0; updControls(); }   // 1게임 종료 → 다시 정지(START 대기)
   }
 
   // 🕹️ 장식 조이스틱 — HTML 조이스틱/WASD 입력에 맞춰 부드럽게 기울임(안 누르면 다시 똑바로)
