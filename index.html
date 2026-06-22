@@ -6653,7 +6653,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.198';
+const APP_VERSION = 'v2.45.199';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6662,6 +6662,9 @@ const APP_VERSION = 'v2.45.198';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.199', date: '2026-06-22', changes: [
+    { tag: 'improve', text: '🧸 단짝 강화 연출을 3D로 — 강화 시도 시 단짝 챔피언의 실제 3D 인형이 빙글빙글 등장하며 성공/실패가 떠요(인형뽑기 창 안). (개발: 인형뽑기 연 상태에서 buddyUpgradePreview(true/false, 레벨)로 3D 미리보기 — 데이터 무변경)' },
+  ] },
   { ver: 'v2.45.198', date: '2026-06-22', changes: [
     { tag: 'improve', text: '🧸 단짝 강화 연출 추가 — 인형뽑기서 내 단짝을 뽑으면 "두근두근→성공(레벨업+새 효과 공개)/실패" 강화 화면이 떠요. (개발: 데이터 변경 없이 미리보는 콘솔 buddyUpgradePreview(true/false, 레벨))' },
   ] },
@@ -31288,7 +31291,7 @@ async function _buddyUpgradeAttempt(){
   const u={ [sField('buddy')]:{...b, level:newLv, pulls}, [sField('buddyUpgradeLog')]:log };
   if(goldData[key]) Object.assign(goldData[key],u); await update(ref(db,'gold/'+key),u);
   console.log(`🧸 강화 Lv${lv}→${newLv} (${success?'✅성공':'❌실패'}, ${Math.round(rate*100)}%)`);
-  try{ _buddyUpgradeFx({ champion:b.champion, fromLv:lv, toLv:newLv, success, rate }); }catch(_){}
+  try{ const _fx={ champion:b.champion, fromLv:lv, toLv:newLv, success, rate }; if(!_buddyShowUpgradeFx(_fx)) _buddyUpgradeFx(_fx); }catch(_){}   // 인형뽑기 열려있으면 3D, 아니면 2D
   return logE;
 }
 function _buddyOnPull(champFile){   // 브릿지 pull 수신 → 단짝이면 강화 시도(만렙이면 pulls만)
@@ -31458,7 +31461,11 @@ async function _buddyProcessMatches(){   // 내가 참가한 S2 매치(미처리
     if(goldData[key]) goldData[key][sField('buddyLastMatchTs')]=newTs; await update(ref(db,'gold/'+key),{[sField('buddyLastMatchTs')]:newTs});
   }finally{ _buddyProcessing=false; }
 }
-function _buddyUpgradeFx(r){   // 🧸 강화 연출 — 두근두근 후 성공/실패 리빌
+function _buddyShowUpgradeFx(r){   // 🧸 인형뽑기 iframe에 3D 강화 연출 요청(열려있으면 true). 없으면 false → 2D 폴백
+  const f=document.querySelector('#claw3d-modal .claw-win-frame'); if(!f||!f.contentWindow) return false;
+  try{ f.contentWindow.postMessage({ source:'app', type:'upgradeFx', champion:r.champion, fromLv:r.fromLv, toLv:r.toLv, success:r.success, rate:r.rate, effName:BUDDY_LV_NAMES[r.toLv]||'', effDesc:BUDDY_LV_DESC[r.toLv]||'' }, '*'); return true; }catch(_){ return false; }
+}
+function _buddyUpgradeFx(r){   // 🧸 강화 연출(2D 폴백) — 두근두근 후 성공/실패 리빌
   _injectBuddyCss(); const k=_clawDdKey(r.champion||'teemo.glb'), ok=r.success, toLv=r.toLv;
   const ov=document.createElement('div'); ov.className='buddy-ov';
   ov.innerHTML=`<div class="buddy-sheet"><div class="buddy-h">🧸 단짝 강화</div>
@@ -31478,9 +31485,10 @@ function _buddyUpgradeFx(r){   // 🧸 강화 연출 — 두근두근 후 성공
     closeBtn.style.display='';
   }, 1400);
 }
-window.buddyUpgradePreview = (success, lv)=>{ lv=lv||1; const ok=(success!==false);   // 🧸 강화 연출 프리뷰(Firebase 미기록·데이터 무변경)
-  _buddyUpgradeFx({ champion:(_buddyData()?.champion)||'teemo.glb', fromLv:lv, toLv:ok?Math.min(lv+1,5):lv, success:ok, rate:BUDDY_UP_RATE[lv]||0.3 });
-  console.log('🧸 강화 연출 프리뷰 (데이터 무변경) — buddyUpgradePreview(true=성공/false=실패, 레벨 1~4)'); };
+window.buddyUpgradePreview = (success, lv, champ)=>{ lv=lv||1; const ok=(success!==false);   // 🧸 강화 연출 프리뷰(Firebase 미기록·데이터 무변경)
+  const fx={ champion:champ||(_buddyData()?.champion)||'teemo.glb', fromLv:lv, toLv:ok?Math.min(lv+1,5):lv, success:ok, rate:BUDDY_UP_RATE[lv]||0.3 };
+  if(_buddyShowUpgradeFx(fx)) console.log('🧸 3D 강화 연출 프리뷰(인형뽑기 안) — 데이터 무변경');
+  else { _buddyUpgradeFx(fx); console.log('🧸 강화 연출 프리뷰(2D 폴백) — 3D로 보려면 openClawTest3D()로 인형뽑기를 먼저 여세요. 인자: buddyUpgradePreview(true/false, 레벨1~4, "gwen.glb"등)'); } };
 window._buddyOpenSelect=_buddyOpenSelect; window._buddyOpenPanel=_buddyOpenPanel;
 // 🃏 프리뷰 — 3성 18종 안 모아도 부채꼴 덱+버튼을 미리 보기(실데이터 무수정). URL ?prismdeck 또는 콘솔 prismDeckPreview()
 let _prismDeckPreview = /[?&]prismdeck\b/i.test(location.search);

@@ -42,6 +42,21 @@
     background:radial-gradient(circle at 36% 30%,#fff0c0,#e6b23a 55%,#a9781c);box-shadow:0 0 12px rgba(240,200,90,.8),inset 0 -3px 5px rgba(0,0,0,.35),inset 0 2px 3px rgba(255,255,255,.5);}
   #coin-fx.go{animation:coinDrop .72s cubic-bezier(.5,0,.7,1) forwards;}
   @keyframes coinDrop{0%{opacity:1;transform:translateY(-70px) scaleX(1) rotate(0);}45%{transform:translateY(0) scaleX(.82) rotate(360deg);}70%{opacity:1;transform:translateY(38px) scaleX(.4) rotate(560deg);}100%{opacity:0;transform:translateY(54px) scaleX(.14) rotate(720deg);}}
+  /* 🧸 단짝 강화 연출(3D 모델 클로즈업 위 오버레이) */
+  .upg-ov{position:fixed;inset:0;z-index:8;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:56px 20px 30px;background:radial-gradient(ellipse at center,rgba(6,5,12,.4),rgba(6,5,12,.85));}
+  .upg-top{font-family:'Black Han Sans','Noto Sans KR',sans-serif;font-size:22px;color:#ffd24a;text-align:center;text-shadow:0 2px 8px rgba(0,0,0,.7);}
+  .upg-top span{display:block;font-size:11px;color:#9aa0b4;font-weight:400;font-family:'JetBrains Mono',monospace;margin-top:3px;}
+  .upg-bottom{display:flex;flex-direction:column;align-items:center;}
+  .upg-result{text-align:center;min-height:74px;display:flex;flex-direction:column;justify-content:flex-end;}
+  .upg-big{font-size:30px;font-weight:900;font-family:'Black Han Sans','Noto Sans KR',sans-serif;text-shadow:0 2px 10px rgba(0,0,0,.7);}
+  .upg-big.win{color:#ffd24a;animation:upgPop .45s;}
+  .upg-big.fail{color:#b9bccc;}
+  .upg-lv{font-size:15px;color:#fff;margin-top:5px;text-shadow:0 1px 4px rgba(0,0,0,.7);}
+  .upg-lv b{color:#ffe39a;font-size:19px;}
+  .upg-eff{margin:11px auto 0;max-width:300px;background:rgba(20,16,10,.88);border:1px solid rgba(240,200,90,.4);border-radius:11px;padding:9px 12px;font-weight:800;color:#ffd24a;font-size:14px;}
+  .upg-eff span{display:block;font-weight:500;font-size:12px;color:#d8dae6;margin-top:3px;}
+  .upg-close{margin-top:14px;background:linear-gradient(90deg,#f0c060,#e0a030);border:0;color:#1a1208;font-weight:800;border-radius:11px;padding:11px 30px;cursor:pointer;font-size:15px;}
+  @keyframes upgPop{0%{transform:scale(.4);opacity:0;}60%{transform:scale(1.15);}100%{transform:scale(1);opacity:1;}}
   #hud{position:fixed;top:48px;left:0;right:0;padding:10px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
     background:linear-gradient(180deg,rgba(0,0,0,0.55),transparent);font-size:12px;pointer-events:none;}
   #hud .pill{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:4px 10px;font-family:'JetBrains Mono',monospace;}
@@ -98,7 +113,7 @@
   <span class="pill">수집 <b id="coll">0/7</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 139</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 140</span>
 </div>
 <div id="result"></div>
 <div id="coin-fx"></div>
@@ -602,6 +617,36 @@ function stepReveal(dt){
     r.mesh.scale.setScalar(sBig+(sShelf-sBig)*e);
     r.mesh.lookAt(camera.position); r.mesh.rotateY(TSHELF.faceY);
   } else finalizeReveal();                     // 선반 안착(정적 트로피로 교체)
+}
+// 🧸 단짝 강화 연출 — 앱이 보낸 결과(upgradeFx)를 3D 모델 클로즈업 + 성공/실패 리빌로
+let _upgFx = null;   // {mesh, mixer, t, proto}
+function _showUpgradeFx(d){
+  _closeUpgradeFx();
+  const proto = prizeProtos.find(p=>p.file===d.champion && !p.dud);
+  const ov=document.createElement('div'); ov.id='upg-fx'; ov.className='upg-ov';
+  ov.innerHTML=`<div class="upg-top">🧸 단짝 강화<span>성공 확률 ${Math.round((d.rate||0)*100)}%</span></div>
+    <div class="upg-bottom"><div class="upg-result"></div><button class="upg-close" style="visibility:hidden;">확인</button></div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('.upg-close').onclick=_closeUpgradeFx;
+  if(proto){ const mesh=buildPrizeVisual(proto); scene.add(mesh); _upgFx={ mesh, mixer:(mesh.userData&&mesh.userData.mixer)||null, t:0, proto }; }
+  setTimeout(()=>{
+    if(!document.getElementById('upg-fx')) return; const ok=d.success;
+    ov.classList.add(ok?'win':'fail');
+    ov.querySelector('.upg-result').innerHTML = ok
+      ? `<div class="upg-big win">✨ 강화 성공!</div><div class="upg-lv">Lv${d.fromLv} → <b>Lv${d.toLv}</b></div>`+(d.effName?`<div class="upg-eff">${d.effName}${d.effDesc?`<span>${d.effDesc}</span>`:''}</div>`:'')
+      : `<div class="upg-big fail">아쉽게 실패…</div><div class="upg-lv">Lv${d.fromLv} 유지 · 다음 기회에!</div>`;
+    if(ok){ Sfx.win(); Sfx.confetti(); fireConfetti(); } else Sfx.dud();
+    const cb=ov.querySelector('.upg-close'); if(cb) cb.style.visibility='visible';
+  }, 1500);
+}
+function _closeUpgradeFx(){ const ov=document.getElementById('upg-fx'); if(ov) ov.remove(); if(_upgFx){ scene.remove(_upgFx.mesh); _upgFx=null; } }
+function _stepUpgradeFx(dt){
+  if(!_upgFx) return; _upgFx.t += dt; if(_upgFx.mixer) _upgFx.mixer.update(dt*1.2);
+  const fwd=new THREE.Vector3(); camera.getWorldDirection(fwd);
+  const front=camera.position.clone().addScaledVector(fwd, 7.5); front.y -= 0.2;
+  _upgFx.mesh.position.copy(front); _upgFx.mesh.position.y += Math.sin(_upgFx.t*3)*0.1;
+  _upgFx.mesh.scale.setScalar(2.7/(_upgFx.proto.vh||3));
+  _upgFx.mesh.rotation.y += dt*0.9;   // 천천히 회전(모델 전체 보여줌)
 }
 function makePrize(i){
   const c = PRIZE_COLORS[i % PRIZE_COLORS.length];
@@ -1142,6 +1187,7 @@ function loop(now){
   }
   stepConfetti(dt);                                                // 🎉 폭죽 갱신
   stepReveal(dt);                                                  // 🏆 뽑은 인형 정면연출/선반 진열
+  _stepUpgradeFx(dt);                                              // 🧸 단짝 강화 연출(모델 클로즈업 회전)
   for(let i=0;i<marqueeBulbs.length;i++){ const b=marqueeBulbs[i]; const ph=(b.userData.phase!==undefined)?b.userData.phase:b.position.x; b.material.emissiveIntensity = 0.2 + 1.9*(0.5+0.5*Math.sin(now*0.006 - ph*0.9)); } // ✨ 마퀴 러닝라이트(면별 체이스)
   updHud();
   renderer.render(scene,camera);
@@ -1199,6 +1245,7 @@ if(EMBED){   // 🔗 앱 임베드: 앱이 보낸 상태(init)로 초기화 + �
       _collDone = collected.length >= CHAMP_TOTAL;
       _loadCollectionTrophies(); updColl(); renderCollectionBar(); updDailyHud();
     }
+    else if(d.type==='upgradeFx'){ _showUpgradeFx(d); }   // 🧸 단짝 강화 연출(3D)
   });
   _postParent('ready');
 }
