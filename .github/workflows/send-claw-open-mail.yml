@@ -1,0 +1,42 @@
+name: send-claw-open-mail
+
+# 🕹️ 인형뽑기 오픈 공지 우편을 전체 유저에게 1회 발송.
+# 이 환경(원격)에선 Firebase egress가 막혀 직접 못 쏘므로, 제한 없는 GitHub 러너에서 발송.
+# 워크플로 파일이 push되면 자동 1회 실행. 발송 후 이 파일은 제거(중복/오발송 방지).
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/send-claw-open-mail.yml'
+  workflow_dispatch:
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build mail payload (UTF-8)
+        run: |
+          python3 - <<'PY' > mail.json
+          import json, time
+          mail = {
+              "title": "🕹️ 인형뽑기 오픈!",
+              "desc": "가챠 컬렉션 ★★★(프리즘) 18종을 모두 모으면 3D 인형뽑기가 열려요! 출석으로 코인을 모아 챔피언 인형을 뽑아보세요. (가챠 컬렉션 탭 → 3성에서 입장)",
+              "rewards": {},
+              "target": "all",
+              "season": 2,
+              "sentAt": int(time.time() * 1000),
+              "sentBy": "admin"
+          }
+          print(json.dumps(mail, ensure_ascii=False))
+          PY
+          echo "── payload ──"; cat mail.json; echo
+      - name: POST to Firebase mailbox
+        run: |
+          DB="https://aramchaos-ca022-default-rtdb.asia-southeast1.firebasedatabase.app"
+          RESP=$(curl -s -w '\n%{http_code}' -X POST "$DB/mailbox.json" --data-binary @mail.json)
+          BODY=$(echo "$RESP" | head -n1)
+          CODE=$(echo "$RESP" | tail -n1)
+          echo "HTTP $CODE"
+          echo "Firebase response (mail id): $BODY"
+          test "$CODE" = "200"
