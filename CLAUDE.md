@@ -37,6 +37,11 @@
     - 🟢연승(스펙업): 2=🪙150 / 3=안정강화권×2+🪙100 / 4=골드복권×1+정밀강화권×1 / 5=과부하강화권×1+골드복권×1 / 6=프리즘복권×1+과부하강화권×1 / 7=걸작의정수×2+프리즘복권×1 (골드환산 150→180→300→450→650→900)
     - 🔴연패(LP회복·골드아님): 2=🪙150 / 3=패배방어권×1 / 4=LP2배권×1 / 5=방어권+LP2배권 / 6+=LP2배권×2+방어권 (깊이 질수록 반등도구↑)
   - 아이템 골드값 참고: 강화권 안정40·정밀100·과부하250 / 복권 실버70·골드200·프리즘400 / 정수250.
+  - **[2단계 단짝인형 강화 명세·확정]** 7종 완성→**단짝 1종 선정**(⚠️"한 번 정하면 변경불가" 경고·1개만)→첫 능력=위 연승/연패 스택 보상 작동→인형뽑기서 **내 단짝 뽑을 때마다 강화 1회 시도**.
+    - **레벨업=시도식 확률**(단짝 1개=1시도, 성공=Lv+1·실패=소모): Lv1→2 **30%** / 2→3 **20%** / 3→4 **15%** / 4→5 **10%**. 만렙 Lv5 평균 **~25개**. (불운방지 약한 천장=N연속 실패 시 다음 100% 추가 가능). 2단계 통은 단짝 출현율 ~1/6(단짝+포로 위주, 나머지 6종 빠짐)으로 ≈한 달.
+    - **강화 효과(% 안 씀=아이템·LP도 정수연산)**: Lv2 💰골드 보너스(수령 시 +스택×25G) / Lv3 🛡안전망(스택 끊기면 **두 단계 아래** 보상 묶음 자동수령·3스택↓ 끊김은 없음) / Lv4 🎁덤(수령 시 20% 확률 보상 한 번 더) / Lv5 👑만개(덤 35% + 골드보너스 2배 스택×50G). ※% 곱셈 금지(강화권/복권/정수/방어권/LP2배권 이산이라).
+    - **🔍 역추적 schema(필수 — 보상·업그레이드 전부 로그, 앱 신뢰모델+데이터손실 교훈)**: `/gold/{key}` — `buddy_s2{champion,level,selectedAt,pulls}` · `buddyUpgradeLog_s2[{at,fromLv,toLv,success,rate}]`(강화 시도 전부·성공실패·그시점 확률) · `buddyClaimLog_s2[{at,type,stack,lv,reward:{gold,tickets,scratch,essence,lp2x,insurance},bonusGold,dumDup}]`(스택 보상 수령=**실제 지급 결과 스냅샷**) · `buddyStreak_s2{type,count,lastTs}`(현재 스택). 원칙=**delta 아닌 결과 스냅샷**(emblemEffects/synergyEffects처럼 역산·감사 가능).
+    - **구현 메모(다음)**: ① 브릿지에 `pull{champion}` 메시지 추가(매 집기 성공 시 챔피언 보고→단짝이면 강화 시도) ② 연승/연패=match 저장(`s1ApplyAllMatchResults`/saveMatch)서 `buddyStreak_s2` 갱신 ③ 수령 UI+보상 지급(기존 필드 재사용: 골드=goldBonusLegacy/passGold·강화권=emblemTickets·복권=freeScratch·정수=emblemEssence·LP2배권/방어권=items) ④ 단짝 선정 UI(7종 완성 시).
 - **🖥️ 앱 통합 정식 오픈 (v2.45.194·BUILD134)**: 3D 인형뽑기를 앱(index.html)에 iframe(`openClawTest3D`→`claw.html?embed=`)으로 띄우고 **postMessage 브릿지 + Firebase** 연동. **해금=가챠 프리즘 ★★★ 18종 완성(`_allPrismDone`)** → 컬렉션 3성탭 `_prismClawHtml` 「🕹️ 인형뽑기 하러 가기」.
   - **브릿지**: 프로토타입에 `EMBED`(=`?embed`)·`_postParent`·`ENF`(임베드면 코인경제 강제). 앱→iframe `init{collected,coins,plays,eligible}` / iframe→앱 `ready`·`save{...}`. 임베드 시 `_saveCollected`/`_saveCoins`가 localStorage 대신 parent로 post. 앱쪽 `_claw3dInit`(읽기+오픈기념)·`_claw3dSave`·`openClawTest3D` 메시지 리스너(L31169대).
   - **Firebase(sField)**: `clawCollected_s2`(수집 file배열)·`clawCoins_s2`·`clawPlays_s2`·`clawPlayDate_s2`(1단계 일일횟수 리셋용)·`clawLaunchBonus_s2`(오픈기념 5코인 1회 플래그).
