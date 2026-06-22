@@ -962,6 +962,10 @@ select option{background:var(--surface2);}
 .mipb-sec.urgent{color:var(--red);animation:pulse 0.6s ease infinite;}
 .mipb-vsep{width:1px;height:14px;background:rgba(255,255,255,0.1);flex-shrink:0;}
 .mipb-pills{display:flex;gap:5px;flex:1;flex-wrap:wrap;align-items:center;}
+.mipb-fx{padding:8px 12px 10px;border-top:1px solid rgba(255,255,255,0.08);}
+.mipb-fx:empty{display:none;}
+.mipb-fx-lbl{font-size:10px;font-weight:800;color:var(--text-dim,#9aa0b4);letter-spacing:.4px;margin-bottom:6px;}
+.mipb-fx .qib-acc{margin-top:6px;}
 .mipb-pill{display:inline-flex;align-items:center;gap:4px;padding:4px 9px 4px 6px;border-radius:20px;border:1px solid rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);cursor:pointer;white-space:nowrap;transition:border-color 0.15s,background 0.15s;-webkit-tap-highlight-color:transparent;}
 .mipb-pill:not(:disabled):hover{background:rgba(255,255,255,0.07);}
 .mipb-pill.is-active{border-color:rgba(79,195,247,0.5);background:rgba(79,195,247,0.08);}
@@ -6699,7 +6703,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.205';
+const APP_VERSION = 'v2.45.206';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6708,8 +6712,8 @@ const APP_VERSION = 'v2.45.205';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
-  { ver: 'v2.45.205', date: '2026-06-22', changes: [
-    { tag: 'improve', text: '⚔️ 전투 준비 패널 — 팀 구성(아이템 페이즈) 때 뜨는 퀵 구매바를 시즌2 톤(블랙+골드)으로 리디자인하고 시인성을 키웠어요. 아이템 구매·활성화에 더해 🃏 시너지 변경과 🔨 강철심장(걸작) 변경도 그 자리에서 아코디언으로 바로 할 수 있어요 — 게임 시작 전 손쉽게 세팅!' },
+  { ver: 'v2.45.206', date: '2026-06-22', changes: [
+    { tag: 'improve', text: '⚔️ 팀 짤 때 효과까지 한 번에 — 팀 구성(아이템 페이즈) 카운트다운 중 상단에 뜨는 팀원 배너에서, 아이템 구매·활성화에 더해 🃏 시너지 변경과 🔨 강철심장(걸작) 변경도 바로 할 수 있어요(아코디언). 게임 시작 전 각자 자기 아이템+효과를 손쉽게 세팅! (시즌2 톤·시인성도 개선)' },
   ] },
   { ver: 'v2.45.204', date: '2026-06-22', changes: [
     { tag: 'new', text: '🕐 일정 시간 설정 — 일정 달력에서 참여 가능한 날을 고를 때 날짜별로 시간(예: 20:00)도 정할 수 있어요. 그 날 명단에 누가 몇 시에 오는지 표시돼요. (시간은 선택사항, 일정 보상과는 무관)' },
@@ -14780,9 +14784,11 @@ function startItemCountdown(endTime) {
         <div class="mipb-vsep"></div>
         <div class="mipb-pills" id="mipb-chips"></div>
       </div>
+      <div class="mipb-fx" id="mipb-fx"></div>
     </div>`;
     mipbEl.style.display = 'block';
     _mipbRenderPills('mipb-chips', true);
+    _mipbRenderFx('mipb-fx');
   }
 
   if (itemPhaseTimer) clearInterval(itemPhaseTimer);
@@ -15710,11 +15716,21 @@ function renderResult() {
 
 function renderQuickItemBar() {
   _qibRender('quick-item-bar', false);
-  _qibRenderPrep('quick-item-bar-prep');   // ⚔️ 전투 준비 패널(아이템+시너지+강철심장)
-  // 팀원 배너 칩도 갱신
+  _qibRender('quick-item-bar-prep', true);   // 라이브 화면 prep바는 칩만(원복)
+  // 팀원 배너: 칩 + 시너지/강철심장 효과 변경
   if (!liveMode && !isEventMatch && itemPhaseTimer) {
     _mipbRenderPills('mipb-chips', true);
+    _mipbRenderFx('mipb-fx');
   }
+}
+// ⚙️ 팀원 배너 — 시작 전 시너지/강철심장 변경(아코디언 재사용)
+function _mipbRenderFx(elId){
+  const el=document.getElementById(elId); if(!el) return;
+  const key=getMyGoldKey(); const data=key?goldData[key]:null;
+  if(!data || CURRENT_SEASON<1){ el.innerHTML=''; return; }
+  el.innerHTML = `<div class="mipb-fx-lbl">⚙️ 시작 전 효과 변경</div>`
+    + _qibSynAccordion(data)
+    + (CURRENT_SEASON===2 ? _qibEmAccordion(data) : '');
 }
 
 // 칩만 렌더 (배너 내부용 — 외부 컨테이너는 startItemCountdown이 생성)
