@@ -514,6 +514,13 @@ header{text-align:center;padding:48px 0 24px;position:relative;}
 .ngb.custom .ngb-dot{background:#f0c060;box-shadow:0 0 7px #f0c060;}
 .ngb-time{font-family:'JetBrains Mono',monospace;font-weight:700;opacity:0.82;margin-left:2px;}
 @keyframes ngbDot{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(0.65);}}
+/* 🛠️ 팀 결성 로비 상태 배너 — 팀원에게 화면 최하단 고정(.ngb와 동형, 진행자 준비/취소 안내) */
+.lsb{position:fixed;bottom:0;left:0;right:0;z-index:998;display:flex;align-items:center;justify-content:center;gap:7px;padding:7px 14px;font-size:11.5px;font-weight:700;font-family:'Noto Sans KR',sans-serif;letter-spacing:0.2px;backdrop-filter:blur(6px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 -3px 14px rgba(0,0,0,0.35);}
+.lsb.preparing{background:linear-gradient(0deg,rgba(24,18,7,0.97),rgba(16,12,6,0.93));border-top:1px solid rgba(240,192,96,0.42);color:#ffe39a;}
+.lsb.cancelled{background:linear-gradient(0deg,rgba(30,12,14,0.97),rgba(20,9,11,0.93));border-top:1px solid rgba(232,90,90,0.5);color:#ffc2c2;}
+.lsb-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;animation:ngbDot 1.3s ease-in-out infinite;}
+.lsb.preparing .lsb-dot{background:#f0c060;box-shadow:0 0 7px #f0c060;}
+.lsb.cancelled .lsb-dot{background:#e85a5a;box-shadow:0 0 7px #e85a5a;animation:none;}
 .corner-badge:hover{color:rgba(200,230,255,0.95);border-color:rgba(100,160,220,0.5);}
 #sched-badge-btn.has-today{color:var(--gold-light,#e8c95a);border-color:rgba(200,168,75,0.5);}
 /* 일정(달력) 모달 */
@@ -6707,7 +6714,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.224';
+const APP_VERSION = 'v2.45.225';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6716,6 +6723,9 @@ const APP_VERSION = 'v2.45.224';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.225', date: '2026-06-23', changes: [
+    { tag: 'new', text: '🛠️ 팀 결성 로비 안내 — 진행자가 참가자를 고르는 동안, 팀원 화면 최하단에 "🛠️ 진행자님이 팀을 짜는 중이에요"가 떠요. 내가 선택됐으면 "✅ 당신 선택됨", 아니면 "대기 중 (N명 선택)"으로 표시돼요. 팀 결성이 취소되면 "❌ 팀 결성이 취소되었어요"가 잠깐 안내되고, 팀이 짜이면 기존 카운트다운·대기 화면으로 자연스럽게 넘어가요. (팝업 아님 — 일반/내전 진행 배너가 뜨던 그 최하단 자리)' },
+  ] },
   { ver: 'v2.45.224', date: '2026-06-23', changes: [
     { tag: 'fix', text: '⏱️ 팀원 화면 카운트다운 수정 — 기기 시계가 조금 빠른 팀원에게서 "째깍 몇 번만 울리고" 퀵 상점(아이템 단계) 배너가 떴다 바로 사라지던 문제를 고쳤어요. 이제 각 기기가 자기 시계 기준으로 15초를 온전히 카운트하며, 세션 변동에도 타이머가 리셋되지 않아요.' },
   ] },
@@ -12983,6 +12993,55 @@ onValue(ref(db, 'bridge/gamePhase'), async (snap) => {
 // 브릿지가 InProgress 시 { isCustom, players:[소환사명], at } 기록 → 일반게임(isCustom=false)이면 전체에게 표시
 let _bridgeInGame = null;
 onValue(ref(db, 'bridge/inGame'), (snap) => { _bridgeInGame = snap.val(); try { updateNormalGameBanner(); } catch (_) {} });
+
+// ── 🛠️ 팀 결성 로비 상태 배너 (라이브가 /lobby 송신 → 팀원 최하단 표시) ──
+let _lobbyData = null;
+let _lobbyHideTimer = null;
+onValue(ref(db, 'lobby'), (snap) => { _lobbyData = snap.val(); try { updateLobbyBanner(); } catch (_) {} });
+function updateLobbyBanner(){
+  let bar = document.getElementById('lobby-status-banner');
+  const L = _lobbyData;
+  const PREP_STALE = 30 * 60 * 1000;   // 준비 중 30분 넘으면 stale(진행자 이탈로 간주)
+  const CANCEL_MS  = 7000;             // 취소 안내 표시 시간
+  let show = false, cls = '', html = '';
+  // 라이브 계정은 자체 UI가 있으므로 배너 미표시. 이벤트/막고라는 별도 흐름.
+  if (!liveMode && !isEventMatch && L && L.at){
+    const age = Date.now() - L.at;
+    if (L.state === 'cancelled' && age < CANCEL_MS){
+      show = true; cls = 'cancelled';
+      html = `<span class="lsb-dot"></span>❌ 팀 결성이 취소되었어요`;
+    } else if (L.state === 'preparing' && age < PREP_STALE){
+      // 카운트다운/팀 결성 결과 중이면 기존 UI가 담당 → 숨김
+      const rs = document.getElementById('result-section');
+      const teamsShown = (rs && rs.style.display !== 'none') || !!itemPhaseTimer;
+      if (!teamsShown){
+        const parts = Array.isArray(L.participants) ? L.participants : [];
+        const who   = L.by ? escHtml(L.by) : '진행자';
+        const meIn  = myName && parts.some(n => normName(n) === normName(myName));
+        let meTxt = '';
+        if (myName){
+          meTxt = meIn
+            ? ` · <b style="color:#7CFC9A">✅ 당신 선택됨</b>`
+            : ` · <span style="opacity:.85">대기 중 (${parts.length}명 선택)</span>`;
+        } else {
+          meTxt = ` · <span style="opacity:.85">${parts.length}명 선택됨</span>`;
+        }
+        show = true; cls = 'preparing';
+        html = `<span class="lsb-dot"></span>🛠️ ${who}님이 팀을 짜는 중이에요${meTxt}`;
+      }
+    }
+  }
+  if (_lobbyHideTimer){ clearTimeout(_lobbyHideTimer); _lobbyHideTimer = null; }
+  if (!show){ if (bar) bar.remove(); return; }
+  if (!bar){ bar = document.createElement('div'); bar.id = 'lobby-status-banner'; document.body.appendChild(bar); }
+  bar.className = 'lsb ' + cls;
+  bar.innerHTML = html;
+  // 취소 안내는 표시시간 지나면 자동 제거(재렌더)
+  if (L.state === 'cancelled'){
+    const remain = CANCEL_MS - (Date.now() - L.at);
+    _lobbyHideTimer = setTimeout(() => { try { updateLobbyBanner(); } catch(_){} }, Math.max(400, remain));
+  }
+}
 let _gameBannerTimer = null;
 function updateNormalGameBanner(){
   const ig = _bridgeInGame;
@@ -13655,6 +13714,7 @@ function _autoApplyChecked() {
     return { id: Date.now() + Math.random(), name, tier, manualTier: p.manualTier };
   });
   renderSessionPlayers();
+  try{ _lobbyBroadcastPrep(); }catch(_){}   // 🛠️ 팀원에게 "선택 중" 안내 송신
 }
 
 window.applyChecked = function() {
@@ -13668,6 +13728,7 @@ window.applyChecked = function() {
   });
   _playApplyCheckedSfx();
   renderSessionPlayers();
+  try{ _lobbyBroadcastPrep(); }catch(_){}   // 🛠️ 팀원에게 "선택 중" 안내 송신
 };
 
 window.toggleNewForm = function() {
@@ -13696,6 +13757,7 @@ window.registerNewPlayer = async function() {
 window.removeSessionPlayer = function(id) {
   sessionPlayers = sessionPlayers.filter(p=>p.id!==id);
   renderSessionPlayers();
+  try{ _lobbyBroadcastPrep(); }catch(_){}   // 🛠️ 선택 변경 → 팀원 안내 갱신
   // 체크박스도 해제
   renderMemberGrid();
 };
@@ -14712,6 +14774,7 @@ window.startItemPhase = function(_bridgeOk) {
   }
 
   document.getElementById('make-teams-btn').disabled = true;
+  try{ _lobbyClear(); }catch(_){}   // 🛠️ 팀 결성 시작 → 로비 "준비 중" 배너 제거(이제 카운트다운 배너가 담당)
   // Firebase에 아이템 사용 단계 기록 → 모든 기기에 동기화
   set(ref(db, 'session'), { phase: 'item', itemPhaseEnd: Date.now() + 15000 }).catch(console.error);
 };
@@ -14720,6 +14783,29 @@ window.startItemPhase = function(_bridgeOk) {
 function _showBridgeWarn(){ const o=document.getElementById('bridge-warn-overlay'); if(o) o.style.display='flex'; }
 window.closeBridgeWarn   = function(){ const o=document.getElementById('bridge-warn-overlay'); if(o) o.style.display='none'; };
 window.proceedBridgeWarn = function(){ const o=document.getElementById('bridge-warn-overlay'); if(o) o.style.display='none'; window.startItemPhase(true); };
+
+// ── 🛠️ 팀 결성 로비 상태 broadcast (라이브 계정 → /lobby, 팀원이 최하단 배너로 수신) ──
+// 참가자 선택 중 = preparing(누가 선택됐는지), 팀 결성 취소 = cancelled(잠깐 표시).
+// 팀 결성(카운트다운)·완료 후는 기존 UI(item-phase 배너/대기카드)가 담당하므로 송신 안 함.
+function _lobbyBroadcastPrep(){
+  if (!liveMode) return;
+  if (isEventMatch || matchType === 'magolla') return;     // 이벤트·막고라 제외
+  if (itemPhaseTimer) return;                               // 카운트다운 중 — item-phase 배너가 담당
+  // 팀 결성 결과 표시 중이면 송신 안 함(대기/결과 화면이 담당).
+  // ※ currentTeamA는 저장 후에도 유지되므로 신호로 부적합 → result-section 가시성으로 판정.
+  const _rs = document.getElementById('result-section');
+  if (_rs && _rs.style.display !== 'none') return;
+  const names = sessionPlayers.map(p => p.name);
+  if (!names.length) { set(ref(db, 'lobby'), null).catch(()=>{}); return; }   // 선택 0명 → 배너 제거
+  set(ref(db, 'lobby'), { state:'preparing', by:'진행자', at:Date.now(), participants:names }).catch(()=>{});
+}
+function _lobbyBroadcastCancel(){
+  if (!liveMode) return;
+  set(ref(db, 'lobby'), { state:'cancelled', by:'진행자', at:Date.now() }).catch(()=>{});
+  // 잠시 뒤 다시 준비 상태로(참가자 선택은 유지됨 → 다음 게임 준비 안내)
+  setTimeout(()=>{ try{ _lobbyBroadcastPrep(); }catch(_){} }, 6500);
+}
+function _lobbyClear(){ if (!liveMode) return; set(ref(db, 'lobby'), null).catch(()=>{}); }
 
 // ── 카운트다운 사운드 (Web Audio API — 파일 불필요) ────────────
 let _audioCtx = null;
@@ -28505,6 +28591,7 @@ window.confirmFixedTeams = function() {
   };
   closeFixedTeamBuilder();
   document.getElementById('make-teams-btn').disabled = true;
+  try{ _lobbyClear(); }catch(_){}   // 🛠️ 팀 결성 시작 → 로비 배너 제거
   set(ref(db, 'session'), { phase: 'item', itemPhaseEnd: Date.now() + 15000 }).catch(console.error);
 };
 
@@ -28520,6 +28607,9 @@ function showConfirm(msg, onOk) {
 }
 
 window.resetSession = function() {
+  // 🛠️ 취소 안내 판정: 결과(팀 결성)가 떠 있고 아직 저장 안 됐으면 = 진짜 "팀 결성 취소"
+  const _rsEl = document.getElementById('result-section');
+  const _wasUnsavedFormation = !!(_rsEl && _rsEl.style.display !== 'none') && !matchSaved;
   const doReset = () => {
   _pendingRematchTeams = null;
   document.getElementById('rematch-btn').style.display = 'none';
@@ -28556,6 +28646,9 @@ window.resetSession = function() {
     document.getElementById('result-section').style.display='none';
     document.getElementById('warn-box').innerHTML='';
     updateMemberModeDisplay();
+    // 🛠️ 팀원 안내: 미저장 팀 결성을 취소한 경우 "취소됨"(잠깐) → 이후 자동 "준비 중"
+    //    저장 후 정리거나 단순 초기화면 현재 선택을 "준비 중"으로 갱신
+    try{ _wasUnsavedFormation ? _lobbyBroadcastCancel() : _lobbyBroadcastPrep(); }catch(_){}
   };
   const hasTeams = document.getElementById('result-section').style.display !== 'none';
   if (hasTeams || sessionPlayers.length > 0) showConfirm('팀 편성을 초기화할까요?\n(참가자 선택은 유지됩니다)', doReset);
