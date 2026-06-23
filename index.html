@@ -6714,7 +6714,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.225';
+const APP_VERSION = 'v2.45.226';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6723,6 +6723,9 @@ const APP_VERSION = 'v2.45.225';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.226', date: '2026-06-23', changes: [
+    { tag: 'improve', text: '🔨 퀵 상점 강철심장 선택부 효과 표시 — 팀 구성 전 퀵 상점에서 강철심장(걸작)을 고를 때, 성능 수치만 보이고 어떤 능력인지 안 보이던 걸 고쳤어요. 이제 각 강철심장마다 실제 효과(예: "⚡ 승리 LP +6 발동 50% · 🪙 경기 골드 +15")가 함께 표시돼서, 뭘 장착하는지 바로 알 수 있어요. (시너지 선택부처럼 통일)' },
+  ] },
   { ver: 'v2.45.225', date: '2026-06-23', changes: [
     { tag: 'new', text: '🛠️ 팀 결성 로비 안내 — 진행자가 참가자를 고르는 동안, 팀원 화면 최하단에 "🛠️ 진행자님이 팀을 짜는 중이에요"가 떠요. 내가 선택됐으면 "✅ 당신 선택됨", 아니면 "대기 중 (N명 선택)"으로 표시돼요. 팀 결성이 취소되면 "❌ 팀 결성이 취소되었어요"가 잠깐 안내되고, 팀이 짜이면 기존 카운트다운·대기 화면으로 자연스럽게 넘어가요. (팝업 아님 — 일반/내전 진행 배너가 뜨던 그 최하단 자리)' },
   ] },
@@ -15914,13 +15917,28 @@ function _qibSynAccordion(data){
   return `<div class="qib-acc${actGrp?' has':''}"><div class="qib-acc-hd" onclick="this.parentNode.classList.toggle('open')">🃏 시너지 ${head}<span class="qib-acc-chev">▾</span></div><div class="qib-acc-body">${opts}</div></div>`;
 }
 // 🔨 강철심장(걸작) 변경 아코디언
+// 🔨 강철심장(걸작) 효과 요약 텍스트 — 퀵 상점 선택부에서 "어떤 능력인지" 표시용
+function _qibEmEffTxt(em){
+  const E = emblemEffectsOf(em);
+  const lpCh = Math.round(_emblemLpChance(E.power)*100);   // ⚡🛡️ LP 발동확률(성능 비례)
+  const parts = EMBLEM_EFFECT_POOL.filter(eid=>E.eff[eid]>0).map(eid=>{
+    const d = EMBLEM_EFFECTS[eid];
+    const cnt = E.lines.filter(l=>l===eid).length;
+    let s = `<span style="color:${d.color};font-weight:700;">${d.icon} ${d.name} ${d.fmt(E.eff[eid])}</span>`;
+    if (eid==='winLP' || eid==='lossLP') s += `<span style="opacity:.7;"> 발동 ${lpCh}%</span>`;
+    else if (eid==='lottoTkt'){ const b=_lottoPrizeBonusG(E.power, cnt); if(b>0) s += `<span style="color:#34d399;"> 당첨+${b}G</span>`; }
+    return s;
+  });
+  return parts.length ? parts.join('<span style="opacity:.4;"> · </span>')
+                      : '<span style="opacity:.7;">효과 없음 · 대장간에서 걸작(같은 효과 3줄)을 맞춰보세요</span>';
+}
 function _qibEmAccordion(data){
   const ems = getEmblems(data).slice().sort((a,b)=>emblemPower(b)-emblemPower(a)), eqId = getEquippedId(data), eq = ems.find(e=>e.id===eqId);
   const _gr = pw => ({silver:'실버',gold:'골드',prismatic:'프리즘'}[emblemEffects(pw).glow]||'미강화');
   const head = eq ? `<b style="color:#ffd24a">🔨 ${_gr(emblemPower(eq))} · 성능 ${emblemPower(eq)}</b>` : '<b class="qib-acc-none">미장착</b>';
   const opts = ems.length ? ems.map(em=>{
     const on = em.id===eqId, pw=emblemPower(em);
-    return `<div class="qib-opt ${on?'on':''}" onclick="window.qibEquipEm(${em.id})"><span class="qib-opt-ic">🔨</span><span class="qib-opt-tx"><b style="color:#ffd24a">강철심장 +${emblemLevel(em)} · ${_gr(pw)}</b><i>성능 ${pw}${on?' · 장착중':''}</i></span><span class="qib-opt-st">${on?'✓':''}</span></div>`;
+    return `<div class="qib-opt ${on?'on':''}" onclick="window.qibEquipEm(${em.id})"><span class="qib-opt-ic">🔨</span><span class="qib-opt-tx"><b style="color:#ffd24a">강철심장 +${emblemLevel(em)} · ${_gr(pw)} · 성능 ${pw}${on?' · 장착중':''}</b><i class="qib-opt-eff">${_qibEmEffTxt(em)}</i></span><span class="qib-opt-st">${on?'✓':''}</span></div>`;
   }).join('')+(eq?`<div class="qib-opt off" onclick="window.qibEquipEm(${eqId})"><span class="qib-opt-ic">🚫</span><span class="qib-opt-tx"><b>장착 해제</b></span></div>`:'') : '<div class="qib-opt-empty">보유한 강철심장이 없어요 · 대장간에서 만드세요</div>';
   return `<div class="qib-acc${eq?' has':''}"><div class="qib-acc-hd" onclick="this.parentNode.classList.toggle('open')">🔨 강철심장 ${head}<span class="qib-acc-chev">▾</span></div><div class="qib-acc-body">${opts}</div></div>`;
 }
