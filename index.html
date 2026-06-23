@@ -14829,12 +14829,14 @@ function startItemCountdown(endTime) {
   if (itemPhaseTimer) clearInterval(itemPhaseTimer);
 
   const TOTAL_MS = ITEM_PHASE_MS;
-  // ⏱️ 시계 동기화 비의존: 호스트 절대시각(endTime)을 그대로 쓰면 팀원 기기 시계가
-  // 앞서 있을 때 remaining이 음수/0이 돼 카운트가 즉시 끝남("잠깐 떴다 사라짐").
-  // → 받은 남은시간을 정상 범위로 보정한 뒤 "이 기기 로컬 시계" 기준으로 다시 고정.
-  let initRemaining = endTime - Date.now();
-  if (!(initRemaining > 0) || initRemaining > TOTAL_MS) initRemaining = TOTAL_MS;
-  const localEnd = Date.now() + initRemaining;
+  // ⏱️ 시계 동기화 비의존: 호스트 절대시각(endTime)을 남은시간 계산에 쓰면,
+  // 팀원 기기 시계가 N초 빠를 때 remaining이 (15-N)초로 줄어 카운트가 일찍 끝남
+  // (예: 11초 빠르면 4초 만에 "둥둥거리다 갑자기 사라짐"). N초가 그럴듯한
+  // 양수라 범위 검사로도 못 거름. → endTime은 "단계 식별자"로만 쓰고,
+  // 각 기기는 이 단계를 처음 받은 로컬 시점부터 무조건 15초를 카운트.
+  // (팀 구성은 호스트만 트리거하고, 호스트가 팀을 쓰면 팀원 배너는 세션
+  //  리스너의 stopItemCountdown으로 자동 닫히므로 길게 돌아도 안전.)
+  const localEnd = Date.now() + TOTAL_MS;
   let lastTickSec = -1;
   function tick() {
     const remaining = Math.max(0, localEnd - Date.now());
