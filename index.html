@@ -6706,7 +6706,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.210';
+const APP_VERSION = 'v2.45.211';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6715,6 +6715,9 @@ const APP_VERSION = 'v2.45.210';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.211', date: '2026-06-23', changes: [
+    { tag: 'improve', text: '🎭 단짝 모션 — 단짝 인형에 전체 모션을 입혔어요! 단짝 공간에서 연승 중이면 신나게 춤추고, 콕 찌르면 장난(웃음·도발·인사) 모션으로 반응해요. (인형 모델을 모션 포함 버전으로 교체 — 인형뽑기도 아이들로 그대로 작동)' },
+  ] },
   { ver: 'v2.45.210', date: '2026-06-23', changes: [
     { tag: 'new', text: '🏠 단짝 공간 — 단짝 패널을 열면 내 단짝이 이제 2D 그림이 아니라 3D 인형으로 살아 움직여요! 콕 찌르면(탭) 폴짝 뛰며 반응하고, 내전 연승 중이면 신나게 들썩·연패 중이면 시무룩하게 처져요. 단짝과 더 가까워지는 공간이에요. (감정 모션은 점차 풍부하게 추가 예정)' },
   ] },
@@ -31645,10 +31648,10 @@ async function _buddy3dOpen(champFile, mood){
       if(!ctx.mount || !document.body.contains(ctx.mount)) return;   // 패널 닫힘 → 렌더 스킵(raf 유지)
       if(ctx.canvas.parentNode!==ctx.mount) ctx.mount.appendChild(ctx.canvas);   // 자가복구: 마운트에 캔버스 부착
       const dt=Math.min(0.05, ctx.clock.getDelta());
-      const spd = ctx.mood==='win'?1.5 : ctx.mood==='loss'?0.65 : 1.0;
+      const spd = ctx.mood==='win'?1.12 : ctx.mood==='loss'?0.7 : 1.0;
       if(ctx.mixer) ctx.mixer.update(dt*spd);
       if(ctx.group){ const t=ctx.clock.elapsedTime, r=ctx.r;
-        const amp = ctx.mood==='win'?0.06 : ctx.mood==='loss'?0.012 : 0.03, bs = ctx.mood==='win'?5:2.5;
+        const amp = ctx.mood==='win'?0.0 : ctx.mood==='loss'?0.012 : 0.03, bs = 2.5;   // 연승=춤 모션이 움직임 담당(절차적 bob 0)
         let y=(ctx.mood==='loss'? -r*0.05:0) + Math.sin(t*bs)*r*amp;
         let rotY=ctx.group.rotation.y*0.9, sx=1, sy=1;
         if(ctx.react>0){ ctx.react=Math.max(0,ctx.react-dt); const k=1-ctx.react/0.6;   // 탭 반응: 점프+회전+squash
@@ -31660,8 +31663,9 @@ async function _buddy3dOpen(champFile, mood){
   }
   ctx.mount=mount; ctx.mood=mood||'none';
   if(ctx.canvas.parentNode!==mount) mount.appendChild(ctx.canvas);
-  mount.onclick=()=>{ if(_buddy3dCtx) _buddy3dCtx.react=0.6; };
+  mount.onclick=()=>_buddy3dReact();
   if(ctx.champ!==champFile) _buddy3dLoad(champFile);
+  else if(ctx.clips) _buddy3dApplyMood();   // 같은 챔피언 재오픈 — mood만 갱신
 }
 function _buddy3dLoad(champFile){
   const ctx=_buddy3dCtx; if(!ctx) return; const {THREE,scene,camera}=ctx;
@@ -31676,9 +31680,22 @@ function _buddy3dLoad(champFile){
     const fov=camera.fov*Math.PI/180, asp=190/212;
     camera.position.set(0,0, Math.max(r/Math.sin(fov/2), r/Math.sin(2*Math.atan(Math.tan(fov/2)*asp)/2))*1.78); camera.lookAt(0,0,0);
     ctx.group=group;
-    if(g.animations&&g.animations[0]){ ctx.mixer=new THREE.AnimationMixer(model); ctx.mixer.clipAction(g.animations[0]).play(); }
+    ctx.mixer=new THREE.AnimationMixer(model); ctx.clips={}; ctx.cur=null;
+    (g.animations||[]).forEach(c=>{ ctx.clips[c.name]=c; });
+    _buddy3dApplyMood();   // 🎭 mood에 맞는 모션 재생(연승=춤·평소=아이들)
   }, undefined, e=>console.warn('단짝3D 로드실패', champFile, e));
 }
+function _bClip(ctx, names){ if(!ctx||!ctx.clips) return null; for(const n of names) if(ctx.clips[n]) return ctx.clips[n]; return ctx.clips['Idle_Base']||Object.values(ctx.clips)[0]||null; }
+function _buddy3dPlay(clip, loop){ const ctx=_buddy3dCtx; if(!ctx||!ctx.mixer||!clip) return; const {THREE}=ctx;
+  const a=ctx.mixer.clipAction(clip); a.reset(); a.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce); if(!loop) a.clampWhenFinished=true; a.fadeIn(0.2).play();
+  if(ctx.cur && ctx.cur!==a) ctx.cur.fadeOut(0.2); ctx.cur=a; }
+function _buddy3dApplyMood(){ const ctx=_buddy3dCtx; if(!ctx||!ctx.mixer) return;
+  const clip = ctx.mood==='win' ? _bClip(ctx,['Dance_Loop','Dance','DanceLoop','Celebrate','Idle_Base']) : _bClip(ctx,['Idle_Base']);
+  _buddy3dPlay(clip, true); }
+function _buddy3dReact(){ const ctx=_buddy3dCtx; if(!ctx) return; ctx.react=0.6;   // 탭: 절차적 점프 + 장난 모션 1회
+  const rc=_bClip(ctx,['Joke','Joke_Loop','Joke_In','Laugh','Laugh_Loop','Laugh01','Taunt','Greeting','Interact']);
+  if(ctx.mixer && rc){ _buddy3dPlay(rc, false);
+    clearTimeout(ctx._retT); ctx._retT=setTimeout(()=>{ if(_buddy3dCtx===ctx) _buddy3dApplyMood(); }, Math.min(3000,(rc.duration||1.5)*1000+150)); } }
 function _buddy3dClose(){ if(_buddy3dCtx && _buddy3dCtx.canvas.parentNode!==_buddy3dCtx.holder){ _buddy3dCtx.mount=null; _buddy3dCtx.holder.appendChild(_buddy3dCtx.canvas); } }   // 캔버스 홀더로 회수(WebGL 컨텍스트 유지)
 function _buddyLvListHtml(lv){   // ⚙️ 강화 단계 1~5 (현재/잠금 + 다음 성공률)
   let h=`<div class="bl-head">⚙️ 강화 단계 (Lv ${lv}/5)</div>`;
