@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.45.209 (🌌 **시즌2 라이브 중 2026-06-10~** — 최근: 🆕 **v208 공지 전용 우편 지원**(보상 없이 desc만→우편함 "확인" 버튼) · **v209 복권 긁기 버벅임 수정**(`.scard-overlay` backdrop-filter 제거 + 모달 열린 동안 `.hexfield .route-pulse` 정지 — 애니배경↔풀스크린블러 결합 해소) · 🕹️ **인형뽑기 BUILD142 실게임 리셋버튼 숨김**(ENF시 무료 재추첨 어뷰즈 차단) · **BUILD143 5번째 플레이 집기 먹통 수정**. 직전: 🃏 가챠 시너지 재설계+밸런스, 🔨 강철심장/시너지 대기화면 아코디언, 📖 가챠 컬렉션 북, 🪟 프로필 모달 중앙 창화. ⏭️ **성능 최적화(헥스필드 등) 일부 적용**(복권창 한정·v209) — 메인 배경 상시 헥스 최적화는 미적용. ⚠️**복권 해골감소 인플레 미해결**. 🕹️ **3D 인형뽑기 정식 오픈**(v194) + 🧸 **단짝인형 구현**(v195~201), 🎁 **일정 보상**(v202~204), ⚔️ **팀원 배너 시너지/강철심장 변경**(v205~207). 브릿지 **v1.1.35**. 상세는 아래 세션 이력 v2.45.177~209)
+- 현재 버전: v2.45.223 (🌌 **시즌2 라이브 중 2026-06-10~** — 최근: 🧸 **단짝 메인 통합 대장정**(v210~223): 홈 대시보드에 단짝 3D 세로패널 + 레이아웃 `[단짝 190px | 매치정보(LP+내전/막고라) 1fr]` + 패스 전체폭 아래로(`wm-home-row`/`wm-home-right`/`wm-pass-full`), **별칭(nickname)** 병행표기·편집(`buddySetNickname`/`_buddyOpenName`/`_buddyNameHtml`, 한글명=`champNamesKR`), **빈상태=챔피언7종 컬렉션→컴팩트 배너**(`_buddyHomePromptHtml` 겹친카드 부채꼴, 미보유 시 자리축소·`_hasBuddy`분기), **단짝3D 홈↔패널 공유캔버스**(`_buddy3dShow(mountId)`·가시성/30fps게이트·offsetParent), **전체모션 GLB 교체**(Idle_Base 첫애니 유지→인형뽑기 무영향, 연승=Dance·탭=Joke/Laugh), 📱**모바일**(단짝 하단배치 `display:contents`+order·스크롤 검은가림 `translateZ(0)` GPU고정), 프리뷰링크 `?buddypreview`. · 🔒 **보안 감사**(미결정): 규칙 읽기공개+쓰기`auth!=null`인데 익명인증 무료라 **사실상 누구나 전체 read/write/delete**·계정 비번없음(이름매칭)·콘솔 파괴함수 노출(`deletePlayer`/`gachaTestGrant`/`clawCompleteAll` 등). 진짜 방어=구글로그인+허용목록, 1차=입장코드+콘솔가드 — 사용자 결정 대기. 직전: 🃏 가챠 시너지 재설계+밸런스, 🔨 강철심장/시너지 대기화면 아코디언, 📖 가챠 컬렉션 북, 🪟 프로필 모달 중앙 창화. ⏭️ **성능 최적화(헥스필드 등) 일부 적용**(복권창 한정·v209) — 메인 배경 상시 헥스 최적화는 미적용. ⚠️**복권 해골감소 인플레 미해결**. 🕹️ **3D 인형뽑기 정식 오픈**(v194) + 🧸 **단짝인형 구현**(v195~201), 🎁 **일정 보상**(v202~204), ⚔️ **팀원 배너 시너지/강철심장 변경**(v205~207). 브릿지 **v1.1.35**. 상세는 아래 세션 이력 v2.45.177~223)
   - ⏳ **레벨 시스템 후속**: ① 패스를 일반/내전 포인트패스 → **S1식 퀘스트 패스(내전 전용)로 되돌리기**(미완) ② 레벨 보상량/곡선 실플레이 튜닝. 레벨 코드맵: `PLV_XP`·`calcPlayerXp`·`plvLevelFromXp`·`plvReward`·`claimPlayerLevels`·`_plvCardHtml`(패스 탭 상단). 데이터 `playerLevelClaimed_s2`. 정수: 경기당+1·상점120G 폐지(레벨업만).
 - ✅ **시즌2 라이브 중** (2026-06-10~) — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 + 세션이력 v2.45.38~49 필독
 - (배포 앱 현재 v2.45.167: 가챠 감사추적 `gachaVerify`·복권 종류별 "내가 N회"·프로필 대시보드 리디자인·시너지 균형(신성한개입 꾸준형). in-app CHANGELOG 참조)
@@ -799,7 +799,27 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.45.208~209 + 인형뽑기 BUILD142~143 (2026-06-22~23) — 🕹️ 인형뽑기 리셋/5번째 버그 수정·오픈공지·피해자 보상 + 📬 공지우편 + ⚡ 복권 버벅임 ← 최신
+### v2.45.210~223 (2026-06-23) — 🧸 단짝 메인 통합(홈 3D 패널·별칭·빈상태 디자인) + 📱 모바일 + 🔒 보안감사 ← 최신
+
+> 이 세션 = **로컬 컴퓨터**(win32, `C:\Users\sbs_n`). Firebase 직접 REST 가능(러너 우회 불필요). 전부 `index.html` 단일파일 + GLB 7종 교체. 커밋 규칙 동일(인라인 모듈 `node --check`, 한글 heredoc/PowerShell). 매 배포 APP_VERSION 명시.
+
+#### 🧸 단짝 메인 홈 통합 (핵심 — `renderS1WaitingCard` ~L23960 + buddy 모듈 ~L31480~31900)
+- **레이아웃**: 홈 대시보드를 `wm-home-row` 그리드로. **단짝 보유 시**(`_hasBuddy`) `[단짝 3D 세로패널 190px | wm-home-right(LP카드 flex:1 + 내전/막고라 duo) 1fr]`, 패스는 `wm-pass-full` 전체폭 아래로. **미보유 시** 매치정보 전체폭 + `_buddyHomePromptHtml()` **컴팩트 배너**(겹친 카드 부채꼴 `.bhp-*`, hover 펼침, 자리 축소). `_buddyMidLeft`(좌측3D)/`_buddyPrompt`(배너) 분기.
+- **단짝 3D 홈↔패널 공유캔버스**: `_buddy3dOpen`→`_buddy3dShow(mountId, champFile, mood)`(패널=`buddy3d-mount`/홈=`buddy-home-mount`). 렌더루프 가시성게이트(`offsetParent===null` 스킵)+`performance.now()` 30fps 캡. 패널 닫으면 `_buddy3dClose`→`_buddyHomeAttach()` 홈복귀. ⚠️**버그수정 v216**: 홈카드 CSS(`.wm-home-row`/`.buddy-home`)가 `_injectBuddyCss()`(패널 열때만) 안이라 대시보드선 미주입→텍스트만 떴음 → `_buddyHomeCardHtml`/`_buddyHomePromptHtml` 시작에서 `_injectBuddyCss()` 호출(멱등 `#buddy-css`).
+- **빈상태 디자인 진화**: 곰돌이🧸→챔피언7종 컬렉션(DDragon `champion/loading/{Slug}_0.jpg` 세로일러스트, 모은건 컬러·안모은건 흑백+🔒). 꽉채움(grid-auto-rows:1fr)→flexbox %높이 함정→**stage `flex-direction:column`+collect `flex:1`**(v222)→그래도 과해서 **컴팩트 배너 축소**(v223). 로스터=`['Teemo','Gwen','Vex','Ekko','Yone','Neeko','Lux']`.
+- **별칭(nickname)**: `buddy_s2.nickname`(≤10자). `_buddyChampName(file)`=한글명(`champNamesKR[_clawDdKey()]`), `_buddyNameHtml(b)`=별칭+`buddy-champtag`(챔피언명 병행), `buddySetNickname`, `_buddyOpenName()`(입력모달 `.bn-*`). 패널 이름옆 ✏️(`!pv`만), 홈카드 별칭(크게)+챔피언명(작게), 선정모달 한글명+선정직후 `_buddyOpenName` 유도.
+- **전체모션 GLB 교체**: 7종 GLB 아이들전용→전체모션(**Idle_Base 첫애니 유지=인형뽑기 무영향**, 21~33클립). 단짝3D `_buddy3dLoad` 클립맵+mood매핑(`_bClip`/`_buddy3dApplyMood`: 연승=Dance_Loop·평소=Idle_Base, 탭=`_buddy3dReact` Joke/Laugh/Taunt 1회). 합계 ~33MB(인형뽑기 로드 24→33MB, meshopt 압축 여지). 프리뷰: 콘솔 `buddyPanelPreview` + URL `?buddypreview[=챔프,무드,스택,레벨]`.
+
+#### 📱 모바일 (v220)
+- **단짝 하단배치**: `@media(max-width:560px){.wm-home-row{display:contents} .buddy-home{order:98} .wm-bottom-card{order:99}}` — 그리드 풀고 order로 단짝 아래로(매치정보 먼저).
+- **스크롤 검은가림 완화**: 고정배경(`.hexfield` mask+`body.season-2::before/::after` opacity애니)에 `translateZ(0)`+`backface-visibility:hidden` GPU레이어 고정. ⚠️ 재현 못해 정석수정만 — **실기기 확인 필요**.
+
+#### 🔒 보안 감사 (사용자 "모르는 사람 링크 시 문제?" — **미결정 과제**)
+- **현황**: 규칙 읽기공개+쓰기`auth!=null`(v2.36.31)인데 `signInAnonymously` 자동발급→**링크 가진 누구나 전체 read/write/delete**. 계정=이름매칭(`getMyGoldKey`) 비번없음→사칭. 콘솔 노출 파괴/치트함수(`window.deletePlayer`/`deleteMatch`/`deleteMail`/`gachaTestGrant`/`clawCompleteAll`/`grantYuumi`/`resetSession`/`buddyReset`). 읽기공개→Riot ID·소환사명·일정(시간=생활패턴) 노출. 관리자 인증게이트 없음.
+- **핵심개념**: 입장게이트(JS암호)=화면만(우회가능·1차문턱) ≠ Firebase규칙(유일한 서버방어). 앱구조=그룹원이면 공유데이터 같이수정(한명이 전원에 결과적용)→경계는 "그룹입장" 하나.
+- **방어책(결정 대기)**: ①입장코드+콘솔가드(빠름·1차) ②**구글로그인+허용목록**(`/members/{uid}` allowlist, 규칙 `auth!=null && root.child('members').child(auth.uid).exists()`=진짜방어) ③규칙만 조이기(wipe/임의경로만·부분). `AskUserQuestion` 했으나 "핸드오프 최신화" 선택→**미착수**. 실제 현재 규칙은 Firebase 콘솔서 확인 필요.
+
+### v2.45.208~209 + 인형뽑기 BUILD142~143 (2026-06-22~23) — 🕹️ 인형뽑기 리셋/5번째 버그 수정·오픈공지·피해자 보상 + 📬 공지우편 + ⚡ 복권 버벅임
 
 > 이 세션 = 원격(web) 환경. ⚠️ **이 환경은 Firebase egress가 네트워크 허용목록에 없어 직접 REST 못 씀(403 "Host not in allowlist", `dangerouslyDisableSandbox`도 무효).** CLAUDE.md에 "Firebase REST 직접 작업" 기록들은 **로컬 컴퓨터** 세션이었던 것. → **이 환경에서 Firebase 읽기/쓰기는 GitHub Actions 러너로 우회**(러너는 인터넷 무제한): `.github/workflows/<일회용>.yml`(`.gitignore`가 `*`+화이트리스트라 `git add -f` 필요)을 `on: push: branches:[main], paths:[그 파일]`로 만들어 main에 푸시→자동 실행→`get_job_logs`로 결과 읽기→**실행 후 파일 제거**. RTDB 룰이 오픈이라 인증 불필요(curl/urllib PATCH/POST). 공개 레포라 러너 로그=공개니 민감정보 최소 출력. (로컬 컴퓨터면 이 우회 불필요 — Firebase 직접 REST 가능.)
 
