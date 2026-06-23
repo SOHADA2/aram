@@ -6707,7 +6707,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.222';
+const APP_VERSION = 'v2.45.223';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -23958,7 +23958,9 @@ async function renderS1WaitingCard(el) {
     synBadgeHtml = '';  // 인라인 배지는 S2에서 fx 카드로 이동
   }
 
-  const _buddyMidLeft = (CURRENT_SEASON===2) ? (function(){try{return _buddyHomeCardHtml();}catch(e){return '';}})() : '';   // 🏠 단짝(왼쪽)·패스(오른쪽) row
+  const _hasBuddy = (CURRENT_SEASON===2) && !!_buddyData();   // 🏠 단짝 보유 여부
+  const _buddyMidLeft = _hasBuddy ? (function(){try{return _buddyHomeCardHtml();}catch(e){return '';}})() : '';   // 있으면 좌측 3D 컬럼
+  const _buddyPrompt = (CURRENT_SEASON===2 && !_hasBuddy) ? (function(){try{return _buddyHomePromptHtml();}catch(e){return '';}})() : '';   // 없으면 컴팩트 배너(자리 적게)
   el.innerHTML = `
 <div class="wm-root" style="display:flex;flex-direction:column;gap:8px;position:relative;z-index:1;">
   <div class="wm-home-row"${_buddyMidLeft?'':' style="grid-template-columns:1fr;"'}>
@@ -23996,6 +23998,7 @@ async function renderS1WaitingCard(el) {
     ${duoRowHtml}
     </div>
   </div>
+  ${_buddyPrompt}
     <div class="wm-right-col wm-pass-full">
       <div class="wm-side-card${_s2Pass?' wm-pass-card-v2':''}" style="flex:1;">
         ${_s2Pass
@@ -31644,6 +31647,23 @@ function _injectBuddyCss(){
   .bhc-champ.got{border-color:rgba(240,200,90,.65);box-shadow:0 0 9px rgba(240,200,90,.35);}
   .bhc-lock{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:17px;font-style:normal;opacity:.8;text-shadow:0 1px 4px #000;}
   .bhc-count{font-size:10px;font-weight:800;color:#1a1206;background:linear-gradient(90deg,#ffd24a,#e0a82e);padding:1px 7px;border-radius:10px;margin-left:3px;vertical-align:middle;}
+  /* 🧸 단짝 없을 때 컴팩트 배너(겹친 카드 부채꼴) */
+  .buddy-prompt{display:flex;align-items:center;gap:14px;padding:10px 16px;flex-wrap:wrap;justify-content:center;}
+  .bhp-head{font-size:13px;font-weight:800;color:#ffd24a;white-space:nowrap;}
+  .bhp-count{font-size:10px;font-weight:800;color:#1a1206;background:linear-gradient(90deg,#ffd24a,#e0a82e);padding:1px 7px;border-radius:10px;margin-left:4px;}
+  .bhp-fan{display:flex;flex:1;justify-content:center;min-width:150px;padding-left:13px;}
+  .bhp-card{width:40px;height:54px;border-radius:7px;overflow:hidden;border:1.5px solid rgba(18,14,7,.95);background:#000;margin-left:-13px;position:relative;box-shadow:0 2px 7px rgba(0,0,0,.55);transition:margin .18s ease;}
+  .bhp-card:first-child{margin-left:0;}
+  .bhp-card img{width:100%;height:100%;object-fit:cover;object-position:center 14%;display:block;filter:grayscale(1) brightness(.4);}
+  .bhp-card.got img{filter:none;}
+  .bhp-card.got{border-color:rgba(240,200,90,.75);box-shadow:0 2px 9px rgba(240,200,90,.3);}
+  .bhp-fan:hover .bhp-card{margin-left:-6px;}
+  .bhp-fan:hover .bhp-card:first-child{margin-left:0;}
+  .bhp-lock{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-style:normal;opacity:.82;text-shadow:0 1px 3px #000;}
+  .bhp-cta{flex-shrink:0;}
+  .bhp-btn{background:linear-gradient(90deg,#f0c060,#e0a82e);border:0;color:#1a1206;border-radius:9px;padding:8px 15px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;}
+  .bhp-btn:hover{filter:brightness(1.07);}
+  .bhp-dim{font-size:11px;color:#9aa0b4;white-space:nowrap;}
   .buddy-home-name{position:relative;z-index:1;font-size:16px;font-weight:800;color:#ffe6a0;text-shadow:0 0 10px rgba(240,200,90,.25);}
   .buddy-home-champ{position:relative;z-index:1;font-size:10.5px;color:#bda877;font-weight:600;margin-top:-2px;}
   /* 별칭 + 챔피언명 병행 표기 */
@@ -31818,6 +31838,22 @@ function _buddyHomeMood(){ const st=_buddyStreakData(); return st.type==='win'?'
 function _buddyHomeAttach(){ const b=_buddyData(); if(!b) return; if(document.getElementById('buddy-panel')) return; if(!document.getElementById('buddy-home-mount')) return;
   try{ _buddy3dShow('buddy-home-mount', b.champion, _buddyHomeMood()); }catch(_){} }
 function _buddyLvBars(lv){ let s=''; for(let i=1;i<=5;i++) s+=`<i class="${i<=lv?'on':''}"></i>`; return s; }
+function _buddyHomePromptHtml(){   // 🧸 단짝 없을 때 컴팩트 배너(겹친 카드 부채꼴) — 메인 자리 적게
+  try{ _injectBuddyCss(); }catch(_){}
+  const data=getMyGoldData()||{}; const coll=Array.isArray(data[sField('clawCollected')])?data[sField('clawCollected')]:[]; const prism=_allPrismDone(data);
+  const roster=['Teemo','Gwen','Vex','Ekko','Yone','Neeko','Lux'];
+  const got=roster.filter(s=>coll.includes(s.toLowerCase()+'.glb')).length;
+  const fan=roster.map((s,i)=>{ const g=coll.includes(s.toLowerCase()+'.glb');
+    return `<div class="bhp-card${g?' got':''}" style="z-index:${i+1}"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${s}_0.jpg" loading="lazy" alt="${s}" onerror="this.style.opacity=0">${g?'':'<i class="bhp-lock">🔒</i>'}</div>`; }).join('');
+  const cta = !prism ? `<span class="bhp-dim">프리즘 18종 완성 시 열려요</span>`
+    : (coll.length>=7 ? `<button class="bhp-btn" onclick="window._buddyOpenSelect()">단짝 선정 ▸</button>`
+      : `<button class="bhp-btn" onclick="window.openClawTest3D()">인형뽑기 ▸</button>`);
+  return `<div class="wm-card buddy-prompt">
+    <div class="bhp-head">🧸 내 단짝 <span class="bhp-count">${got}/7</span></div>
+    <div class="bhp-fan">${fan}</div>
+    <div class="bhp-cta">${cta}</div>
+  </div>`;
+}
 function _buddyHomeCardHtml(){   // 🏠 메인 홈 세로형 단짝 패널 (있으면 3D·없으면 인형뽑기 안내)
   try{ _injectBuddyCss(); }catch(_){}   // ⚠️ 홈 카드 CSS도 주입(패널 안 열어도 .wm-home-row/.buddy-home 적용)
   const b=_buddyData();
