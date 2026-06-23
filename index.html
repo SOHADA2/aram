@@ -6706,7 +6706,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.218';
+const APP_VERSION = 'v2.45.219';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6715,6 +6715,9 @@ const APP_VERSION = 'v2.45.218';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.219', date: '2026-06-23', changes: [
+    { tag: 'new', text: '✏️ 단짝 별칭 — 내 단짝에게 애칭을 지어줄 수 있어요! 챔피언 공식 이름(예: 티모)은 기준으로 두고, 별칭(예: 콩이)을 붙여 함께 표시돼요. 단짝을 처음 정할 때 지어주거나, 단짝 공간에서 이름 옆 ✏️로 언제든 바꿀 수 있어요.' },
+  ] },
   { ver: 'v2.45.215', date: '2026-06-23', changes: [
     { tag: 'new', text: '🏠 메인 홈에 단짝 — 팀 구성 홈 왼쪽에 내 단짝이 세로형 3D 패널로 함께 살아요! 콕 찌르면 반응하고, 내전 연승/연패에 따라 기분(춤·시무룩)이 달라져요. 강화 레벨·기분이 한눈에 보이고, 누르면 단짝 공간으로. 아직 단짝이 없으면 인형뽑기로 모으라고 안내해요 — 마치 키우는 것처럼! (매치 정보는 오른쪽, 퀘스트 패스는 아래로 정리)' },
   ] },
@@ -31561,6 +31564,38 @@ window.buddyState=()=>{ console.log('단짝:',_buddyData(),'· 스택:',_buddySt
 window.buddyReset=()=>{ const key=getMyGoldKey(); if(!key) return; update(ref(db,'gold/'+key),{[sField('buddy')]:null,[sField('buddyStreak')]:null,[sField('buddyUpgradeLog')]:null,[sField('buddyClaimLog')]:null}).then(()=>console.log('🧸 단짝 데이터 초기화')); };
 // 🧸 단짝인형 UI — 선정 모달 / 스택·수령 패널 / 경기 자동연동
 function _clawDdKey(file){ const s=String(file).replace(/\.glb$/i,''); return s.charAt(0).toUpperCase()+s.slice(1); }
+function _buddyChampName(file){ const slug=_clawDdKey(file); return (typeof champNamesKR!=='undefined' && champNamesKR && champNamesKR[slug]) || slug; }   // 챔피언 공식 한글명(기준)
+function _buddyNameHtml(b){ if(!b) return ''; const champ=_buddyChampName(b.champion), nick=(b.nickname||'').trim();   // 별칭 + 챔피언명 병행
+  return nick ? `${escHtml(nick)} <span class="buddy-champtag">${escHtml(champ)}</span>` : escHtml(champ); }
+async function buddySetNickname(nick){ const key=getMyGoldKey(); const b=_buddyData(); if(!key||!b) return false;
+  nick=String(nick||'').trim().slice(0,10);   // 최대 10자
+  const nb={...b, nickname:nick}; const u={[sField('buddy')]:nb};
+  if(goldData[key]) Object.assign(goldData[key],u); await update(ref(db,'gold/'+key),u);
+  console.log('✏️ 단짝 별칭:', nick||'(없음·챔피언명만)'); return true; }
+function _buddyOpenName(){ const b=_buddyData(); if(!b) return; _injectBuddyCss();
+  if(document.getElementById('buddy-name-ov')) return;
+  const champ=_buddyChampName(b.champion), cur=b.nickname||'';
+  const ov=document.createElement('div'); ov.id='buddy-name-ov'; ov.className='buddy-ov';
+  ov.innerHTML=`<div class="buddy-sheet bn-sheet">
+    <div class="buddy-h">✏️ 단짝 별칭 짓기</div>
+    <div class="bn-champ">챔피언 <b>${escHtml(champ)}</b> 에게 애칭을 지어주세요</div>
+    <input id="bn-input" class="bn-input" maxlength="10" placeholder="예: 콩이, 티모대장" value="${escHtml(cur)}">
+    <div class="bn-hint">언제든 바꿀 수 있어요 · 비우면 챔피언 이름만 표시돼요</div>
+    <div class="bn-btns"><button class="buddy-cancel bn-cancel">취소</button><button class="buddy-claim bn-save">저장</button></div>
+  </div>`;
+  document.body.appendChild(ov);
+  const inp=ov.querySelector('#bn-input'); setTimeout(()=>{ try{inp.focus();inp.select();}catch(_){}}, 30);
+  const close=()=>ov.remove();
+  ov.querySelector('.bn-cancel').onclick=close;
+  ov.onclick=(e)=>{ if(e.target===ov) close(); };
+  const save=()=>{ buddySetNickname(inp.value).then(ok=>{ close(); if(!ok) return; try{showS1Toast('✏️ 별칭을 저장했어요!');}catch(_){}
+    const nm=document.querySelector('#buddy-panel .buddy-name');   // 패널 열려있으면 이름 즉시 갱신
+    if(nm) nm.innerHTML=`${_buddyNameHtml(_buddyData())} <button class="buddy-edit-nick" onclick="event.stopPropagation();window._buddyOpenName()" title="별칭 바꾸기">✏️</button>`;
+    try{ if(typeof updateMyInfoBar==='function') updateMyInfoBar(); }catch(_){} }); };
+  ov.querySelector('.bn-save').onclick=save;
+  inp.onkeydown=(e)=>{ if(e.key==='Enter'){ e.preventDefault(); save(); } };
+}
+window._buddyOpenName=_buddyOpenName; window.buddySetNickname=buddySetNickname;
 function _injectBuddyCss(){
   if(document.getElementById('buddy-css')) return; const s=document.createElement('style'); s.id='buddy-css';
   s.textContent=`
@@ -31605,6 +31640,21 @@ function _injectBuddyCss(){
   .bhc-lock{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-style:normal;opacity:.75;text-shadow:0 1px 3px #000;}
   .bhc-count{font-size:10px;font-weight:800;color:#1a1206;background:linear-gradient(90deg,#ffd24a,#e0a82e);padding:1px 7px;border-radius:10px;margin-left:3px;vertical-align:middle;}
   .buddy-home-name{position:relative;z-index:1;font-size:16px;font-weight:800;color:#ffe6a0;text-shadow:0 0 10px rgba(240,200,90,.25);}
+  .buddy-home-champ{position:relative;z-index:1;font-size:10.5px;color:#bda877;font-weight:600;margin-top:-2px;}
+  /* 별칭 + 챔피언명 병행 표기 */
+  .buddy-champtag{font-size:11px;font-weight:600;color:#aeb3c4;background:rgba(255,255,255,.07);padding:1px 7px;border-radius:9px;vertical-align:middle;margin-left:3px;}
+  .buddy-edit-nick{background:none;border:0;cursor:pointer;font-size:13px;opacity:.65;padding:0 3px;vertical-align:middle;line-height:1;}
+  .buddy-edit-nick:hover{opacity:1;}
+  /* 별칭 입력 모달 */
+  .bn-sheet{max-width:330px;text-align:center;}
+  .bn-champ{font-size:13px;color:#d6d8e2;margin:8px 0 13px;}
+  .bn-champ b{color:#ffd24a;}
+  .bn-input{width:100%;box-sizing:border-box;background:rgba(0,0,0,.35);border:1px solid rgba(240,200,90,.4);border-radius:11px;padding:13px 14px;font-size:17px;font-weight:700;color:#fff;text-align:center;outline:none;}
+  .bn-input:focus{border-color:#ffd24a;box-shadow:0 0 11px rgba(240,200,90,.25);}
+  .bn-hint{font-size:11px;color:#9aa0b4;margin:9px 0 15px;}
+  .bn-btns{display:grid;grid-template-columns:1fr 1.5fr;gap:9px;}
+  .bn-cancel{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:#c8cad6;border-radius:11px;padding:11px;font-weight:700;cursor:pointer;font-size:14px;margin-top:0 !important;}
+  .bn-save{margin-top:0 !important;}
   .buddy-home-lvrow{position:relative;z-index:1;display:flex;align-items:center;gap:6px;}
   .buddy-home-lv{font-size:11px;color:#cbb98a;font-weight:700;}
   .buddy-home-lvbars{display:inline-flex;gap:2px;}
@@ -31673,13 +31723,13 @@ function _buddyOpenSelect(coll){
   const ov=document.createElement('div'); ov.id='buddy-select'; ov.className='buddy-ov';
   ov.innerHTML=`<div class="buddy-sheet"><div class="buddy-h">🧸 단짝인형 선정</div>
     <div class="buddy-sub">평생 함께할 <b>단짝 한 명</b>을 골라요.<br><b style="color:#ff8a8a;">⚠️ 한 번 정하면 절대 바꿀 수 없어요!</b></div>
-    <div class="buddy-grid">${coll.map(f=>{const k=_clawDdKey(f);return `<button class="buddy-pick" data-f="${f}"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'"><span>${k}</span></button>`;}).join('')}</div>
+    <div class="buddy-grid">${coll.map(f=>{const k=_clawDdKey(f);return `<button class="buddy-pick" data-f="${f}"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'"><span>${escHtml(_buddyChampName(f))}</span></button>`;}).join('')}</div>
     <button class="buddy-cancel">나중에</button></div>`;
   document.body.appendChild(ov);
   ov.querySelector('.buddy-cancel').onclick=()=>ov.remove();
-  ov.querySelectorAll('.buddy-pick').forEach(btn=>btn.onclick=()=>{ const f=btn.dataset.f, k=_clawDdKey(f);
-    if(confirm(`${k}을(를) 단짝으로 정할까요?\n\n⚠️ 한 번 정하면 절대 바꿀 수 없어요!`)){
-      buddySelect(f).then(ok=>{ if(ok){ ov.remove(); showS1Toast(`🧸 ${k} — 평생 단짝이 됐어요!`); try{renderGachaTab();}catch(_){}} }); } });
+  ov.querySelectorAll('.buddy-pick').forEach(btn=>btn.onclick=()=>{ const f=btn.dataset.f, nm=_buddyChampName(f);
+    if(confirm(`${nm}을(를) 단짝으로 정할까요?\n\n⚠️ 한 번 정하면 절대 바꿀 수 없어요!`)){
+      buddySelect(f).then(ok=>{ if(ok){ ov.remove(); showS1Toast(`🧸 ${nm} — 평생 단짝이 됐어요!`); try{renderGachaTab();}catch(_){} setTimeout(()=>{ try{_buddyOpenName();}catch(_){} }, 400); } }); } });   // 선정 직후 별칭 짓기
 }
 function _buddyRewardText(r){ if(!r) return '—'; const p=[];
   if(r.gold) p.push(`🪙 ${r.gold}G`);
@@ -31766,12 +31816,14 @@ function _buddyLvBars(lv){ let s=''; for(let i=1;i<=5;i++) s+=`<i class="${i<=lv
 function _buddyHomeCardHtml(){   // 🏠 메인 홈 세로형 단짝 패널 (있으면 3D·없으면 인형뽑기 안내)
   try{ _injectBuddyCss(); }catch(_){}   // ⚠️ 홈 카드 CSS도 주입(패널 안 열어도 .wm-home-row/.buddy-home 적용)
   const b=_buddyData();
-  if(b){ const k=_clawDdKey(b.champion), st=_buddyStreakData(), lv=b.level||1;
+  if(b){ const st=_buddyStreakData(), lv=b.level||1;
+    const _bhNick=(b.nickname||'').trim(), _bhChamp=_buddyChampName(b.champion);
     const moodTxt = st.type==='win'?`🔥 연승 ${st.count}` : st.type==='loss'?`🛡 연패 ${st.count}` : '😌 평온';
     return `<div class="wm-card buddy-home" onclick="window._buddyOpenPanel()">
       <div class="buddy-home-hd">🧸 내 단짝</div>
       <div class="buddy-home-stage"><div id="buddy-home-mount" class="buddy-home-mount"></div></div>
-      <div class="buddy-home-name">${escHtml(k)}</div>
+      <div class="buddy-home-name">${_bhNick?escHtml(_bhNick):escHtml(_bhChamp)}</div>
+      ${_bhNick?`<div class="buddy-home-champ">${escHtml(_bhChamp)}</div>`:''}
       <div class="buddy-home-lvrow"><span class="buddy-home-lv">강화 Lv${lv}</span><span class="buddy-home-lvbars">${_buddyLvBars(lv)}</span></div>
       <div class="buddy-home-mood ${st.type||'none'}">${moodTxt}</div>
       <button class="buddy-home-btn">단짝 공간 ▸</button>
@@ -31812,7 +31864,7 @@ function _buddyOpenPanel(pv){   // pv = {buddy, streak} 프리뷰(데이터 무�
     <div id="buddy3d-mount" class="buddy3d-mount"></div>
     <div class="buddy3d-tap">👆 콕 찌르면 반응해요${type==='win'?' · 신나 보여요!':type==='loss'?' · 기운 내자…':''}</div>
     <div class="buddy-card">
-      <div class="buddy-row"><div><div class="buddy-name">${k}</div><div class="buddy-lv">강화 Lv${lv}/5 · 누적 ${b.pulls||0}회 뽑음</div></div></div>
+      <div class="buddy-row"><div style="flex:1;min-width:0;"><div class="buddy-name">${_buddyNameHtml(b)}${!pv?` <button class="buddy-edit-nick" onclick="event.stopPropagation();window._buddyOpenName()" title="별칭 짓기">✏️</button>`:''}</div><div class="buddy-lv">강화 Lv${lv}/5 · 누적 ${b.pulls||0}회 뽑음</div></div></div>
       <div class="buddy-streak ${type||'none'}">${streakTxt}</div>
       <div class="buddy-reward">${cur?`지금 수령: <b>${_buddyRewardText(cur)}</b>`:'아직 수령할 보상 없음 (2스택부터)'}${(type&&next&&stack>=2)?`<br><span style="opacity:.6;">한 판 더 이기면: ${_buddyRewardText(next)}</span>`:''}</div>
       <button class="buddy-claim" ${cur?'':'disabled'}>${cur?'🎁 보상 수령 (스택 0으로)':'수령 불가'}</button>
