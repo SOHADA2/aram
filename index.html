@@ -6706,7 +6706,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.209';
+const APP_VERSION = 'v2.45.210';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6715,6 +6715,9 @@ const APP_VERSION = 'v2.45.209';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.210', date: '2026-06-23', changes: [
+    { tag: 'new', text: '🏠 단짝 공간 — 단짝 패널을 열면 내 단짝이 이제 2D 그림이 아니라 3D 인형으로 살아 움직여요! 콕 찌르면(탭) 폴짝 뛰며 반응하고, 내전 연승 중이면 신나게 들썩·연패 중이면 시무룩하게 처져요. 단짝과 더 가까워지는 공간이에요. (감정 모션은 점차 풍부하게 추가 예정)' },
+  ] },
   { ver: 'v2.45.209', date: '2026-06-22', changes: [
     { tag: 'fix', text: '⚡ 복권 긁기 버벅임 개선 — 긁기 창의 풀스크린 블러(backdrop-filter)를 제거하고(배경이 불투명이라 외관은 그대로), 창이 열린 동안 뒷배경 헥스 회로 애니메이션을 잠시 멈춰요. 움직이는 배경을 매 프레임 다시 흐리게 계산하던 부담이 사라져 긁을 때 더 부드러워요(특히 모바일).' },
   ] },
@@ -31553,6 +31556,8 @@ function _injectBuddyCss(){
   .buddy-card{background:rgba(255,255,255,.04);border:1px solid rgba(240,200,90,.3);border-radius:14px;padding:14px;text-align:left;}
   .buddy-row{display:flex;align-items:center;gap:11px;margin-bottom:12px;}
   .buddy-av{width:52px;height:52px;border-radius:11px;object-fit:cover;object-position:center top;border:2px solid rgba(240,200,90,.6);}
+  .buddy3d-mount{width:190px;height:212px;margin:2px auto 0;position:relative;background:radial-gradient(ellipse at 50% 78%,rgba(240,200,90,.16),rgba(0,0,0,0) 68%);}
+  .buddy3d-tap{text-align:center;font-size:11px;color:var(--text-dim,#9aa0b4);margin-bottom:10px;}
   .buddy-name{font-weight:800;font-size:15px;color:#ffe39a;}
   .buddy-lv{font-size:11.5px;color:#9aa0b4;margin-top:2px;}
   .buddy-streak{text-align:center;padding:10px;border-radius:10px;margin-bottom:10px;font-weight:800;}
@@ -31620,6 +31625,61 @@ function _buddyRewardText(r){ if(!r) return '—'; const p=[];
   if(r.essence) p.push(`🔶정수×${r.essence}`); if(r.lp2x) p.push(`💜LP2배권×${r.lp2x}`); if(r.insurance) p.push(`🛡방어권×${r.insurance}`);
   return p.join(' · ');
 }
+// 🏠 단짝 3D 공간 — 현 GLB(아이들) + 탭 반응 + 연승/연패 감정연동 (유미 렌더러 패턴)
+let _buddy3dCtx = null;   // 캔버스/렌더러 1회 생성 후 홀더↔마운트 이동(컨텍스트 재사용)
+async function _buddy3dOpen(champFile, mood){
+  const mount = document.getElementById('buddy3d-mount'); if(!mount) return;
+  const THREE = await import('three'); const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+  let ctx = _buddy3dCtx;
+  if(!ctx){
+    const holder=document.createElement('div'); holder.id='buddy3d-holder'; holder.style.cssText='position:absolute;left:-9999px;top:0;width:0;height:0;overflow:hidden;'; document.body.appendChild(holder);
+    const canvas=document.createElement('canvas'); canvas.style.cssText='width:100%;height:100%;display:block;cursor:pointer;'; holder.appendChild(canvas);
+    const renderer=new THREE.WebGLRenderer({canvas,alpha:true,antialias:true,powerPreference:'low-power'});
+    renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.75)); renderer.setSize(190,212,false); renderer.setClearAlpha(0); renderer.outputColorSpace=THREE.SRGBColorSpace;
+    const scene=new THREE.Scene(); scene.add(new THREE.AmbientLight(0xffffff,1.15));
+    const keyL=new THREE.DirectionalLight(0xffffff,0.9); keyL.position.set(2,4,5); scene.add(keyL);
+    const camera=new THREE.PerspectiveCamera(30, 190/212, 0.1, 5000);
+    ctx={ THREE, holder, canvas, renderer, scene, camera, clock:new THREE.Clock(), loader:new GLTFLoader(), mixer:null, group:null, r:1, champ:null, mood:'none', react:0, raf:0, mount:null };
+    _buddy3dCtx=ctx;
+    (function loop(){ ctx.raf=requestAnimationFrame(loop);
+      if(!ctx.mount || !document.body.contains(ctx.mount)) return;   // 패널 닫힘 → 렌더 스킵(raf 유지)
+      if(ctx.canvas.parentNode!==ctx.mount) ctx.mount.appendChild(ctx.canvas);   // 자가복구: 마운트에 캔버스 부착
+      const dt=Math.min(0.05, ctx.clock.getDelta());
+      const spd = ctx.mood==='win'?1.5 : ctx.mood==='loss'?0.65 : 1.0;
+      if(ctx.mixer) ctx.mixer.update(dt*spd);
+      if(ctx.group){ const t=ctx.clock.elapsedTime, r=ctx.r;
+        const amp = ctx.mood==='win'?0.06 : ctx.mood==='loss'?0.012 : 0.03, bs = ctx.mood==='win'?5:2.5;
+        let y=(ctx.mood==='loss'? -r*0.05:0) + Math.sin(t*bs)*r*amp;
+        let rotY=ctx.group.rotation.y*0.9, sx=1, sy=1;
+        if(ctx.react>0){ ctx.react=Math.max(0,ctx.react-dt); const k=1-ctx.react/0.6;   // 탭 반응: 점프+회전+squash
+          y += Math.sin(k*Math.PI)*r*0.2; rotY += dt*10*(1-k); const sq=Math.sin(k*Math.PI*2)*0.09; sx=1-sq; sy=1+sq; }
+        ctx.group.position.y=y; ctx.group.rotation.y=rotY; ctx.group.scale.set(sx,sy,sx);
+      }
+      ctx.renderer.render(ctx.scene, ctx.camera);
+    })();
+  }
+  ctx.mount=mount; ctx.mood=mood||'none';
+  if(ctx.canvas.parentNode!==mount) mount.appendChild(ctx.canvas);
+  mount.onclick=()=>{ if(_buddy3dCtx) _buddy3dCtx.react=0.6; };
+  if(ctx.champ!==champFile) _buddy3dLoad(champFile);
+}
+function _buddy3dLoad(champFile){
+  const ctx=_buddy3dCtx; if(!ctx) return; const {THREE,scene,camera}=ctx;
+  if(ctx.group){ scene.remove(ctx.group); ctx.group=null; ctx.mixer=null; }
+  ctx.champ=champFile;
+  ctx.loader.load(champFile, g=>{
+    if(_buddy3dCtx!==ctx || ctx.champ!==champFile) return;
+    const model=g.scene; model.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{m.side=THREE.DoubleSide;m.needsUpdate=true;}); } });
+    const box=new THREE.Box3().setFromObject(model); const ctr=box.getCenter(new THREE.Vector3()); model.position.sub(ctr);
+    const group=new THREE.Group(); group.add(model); scene.add(group);
+    const r=box.getBoundingSphere(new THREE.Sphere()).radius; ctx.r=r;
+    const fov=camera.fov*Math.PI/180, asp=190/212;
+    camera.position.set(0,0, Math.max(r/Math.sin(fov/2), r/Math.sin(2*Math.atan(Math.tan(fov/2)*asp)/2))*1.78); camera.lookAt(0,0,0);
+    ctx.group=group;
+    if(g.animations&&g.animations[0]){ ctx.mixer=new THREE.AnimationMixer(model); ctx.mixer.clipAction(g.animations[0]).play(); }
+  }, undefined, e=>console.warn('단짝3D 로드실패', champFile, e));
+}
+function _buddy3dClose(){ if(_buddy3dCtx && _buddy3dCtx.canvas.parentNode!==_buddy3dCtx.holder){ _buddy3dCtx.mount=null; _buddy3dCtx.holder.appendChild(_buddy3dCtx.canvas); } }   // 캔버스 홀더로 회수(WebGL 컨텍스트 유지)
 function _buddyLvListHtml(lv){   // ⚙️ 강화 단계 1~5 (현재/잠금 + 다음 성공률)
   let h=`<div class="bl-head">⚙️ 강화 단계 (Lv ${lv}/5)</div>`;
   h+=`<div class="bl-row on"><span class="bl-lv">Lv1</span><span class="bl-nm">각성<i>연승/연패 스택 보상 능력</i></span><span class="bl-st">✓</span></div>`;
@@ -31637,9 +31697,10 @@ function _buddyOpenPanel(pv){   // pv = {buddy, streak} 프리뷰(데이터 무�
   const streakTxt=type?`${type==='win'?'🔥 연승':'🛡 연패'} ${stack}스택`:'스택 없음 (경기를 하면 쌓여요)';
   const ov=document.createElement('div'); ov.id='buddy-panel'; ov.className='buddy-ov';
   ov.innerHTML=`<div class="buddy-sheet"><div class="buddy-h">🧸 내 단짝</div>
+    <div id="buddy3d-mount" class="buddy3d-mount"></div>
+    <div class="buddy3d-tap">👆 콕 찌르면 반응해요${type==='win'?' · 신나 보여요!':type==='loss'?' · 기운 내자…':''}</div>
     <div class="buddy-card">
-      <div class="buddy-row"><img class="buddy-av" src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'">
-        <div><div class="buddy-name">${k}</div><div class="buddy-lv">강화 Lv${lv}/5 · 누적 ${b.pulls||0}회 뽑음</div></div></div>
+      <div class="buddy-row"><div><div class="buddy-name">${k}</div><div class="buddy-lv">강화 Lv${lv}/5 · 누적 ${b.pulls||0}회 뽑음</div></div></div>
       <div class="buddy-streak ${type||'none'}">${streakTxt}</div>
       <div class="buddy-reward">${cur?`지금 수령: <b>${_buddyRewardText(cur)}</b>`:'아직 수령할 보상 없음 (2스택부터)'}${(type&&next&&stack>=2)?`<br><span style="opacity:.6;">한 판 더 이기면: ${_buddyRewardText(next)}</span>`:''}</div>
       <button class="buddy-claim" ${cur?'':'disabled'}>${cur?'🎁 보상 수령 (스택 0으로)':'수령 불가'}</button>
@@ -31649,10 +31710,11 @@ function _buddyOpenPanel(pv){   // pv = {buddy, streak} 프리뷰(데이터 무�
       <div>내전에서 <b>연승</b>(또는 <b>연패</b>)하면 스택이 쌓여요. 원할 때 <b>수령</b>하면 그만큼 보상(연승=골드·강화권·복권·정수 / 연패=LP 회복 도구)을 받고 스택은 0이 돼요. 승패가 번갈리면 끊겨요. 인형뽑기서 <b>내 단짝을 뽑을 때마다</b> 확률로 강화돼 보상이 더 좋아져요.</div></details>
     <button class="buddy-cancel" style="margin-top:12px;">닫기</button></div>`;
   document.body.appendChild(ov);
-  ov.querySelector('.buddy-cancel').onclick=()=>ov.remove();
+  try{ _buddy3dOpen(b.champion, type==='win'?'win':type==='loss'?'loss':'none'); }catch(_){}   // 🏠 3D 단짝 + 감정연동
+  ov.querySelector('.buddy-cancel').onclick=()=>{ _buddy3dClose(); ov.remove(); };
   const cb=ov.querySelector('.buddy-claim');
   if(cur && pv) cb.onclick=()=>showS1Toast('프리뷰 — 실제 수령은 안 돼요');
-  else if(cur) cb.onclick=()=>{ buddyClaim().then(ok=>{ ov.remove(); if(ok){ showS1Toast('🎁 단짝 보상을 받았어요!'); try{updateMyInfoBar();}catch(_){}} }); };
+  else if(cur) cb.onclick=()=>{ buddyClaim().then(ok=>{ _buddy3dClose(); ov.remove(); if(ok){ showS1Toast('🎁 단짝 보상을 받았어요!'); try{updateMyInfoBar();}catch(_){}} }); };
 }
 function _buddyMaybePrompt(){ const data=getMyGoldData()||{}; if(_buddyData()) return false; if(!_allPrismDone(data)) return false;
   const coll=Array.isArray(data[sField('clawCollected')])?data[sField('clawCollected')]:[]; if(coll.length>=7){ _buddyOpenSelect(coll); return true; } return false; }
