@@ -6755,7 +6755,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.229';
+const APP_VERSION = 'v2.45.230';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6764,6 +6764,9 @@ const APP_VERSION = 'v2.45.229';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.230', date: '2026-06-23', changes: [
+    { tag: 'fix', text: '🔨 소비 탭 강화권을 탭해도 더는 바로 강화되지 않아요 — 모르고 강화되던 문제를 확실히 막았어요. 이제 강화권을 탭하면 장착한 강철심장의 "관리 시트"가 열리고, 거기서 강화권 버튼(성공률·보유 수 표시)을 눌러야 강화돼요. (대장간 작업대로 직접 끌어다 놓는 건 의도가 분명하니 예전처럼 바로 강화)' },
+  ] },
   { ver: 'v2.45.229', date: '2026-06-23', changes: [
     { tag: 'improve', text: '🔨 강철심장 관리 시트 — 내 아이템의 강철심장 칸이 작은데 정보·버튼이 빽빽해서 실수로 팔거나 강화하기 어려웠어요. 이제 칸을 깔끔하게(아이콘·레벨·상태만) 정리하고, 탭하면 큼직한 관리 시트가 떠요: ① 장착/해제 ② 🔨 강화(안정/정밀/과부하 — 성공률·보유 수 표시, 미장착이면 자동 장착 후 강화) ③ 💰 판매(확인창). 칸에 있던 💰 버튼을 없애 실수 판매를 막았어요.' },
   ] },
@@ -10698,12 +10701,12 @@ function _emblemInvSlotsHtml(cat){
       const def=EMBLEM_TICKETS[tid], cnt=t[tid];
       const sellTk = Math.max(1, Math.round(def.price * 0.95)); const sellableTk = !isItemsEffectivelyLocked();
       // data-ench → _bindEnchInventoryDrag가 드래그/탭 핸들러 부착 (대장간 작업대로 끌어 단조)
-      return `<div class="inv-slot inv-ench-src" data-ench="${tid}" style="touch-action:none;" title="${def.name} · 끌어오거나 탭하면 강철심장 강화">
+      return `<div class="inv-slot inv-ench-src" data-ench="${tid}" style="touch-action:none;" title="${def.name} · 강철심장 강화 재료 (탭하면 강화 관리 시트)">
         <div class="inv-count-badge">${cnt}개</div>
         ${sellableTk ? `<button class="inv-sell-btn" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();window.sellEmblemTicket('${tid}')" title="${sellTk}G에 되팔기 (정가 ${def.price}G − 수수료 5%)">💰${sellTk}</button>` : ''}
         <div class="inv-slot-icon">${_emblemTkAnvilImg(def, 30)}</div>
         <div class="inv-slot-name">${def.name}</div>
-        <div class="inv-slot-action inv-action-use" style="background:linear-gradient(135deg,#ffb867,#e08a2e);color:#1a1206;">🔨 강화</div>
+        <div class="inv-slot-action inv-action-use" style="background:linear-gradient(135deg,#ffb867,#e08a2e);color:#1a1206;">🔨 강화하기</div>
       </div>`;
     }).join('');
     // 🔶 걸작의 정수 — 보유 시 슬롯 표시 (클릭하면 대장간으로 이동해 걸작 만들기)
@@ -10803,23 +10806,24 @@ function _bindEnchInventoryDrag(){
     slot.onpointercancel = ()=>{ if(_forgeDragState && _forgeDragState.src===slot) _cancelForgeDrag(); };
   });
 }
-// 강화 실행 — 인벤토리 강화권 탭/드래그에서 호출.
-// ⚠️ 탭만으로 즉시 강화되면 모르고 강화되는 사고가 남 → 작업대에 직접 드롭(의도 명확)한 경우만
-//    바로 강화하고, 그 외(탭 등)는 확인 다이얼로그로 한 번 더 묻는다.
+// 강화 실행 — 인벤토리(소비 탭) 강화권 탭/드래그에서 호출.
+// ⚠️ 탭만으로 즉시 강화되면 모르고 강화되는 사고가 남 → 탭은 강화하지 않고
+//    장착한 강철심장의 "관리 시트"를 열어 거기서 명확히(버튼) 강화하게 한다.
+//    작업대(forge-stage)에 직접 끌어다 놓은 경우만 의도가 분명하므로 바로 강화.
 function _enchFromInventory(type, fromAnvilDrop){
   const data = getMyGoldData();
-  const em = getEmblem(data);
-  if(!em){ showS1Toast(getEmblems(data).length ? '강철심장을 먼저 장착하세요 (대장간 하단)' : '먼저 강철심장을 가져오세요'); return; }
-  if(emblemLocked(em)){ showS1Toast('강화 슬롯이 모두 소진됐어요 (5/5)'); return; }
-  if(fromAnvilDrop){ window.emblemDoEnhance(type); return; }   // 작업대에 직접 드롭 = 의도 명확 → 바로
-  const def  = EMBLEM_TICKETS[type] || {};
-  const pct  = Math.round((def.chance||0)*100);
-  const used = Array.isArray(em.slots) ? em.slots.length : 0;
-  const msg  = `장착한 강철심장을 ${def.icon||'🔨'} ${def.name||'강화권'}으로 강화할까요?\n\n`
-             + `· 성공 확률 ${pct}% · 성공 시 성능 +${def.power||0}\n`
-             + `· 강화 슬롯 1칸 소모 (${used}/${EMBLEM_SLOTS}, 실패해도 소모)\n`
-             + `· 되돌릴 수 없어요`;
-  showConfirm(msg, ()=>{ window.emblemDoEnhance(type); });
+  const arr  = getEmblems(data) || [];
+  const eqId = getEquippedId(data);
+  const em   = (eqId!=null) ? arr.find(e=>e.id===eqId) : null;
+  if(fromAnvilDrop){
+    if(!em){ showS1Toast(arr.length ? '강철심장을 먼저 장착하세요' : '먼저 강철심장을 가져오세요 (장비 탭)'); return; }
+    if(emblemLocked(em)){ showS1Toast('강화 슬롯이 모두 소진됐어요 (5/5)'); return; }
+    window.emblemDoEnhance(type); return;   // 작업대 직접 드롭 = 의도 명확 → 바로 강화
+  }
+  // 🔒 탭만으로는 강화 안 함 — 장착한 강철심장 관리 시트로 안내(거기서 강화권 버튼으로 강화)
+  if(em){ window.openEmblemDetail(eqId); }
+  else if(arr.length){ showS1Toast('강철심장을 먼저 장착한 뒤, 강철심장을 탭해 강화하세요'); }
+  else { showS1Toast('먼저 강철심장을 가져오세요 (장비 탭)'); }
 }
 
 window.emblemDoBuyBase   = async function(){ if (await emblemBuyBase()) renderEmblemBody(); };
