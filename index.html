@@ -6707,7 +6707,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.223';
+const APP_VERSION = 'v2.45.224';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6716,6 +6716,9 @@ const APP_VERSION = 'v2.45.223';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.224', date: '2026-06-23', changes: [
+    { tag: 'fix', text: '⏱️ 팀원 화면 카운트다운 수정 — 기기 시계가 조금 빠른 팀원에게서 "째깍 몇 번만 울리고" 퀵 상점(아이템 단계) 배너가 떴다 바로 사라지던 문제를 고쳤어요. 이제 각 기기가 자기 시계 기준으로 15초를 온전히 카운트하며, 세션 변동에도 타이머가 리셋되지 않아요.' },
+  ] },
   { ver: 'v2.45.220', date: '2026-06-23', changes: [
     { tag: 'fix', text: '📱 모바일 정리 — 단짝 카드를 화면 하단으로 내려서 매치 정보가 먼저 보이게 했고, 스크롤할 때 간혹 검게 가려지던 배경 문제를 손봤어요.' },
   ] },
@@ -14667,6 +14670,7 @@ function shuffle(arr) {
 }
 
 let itemPhaseTimer = null;
+let _itemPhaseActiveEnd = null;  // 현재 카운트 중인 itemPhaseEnd 식별값(재실행 가드 — 시계 스큐/세션 자식쓰기 시 리셋 방지)
 
 let _pendingNewTeamFn = null;
 
@@ -14786,7 +14790,13 @@ function playCompleteSound() {
   } catch(e) {}
 }
 
+const ITEM_PHASE_MS = 15000;
 function startItemCountdown(endTime) {
+  // 동일 단계 재실행 가드: 같은 itemPhaseEnd로 이미 카운트 중이면 무시
+  // (세션 자식 쓰기/리스너 재발화로 startItemCountdown이 반복 호출돼도 타이머가 리셋되지 않게)
+  if (_itemPhaseActiveEnd === endTime && itemPhaseTimer) return;
+  _itemPhaseActiveEnd = endTime;
+
   const card = document.getElementById('item-phase-card');
   const timerEl = document.getElementById('item-phase-timer');
   const barEl = document.getElementById('item-phase-bar');
@@ -14818,10 +14828,16 @@ function startItemCountdown(endTime) {
 
   if (itemPhaseTimer) clearInterval(itemPhaseTimer);
 
-  const TOTAL_MS = 15000;
+  const TOTAL_MS = ITEM_PHASE_MS;
+  // ⏱️ 시계 동기화 비의존: 호스트 절대시각(endTime)을 그대로 쓰면 팀원 기기 시계가
+  // 앞서 있을 때 remaining이 음수/0이 돼 카운트가 즉시 끝남("잠깐 떴다 사라짐").
+  // → 받은 남은시간을 정상 범위로 보정한 뒤 "이 기기 로컬 시계" 기준으로 다시 고정.
+  let initRemaining = endTime - Date.now();
+  if (!(initRemaining > 0) || initRemaining > TOTAL_MS) initRemaining = TOTAL_MS;
+  const localEnd = Date.now() + initRemaining;
   let lastTickSec = -1;
   function tick() {
-    const remaining = Math.max(0, endTime - Date.now());
+    const remaining = Math.max(0, localEnd - Date.now());
     const secs = Math.ceil(remaining / 1000);
     timerEl.textContent = secs;
     barEl.style.transition = 'none';
@@ -14848,6 +14864,7 @@ function startItemCountdown(endTime) {
     if (remaining <= 0) {
       clearInterval(itemPhaseTimer);
       itemPhaseTimer = null;
+      _itemPhaseActiveEnd = null;
       card.style.display = 'none';
       timerEl.className = 'item-phase-timer';
       if (btn) btn.disabled = false;
@@ -14866,6 +14883,7 @@ function startItemCountdown(endTime) {
 
 function stopItemCountdown() {
   if (itemPhaseTimer) { clearInterval(itemPhaseTimer); itemPhaseTimer = null; }
+  _itemPhaseActiveEnd = null;
   const card = document.getElementById('item-phase-card');
   if (card) card.style.display = 'none';
   const timerEl = document.getElementById('item-phase-timer');
