@@ -521,6 +521,14 @@ header{text-align:center;padding:48px 0 24px;position:relative;}
 .lsb-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;animation:ngbDot 1.3s ease-in-out infinite;}
 .lsb.preparing .lsb-dot{background:#f0c060;box-shadow:0 0 7px #f0c060;}
 .lsb.cancelled .lsb-dot{background:#e85a5a;box-shadow:0 0 7px #e85a5a;animation:none;}
+/* ⏳ 정산 계산 중 안내(팀원용) — 투표 확정 후 호스트가 저장·발행하는 동안 공백감 제거 */
+.settle-pending{position:fixed;inset:0;z-index:9200;display:flex;align-items:center;justify-content:center;background:rgba(6,10,18,0.72);backdrop-filter:blur(3px);animation:spFade .25s ease both;}
+@keyframes spFade{from{opacity:0;}to{opacity:1;}}
+.settle-pending .sp-box{display:flex;flex-direction:column;align-items:center;gap:12px;padding:26px 34px;border-radius:16px;background:linear-gradient(180deg,rgba(20,16,8,0.97),rgba(12,10,6,0.95));border:1px solid rgba(200,168,75,0.32);box-shadow:0 10px 40px rgba(0,0,0,0.5);}
+.settle-pending .sp-spinner{width:34px;height:34px;border-radius:50%;border:3px solid rgba(200,168,75,0.22);border-top-color:#e8c95a;animation:spSpin .8s linear infinite;}
+@keyframes spSpin{to{transform:rotate(360deg);}}
+.settle-pending .sp-txt{font-family:'Black Han Sans',sans-serif;font-size:16px;color:#ffe39a;letter-spacing:0.3px;}
+.settle-pending .sp-sub{font-size:11px;color:rgba(255,255,255,0.5);}
 .corner-badge:hover{color:rgba(200,230,255,0.95);border-color:rgba(100,160,220,0.5);}
 #sched-badge-btn.has-today{color:var(--gold-light,#e8c95a);border-color:rgba(200,168,75,0.5);}
 /* 일정(달력) 모달 */
@@ -6714,7 +6722,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.226';
+const APP_VERSION = 'v2.45.227';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6723,6 +6731,10 @@ const APP_VERSION = 'v2.45.226';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.227', date: '2026-06-23', changes: [
+    { tag: 'improve', text: '⚡ 경기 저장 후 정산창 더 빨리 — 저장 시 플레이어별 골드 기록을 한 명씩 순차로 쓰던 걸 동시에 처리하도록 바꿔 정산 발행 시간을 단축했어요(5:5 기준 골드 쓰기 10회가 줄줄이 → 한 번에).' },
+    { tag: 'improve', text: '⏳ 정산 대기 안내 — 투표가 끝나고 정산창이 뜰 때까지 팀원 화면이 잠깐 비어 보이던 걸, "정산 결과 계산 중…" 로딩 표시로 메웠어요. 결과가 준비되면 자동으로 정산창으로 바뀌어요.' },
+  ] },
   { ver: 'v2.45.226', date: '2026-06-23', changes: [
     { tag: 'improve', text: '🔨 퀵 상점 강철심장 선택부 효과 표시 — 팀 구성 전 퀵 상점에서 강철심장(걸작)을 고를 때, 성능 수치만 보이고 어떤 능력인지 안 보이던 걸 고쳤어요. 이제 각 강철심장마다 실제 효과(예: "⚡ 승리 LP +6 발동 50% · 🪙 경기 골드 +15")가 함께 표시돼서, 뭘 장착하는지 바로 알 수 있어요. (시너지 선택부처럼 통일)' },
   ] },
@@ -12342,6 +12354,34 @@ function _markSettlementShown(matchKey) {
   if (shown.length > 50) shown = shown.slice(-50); // 최근 50개만 유지
   localStorage.setItem('shownSettlements', shown.join(','));
 }
+// ⏳ A — 정산 계산 중 안내(팀원용). 투표 확정~정산창 사이 공백을 로딩 표시로 메움.
+let _settlePendingTimer = null;
+function _maybeShowSettlementPending(){
+  if (liveMode) return;                                   // 호스트는 finalizeVotes로 직접 띄움
+  if (isEventMatch) return;
+  if (mvpConfirmed === null || mannerConfirmed === null) return;  // 아직 투표 진행 중
+  if (!myName || !currentTeamA.length || !currentTeamB.length) return;
+  const myNorm = normName(myName);
+  const inMatch = currentTeamA.some(p=>normName(p.name)===myNorm) || currentTeamB.some(p=>normName(p.name)===myNorm);
+  if (!inMatch) return;                                   // 참여자만(관전자 제외 — 정산창도 참여자만 받음)
+  _showSettlementPending();
+}
+function _showSettlementPending(){
+  if (document.querySelector('.match-summary-overlay')) return;   // 이미 정산창 떴으면 불필요
+  if (!document.getElementById('settle-pending')){
+    const ov = document.createElement('div');
+    ov.id = 'settle-pending'; ov.className = 'settle-pending';
+    ov.innerHTML = `<div class="sp-box"><div class="sp-spinner"></div><div class="sp-txt">정산 결과 계산 중…</div><div class="sp-sub">잠시만 기다려 주세요</div></div>`;
+    document.body.appendChild(ov);
+  }
+  if (_settlePendingTimer) clearTimeout(_settlePendingTimer);
+  _settlePendingTimer = setTimeout(_hideSettlementPending, 20000);   // 안전망(호스트 실패 등)
+}
+function _hideSettlementPending(){
+  if (_settlePendingTimer){ clearTimeout(_settlePendingTimer); _settlePendingTimer = null; }
+  const ov = document.getElementById('settle-pending'); if (ov) ov.remove();
+}
+
 onValue(ref(db, 'lastSettlement'), (snapshot) => {
   const data = snapshot.val();
   if (!data || !data.matchKey) return;
@@ -12533,6 +12573,7 @@ function applyMvpData(data) {
     }
   }
   _tryAutoSave();
+  try{ _maybeShowSettlementPending(); }catch(_){}   // ⏳ 팀원: 투표 확정 시 "정산 계산 중" 표시
 }
 
 function applyMannerData(data) {
@@ -12554,6 +12595,7 @@ function applyMannerData(data) {
     }
   }
   _tryAutoSave();
+  try{ _maybeShowSettlementPending(); }catch(_){}   // ⏳ 팀원: 투표 확정 시 "정산 계산 중" 표시
 }
 
 onValue(ref(db, 'session'), (snapshot) => {
@@ -16554,6 +16596,7 @@ function autoConfirmManner() {
 
 // ── 경기 결과 요약 모달 ──────────────────────────────────────
 window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffects, tierChanges, s1LpBefore, questEvent, spectatorResult, mvpWinner, mvpLoser, mannerWinner, mannerLoser, secretQuests, matchKey }) {
+  try{ _hideSettlementPending(); }catch(_){}   // ⏳ 정산창 뜨면 "계산 중" 안내 제거
   document.querySelector('.match-summary-overlay')?.remove();
   const ITEM_ICONS = ITEM_SVG_ICONS;
   const ITEM_NAMES = { score2x: '승점 2배', insurance: '패배 방어', gamble: '도박 주사위', lottery: '골드 복권', lottery_premium: '프리미엄 복권', s1_gamble: '도박권', s1_promo_win: '승급전 승리권', s1_promo_shield: '승급전 방어권', s1_lp2x: 'LP 2배권', secret_quest: '비밀 퀘스트 토큰', scratch_key: '만능 긁개', scratch_coin: '긁기 동전' };
@@ -28363,8 +28406,12 @@ async function giveMatchGold(winners, losers, matchTimestamp) {
     await update(ref(db,'gold/'+k), _upd);
   };
 
-  for (const name of winners) await processPlayer(name, true);
-  for (const name of losers)  await processPlayer(name, false);
+  // ⚡ 플레이어별 골드 쓰기는 서로 독립(각자 gold/{key} 경로) → 병렬 처리로 정산 지연 단축
+  // (순차 await 시 5:5=10회 왕복으로 수 초 소요 → 정산창이 늦게 떴음)
+  await Promise.all([
+    ...winners.map(name => processPlayer(name, true)),
+    ...losers.map(name => processPlayer(name, false)),
+  ]);
 
 }
 
@@ -28648,6 +28695,7 @@ window.resetSession = function() {
   spectatorBetAmount = null;
   _champSelectCache = null;
   closeEogOverlay();
+  try{ _hideSettlementPending(); }catch(_){}   // ⏳ 정산 계산 중 안내 정리
   // 정산 관련 상태 초기화 (이전 경기 잔여 데이터 방지)
   postSaveMatchData = null;
   savedMatchKey = null;
