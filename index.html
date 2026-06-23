@@ -6722,7 +6722,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.227';
+const APP_VERSION = 'v2.45.228';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6731,6 +6731,9 @@ const APP_VERSION = 'v2.45.227';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.228', date: '2026-06-23', changes: [
+    { tag: 'fix', text: '🔨 강철심장 실수 강화 방지 — 상점 "내 아이템"에서 강화권을 무심코 탭하면 대장간을 열지 않아도 장착한 강철심장이 바로 강화돼 버리던 문제. 이제 탭하면 "이 강화권으로 강화할까요? (성공 확률·성능·슬롯 소모 안내)" 확인창이 먼저 떠요. 대장간 작업대로 직접 끌어다 놓는 건(의도가 분명하니) 예전처럼 바로 강화돼요.' },
+  ] },
   { ver: 'v2.45.227', date: '2026-06-23', changes: [
     { tag: 'improve', text: '⚡ 경기 저장 후 정산창 더 빨리 — 저장 시 플레이어별 골드 기록을 한 명씩 순차로 쓰던 걸 동시에 처리하도록 바꿔 정산 발행 시간을 단축했어요(5:5 기준 골드 쓰기 10회가 줄줄이 → 한 번에).' },
     { tag: 'improve', text: '⏳ 정산 대기 안내 — 투표가 끝나고 정산창이 뜰 때까지 팀원 화면이 잠깐 비어 보이던 걸, "정산 결과 계산 중…" 로딩 표시로 메웠어요. 결과가 준비되면 자동으로 정산창으로 바뀌어요.' },
@@ -10756,21 +10759,32 @@ function _bindEnchInventoryDrag(){
       // 📱 모바일: 세로로 오른까지 끌어올리기 어려움 → 탭(또는 제자리에서 떼기)만으로 강화.
       //   드래그해서 '작업대 밖'에 놓은 경우에만 취소(의도적 취소). 그 외(탭·제자리·작업대 드롭)는 강화.
       if(wasArmed && moved && !_isOverForge(ox, oy)) return;   // 끌어다 작업대 밖에 놓음 = 취소
+      const droppedOnAnvil = wasArmed && _isOverForge(ox, oy);  // 작업대에 직접 드롭 = 강화 의도 명확
       // 탭으로 강화 시(작업대를 안 보고 있을 수 있어) 작업대를 화면 중앙으로 스크롤해 단조 연출이 보이게
-      if(!(wasArmed && _isOverForge(ox, oy))){ try{ document.getElementById('forge-stage')?.scrollIntoView({behavior:'smooth', block:'center'}); }catch(_){} }
-      _enchFromInventory(type);
+      if(!droppedOnAnvil){ try{ document.getElementById('forge-stage')?.scrollIntoView({behavior:'smooth', block:'center'}); }catch(_){} }
+      _enchFromInventory(type, droppedOnAnvil);
     };
     slot.onpointerup = finish;
     slot.onpointercancel = ()=>{ if(_forgeDragState && _forgeDragState.src===slot) _cancelForgeDrag(); };
   });
 }
-// 강화 실행 — 드래그를 작업대에 드롭했을 때만 호출됨
-function _enchFromInventory(type){
+// 강화 실행 — 인벤토리 강화권 탭/드래그에서 호출.
+// ⚠️ 탭만으로 즉시 강화되면 모르고 강화되는 사고가 남 → 작업대에 직접 드롭(의도 명확)한 경우만
+//    바로 강화하고, 그 외(탭 등)는 확인 다이얼로그로 한 번 더 묻는다.
+function _enchFromInventory(type, fromAnvilDrop){
   const data = getMyGoldData();
   const em = getEmblem(data);
   if(!em){ showS1Toast(getEmblems(data).length ? '강철심장을 먼저 장착하세요 (대장간 하단)' : '먼저 강철심장을 가져오세요'); return; }
   if(emblemLocked(em)){ showS1Toast('강화 슬롯이 모두 소진됐어요 (5/5)'); return; }
-  window.emblemDoEnhance(type);
+  if(fromAnvilDrop){ window.emblemDoEnhance(type); return; }   // 작업대에 직접 드롭 = 의도 명확 → 바로
+  const def  = EMBLEM_TICKETS[type] || {};
+  const pct  = Math.round((def.chance||0)*100);
+  const used = Array.isArray(em.slots) ? em.slots.length : 0;
+  const msg  = `장착한 강철심장을 ${def.icon||'🔨'} ${def.name||'강화권'}으로 강화할까요?\n\n`
+             + `· 성공 확률 ${pct}% · 성공 시 성능 +${def.power||0}\n`
+             + `· 강화 슬롯 1칸 소모 (${used}/${EMBLEM_SLOTS}, 실패해도 소모)\n`
+             + `· 되돌릴 수 없어요`;
+  showConfirm(msg, ()=>{ window.emblemDoEnhance(type); });
 }
 
 window.emblemDoBuyBase   = async function(){ if (await emblemBuyBase()) renderEmblemBody(); };
