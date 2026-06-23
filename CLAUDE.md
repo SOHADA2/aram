@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.45.207 (🌌 **시즌2 라이브 중 2026-06-10~** — 최근: 🃏 **가챠 시너지 11종 재설계+밸런스**(유레카·공허 하향), 🔨 **강철심장/시너지 대기화면 아코디언**(보유 선택·장착·효과 텍스트), 📖 **가챠 컬렉션 북**, 🪟 **프로필 모달 중앙 창화**(시즌2 헤더), 🎟 스크래치 당첨후 잠김 버그수정, 🔶 정수 250G, 🎫 패스 보상 텍스트 라벨. ⏭️ **성능 최적화(헥스필드 등) 진단만 완료·미적용** — 이어서 적용 예정. ⚠️**복권 해골감소 인플레 미해결**. 🕹️ **3D 인형뽑기 정식 오픈**(v194·프리즘18종 해금·출석코인) + 🧸 **단짝인형 구현**(v195~201·선정→연승/연패 스택 보상+강화 3D연출·정보패널·역추적), 🎁 **일정 보상**(v202~204·약속한 날 게임=복권1세트·당일작성 제외·날짜별 시간), ⚔️ **팀원 아이템페이즈 배너에 시너지/강철심장 변경**(v205~207). 브릿지 **v1.1.35**. 상세는 아래 세션 이력 v2.45.177~207)
+- 현재 버전: v2.45.209 (🌌 **시즌2 라이브 중 2026-06-10~** — 최근: 🆕 **v208 공지 전용 우편 지원**(보상 없이 desc만→우편함 "확인" 버튼) · **v209 복권 긁기 버벅임 수정**(`.scard-overlay` backdrop-filter 제거 + 모달 열린 동안 `.hexfield .route-pulse` 정지 — 애니배경↔풀스크린블러 결합 해소) · 🕹️ **인형뽑기 BUILD142 실게임 리셋버튼 숨김**(ENF시 무료 재추첨 어뷰즈 차단) · **BUILD143 5번째 플레이 집기 먹통 수정**. 직전: 🃏 가챠 시너지 재설계+밸런스, 🔨 강철심장/시너지 대기화면 아코디언, 📖 가챠 컬렉션 북, 🪟 프로필 모달 중앙 창화. ⏭️ **성능 최적화(헥스필드 등) 일부 적용**(복권창 한정·v209) — 메인 배경 상시 헥스 최적화는 미적용. ⚠️**복권 해골감소 인플레 미해결**. 🕹️ **3D 인형뽑기 정식 오픈**(v194) + 🧸 **단짝인형 구현**(v195~201), 🎁 **일정 보상**(v202~204), ⚔️ **팀원 배너 시너지/강철심장 변경**(v205~207). 브릿지 **v1.1.35**. 상세는 아래 세션 이력 v2.45.177~209)
   - ⏳ **레벨 시스템 후속**: ① 패스를 일반/내전 포인트패스 → **S1식 퀘스트 패스(내전 전용)로 되돌리기**(미완) ② 레벨 보상량/곡선 실플레이 튜닝. 레벨 코드맵: `PLV_XP`·`calcPlayerXp`·`plvLevelFromXp`·`plvReward`·`claimPlayerLevels`·`_plvCardHtml`(패스 탭 상단). 데이터 `playerLevelClaimed_s2`. 정수: 경기당+1·상점120G 폐지(레벨업만).
 - ✅ **시즌2 라이브 중** (2026-06-10~) — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 + 세션이력 v2.45.38~49 필독
 - (배포 앱 현재 v2.45.167: 가챠 감사추적 `gachaVerify`·복권 종류별 "내가 N회"·프로필 대시보드 리디자인·시너지 균형(신성한개입 꾸준형). in-app CHANGELOG 참조)
@@ -15,7 +15,7 @@
 - **파일**: `인형뽑기-물리-목업.html`(메인) · GLB 8종(`teemo gwen vex ekko yone neeko lux poro`, modelviewer.lol 추출, 각 ~0.5~5MB, 전부 `.gitignore` 화이트리스트) · `_clawserve.mjs`(로컬서버) · `claw.html`(배포 캐시우회 사본 — 로컬작업 중엔 미동기화, 배포 때만 cp+BUILD태그)
 - **실행**: 로컬 `node _clawserve.mjs "<aram경로>"`(백그라운드) → `http://localhost:8731/` (⚠️ `file://`은 CORS로 GLB 못 부름 → 반드시 http). 배포본 `https://sohada2.github.io/aram/인형뽑기-물리-목업.html`
 - **스택**: three.js 0.160 + **cannon-es 0.20** + GLTFLoader/SkeletonUtils/RoomEnvironment. importmap·CDN(jsdelivr).
-- **현재 BUILD 141** (HUD `BUILD N` pill로 확인 — 상단 정보 pill은 숨김, `#build-pill`만 노출). 매 수정 BUILD +1 + 인라인 `<script type=module>` 추출해 `node --check`(임시 .mjs) 검증 후에만 커밋. **푸시**: 작업브랜치 `claude/project-overview-skvq0h`에 커밋 후 `git push origin HEAD:main` + `HEAD:claude/project-overview-skvq0h` 둘 다(Pages 자동배포 1~3분, 모바일 캐시 강함 → 시크릿/새탭). `claw.html`=캐시우회 사본(매 빌드 `cp` 후 `sed`로 `BUILD N · claw` 태그 — **소스+claw.html 둘 다 수정 필수**). 한글 커밋=heredoc UTF-8.
+- **현재 BUILD 143** (HUD `BUILD N` pill로 확인 — 상단 정보 pill은 숨김, `#build-pill`만 노출). 최근: BUILD142=실게임(ENF) 리셋버튼 숨김, BUILD143=5번째 플레이 집기 먹통 수정(`updDailyHud`가 게임 진행 중엔 집기버튼 항상 활성). 매 수정 BUILD +1 + 인라인 `<script type=module>` 추출해 `node --check`(임시 .mjs) 검증 후에만 커밋. **푸시**: 그 세션의 작업브랜치(이름은 세션마다 다름, 예전엔 `claude/project-overview-skvq0h`·이번 세션은 `claude/work-from-another-computer-dq72u4`)에 커밋 후 `git push origin HEAD:main` + `HEAD:<작업브랜치>` 둘 다(Pages 자동배포 1~3분, 모바일 캐시 강함 → 시크릿/새탭). `claw.html`=캐시우회 사본(매 빌드 `cp` 후 `sed`로 `BUILD N · claw` 태그 — **소스+claw.html 둘 다 수정 필수**). 한글 커밋=heredoc UTF-8.
 - **🖥️ 앱 통합(실험·v2.45.176)**: index.html 가챠 컬렉션 **3성 탭에서 프리즘 18종 완성(`_allPrismDone`) 시** 카드를 트럼프식 부채꼴 덱(`_prismDeckHtml`/`.prism-deck`)으로 묶고 「🕹️ 인형뽑기 테스트 참여하기」 버튼 노출 → `window.openClawTest3D()`가 **앱 안 "브라우저 창" 모달**(타이틀바+가짜주소창+최소화/최대화/닫기, `claw.html?embed=ts` iframe)로 띄움. **프리뷰**: URL `?prismdeck` 또는 콘솔 `prismDeckPreview()`(실데이터 무수정). ⚙️ 보상·경제 미연동(런칭 아님). 창 크기 dvh 기반(모바일 100vh 버그 회피).
 - **🏟️ 배경**: 뒤편 아케이드는 **납작한 canvas 그림 평면**(z=-52, `buildArcadeBackdrop`)으로 함 — 3D 기계를 뒤에 두면 메인 **투명 뒷유리로 비쳐 "캐비닛 안"처럼 보이는 근본문제** 때문(거리로 안 풀림). 안개 `Fog(42,150)`·카메라 far 240. 뒤편 다른 기계 추가 시 평면 그림만 수정.
 - **🎁 경품(`PRIZE_FILES` {file,target,dud,count})**: 8종 — **포로 20마리(`dud:true`=꽝, target 1.54)** + 챔피언 7종 각 1(target 2.89) = 27. **포로 골인=`showResult('포로다! 🐾')`**(획득·트로피·폭죽 X, 빨강 아님). `proto.dud` 분기.
@@ -799,7 +799,24 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.45.195~207 (2026-06-22) — 🧸 단짝인형 구현 + 🎁 일정 보상 + ⚔️ 팀원배너 효과변경 ← 최신
+### v2.45.208~209 + 인형뽑기 BUILD142~143 (2026-06-22~23) — 🕹️ 인형뽑기 리셋/5번째 버그 수정·오픈공지·피해자 보상 + 📬 공지우편 + ⚡ 복권 버벅임 ← 최신
+
+> 이 세션 = 원격(web) 환경. ⚠️ **이 환경은 Firebase egress가 네트워크 허용목록에 없어 직접 REST 못 씀(403 "Host not in allowlist", `dangerouslyDisableSandbox`도 무효).** CLAUDE.md에 "Firebase REST 직접 작업" 기록들은 **로컬 컴퓨터** 세션이었던 것. → **이 환경에서 Firebase 읽기/쓰기는 GitHub Actions 러너로 우회**(러너는 인터넷 무제한): `.github/workflows/<일회용>.yml`(`.gitignore`가 `*`+화이트리스트라 `git add -f` 필요)을 `on: push: branches:[main], paths:[그 파일]`로 만들어 main에 푸시→자동 실행→`get_job_logs`로 결과 읽기→**실행 후 파일 제거**. RTDB 룰이 오픈이라 인증 불필요(curl/urllib PATCH/POST). 공개 레포라 러너 로그=공개니 민감정보 최소 출력. (로컬 컴퓨터면 이 우회 불필요 — Firebase 직접 REST 가능.)
+
+#### 🕹️ 인형뽑기 버그·운영 (BUILD142~143, 프로토타입 `인형뽑기-물리-목업.html`+`claw.html`)
+- **BUILD142 — 실게임 리셋버튼 숨김**: 리셋(R)=인형 배치 재추첨인데 IDLE에서 `held===null`이라 **코인 내기 전 무한·무료 re-roll**(유리 배치 나올 때까지) 어뷰즈 가능 → `ENF`(EMBED‖ENFORCE)면 `#reset` `display:none`+R키/클릭 가드. 로컬(ENF off)만 노출.
+- **BUILD143 — 5번째(마지막) 플레이 집기 먹통**(팀원 제보, 핵심): `startGame`이 마지막 코인 소모(또는 playsUsed=DAILY_MAX 도달) 직후 `updDailyHud()`가 `canPlay()`(이제 false)로 `#drop`(집기) 버튼 비활성화. 게다가 그 호출이 `state='READY'` **전**이라 READY 돼도 안 켜짐 → 5번째엔 크레인은 움직여도 집기 죽음. 수정: ① `updDailyHud`의 drop.disabled = `(state==='IDLE') ? !canPlay() : false`(진행 중엔 항상 집기 가능 — 코인 이미 지불, `canPlay`는 START만 게이트) ② `startGame`에서 `state='READY'`를 `updDailyHud`보다 먼저. **코드: `인형뽑기-물리-목업.html` ~L963 updDailyHud / ~L977 startGame.**
+- **데이터 모델 메모**: 앱 임베드 claw 필드(sField) `clawPlays_s2`(오늘 사용수·`clawPlayDate_s2`==오늘이면 유효, 새날 0)·`clawCoins_s2`(잔여)·`clawCollected_s2`(수집 인형 배열, 7개=2단계 무제한). 1단계 `playsUsed` 캡=`DAILY_MAX`(5). 코인=출석 5/일+오픈기념5. `_claw3dInit`/`_claw3dSave`(index.html ~L31378).
+- **운영 처리(러너)**: ① **인형뽑기 오픈 공지 우편 전체 발송**(mail id `-Ovivkybex8aGfGPzlnx`, target:all·프리즘18종 완성 해금 안내) ② **5번째 버그 피해자 6명 조회**(첫날 `clawPlays_s2>=5`): 나랑듀오해듀오·빛나는언즈·ap렉사이서폿·럼블홀릭·IfCES + 애긔반달곰(테스트계정, coins0·plays2) ③ **보상**: 각 `clawCoins_s2 +1`(헛쓴 코인 환급) + **플레이 기회 +1**. ⚠️ 보상 교훈: 처음 `clawPlays_s2=0` 리셋했다가 사장님 지적("일일 5회 한도라 0리셋은 의미없음, 코인6개여도 못 씀")으로 정정 → **`clawPlays_s2 = -1`**(음수면 canPlay가 오늘 6회 허용=원래5+1, 한도는 그대로). 애긔는 06-23 2판이라 `1`. **⚠️ +1기회는 `clawPlayDate_s2`=오늘 기준이라 그날 안 쓰면 일일리셋으로 소멸**(코인+1은 영구). ④ **보상 안내 우편 6명**(mail id `-OvkU9ORLtkiG0jHZkwN`).
+
+#### 📬 v2.45.208 — 공지 전용 우편 지원 (index.html)
+- `sendMail`(~L21246)이 보상 비면 거부하던 걸, **desc(공지)만 있으면 발송 허용**(rewards:{}). 우편함 `openMailbox`(~L21174): 보상 없는 우편은 보상칩 줄 숨김 + "보상 받기"→**"확인"**, "수령 완료"→"확인 완료". `claimMail` 토스트 보상없으면 "📬 확인했어요!". → 인형뽑기 오픈/보상 안내 같은 **공지 우편** 가능. (러너 발송 시 `season:2`·`target` 배열/`'all'` 직접 박아 POST.)
+
+#### ⚡ v2.45.209 — 복권 긁기 버벅임 수정 (index.html, 사용자 제보 "뒷배경↔복권장 상관관계?")
+- **원인 확정**: 긁기 모달 `.scard-overlay`의 풀스크린 `backdrop-filter: blur(8/9px)`(~L2859·시즌2 ~L3200)가, 상시 애니메이션 중인 **배경 헥스필드 `.hexfield .route-pulse`**(`hexFlow infinite`+drop-shadow, ~L190)를 **매 프레임 다시 블러 계산** → 긁기 캔버스 `getImageData` 리페인트(~L25636·DPR≤2)와 겹쳐 버벅임. 오버레이 배경이 불투명이라 블러는 **안 보이는데 계산만 낭비**.
+- **수정**: ① `.scard-overlay`/`.season-2 .scard-overlay` backdrop-filter 제거(외관 무변) ② `body:has(.scard-overlay) .hexfield .route-pulse{animation-play-state:paused}`(`:has()` CSS라 JS·닫기경로 관리 없이 자동). ⏭️ 메인 배경 헥스 상시 최적화(펄스 수↓·모바일 drop-shadow 제거)는 여전히 미적용.
+
+### v2.45.195~207 (2026-06-22) — 🧸 단짝인형 구현 + 🎁 일정 보상 + ⚔️ 팀원배너 효과변경
 
 > v2.45.194(3D 인형뽑기 오픈)에서 이어서. 전부 푸시·배포 완료. 커밋 규칙 동일(인라인 모듈 `node --check` 후 커밋, 한글 heredoc UTF-8). 프로토타입 변경 시 claw.html 재생성(cp+`BUILD N · claw` sed).
 
