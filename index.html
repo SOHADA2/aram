@@ -6812,7 +6812,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.278';
+const APP_VERSION = 'v2.45.279';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6821,6 +6821,9 @@ const APP_VERSION = 'v2.45.278';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.279', date: '2026-06-24', changes: [
+    { tag: 'improve', text: '🔨 강철심장 강화 조작 되돌림 — 아이템을 탭하면 관리 시트(모달)가 뜨던 방식이 직관성이 떨어져, 예전처럼 되돌렸어요. 강화권을 탭하면 화면이 작업대로 스르륵 이동하며 바로 강화(오른 망치질)되고, 강철심장 칸은 인라인 💰판매 + 탭/드래그=장착으로 돌아왔어요. (여기서부터 다시 다듬어 갈게요)' },
+  ] },
   { ver: 'v2.45.278', date: '2026-06-24', changes: [
     { tag: 'improve', text: '🔨 강철심장 관리 시트(아이템 탭)에서 강화하면 오른 망치질 연출이 안 보이던 것 수정 — 강화 순간 모달을 잠깐 비켜 뒤의 실제 오른 작업대를 보여주고 "땅·땅·탕!" 단조 연출을 재생한 뒤 다시 돌아와요. 모바일에서 드래그 안 하고 탭으로 강화해도 똑같은 연출을 즐길 수 있어요.' },
   ] },
@@ -10806,19 +10809,20 @@ function _emblemInvSlotsHtml(cat){
   if (cat === 'equip'){
     const owned = getEmblems(data); const gold=getMyGold();
     const eqId = getEquippedId(data);
-    // 보유 강철심장 — 클릭하면 장착/교체(장착 중이면 빼기). +N은 아이콘 우측 하단 통일
+    // 보유 강철심장 — 탭/더블클릭=장착(토글 X), 인라인 💰=판매, 작업대로 드래그=장착. (모달 시트 없이 직접)
     const slots = owned.map(e=>{
       const power=emblemPower(e), item=_forgeItemMeta(power), lvl=emblemLevel(e), isEq=e.id===eqId;
       const glow=_EMBLEM_GLOW_META[emblemEffects(power).glow]||_EMBLEM_GLOW_META.none;
-      // 슬롯은 깔끔하게(썸네일·레벨·이름·상태만). 판매/강화/장착은 탭하면 뜨는 상세 시트에서.
       // 테두리 색 = 강화 성공 횟수(레벨 0~5)로 구분. 장착 중이면 글로우 강조.
       const lvc = _emblemLvColor(lvl);
       const slotStyle = `touch-action:none;border-color:${lvc};box-shadow:0 0 7px -2px ${lvc}99${isEq?`,inset 0 0 0 1px ${lvc},0 0 13px -1px ${lvc}`:''};`;
-      return `<div class="inv-slot inv-emblem-eq${isEq?' inv-active':''}" data-emid="${e.id}" style="${slotStyle}" title="${item.kr} · +${lvl} · 성능 ${power} · 탭하면 상세(장착·강화·판매)">
+      const sellHeart = emblemSellPrice(e);
+      return `<div class="inv-slot inv-emblem-eq${isEq?' inv-active':''}" data-emid="${e.id}" style="${slotStyle}" title="${item.kr} · +${lvl} · 성능 ${power} · ${isEq?'장착 중 (작업대로 끌어내거나 더블클릭하면 빼기)':'클릭·드래그·더블클릭으로 장착'}">
+        ${!isItemsEffectivelyLocked() ? `<button class="inv-sell-btn" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();window.emblemDoSell(${e.id})" title="강철심장 판매 ${sellHeart.toLocaleString()}G (정해진 환급가)">💰${sellHeart.toLocaleString()}</button>` : ''}
         <div class="inv-emblem-thumb" style="--gc:${lvc};"><img src="${_forgeItemImg(power)}" alt=""><span class="inv-emblem-lv">+${lvl}</span></div>
         <div class="inv-slot-name">${item.kr}</div>
         <div class="inv-emblem-pow" style="color:${glow.color};">성능 ${power}</div>
-        <div class="inv-slot-action inv-action-use" style="${isEq?'background:linear-gradient(135deg,#ffb867,#e08a2e);color:#1a1206;':'opacity:.8;'}">${isEq?'✓ 장착중':'관리'}</div>
+        <div class="inv-slot-action inv-action-use" style="${isEq?'background:linear-gradient(135deg,#ffb867,#e08a2e);color:#1a1206;':'opacity:.8;'}">${isEq?'✓ 장착중':'장착'}</div>
       </div>`;
     }).join('');
     // + 구매 슬롯 (가격 명시 — 골드 소모)
@@ -10837,12 +10841,12 @@ function _emblemInvSlotsHtml(cat){
       const def=EMBLEM_TICKETS[tid], cnt=t[tid];
       const sellTk = Math.max(1, Math.round(def.price * 0.95)); const sellableTk = !isItemsEffectivelyLocked();
       // data-ench → _bindEnchInventoryDrag가 드래그/탭 핸들러 부착 (대장간 작업대로 끌어 단조)
-      return `<div class="inv-slot inv-ench-src" data-ench="${tid}" style="touch-action:none;" title="${def.name} · 강철심장 강화 재료 (탭하면 강화 관리 시트)">
+      return `<div class="inv-slot inv-ench-src" data-ench="${tid}" style="touch-action:none;" title="${def.name} · 끌어오거나 탭하면 강철심장 강화">
         <div class="inv-count-badge">${cnt}개</div>
         ${sellableTk ? `<button class="inv-sell-btn" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();window.sellEmblemTicket('${tid}')" title="${sellTk}G에 되팔기 (정가 ${def.price}G − 수수료 5%)">💰${sellTk}</button>` : ''}
         <div class="inv-slot-icon">${_emblemTkAnvilImg(def, 30)}</div>
         <div class="inv-slot-name">${def.name}</div>
-        <div class="inv-slot-action inv-action-use" style="background:linear-gradient(135deg,#ffb867,#e08a2e);color:#1a1206;">🔨 강화하기</div>
+        <div class="inv-slot-action inv-action-use" style="background:linear-gradient(135deg,#ffb867,#e08a2e);color:#1a1206;">🔨 강화</div>
       </div>`;
     }).join('');
     // 🔶 걸작의 정수 — 보유 시 슬롯 표시 (클릭하면 대장간으로 이동해 걸작 만들기)
@@ -10942,24 +10946,14 @@ function _bindEnchInventoryDrag(){
     slot.onpointercancel = ()=>{ if(_forgeDragState && _forgeDragState.src===slot) _cancelForgeDrag(); };
   });
 }
-// 강화 실행 — 인벤토리(소비 탭) 강화권 탭/드래그에서 호출.
-// ⚠️ 탭만으로 즉시 강화되면 모르고 강화되는 사고가 남 → 탭은 강화하지 않고
-//    장착한 강철심장의 "관리 시트"를 열어 거기서 명확히(버튼) 강화하게 한다.
-//    작업대(forge-stage)에 직접 끌어다 놓은 경우만 의도가 분명하므로 바로 강화.
+// 강화 실행 — 강화권을 탭하거나 작업대로 드롭하면 호출. 둘 다 바로 강화(오른 망치질 연출).
+//   탭이면 finish 핸들러가 먼저 작업대(forge-stage)로 스크롤 → 시선이 오른쪽 작업대로 이동한 뒤 강화.
 function _enchFromInventory(type, fromAnvilDrop){
   const data = getMyGoldData();
-  const arr  = getEmblems(data) || [];
-  const eqId = getEquippedId(data);
-  const em   = (eqId!=null) ? arr.find(e=>e.id===eqId) : null;
-  if(fromAnvilDrop){
-    if(!em){ showS1Toast(arr.length ? '강철심장을 먼저 장착하세요' : '먼저 강철심장을 가져오세요 (장비 탭)'); return; }
-    if(emblemLocked(em)){ showS1Toast('강화 슬롯이 모두 소진됐어요 (5/5)'); return; }
-    window.emblemDoEnhance(type); return;   // 작업대 직접 드롭 = 의도 명확 → 바로 강화
-  }
-  // 🔒 탭만으로는 강화 안 함 — 장착한 강철심장 관리 시트로 안내(거기서 강화권 버튼으로 강화)
-  if(em){ window.openEmblemDetail(eqId); }
-  else if(arr.length){ showS1Toast('강철심장을 먼저 장착한 뒤, 강철심장을 탭해 강화하세요'); }
-  else { showS1Toast('먼저 강철심장을 가져오세요 (장비 탭)'); }
+  const em = getEmblem(data);
+  if(!em){ showS1Toast(getEmblems(data).length ? '강철심장을 먼저 장착하세요 (대장간 하단)' : '먼저 강철심장을 가져오세요'); return; }
+  if(emblemLocked(em)){ showS1Toast('강화 슬롯이 모두 소진됐어요 (5/5)'); return; }
+  window.emblemDoEnhance(type);   // 탭/드롭 모두 즉시 강화
 }
 
 window.emblemDoBuyBase   = async function(){ if (await emblemBuyBase()) renderEmblemBody(); };
@@ -10996,7 +10990,7 @@ function _bindEmblemEquipDrag(){
     const id = parseInt(slot.dataset.emid, 10); if (Number.isNaN(id)) return;
     slot.style.touchAction = 'none';
     slot.oncontextmenu = e=>{ e.preventDefault(); return false; };
-    slot.ondblclick = ()=>{ window.openEmblemDetail(id); };
+    slot.ondblclick = ()=>{ window.emblemDoEquipById(id); };
     slot.onpointerdown = e=>{
       if (_emblemFxBusy) return;
       if (_forgeDragState) _cancelForgeDrag();
@@ -11010,7 +11004,7 @@ function _bindEmblemEquipDrag(){
       const st=_forgeDragState; if(!st||st.src!==slot) return;
       const wasArmed=st.armed, ox=e.clientX, oy=e.clientY; _cancelForgeDrag();
       if(wasArmed){ if(_isOverForge(ox,oy)) window.emblemDoEquipById(id); }   // 작업대 위에 놓으면 장착(밖이면 취소)
-      else { window.openEmblemDetail(id); }                                   // 짧은 탭/클릭=상세 시트(장착·강화·판매 한 곳, 실수 방지)
+      else { window.emblemDoEquipById(id); }                                  // 짧은 탭/클릭=장착(토글 아님 → 더블클릭 안전)
     };
     slot.onpointercancel = ()=>{ if(_forgeDragState && _forgeDragState.src===slot) _cancelForgeDrag(); };
   });
