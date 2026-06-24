@@ -6756,7 +6756,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.242';
+const APP_VERSION = 'v2.45.243';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -21366,8 +21366,10 @@ const WEDDING_MSG_GOLD = 100;
 const WEDDING_MSG_MAX  = 10;
 const WEDDING_NODE     = 'wedding2026';
 let weddingData = {}; // { honoreeNorm: { senderNorm: {msg, from, at} } }
+let _weddingLoaded = false;   // Firebase weddingData 로드 완료 여부 (로드 전 '안 보냄' 오판→알림 깜빡임 방지)
 onValue(ref(db, WEDDING_NODE), s => {
   weddingData = s.val() || {};
+  _weddingLoaded = true;
   try { updateAttendCoach(); } catch(_){}
   try { if (document.getElementById('wedding-overlay')) _renderWeddingBody(); } catch(_){}
   try { if (typeof updateMyInfoBar === 'function') updateMyInfoBar(); } catch(_){} // 결혼자 본인 골드 즉시 갱신
@@ -21383,7 +21385,7 @@ function _isWeddingHonoree(name) {
 }
 // 내가 아직 안 보낸 결혼자(본인 제외) 목록
 function _weddingPending() {
-  if (!myName || CURRENT_SEASON !== 2) return [];
+  if (!myName || CURRENT_SEASON !== 2 || !_weddingLoaded) return [];   // 로드 전엔 판단 보류(알림 깜빡임 방지)
   const me = normName(myName);
   return WEDDING_HONOREES.filter(h => {
     const hn = normName(h);
