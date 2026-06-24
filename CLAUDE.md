@@ -5,7 +5,7 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- 현재 버전: v2.45.233 (🌌 **시즌2 라이브 중 2026-06-10~** — 최근: 🔨 **강철심장 UX 대수술 + 정산/카운트다운/로비 손질**(v224~233): 강철심장 관리 시트(내아이템 슬롯 탭→장착/강화/판매·인라인💰제거)·소비탭 강화권 탭=관리시트로(실수강화 차단)·성능N 표기·강화성공 0~5 테두리색·그리드 넘침 `minmax(0,1fr)` / ⏱️ 카운트다운 시계스큐 수정·🛠️ 팀 결성 로비 배너(`/lobby`)·⚡ 정산창 지연단축(골드 Promise.all 병렬+"정산 계산 중" 로딩). **LP 병렬화(C)=검증완료(안전)·미구현**(아래 세션이력 v224~233 참조). 직전: 🧸 **단짝 메인 통합 대장정**(v210~223): 홈 대시보드에 단짝 3D 세로패널 + 레이아웃 `[단짝 190px | 매치정보(LP+내전/막고라) 1fr]` + 패스 전체폭 아래로(`wm-home-row`/`wm-home-right`/`wm-pass-full`), **별칭(nickname)** 병행표기·편집(`buddySetNickname`/`_buddyOpenName`/`_buddyNameHtml`, 한글명=`champNamesKR`), **빈상태=챔피언7종 컬렉션→컴팩트 배너**(`_buddyHomePromptHtml` 겹친카드 부채꼴, 미보유 시 자리축소·`_hasBuddy`분기), **단짝3D 홈↔패널 공유캔버스**(`_buddy3dShow(mountId)`·가시성/30fps게이트·offsetParent), **전체모션 GLB 교체**(Idle_Base 첫애니 유지→인형뽑기 무영향, 연승=Dance·탭=Joke/Laugh), 📱**모바일**(단짝 하단배치 `display:contents`+order·스크롤 검은가림 `translateZ(0)` GPU고정), 프리뷰링크 `?buddypreview`. · 🔒 **보안 감사**(미결정): 규칙 읽기공개+쓰기`auth!=null`인데 익명인증 무료라 **사실상 누구나 전체 read/write/delete**·계정 비번없음(이름매칭)·콘솔 파괴함수 노출(`deletePlayer`/`gachaTestGrant`/`clawCompleteAll` 등). 진짜 방어=구글로그인+허용목록, 1차=입장코드+콘솔가드 — 사용자 결정 대기. 직전: 🃏 가챠 시너지 재설계+밸런스, 🔨 강철심장/시너지 대기화면 아코디언, 📖 가챠 컬렉션 북, 🪟 프로필 모달 중앙 창화. ⏭️ **성능 최적화(헥스필드 등) 일부 적용**(복권창 한정·v209) — 메인 배경 상시 헥스 최적화는 미적용. ⚠️**복권 해골감소 인플레 미해결**. 🕹️ **3D 인형뽑기 정식 오픈**(v194) + 🧸 **단짝인형 구현**(v195~201), 🎁 **일정 보상**(v202~204), ⚔️ **팀원 배너 시너지/강철심장 변경**(v205~207). 브릿지 **v1.1.35**. 상세는 아래 세션 이력 v2.45.177~223)
+- 현재 버전: v2.45.264 (🌌 **시즌2 라이브 중 2026-06-10~** — 최근: 🧸 **단짝 2차 대장정(아바타3D·LP하단레이아웃·변경가능·S2보상검증·🔒보상잠금)**(v234~264·아래 세션이력 必): 단짝=좌상단 내 아바타에 움직이는 3D(`buddy-bar-mount`·뒷배경 제거·상반신줌), LP카드 하단 레이아웃 [최근10경기 한줄(flex·정사각 해제) / ⚒️전투준비 2열=강철심장칩(실아이템아이콘+성능 우상단배지+걸작효과 초소형 세로)|시너지], **단짝 언제든 변경**(`buddySelect` 재선택 허용·챔피언별 레벨/별칭 `buddyLevels_s2`에 보존·「🔄 다른 단짝으로 변경」), S2보상검증(**LP2배권=정상**·**방어권insurance=S2 무의미**→연패보상 교체), **보상/효과 설계 미정이라 `BUDDY_REWARDS_LOCKED=true`(L31891)로 수령·효과 표시만 잠금**(선정·강화·스택누적은 유지·확정 시 false로 flip하면 한번에 활성). 직전: 🔨 **강철심장 UX 대수술 + 정산/카운트다운/로비 손질**(v224~233): 강철심장 관리 시트(내아이템 슬롯 탭→장착/강화/판매·인라인💰제거)·소비탭 강화권 탭=관리시트로(실수강화 차단)·성능N 표기·강화성공 0~5 테두리색·그리드 넘침 `minmax(0,1fr)` / ⏱️ 카운트다운 시계스큐 수정·🛠️ 팀 결성 로비 배너(`/lobby`)·⚡ 정산창 지연단축(골드 Promise.all 병렬+"정산 계산 중" 로딩). **LP 병렬화(C)=검증완료(안전)·미구현**(아래 세션이력 v224~233 참조). 직전: 🧸 **단짝 메인 통합 대장정**(v210~223): 홈 대시보드에 단짝 3D 세로패널 + 레이아웃 `[단짝 190px | 매치정보(LP+내전/막고라) 1fr]` + 패스 전체폭 아래로(`wm-home-row`/`wm-home-right`/`wm-pass-full`), **별칭(nickname)** 병행표기·편집(`buddySetNickname`/`_buddyOpenName`/`_buddyNameHtml`, 한글명=`champNamesKR`), **빈상태=챔피언7종 컬렉션→컴팩트 배너**(`_buddyHomePromptHtml` 겹친카드 부채꼴, 미보유 시 자리축소·`_hasBuddy`분기), **단짝3D 홈↔패널 공유캔버스**(`_buddy3dShow(mountId)`·가시성/30fps게이트·offsetParent), **전체모션 GLB 교체**(Idle_Base 첫애니 유지→인형뽑기 무영향, 연승=Dance·탭=Joke/Laugh), 📱**모바일**(단짝 하단배치 `display:contents`+order·스크롤 검은가림 `translateZ(0)` GPU고정), 프리뷰링크 `?buddypreview`. · 🔒 **보안 감사**(미결정): 규칙 읽기공개+쓰기`auth!=null`인데 익명인증 무료라 **사실상 누구나 전체 read/write/delete**·계정 비번없음(이름매칭)·콘솔 파괴함수 노출(`deletePlayer`/`gachaTestGrant`/`clawCompleteAll` 등). 진짜 방어=구글로그인+허용목록, 1차=입장코드+콘솔가드 — 사용자 결정 대기. 직전: 🃏 가챠 시너지 재설계+밸런스, 🔨 강철심장/시너지 대기화면 아코디언, 📖 가챠 컬렉션 북, 🪟 프로필 모달 중앙 창화. ⏭️ **성능 최적화(헥스필드 등) 일부 적용**(복권창 한정·v209) — 메인 배경 상시 헥스 최적화는 미적용. ⚠️**복권 해골감소 인플레 미해결**. 🕹️ **3D 인형뽑기 정식 오픈**(v194) + 🧸 **단짝인형 구현**(v195~201), 🎁 **일정 보상**(v202~204), ⚔️ **팀원 배너 시너지/강철심장 변경**(v205~207). 브릿지 **v1.1.35**. 상세는 아래 세션 이력 v2.45.177~223)
   - ⏳ **레벨 시스템 후속**: ① 패스를 일반/내전 포인트패스 → **S1식 퀘스트 패스(내전 전용)로 되돌리기**(미완) ② 레벨 보상량/곡선 실플레이 튜닝. 레벨 코드맵: `PLV_XP`·`calcPlayerXp`·`plvLevelFromXp`·`plvReward`·`claimPlayerLevels`·`_plvCardHtml`(패스 탭 상단). 데이터 `playerLevelClaimed_s2`. 정수: 경기당+1·상점120G 폐지(레벨업만).
 - ✅ **시즌2 라이브 중** (2026-06-10~) — 아래 "시즌 2 (헥스텍/마법공학)" 섹션 + 세션이력 v2.45.38~49 필독
 - (배포 앱 현재 v2.45.167: 가챠 감사추적 `gachaVerify`·복권 종류별 "내가 N회"·프로필 대시보드 리디자인·시너지 균형(신성한개입 꾸준형). in-app CHANGELOG 참조)
@@ -799,7 +799,35 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.45.224~233 (2026-06-23~24) — 🔨 강철심장 UX 대수술 + ⏱️카운트다운 시계스큐 + 🛠️팀 결성 로비 배너 + ⚡정산창 지연단축 ← 최신
+### v2.45.234~264 (2026-06-24) — 🧸 단짝 2차 대장정: 아바타3D·LP하단 레이아웃·변경가능·S2보상검증·🔒보상잠금 ← 최신
+
+> 이 세션 = **로컬 컴퓨터**(Firebase REST 직접 가능). 작업흐름: 인라인 `<script>` 추출→`node --check`(tmpdir .mjs)→**`&&` 게이트 통과 시에만 commit+push**(v246 때 게이트 없이 깨진 채 푸시된 사고 후 확립). 한글 커밋=heredoc. 배포 후 응답에 APP_VERSION 명시.
+
+**🧸 단짝 아바타/대시보드 통합 (v234~257)**
+- 단짝을 **좌상단 내 정보 아바타 자리에 움직이는 3D**로. `updateMyInfoBar`(~L23589) has-buddy 분기가 `#my-avatar-face`에 `<div id="buddy-bar-mount">` 넣음. **뒷 사각배경 제거**(`.my-info-avatar.has-buddy::before/after{display:none}`·자유롭게 움직임), 상반신 줌(`_buddy3dFrame` `frameMode='bust'`= `mountId==='buddy-bar-mount'`). 아바타 CSS ~L1916.
+- 🎁 **연승/연패 보상 알림**: `_coachActions`(~L21357) buddyreward 항목→`#my-avatar` 옆 코치(`#attend-coach`), `window.buddyClaimPrompt` 확인창→`buddyClaim`.
+- **단짝 공간=프로필**(`_buddySpaceHtml`, 닉네임/아바타 클릭) + 대시보드 미니(`_buddyMiniHtml`). 미보유 시 대시보드 단짝배너 제거.
+- **3D 공유캔버스** `_buddy3dCtx`(~L32213): 홀더↔마운트 이동·가시성(`offsetParent`)·30fps 게이트. `_buddyHomeAttach`가 space-mount>bar-mount 우선부착. **챔피언 변경 시** `ctx.champ!==champFile`면 `_buddy3dLoad`로 새 GLB 재로드(L32249).
+
+**⚒️ LP카드 하단 레이아웃 (v253~261)** — `wm-lp-bottom`(CSS ~L1653)=세로 스택(flex column): 위=최근10경기, 중간=⚒️전투준비, 아래=챔피언.
+- **최근10경기**: `#wm-form-dots` `display:flex`+`.wm-fdot{flex:1}`·**정사각 고정 해제**(aspect-ratio 제거·height 27px)→너비 채움(경기수 무관).
+- **⚒️전투준비**: `.wm-fx-stack` 2열 grid = **강철심장(좌)|시너지(우)**. 강철심장 칩(`emCell` ~L24281)=**실제 아이템 아이콘**(`_forgeItemImg(pw)`)+**성능 우상단 코너배지**(`.wm-emperf`)+**걸작효과 초소형 8.5px**(세로 `flex-wrap`+order: 위[아이콘+성능 ▾]/아래[걸작효과 전폭]). 2열이라 좁아 세로화.
+
+**🔄 단짝 변경 가능 (v262)** — "평생 1명" 해제. `buddySelect`(~L31891): `_buddyData()` 차단 제거→재선택 허용. **챔피언별 레벨/별칭 로스터 `buddyLevels_s2`**: 떠나는 단짝 `{level,pulls,nickname}` 저장→들어오는 단짝 복원(예전 Lv5 챔프 복귀=그대로·`cur`가 라이브상태라 select에서만 읽고씀). 단짝공간 「🔄 다른 단짝으로 변경」(`_buddyChangeBuddy`→`_buddyOpenSelect`). 선정/변경 후 `_buddyAfterPick`(가챠탭·아바타·프로필·대시보드 갱신, 별칭 없을때만 이름짓기). "변경 불가/평생" 문구 전부 제거.
+
+**✅ S2 보상 검증 + 연패보상 교체 (v263)**:
+  - **LP2배권(s1_lp2x)=S2 정상**: `s1ApplyMatchResult`(~L29298, S2 공용함수) `useLp2x`→승리 LP×2. `relayOnly`는 **상점/buyItem만** 막음(효과 무관). 매치저장 `items.find(active && id.startsWith('s1_'))`(L29540)로 잡힘. ⚠️ 단 **시작전 아이템바(`_qibChipsHtml` ~L16104)엔 미표시**(S2세트=promo/gamble)→**인벤토리(`toggleItemActive`)서 활성화** 필요.
+  - **방어권(insurance)=S2 무의미**: id가 `s1_` 아니라 `s1ApplyMatchResult` 무시(LP 영향0). `calcScore`(승점 ~L13561)만 보호하는데 **승점=프로필 보조스탯**(순위는 티어+LP·`renderS1Ranking` `tierRank→lp`). S2 전투아이템 세트에도 없음.
+  - → `BUDDY_LOSS_REWARDS` 방어권 제거: `3:{gold:120,tickets:{stable:1}} 4:{lp2x:1,gold:100} 5:{lp2x:1,scratch:{1:1}} 6:{lp2x:2,tickets:{precise:1}}`.
+  - `_buddyGrant`(~L31920) 필드 검증완료: gold→`goldBonusLegacy`(calcPlayerGoldEarned 합산)·tickets stable/precise/overload·scratch→freeScratch(0실버1골드2프리즘)·essence·items(lp2x/insurance). 전부 sField.
+
+**🔒 단짝 보상·효과 임시 잠금 (v264) ★중요** — 보상/효과 설계 미정이라 `const BUDDY_REWARDS_LOCKED = true`(~L31891)로 **수령·지급·효과표시만 잠금**. 선정·강화·스택누적은 유지(나중 그대로 반영). 잠금지점: `buddyClaim`(차단)·`_buddyOnMatch` 안전망(자동지급 보류·스택 갱신은 유지)·`buddyClaimPrompt`(안내)·`_coachActions`(보상알림 숨김)·`_buddyRewardText`('미정 (준비 중)')·`_buddySpaceHtml`/패널 보상줄·수령버튼('🔒 보상 준비 중')·`_buddyLvListHtml`/강화연출 효과설명('효과 미정')·도움말. **확정 시 `false`로 flip하면 한번에 활성화.**
+
+**단짝 코드맵(종합)**: 데이터 `buddy_s2{champion,level,selectedAt,pulls,nickname}`·`buddyStreak_s2{type,count,lastTs}`·`buddyLevels_s2{champ:{level,pulls,nickname}}`(로스터)·`buddyClaimLog/buddyUpgradeLog/buddyLastMatchTs`. 보상 `BUDDY_WIN_REWARDS`(2~7)/`BUDDY_LOSS_REWARDS`(2~6)·`_buddyCap`(승7/패6)·`_buddyRewardAt`. 레벨 `BUDDY_UP_RATE`(30/20/15/10%)·`BUDDY_MAX_LV=5`·`BUDDY_LV_NAMES/DESC`(Lv2골드·Lv3안전망·Lv4덤20%·Lv5덤35%+보너스2배). 강화=같은챔프 또뽑기(`_buddyOnPull`→`_buddyUpgradeAttempt`). 매치연동 `_buddyProcessMatches`(goldLoaded·~L12486)→`_buddyOnMatch`. ⚠️ **표시 스택=원시 카운트인데 보상은 7/6 상한**(불일치·미정리).
+
+**미해결/다음**: ① **단짝 보상·효과 설계 확정**(`BUDDY_REWARDS_LOCKED` 풀기 전 必·표시스택 상한 정리 같이). ② 단짝 7/7 완성자 실검증(아직 없음·사장님 5/7). ③ LP2배권 시작전 바 노출(보유시만)은 보상잠금 중이라 보류. ④ 📱 모바일 단짝3D 스크롤 검은가림 실기기 확인. ⑤ 🔒 보안(공개링크) 미착수.
+
+### v2.45.224~233 (2026-06-23~24) — 🔨 강철심장 UX 대수술 + ⏱️카운트다운 시계스큐 + 🛠️팀 결성 로비 배너 + ⚡정산창 지연단축
 
 > 이 세션 = **원격(web) 환경**. ⚠️ Firebase egress가 네트워크 허용목록에 없어 직접 REST 못 씀(403). Firebase 읽기/쓰기 필요 시 **GitHub Actions 러너 우회**(v208~209 항목 참조). 이번 세션은 전부 `index.html` 코드 변경이라 Firebase 직접작업 없었음. **배포** = main에 push(Pages 자동빌드 ~2~3분) + 작업브랜치(`claude/review-work-from-other-computer-dp02ve`)에도 push. 배포검증 = `mcp__github__actions_list`(workflow="pages build and deployment", event:"dynamic", 최신 head_sha conclusion=success). 커밋 규칙 동일: 인라인 `<script>` 전 블록 `node --check`(importmap/json 제외) → 통과 시 커밋. 매 변경 **APP_VERSION +1 + CHANGELOG 1줄**(자잘=CHANGELOG만, 정책대로 MAJOR 미사용).
 
