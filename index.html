@@ -6809,7 +6809,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.276';
+const APP_VERSION = 'v2.45.277';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6818,6 +6818,9 @@ const APP_VERSION = 'v2.45.276';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.277', date: '2026-06-24', changes: [
+    { tag: 'improve', text: '🧸 단짝 성장을 "하트 유대"로 표현 — 강화 레벨(Lv/별) 대신 하트 게이지(♥1~♥5)와 단계 호칭(새 친구 → 친해지는 중 → 믿음직한 단짝 → 둘도 없는 단짝 → 평생 단짝)으로 바꿨어요. 같은 단짝을 또 뽑으면 "친해지기"로 하트가 차오릅니다. (가챠 카드의 ★성과 헷갈리지 않게 분리)' },
+  ] },
   { ver: 'v2.45.276', date: '2026-06-24', changes: [
     { tag: 'fix', text: '🎯 챔피언 풀 모달을 모바일에서 손가락으로 스크롤할 때 뒷배경까지 같이 말려 올라가던 버그 수정 — 모달 열린 동안 본문 스크롤을 잠그고(닫으면 복원), 모달 내부 스크롤이 끝에서 배경으로 전파되지 않게(overscroll-behavior) 했어요.' },
   ] },
@@ -32008,6 +32011,7 @@ const BUDDY_LOSS_REWARDS = { 2:{gold:150}, 3:{gold:120,tickets:{stable:1}}, 4:{l
 const BUDDY_WIN_MAX = 7, BUDDY_LOSS_MAX = 6, BUDDY_MAX_LV = 5;
 const BUDDY_UP_RATE = { 1:0.30, 2:0.20, 3:0.15, 4:0.10 };   // Lv N→N+1 성공률
 const BUDDY_LV_NAMES = { 1:'각성', 2:'💰 후한 손길', 3:'🛡 미련 없이', 4:'🎁 덤', 5:'👑 단짝 만개' };
+const BUDDY_BOND_NAMES = { 1:'새 친구', 2:'친해지는 중', 3:'믿음직한 단짝', 4:'둘도 없는 단짝', 5:'평생 단짝' };   // 하트 유대 단계 호칭(레벨=하트)
 const BUDDY_LV_DESC = { 2:'수령 시 추가 골드 (스택 ×25G)', 3:'스택 끊겨도 두 단계 아래 보상 자동 수령', 4:'수령 시 20% 확률로 보상 한 번 더', 5:'덤 35% + 골드 보너스 2배 (스택×50G)' };
 function _buddyData(){ return getMyGoldData()?.[sField('buddy')] || null; }
 function _buddyStreakData(){ return getMyGoldData()?.[sField('buddyStreak')] || {type:null,count:0}; }
@@ -32252,9 +32256,10 @@ function _injectBuddyCss(){
   .bn-save{margin-top:0 !important;}
   .buddy-home-lvrow{position:relative;z-index:1;display:flex;align-items:center;gap:6px;}
   .buddy-home-lv{font-size:11px;color:#cbb98a;font-weight:700;}
-  .buddy-home-lvbars{display:inline-flex;gap:2px;}
-  .buddy-home-lvbars i{width:9px;height:4px;border-radius:2px;background:rgba(255,255,255,.13);}
-  .buddy-home-lvbars i.on{background:linear-gradient(90deg,#ffd24a,#e0a82e);box-shadow:0 0 5px rgba(240,200,90,.5);}
+  .buddy-home-lvbars{display:inline-flex;gap:1px;vertical-align:middle;}
+  .buddy-home-lvbars i{font-style:normal;font-size:11px;line-height:1;color:rgba(255,255,255,.2);}
+  .buddy-home-lvbars i.on{color:#ff6b85;text-shadow:0 0 5px rgba(255,107,133,.6);}
+  .buddy-bond-nm{color:#ff8ea3;font-weight:800;}
   .buddy-home-mood{position:relative;z-index:1;font-size:11.5px;font-weight:800;padding:3px 12px;border-radius:20px;margin-top:1px;}
   .buddy-home-mood.win{color:#ffd24a;background:rgba(240,200,90,.13);border:1px solid rgba(240,200,90,.3);}
   .buddy-home-mood.loss{color:#8fb6ff;background:rgba(120,160,255,.12);border:1px solid rgba(120,160,255,.28);}
@@ -32319,14 +32324,14 @@ function _buddyOpenSelect(coll, pv){
   if(!coll.length) return showS1Toast('수집한 챔피언이 없어요');
   const ov=document.createElement('div'); ov.id='buddy-select'; ov.className='buddy-ov';
   ov.innerHTML=`<div class="buddy-sheet"><div class="buddy-h">🧸 단짝인형 선정${pv?' <span style="font-size:12px;color:#7fd6ff;">· 프리뷰</span>':''}</div>
-    <div class="buddy-sub">${pv?'<b style="color:#7fd6ff;">👀 프리뷰 — 골라도 저장되지 않아요</b>':'함께할 <b>단짝</b>을 골라요. <b style="color:#8fe6c8;">언제든 변경 가능</b> · 강화 레벨은 챔피언별로 보존돼요'}</div>
+    <div class="buddy-sub">${pv?'<b style="color:#7fd6ff;">👀 프리뷰 — 골라도 저장되지 않아요</b>':'함께할 <b>단짝</b>을 골라요. <b style="color:#8fe6c8;">언제든 변경 가능</b> · 유대(하트)는 챔피언별로 보존돼요'}</div>
     <div class="buddy-grid">${coll.map(f=>{const k=_clawDdKey(f);return `<button class="buddy-pick" data-f="${f}"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'"><span>${escHtml(_buddyChampName(f))}</span></button>`;}).join('')}</div>
     <button class="buddy-cancel">나중에</button></div>`;
   document.body.appendChild(ov);
   ov.querySelector('.buddy-cancel').onclick=()=>ov.remove();
   ov.querySelectorAll('.buddy-pick').forEach(btn=>btn.onclick=()=>{ const f=btn.dataset.f, nm=_buddyChampName(f);
     if(pv){ ov.remove(); showS1Toast(`👀 [프리뷰] ${nm} 선택 — 실제로는 저장 안 돼요`); return; }   // 프리뷰: DB 쓰기 없음
-    if(confirm(`${nm}을(를) 단짝으로 정할까요?\n\n(언제든 변경 가능 · 강화 레벨은 챔피언별로 보존돼요)`)){
+    if(confirm(`${nm}을(를) 단짝으로 정할까요?\n\n(언제든 변경 가능 · 유대(하트)는 챔피언별로 보존돼요)`)){
       buddySelect(f).then(ok=>{ if(ok){ ov.remove(); showS1Toast(`🧸 ${nm} — 단짝이 됐어요!`); _buddyAfterPick(); } }); } });   // 선정/변경 직후 전체 갱신
 }
 function _buddyRewardText(r){ if(BUDDY_REWARDS_LOCKED) return '미정 (준비 중)'; if(!r) return '—'; const p=[];
@@ -32451,11 +32456,11 @@ function _buddySpaceHtml(b, st, pv){   // 단짝 공간(3D+스택+수령+강화)
       <div class="bsp-3d"><div id="buddy-space-mount" class="buddy-home-mount"></div><div class="buddy3d-tap">👆 콕 찌르면 반응${type==='win'?' · 신나 보여요!':type==='loss'?' · 기운 내자…':''}</div></div>
       <div class="bsp-info">
         <div class="bsp-name">${_buddyNameHtml(b)}${!pv?` <button class="buddy-edit-nick" onclick="window._buddyOpenName()" title="별칭 짓기">✏️</button>`:''}</div>
-        <div class="bsp-lv"><span class="buddy-home-lvbars">${_buddyLvBars(lv)}</span> 강화 Lv${lv}/5 · 누적 ${b.pulls||0}회</div>
+        <div class="bsp-lv"><span class="buddy-home-lvbars">${_buddyLvBars(lv)}</span> <b class="buddy-bond-nm">${BUDDY_BOND_NAMES[lv]}</b> · 함께 ${b.pulls||0}회</div>
         <div class="buddy-streak ${type||'none'}">${streakTxt}</div>
         <div class="buddy-reward">${BUDDY_REWARDS_LOCKED ? '🔒 보상·효과는 <b>준비 중</b>이에요 (미정)<br><span style="opacity:.6;">스택은 계속 쌓이니 — 보상은 곧 공개!</span>' : `${cur?`지금 수령: <b>${_buddyRewardText(cur)}</b>`:'아직 수령할 보상 없음 (2스택부터)'}${(type&&next&&stack>=2)?`<br><span style="opacity:.6;">한 판 더: ${_buddyRewardText(next)}</span>`:''}`}</div>
         <button class="buddy-claim" ${(cur && !BUDDY_REWARDS_LOCKED)?'':'disabled'} onclick="window.buddyClaimInline(${pv?1:0})">${BUDDY_REWARDS_LOCKED?'🔒 보상 준비 중':(cur?'🎁 보상 수령 (스택 0)':'수령 불가')}</button>
-        <details class="buddy-help bsp-lvdetails"><summary>⚙️ 강화 단계 보기</summary><div class="bl-card">${_buddyLvListHtml(lv)}</div></details>
+        <details class="buddy-help bsp-lvdetails"><summary>💕 유대 단계 보기</summary><div class="bl-card">${_buddyLvListHtml(lv)}</div></details>
         ${!pv?`<button class="buddy-change-btn" onclick="event.stopPropagation();window._buddyChangeBuddy()">🔄 다른 단짝으로 변경</button>`:''}
       </div>
     </div></div>`;
@@ -32478,7 +32483,7 @@ function _buddySelectInlineHtml(coll, pv){   // 단짝 선정 인라인
 }
 window.buddyPickInline = function(f, pv){ const nm=_buddyChampName(f);
   if(pv){ showS1Toast(`👀 [프리뷰] ${nm} 선택 — 실제로는 저장 안 돼요`); return; }
-  if(confirm(`${nm}을(를) 단짝으로 정할까요?\n\n(언제든 변경 가능 · 강화 레벨은 챔피언별로 보존돼요)`)){
+  if(confirm(`${nm}을(를) 단짝으로 정할까요?\n\n(언제든 변경 가능 · 유대(하트)는 챔피언별로 보존돼요)`)){
     buddySelect(f).then(ok=>{ if(ok){ showS1Toast(`🧸 ${nm} — 단짝이 됐어요!`); _buddyAfterPick(); } }); } };
 window.buddyClaimInline = function(pv){ if(pv){ showS1Toast('👀 프리뷰 — 실제 수령은 안 돼요'); return; }
   buddyClaim().then(ok=>{ if(ok){ showS1Toast('🎁 단짝 보상을 받았어요!'); try{updateMyInfoBar();}catch(_){} try{ _buddyRefreshProfile(); }catch(_){} } }); };
@@ -32495,7 +32500,7 @@ window.buddySectionPreview = function(mode, opts){ opts=opts||{};
   if(mode==='select') setTimeout(()=>{ try{ if(window.openMyProfile) openMyProfile(); }catch(_){} }, 250);   // 선정은 프로필에서만
   console.log('🧸 단짝 프리뷰:', mode, '· 프로필 공간은 닉네임/아바타 클릭 · 종료=_buddyExitPreview()'); };
 window._buddyExitPreview = function(){ _buddyPvState=null; _buddyRerenderSection(); try{ updateMyInfoBar(); }catch(_){} try{ if(window.closeProfileModal) closeProfileModal(); }catch(_){} };
-function _buddyLvBars(lv){ let s=''; for(let i=1;i<=5;i++) s+=`<i class="${i<=lv?'on':''}"></i>`; return s; }
+function _buddyLvBars(lv){ let s=''; for(let i=1;i<=5;i++) s+=`<i class="${i<=lv?'on':''}">${i<=lv?'♥':'♡'}</i>`; return s; }   // 하트 게이지(채워진 ♥ / 빈 ♡)
 function _buddyHomePromptHtml(){   // 🧸 단짝 없을 때 컴팩트 배너(겹친 카드 부채꼴) — 메인 자리 적게
   try{ _injectBuddyCss(); }catch(_){}
   const data=getMyGoldData()||{}; const coll=Array.isArray(data[sField('clawCollected')])?data[sField('clawCollected')]:[]; const prism=_allPrismDone(data);
@@ -32521,7 +32526,7 @@ function _buddyMiniHtml(b, st){   // 🧸 대시보드 미니 단짝(2D 초상�
     <div class="buddy-mini-av"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" loading="lazy" onerror="this.style.visibility='hidden'">${claimable?'<span class="buddy-mini-badge">🎁</span>':''}</div>
     <div class="buddy-mini-info">
       <div class="buddy-mini-name">🧸 ${_buddyNameHtml(b)}</div>
-      <div class="buddy-mini-lv"><span class="buddy-home-lvbars">${_buddyLvBars(lv)}</span> 강화 Lv${lv}</div>
+      <div class="buddy-mini-lv"><span class="buddy-home-lvbars">${_buddyLvBars(lv)}</span> <b class="buddy-bond-nm">${BUDDY_BOND_NAMES[lv]}</b></div>
       <div class="buddy-mini-mood ${st.type||'none'}">${moodTxt}${claimable?' · 🎁 수령 가능!':''}</div>
     </div>
     <div class="buddy-mini-go">단짝 공간 ▸</div></div>`;
@@ -32536,7 +32541,7 @@ function _buddyProfileHtml(fbKey, name){   // 🧸 프로필 내 단짝인형 (�
   if(b){
     if(isMe) return `<div class="pm-buddy-doll">${_buddySpaceHtml(b, (pv?pv.streak:_buddyStreakData()), !!pv)}</div>`;
     const k=_clawDdKey(b.champion), lv=b.level||1;   // 남의 단짝 = 읽기전용
-    return `<div class="pm-buddy-doll"><div class="bsp-hd">🧸 단짝인형</div><div class="bsp-readonly"><img class="bsp-ro-img" src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'"><div class="bsp-ro-info"><div class="bsp-name">${_buddyNameHtml(b)}</div><div class="bsp-lv"><span class="buddy-home-lvbars">${_buddyLvBars(lv)}</span> 강화 Lv${lv}/5</div></div></div></div>`;
+    return `<div class="pm-buddy-doll"><div class="bsp-hd">🧸 단짝인형</div><div class="bsp-readonly"><img class="bsp-ro-img" src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'"><div class="bsp-ro-info"><div class="bsp-name">${_buddyNameHtml(b)}</div><div class="bsp-lv"><span class="buddy-home-lvbars">${_buddyLvBars(lv)}</span> <b class="buddy-bond-nm">${BUDDY_BOND_NAMES[lv]}</b></div></div></div></div>`;
   }
   if(isMe){ const data=getMyGoldData()||{}; const coll=Array.isArray(data[sField('clawCollected')])?data[sField('clawCollected')]:[];
     if(coll.length>=7 && _allPrismDone(data)) return `<div class="pm-buddy-doll">${_buddySelectInlineHtml(coll, false)}</div>`;
@@ -32559,7 +32564,7 @@ function _buddyHomeCardHtml(){   // 🏠 (레거시·미사용) 메인 홈 세�
       <div class="buddy-home-stage"><div id="buddy-home-mount" class="buddy-home-mount"></div></div>
       <div class="buddy-home-name">${_bhNick?escHtml(_bhNick):escHtml(_bhChamp)}</div>
       ${_bhNick?`<div class="buddy-home-champ">${escHtml(_bhChamp)}</div>`:''}
-      <div class="buddy-home-lvrow"><span class="buddy-home-lv">강화 Lv${lv}</span><span class="buddy-home-lvbars">${_buddyLvBars(lv)}</span></div>
+      <div class="buddy-home-lvrow"><span class="buddy-home-lv buddy-bond-nm">${BUDDY_BOND_NAMES[lv]}</span><span class="buddy-home-lvbars">${_buddyLvBars(lv)}</span></div>
       <div class="buddy-home-mood ${st.type||'none'}">${moodTxt}</div>
       <button class="buddy-home-btn">단짝 공간 ▸</button>
     </div>`;
@@ -32579,13 +32584,14 @@ function _buddyHomeCardHtml(){   // 🏠 (레거시·미사용) 메인 홈 세�
     ${cta}</div>`;
 }
 window._buddy3dReact = function(){ try{ _buddy3dReact(); }catch(_){} };
-function _buddyLvListHtml(lv){   // ⚙️ 강화 단계 1~5 (현재/잠금 + 다음 성공률)
+function _buddyLvListHtml(lv){   // 💕 유대 단계 1~5 (현재/잠금 + 다음 친해질 확률)
   const _lk=BUDDY_REWARDS_LOCKED;
-  let h=`<div class="bl-head">⚙️ 강화 단계 (Lv ${lv}/5)${_lk?' · 효과 준비 중':''}</div>`;
-  h+=`<div class="bl-row on"><span class="bl-lv">Lv1</span><span class="bl-nm">각성<i>${_lk?'효과 미정 (준비 중)':'연승/연패 스택 보상 능력'}</i></span><span class="bl-st">✓</span></div>`;
-  for(let i=2;i<=5;i++){ const on=lv>=i;
-    h+=`<div class="bl-row ${on?'on':'off'}"><span class="bl-lv">Lv${i}</span><span class="bl-nm">${BUDDY_LV_NAMES[i]}<i>${_lk?'효과 미정':(BUDDY_LV_DESC[i]||'')}</i></span><span class="bl-st">${on?'✓':'🔒'}</span></div>`; }
-  h+= lv<5 ? `<div class="bl-next">다음 <b>Lv${lv+1}</b> 강화 성공률 <b>${Math.round((BUDDY_UP_RATE[lv]||0)*100)}%</b> — 인형뽑기서 내 단짝을 뽑으면 시도</div>` : `<div class="bl-next">👑 최고 레벨 달성!</div>`;
+  let h=`<div class="bl-head">💕 유대 단계 (♥${lv}/5)${_lk?' · 효과 준비 중':''}</div>`;
+  for(let i=1;i<=5;i++){ const on=lv>=i;
+    const sub = i===1 ? (_lk?'효과 미정 (준비 중)':'연승/연패 스택 보상 능력')
+                      : (_lk?'효과 미정':`${BUDDY_LV_NAMES[i]} · ${BUDDY_LV_DESC[i]||''}`);
+    h+=`<div class="bl-row ${on?'on':'off'}"><span class="bl-lv">♥${i}</span><span class="bl-nm">${BUDDY_BOND_NAMES[i]}<i>${sub}</i></span><span class="bl-st">${on?'✓':'🔒'}</span></div>`; }
+  h+= lv<5 ? `<div class="bl-next">다음 <b class="buddy-bond-nm">♥${lv+1} ${BUDDY_BOND_NAMES[lv+1]}</b>까지 친해질 확률 <b>${Math.round((BUDDY_UP_RATE[lv]||0)*100)}%</b> — 인형뽑기서 내 단짝을 또 뽑으면 시도</div>` : `<div class="bl-next">👑 평생 단짝 달성!</div>`;
   return h;
 }
 function _buddyOpenPanel(pv){   // pv = {buddy, streak} 프리뷰(데이터 무변경·수령 비활성)
@@ -32600,7 +32606,7 @@ function _buddyOpenPanel(pv){   // pv = {buddy, streak} 프리뷰(데이터 무�
     <div id="buddy3d-mount" class="buddy3d-mount"></div>
     <div class="buddy3d-tap">👆 콕 찌르면 반응해요${type==='win'?' · 신나 보여요!':type==='loss'?' · 기운 내자…':''}</div>
     <div class="buddy-card">
-      <div class="buddy-row"><div style="flex:1;min-width:0;"><div class="buddy-name">${_buddyNameHtml(b)}${!pv?` <button class="buddy-edit-nick" onclick="event.stopPropagation();window._buddyOpenName()" title="별칭 짓기">✏️</button>`:''}</div><div class="buddy-lv">강화 Lv${lv}/5 · 누적 ${b.pulls||0}회 뽑음</div></div></div>
+      <div class="buddy-row"><div style="flex:1;min-width:0;"><div class="buddy-name">${_buddyNameHtml(b)}${!pv?` <button class="buddy-edit-nick" onclick="event.stopPropagation();window._buddyOpenName()" title="별칭 짓기">✏️</button>`:''}</div><div class="buddy-lv"><span class="buddy-home-lvbars">${_buddyLvBars(lv)}</span> <b class="buddy-bond-nm">${BUDDY_BOND_NAMES[lv]}</b> · 함께 ${b.pulls||0}회</div></div></div>
       <div class="buddy-streak ${type||'none'}">${streakTxt}</div>
       <div class="buddy-reward">${BUDDY_REWARDS_LOCKED ? '🔒 보상·효과는 <b>준비 중</b>이에요 (미정)' : `${cur?`지금 수령: <b>${_buddyRewardText(cur)}</b>`:'아직 수령할 보상 없음 (2스택부터)'}${(type&&next&&stack>=2)?`<br><span style="opacity:.6;">한 판 더 이기면: ${_buddyRewardText(next)}</span>`:''}`}</div>
       <button class="buddy-claim" ${(cur && !BUDDY_REWARDS_LOCKED)?'':'disabled'}>${BUDDY_REWARDS_LOCKED?'🔒 보상 준비 중':(cur?'🎁 보상 수령 (스택 0으로)':'수령 불가')}</button>
@@ -32645,10 +32651,10 @@ function _buddyShowUpgradeFx(r){   // 🧸 인형뽑기 iframe에 3D 강화 연�
 function _buddyUpgradeFx(r){   // 🧸 강화 연출(2D 폴백) — 두근두근 후 성공/실패 리빌
   _injectBuddyCss(); const k=_clawDdKey(r.champion||'teemo.glb'), ok=r.success, toLv=r.toLv;
   const ov=document.createElement('div'); ov.className='buddy-ov';
-  ov.innerHTML=`<div class="buddy-sheet"><div class="buddy-h">🧸 단짝 강화</div>
+  ov.innerHTML=`<div class="buddy-sheet"><div class="buddy-h">💕 단짝과 친해지기</div>
     <div class="bup-stage rolling"><div class="bup-ring"></div>
       <img class="bup-av" src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'">
-      <div class="bup-rate">성공 확률 ${Math.round((r.rate||0)*100)}%</div></div>
+      <div class="bup-rate">친해질 확률 ${Math.round((r.rate||0)*100)}%</div></div>
     <div class="bup-result"></div>
     <button class="buddy-cancel" style="margin-top:8px;display:none;">확인</button></div>`;
   document.body.appendChild(ov);
@@ -32656,9 +32662,9 @@ function _buddyUpgradeFx(r){   // 🧸 강화 연출(2D 폴백) — 두근두근
   setTimeout(()=>{
     const stage=ov.querySelector('.bup-stage'); stage.classList.remove('rolling'); stage.classList.add(ok?'win':'fail');
     const res=ov.querySelector('.bup-result');
-    if(ok){ res.innerHTML=`<div class="bup-big win">✨ 강화 성공!</div><div class="bup-lv">Lv${r.fromLv} → <b>Lv${toLv}</b></div>`
-        + (BUDDY_LV_NAMES[toLv]?`<div class="bup-eff">${BUDDY_LV_NAMES[toLv]}<span>${BUDDY_REWARDS_LOCKED?'효과 미정 (준비 중)':(BUDDY_LV_DESC[toLv]||'')}</span></div>`:''); }
-    else { res.innerHTML=`<div class="bup-big fail">아쉽게 실패…</div><div class="bup-lv">Lv${r.fromLv} 유지 · 다음 기회에!</div>`; }
+    if(ok){ res.innerHTML=`<div class="bup-big win">💕 더 친해졌어요!</div><div class="bup-lv"><span class="buddy-home-lvbars">${_buddyLvBars(toLv)}</span> <b class="buddy-bond-nm">${BUDDY_BOND_NAMES[toLv]}</b></div>`
+        + `<div class="bup-eff">${BUDDY_REWARDS_LOCKED?'효과 미정 (준비 중)':(BUDDY_LV_NAMES[toLv]?BUDDY_LV_NAMES[toLv]+(BUDDY_LV_DESC[toLv]?' · '+BUDDY_LV_DESC[toLv]:''):'')}</div>`; }
+    else { res.innerHTML=`<div class="bup-big fail">아쉽게도 그대로…</div><div class="bup-lv">♥${r.fromLv} 유지 · 다음 기회에!</div>`; }
     closeBtn.style.display='';
   }, 1400);
 }
