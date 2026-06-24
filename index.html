@@ -6756,7 +6756,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.240';
+const APP_VERSION = 'v2.45.241';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6765,6 +6765,9 @@ const APP_VERSION = 'v2.45.240';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.241', date: '2026-06-24', changes: [
+    { tag: 'improve', text: '🧸 단짝 공간 → 프로필로 — 단짝의 상세 공간(3D 인형·연승/연패 스택·보상 수령·강화 단계)을 닉네임 클릭 프로필 안으로 옮겼어요. 팀 구성 메인 화면엔 작은 단짝 미니(초상화+레벨+상태)만 항상 보이고, 누르면 프로필 단짝 공간으로! 대시보드는 깔끔하게, 단짝은 늘 곁에.' },
+  ] },
   { ver: 'v2.45.235', date: '2026-06-24', changes: [
     { tag: 'improve', text: '🧸 단짝 메인 화면 통합 — 단짝 선정과 단짝 공간(3D 인형·연승/연패 스택·보상 수령·강화 단계)을 이제 팝업 창 없이 팀 구성 메인 화면 안에서 바로 보고 조작해요. 아직 단짝이 없으면 컴팩트 안내, 7종 다 모으면 그 자리에서 바로 선정!' },
   ] },
@@ -19163,6 +19166,7 @@ async function _openS1ProfileModal(fbKey, player) {
         ${formHtml}
         ${gridHtml}
         ${profileChampSectionHtml(name, CURRENT_SEASON)}
+        ${(function(){try{return _buddyProfileHtml(fbKey, name);}catch(e){console.warn('단짝프로필',e);return '';}})()}
         <div class="pm-s1-bottom-row">
           <div class="pm-s1-pass-badge">🎫 패스 <span class="lv">LV ${passLv}</span><span style="color:var(--rk-text-muted);"> / ${passMax}</span></div>
           <div class="pm-s1-bottom-right">
@@ -19175,6 +19179,7 @@ async function _openS1ProfileModal(fbKey, player) {
   overlay.addEventListener('click', closeProfileModal);
   document.body.appendChild(overlay);
   document.body.style.overflow = 'hidden';
+  try{ const _pd=overlay.querySelector('.pm-buddy-doll'); if(_pd) _pd.querySelectorAll('.wm-card').forEach(c=>c.classList.add('in')); _buddyHomeAttach(); }catch(_){}   // 🧸 단짝카드 .in(opacity) + 3D 부착
   // LP 카운트업 + 바
   const _pmLpVal = overlay.querySelector('.pm-s1-lp-val[data-lp]');
   const _pmLpBar = overlay.querySelector('.pm-s1-lp-bar');
@@ -19214,6 +19219,7 @@ async function _openS1ProfileModal(fbKey, player) {
 window.closeProfileModal = function() {
   // 챔프 풀 모달이 떠 있다면 함께 정리 (프로필 닫힐 때 위 레이어도 정리)
   if (typeof closeChampPoolModal === 'function') closeChampPoolModal();
+  try{ _buddy3dClose(); }catch(_){}   // 🧸 단짝 3D 캔버스 회수
   const el = document.getElementById('profile-modal-root');
   if (el) el.remove();
   document.body.style.overflow = '';
@@ -32019,6 +32025,24 @@ function _injectBuddyCss(){
   .bsel-card img{width:100%;aspect-ratio:3/4;object-fit:cover;object-position:center 14%;display:block;}
   .bsel-card span{font-size:11px;font-weight:700;color:#ffe39a;padding:5px 2px;}
   @media(max-width:560px){ .bsp-body{flex-direction:column;align-items:center;text-align:center;} .bsp-info{align-items:center;width:100%;} .bsp-lvdetails{width:100%;} }
+  /* 🧸 대시보드 미니 단짝 (2D·클릭→프로필) */
+  .buddy-mini{display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;transition:border-color .15s;}
+  .buddy-mini:hover{border-color:rgba(240,200,90,.5);}
+  .buddy-mini-av{position:relative;width:52px;height:52px;border-radius:10px;overflow:hidden;flex-shrink:0;border:1.5px solid rgba(240,200,90,.45);background:#000;}
+  .buddy-mini-av img{width:100%;height:100%;object-fit:cover;object-position:center 14%;display:block;}
+  .buddy-mini-badge{position:absolute;top:-4px;right:-4px;font-size:13px;filter:drop-shadow(0 1px 2px #000);}
+  .buddy-mini-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+  .buddy-mini-name{font-size:14px;font-weight:800;color:#ffe6a0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .buddy-mini-lv{font-size:11px;color:#cbb98a;display:flex;align-items:center;gap:5px;}
+  .buddy-mini-mood{font-size:11px;font-weight:700;}
+  .buddy-mini-mood.win{color:#ffd24a;} .buddy-mini-mood.loss{color:#8fb6ff;} .buddy-mini-mood.none{color:#9aa0b4;font-weight:500;}
+  .buddy-mini-go{flex-shrink:0;font-size:12px;font-weight:700;color:#ffd24a;white-space:nowrap;}
+  /* 🧸 프로필 내 단짝인형 섹션 */
+  .pm-buddy-doll{margin-top:12px;}
+  .pm-buddy-doll .wm-card{opacity:1;}
+  .bsp-readonly{display:flex;align-items:center;gap:14px;padding:4px 2px;}
+  .bsp-ro-img{width:80px;height:90px;border-radius:10px;object-fit:cover;object-position:center 14%;border:1.5px solid rgba(240,200,90,.4);flex-shrink:0;}
+  .bsp-ro-info{display:flex;flex-direction:column;gap:5px;}
   .buddy-home-name{position:relative;z-index:1;font-size:16px;font-weight:800;color:#ffe6a0;text-shadow:0 0 10px rgba(240,200,90,.25);}
   .buddy-home-champ{position:relative;z-index:1;font-size:10.5px;color:#bda877;font-weight:600;margin-top:-2px;}
   /* 별칭 + 챔피언명 병행 표기 */
@@ -32202,13 +32226,11 @@ function _buddySectionHtml(){
   if(CURRENT_SEASON!==2) return '';
   try{ _injectBuddyCss(); }catch(_){}
   const pv=_buddyPvState;
-  if(pv && pv.mode==='space') return _buddySpaceHtml(pv.buddy, pv.streak, true);
-  if(pv && pv.mode==='select') return _buddySelectInlineHtml(['teemo.glb','gwen.glb','vex.glb','ekko.glb','yone.glb','neeko.glb','lux.glb'], true);
+  if(pv && pv.mode==='space') return _buddyMiniHtml(pv.buddy, pv.streak);   // 대시보드=미니(풀공간은 프로필)
   const b=_buddyData();
-  if(b) return _buddySpaceHtml(b, _buddyStreakData(), false);
-  const data=getMyGoldData()||{}; const coll=Array.isArray(data[sField('clawCollected')])?data[sField('clawCollected')]:[];
-  if(coll.length>=7 && _allPrismDone(data)) return _buddySelectInlineHtml(coll, false);   // 7종 완성 → 인라인 선정
-  return _buddyHomePromptHtml();   // 그 외 → 컴팩트 배너
+  if(b) return _buddyMiniHtml(b);
+  // 선정/안내는 컴팩트 배너(CTA가 프로필로) — 풀 선정·공간은 프로필에서
+  return _buddyHomePromptHtml();
 }
 function _buddySpaceHtml(b, st, pv){   // 단짝 공간(3D+스택+수령+강화) 인라인
   const type=st.type, stack=st.count||0, lv=b.level||1;
@@ -32240,9 +32262,9 @@ function _buddySelectInlineHtml(coll, pv){   // 단짝 선정 인라인
 window.buddyPickInline = function(f, pv){ const nm=_buddyChampName(f);
   if(pv){ showS1Toast(`👀 [프리뷰] ${nm} 선택 — 실제로는 저장 안 돼요`); return; }
   if(confirm(`${nm}을(를) 단짝으로 정할까요?\n\n⚠️ 한 번 정하면 절대 바꿀 수 없어요!`)){
-    buddySelect(f).then(ok=>{ if(ok){ showS1Toast(`🧸 ${nm} — 평생 단짝이 됐어요!`); try{renderGachaTab();}catch(_){} setTimeout(()=>{ try{_buddyOpenName();}catch(_){} }, 500); } }); } };
+    buddySelect(f).then(ok=>{ if(ok){ showS1Toast(`🧸 ${nm} — 평생 단짝이 됐어요!`); try{renderGachaTab();}catch(_){} try{_buddyRefreshProfile();}catch(_){} setTimeout(()=>{ try{_buddyOpenName();}catch(_){} }, 500); } }); } };
 window.buddyClaimInline = function(pv){ if(pv){ showS1Toast('👀 프리뷰 — 실제 수령은 안 돼요'); return; }
-  buddyClaim().then(ok=>{ if(ok){ showS1Toast('🎁 단짝 보상을 받았어요!'); try{updateMyInfoBar();}catch(_){} } }); };
+  buddyClaim().then(ok=>{ if(ok){ showS1Toast('🎁 단짝 보상을 받았어요!'); try{updateMyInfoBar();}catch(_){} try{ _buddyRefreshProfile(); }catch(_){} } }); };
 function _buddyApplySection(retries){ const w=document.getElementById('buddy-section-wrap');
   if(w){ try{ w.innerHTML=_buddySectionHtml(); w.querySelectorAll('.wm-card').forEach(c=>c.classList.add('in')); }catch(e){ console.warn('단짝섹션 렌더오류', e); } setTimeout(()=>{ try{_buddyHomeAttach();}catch(_){} },20); return; }   // ⚠️ 재렌더 카드에 .in(opacity:0→1) 안 붙으면 투명
   if((retries||0)<40) setTimeout(()=>_buddyApplySection((retries||0)+1), 300);   // 대시보드 로드 늦으면 폴링
@@ -32250,8 +32272,10 @@ function _buddyApplySection(retries){ const w=document.getElementById('buddy-sec
 function _buddyRerenderSection(){ _buddyApplySection(0); }
 window.buddySectionPreview = function(mode, opts){ opts=opts||{};
   _buddyPvState = (mode==='space') ? {mode:'space', buddy:{champion:opts.champ||'teemo.glb', level:opts.lv||3, pulls:7}, streak:{type:(opts.type===undefined?'win':opts.type), count:(opts.count==null?4:opts.count)}} : {mode:'select'};
-  _buddyRerenderSection(); console.log('🧸 단짝 인라인 프리뷰:', mode, '(종료=_buddyExitPreview())'); };
-window._buddyExitPreview = function(){ _buddyPvState=null; _buddyRerenderSection(); };
+  _buddyRerenderSection();   // 대시보드 미니 갱신
+  setTimeout(()=>{ try{ if(window.openMyProfile) openMyProfile(); }catch(_){} }, 250);   // 프로필에서 풀 공간/선정 미리보기
+  console.log('🧸 단짝 프리뷰:', mode, '(종료=_buddyExitPreview())'); };
+window._buddyExitPreview = function(){ _buddyPvState=null; _buddyRerenderSection(); try{ if(window.closeProfileModal) closeProfileModal(); }catch(_){} };
 function _buddyLvBars(lv){ let s=''; for(let i=1;i<=5;i++) s+=`<i class="${i<=lv?'on':''}"></i>`; return s; }
 function _buddyHomePromptHtml(){   // 🧸 단짝 없을 때 컴팩트 배너(겹친 카드 부채꼴) — 메인 자리 적게
   try{ _injectBuddyCss(); }catch(_){}
@@ -32261,7 +32285,7 @@ function _buddyHomePromptHtml(){   // 🧸 단짝 없을 때 컴팩트 배너(�
   const fan=roster.map((s,i)=>{ const g=coll.includes(s.toLowerCase()+'.glb');
     return `<div class="bhp-card${g?' got':''}" style="z-index:${i+1}"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${s}_0.jpg" loading="lazy" alt="${s}" onerror="this.style.opacity=0">${g?'':'<i class="bhp-lock">🔒</i>'}</div>`; }).join('');
   const cta = !prism ? `<span class="bhp-dim">프리즘 18종 완성 시 열려요</span>`
-    : (coll.length>=7 ? `<button class="bhp-btn" onclick="window._buddyOpenSelect()">단짝 선정 ▸</button>`
+    : (coll.length>=7 ? `<button class="bhp-btn" onclick="try{window.openMyProfile&&window.openMyProfile()}catch(_){}">단짝 선정 ▸</button>`
       : `<button class="bhp-btn" onclick="window.openClawTest3D()">인형뽑기 ▸</button>`);
   return `<div class="wm-card buddy-prompt">
     <div class="bhp-head">🧸 내 단짝 <span class="bhp-count">${got}/7</span></div>
@@ -32269,8 +32293,43 @@ function _buddyHomePromptHtml(){   // 🧸 단짝 없을 때 컴팩트 배너(�
     <div class="bhp-cta">${cta}</div>
   </div>`;
 }
-function _buddyHomeCardHtml(){   // 🏠 메인 홈 세로형 단짝 패널 (있으면 3D·없으면 인형뽑기 안내)
-  try{ _injectBuddyCss(); }catch(_){}   // ⚠️ 홈 카드 CSS도 주입(패널 안 열어도 .wm-home-row/.buddy-home 적용)
+function _buddyDataOf(fbKey){ return (fbKey && typeof goldData!=='undefined' && goldData[fbKey]) ? (goldData[fbKey][sField('buddy')]||null) : null; }
+function _buddyMiniHtml(b, st){   // 🧸 대시보드 미니 단짝(2D 초상화 + 이름·레벨·상태) → 클릭=프로필
+  st = st || _buddyStreakData(); const lv=b.level||1, k=_clawDdKey(b.champion);
+  const moodTxt = st.type==='win'?`🔥 연승 ${st.count}` : st.type==='loss'?`🛡 연패 ${st.count}` : '평온';
+  const claimable = !!(st.type && st.count>=2);
+  return `<div class="wm-card buddy-mini" onclick="try{window.openMyProfile&&window.openMyProfile()}catch(_){}">
+    <div class="buddy-mini-av"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" loading="lazy" onerror="this.style.visibility='hidden'">${claimable?'<span class="buddy-mini-badge">🎁</span>':''}</div>
+    <div class="buddy-mini-info">
+      <div class="buddy-mini-name">🧸 ${_buddyNameHtml(b)}</div>
+      <div class="buddy-mini-lv"><span class="buddy-home-lvbars">${_buddyLvBars(lv)}</span> 강화 Lv${lv}</div>
+      <div class="buddy-mini-mood ${st.type||'none'}">${moodTxt}${claimable?' · 🎁 수령 가능!':''}</div>
+    </div>
+    <div class="buddy-mini-go">단짝 공간 ▸</div></div>`;
+}
+function _buddyProfileHtml(fbKey, name){   // 🧸 프로필 내 단짝인형 풀 섹션(본인=상호작용·3D, 남=읽기전용 2D)
+  try{ _injectBuddyCss(); }catch(_){}
+  const isMe = !!(fbKey && fbKey===getMyGoldKey());
+  const pv = isMe ? _buddyPvState : null;
+  if(pv && pv.mode==='select') return `<div class="pm-buddy-doll">${_buddySelectInlineHtml(['teemo.glb','gwen.glb','vex.glb','ekko.glb','yone.glb','neeko.glb','lux.glb'], true)}</div>`;
+  const b = (pv&&pv.mode==='space') ? pv.buddy : _buddyDataOf(fbKey);
+  if(b){
+    if(isMe) return `<div class="pm-buddy-doll">${_buddySpaceHtml(b, (pv?pv.streak:_buddyStreakData()), !!pv)}</div>`;
+    const k=_clawDdKey(b.champion), lv=b.level||1;   // 남의 단짝 = 읽기전용
+    return `<div class="pm-buddy-doll"><div class="bsp-hd">🧸 단짝인형</div><div class="bsp-readonly"><img class="bsp-ro-img" src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'"><div class="bsp-ro-info"><div class="bsp-name">${_buddyNameHtml(b)}</div><div class="bsp-lv"><span class="buddy-home-lvbars">${_buddyLvBars(lv)}</span> 강화 Lv${lv}/5</div></div></div></div>`;
+  }
+  if(isMe){ const data=getMyGoldData()||{}; const coll=Array.isArray(data[sField('clawCollected')])?data[sField('clawCollected')]:[];
+    if(coll.length>=7 && _allPrismDone(data)) return `<div class="pm-buddy-doll">${_buddySelectInlineHtml(coll, false)}</div>`;
+    return `<div class="pm-buddy-doll">${_buddyHomePromptHtml()}</div>`;
+  }
+  return '';   // 남인데 단짝 없음 → 표시 안 함
+}
+function _buddyRefreshProfile(){   // 프로필 단짝 섹션만 갱신(수령/선정 후)
+  const el=document.querySelector('#profile-modal-root .pm-buddy-doll'); if(!el) return;
+  const me=getMyGoldKey(); const tmp=document.createElement('div'); tmp.innerHTML=_buddyProfileHtml(me, (goldData[me]||{}).name);
+  const nw=tmp.firstElementChild; if(nw){ el.replaceWith(nw); nw.querySelectorAll('.wm-card').forEach(c=>c.classList.add('in')); setTimeout(()=>{ try{_buddyHomeAttach();}catch(_){} },20); } }
+function _buddyHomeCardHtml(){   // 🏠 (레거시·미사용) 메인 홈 세로형 단짝 패널
+  try{ _injectBuddyCss(); }catch(_){}
   const b=_buddyData();
   if(b){ const st=_buddyStreakData(), lv=b.level||1;
     const _bhNick=(b.nickname||'').trim(), _bhChamp=_buddyChampName(b.champion);
