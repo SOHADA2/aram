@@ -1833,11 +1833,12 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .wm-em-grade{font-size:9px;font-weight:800;letter-spacing:0.3px;padding:1px 6px;border:1px solid;border-radius:5px;font-family:'JetBrains Mono',monospace;}
 .wm-em-on-tag{font-size:9px;font-weight:800;color:var(--gold-light);}
 .wm-em-efflist{display:flex;flex-direction:column;gap:3px;margin-top:6px;}
-.wm-em-effgrp{display:flex;flex-direction:column;gap:1px;padding:4px 8px;background:rgba(255,255,255,0.03);border-radius:6px;}  /* 효과 박스(펄) — 본행 + 발동% 캡션을 함께 감쌈 */
-.wm-em-eff-row{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10.5px;line-height:1.4;}
-.wm-em-eff-nm{color:var(--rk-text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.wm-em-eff-v{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:10.5px;flex-shrink:0;}
-.wm-em-eff-pct{font-size:8px;font-weight:600;opacity:.55;color:var(--rk-text-muted);line-height:1.3;word-break:keep-all;}  /* 박스 안 발동%·조건 캡션 */
+.wm-em-effgrp{display:flex;flex-direction:column;gap:1px;padding:4px 8px;background:rgba(255,255,255,0.03);border-radius:6px;}  /* 효과 박스(펄) */
+.wm-em-eff-row{display:flex;align-items:center;gap:6px;font-size:10.5px;line-height:1.4;}
+.wm-em-eff-nm{color:var(--rk-text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex-shrink:1;}
+.wm-em-eff-v{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:10.5px;flex-shrink:0;margin-left:auto;}
+.wm-em-eff-pct{font-size:8px;font-weight:600;opacity:.55;color:var(--rk-text-muted);line-height:1.3;word-break:keep-all;flex-shrink:0;}  /* 발동% — 이름 오른쪽에 인라인 */
+.wm-em-eff-cond{font-size:8px;font-weight:600;opacity:.5;color:var(--rk-text-muted);line-height:1.3;word-break:keep-all;margin-top:1px;}  /* 시너지 조건 캡션(박스 안 아래) */
 .wm-em-eff-sub{font-size:8.5px;opacity:.6;font-weight:600;}
 .wm-em-eff-empty{font-size:10px;color:var(--rk-text-muted);padding:5px 8px;background:rgba(255,255,255,0.02);border-radius:6px;}
 .wm-fx-grade{font-size:9px;font-weight:800;letter-spacing:0.3px;padding:1px 6px;border:1px solid;border-radius:5px;font-family:'JetBrains Mono',monospace;flex-shrink:0;}
@@ -6788,7 +6789,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.267';
+const APP_VERSION = 'v2.45.268';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6797,6 +6798,9 @@ const APP_VERSION = 'v2.45.267';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.268', date: '2026-06-24', changes: [
+    { tag: 'improve', text: '🔗 홈 "전투 준비 효과" — "발동 45%" 같은 발동 확률을 효과 이름 바로 오른쪽(같은 줄)에 인라인으로 붙이고, 값은 줄 오른쪽 끝에 정렬했어요. 시너지 조건(예: 킬+어시 23+ 승리)은 박스 안 아래 작은 글씨로 둡니다.' },
+  ] },
   { ver: 'v2.45.267', date: '2026-06-24', changes: [
     { tag: 'improve', text: '🔗 홈 "전투 준비 효과" 칩 정리 — ① "발동 45%" 같은 발동 확률·조건을 효과 박스 안(이름·값 아래)에 넣었어요. ② 강철심장 칩도 시너지 칩과 똑같은 세로 구조로 통일하고, 좌우 효과 박스가 카드 높이를 꽉 채우도록 균등 분배해서 빈 공간 없이 줄이 맞게 정렬했어요.' },
   ] },
@@ -24297,9 +24301,9 @@ async function renderS1WaitingCard(el) {
       if (!lines.length) return `<div class="wm-em-eff-empty">걸작 미제작 · 대장간에서 제작</div>`;
       return lines.map(eid => {
         const ef = EMBLEM_EFFECTS[eid], per = emblemPerLine(eid, pwe);
-        // 발동%가 붙는 효과(승리/패배 LP)는 값 옆에 붙이면 줄이 길어져 → 본행 아래 작은 캡션줄로 분리
-        const pct = (eid==='winLP'||eid==='lossLP') ? `<div class="wm-em-eff-pct">발동 ${lpc}%</div>` : '';
-        return `<div class="wm-em-effgrp"><div class="wm-em-eff-row"><span class="wm-em-eff-nm">${escHtml(ef.name)}</span><span class="wm-em-eff-v" style="color:${ef.color};">${ef.fmt(per)}</span></div>${pct}</div>`;
+        // 발동%(승리/패배 LP)는 이름 오른쪽에 인라인, 값은 오른쪽 끝
+        const pct = (eid==='winLP'||eid==='lossLP') ? `<span class="wm-em-eff-pct">발동 ${lpc}%</span>` : '';
+        return `<div class="wm-em-effgrp"><div class="wm-em-eff-row"><span class="wm-em-eff-nm">${escHtml(ef.name)}</span>${pct}<span class="wm-em-eff-v" style="color:${ef.color};">${ef.fmt(per)}</span></div></div>`;
       }).join('');
     };
     const _emGrade = (pwe) => ({ silver:{t:'실버',c:'#cbd5e1'}, gold:{t:'골드',c:'#ffd24a'}, prismatic:{t:'프리즘',c:'#e879f9'}, none:{t:'미강화',c:'#8f857c'} }[emblemEffects(pwe).glow] || {t:'',c:'#cbd5e1'});
@@ -31577,8 +31581,8 @@ function _synEffRowsHtml(grp, tier) {
     default:
       return `<div class="wm-em-effgrp"><div class="wm-em-eff-row"><span class="wm-em-eff-nm">효과</span><span class="wm-em-eff-v">${escHtml(_synEffTxt(grp, tier))}</span></div></div>`;
   }
-  const capFull = `발동 ${proc}%${cap ? ' · ' + cap : ''}`;
-  return `<div class="wm-em-effgrp"><div class="wm-em-eff-row"><span class="wm-em-eff-nm">${escHtml(label)}</span><span class="wm-em-eff-v" style="color:${vc};">${escHtml(val)}</span></div><div class="wm-em-eff-pct">${escHtml(capFull)}</div></div>`;
+  const condHtml = cap ? `<div class="wm-em-eff-cond">${escHtml(cap)}</div>` : '';
+  return `<div class="wm-em-effgrp"><div class="wm-em-eff-row"><span class="wm-em-eff-nm">${escHtml(label)}</span><span class="wm-em-eff-pct">발동 ${proc}%</span><span class="wm-em-eff-v" style="color:${vc};">${escHtml(val)}</span></div>${condHtml}</div>`;
 }
 
 // 시너지 효과 공개 여부 — 멤버 전원을 해당 티어로 모았을 때만 효과 공개 (수집 동기 부여)
