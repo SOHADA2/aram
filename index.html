@@ -6756,7 +6756,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.231';
+const APP_VERSION = 'v2.45.232';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6765,6 +6765,9 @@ const APP_VERSION = 'v2.45.231';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.232', date: '2026-06-23', changes: [
+    { tag: 'improve', text: '🔨 강철심장 강화 단계를 테두리 색으로 — 강화는 최대 5번(성공 횟수 0~5)인데, 칸 테두리·레벨 배지 색이 단계마다 달라져요(회색→초록→파랑→보라→금→빨강). 한눈에 몇 단계인지 보이고, "성능 N"(성능 등급 색)과 함께 품질을 빠르게 가늠할 수 있어요.' },
+  ] },
   { ver: 'v2.45.231', date: '2026-06-23', changes: [
     { tag: 'improve', text: '🔨 내 아이템의 강철심장 칸에 "성능 N" 숫자를 표기했어요 — 그동안 +레벨만 보여서 좋은 건지 알기 어려웠는데, 이제 실제 성능 수치가 등급 색으로 함께 떠요(같은 +5라도 성능이 다르거든요).' },
   ] },
@@ -10460,6 +10463,9 @@ const _EMBLEM_GLOW_META = {
   gold:      { label:'골드 광채',   color:'#ffd24a' },
   prismatic: { label:'프리즈매틱',  color:'#e879f9' },
 };
+// 🔨 강화 성공 횟수(레벨 0~5)별 테두리 색 — 한눈에 강화 단계 구분 (등급색=성능과 별개)
+const _EMBLEM_LV_COLOR = ['#8a8f9c','#5fbf8a','#4fa3e0','#b07cf0','#f0b43a','#ff5a6a'];
+function _emblemLvColor(lvl){ return _EMBLEM_LV_COLOR[Math.max(0, Math.min(5, lvl|0))] || _EMBLEM_LV_COLOR[0]; }
 window.openEmblemModal = function(){
   if (!myName) { showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
   document.getElementById('emblem-overlay')?.remove();
@@ -10683,8 +10689,11 @@ function _emblemInvSlotsHtml(cat){
       const power=emblemPower(e), item=_forgeItemMeta(power), lvl=emblemLevel(e), isEq=e.id===eqId;
       const glow=_EMBLEM_GLOW_META[emblemEffects(power).glow]||_EMBLEM_GLOW_META.none;
       // 슬롯은 깔끔하게(썸네일·레벨·이름·상태만). 판매/강화/장착은 탭하면 뜨는 상세 시트에서.
-      return `<div class="inv-slot inv-emblem-eq${isEq?' inv-active':''}" data-emid="${e.id}" style="touch-action:none;" title="${item.kr} · 성능 ${power} · 탭하면 상세(장착·강화·판매)">
-        <div class="inv-emblem-thumb" style="--gc:${glow.color};"><img src="${_forgeItemImg(power)}" alt=""><span class="inv-emblem-lv">+${lvl}</span></div>
+      // 테두리 색 = 강화 성공 횟수(레벨 0~5)로 구분. 장착 중이면 글로우 강조.
+      const lvc = _emblemLvColor(lvl);
+      const slotStyle = `touch-action:none;border-color:${lvc};box-shadow:0 0 7px -2px ${lvc}99${isEq?`,inset 0 0 0 1px ${lvc},0 0 13px -1px ${lvc}`:''};`;
+      return `<div class="inv-slot inv-emblem-eq${isEq?' inv-active':''}" data-emid="${e.id}" style="${slotStyle}" title="${item.kr} · +${lvl} · 성능 ${power} · 탭하면 상세(장착·강화·판매)">
+        <div class="inv-emblem-thumb" style="--gc:${lvc};"><img src="${_forgeItemImg(power)}" alt=""><span class="inv-emblem-lv">+${lvl}</span></div>
         <div class="inv-slot-name">${item.kr}</div>
         <div class="inv-emblem-pow" style="color:${glow.color};">성능 ${power}</div>
         <div class="inv-slot-action inv-action-use" style="${isEq?'background:linear-gradient(135deg,#ffb867,#e08a2e);color:#1a1206;':'opacity:.8;'}">${isEq?'✓ 장착중':'관리'}</div>
