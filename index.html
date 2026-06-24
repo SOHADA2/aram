@@ -1913,6 +1913,12 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .my-info-avatar::after{content:'';position:absolute;inset:2px;border-radius:50%;background:var(--rk-card);z-index:1;}
 .mib-avatar-face{position:absolute;inset:2px;border-radius:50%;overflow:hidden;z-index:2;display:flex;align-items:center;justify-content:center;font-size:18px;background:var(--rk-sub);}
 .mib-avatar-face img{width:100%;height:100%;object-fit:cover;}
+/* 🧸 단짝 보유 시 아바타 = 움직이는 3D 인형(세로형·크게, 캔버스 190:212 비율 맞춰 왜곡 방지) */
+.my-info-avatar.has-buddy{width:50px;height:56px;border-radius:14px;}
+.my-info-avatar.has-buddy::before{border-radius:16px;}
+.my-info-avatar.has-buddy::after{border-radius:13px;}
+.my-info-avatar.has-buddy .mib-avatar-face{border-radius:12px;font-size:0;background:radial-gradient(ellipse at 50% 84%,rgba(240,200,90,.22),rgba(0,0,0,0) 64%);}
+.buddy-bar-mount{width:100%;height:100%;position:relative;cursor:pointer;}
 @keyframes mibSpin{to{transform:rotate(360deg);}}
 .mib-body{flex:0 1 auto;min-width:0;max-width:42%;position:relative;z-index:1;}
 .my-info-name{font-weight:700;font-size:14px;color:var(--rk-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -6756,7 +6762,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.245';
+const APP_VERSION = 'v2.45.246';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6765,7 +6771,9 @@ const APP_VERSION = 'v2.45.245';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
-  { ver: 'v2.45.242', date: '2026-06-24', changes: [
+  { ver: 'v2.45.246', date: '2026-06-24', changes: [
+    { tag: 'new', text: '🧸 단짝이 내 아바타로! — 단짝을 정하면 좌상단 내 정보 프로필 사진 자리에 움직이는 3D 단짝 인형이 들어와요. 크게 키워서 잘 보이고, 콕 찌르면 반응해요. 이제 알림도 단짝이 알려주는 느낌!' },
+  ] },
     { tag: 'improve', text: '🧸 단짝 공간 → 프로필로 — 단짝의 상세 공간(3D 인형·연승/연패 스택·보상 수령·강화 단계)을 닉네임 클릭 프로필 안으로 옮겼어요. 단짝이 있으면 팀 구성 메인 화면에 작은 미니(초상화+레벨+상태)로 보이고 누르면 프로필 공간으로! 단짝 선정 전엔 메인이 깔끔하게 비어 있어요(인형뽑기/선정은 프로필·가챠에서).' },
   ] },
   { ver: 'v2.45.235', date: '2026-06-24', changes: [
@@ -23606,16 +23614,24 @@ function updateMyInfoBar() {
       avatarEl.style.setProperty('--mib-ring-color', meta.color);
       // MOST 챔피언 이미지 설정 (현재 시즌 기준)
       if (faceEl) {
-        const cd = calcChampDetail(myName, CURRENT_SEASON);
-        if (cd?.most?.slug) {
-          const img = document.createElement('img');
-          img.src = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(cd.most.slug)}.png`;
-          img.alt = '';
-          img.onerror = () => { faceEl.textContent = fallback; img.remove(); };
-          faceEl.innerHTML = '';
-          faceEl.appendChild(img);
+        const _bb = (CURRENT_SEASON===2) ? ((typeof _buddyPvState!=='undefined' && _buddyPvState && _buddyPvState.mode==='space') ? _buddyPvState.buddy : _buddyData()) : null;
+        if (_bb) {   // 🧸 단짝 있으면 아바타 자리에 움직이는 3D 인형(프리뷰 포함)
+          avatarEl.classList.add('has-buddy');
+          if (!document.getElementById('buddy-bar-mount')) faceEl.innerHTML = '<div id="buddy-bar-mount" class="buddy-bar-mount"></div>';
+          try{ _buddyHomeAttach(); }catch(_){}
         } else {
-          faceEl.textContent = fallback;
+          avatarEl.classList.remove('has-buddy');
+          const cd = calcChampDetail(myName, CURRENT_SEASON);
+          if (cd?.most?.slug) {
+            const img = document.createElement('img');
+            img.src = `https://ddragon.leagueoflegends.com/cdn/${DDRAGON_VERSION}/img/champion/${encodeURIComponent(cd.most.slug)}.png`;
+            img.alt = '';
+            img.onerror = () => { faceEl.textContent = fallback; img.remove(); };
+            faceEl.innerHTML = '';
+            faceEl.appendChild(img);
+          } else {
+            faceEl.textContent = fallback;
+          }
         }
       }
       let html = `<span style="font-size:11px;color:${meta.color};background:${meta.color}1a;border:1px solid ${meta.color}4d;border-radius:4px;padding:1px 6px;">${meta.label}</span>`;
@@ -32219,10 +32235,12 @@ function _buddy3dClose(){ if(_buddy3dCtx && _buddy3dCtx.canvas.parentNode!==_bud
 function _buddyHomeMood(){ const st=_buddyStreakData(); return st.type==='win'?'win':st.type==='loss'?'loss':'none'; }
 var _buddyPvState=null;   // 🧸 단짝 인라인 프리뷰 상태 {mode:'space'|'select', buddy, streak} — var=hoist(TDZ 방지, init 동기렌더 안전)
 function _buddyPvMood(){ const pv=_buddyPvState; if(!pv||pv.mode!=='space') return _buddyHomeMood(); const t=pv.streak&&pv.streak.type; return t==='win'?'win':t==='loss'?'loss':'none'; }
-function _buddyHomeAttach(){   // 인라인 단짝공간 마운트에 3D 부착(있으면)
+function _buddyHomeAttach(){   // 3D를 프로필 공간(우선) 또는 정보바 아바타 마운트에 부착
   const pv=_buddyPvState; const b=(pv&&pv.mode==='space')?pv.buddy:_buddyData(); if(!b) return;
-  if(document.getElementById('buddy-panel')) return; if(!document.getElementById('buddy-space-mount')) return;
-  try{ _buddy3dShow('buddy-space-mount', b.champion, _buddyPvMood()); }catch(_){} }
+  const target = document.getElementById('buddy-space-mount') ? 'buddy-space-mount'
+               : document.getElementById('buddy-bar-mount') ? 'buddy-bar-mount' : null;
+  if(!target) return;
+  try{ _buddy3dShow(target, b.champion, _buddyPvMood()); }catch(_){} }
 // ── 🧸 단짝 메인 인라인 섹션 (모달 대신 대시보드에 직접) ──
 function _buddySectionHtml(){
   if(CURRENT_SEASON!==2) return '';
@@ -32274,9 +32292,10 @@ function _buddyRerenderSection(){ _buddyApplySection(0); }
 window.buddySectionPreview = function(mode, opts){ opts=opts||{};
   _buddyPvState = (mode==='space') ? {mode:'space', buddy:{champion:opts.champ||'teemo.glb', level:opts.lv||3, pulls:7}, streak:{type:(opts.type===undefined?'win':opts.type), count:(opts.count==null?4:opts.count)}} : {mode:'select'};
   _buddyRerenderSection();   // 대시보드 미니 갱신
-  setTimeout(()=>{ try{ if(window.openMyProfile) openMyProfile(); }catch(_){} }, 250);   // 프로필에서 풀 공간/선정 미리보기
-  console.log('🧸 단짝 프리뷰:', mode, '(종료=_buddyExitPreview())'); };
-window._buddyExitPreview = function(){ _buddyPvState=null; _buddyRerenderSection(); try{ if(window.closeProfileModal) closeProfileModal(); }catch(_){} };
+  try{ updateMyInfoBar(); }catch(_){}   // 정보바 아바타에 단짝 인형(space 프리뷰는 여기서 보여 — 캔버스 1개라 프로필 열면 아바타가 비움)
+  if(mode==='select') setTimeout(()=>{ try{ if(window.openMyProfile) openMyProfile(); }catch(_){} }, 250);   // 선정은 프로필에서만
+  console.log('🧸 단짝 프리뷰:', mode, '· 프로필 공간은 닉네임/아바타 클릭 · 종료=_buddyExitPreview()'); };
+window._buddyExitPreview = function(){ _buddyPvState=null; _buddyRerenderSection(); try{ updateMyInfoBar(); }catch(_){} try{ if(window.closeProfileModal) closeProfileModal(); }catch(_){} };
 function _buddyLvBars(lv){ let s=''; for(let i=1;i<=5;i++) s+=`<i class="${i<=lv?'on':''}"></i>`; return s; }
 function _buddyHomePromptHtml(){   // 🧸 단짝 없을 때 컴팩트 배너(겹친 카드 부채꼴) — 메인 자리 적게
   try{ _injectBuddyCss(); }catch(_){}
