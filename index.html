@@ -6756,7 +6756,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.233';
+const APP_VERSION = 'v2.45.234';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -23049,6 +23049,8 @@ if (location.search.includes('claw')) setTimeout(()=>{ try{ window.clawTest(); }
     const lv = (p[3]!=null && p[3]!=='') ? +p[3] : 3;
     window.buddyPanelPreview(lv, mood==='none'?null:mood, count, champ);
   }catch(e){ console.warn('buddypreview', e); } }, 1600); }
+// 🧸 단짝 선정 모달 프리뷰 링크 — ?buddyselect (7종 전체·데이터 무변경)
+if (location.search.includes('buddyselect')) setTimeout(()=>{ try{ window.buddySelectPreview(); }catch(e){ console.warn('buddyselect', e); } }, 1600);
 
 // ── 골드 & 상점 시스템 ───────────────────────────────────────
 
@@ -32071,18 +32073,19 @@ function _injectBuddyCss(){
   .buddy-help b{color:#ffe39a;}`;
   document.head.appendChild(s);
 }
-function _buddyOpenSelect(coll){
+function _buddyOpenSelect(coll, pv){
   if(document.getElementById('buddy-select')) return; _injectBuddyCss();
   coll = coll || (getMyGoldData()?.[sField('clawCollected')]||[]);
   if(!coll.length) return showS1Toast('수집한 챔피언이 없어요');
   const ov=document.createElement('div'); ov.id='buddy-select'; ov.className='buddy-ov';
-  ov.innerHTML=`<div class="buddy-sheet"><div class="buddy-h">🧸 단짝인형 선정</div>
-    <div class="buddy-sub">평생 함께할 <b>단짝 한 명</b>을 골라요.<br><b style="color:#ff8a8a;">⚠️ 한 번 정하면 절대 바꿀 수 없어요!</b></div>
+  ov.innerHTML=`<div class="buddy-sheet"><div class="buddy-h">🧸 단짝인형 선정${pv?' <span style="font-size:12px;color:#7fd6ff;">· 프리뷰</span>':''}</div>
+    <div class="buddy-sub">${pv?'<b style="color:#7fd6ff;">👀 프리뷰 — 골라도 저장되지 않아요</b>':'평생 함께할 <b>단짝 한 명</b>을 골라요.<br><b style="color:#ff8a8a;">⚠️ 한 번 정하면 절대 바꿀 수 없어요!</b>'}</div>
     <div class="buddy-grid">${coll.map(f=>{const k=_clawDdKey(f);return `<button class="buddy-pick" data-f="${f}"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'"><span>${escHtml(_buddyChampName(f))}</span></button>`;}).join('')}</div>
     <button class="buddy-cancel">나중에</button></div>`;
   document.body.appendChild(ov);
   ov.querySelector('.buddy-cancel').onclick=()=>ov.remove();
   ov.querySelectorAll('.buddy-pick').forEach(btn=>btn.onclick=()=>{ const f=btn.dataset.f, nm=_buddyChampName(f);
+    if(pv){ ov.remove(); showS1Toast(`👀 [프리뷰] ${nm} 선택 — 실제로는 저장 안 돼요`); return; }   // 프리뷰: DB 쓰기 없음
     if(confirm(`${nm}을(를) 단짝으로 정할까요?\n\n⚠️ 한 번 정하면 절대 바꿀 수 없어요!`)){
       buddySelect(f).then(ok=>{ if(ok){ ov.remove(); showS1Toast(`🧸 ${nm} — 평생 단짝이 됐어요!`); try{renderGachaTab();}catch(_){} setTimeout(()=>{ try{_buddyOpenName();}catch(_){} }, 400); } }); } });   // 선정 직후 별칭 짓기
 }
@@ -32302,6 +32305,9 @@ window.buddyUpgradePreview = (success, lv, champ)=>{ lv=lv||1; const ok=(success
   if(_buddyShowUpgradeFx(fx)) console.log('🧸 3D 강화 연출 프리뷰(인형뽑기 안) — 데이터 무변경');
   else { _buddyUpgradeFx(fx); console.log('🧸 강화 연출 프리뷰(2D 폴백) — 3D로 보려면 openClawTest3D()로 인형뽑기를 먼저 여세요. 인자: buddyUpgradePreview(true/false, 레벨1~4, "gwen.glb"등)'); } };
 window._buddyOpenSelect=_buddyOpenSelect; window._buddyOpenPanel=_buddyOpenPanel;
+window.buddySelectPreview = ()=>{   // 🧸 단짝 선정 모달 프리뷰(7종 전체·데이터 무변경·골라도 저장X)
+  _buddyOpenSelect(['teemo.glb','gwen.glb','vex.glb','ekko.glb','yone.glb','neeko.glb','lux.glb'], true);
+  console.log('🧸 단짝 선정 프리뷰 — 7종 전체 표시, 골라도 저장 안 됨'); };
 window.buddyPanelPreview = (lv, type, count, champ)=>{   // 🧸 단짝 정보 패널 프리뷰(데이터 무변경·수령 비활성)
   _buddyOpenPanel({ buddy:{ champion:champ||(_buddyData()?.champion)||'teemo.glb', level:lv||3, pulls:7 }, streak:{ type:(type===undefined?'win':type), count:(count==null?4:count) } });
   console.log('🧸 단짝 패널 프리뷰(데이터 무변경) — buddyPanelPreview(레벨1~5, "win"/"loss"/null, 스택수, "gwen.glb")'); };
