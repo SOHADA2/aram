@@ -532,6 +532,9 @@ header{text-align:center;padding:48px 0 24px;position:relative;}
 /* 🔨 강철심장 상세 액션 시트 — 작은 슬롯의 정보 과밀/실수 판매 해소(탭하면 명확한 버튼) */
 .emd-overlay{position:fixed;inset:0;z-index:9300;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(6,9,16,0.72);backdrop-filter:blur(4px);animation:spFade .2s ease both;}
 .emd-sheet{width:100%;max-width:380px;max-height:88vh;overflow-y:auto;border-radius:18px;background:linear-gradient(180deg,rgba(22,17,9,0.98),rgba(13,11,7,0.98));border:1px solid rgba(200,168,75,0.34);box-shadow:0 16px 50px rgba(0,0,0,0.55);padding:16px 16px 18px;-webkit-overflow-scrolling:touch;}
+/* 🔨 강화 연출 중 — 모달 시트를 숨기고 백드롭 투명화해 뒤의 실제 오른 작업대(똥땅 연출)가 보이게 */
+.emd-overlay.emd-forge-peek{background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;pointer-events:none;}
+.emd-overlay.emd-forge-peek .emd-sheet{opacity:0;transform:scale(.96);transition:opacity .16s ease,transform .16s ease;pointer-events:none;}
 .emd-hd{display:flex;align-items:center;gap:12px;}
 .emd-thumb{position:relative;width:60px;height:60px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--gc,#caa) 32%, transparent), rgba(0,0,0,0.25));border:1px solid color-mix(in srgb, var(--gc,#caa) 55%, transparent);}
 .emd-thumb img{width:46px;height:46px;object-fit:contain;}
@@ -6809,7 +6812,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.277';
+const APP_VERSION = 'v2.45.278';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6818,6 +6821,9 @@ const APP_VERSION = 'v2.45.277';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.278', date: '2026-06-24', changes: [
+    { tag: 'improve', text: '🔨 강철심장 관리 시트(아이템 탭)에서 강화하면 오른 망치질 연출이 안 보이던 것 수정 — 강화 순간 모달을 잠깐 비켜 뒤의 실제 오른 작업대를 보여주고 "땅·땅·탕!" 단조 연출을 재생한 뒤 다시 돌아와요. 모바일에서 드래그 안 하고 탭으로 강화해도 똑같은 연출을 즐길 수 있어요.' },
+  ] },
   { ver: 'v2.45.277', date: '2026-06-24', changes: [
     { tag: 'improve', text: '🧸 단짝 성장을 "하트 유대"로 표현 — 강화 레벨(Lv/별) 대신 하트 게이지(♥1~♥5)와 단계 호칭(새 친구 → 친해지는 중 → 믿음직한 단짝 → 둘도 없는 단짝 → 평생 단짝)으로 바꿨어요. 같은 단짝을 또 뽑으면 "친해지기"로 하트가 차오릅니다. (가챠 카드의 ★성과 헷갈리지 않게 분리)' },
   ] },
@@ -11401,13 +11407,34 @@ window.emblemSheetEquip = async function(id){
   if (await emblemEquip(isEq?null:id)){ try{renderShop();}catch(_){} _refreshEmblemDetail(id); }
 };
 window.emblemSheetEnhance = async function(id, type){
+  if (_emblemFxBusy) return;
   if (getEquippedId(getMyGoldData())!==id){ if(!(await emblemEquip(id))) return; }  // 강화는 장착 대상 → 먼저 장착
-  const r = await emblemEnhance(type);   // 검증·롤·저장(실패 시 토스트+null)
-  if (r){
-    if (r.ok) showS1Toast(`🔨 강화 성공! 성능 +${r.def.power} (현재 성능 ${r.power})`);
-    else      showS1Toast(`💥 강화 실패… 슬롯만 소모됐어요 (${r.slotsUsed}/${EMBLEM_SLOTS})`);
-  }
-  try{renderShop();}catch(_){}
+  _emblemFxBusy = true;
+  try {
+    const oldGlow = emblemEffects(emblemPower(getEmblem(getMyGoldData()))).glow;
+    const r = await emblemEnhance(type);   // 검증·롤·저장(실패 시 토스트+null)
+    if (r){
+      const newGlow = emblemEffects(r.power).glow;
+      r.tierUp    = r.ok && (_GLOW_RANK[newGlow]||0) > (_GLOW_RANK[oldGlow]||0);
+      r.finalForm = r.tierUp && newGlow === 'prismatic';
+      const anvil = document.getElementById('emblem-anvil');
+      const ov = document.getElementById('emblem-detail-overlay');
+      if (anvil && window.ornn3d){
+        // 🔨 모달을 잠깐 비켜 뒤의 실제 오른 작업대를 노출 → 똥땅 망치질을 보여주고 다시 복귀
+        if (ov) ov.classList.add('emd-forge-peek');
+        try { document.getElementById('forge-stage')?.scrollIntoView({behavior:'smooth', block:'center'}); } catch(_){}
+        await new Promise(res=>setTimeout(res, 240));   // 스크롤 안정화
+        await _emblemForge(r);                          // 오른 똥땅 연출(실제 anvil + 결과 토스트)
+        if (ov) ov.classList.remove('emd-forge-peek');
+      } else {
+        // 폴백: 작업대가 없으면 기존 토스트만
+        if (r.ok) showS1Toast(`🔨 강화 성공! 성능 +${r.def.power} (현재 성능 ${r.power})`);
+        else      showS1Toast(`💥 강화 실패… 슬롯만 소모됐어요 (${r.slotsUsed}/${EMBLEM_SLOTS})`);
+      }
+    }
+  } finally { _emblemFxBusy = false; }
+  try{ renderEmblemBody(); }catch(_){}
+  try{ renderShop(); }catch(_){}
   _refreshEmblemDetail(id);
 };
 window.emblemSheetSell = async function(id){
