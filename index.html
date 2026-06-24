@@ -6800,7 +6800,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.270';
+const APP_VERSION = 'v2.45.271';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6809,6 +6809,9 @@ const APP_VERSION = 'v2.45.270';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.271', date: '2026-06-24', changes: [
+    { tag: 'improve', text: '🔗 홈 "전투 준비 효과" — 강철심장/시너지 선택 목록을 한 번에 하나만 펼치도록. 한쪽이 펼쳐진 상태에서 반대쪽을 펼치면 먼저 열려 있던 쪽이 자동으로 닫혀서 화면이 길어지지 않아요.' },
+  ] },
   { ver: 'v2.45.270', date: '2026-06-24', changes: [
     { tag: 'improve', text: '🔗 홈 "전투 준비 효과" 칩을 펼칠 때 촤르락 펼쳐지는 모션 추가 — 목록이 위에서 아래로 풀리며 항목이 순차로 쏟아지듯 등장해요.' },
   ] },
@@ -24328,7 +24331,7 @@ async function renderS1WaitingCard(el) {
       const pw = emblemPower(em);
       const _gm = _emGrade(pw);
       // 헤더(접힘): 상단행 [아이콘+성능배지 · 강철심장 등급 · ▾] / 아래 걸작 효과 박스들 (시너지 칩과 동일 구조)
-      emCell = `<div class="wm-fx-cell wm-em-head" onclick="this.closest('.wm-fx-card').querySelector('.wm-em-body').classList.toggle('open')">
+      emCell = `<div class="wm-fx-cell wm-em-head" onclick="window._wmFxToggle(this,'.wm-em-body','.wm-syn-body')">
         <div class="wm-fx-cell-top"><span class="wm-emimg-wrap"><img class="wm-fx-emimg" src="${_forgeItemImg(pw)}" alt="" onerror="this.style.display='none'"><span class="wm-emperf">${pw}</span></span><span class="wm-em-head-lbl" style="color:${_gm.c};">강철심장 ${_gm.t}</span><span class="wm-em-chev">▾</span></div>
         <div class="wm-em-efflist">${_emEffLines(em)}</div>
       </div>`;
@@ -24372,7 +24375,7 @@ async function renderS1WaitingCard(el) {
       synTop  = `<span class="wm-fx-ico" style="opacity:.5;">🔗</span><span class="wm-fx-name dim">시너지 미장착</span>`;
       synEffHtml = `<div class="wm-fx-desc">탭하여 보유 시너지 선택</div>`;
     }
-    const synCell = `<div class="wm-fx-cell wm-syn-head" onclick="this.closest('.wm-fx-card').querySelector('.wm-syn-body').classList.toggle('open')">
+    const synCell = `<div class="wm-fx-cell wm-syn-head" onclick="window._wmFxToggle(this,'.wm-syn-body','.wm-em-body')">
       <div class="wm-fx-cell-top">${synTop}<span class="wm-syn-chev">▾</span></div>
       ${synEffHtml}
     </div>`;
@@ -31604,6 +31607,14 @@ function _synEffRowsHtml(grp, tier) {
   const condHtml = cap ? `<div class="wm-em-eff-cond">${escHtml(cap)}</div>` : '';
   return `<div class="wm-em-effgrp"><div class="wm-em-eff-row"><span class="wm-em-eff-nm">${escHtml(label)}</span><span class="wm-em-eff-pct">발동 ${proc}%</span><span class="wm-em-eff-v" style="color:${vc};">${escHtml(val)}</span></div>${condHtml}</div>`;
 }
+// 전투 준비 효과 칩 아코디언 토글 — 한쪽을 펼치면 반대쪽은 자동으로 닫음(동시에 하나만 펼침)
+window._wmFxToggle = function(el, sel, otherSel) {
+  const card = el.closest('.wm-fx-card'); if (!card) return;
+  const body = card.querySelector(sel), other = card.querySelector(otherSel);
+  const willOpen = !body.classList.contains('open');
+  if (other) other.classList.remove('open');
+  body.classList.toggle('open', willOpen);
+};
 
 // 시너지 효과 공개 여부 — 멤버 전원을 해당 티어로 모았을 때만 효과 공개 (수집 동기 부여)
 const SYN_LOCK_TXT = '🔒 멤버 전원 모으면 효과 공개';
