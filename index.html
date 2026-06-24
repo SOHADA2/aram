@@ -6763,7 +6763,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.251';
+const APP_VERSION = 'v2.45.252';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6772,6 +6772,9 @@ const APP_VERSION = 'v2.45.251';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.252', date: '2026-06-24', changes: [
+    { tag: 'new', text: '🎁 단짝 보상 알림 — 내전 연승/연패로 단짝 보상이 쌓이면 좌상단 아바타 옆에 단짝이 알림으로 알려줘요! 무슨 보상인지 한눈에 보이고, 누르면 "다음 연승/연패를 포기하고 지금 받을까요?" 확인 후 받을 수 있어요.' },
+  ] },
   { ver: 'v2.45.246', date: '2026-06-24', changes: [
     { tag: 'new', text: '🧸 단짝이 내 아바타로! — 단짝을 정하면 좌상단 내 정보 프로필 사진 자리에 움직이는 3D 단짝 인형이 들어와요. 크게 키워서 잘 보이고, 콕 찌르면 반응해요. 이제 알림도 단짝이 알려주는 느낌!' },
   ] },
@@ -21333,8 +21336,27 @@ function _coachActions() {
     const wp = _weddingPending();
     if (wp.length) out.push({ k: 'wedding', ic: '💍', t: '결혼 축하 보내기', s: `팀원 ${wp.length}명에게 축하 메시지`, fn: 'openWeddingModal' });
   }
+  if (CURRENT_SEASON === 2 && typeof _buddyData === 'function') {   // 🧸 단짝 연승/연패 보상 받기(프리뷰 포함)
+    const _pv = (typeof _buddyPvState!=='undefined' && _buddyPvState && _buddyPvState.mode==='space') ? _buddyPvState : null;
+    const _bd = _pv ? _pv.buddy : _buddyData();
+    if (_bd) { const st = _pv ? _pv.streak : _buddyStreakData();
+      const cur = (st && st.type && st.count >= 2) ? _buddyRewardAt(st.type, st.count) : null;
+      if (cur) out.push({ k: 'buddyreward', ic: '🎁', t: `단짝 ${st.type==='win'?'연승':'연패'} 보상`, s: `${st.count}스택 · ${_buddyRewardText(cur)}`, fn: 'buddyClaimPrompt' }); }
+  }
   return out;
 }
+window.buddyClaimPrompt = function(){   // 🎁 단짝 보상 — 다음 연승/연패 포기하고 받기 확인
+  if (typeof _buddyPvState!=='undefined' && _buddyPvState){ showS1Toast('👀 프리뷰 — 실제 수령은 안 돼요'); return; }
+  const b = _buddyData(); if(!b) return; const st = _buddyStreakData();
+  const cur = (st && st.type && st.count >= 2) ? _buddyRewardAt(st.type, st.count) : null;
+  if(!cur){ showS1Toast('받을 단짝 보상이 없어요'); try{ updateAttendCoach(); }catch(_){} return; }
+  const next = _buddyRewardAt(st.type, st.count + 1);
+  const tt = st.type==='win' ? '연승' : '연패';
+  const msg = `🎁 지금 받기: ${_buddyRewardText(cur)}`
+    + (next ? `\n한 판 더 ${tt}하면: ${_buddyRewardText(next)}` : '')
+    + `\n\n⚠️ 받으면 ${tt} 스택이 0으로 초기화돼요 (다음 ${tt} 보상은 포기).\n받을까요?`;
+  if(confirm(msg)){ buddyClaim().then(ok=>{ if(ok){ showS1Toast('🎁 단짝 보상을 받았어요!'); try{updateMyInfoBar();}catch(_){} try{updateAttendCoach();}catch(_){} try{_buddyRefreshProfile();}catch(_){} } }); }
+};
 function updateAttendCoach() {
   const coach = document.getElementById('attend-coach'), av = document.getElementById('my-avatar'), dot = document.getElementById('mib-attend-dot'), rows = document.getElementById('ac-rows');
   if (!coach || !av) return;
@@ -32308,6 +32330,7 @@ window.buddySectionPreview = function(mode, opts){ opts=opts||{};
   _buddyPvState = (mode==='space') ? {mode:'space', buddy:{champion:opts.champ||'teemo.glb', level:opts.lv||3, pulls:7}, streak:{type:(opts.type===undefined?'win':opts.type), count:(opts.count==null?4:opts.count)}} : {mode:'select'};
   _buddyRerenderSection();   // 대시보드 미니 갱신
   try{ updateMyInfoBar(); }catch(_){}   // 정보바 아바타에 단짝 인형(space 프리뷰는 여기서 보여 — 캔버스 1개라 프로필 열면 아바타가 비움)
+  try{ updateAttendCoach(); }catch(_){}   // 아바타 옆 코치마크(단짝 보상 알림) 반영
   if(mode==='select') setTimeout(()=>{ try{ if(window.openMyProfile) openMyProfile(); }catch(_){} }, 250);   // 선정은 프로필에서만
   console.log('🧸 단짝 프리뷰:', mode, '· 프로필 공간은 닉네임/아바타 클릭 · 종료=_buddyExitPreview()'); };
 window._buddyExitPreview = function(){ _buddyPvState=null; _buddyRerenderSection(); try{ updateMyInfoBar(); }catch(_){} try{ if(window.closeProfileModal) closeProfileModal(); }catch(_){} };
