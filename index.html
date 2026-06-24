@@ -6756,7 +6756,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.234';
+const APP_VERSION = 'v2.45.235';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6765,6 +6765,9 @@ const APP_VERSION = 'v2.45.234';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.235', date: '2026-06-24', changes: [
+    { tag: 'improve', text: '🧸 단짝 메인 화면 통합 — 단짝 선정과 단짝 공간(3D 인형·연승/연패 스택·보상 수령·강화 단계)을 이제 팝업 창 없이 팀 구성 메인 화면 안에서 바로 보고 조작해요. 아직 단짝이 없으면 컴팩트 안내, 7종 다 모으면 그 자리에서 바로 선정!' },
+  ] },
   { ver: 'v2.45.233', date: '2026-06-23', changes: [
     { tag: 'fix', text: '🧰 내 아이템 칸이 패널 밖으로 삐져나가던 레이아웃 버그 수정 — 아이템 칸 그리드가 컨테이너보다 넓어져 맨 오른쪽 칸이 화면 밖으로 잘리던 문제(특히 강철심장 색 테두리가 생기며 눈에 띔). 그리드 칸을 minmax(0,1fr)로 바꿔 항상 패널 안에 맞게 했어요.' },
   ] },
@@ -23047,10 +23050,10 @@ if (location.search.includes('claw')) setTimeout(()=>{ try{ window.clawTest(); }
     const mood = (p[1]||'win').toLowerCase();
     const count = (p[2]!=null && p[2]!=='') ? +p[2] : 4;
     const lv = (p[3]!=null && p[3]!=='') ? +p[3] : 3;
-    window.buddyPanelPreview(lv, mood==='none'?null:mood, count, champ);
+    window.buddySectionPreview('space', {champ, type:(mood==='none'?null:mood), count, lv});   // 인라인 단짝공간 프리뷰
   }catch(e){ console.warn('buddypreview', e); } }, 1600); }
-// 🧸 단짝 선정 모달 프리뷰 링크 — ?buddyselect (7종 전체·데이터 무변경)
-if (location.search.includes('buddyselect')) setTimeout(()=>{ try{ window.buddySelectPreview(); }catch(e){ console.warn('buddyselect', e); } }, 1600);
+// 🧸 단짝 선정 인라인 프리뷰 링크 — ?buddyselect (7종 전체·데이터 무변경)
+if (location.search.includes('buddyselect')) setTimeout(()=>{ try{ window.buddySectionPreview('select'); }catch(e){ console.warn('buddyselect', e); } }, 1600);
 
 // ── 골드 & 상점 시스템 ───────────────────────────────────────
 
@@ -24278,13 +24281,9 @@ async function renderS1WaitingCard(el) {
     synBadgeHtml = '';  // 인라인 배지는 S2에서 fx 카드로 이동
   }
 
-  const _hasBuddy = (CURRENT_SEASON===2) && !!_buddyData();   // 🏠 단짝 보유 여부
-  const _buddyMidLeft = _hasBuddy ? (function(){try{return _buddyHomeCardHtml();}catch(e){return '';}})() : '';   // 있으면 좌측 3D 컬럼
-  const _buddyPrompt = (CURRENT_SEASON===2 && !_hasBuddy) ? (function(){try{return _buddyHomePromptHtml();}catch(e){return '';}})() : '';   // 없으면 컴팩트 배너(자리 적게)
+  const _buddySection = (function(){try{return _buddySectionHtml();}catch(e){return '';}})();   // 🧸 단짝 인라인 섹션(선정·공간·배너 — 모달 X)
   el.innerHTML = `
 <div class="wm-root" style="display:flex;flex-direction:column;gap:8px;position:relative;z-index:1;">
-  <div class="wm-home-row"${_buddyMidLeft?'':' style="grid-template-columns:1fr;"'}>
-    ${_buddyMidLeft || ''}
     <div class="wm-home-right">
     <div class="wm-card wm-lp-card">
       <div class="wm-lp-top-row">
@@ -24317,8 +24316,7 @@ async function renderS1WaitingCard(el) {
     </div>
     ${duoRowHtml}
     </div>
-  </div>
-  ${_buddyPrompt}
+  <div id="buddy-section-wrap">${_buddySection}</div>
     <div class="wm-right-col wm-pass-full">
       <div class="wm-side-card${_s2Pass?' wm-pass-card-v2':''}" style="flex:1;">
         ${_s2Pass
@@ -31996,6 +31994,31 @@ function _injectBuddyCss(){
   .bhp-btn{background:linear-gradient(90deg,#f0c060,#e0a82e);border:0;color:#1a1206;border-radius:9px;padding:8px 15px;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap;}
   .bhp-btn:hover{filter:brightness(1.07);}
   .bhp-dim{font-size:11px;color:#9aa0b4;white-space:nowrap;}
+  /* 🧸 단짝 메인 인라인 — 공간(space) */
+  .buddy-space{padding:13px 15px;}
+  .bsp-hd{font-size:13px;font-weight:800;color:#ffd24a;margin-bottom:10px;}
+  .bsp-body{display:flex;gap:16px;align-items:flex-start;}
+  .bsp-3d{flex:none;display:flex;flex-direction:column;align-items:center;}
+  .bsp-3d .buddy-home-mount{width:140px;height:156px;}
+  .bsp-3d .buddy3d-tap{margin:4px 0 0;}
+  .bsp-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
+  .bsp-name{font-size:17px;font-weight:800;color:#ffe6a0;}
+  .bsp-lv{font-size:11.5px;color:#cbb98a;display:flex;align-items:center;gap:7px;}
+  .bsp-info .buddy-streak,.bsp-info .buddy-reward{margin:0;}
+  .bsp-info .buddy-claim{margin:0;}
+  .bsp-lvdetails{margin-top:2px;}
+  .bsp-lvdetails summary{font-size:12px;color:#ffd24a;cursor:pointer;font-weight:700;}
+  .bsp-lvdetails .bl-card{margin-top:8px;background:rgba(0,0,0,.2);border-radius:10px;padding:10px 12px;}
+  .bsp-pvbar{background:rgba(127,214,255,.12);border:1px solid rgba(127,214,255,.3);color:#7fd6ff;font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:8px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;}
+  .bsp-pvbar button{background:rgba(127,214,255,.2);border:0;color:#cdeeff;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;white-space:nowrap;}
+  /* 인라인 선정 */
+  .buddy-select-inline{padding:13px 15px;}
+  .bsel-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;margin-top:6px;}
+  .bsel-card{background:rgba(0,0,0,.3);border:1.5px solid rgba(240,200,90,.3);border-radius:10px;overflow:hidden;cursor:pointer;padding:0;display:flex;flex-direction:column;align-items:center;transition:transform .15s,border-color .15s,box-shadow .15s;}
+  .bsel-card:hover{border-color:#ffd24a;transform:translateY(-2px);box-shadow:0 5px 14px rgba(240,200,90,.28);}
+  .bsel-card img{width:100%;aspect-ratio:3/4;object-fit:cover;object-position:center 14%;display:block;}
+  .bsel-card span{font-size:11px;font-weight:700;color:#ffe39a;padding:5px 2px;}
+  @media(max-width:560px){ .bsp-body{flex-direction:column;align-items:center;text-align:center;} .bsp-info{align-items:center;width:100%;} .bsp-lvdetails{width:100%;} }
   .buddy-home-name{position:relative;z-index:1;font-size:16px;font-weight:800;color:#ffe6a0;text-shadow:0 0 10px rgba(240,200,90,.25);}
   .buddy-home-champ{position:relative;z-index:1;font-size:10.5px;color:#bda877;font-weight:600;margin-top:-2px;}
   /* 별칭 + 챔피언명 병행 표기 */
@@ -32168,8 +32191,63 @@ function _buddy3dReact(){ const ctx=_buddy3dCtx; if(!ctx) return; ctx.react=0.6;
 function _buddy3dClose(){ if(_buddy3dCtx && _buddy3dCtx.canvas.parentNode!==_buddy3dCtx.holder){ _buddy3dCtx.mount=null; _buddy3dCtx.holder.appendChild(_buddy3dCtx.canvas); }
   setTimeout(()=>{ try{ _buddyHomeAttach(); }catch(_){} }, 40); }   // 패널 닫히면 홈 마운트로 복귀(있으면)
 function _buddyHomeMood(){ const st=_buddyStreakData(); return st.type==='win'?'win':st.type==='loss'?'loss':'none'; }
-function _buddyHomeAttach(){ const b=_buddyData(); if(!b) return; if(document.getElementById('buddy-panel')) return; if(!document.getElementById('buddy-home-mount')) return;
-  try{ _buddy3dShow('buddy-home-mount', b.champion, _buddyHomeMood()); }catch(_){} }
+let _buddyPvState=null;   // 🧸 단짝 인라인 프리뷰 상태 {mode:'space'|'select', buddy, streak}
+function _buddyPvMood(){ const pv=_buddyPvState; if(!pv||pv.mode!=='space') return _buddyHomeMood(); const t=pv.streak&&pv.streak.type; return t==='win'?'win':t==='loss'?'loss':'none'; }
+function _buddyHomeAttach(){   // 인라인 단짝공간 마운트에 3D 부착(있으면)
+  const pv=_buddyPvState; const b=(pv&&pv.mode==='space')?pv.buddy:_buddyData(); if(!b) return;
+  if(document.getElementById('buddy-panel')) return; if(!document.getElementById('buddy-space-mount')) return;
+  try{ _buddy3dShow('buddy-space-mount', b.champion, _buddyPvMood()); }catch(_){} }
+// ── 🧸 단짝 메인 인라인 섹션 (모달 대신 대시보드에 직접) ──
+function _buddySectionHtml(){
+  if(CURRENT_SEASON!==2) return '';
+  try{ _injectBuddyCss(); }catch(_){}
+  const pv=_buddyPvState;
+  if(pv && pv.mode==='space') return _buddySpaceHtml(pv.buddy, pv.streak, true);
+  if(pv && pv.mode==='select') return _buddySelectInlineHtml(['teemo.glb','gwen.glb','vex.glb','ekko.glb','yone.glb','neeko.glb','lux.glb'], true);
+  const b=_buddyData();
+  if(b) return _buddySpaceHtml(b, _buddyStreakData(), false);
+  const data=getMyGoldData()||{}; const coll=Array.isArray(data[sField('clawCollected')])?data[sField('clawCollected')]:[];
+  if(coll.length>=7 && _allPrismDone(data)) return _buddySelectInlineHtml(coll, false);   // 7종 완성 → 인라인 선정
+  return _buddyHomePromptHtml();   // 그 외 → 컴팩트 배너
+}
+function _buddySpaceHtml(b, st, pv){   // 단짝 공간(3D+스택+수령+강화) 인라인
+  const type=st.type, stack=st.count||0, lv=b.level||1;
+  const cur=(type&&stack>=2)?_buddyRewardAt(type,stack):null;
+  const next=type?_buddyRewardAt(type, Math.max(stack+1,2)):null;
+  const streakTxt=type?`${type==='win'?'🔥 연승':'🛡 연패'} ${stack}스택`:'스택 없음 (경기를 하면 쌓여요)';
+  return `<div class="wm-card buddy-space${pv?' pv':''}">
+    ${pv?'<div class="bsp-pvbar">👀 프리뷰 — 수령은 저장 안 돼요 <button onclick="window._buddyExitPreview()">종료</button></div>':''}
+    <div class="bsp-hd">🧸 내 단짝</div>
+    <div class="bsp-body">
+      <div class="bsp-3d"><div id="buddy-space-mount" class="buddy-home-mount"></div><div class="buddy3d-tap">👆 콕 찌르면 반응${type==='win'?' · 신나 보여요!':type==='loss'?' · 기운 내자…':''}</div></div>
+      <div class="bsp-info">
+        <div class="bsp-name">${_buddyNameHtml(b)}${!pv?` <button class="buddy-edit-nick" onclick="window._buddyOpenName()" title="별칭 짓기">✏️</button>`:''}</div>
+        <div class="bsp-lv"><span class="buddy-home-lvbars">${_buddyLvBars(lv)}</span> 강화 Lv${lv}/5 · 누적 ${b.pulls||0}회</div>
+        <div class="buddy-streak ${type||'none'}">${streakTxt}</div>
+        <div class="buddy-reward">${cur?`지금 수령: <b>${_buddyRewardText(cur)}</b>`:'아직 수령할 보상 없음 (2스택부터)'}${(type&&next&&stack>=2)?`<br><span style="opacity:.6;">한 판 더: ${_buddyRewardText(next)}</span>`:''}</div>
+        <button class="buddy-claim" ${cur?'':'disabled'} onclick="window.buddyClaimInline(${pv?1:0})">${cur?'🎁 보상 수령 (스택 0)':'수령 불가'}</button>
+        <details class="buddy-help bsp-lvdetails"><summary>⚙️ 강화 단계 보기</summary><div class="bl-card">${_buddyLvListHtml(lv)}</div></details>
+      </div>
+    </div></div>`;
+}
+function _buddySelectInlineHtml(coll, pv){   // 단짝 선정 인라인
+  const grid=coll.map(f=>{const k=_clawDdKey(f);return `<button class="bsel-card" onclick="window.buddyPickInline('${f}',${pv?1:0})"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'"><span>${escHtml(_buddyChampName(f))}</span></button>`;}).join('');
+  return `<div class="wm-card buddy-select-inline${pv?' pv':''}">
+    ${pv?'<div class="bsp-pvbar">👀 프리뷰 — 골라도 저장 안 돼요 <button onclick="window._buddyExitPreview()">종료</button></div>':''}
+    <div class="bsp-hd">🧸 평생 단짝을 정하세요 <span style="color:#ff8a8a;font-size:11px;font-weight:600;">⚠️ 한 번 정하면 변경 불가</span></div>
+    <div class="bsel-grid">${grid}</div></div>`;
+}
+window.buddyPickInline = function(f, pv){ const nm=_buddyChampName(f);
+  if(pv){ showS1Toast(`👀 [프리뷰] ${nm} 선택 — 실제로는 저장 안 돼요`); return; }
+  if(confirm(`${nm}을(를) 단짝으로 정할까요?\n\n⚠️ 한 번 정하면 절대 바꿀 수 없어요!`)){
+    buddySelect(f).then(ok=>{ if(ok){ showS1Toast(`🧸 ${nm} — 평생 단짝이 됐어요!`); try{renderGachaTab();}catch(_){} setTimeout(()=>{ try{_buddyOpenName();}catch(_){} }, 500); } }); } };
+window.buddyClaimInline = function(pv){ if(pv){ showS1Toast('👀 프리뷰 — 실제 수령은 안 돼요'); return; }
+  buddyClaim().then(ok=>{ if(ok){ showS1Toast('🎁 단짝 보상을 받았어요!'); try{updateMyInfoBar();}catch(_){} } }); };
+function _buddyRerenderSection(){ const w=document.getElementById('buddy-section-wrap'); if(!w) return; try{ w.innerHTML=_buddySectionHtml(); }catch(_){} setTimeout(()=>{ try{_buddyHomeAttach();}catch(_){} },20); }
+window.buddySectionPreview = function(mode, opts){ opts=opts||{};
+  _buddyPvState = (mode==='space') ? {mode:'space', buddy:{champion:opts.champ||'teemo.glb', level:opts.lv||3, pulls:7}, streak:{type:(opts.type===undefined?'win':opts.type), count:(opts.count==null?4:opts.count)}} : {mode:'select'};
+  _buddyRerenderSection(); console.log('🧸 단짝 인라인 프리뷰:', mode, '(종료=_buddyExitPreview())'); };
+window._buddyExitPreview = function(){ _buddyPvState=null; _buddyRerenderSection(); };
 function _buddyLvBars(lv){ let s=''; for(let i=1;i<=5;i++) s+=`<i class="${i<=lv?'on':''}"></i>`; return s; }
 function _buddyHomePromptHtml(){   // 🧸 단짝 없을 때 컴팩트 배너(겹친 카드 부채꼴) — 메인 자리 적게
   try{ _injectBuddyCss(); }catch(_){}
