@@ -1914,7 +1914,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .mib-avatar-face{position:absolute;inset:2px;border-radius:50%;overflow:hidden;z-index:2;display:flex;align-items:center;justify-content:center;font-size:18px;background:var(--rk-sub);}
 .mib-avatar-face img{width:100%;height:100%;object-fit:cover;}
 /* 🧸 단짝 보유 시 아바타 = 움직이는 3D 인형(세로형·크게, 캔버스 190:212 비율 맞춰 왜곡 방지) */
-.my-info-avatar.has-buddy{width:50px;height:56px;border-radius:14px;}
+.my-info-avatar.has-buddy{width:64px;height:72px;border-radius:16px;}
 .my-info-avatar.has-buddy::before{border-radius:16px;}
 .my-info-avatar.has-buddy::after{border-radius:13px;}
 .my-info-avatar.has-buddy .mib-avatar-face{border-radius:12px;font-size:0;background:radial-gradient(ellipse at 50% 84%,rgba(240,200,90,.22),rgba(0,0,0,0) 64%);}
@@ -6762,7 +6762,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.247';
+const APP_VERSION = 'v2.45.248';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -32197,10 +32197,11 @@ async function _buddy3dShow(mountId, champFile, mood){
     })();
   }
   ctx.mount=mount; ctx.mood=mood||'none';
+  ctx.frameMode = (mountId==='buddy-bar-mount') ? 'bust' : 'full';   // 아바타=상반신 줌, 그 외=전신
   if(ctx.canvas.parentNode!==mount) mount.appendChild(ctx.canvas);
   mount.onclick=(e)=>{ if(e) e.stopPropagation(); _buddy3dReact(); };
   if(ctx.champ!==champFile) _buddy3dLoad(champFile);
-  else if(ctx.clips) _buddy3dApplyMood();   // 같은 챔피언 재오픈 — mood만 갱신
+  else { _buddy3dFrame(); if(ctx.clips) _buddy3dApplyMood(); }   // 같은 챔피언 재오픈 — 프레이밍+mood 갱신
 }
 function _buddy3dLoad(champFile){
   const ctx=_buddy3dCtx; if(!ctx) return; const {THREE,scene,camera}=ctx;
@@ -32214,12 +32215,22 @@ function _buddy3dLoad(champFile){
     const r=box.getBoundingSphere(new THREE.Sphere()).radius; ctx.r=r;
     const fov=camera.fov*Math.PI/180, asp=190/212;
     camera.position.set(0,0, Math.max(r/Math.sin(fov/2), r/Math.sin(2*Math.atan(Math.tan(fov/2)*asp)/2))*1.78); camera.lookAt(0,0,0);
+    _buddy3dFrame();   // frameMode 적용(아바타=상반신 클로즈업)
     ctx.group=group;
     ctx.mixer=new THREE.AnimationMixer(model); ctx.clips={}; ctx.cur=null;
     (g.animations||[]).forEach(c=>{ ctx.clips[c.name]=c; });
     _buddy3dApplyMood();   // 🎭 mood에 맞는 모션 재생(연승=춤·평소=아이들)
   }, undefined, e=>console.warn('단짝3D 로드실패', champFile, e));
 }
+let _buddyBustY=0.45, _buddyBustDist=0.72;   // 아바타 상반신 카메라(콘솔 _buddyTuneAvatar로 조정)
+function _buddy3dFrame(){   // frameMode='bust'(아바타 상반신) / 'full'(프로필 전신)
+  const ctx=_buddy3dCtx; if(!ctx||!ctx.camera||!ctx.r) return; const r=ctx.r;
+  const fov=ctx.camera.fov*Math.PI/180, asp=190/212;
+  const fit=Math.max(r/Math.sin(fov/2), r/Math.sin(2*Math.atan(Math.tan(fov/2)*asp)/2));
+  if(ctx.frameMode==='bust'){ const y=r*_buddyBustY; ctx.camera.position.set(0, y, fit*_buddyBustDist); ctx.camera.lookAt(0, y, 0); }
+  else { ctx.camera.position.set(0,0, fit*1.78); ctx.camera.lookAt(0,0,0); }
+}
+window._buddyTuneAvatar=function(y,d){ if(y!=null)_buddyBustY=+y; if(d!=null)_buddyBustDist=+d; if(_buddy3dCtx){_buddy3dCtx.frameMode='bust'; _buddy3dFrame();} console.log('🧸 아바타 카메라 bustY=',_buddyBustY,'dist=',_buddyBustDist); };
 function _bClip(ctx, names){ if(!ctx||!ctx.clips) return null; for(const n of names) if(ctx.clips[n]) return ctx.clips[n]; return ctx.clips['Idle_Base']||Object.values(ctx.clips)[0]||null; }
 function _buddy3dPlay(clip, loop){ const ctx=_buddy3dCtx; if(!ctx||!ctx.mixer||!clip) return; const {THREE}=ctx;
   const a=ctx.mixer.clipAction(clip); a.reset(); a.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce); if(!loop) a.clampWhenFinished=true; a.fadeIn(0.2).play();
