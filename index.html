@@ -1659,7 +1659,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 /* 최근경기 옆 인라인 전투준비 — 카드껍데기·헤드·효과줄 접어 칩 한 줄로(최근경기 높이에 맞춤) */
 .wm-lp-bottom .wm-fx-card{margin:0;padding:0;background:none;border:none;box-shadow:none;}
 .wm-lp-bottom .wm-fx-head{display:none;}
-.wm-lp-bottom .wm-fx-stack{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:start;}  /* 강철심장(좌) | 시너지(우) — 각자 내용 높이 (억지 stretch 해제) */
+.wm-lp-bottom .wm-fx-stack{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:stretch;}  /* 강철심장(좌) | 시너지(우) — 같은 높이 */
 @media(max-width:360px){.wm-lp-bottom .wm-fx-stack{grid-template-columns:1fr;}}
 .wm-lp-bottom .wm-fx-cell .wm-fx-none{display:none;}   /* 미장착 안내문은 펼치면 */
 .wm-lp-bottom .wm-syn-head .wm-fx-desc{display:block;font-size:8.5px;line-height:1.42;margin-top:4px;color:var(--rk-text-dim);word-break:keep-all;}  /* 시너지 미보유/미장착 안내문 */
@@ -1678,7 +1678,9 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .wm-lp-bottom .wm-em-head .wm-em-efflist,
 .wm-lp-bottom .wm-syn-head .wm-em-efflist{flex:1;display:flex;flex-direction:column;gap:4px;margin:6px 0 0;font-size:8.5px;line-height:1.4;}
 .wm-lp-bottom .wm-em-head .wm-em-effgrp,
-.wm-lp-bottom .wm-syn-head .wm-em-effgrp{justify-content:center;}
+.wm-lp-bottom .wm-syn-head .wm-em-effgrp{flex:1;justify-content:center;}
+.wm-syn-condbox{align-items:center;text-align:center;}
+.wm-syn-condtx{font-size:9px;font-weight:600;color:var(--rk-text-dim);line-height:1.35;word-break:keep-all;}
 .wm-lp-bottom .wm-em-eff-row{gap:4px;}
 .wm-champ-hd{display:flex;align-items:center;justify-content:space-between;gap:8px;}
 .wm-champ-all{padding:2px 9px;border-radius:6px;border:1px solid var(--rk-border);background:rgba(255,255,255,0.03);color:var(--rk-text-dim);font-size:8.5px;font-family:'JetBrains Mono',monospace;cursor:pointer;letter-spacing:0.5px;white-space:nowrap;flex-shrink:0;}
@@ -6812,7 +6814,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.283';
+const APP_VERSION = 'v2.45.284';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6821,6 +6823,9 @@ const APP_VERSION = 'v2.45.283';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.284', date: '2026-06-24', changes: [
+    { tag: 'improve', text: '🔗 홈 "전투 준비 효과" — 시너지 칩이 효과 1줄만 있어 휑해 보이던 걸, 강철심장처럼 효과 / 발동 확률 / 조건 3박스로 풀어서 칸을 꽉 채웠어요. 좌우 칩이 같은 높이로 보기 좋게 정렬돼요.' },
+  ] },
   { ver: 'v2.45.283', date: '2026-06-24', changes: [
     { tag: 'improve', text: '🔗 홈 "전투 준비 효과" 칩 다듬기 — ▾ 펼침 화살표가 골드 원+반짝임이라 너무 튀던 걸 차분한 작은 회색 화살표로 줄였어요. 또 좌(강철심장 3줄)·우(시너지 1줄) 칩을 억지로 같은 높이로 늘이지 않고 각자 내용 높이에 맞춰서, 우측이 비어 보이던 비율 문제를 정리했어요.' },
   ] },
@@ -31655,8 +31660,11 @@ function _synEffRowsHtml(grp, tier) {
     default:
       return `<div class="wm-em-effgrp"><div class="wm-em-eff-row"><span class="wm-em-eff-nm">효과</span><span class="wm-em-eff-v">${escHtml(_synEffTxt(grp, tier))}</span></div></div>`;
   }
-  const condHtml = cap ? `<div class="wm-em-eff-cond">${escHtml(cap)}</div>` : '';
-  return `<div class="wm-em-effgrp"><div class="wm-em-eff-row"><span class="wm-em-eff-nm">${escHtml(label)}</span><span class="wm-em-eff-pct">발동 ${proc}%</span><span class="wm-em-eff-v" style="color:${vc};">${escHtml(val)}</span></div>${condHtml}</div>`;
+  // 강철심장처럼 효과 / 발동확률 / 조건 3박스로 풀어 칩을 꽉 채움
+  const box = (nm, value, color) => `<div class="wm-em-effgrp"><div class="wm-em-eff-row"><span class="wm-em-eff-nm">${escHtml(nm)}</span><span class="wm-em-eff-v"${color?` style="color:${color};"`:''}>${escHtml(value)}</span></div></div>`;
+  let html = box(label, val, vc) + box('발동 확률', `${proc}%`, '#cbd5e1');
+  if (cap) html += `<div class="wm-em-effgrp wm-syn-condbox"><span class="wm-syn-condtx">${escHtml(cap)}</span></div>`;
+  return html;
 }
 // 전투 준비 효과 칩 아코디언 토글 — 한쪽을 펼치면 반대쪽은 자동으로 닫음(동시에 하나만 펼침)
 window._wmFxToggle = function(el, sel, otherSel) {
