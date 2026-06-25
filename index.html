@@ -6814,7 +6814,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.288';
+const APP_VERSION = 'v2.45.289';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -32205,7 +32205,9 @@ function _buddyOpenName(){ const b=_buddyData(); if(!b) return; _injectBuddyCss(
   const save=()=>{ buddySetNickname(inp.value).then(ok=>{ close(); if(!ok) return; try{showS1Toast('✏️ 별칭을 저장했어요!');}catch(_){}
     const nm=document.querySelector('#buddy-panel .buddy-name');   // 패널 열려있으면 이름 즉시 갱신
     if(nm) nm.innerHTML=`${_buddyNameHtml(_buddyData())} <button class="buddy-edit-nick" onclick="event.stopPropagation();window._buddyOpenName()" title="별칭 바꾸기">✏️</button>`;
-    try{ if(typeof updateMyInfoBar==='function') updateMyInfoBar(); }catch(_){} }); };
+    try{ updateMyInfoBar(); }catch(_){}        // 아바타(좌상단)
+    try{ _buddyRefreshProfile(); }catch(_){}   // 프로필 단짝 공간(.bsp-name)
+    try{ _buddyApplySection(); }catch(_){} }); };   // 대시보드 미니(.buddy-mini-name) — 패널 외 표시처도 전부 갱신
   ov.querySelector('.bn-save').onclick=save;
   inp.onkeydown=(e)=>{ if(e.key==='Enter'){ e.preventDefault(); save(); } };
 }
@@ -32468,6 +32470,7 @@ function _buddy3dLoad(champFile){
     const box=new THREE.Box3().setFromObject(model); const ctr=box.getCenter(new THREE.Vector3()); model.position.sub(ctr);
     const group=new THREE.Group(); group.add(model); scene.add(group);
     const r=box.getBoundingSphere(new THREE.Sphere()).radius; ctx.r=r;
+    const _ma=_BUDDY_MODEL_ADJ[champFile]; if(_ma) group.position.set((_ma.x||0)*r, (_ma.y||0)*r, 0);   // 🧸 챔피언별 위치 보정(요네 등)
     const fov=camera.fov*Math.PI/180, asp=190/212;
     camera.position.set(0,0, Math.max(r/Math.sin(fov/2), r/Math.sin(2*Math.atan(Math.tan(fov/2)*asp)/2))*1.78); camera.lookAt(0,0,0);
     _buddy3dFrame();   // frameMode 적용(아바타=상반신 클로즈업)
@@ -32479,15 +32482,24 @@ function _buddy3dLoad(champFile){
 }
 let _buddyBustY=0.45, _buddyBustDist=0.9;   // 아바타 상반신 카메라(줌아웃해 모션 여백; 콘솔 _buddyTuneAvatar로 조정)
 const _BUDDY_BUST_Y = {};   // 챔피언별 얼굴 높이 override(필요한 챔피언만 콘솔로 채움). ※티모는 모델에 눈/얼굴 없음=애셋 한계
+const _BUDDY_MODEL_ADJ = {   // 챔피언별 모델 위치/줌 보정(bbox센터링이 칼·이펙트로 틀어진 경우). {x,y}=r비율 이동, zoom=확대(>1 가까이). 양 모드 공통. 콘솔 _buddyTuneModel로 조정
+  'yone.glb': { y:0.0, zoom:1.0 },   // ⚠️ 요네 위치 보정 — 콘솔 _buddyTuneModel(y,zoom)로 맞춘 뒤 이 값 갱신
+};
 function _buddyBustYOf(champ){ return (champ && _BUDDY_BUST_Y[champ]!=null) ? _BUDDY_BUST_Y[champ] : _buddyBustY; }
 function _buddy3dFrame(){   // frameMode='bust'(아바타 상반신) / 'full'(프로필 전신)
   const ctx=_buddy3dCtx; if(!ctx||!ctx.camera||!ctx.r) return; const r=ctx.r;
   const fov=ctx.camera.fov*Math.PI/180, asp=190/212;
   const fit=Math.max(r/Math.sin(fov/2), r/Math.sin(2*Math.atan(Math.tan(fov/2)*asp)/2));
-  if(ctx.frameMode==='bust'){ const y=r*_buddyBustYOf(ctx.champ); ctx.camera.position.set(0, y, fit*_buddyBustDist); ctx.camera.lookAt(0, y, 0); }
-  else { ctx.camera.position.set(0,0, fit*1.78); ctx.camera.lookAt(0,0,0); }
+  const _z=(_BUDDY_MODEL_ADJ[ctx.champ]&&_BUDDY_MODEL_ADJ[ctx.champ].zoom)||1;   // 챔피언별 줌(>1 가까이=확대)
+  if(ctx.frameMode==='bust'){ const y=r*_buddyBustYOf(ctx.champ); ctx.camera.position.set(0, y, fit*_buddyBustDist/_z); ctx.camera.lookAt(0, y, 0); }
+  else { ctx.camera.position.set(0,0, fit*1.78/_z); ctx.camera.lookAt(0,0,0); }
 }
 window._buddyTuneAvatar=function(y,d){ const c=_buddy3dCtx&&_buddy3dCtx.champ; if(y!=null){ _buddyBustY=+y; if(c) _BUDDY_BUST_Y[c]=+y; } if(d!=null)_buddyBustDist=+d; if(_buddy3dCtx){_buddy3dCtx.frameMode='bust'; _buddy3dFrame();} console.log('🧸 아바타 — champ='+c+' bustY='+(c?_BUDDY_BUST_Y[c]:_buddyBustY)+' dist='+_buddyBustDist+' (좋으면 이 값 알려줘)'); };
+window._buddyTuneModel=function(y,zoom,x){   // 🧸 챔피언별 모델 위치/줌 보정(양 모드 공통). y/x=r비율(+위로/+오른쪽), zoom>1=확대
+  const ctx=_buddy3dCtx, c=ctx&&ctx.champ; if(!ctx||!c) return console.warn('단짝 3D가 안 떠 있어요(프로필/대시보드에서 단짝 보이게 한 뒤 실행)');
+  const a={..._BUDDY_MODEL_ADJ[c]}; if(y!=null)a.y=+y; if(zoom!=null)a.zoom=+zoom; if(x!=null)a.x=+x; _BUDDY_MODEL_ADJ[c]=a;
+  if(ctx.group) ctx.group.position.set((a.x||0)*ctx.r, (a.y||0)*ctx.r, 0); _buddy3dFrame();
+  console.log(`🧸 모델보정 champ=${c} → y=${a.y||0} zoom=${a.zoom||1} x=${a.x||0} (좋으면 이 값 알려줘 — 코드에 박을게)`); };
 function _bClip(ctx, names){ if(!ctx||!ctx.clips) return null; for(const n of names) if(ctx.clips[n]) return ctx.clips[n]; return ctx.clips['Idle_Base']||Object.values(ctx.clips)[0]||null; }
 function _buddy3dPlay(clip, loop){ const ctx=_buddy3dCtx; if(!ctx||!ctx.mixer||!clip) return; const {THREE}=ctx;
   const a=ctx.mixer.clipAction(clip); a.reset(); a.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce); if(!loop) a.clampWhenFinished=true; a.fadeIn(0.2).play();
