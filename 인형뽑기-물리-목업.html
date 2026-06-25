@@ -134,7 +134,11 @@
   <span class="pill">수집 <b id="coll">0/7</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 143</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 144</span>
+</div>
+<div id="bgm-ctrl" style="position:fixed;top:8px;right:8px;z-index:60;display:flex;align-items:center;gap:7px;background:rgba(10,10,18,.72);padding:6px 10px;border-radius:22px;border:1px solid #3a3a4a;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);">
+  <button id="bgm-spk" onclick="_bgmMute()" title="음악 켜기/끄기" style="background:none;border:none;font-size:18px;cursor:pointer;padding:0;line-height:1;">🔊</button>
+  <input id="bgm-vol" type="range" min="0" max="100" value="45" oninput="_bgmSetVol(this.value)" title="음량" style="width:72px;accent-color:#ffd24a;cursor:pointer;">
 </div>
 <div id="result"></div>
 <div id="coin-fx"></div>
@@ -232,14 +236,23 @@ const Sfx = (()=>{
     boom(){ tone(95,0.5,'sine',0.42,42); tone(220,0.3,'square',0.2,80); noise(0.32,0.28,700); },  // 💥 성공 임팩트
   };
 })();
-addEventListener('pointerdown', ()=>Sfx.unlock(), {passive:true});
-addEventListener('keydown', ()=>Sfx.unlock());
-// 🎵 게임 BGM — START 시 시작(가벼운 아르페지오 루프)
-let _bgmTimer=null, _bgmStep=0;
-const BGM_NOTES=[523,659,784,659, 587,784,988,784, 440,659,880,659, 392,587,784,587];
-function _bgmStart(){ if(_bgmTimer) return; Sfx.unlock(); _bgmStep=0;
-  _bgmTimer=setInterval(()=>{ const f=BGM_NOTES[_bgmStep%BGM_NOTES.length]; _bgmStep++; Sfx.bgmNote(f, _bgmStep%4===1?0.058:0.04); }, 270); }
-function _bgmStop(){ if(_bgmTimer){ clearInterval(_bgmTimer); _bgmTimer=null; } }
+addEventListener('pointerdown', ()=>{ Sfx.unlock(); _bgmStart(); }, {passive:true});
+addEventListener('keydown', ()=>{ Sfx.unlock(); _bgmStart(); });
+// 🎵 가게 BGM — mp3 플레이리스트(여러 곡 순환·음량/끄기·설정 저장). 새 곡은 BGM_TRACKS에 파일명만 추가
+const BGM_TRACKS = ['bgm.mp3'];   // ← 여기에 네 BGM 파일들 (예: 'bgm.mp3','집게송.mp3'). 폴더에 mp3 넣고 이름만 적으면 가게 라디오처럼 순환재생
+let _bgmAudio=null, _bgmIdx=0, _bgmOn=false;
+let _bgmVol=(function(){ const v=parseFloat(localStorage.getItem('clawBgmVol')); return isNaN(v)?0.45:v; })();
+let _bgmMuted=localStorage.getItem('clawBgmMuted')==='1';
+function _bgmUi(){ const sp=document.getElementById('bgm-spk'); if(sp) sp.textContent=(_bgmMuted||_bgmVol<=0)?'🔇':(_bgmVol<0.45?'🔉':'🔊'); const sl=document.getElementById('bgm-vol'); if(sl&&document.activeElement!==sl) sl.value=Math.round(_bgmVol*100); }
+function _bgmApply(){ if(_bgmAudio){ _bgmAudio.volume=_bgmVol; _bgmAudio.muted=_bgmMuted; } _bgmUi(); }
+function _bgmStart(){ if(!BGM_TRACKS.length||_bgmMuted){ _bgmUi(); return; }   // 첫 상호작용/START 때 호출(브라우저 autoplay 정책 대응)
+  if(!_bgmAudio){ _bgmAudio=new Audio(BGM_TRACKS[_bgmIdx]); _bgmAudio.loop=(BGM_TRACKS.length===1);
+    _bgmAudio.addEventListener('ended', ()=>{ if(BGM_TRACKS.length>1){ _bgmIdx=(_bgmIdx+1)%BGM_TRACKS.length; _bgmAudio.src=BGM_TRACKS[_bgmIdx]; _bgmAudio.play().catch(()=>{}); } }); }
+  _bgmApply(); _bgmAudio.play().then(()=>{ _bgmOn=true; _bgmUi(); }).catch(()=>{}); }
+function _bgmStop(){ if(_bgmAudio) _bgmAudio.pause(); _bgmOn=false; }
+window._bgmMute=function(){ _bgmMuted=!_bgmMuted; localStorage.setItem('clawBgmMuted',_bgmMuted?'1':'0'); if(_bgmMuted){ if(_bgmAudio)_bgmAudio.muted=true; _bgmUi(); } else { _bgmApply(); _bgmStart(); } };
+window._bgmSetVol=function(v){ _bgmVol=Math.max(0,Math.min(1,(+v)/100)); localStorage.setItem('clawBgmVol',String(_bgmVol)); if(_bgmVol>0&&_bgmMuted){ _bgmMuted=false; localStorage.setItem('clawBgmMuted','0'); } _bgmApply(); if(_bgmVol>0&&!_bgmOn) _bgmStart(); };
+setTimeout(()=>{ try{_bgmUi();}catch(_){} }, 0);
 function _coinDropFx(){ const c=document.getElementById('coin-fx'); if(!c) return; c.classList.remove('go'); void c.offsetWidth; c.classList.add('go'); }
 // ══════════ 튜닝 상수 (이 숫자들로 "느낌" 조절) ══════════
 const PRIZE_COUNT   = 20;     // 통 안 인형 수 (16→20). 단층 격자 상한 근처 — 더 늘리면 다층 더미 스폰 필요
