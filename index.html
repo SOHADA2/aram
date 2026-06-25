@@ -4149,6 +4149,9 @@ body:has(.scard-overlay) .hexfield .route-pulse{animation-play-state:paused;}
   .ms2-syns-fx{font-size:9px;padding:1px 5px;}
   .ms2-award{padding:3px 8px;}
   .ms2-award-name{font-size:9.5px;}
+  /* 프로필 모달 이름 — 모바일에서 …로 잘리지 않게: 줄바꿈 허용 + 살짝 작게 */
+  .pm-s1-name{font-size:15px;white-space:normal;overflow:visible;text-overflow:clip;line-height:1.18;word-break:break-all;}
+  .profile-modal-name{font-size:14px;white-space:normal;overflow:visible;text-overflow:clip;line-height:1.2;word-break:break-all;}
 }
 .ms2-team-card.win .ms2-pr:nth-child(1){animation:ms2RowIn 0.3s 0.22s ease both;}.ms2-team-card.win .ms2-pr:nth-child(2){animation:ms2RowIn 0.3s 0.28s ease both;}.ms2-team-card.win .ms2-pr:nth-child(3){animation:ms2RowIn 0.3s 0.34s ease both;}.ms2-team-card.win .ms2-pr:nth-child(4){animation:ms2RowIn 0.3s 0.40s ease both;}.ms2-team-card.win .ms2-pr:nth-child(5){animation:ms2RowIn 0.3s 0.46s ease both;}
 .ms2-team-card.lose .ms2-pr:nth-child(1){animation:ms2RowIn 0.3s 0.25s ease both;}.ms2-team-card.lose .ms2-pr:nth-child(2){animation:ms2RowIn 0.3s 0.31s ease both;}.ms2-team-card.lose .ms2-pr:nth-child(3){animation:ms2RowIn 0.3s 0.37s ease both;}.ms2-team-card.lose .ms2-pr:nth-child(4){animation:ms2RowIn 0.3s 0.43s ease both;}.ms2-team-card.lose .ms2-pr:nth-child(5){animation:ms2RowIn 0.3s 0.49s ease both;}
@@ -6835,7 +6838,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.308';
+const APP_VERSION = 'v2.45.309';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6844,6 +6847,10 @@ const APP_VERSION = 'v2.45.308';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.309', date: '2026-06-25', changes: [
+    { tag: 'fix', text: '📱 모바일 프로필에서 닉네임이 …로 잘리던 문제 — 좁은 화면에선 이름을 살짝 작게 + 줄바꿈 허용해 다 보이게 했어요.' },
+    { tag: 'improve', text: '🧾 [개발] 정산창 프리뷰 — 콘솔 settlementPreview() 또는 주소에 ?settlement 를 붙이면 정산창을 샘플 데이터로 띄워 디자인/모바일을 확인할 수 있어요(실데이터·저장 무관).' },
+  ] },
   { ver: 'v2.45.308', date: '2026-06-25', changes: [
     { tag: 'fix', text: '📱 모바일 정산창에서 이름·LP·골드가 …로 잘리던 문제 — 좁은 화면에선 글자/숫자칸을 더 작게 줄여 잘리지 않고 다 보이게 했어요.' },
   ] },
@@ -16955,6 +16962,23 @@ function autoConfirmManner() {
 }
 
 // ── 경기 결과 요약 모달 ──────────────────────────────────────
+// 🧾 정산창 프리뷰 — 콘솔 settlementPreview() 또는 URL ?settlement (실데이터/저장 무관, 디자인·모바일 확인용)
+window.settlementPreview = function(){
+  const W=['조조와빈찬합','애긔반달곰','울퉁쓰'], L=['나랑듀오해듀오','맹독 벌꿀오소리','브랜딩프로'];
+  const snap={}; [...W,...L].forEach(n=>{ snap[normName(n)]={ placementDone:true, promoActive:false, tier:'gold', lp:55 }; });
+  const mk='__preview_settle__';   // 가짜 매치(걸작/시너지 발동 표시용) — 로컬 cache에만, Firebase 미기록
+  matches[mk]={ synergyEffects:{}, emblemEffects:{
+    [normName('조조와빈찬합')]:{ power:14, matchG:5, winG:8, mvpG:15, winLP:4, lossLP:0, winLpProc:true,  lossLpProc:false },
+    [normName('애긔반달곰')]  :{ power:6,  matchG:5, winG:8, mvpG:0,  winLP:2, lossLP:0, winLpProc:false, lossLpProc:false },
+    [normName('나랑듀오해듀오')]:{ power:22, matchG:5, winG:0, mvpG:15, winLP:0, lossLP:5, winLpProc:false, lossLpProc:true  },
+  }};
+  try{
+    showMatchSummary({ winners:W, losers:L,
+      itemEffects:{ [normName('나랑듀오해듀오')]:['s1_lp2x'] }, tierChanges:{}, s1LpBefore:snap,
+      mvpWinner:'조조와빈찬합', mvpLoser:'나랑듀오해듀오', mannerWinner:'울퉁쓰', mannerLoser:'브랜딩프로', matchKey:mk });
+  } finally { delete matches[mk]; }   // 렌더는 동기 → 즉시 정리(Firebase 무관)
+  console.log('🧾 정산창 프리뷰 — 실제 데이터/저장과 무관');
+};
 window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffects, tierChanges, s1LpBefore, questEvent, spectatorResult, mvpWinner, mvpLoser, mannerWinner, mannerLoser, secretQuests, matchKey }) {
   try{ _hideSettlementPending(); }catch(_){}   // ⏳ 정산창 뜨면 "계산 중" 안내 제거
   document.querySelector('.match-summary-overlay')?.remove();
@@ -23297,6 +23321,8 @@ window.previewS1Hof = function(){ showS1HallOfFame(_s1HofSample()); console.log(
 if (location.search.includes('hofdemo')) setTimeout(()=>{ try{ window.previewS1Hof(); }catch(_){} }, 1400);
 // 🕹️ ?claw 붙이면 인형뽑기 프리뷰(테스트 모드) 자동 오픈 — 해금·일일제한 무시, 실데이터 미반영
 if (location.search.includes('claw')) setTimeout(()=>{ try{ window.clawTest(); }catch(_){} }, 1500);
+// 🧾 ?settlement 붙이면 정산창 프리뷰 자동 오픈(콘솔 없이 모바일 확인) — 실데이터/저장 무관
+if (location.search.includes('settlement')) setTimeout(()=>{ try{ window.settlementPreview(); }catch(_){} }, 1500);
 // 🏠 단짝 공간 프리뷰 링크 — ?buddypreview[=챔피언,무드,스택,레벨] (데이터 무변경). 예: ?buddypreview=gwen,win,4,3
 { const _bp = new URLSearchParams(location.search).get('buddypreview');
   if (_bp !== null) setTimeout(()=>{ try{
