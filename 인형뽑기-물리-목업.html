@@ -138,7 +138,7 @@
   <span class="pill">수집 <b id="coll">0/7</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 147</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 148</span>
 </div>
 <div id="result"></div>
 <div id="coin-fx"></div>
@@ -982,17 +982,18 @@ function updDailyHud(){
 window.resetPlays = ()=>{ playsUsed=0; _saveCoins(); updDailyHud(); console.log('일일 횟수 초기화'); };   // 테스트용
 window.addCoins = (n)=>{ coins=Math.max(0,coins+(n==null?5:n)); _saveCoins(); updDailyHud(); console.log('🪙 코인',coins); };  // 테스트용
 function tryDrop(){
-  if(state!=='READY') return;               // READY = START로 코인 지불 후 1게임 진행 중(집기 1회)
+  if(state!=='READY') return;               // READY = 1게임 진행 중(집기 1회)
+  // 💰 차감은 "실제 집기" 시점에 — START만 누르고 안 내린 채 닫기/리로드/앱전환하면 헛소모되던 버그(BUILD148). 수동·자동(readyDeadline) 둘 다 여기를 통과해 정상 과금. state!=='READY' 가드라 1회만.
+  if(ENF){ coins--; playsUsed++; _saveCoins(); updDailyHud(); _coinDropFx(); Sfx.coin(); }
   readyDeadline=0;                          // 집기 시작 → 자동하강 타이머 해제
   stickEnd(); state='LOWERING'; clawSpin=0;
 }
-// ▶ START — 코인 1개 소모 → 1게임(이동+집기) 시작. 집기 끝나면 다시 IDLE(정지) → 코인 헛소모 방지
+// ▶ START — 1게임(이동+집기) 시작. 코인은 START가 아니라 실제 집기(tryDrop) 때 차감 → 집기 안 하면 헛소모 0. 집기 끝나면 다시 IDLE(정지)
 function startGame(){
   if(state!=='IDLE') return; Sfx.unlock();
   if(!canPlay()){ Sfx.error(); showResult(coins<=0 ? '코인이 없어요 (출석으로 충전)' : '오늘 5회 소진! (코인은 모임)','#ffb86b'); return; }
-  if(ENF){ coins--; playsUsed++; _saveCoins(); }
-  state='READY'; updControls();   // ⚠️ updDailyHud보다 먼저 — HUD가 READY를 반영해야 집기 버튼이 안 잠김(마지막 코인 소진 후에도 진행 중 게임은 집기 가능)
-  updDailyHud(); _coinDropFx(); Sfx.coin(); _bgmStart();
+  state='READY'; updControls();   // ⚠️ updDailyHud보다 먼저 — HUD가 READY를 반영해야 집기 버튼이 안 잠김(마지막 코인이어도 진행 중 게임은 집기 가능)
+  updDailyHud(); _bgmStart();
 }
 function updControls(){ const c=document.getElementById('controls'); if(c) c.classList.toggle('idle', state==='IDLE'); }
 window.startGame = startGame;
