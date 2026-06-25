@@ -6814,7 +6814,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.298';
+const APP_VERSION = 'v2.45.299';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -12349,7 +12349,7 @@ onValue(ref(db, 'config/riotWorkerUrl'), (snapshot) => {
 onValue(ref(db, 'config/buddyModelAdj'), (snap) => {   // 🧸 단짝 모델 위치 보정(buddyTunePreview 저장분) — 로드 시 모두에게 적용. 키는 .glb 없이 저장됨
   try { const v = snap.val() || {}; const adj = {}; for (const k in v) { adj[/\.glb$/.test(k) ? k : k + '.glb'] = v[k]; }
     Object.keys(_BUDDY_MODEL_ADJ).forEach(k => delete _BUDDY_MODEL_ADJ[k]); Object.assign(_BUDDY_MODEL_ADJ, adj);
-    const ctx = _buddy3dCtx; if (ctx && ctx.champ && ctx.group) { const a = _BUDDY_MODEL_ADJ[ctx.champ] || {}; ctx.group.position.set((a.x||0)*ctx.r, (a.y||0)*ctx.r, 0); _buddy3dFrame(); }
+    const ctx = _buddy3dCtx; if (ctx && ctx.champ && ctx.group) { const m = _buddyAdj(ctx.champ, ctx.frameMode); ctx.group.position.set((m.x||0)*ctx.r, (m.y||0)*ctx.r, 0); _buddy3dFrame(); }
   } catch(_) {}
 });
 onValue(ref(db, 'config/currentSeason'), (snapshot) => {
@@ -32449,7 +32449,7 @@ async function _buddy3dShow(mountId, champFile, mood){
       const dt=Math.min(0.05, ctx.clock.getDelta());
       const spd = ctx.mood==='win'?1.12 : ctx.mood==='loss'?0.7 : 1.0;
       if(ctx.mixer) ctx.mixer.update(dt*spd);
-      if(ctx.group){ const t=ctx.clock.elapsedTime, r=ctx.r; const _ma=_BUDDY_MODEL_ADJ[ctx.champ]||{};   // 🧸 모델 위치보정(x,y)을 bob 기준으로 (안 그러면 매 프레임 덮어써 Y가 안 먹힘)
+      if(ctx.group){ const t=ctx.clock.elapsedTime, r=ctx.r; const _ma=_buddyAdj(ctx.champ, ctx.frameMode);   // 🧸 모델 위치보정(모드별)을 bob 기준으로 (안 그러면 매 프레임 덮어써 Y가 안 먹힘)
         const amp = ctx.mood==='win'?0.0 : ctx.mood==='loss'?0.012 : 0.03, bs = 2.5;   // 연승=춤 모션이 움직임 담당(절차적 bob 0)
         let y=(_ma.y||0)*r + (ctx.mood==='loss'? -r*0.05:0) + Math.sin(t*bs)*r*amp;
         let rotY=ctx.group.rotation.y*0.9, sx=1, sy=1;
@@ -32477,7 +32477,7 @@ function _buddy3dLoad(champFile){
     const box=new THREE.Box3().setFromObject(model); const ctr=box.getCenter(new THREE.Vector3()); model.position.sub(ctr);
     const group=new THREE.Group(); group.add(model); scene.add(group);
     const r=box.getBoundingSphere(new THREE.Sphere()).radius; ctx.r=r;
-    const _ma=_BUDDY_MODEL_ADJ[champFile]; if(_ma) group.position.set((_ma.x||0)*r, (_ma.y||0)*r, 0);   // 🧸 챔피언별 위치 보정(요네 등)
+    const _ma=_buddyAdj(champFile, ctx.frameMode); group.position.set((_ma.x||0)*r, (_ma.y||0)*r, 0);   // 🧸 챔피언별·모드별 위치 보정
     const fov=camera.fov*Math.PI/180, asp=190/212;
     camera.position.set(0,0, Math.max(r/Math.sin(fov/2), r/Math.sin(2*Math.atan(Math.tan(fov/2)*asp)/2))*1.78); camera.lookAt(0,0,0);
     _buddy3dFrame();   // frameMode 적용(아바타=상반신 클로즈업)
@@ -32489,15 +32489,16 @@ function _buddy3dLoad(champFile){
 }
 let _buddyBustY=0.45, _buddyBustDist=0.9;   // 아바타 상반신 카메라(줌아웃해 모션 여백; 콘솔 _buddyTuneAvatar로 조정)
 const _BUDDY_BUST_Y = {};   // 챔피언별 얼굴 높이 override(필요한 챔피언만 콘솔로 채움). ※티모는 모델에 눈/얼굴 없음=애셋 한계
-const _BUDDY_MODEL_ADJ = {   // 챔피언별 모델 위치/줌 보정(bbox센터링이 칼·이펙트로 틀어진 경우). {x,y}=r비율 이동, zoom=확대(>1 가까이). 양 모드 공통. buddyTunePreview()로 캐릭터별 조정 후 값 박기
-  // 'yone.glb': { y:-0.2, x:0, zoom:1.0 },   ← buddyTunePreview로 맞춘 값을 여기에
+const _BUDDY_MODEL_ADJ = {   // 챔피언별 모델 위치/줌 보정. ⚠️모드별 분리: { full:{x,y,zoom}, bust:{x,y,zoom} } (프로필 전신 vs 아바타 상반신 프레이밍 달라 따로). buddyTunePreview()로 조정→💾저장(Firebase)
+  // 'yone.glb': { full:{ y:-0.4, x:0, zoom:1.3 }, bust:{ y:0.1, x:0, zoom:1.0 } },   ← buddyTunePreview로 맞춰 저장하면 config/buddyModelAdj 에 자동
 };
+function _buddyAdj(champ, mode){ const a=_BUDDY_MODEL_ADJ[champ]; if(!a) return {}; if(a[mode]) return a[mode]; if(('full' in a)||('bust' in a)) return {}; return a; }   // 모드별 보정({} 폴백) — 구형 평면값은 양 모드 공통
 function _buddyBustYOf(champ){ return (champ && _BUDDY_BUST_Y[champ]!=null) ? _BUDDY_BUST_Y[champ] : _buddyBustY; }
 function _buddy3dFrame(){   // frameMode='bust'(아바타 상반신) / 'full'(프로필 전신)
   const ctx=_buddy3dCtx; if(!ctx||!ctx.camera||!ctx.r) return; const r=ctx.r;
   const fov=ctx.camera.fov*Math.PI/180, asp=190/212;
   const fit=Math.max(r/Math.sin(fov/2), r/Math.sin(2*Math.atan(Math.tan(fov/2)*asp)/2));
-  const _z=(_BUDDY_MODEL_ADJ[ctx.champ]&&_BUDDY_MODEL_ADJ[ctx.champ].zoom)||1;   // 챔피언별 줌(>1 가까이=확대)
+  const _z=_buddyAdj(ctx.champ, ctx.frameMode).zoom||1;   // 챔피언별·모드별 줌(>1 가까이=확대)
   if(ctx.frameMode==='bust'){ const y=r*_buddyBustYOf(ctx.champ); ctx.camera.position.set(0, y, fit*_buddyBustDist/_z); ctx.camera.lookAt(0, y, 0); }
   else { ctx.camera.position.set(0,0, fit*1.78/_z); ctx.camera.lookAt(0,0,0); }
 }
@@ -32524,21 +32525,23 @@ window.buddyTunePreview=function(){   // 🧸 캐릭터별 단짝 위치 튜닝 
     <div style="display:flex;gap:6px;align-items:center;"><span style="color:#9ab;font-size:12px;">스텝</span><button class="bt-step" data-s="0.1" style="${bs}">0.1</button><button class="bt-step" data-s="0.5" style="${bs}">0.5</button><button class="bt-step" data-s="1" style="${bs}">1.0</button><button id="bt-reset" style="${bs}">리셋</button></div>
     <div id="bt-val" style="color:#8fe;font-family:monospace;font-size:12px;background:#11111a;padding:8px 12px;border-radius:8px;user-select:all;"></div>
     <div style="display:flex;gap:8px;"><button id="bt-save" style="${bs}background:#1c3a24;border-color:#2e7d4a;">💾 저장 (모두 적용)</button><button id="bt-close" style="${bs}background:#3a1c1c;">닫기</button></div>
-    <div style="color:#888;font-size:11px;text-align:center;">아바타/전신 둘 다 보며 맞춘 뒤 💾 저장 (나한테 안 보내도 됨)<br>같은 위치값이 두 곳 다 적용돼요</div>`;
+    <div style="color:#888;font-size:11px;text-align:center;">⚠️ 아바타·전신은 <b>따로</b> 맞춰야 해요(프레이밍 달라서)<br>각 모드+캐릭터 맞춘 뒤 💾 저장하면 모두 적용 (나한테 안 보내도 됨)</div>`;
   document.body.appendChild(ov);
   const frame=ov.querySelector('#bt-frame'), valEl=ov.querySelector('#bt-val');
   const buildMount=()=>{ if(mode==='bust') frame.innerHTML=`<div style="width:150px;height:168px;border-radius:16px;background:radial-gradient(circle at 50% 38%,#243049,#0c1020);border:2px solid #c9a84a;box-shadow:0 0 0 3px #1a1a10,0 6px 20px rgba(0,0,0,.5);overflow:hidden;"><div id="bt-mount" style="width:100%;height:100%;"></div></div><div style="text-align:center;color:#9ab;font-size:11px;margin-top:4px;">↑ 좌상단 아바타에 보이는 모습</div>`;
     else frame.innerHTML=`<div style="width:200px;height:228px;border-radius:14px;background:linear-gradient(160deg,#16161f,#0a0a12);border:1px solid #2a2a3a;overflow:hidden;"><div id="bt-mount" style="width:100%;height:100%;"></div></div><div style="text-align:center;color:#9ab;font-size:11px;margin-top:4px;">↑ 프로필 단짝 공간 전신</div>`; };
-  const updVal=()=>{ const a=_BUDDY_MODEL_ADJ[cur]||{}; valEl.textContent=`${_buddyChampName(cur)}: y=${(+(a.y||0)).toFixed(2)} x=${(+(a.x||0)).toFixed(2)} zoom=${(+(a.zoom||1)).toFixed(2)}`; };
-  const reapply=()=>{ if(_buddy3dCtx&&_buddy3dCtx.champ===cur&&_buddy3dCtx.group){ const a=_BUDDY_MODEL_ADJ[cur]||{}; _buddy3dCtx.group.position.set((a.x||0)*_buddy3dCtx.r,(a.y||0)*_buddy3dCtx.r,0); _buddy3dCtx.frameMode=mode; _buddy3dFrame(); } };
+  const rootOf=(c)=>{ let r=_BUDDY_MODEL_ADJ[c]; if(!r) r=_BUDDY_MODEL_ADJ[c]={}; if(!('bust' in r)&&!('full' in r)&&(r.x!==undefined||r.y!==undefined||r.zoom!==undefined)){ const fl={y:+(r.y||0),x:+(r.x||0),zoom:+(r.zoom||1)}; delete r.x;delete r.y;delete r.zoom; r.full={...fl}; r.bust={...fl}; } return r; };
+  const curAdj=()=>{ const r=rootOf(cur); return r[mode]||(r[mode]={}); };
+  const updVal=()=>{ const a=_buddyAdj(cur,mode); valEl.textContent=`${_buddyChampName(cur)} [${mode==='bust'?'아바타':'전신'}]: y=${(+(a.y||0)).toFixed(2)} x=${(+(a.x||0)).toFixed(2)} zoom=${(+(a.zoom||1)).toFixed(2)}`; };
+  const reapply=()=>{ if(_buddy3dCtx&&_buddy3dCtx.champ===cur&&_buddy3dCtx.group){ const a=_buddyAdj(cur,mode); _buddy3dCtx.group.position.set((a.x||0)*_buddy3dCtx.r,(a.y||0)*_buddy3dCtx.r,0); _buddy3dCtx.frameMode=mode; _buddy3dFrame(); } };
   const show=()=>{ buildMount(); try{ _buddy3dShow('bt-mount', cur, 'none'); if(_buddy3dCtx) _buddy3dCtx.frameMode=mode; setTimeout(()=>{ try{reapply();}catch(_){} },150); }catch(e){console.warn(e);} updVal(); };
   const cb=ov.querySelector('#bt-champs'); champs.forEach(f=>{ const b=document.createElement('button'); b.textContent=_buddyChampName(f); b.style.cssText=bs+'padding:5px 8px;font-size:12px;'; b.onclick=()=>{ cur=f; cb.querySelectorAll('button').forEach(x=>x.style.outline=''); b.style.outline='2px solid #ffd24a'; show(); }; if(f===cur) b.style.outline='2px solid #ffd24a'; cb.appendChild(b); });
   ov.querySelectorAll('.bt-mode').forEach(btn=>btn.onclick=()=>{ mode=btn.dataset.m; ov.querySelectorAll('.bt-mode').forEach(x=>x.style.outline=''); btn.style.outline='2px solid #ffd24a'; show(); }); ov.querySelector('.bt-mode[data-m="bust"]').style.outline='2px solid #ffd24a';
   ov.querySelectorAll('.bt-adj').forEach(btn=>btn.onclick=()=>{ const k=btn.dataset.k, d=(+btn.dataset.d)*step;
-    const a={..._BUDDY_MODEL_ADJ[cur]}; a[k]=(a[k]!=null?+a[k]:(k==='zoom'?1:0))+d; if(k==='zoom') a.zoom=Math.max(0.2,a.zoom); _BUDDY_MODEL_ADJ[cur]=a; reapply(); updVal(); });
+    const a=curAdj(); a[k]=(a[k]!=null?+a[k]:(k==='zoom'?1:0))+d; if(k==='zoom') a.zoom=Math.max(0.2,a.zoom); reapply(); updVal(); });
   const stepBtns=ov.querySelectorAll('.bt-step'); const hlStep=()=>stepBtns.forEach(b=>b.style.outline=(+b.dataset.s===step?'2px solid #ffd24a':'')); stepBtns.forEach(b=>b.onclick=()=>{ step=+b.dataset.s; hlStep(); }); hlStep();
-  ov.querySelector('#bt-reset').onclick=()=>{ delete _BUDDY_MODEL_ADJ[cur]; show(); };
-  ov.querySelector('#bt-save').onclick=()=>{ const out={}; for(const k in _BUDDY_MODEL_ADJ){ const v=_BUDDY_MODEL_ADJ[k]; if(v&&((+v.x)||(+v.y)||(v.zoom&&+v.zoom!==1))) out[k.replace(/\.glb$/,'')]={ y:+(v.y||0), x:+(v.x||0), zoom:+(v.zoom||1) }; }
+  ov.querySelector('#bt-reset').onclick=()=>{ const r=_BUDDY_MODEL_ADJ[cur]; if(r){ if(r[mode]) delete r[mode]; else { delete r.x;delete r.y;delete r.zoom; } } show(); };
+  ov.querySelector('#bt-save').onclick=()=>{ const out={}; for(const k in _BUDDY_MODEL_ADJ){ const e={}; ['full','bust'].forEach(md=>{ const v=_buddyAdj(k,md); if(v&&((+v.x)||(+v.y)||(v.zoom&&+v.zoom!==1))) e[md]={ y:+(v.y||0), x:+(v.x||0), zoom:+(v.zoom||1) }; }); if(Object.keys(e).length) out[k.replace(/\.glb$/,'')]=e; }
     set(ref(db,'config/buddyModelAdj'), out).then(()=>{ try{showS1Toast('💾 저장됨 — 모두에게 적용돼요!');}catch(_){} }).catch(e=>{ console.warn(e); try{showS1Toast('저장 실패: '+(e&&e.message||e));}catch(_){} }); };
   ov.querySelector('#bt-close').onclick=()=>{ ov.remove(); };
   show();
