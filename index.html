@@ -6814,7 +6814,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.303';
+const APP_VERSION = 'v2.45.304';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6823,6 +6823,10 @@ const APP_VERSION = 'v2.45.303';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.304', date: '2026-06-25', changes: [
+    { tag: 'fix', text: '🧸 단짝을 다른 챔피언으로 바꾸면 새로고침 없이 바로 반영되도록 고쳤어요(아바타 3D 모델·프로필·대시보드 즉시 갱신).' },
+    { tag: 'fix', text: '🕹️ 인형뽑기 — 7종을 다 모은 뒤(2단계)엔 단짝을 강화하려고 일부러 뽑는 거라, 같은 챔피언을 뽑아도 "꽝"이 아니라 "단짝과 친해지는 중!"으로 표시돼요.' },
+  ] },
   { ver: 'v2.45.303', date: '2026-06-25', changes: [
     { tag: 'improve', text: '🕹️ 인형뽑기 역추적 로그 추가 — 진입·START(코인 소모)·집기·결과(획득/중복/포로/헛집음)·진행 중 이탈을 그 시점 스냅샷으로 기록해, 코인이 어디서 빠졌는지 추적할 수 있게 했어요. (운영자 콘솔 전용)' },
   ] },
@@ -32012,7 +32016,8 @@ function _claw3dInit(){    // 현재 상태 반환 — iframe init 메시지로 
     if (key) update(ref(db,'gold/'+key), { [sField('clawCoins')]:coins, [sField('clawLaunchBonus')]:true }).catch(()=>{});
   }
   const plays = (data[sField('clawPlayDate')] === today) ? (data[sField('clawPlays')]||0) : 0;   // 새 날이면 1단계 일일횟수 리셋
-  return { collected, coins, plays, eligible };
+  const buddy = _buddyData()?.champion || null;   // 🧸 2단계 강화 대상 단짝 — 같은 챔피언 뽑으면 '꽝' 아닌 '강화' 메시지용
+  return { collected, coins, plays, eligible, buddy };
 }
 function _claw3dSave(d){   // iframe이 보낸 상태 스냅샷 → Firebase
   const key = getMyGoldKey(); if (!key) return;
@@ -32652,6 +32657,8 @@ window._buddyChangeBuddy = function(){   // 🔄 단짝 교체 — 수집한 챔
 };
 function _buddyAfterPick(){   // 선정/변경 후 UI 전체 갱신(가챠탭·아바타3D·프로필·대시보드). 변경 시 3D는 새 챔피언 GLB로 재로드됨
   try{renderGachaTab();}catch(_){} try{updateMyInfoBar();}catch(_){} try{_buddyRefreshProfile();}catch(_){} try{_buddyApplySection();}catch(_){}
+  // 🧸 변경 즉시 반영: 위 재렌더로 mount div가 새로 만들어진 뒤(다음 프레임)에 3D를 최종 부착 — 캔버스가 옛(제거된) mount에 묶여 안 바뀌던 문제 방지. 새 챔피언이면 _buddy3dShow가 ctx.champ 불일치로 GLB 재로드.
+  setTimeout(()=>{ try{_buddyHomeAttach();}catch(_){} }, 60);
   if(!_buddyData()?.nickname) setTimeout(()=>{ try{_buddyOpenName();}catch(_){} }, 420);   // 별칭 없을 때만 이름짓기 유도(이미 키웠던 챔피언이면 생략)
 }
 function _buddySelectInlineHtml(coll, pv){   // 단짝 선정 인라인

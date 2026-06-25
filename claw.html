@@ -139,7 +139,7 @@
   <span class="pill">수집 <b id="coll">0/7</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 150 · claw</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 151 · claw</span>
 </div>
 <div id="result"></div>
 <div id="coin-fx"></div>
@@ -1225,9 +1225,16 @@ function loop(now){
       if(_pp && _pp.dud){                              // 🐾 포로 = 꽝
         Sfx.dud(); showResult('포로다! 🐾','#9fd6ff');
         _playResolved=true; _postParent('log', {ev:'result', outcome:'poro'});   // 📋 역추적
-      } else if(_pp && isCollected(_pp.file)){         // 이미 수집한 챔피언 = 중복 꽝
-        Sfx.dud(); showResult('중복! 꽝 😅','#ffb86b');
-        _playResolved=true; _postParent('log', {ev:'result', outcome:'dup', champion:_pp.file});   // 📋 역추적
+      } else if(_pp && isCollected(_pp.file)){         // 이미 수집한 챔피언
+        _playResolved=true;
+        if(_collComplete()){                            // 🧸 2단계: 7종 다 모은 뒤 = 단짝 강화하러 일부러 뽑는 것 → '꽝' 아님
+          const isBud = _buddyChamp && _pp.file===_buddyChamp;
+          Sfx.win(); showResult(isBud?'🧸 단짝과 친해지는 중!':'또 만났네! 🐾', isBud?'#ffd24a':'#9fd6ff');
+          _postParent('log', {ev:'result', outcome:isBud?'upgrade':'champion', champion:_pp.file});   // 📋 역추적
+        } else {                                        // 1단계: 새 챔피언이 목표라 중복 = 꽝
+          Sfx.dud(); showResult('중복! 꽝 😅','#ffb86b');
+          _postParent('log', {ev:'result', outcome:'dup', champion:_pp.file});   // 📋 역추적
+        }
       } else if(_pp){                                  // 🆕 새 챔피언 = 수집!
         _playResolved=true; _postParent('log', {ev:'result', outcome:'champion', champion:_pp.file});   // 📋 역추적
         collected.push(_pp.file); _saveCollected(); updColl();
@@ -1302,9 +1309,11 @@ if(EMBED){   // 🔗 앱 임베드: 앱이 보낸 상태(init)로 초기화 + �
     if(d.type==='init'){
       collected = Array.isArray(d.collected) ? d.collected.slice() : [];
       coins = d.coins||0; playsUsed = d.plays||0;
+      _buddyChamp = d.buddy || null;   // 🧸 2단계 강화 대상
       _collDone = collected.length >= CHAMP_TOTAL;
       _loadCollectionTrophies(); updColl(); renderCollectionBar(); updDailyHud();
     }
+    else if(d.type==='buddy'){ _buddyChamp = d.buddy || null; }   // 🧸 단짝 변경 동기화(앱에서 바꾸면 즉시 반영)
     else if(d.type==='upgradeFx'){ _showUpgradeFx(d); }   // 🧸 단짝 강화 연출(3D)
   });
   _postParent('ready');
@@ -1349,6 +1358,7 @@ const _gl = new GLTFLoader();
 let _loaded = 0;   // 로드 완료 카운터(성공/실패 모두) — 전부 끝나면 한 번만 스폰
 let _modelsReady = false;   // 🕹️ 3D 프라이즈 전부 로드 완료 여부 — START 게이트(로딩 중 START로 코인 헛소모 방지, BUILD149)
 let _playResolved = false;  // 📋 이번 판 결과 확정 여부 — RELEASE까지 결과 없으면 'miss' 로그(BUILD150)
+let _buddyChamp = null;     // 🧸 2단계 강화 대상 단짝(앱 init/buddy 메시지로 받음) — 같은 챔피언 뽑으면 '꽝' 아닌 '강화'(BUILD150)
 function _updStartBtn(){
   const b=document.getElementById('start-btn'); if(!b) return;
   if(_modelsReady){ b.disabled=false; b.classList.remove('loading'); b.innerHTML='🪙 START<span class="sb-sub">코인 1개 · 1게임</span>'; }
