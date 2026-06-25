@@ -6845,7 +6845,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.316';
+const APP_VERSION = 'v2.45.317';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6854,6 +6854,9 @@ const APP_VERSION = 'v2.45.316';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.317', date: '2026-06-25', changes: [
+    { tag: 'fix', text: '🧸 단짝을 바꿔도 즉시 반영 안 되고 새로고침하면 원래대로 돌아가던 버그 수정 — 저장(서버 쓰기)이 끝나야 화면을 갱신하던 구조라, 쓰기가 느리거나 실패하면 반영이 안 됐어요. 이제 고르는 즉시 화면이 바뀌고, 저장은 백그라운드에서 재시도해 확실히 보존돼요.' },
+  ] },
   { ver: 'v2.45.316', date: '2026-06-25', changes: [
     { tag: 'fix', text: '🧸 단짝을 바꿔도 3D가 바로 안 바뀌던 버그 재수정(근본 원인) — 공유 3D 캔버스가 화면 다시 그릴 때 사라진 자리에 묶여 멈추던 문제를, 매 프레임 현재 보이는 자리로 자동 복구하도록 고쳤어요. 이제 변경·프로필 열고닫기 시 새로고침 없이 즉시 반영돼요.' },
   ] },
@@ -32245,18 +32248,26 @@ function _buddyCap(type, s){ return Math.min(s, type==='win'?BUDDY_WIN_MAX:BUDDY
 function _buddyRewardAt(type, stack){ const tbl=type==='win'?BUDDY_WIN_REWARDS:BUDDY_LOSS_REWARDS; const s=_buddyCap(type,stack); return s>=2?tbl[s]:null; }
 function _buddyAtCap(type, stack){ return !!type && (stack||0) >= (type==='win'?BUDDY_WIN_MAX:BUDDY_LOSS_MAX); }   // 보상 상한(승7/패6) 도달 — 스택은 더 쌓여도 보상 동일
 // 단짝 선정 / 변경 (언제든 교체 가능 · 챔피언별 강화레벨·별칭은 로스터에 보존)
-async function buddySelect(champFile){
-  const key=getMyGoldKey(); if(!key) return console.warn('닉네임 먼저');
+function buddySelect(champFile){   // ⚡ 동기: 로컬 즉시 반영(화면 바로 갱신) + 저장은 백그라운드 재시도. (이전엔 await update가 끝나야 UI 갱신 → 쓰기 지연/실패 시 "즉시 안 바뀜 + 새로고침 원복" 버그)
+  const key=getMyGoldKey(); if(!key){ console.warn('닉네임 먼저'); return false; }
   const data=getMyGoldData()||{}; const coll=Array.isArray(data[sField('clawCollected')])?data[sField('clawCollected')]:[];
-  if(!coll.includes(champFile)) return console.warn('수집한 챔피언만 단짝 가능:', coll);
+  if(!coll.includes(champFile)){ console.warn('수집한 챔피언만 단짝 가능:', coll); return false; }
   const cur=_buddyData();
-  if(cur && cur.champion===champFile) return console.warn('이미 이 챔피언이 단짝이에요');
+  if(cur && cur.champion===champFile){ console.warn('이미 이 챔피언이 단짝이에요'); return false; }
   const roster={...(data[sField('buddyLevels')]||{})};
-  if(cur) roster[cur.champion]={ level:cur.level||1, pulls:cur.pulls||0, nickname:cur.nickname||'' };   // 떠나는 단짝의 진척 보존
+  if(cur && cur.champion) roster[cur.champion]={ level:cur.level||1, pulls:cur.pulls||0, nickname:cur.nickname||'' };   // 떠나는 단짝의 진척 보존
   const saved=roster[champFile]||{};   // 예전에 키웠던 챔피언이면 그 레벨/별칭 복원
   const b={ champion:champFile, level:saved.level||1, selectedAt:Date.now(), pulls:saved.pulls||0, nickname:saved.nickname||'' };
-  const u={ [sField('buddy')]:b, [sField('buddyLevels')]:roster }; if(goldData[key]) Object.assign(goldData[key],u);
-  await update(ref(db,'gold/'+key),u); console.log(`🧸 단짝 ${cur?'변경':'선정'}: ${champFile} (Lv${b.level})`); return true;
+  const u={ [sField('buddy')]:b, [sField('buddyLevels')]:roster };
+  if(goldData[key]) Object.assign(goldData[key],u);   // 로컬 즉시 반영 → 호출부 _buddyAfterPick이 바로 새 단짝 렌더
+  _buddyPersist(key, u, `단짝 ${cur?'변경':'선정'}: ${champFile} (Lv${b.level})`);   // 백그라운드 저장(재시도)
+  return true;
+}
+async function _buddyPersist(key, u, label){   // Firebase 저장 — 재시도로 영속화 보장(쓰기 지연/일시 실패 흡수). 끝까지 실패할 때만 알림
+  for(let i=0;i<4;i++){ try{ await update(ref(db,'gold/'+key),u); console.log('🧸 '+(label||'단짝 저장')+(i>0?' (재시도 성공)':'')); return true; }
+    catch(e){ console.error('단짝 저장 실패 시도'+(i+1)+'/4', e); await new Promise(r=>setTimeout(r, 500*(i+1))); } }
+  try{ showS1Toast('⚠️ 단짝 저장 실패 — 네트워크 확인 후 다시 시도해 주세요'); }catch(_){}
+  return false;
 }
 // 단짝 강화 시도 (단짝을 뽑을 때)
 async function _buddyUpgradeAttempt(){
@@ -32579,8 +32590,7 @@ function _buddyOpenSelect(coll, pv){
   ov.querySelectorAll('.buddy-pick').forEach(btn=>btn.onclick=()=>{ const f=btn.dataset.f, nm=_buddyChampName(f);
     if(pv){ ov.remove(); showS1Toast(`👀 [프리뷰] ${nm} 선택 — 실제로는 저장 안 돼요`); return; }   // 프리뷰: DB 쓰기 없음
     ov.remove();   // ① 선택창 먼저 닫기(즉시) — confirm 제거(모바일서 대화상자 차단 시 안 닫히던 문제)
-    buddySelect(f).then(ok=>{ if(!ok) return;   // 같은 챔피언이면 무시
-      showS1Toast(`🧸 ${nm} — 단짝이 됐어요!`); _buddyAfterPick(); }); });   // ② 반영 + 애칭 짓기(고르기→애칭 순서)
+    if(buddySelect(f)){ showS1Toast(`🧸 ${nm} — 단짝이 됐어요!`); _buddyAfterPick(); } });   // ② 동기 반영(즉시) + 애칭 짓기(고르기→애칭 순서)
 }
 function _buddyRewardText(r){ if(BUDDY_REWARDS_LOCKED) return '미정 (준비 중)'; if(!r) return '—'; const p=[];
   if(r.gold) p.push(`🪙 ${r.gold}G`);
@@ -32807,7 +32817,7 @@ function _buddySelectInlineHtml(coll, pv){   // 단짝 선정 인라인
 }
 window.buddyPickInline = function(f, pv){ const nm=_buddyChampName(f);
   if(pv){ showS1Toast(`👀 [프리뷰] ${nm} 선택 — 실제로는 저장 안 돼요`); return; }
-  buddySelect(f).then(ok=>{ if(!ok) return; showS1Toast(`🧸 ${nm} — 단짝이 됐어요!`); _buddyAfterPick(); }); };
+  if(buddySelect(f)){ showS1Toast(`🧸 ${nm} — 단짝이 됐어요!`); _buddyAfterPick(); } };
 window.buddyClaimInline = function(pv){ if(pv){ showS1Toast('👀 프리뷰 — 실제 수령은 안 돼요'); return; }
   buddyClaim().then(ok=>{ if(ok){ showS1Toast('🎁 단짝 보상을 받았어요!'); try{updateMyInfoBar();}catch(_){} try{ _buddyRefreshProfile(); }catch(_){} } }); };
 function _buddyApplySection(retries){ const w=document.getElementById('buddy-section-wrap');
