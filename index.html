@@ -6814,7 +6814,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.294';
+const APP_VERSION = 'v2.45.295';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -23225,6 +23225,7 @@ if (location.search.includes('claw')) setTimeout(()=>{ try{ window.clawTest(); }
   }catch(e){ console.warn('buddypreview', e); } }, 1600); }
 // 🧸 단짝 선정 인라인 프리뷰 링크 — ?buddyselect (7종 전체·데이터 무변경)
 if (location.search.includes('buddyselect')) setTimeout(()=>{ try{ window.buddySectionPreview('select'); }catch(e){ console.warn('buddyselect', e); } }, 1600);
+if (location.search.includes('buddytune')) setTimeout(()=>{ try{ window.buddyTunePreview(); }catch(e){ console.warn('buddytune', e); } }, 1400);   // 🧸 캐릭터별 위치 튜닝 프리뷰
 
 // ── 골드 & 상점 시스템 ───────────────────────────────────────
 
@@ -32482,8 +32483,8 @@ function _buddy3dLoad(champFile){
 }
 let _buddyBustY=0.45, _buddyBustDist=0.9;   // 아바타 상반신 카메라(줌아웃해 모션 여백; 콘솔 _buddyTuneAvatar로 조정)
 const _BUDDY_BUST_Y = {};   // 챔피언별 얼굴 높이 override(필요한 챔피언만 콘솔로 채움). ※티모는 모델에 눈/얼굴 없음=애셋 한계
-const _BUDDY_MODEL_ADJ = {   // 챔피언별 모델 위치/줌 보정(bbox센터링이 칼·이펙트로 틀어진 경우). {x,y}=r비율 이동, zoom=확대(>1 가까이). 양 모드 공통. 콘솔 _buddyTuneModel로 조정
-  'yone.glb': { y:-5.10, x:-0.10, zoom:1.0 },   // 요네 아래로+왼쪽(센터링 보정) — 더/덜 필요하면 _buddyTuneModel(y,zoom,x)로 조정
+const _BUDDY_MODEL_ADJ = {   // 챔피언별 모델 위치/줌 보정(bbox센터링이 칼·이펙트로 틀어진 경우). {x,y}=r비율 이동, zoom=확대(>1 가까이). 양 모드 공통. buddyTunePreview()로 캐릭터별 조정 후 값 박기
+  // 'yone.glb': { y:-0.2, x:0, zoom:1.0 },   ← buddyTunePreview로 맞춘 값을 여기에
 };
 function _buddyBustYOf(champ){ return (champ && _BUDDY_BUST_Y[champ]!=null) ? _BUDDY_BUST_Y[champ] : _buddyBustY; }
 function _buddy3dFrame(){   // frameMode='bust'(아바타 상반신) / 'full'(프로필 전신)
@@ -32500,6 +32501,36 @@ window._buddyTuneModel=function(y,zoom,x){   // 🧸 챔피언별 모델 위치/
   const a={..._BUDDY_MODEL_ADJ[c]}; if(y!=null)a.y=+y; if(zoom!=null)a.zoom=+zoom; if(x!=null)a.x=+x; _BUDDY_MODEL_ADJ[c]=a;
   if(ctx.group) ctx.group.position.set((a.x||0)*ctx.r, (a.y||0)*ctx.r, 0); _buddy3dFrame();
   console.log(`🧸 모델보정 champ=${c} → y=${a.y||0} zoom=${a.zoom||1} x=${a.x||0} (좋으면 이 값 알려줘 — 코드에 박을게)`); };
+window.buddyTunePreview=function(){   // 🧸 캐릭터별 단짝 위치 튜닝 프리뷰(프로필 full 기준·데이터 무변경). 맞춘 값 알려주면 _BUDDY_MODEL_ADJ에 박음
+  _injectBuddyCss(); if(document.getElementById('buddy-tune-ov')) return;
+  const champs=['teemo.glb','gwen.glb','vex.glb','ekko.glb','yone.glb','neeko.glb','lux.glb']; let cur='yone.glb', step=0.1;
+  const bs='padding:7px 11px;border-radius:8px;border:1px solid #3a3a4a;background:#1c1c28;color:#dfe;font-weight:700;cursor:pointer;font-size:13px;';
+  const ov=document.createElement('div'); ov.id='buddy-tune-ov';
+  ov.style.cssText='position:fixed;inset:0;z-index:99999;background:#0a0a12;display:flex;flex-direction:column;align-items:center;gap:9px;padding:14px;overflow:auto;';
+  ov.innerHTML=`<div style="color:#ffe39a;font-weight:800;font-size:15px;">🧸 단짝 위치 튜닝 — 프로필(메인) 기준</div>
+    <div id="bt-champs" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;"></div>
+    <div id="bt-mount" style="width:210px;height:234px;background:radial-gradient(circle at 50% 40%,#1c1c2e,#0a0a12);border:1px solid #2a2a3a;border-radius:14px;"></div>
+    <div style="display:grid;grid-template-columns:auto auto auto;gap:7px;align-items:center;color:#bcd;">
+      <span>상하</span><button class="bt-adj" data-k="y" data-d="0.1" style="${bs}">▲ 위</button><button class="bt-adj" data-k="y" data-d="-0.1" style="${bs}">▼ 아래</button>
+      <span>좌우</span><button class="bt-adj" data-k="x" data-d="-0.05" style="${bs}">◀ 왼쪽</button><button class="bt-adj" data-k="x" data-d="0.05" style="${bs}">▶ 오른쪽</button>
+      <span>크기</span><button class="bt-adj" data-k="zoom" data-d="0.1" style="${bs}">＋ 확대</button><button class="bt-adj" data-k="zoom" data-d="-0.1" style="${bs}">－ 축소</button></div>
+    <div style="display:flex;gap:7px;"><button id="bt-fine" style="${bs}">큰 폭(±0.1)</button><button id="bt-reset" style="${bs}">리셋</button></div>
+    <div id="bt-val" style="color:#8fe;font-family:monospace;font-size:13px;background:#11111a;padding:9px 13px;border-radius:8px;user-select:all;white-space:nowrap;"></div>
+    <div style="color:#888;font-size:11px;">↑ 이 줄 복사해서 알려주세요 (캐릭터별로 다 맞춘 뒤)</div>
+    <button id="bt-close" style="${bs}background:#3a1c1c;">닫기</button>`;
+  document.body.appendChild(ov);
+  const valEl=ov.querySelector('#bt-val');
+  const updVal=()=>{ const a=_BUDDY_MODEL_ADJ[cur]||{}; valEl.textContent=`'${cur}': { y:${(+(a.y||0)).toFixed(2)}, x:${(+(a.x||0)).toFixed(2)}, zoom:${(+(a.zoom||1)).toFixed(2)} },`; };
+  const reapply=()=>{ if(_buddy3dCtx&&_buddy3dCtx.champ===cur&&_buddy3dCtx.group){ const a=_BUDDY_MODEL_ADJ[cur]||{}; _buddy3dCtx.group.position.set((a.x||0)*_buddy3dCtx.r,(a.y||0)*_buddy3dCtx.r,0); _buddy3dFrame(); } };
+  const show=()=>{ try{ _buddy3dShow('bt-mount', cur, 'none'); if(_buddy3dCtx) _buddy3dCtx.frameMode='full'; setTimeout(()=>{ try{reapply();}catch(_){} },120); }catch(e){console.warn(e);} updVal(); };
+  const cb=ov.querySelector('#bt-champs'); champs.forEach(f=>{ const b=document.createElement('button'); b.textContent=_buddyChampName(f); b.style.cssText=bs; b.onclick=()=>{ cur=f; cb.querySelectorAll('button').forEach(x=>x.style.outline=''); b.style.outline='2px solid #ffd24a'; show(); }; if(f===cur) b.style.outline='2px solid #ffd24a'; cb.appendChild(b); });
+  ov.querySelectorAll('.bt-adj').forEach(btn=>btn.onclick=()=>{ const k=btn.dataset.k, d=(+btn.dataset.d)*(step/0.1);
+    const a={..._BUDDY_MODEL_ADJ[cur]}; a[k]=(a[k]!=null?+a[k]:(k==='zoom'?1:0))+d; _BUDDY_MODEL_ADJ[cur]=a; reapply(); updVal(); });
+  ov.querySelector('#bt-fine').onclick=(e)=>{ step=(step===0.1?0.02:0.1); e.target.textContent=(step===0.02?'미세(±0.02)':'큰 폭(±0.1)'); };
+  ov.querySelector('#bt-reset').onclick=()=>{ delete _BUDDY_MODEL_ADJ[cur]; show(); };
+  ov.querySelector('#bt-close').onclick=()=>{ ov.remove(); };
+  show();
+};
 function _bClip(ctx, names){ if(!ctx||!ctx.clips) return null; for(const n of names) if(ctx.clips[n]) return ctx.clips[n]; return ctx.clips['Idle_Base']||Object.values(ctx.clips)[0]||null; }
 function _buddy3dPlay(clip, loop){ const ctx=_buddy3dCtx; if(!ctx||!ctx.mixer||!clip) return; const {THREE}=ctx;
   const a=ctx.mixer.clipAction(clip); a.reset(); a.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce); if(!loop) a.clampWhenFinished=true; a.fadeIn(0.2).play();
