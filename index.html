@@ -6814,7 +6814,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.302';
+const APP_VERSION = 'v2.45.303';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6823,6 +6823,9 @@ const APP_VERSION = 'v2.45.302';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.303', date: '2026-06-25', changes: [
+    { tag: 'improve', text: '🕹️ 인형뽑기 역추적 로그 추가 — 진입·START(코인 소모)·집기·결과(획득/중복/포로/헛집음)·진행 중 이탈을 그 시점 스냅샷으로 기록해, 코인이 어디서 빠졌는지 추적할 수 있게 했어요. (운영자 콘솔 전용)' },
+  ] },
   { ver: 'v2.45.302', date: '2026-06-25', changes: [
     { tag: 'fix', text: '🕹️ 인형뽑기 코인 헛소모 방지 2차 — ① 3D 모델 로딩이 끝나기 전엔 START 버튼이 "게임 로딩 중"으로 비활성화돼요(로딩 중 눌러서 코인만 날리던 문제 차단). ② 코인 차감은 기존처럼 START 시점. ③ START를 눌러 코인을 쓴 뒤 창을 닫거나 새로고침하려 하면 "이번 판이 사라져요" 확인창이 떠서 실수로 날리는 걸 막아줘요. (BUILD149)' },
   ] },
@@ -32019,12 +32022,39 @@ function _claw3dSave(d){   // iframe이 보낸 상태 스냅샷 → Firebase
   if (typeof d.plays === 'number'){ u[sField('clawPlays')] = d.plays; u[sField('clawPlayDate')] = getLocalDateKey(); }
   if (Object.keys(u).length) update(ref(db,'gold/'+key), u).catch(()=>{});
 }
+// 📋 인형뽑기 역추적 로그 — 결과 스냅샷(delta 아닌 그 시점 절대값) 누적. 코인이 어디서/언제 샜는지 추적용(앱 신뢰모델·데이터손실 교훈).
+//   이벤트: open(진입) · start(코인 소모·차감 후 잔여) · drop(실제 집기) · result(champion/dup/poro/miss) · leave(진행 중 닫기/새로고침=헛소모)
+//   start 다음에 drop이 없거나, drop 다음 result가 없거나, start 직후 leave면 = 코인 헛소모 정황. 콘솔 `clawLog('닉')`으로 조회.
+let _clawLogBuf = null;
+function _clawLogEvent(ev, extra){
+  try{
+    const key = getMyGoldKey(); if(!key) return;
+    if(_clawLogBuf === null){ const ex = (getMyGoldData()||{})[sField('clawLog')]; _clawLogBuf = Array.isArray(ex) ? ex.slice() : []; }
+    _clawLogBuf.push({ at: Date.now(), ev, ...(extra||{}) });
+    if(_clawLogBuf.length > 150) _clawLogBuf = _clawLogBuf.slice(-150);   // 최근 150건만(문서 비대화 방지)
+    update(ref(db,'gold/'+key), { [sField('clawLog')]: _clawLogBuf }).catch(()=>{});
+  }catch(_){}
+}
+// 🔎 콘솔 조회: clawLog() = 전원 / clawLog('닉네임') = 특정 플레이어. 시각·이벤트·코인·결과를 표로.
+window.clawLog = (name)=>{
+  const fmt = ts => { try{ return new Date(ts).toLocaleString('ko-KR'); }catch(_){ return ts; } };
+  const dump = (nm, d)=>{
+    const log = d[sField('clawLog')]; if(!Array.isArray(log) || !log.length) return false;
+    console.log('%c🕹️ '+nm+' — 인형뽑기 로그 ('+log.length+'건)', 'font-weight:bold;color:#e0a82e');
+    console.table(log.map(e=>({ 시각:fmt(e.at), 이벤트:e.ev, 코인잔여:('coins' in e)?e.coins:'', 사용횟수:('plays' in e)?e.plays:'', 결과:e.outcome||'', 챔피언:e.champion||'', 비고:e.via||(e.eligible===false?'비자격':'') })));
+    return true;
+  };
+  if(name){ const k=normName(name); const ent=Object.entries(goldData).find(([_,d])=>normName(d.name||'')===k); if(ent){ if(!dump(ent[1].name, ent[1])) console.log('로그 없음:', ent[1].name); } else console.warn('플레이어 없음:', name); }
+  else { let any=false; Object.values(goldData).forEach(d=>{ if(dump(d.name, d)) any=true; }); if(!any) console.log('인형뽑기 로그 있는 플레이어 없음'); }
+};
 window.claw3dGrant = (n=20)=>{ const key=getMyGoldKey(); if(!key) return console.warn('닉네임 먼저'); const cur=getMyGoldData()?.[sField('clawCoins')]||0; update(ref(db,'gold/'+key),{[sField('clawCoins')]:cur+n}).then(()=>console.log('🪙 코인 +'+n+' (재오픈 시 반영)')); };  // 테스트용
 window.claw3dReset = ()=>{ const key=getMyGoldKey(); if(!key) return console.warn('닉네임 먼저'); update(ref(db,'gold/'+key),{[sField('clawCollected')]:null,[sField('clawCoins')]:0,[sField('clawPlays')]:0,[sField('clawPlayDate')]:null,[sField('clawLaunchBonus')]:null}).then(()=>console.log('🎯 인형뽑기 데이터 초기화')); };  // 테스트용
 window.clawCompleteAll = ()=>{ const key=getMyGoldKey(); if(!key) return console.warn('닉네임 먼저'); const all=['teemo','gwen','vex','ekko','yone','neeko','lux'].map(s=>s+'.glb'); update(ref(db,'gold/'+key),{[sField('clawCollected')]:all}).then(()=>console.log('🧸 컬렉션 7종 완성(테스트) — 단짝 선정 가능. 인형뽑기 입구 새로고침')); };  // 테스트용
 window.openClawTest3D = function(){
   if (document.getElementById('claw3d-modal')) return;
   _injectClaw3dCss();
+  _clawLogBuf = null;   // 📋 이번 진입 = 최신 Firebase 로그에서 다시 시드
+  { const _d=getMyGoldData()||{}; _clawLogEvent('open', { coins:_d[sField('clawCoins')]||0, plays:(_d[sField('clawPlayDate')]===getLocalDateKey())?(_d[sField('clawPlays')]||0):0, eligible:_allPrismDone(_d) }); }
   const ov=document.createElement('div'); ov.id='claw3d-modal';
   ov.innerHTML=`<div class="claw-win">
     <div class="claw-win-bar">
@@ -32053,6 +32083,7 @@ window.openClawTest3D = function(){
     if(d.type==='ready'){ _clawInProgress=false; try{ frame.contentWindow.postMessage({source:'app', type:'init', ..._claw3dInit()}, '*'); }catch(_){} }
     else if(d.type==='save'){ _claw3dSave(d); }
     else if(d.type==='gamestate'){ _clawInProgress=!!d.inProgress; }   // 🪙 START(코인 소모)~집기 사이 = true
+    else if(d.type==='log'){ const {source,type,...rest}=d; _clawLogEvent(rest.ev, (({ev,...r})=>r)(rest)); }   // 📋 역추적 로그 → Firebase
     else if(d.type==='pull'){ _buddyOnPull(d.champion); }   // 🧸 챔피언 집기 → 단짝이면 강화 시도
     else if(d.type==='complete'){ try{ _buddyMaybePrompt(); }catch(_){} }   // 🧸 7종 완성 → 단짝 선정 프롬프트
   };
@@ -32064,11 +32095,11 @@ window.openClawTest3D = function(){
       return;
     }
     const a=b.dataset.a;
-    if(a==='close'){ if(!_clawLeaveOk()) return; window.removeEventListener('message', onClawMsg); ov.remove(); lock(false); }
+    if(a==='close'){ if(!_clawLeaveOk()) return; if(_clawInProgress) _clawLogEvent('leave',{via:'close'}); window.removeEventListener('message', onClawMsg); ov.remove(); lock(false); }
     else if(a==='min'){ ov.classList.add('mini'); ov.classList.remove('max'); lock(false); }   // 최소화 = 앱 사용 가능(게임 계속·자동집기 살아있어 헛소모 아님 → 경고 없음)
     else if(a==='restore'){ ov.classList.remove('mini'); lock(true); }                          // 최소화 상태서 다시 열기
     else if(a==='max'){ ov.classList.toggle('max'); }
-    else if(a==='reload'){ if(!_clawLeaveOk()) return; _clawInProgress=false; frame.src='claw.html?embed='+Date.now(); }   // 가짜 주소창 새로고침(iframe 리로드 = 진행 중이면 헛소모 → 확인)
+    else if(a==='reload'){ if(!_clawLeaveOk()) return; if(_clawInProgress) _clawLogEvent('leave',{via:'reload'}); _clawInProgress=false; frame.src='claw.html?embed='+Date.now(); }   // 가짜 주소창 새로고침(iframe 리로드 = 진행 중이면 헛소모 → 확인)
   });
 };
 // ════════ 🧸 단짝인형 (Phase 2) — 연승/연패 스택 보상 + 강화 (역추적 전부 로그) ════════
