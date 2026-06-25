@@ -6814,7 +6814,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.304';
+const APP_VERSION = 'v2.45.305';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6823,6 +6823,9 @@ const APP_VERSION = 'v2.45.304';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.305', date: '2026-06-25', changes: [
+    { tag: 'fix', text: '🧸 단짝 변경 흐름 정리 — ① 챔피언을 고르면 선택창이 바로 닫혀요(모바일서 안 닫히던 문제). ② 고른 다음 그 챔피언의 애칭을 적는 창이 떠요(변경할 때도). ③ 애칭 저장 후 단짝 3D가 잠깐 떴다 사라지던 문제를 고쳐 계속 보이게 했어요.' },
+  ] },
   { ver: 'v2.45.304', date: '2026-06-25', changes: [
     { tag: 'fix', text: '🧸 단짝을 다른 챔피언으로 바꾸면 새로고침 없이 바로 반영되도록 고쳤어요(아바타 3D 모델·프로필·대시보드 즉시 갱신).' },
     { tag: 'fix', text: '🕹️ 인형뽑기 — 7종을 다 모은 뒤(2단계)엔 단짝을 강화하려고 일부러 뽑는 거라, 같은 챔피언을 뽑아도 "꽝"이 아니라 "단짝과 친해지는 중!"으로 표시돼요.' },
@@ -32257,9 +32260,7 @@ function _buddyOpenName(){ const b=_buddyData(); if(!b) return; _injectBuddyCss(
   const save=()=>{ buddySetNickname(inp.value).then(ok=>{ close(); if(!ok) return; try{showS1Toast('✏️ 별칭을 저장했어요!');}catch(_){}
     const nm=document.querySelector('#buddy-panel .buddy-name');   // 패널 열려있으면 이름 즉시 갱신
     if(nm) nm.innerHTML=`${_buddyNameHtml(_buddyData())} <button class="buddy-edit-nick" onclick="event.stopPropagation();window._buddyOpenName()" title="별칭 바꾸기">✏️</button>`;
-    try{ updateMyInfoBar(); }catch(_){}        // 아바타(좌상단)
-    try{ _buddyRefreshProfile(); }catch(_){}   // 프로필 단짝 공간(.bsp-name)
-    try{ _buddyApplySection(); }catch(_){} }); };   // 대시보드 미니(.buddy-mini-name) — 패널 외 표시처도 전부 갱신
+    _buddyReflect(); }); };   // 아바타·프로필·대시보드 갱신 + 3D 재부착(별칭 저장 후 3D가 사라지던 문제 방지)
   ov.querySelector('.bn-save').onclick=save;
   inp.onkeydown=(e)=>{ if(e.key==='Enter'){ e.preventDefault(); save(); } };
 }
@@ -32461,8 +32462,9 @@ function _buddyOpenSelect(coll, pv){
   ov.querySelector('.buddy-cancel').onclick=()=>ov.remove();
   ov.querySelectorAll('.buddy-pick').forEach(btn=>btn.onclick=()=>{ const f=btn.dataset.f, nm=_buddyChampName(f);
     if(pv){ ov.remove(); showS1Toast(`👀 [프리뷰] ${nm} 선택 — 실제로는 저장 안 돼요`); return; }   // 프리뷰: DB 쓰기 없음
-    if(confirm(`${nm}을(를) 단짝으로 정할까요?\n\n(언제든 변경 가능 · 유대(하트)는 챔피언별로 보존돼요)`)){
-      buddySelect(f).then(ok=>{ if(ok){ ov.remove(); showS1Toast(`🧸 ${nm} — 단짝이 됐어요!`); _buddyAfterPick(); } }); } });   // 선정/변경 직후 전체 갱신
+    ov.remove();   // ① 선택창 먼저 닫기(즉시) — confirm 제거(모바일서 대화상자 차단 시 안 닫히던 문제)
+    buddySelect(f).then(ok=>{ if(!ok) return;   // 같은 챔피언이면 무시
+      showS1Toast(`🧸 ${nm} — 단짝이 됐어요!`); _buddyAfterPick(); }); });   // ② 반영 + 애칭 짓기(고르기→애칭 순서)
 }
 function _buddyRewardText(r){ if(BUDDY_REWARDS_LOCKED) return '미정 (준비 중)'; if(!r) return '—'; const p=[];
   if(r.gold) p.push(`🪙 ${r.gold}G`);
@@ -32655,11 +32657,16 @@ window._buddyChangeBuddy = function(){   // 🔄 단짝 교체 — 수집한 챔
   if(!coll.length) return showS1Toast('수집한 챔피언이 없어요');
   _buddyOpenSelect(coll);
 };
-function _buddyAfterPick(){   // 선정/변경 후 UI 전체 갱신(가챠탭·아바타3D·프로필·대시보드). 변경 시 3D는 새 챔피언 GLB로 재로드됨
-  try{renderGachaTab();}catch(_){} try{updateMyInfoBar();}catch(_){} try{_buddyRefreshProfile();}catch(_){} try{_buddyApplySection();}catch(_){}
-  // 🧸 변경 즉시 반영: 위 재렌더로 mount div가 새로 만들어진 뒤(다음 프레임)에 3D를 최종 부착 — 캔버스가 옛(제거된) mount에 묶여 안 바뀌던 문제 방지. 새 챔피언이면 _buddy3dShow가 ctx.champ 불일치로 GLB 재로드.
-  setTimeout(()=>{ try{_buddyHomeAttach();}catch(_){} }, 60);
-  if(!_buddyData()?.nickname) setTimeout(()=>{ try{_buddyOpenName();}catch(_){} }, 420);   // 별칭 없을 때만 이름짓기 유도(이미 키웠던 챔피언이면 생략)
+// 🧸 단짝 표시 전부 갱신(아바타3D·프로필·대시보드) + 3D 최종 재부착. ⚠️ 재부착이 핵심 —
+//   재렌더가 mount div를 새로 만들면 3D 캔버스가 옛(제거된) mount에 묶여 사라짐. 다음 프레임에 _buddyHomeAttach로 최신 mount에 다시 붙임(새 챔피언이면 _buddy3dShow가 ctx.champ 불일치로 GLB 재로드).
+function _buddyReflect(){
+  try{updateMyInfoBar();}catch(_){} try{_buddyRefreshProfile();}catch(_){} try{_buddyApplySection();}catch(_){}
+  setTimeout(()=>{ try{_buddyHomeAttach();}catch(_){} }, 70);
+}
+function _buddyAfterPick(){   // 선정/변경 후: 표시 갱신 + 3D 재부착 → 그 다음 애칭(닉네임) 짓기 (순서: 고르기 → 애칭)
+  try{renderGachaTab();}catch(_){}
+  _buddyReflect();
+  setTimeout(()=>{ try{_buddyOpenName();}catch(_){} }, 280);   // 🧸 새/바뀐 챔피언 애칭 입력(이전 별칭이 있으면 그게 채워짐 · 비우면 챔피언명만)
 }
 function _buddySelectInlineHtml(coll, pv){   // 단짝 선정 인라인
   const grid=coll.map(f=>{const k=_clawDdKey(f);return `<button class="bsel-card" onclick="window.buddyPickInline('${f}',${pv?1:0})"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'"><span>${escHtml(_buddyChampName(f))}</span></button>`;}).join('');
@@ -32670,8 +32677,7 @@ function _buddySelectInlineHtml(coll, pv){   // 단짝 선정 인라인
 }
 window.buddyPickInline = function(f, pv){ const nm=_buddyChampName(f);
   if(pv){ showS1Toast(`👀 [프리뷰] ${nm} 선택 — 실제로는 저장 안 돼요`); return; }
-  if(confirm(`${nm}을(를) 단짝으로 정할까요?\n\n(언제든 변경 가능 · 유대(하트)는 챔피언별로 보존돼요)`)){
-    buddySelect(f).then(ok=>{ if(ok){ showS1Toast(`🧸 ${nm} — 단짝이 됐어요!`); _buddyAfterPick(); } }); } };
+  buddySelect(f).then(ok=>{ if(!ok) return; showS1Toast(`🧸 ${nm} — 단짝이 됐어요!`); _buddyAfterPick(); }); };
 window.buddyClaimInline = function(pv){ if(pv){ showS1Toast('👀 프리뷰 — 실제 수령은 안 돼요'); return; }
   buddyClaim().then(ok=>{ if(ok){ showS1Toast('🎁 단짝 보상을 받았어요!'); try{updateMyInfoBar();}catch(_){} try{ _buddyRefreshProfile(); }catch(_){} } }); };
 function _buddyApplySection(retries){ const w=document.getElementById('buddy-section-wrap');
