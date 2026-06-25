@@ -6814,7 +6814,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.299';
+const APP_VERSION = 'v2.45.300';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -12347,8 +12347,7 @@ onValue(ref(db, 'config/riotWorkerUrl'), (snapshot) => {
   if (val) riotWorkerUrl = val; // Firebase 미설정 시 하드코딩 기본값 유지
 });
 onValue(ref(db, 'config/buddyModelAdj'), (snap) => {   // 🧸 단짝 모델 위치 보정(buddyTunePreview 저장분) — 로드 시 모두에게 적용. 키는 .glb 없이 저장됨
-  try { const v = snap.val() || {}; const adj = {}; for (const k in v) { adj[/\.glb$/.test(k) ? k : k + '.glb'] = v[k]; }
-    Object.keys(_BUDDY_MODEL_ADJ).forEach(k => delete _BUDDY_MODEL_ADJ[k]); Object.assign(_BUDDY_MODEL_ADJ, adj);
+  try { const v = snap.val() || {}; for (const k in v) { _BUDDY_MODEL_ADJ[/\.glb$/.test(k) ? k : k + '.glb'] = v[k]; }   // merge: Firebase가 챔프별 오버라이드, 비어있으면 코드값(영구백업) 유지
     const ctx = _buddy3dCtx; if (ctx && ctx.champ && ctx.group) { const m = _buddyAdj(ctx.champ, ctx.frameMode); ctx.group.position.set((m.x||0)*ctx.r, (m.y||0)*ctx.r, 0); _buddy3dFrame(); }
   } catch(_) {}
 });
@@ -32489,8 +32488,14 @@ function _buddy3dLoad(champFile){
 }
 let _buddyBustY=0.45, _buddyBustDist=0.9;   // 아바타 상반신 카메라(줌아웃해 모션 여백; 콘솔 _buddyTuneAvatar로 조정)
 const _BUDDY_BUST_Y = {};   // 챔피언별 얼굴 높이 override(필요한 챔피언만 콘솔로 채움). ※티모는 모델에 눈/얼굴 없음=애셋 한계
-const _BUDDY_MODEL_ADJ = {   // 챔피언별 모델 위치/줌 보정. ⚠️모드별 분리: { full:{x,y,zoom}, bust:{x,y,zoom} } (프로필 전신 vs 아바타 상반신 프레이밍 달라 따로). buddyTunePreview()로 조정→💾저장(Firebase)
-  // 'yone.glb': { full:{ y:-0.4, x:0, zoom:1.3 }, bust:{ y:0.1, x:0, zoom:1.0 } },   ← buddyTunePreview로 맞춰 저장하면 config/buddyModelAdj 에 자동
+const _BUDDY_MODEL_ADJ = {   // 챔피언별 모델 위치/줌 보정(모드별 full=프로필전신/bust=아바타). buddyTunePreview()→💾저장(config/buddyModelAdj)이 런타임 오버라이드. 아래는 git 영구백업(2026-06-25 사장님 튜닝)
+  'teemo.glb': { full:{ x:0,   y:-0.5, zoom:1.7 }, bust:{ x:0,   y:-0.1, zoom:1.0 } },
+  'gwen.glb':  { full:{ x:0,   y:-0.4, zoom:1.8 }, bust:{ x:0,   y:-0.1, zoom:1.1 } },
+  'vex.glb':   { full:{ x:0,   y:-0.4, zoom:1.4 }, bust:{ x:0.1, y:-0.2, zoom:0.9 } },
+  'ekko.glb':  { full:{ x:0.1, y:-0.5, zoom:1.4 }, bust:{ x:0.1, y:-0.1, zoom:0.7 } },
+  'yone.glb':  { full:{ x:0,   y:-0.9, zoom:2.1 }, bust:{ x:0,   y:-0.4, zoom:1.1 } },
+  'neeko.glb': { full:{ x:0.2, y:-0.6, zoom:1.3 }, bust:{ x:0.2, y:-0.4, zoom:0.7 } },
+  'lux.glb':   { full:{ x:0,   y:-0.3, zoom:1.6 }, bust:{ x:0,   y:-0.2, zoom:0.8 } },
 };
 function _buddyAdj(champ, mode){ const a=_BUDDY_MODEL_ADJ[champ]; if(!a) return {}; if(a[mode]) return a[mode]; if(('full' in a)||('bust' in a)) return {}; return a; }   // 모드별 보정({} 폴백) — 구형 평면값은 양 모드 공통
 function _buddyBustYOf(champ){ return (champ && _BUDDY_BUST_Y[champ]!=null) ? _BUDDY_BUST_Y[champ] : _buddyBustY; }
