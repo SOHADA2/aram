@@ -6814,7 +6814,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.305';
+const APP_VERSION = 'v2.45.306';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6823,6 +6823,9 @@ const APP_VERSION = 'v2.45.305';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.306', date: '2026-06-25', changes: [
+    { tag: 'fix', text: '🔨 강철심장 걸작 효과가 정산창에 반영되도록 고쳤어요 — 효과(LP·골드)는 원래부터 실제로 적용되고 있었지만, 정산창 숫자에는 빠져 있어 안 되는 것처럼 보였어요. 이제 정산창의 LP/골드 숫자에 걸작 효과가 합산되고, "⚡ 이번 판 발동 효과"에 🔨 강철심장 발동 내역(예: +4 LP · +13G)도 표시돼요.' },
+  ] },
   { ver: 'v2.45.305', date: '2026-06-25', changes: [
     { tag: 'fix', text: '🧸 단짝 변경 흐름 정리 — ① 챔피언을 고르면 선택창이 바로 닫혀요(모바일서 안 닫히던 문제). ② 고른 다음 그 챔피언의 애칭을 적는 창이 떠요(변경할 때도). ③ 애칭 저장 후 단짝 3D가 잠깐 떴다 사라지던 문제를 고쳐 계속 보이게 했어요.' },
   ] },
@@ -16941,6 +16944,7 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
   //   setTimeout(400ms) 뒤 실행되는 이 함수 시점엔 이미 null. 과거엔 이 때문에 시너지 라인이 항상 누락됨.
   const _synMatchKey = matchKey || (typeof savedMatchKey === 'string' && savedMatchKey ? savedMatchKey : null);
   const synergyEffects = (_synMatchKey && matches[_synMatchKey]?.synergyEffects) || {};
+  const emblemSnap = (_synMatchKey && matches[_synMatchKey]?.emblemEffects) || {};   // 🔨 강철심장 걸작 스냅샷(LP/골드 발동 결과 박제) — 정산 표시·역산
 
   const _synColl = []; // 시너지 발동/미발동 수집 → 행 아래 분리해 별도 요약 카드로 (행 높이 통일, v2.43.241)
   function playerRow(name, isWin) {
@@ -16984,6 +16988,15 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
     {
       const _myEff = synergyEffects[normName(name)];
       if (_myEff && _myEff.goldDelta) gold += _myEff.goldDelta;
+    }
+    // 🔨 강철심장 걸작 골드 반영 (giveMatchGold/MVP와 동일 합산) — 정산 숫자에 빠져 있던 것
+    {
+      const _em = emblemSnap[normName(name)];
+      if (_em) {
+        let _eg = (_em.matchG || 0) + (isWin ? (_em.winG || 0) : 0);   // matchG=승패무관·winG=승자
+        if (normName(name) === normName(mvpWinner || '') || normName(name) === normName(mvpLoser || '')) _eg += (_em.mvpG || 0);
+        if (_eg) gold += _eg;
+      }
     }
 
     const totalPtLoss = ptChange + questExtraPt;
@@ -17036,6 +17049,12 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
                 if (_pr) _lp = 0; else _lp -= (_t === 3 ? _g.failV3 : _g.failV2);
               }
             }
+          }
+          // 🔨 강철심장 걸작 LP 반영 (s1ApplyMatchResult와 동일: 도박권 미사용 시, 스냅샷 발동 결과대로) — 실제 적용 LP와 표시 일치
+          const _emLp = emblemSnap[normName(name)];
+          if (_emLp && _s1item !== 's1_gamble') {
+            if (isWin && _emLp.winLpProc && _emLp.winLP) _lp += _emLp.winLP;
+            else if (!isWin && _emLp.lossLpProc && _emLp.lossLP) _lp = -Math.max(0, (-_lp) - _emLp.lossLP);
           }
           ptLabel = (_lp > 0 ? '+' : '') + _lp + ' LP';
         }
@@ -17118,6 +17137,19 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
         }
       }
     }
+    // 🔨 강철심장 걸작 발동 표시 (시너지처럼 "발동!" 라인 — LP/골드)
+    {
+      const _em = emblemSnap[normName(name)];
+      if (_em) {
+        const _p = [];
+        if (isWin && _em.winLpProc && _em.winLP) _p.push(`+${_em.winLP} LP`);
+        if (!isWin && _em.lossLpProc && _em.lossLP) _p.push(`LP ${_em.lossLP} 방어`);
+        let _eg = (_em.matchG || 0) + (isWin ? (_em.winG || 0) : 0);
+        if (normName(name) === normName(mvpWinner || '') || normName(name) === normName(mvpLoser || '')) _eg += (_em.mvpG || 0);
+        if (_eg) _p.push(`+${_eg}G`);
+        if (_p.length) _synColl.push({ name, color: '#ffd24a', icon: '🔨', synName: '강철심장', fx: _p.join(' · '), miss: false });
+      }
+    }
     return `<div class="ms2-pr${isMe ? ' me' : ''}">
       <div class="ms2-pr-left">
         <span class="ms2-pr-name">${escHtml(name)}</span>${meTag}
@@ -17142,7 +17174,7 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
         <span class="ms2-syns-mid"><span class="ms2-syns-ico">${e.icon}</span><span class="ms2-syns-nm">${escHtml(e.synName)}</span></span>
         <span class="ms2-syns-fx">${e.fx}</span>
       </div>`).join('');
-    synSummaryHtml = `<div class="ms2-sub-card syns"><div class="ms2-sub-hdr">⚡ 이번 판 시너지</div><div class="ms2-syns-body">${_rows}</div></div>`;
+    synSummaryHtml = `<div class="ms2-sub-card syns"><div class="ms2-sub-hdr">⚡ 이번 판 발동 효과</div><div class="ms2-syns-body">${_rows}</div></div>`;
   }
 
   // 관전자 예측 결과
