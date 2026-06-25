@@ -6814,7 +6814,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.301';
+const APP_VERSION = 'v2.45.302';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6823,6 +6823,9 @@ const APP_VERSION = 'v2.45.301';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.302', date: '2026-06-25', changes: [
+    { tag: 'fix', text: '🕹️ 인형뽑기 코인 헛소모 방지 2차 — ① 3D 모델 로딩이 끝나기 전엔 START 버튼이 "게임 로딩 중"으로 비활성화돼요(로딩 중 눌러서 코인만 날리던 문제 차단). ② 코인 차감은 기존처럼 START 시점. ③ START를 눌러 코인을 쓴 뒤 창을 닫거나 새로고침하려 하면 "이번 판이 사라져요" 확인창이 떠서 실수로 날리는 걸 막아줘요. (BUILD149)' },
+  ] },
   { ver: 'v2.45.301', date: '2026-06-25', changes: [
     { tag: 'fix', text: '🕹️ 인형뽑기 — START만 누르고 집게를 내리지 않은 채 창을 닫거나 화면이 바뀌면 코인과 플레이 기회가 헛소모되던 문제를 고쳤어요. 이제 코인은 실제로 집게를 내리는 순간에만 차감돼요. (BUILD148)' },
     { tag: 'fix', text: '🧸 단짝 유대 Lv2/Lv5 골드 보너스 설명이 실제 지급액과 달라 헷갈리던 표기를 바로잡았어요 (연속 한 판당 +25G · Lv5는 +50G).' },
@@ -32043,14 +32046,17 @@ window.openClawTest3D = function(){
   const lock=on=>{ document.body.style.overflow = on?'hidden':''; };
   lock(true);
   const frame=ov.querySelector('.claw-win-frame');
+  let _clawInProgress=false;   // 🪙 코인 쓰고 집기 전(READY) 진행 중 — 닫기/리로드 시 확인창 띄워 헛소모 방지
   const onClawMsg=(e)=>{   // 🔗 iframe(인형뽑기) ↔ 앱 동기화
     if(e.source!==frame.contentWindow) return;
     const d=e.data; if(!d || d.source!=='claw') return;
-    if(d.type==='ready'){ try{ frame.contentWindow.postMessage({source:'app', type:'init', ..._claw3dInit()}, '*'); }catch(_){} }
+    if(d.type==='ready'){ _clawInProgress=false; try{ frame.contentWindow.postMessage({source:'app', type:'init', ..._claw3dInit()}, '*'); }catch(_){} }
     else if(d.type==='save'){ _claw3dSave(d); }
+    else if(d.type==='gamestate'){ _clawInProgress=!!d.inProgress; }   // 🪙 START(코인 소모)~집기 사이 = true
     else if(d.type==='pull'){ _buddyOnPull(d.champion); }   // 🧸 챔피언 집기 → 단짝이면 강화 시도
     else if(d.type==='complete'){ try{ _buddyMaybePrompt(); }catch(_){} }   // 🧸 7종 완성 → 단짝 선정 프롬프트
   };
+  const _clawLeaveOk=()=> !_clawInProgress || confirm('🪙 이미 코인을 썼어요!\n지금 나가면 이번 판(집기 1회)이 사라져요.\n그래도 나갈까요?');   // 진행 중 이탈 경고
   window.addEventListener('message', onClawMsg);
   ov.querySelector('.claw-win').addEventListener('click', e=>{
     const b=e.target.closest('button'); if(!b){
@@ -32058,11 +32064,11 @@ window.openClawTest3D = function(){
       return;
     }
     const a=b.dataset.a;
-    if(a==='close'){ window.removeEventListener('message', onClawMsg); ov.remove(); lock(false); }
-    else if(a==='min'){ ov.classList.add('mini'); ov.classList.remove('max'); lock(false); }   // 최소화 = 앱 사용 가능
+    if(a==='close'){ if(!_clawLeaveOk()) return; window.removeEventListener('message', onClawMsg); ov.remove(); lock(false); }
+    else if(a==='min'){ ov.classList.add('mini'); ov.classList.remove('max'); lock(false); }   // 최소화 = 앱 사용 가능(게임 계속·자동집기 살아있어 헛소모 아님 → 경고 없음)
     else if(a==='restore'){ ov.classList.remove('mini'); lock(true); }                          // 최소화 상태서 다시 열기
     else if(a==='max'){ ov.classList.toggle('max'); }
-    else if(a==='reload'){ frame.src='claw.html?embed='+Date.now(); }                           // 가짜 주소창 새로고침(실제로 iframe 리로드)
+    else if(a==='reload'){ if(!_clawLeaveOk()) return; _clawInProgress=false; frame.src='claw.html?embed='+Date.now(); }   // 가짜 주소창 새로고침(iframe 리로드 = 진행 중이면 헛소모 → 확인)
   });
 };
 // ════════ 🧸 단짝인형 (Phase 2) — 연승/연패 스택 보상 + 강화 (역추적 전부 로그) ════════

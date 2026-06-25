@@ -35,6 +35,7 @@
     background:linear-gradient(135deg,#ffd96a,#e0a82e);color:#1a1208;font-family:'Black Han Sans','Noto Sans KR',sans-serif;font-size:21px;font-weight:900;letter-spacing:.5px;
     cursor:pointer;box-shadow:0 6px 22px rgba(240,200,90,.5);flex-direction:column;align-items:center;gap:1px;animation:startPulse 1.5s ease-in-out infinite;}
   #start-btn .sb-sub{font-size:11px;font-weight:600;opacity:.65;font-family:'Noto Sans KR',sans-serif;letter-spacing:0;}
+  #start-btn:disabled,#start-btn.loading{background:linear-gradient(135deg,#5a5550,#3a3530);color:#cbb;cursor:progress;box-shadow:none;animation:none;filter:grayscale(.3);}
   @keyframes startPulse{0%,100%{transform:scale(1);box-shadow:0 6px 22px rgba(240,200,90,.5);}50%{transform:scale(1.04);box-shadow:0 9px 30px rgba(240,200,90,.75);}}
   #controls.idle #start-btn{display:flex;}
   #controls.idle #stick-base,#controls.idle .hint,#controls.idle .btns{display:none;}
@@ -138,7 +139,7 @@
   <span class="pill">수집 <b id="coll">0/7</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 148</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 149</span>
 </div>
 <div id="result"></div>
 <div id="coin-fx"></div>
@@ -982,18 +983,19 @@ function updDailyHud(){
 window.resetPlays = ()=>{ playsUsed=0; _saveCoins(); updDailyHud(); console.log('일일 횟수 초기화'); };   // 테스트용
 window.addCoins = (n)=>{ coins=Math.max(0,coins+(n==null?5:n)); _saveCoins(); updDailyHud(); console.log('🪙 코인',coins); };  // 테스트용
 function tryDrop(){
-  if(state!=='READY') return;               // READY = 1게임 진행 중(집기 1회)
-  // 💰 차감은 "실제 집기" 시점에 — START만 누르고 안 내린 채 닫기/리로드/앱전환하면 헛소모되던 버그(BUILD148). 수동·자동(readyDeadline) 둘 다 여기를 통과해 정상 과금. state!=='READY' 가드라 1회만.
-  if(ENF){ coins--; playsUsed++; _saveCoins(); updDailyHud(); _coinDropFx(); Sfx.coin(); }
+  if(state!=='READY') return;               // READY = START로 코인 지불 후 1게임 진행 중(집기 1회)
   readyDeadline=0;                          // 집기 시작 → 자동하강 타이머 해제
   stickEnd(); state='LOWERING'; clawSpin=0;
 }
-// ▶ START — 1게임(이동+집기) 시작. 코인은 START가 아니라 실제 집기(tryDrop) 때 차감 → 집기 안 하면 헛소모 0. 집기 끝나면 다시 IDLE(정지)
+// ▶ START — 코인 1개 소모 → 1게임(이동+집기) 시작. 집기 끝나면 다시 IDLE(정지).
+//   ⚠️ 3D 모델 로딩 완료(_modelsReady) 전엔 못 누름 — 로딩 중 START로 코인만 날리던 버그 방지(BUILD149). 차감은 기존대로 START 시점(집기 시 차감하면 공짜 조준 후 재입장 어뷰즈). 나가서 헛소모는 앱 닫기 확인창으로 방지.
 function startGame(){
-  if(state!=='IDLE') return; Sfx.unlock();
+  if(state!=='IDLE' || !_modelsReady) return; Sfx.unlock();
   if(!canPlay()){ Sfx.error(); showResult(coins<=0 ? '코인이 없어요 (출석으로 충전)' : '오늘 5회 소진! (코인은 모임)','#ffb86b'); return; }
+  if(ENF){ coins--; playsUsed++; _saveCoins(); }
   state='READY'; updControls();   // ⚠️ updDailyHud보다 먼저 — HUD가 READY를 반영해야 집기 버튼이 안 잠김(마지막 코인이어도 진행 중 게임은 집기 가능)
-  updDailyHud(); _bgmStart();
+  updDailyHud(); _coinDropFx(); Sfx.coin(); _bgmStart();
+  _postParent('gamestate', {inProgress:true});   // 🔗 앱에 "코인 쓴 진행 중" 통지 → 닫기/리로드 시 확인창
 }
 function updControls(){ const c=document.getElementById('controls'); if(c) c.classList.toggle('idle', state==='IDLE'); }
 window.startGame = startGame;
@@ -1138,7 +1140,7 @@ function loop(now){
         dropped.body.position.x=HOME.x; dropped.body.position.z=HOME.z;              // 구멍 정중앙으로 스냅 → 빗나가 안 들어가는 일 없게
         dropped.body.velocity.set(0,-1.5,0); dropped.body.angularVelocity.set(0,0,0); dropped.body.wakeUp();  // 똑바로 낙하 → 확실히 골인
       }
-      state='IDLE'; grabQ=0; updControls(); }   // 1게임 종료 → 다시 정지(START 대기)
+      state='IDLE'; grabQ=0; updControls(); _postParent('gamestate',{inProgress:false}); }   // 1게임 종료 → 다시 정지(START 대기) + 앱에 진행 종료 통지
   }
 
   // 🕹️ 장식 조이스틱 — HTML 조이스틱/WASD 입력에 맞춰 부드럽게 기울임(안 누르면 다시 똑바로)
@@ -1338,6 +1340,14 @@ function bodyCore(root, ctr){
 }
 const _gl = new GLTFLoader();
 let _loaded = 0;   // 로드 완료 카운터(성공/실패 모두) — 전부 끝나면 한 번만 스폰
+let _modelsReady = false;   // 🕹️ 3D 프라이즈 전부 로드 완료 여부 — START 게이트(로딩 중 START로 코인 헛소모 방지, BUILD149)
+function _updStartBtn(){
+  const b=document.getElementById('start-btn'); if(!b) return;
+  if(_modelsReady){ b.disabled=false; b.classList.remove('loading'); b.innerHTML='🪙 START<span class="sb-sub">코인 1개 · 1게임</span>'; }
+  else { b.disabled=true; b.classList.add('loading'); b.innerHTML='⏳ 게임 로딩 중…<span class="sb-sub">잠시만 기다려요</span>'; }
+}
+_updStartBtn();   // 초기 = 로딩 중(START 비활성)
+function _onModelsReady(){ _modelsReady = true; resetPrizes(); _updStartBtn(); }   // 전부 로드 완료 → 스폰 + START 활성
 for(const pf of PRIZE_FILES){
   _gl.load(pf.file, gltf => {
     gltf.scene.traverse(o=>{ if(o.isMesh && o.material){           // 🎨 unlit BLEND 재질 → 컷아웃(alphaTest): 깊이 정상화 → 눈/얼굴 데칼이 머리에 안 가려짐
@@ -1361,9 +1371,9 @@ for(const pf of PRIZE_FILES){
     const yshift = (size.y*s/2) - coy;                             // 발이 콜라이더 바닥에 닿도록 시각을 올림
     const vr = 0.5*Math.max(size.x, size.y, size.z)*s;             // 시각 반지름(가장 긴 축의 절반) — 누웠을 때 최대로 뻗는 거리
     prizeProtos.push({ static:baked, scene:gltf.scene, anims:gltf.animations, file:pf.file, dud:pf.dud, count:pf.count, s, cx:ctr.x, cy:ctr.y, cz:ctr.z, cox, coy, coz, yshift, vr, vh:size.y*s });  // file=챔피언 식별(컬렉션), dud=꽝(포로), count=마릿수 · vr=시각반지름
-    if(++_loaded === PRIZE_FILES.length) resetPrizes();   // 전부 로드 완료 후 한 번만 — 모든 종류 등장
+    if(++_loaded === PRIZE_FILES.length) _onModelsReady();   // 전부 로드 완료 후 한 번만 — 모든 종류 등장
     console.log('✅ size', size.toArray().map(v=>+v.toFixed(1)), 'collider', [cox,coy,coz].map(v=>+v.toFixed(2)), 'yshift', yshift.toFixed(2), 's', s.toFixed(4));
-  }, undefined, err => { console.warn(pf.file+' 로드 실패', err); if(++_loaded === PRIZE_FILES.length) resetPrizes(); });
+  }, undefined, err => { console.warn(pf.file+' 로드 실패', err); if(++_loaded === PRIZE_FILES.length) _onModelsReady(); });
 }
 resetPrizes();
 updDailyHud();
