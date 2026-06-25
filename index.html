@@ -6814,7 +6814,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.287';
+const APP_VERSION = 'v2.45.288';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6823,6 +6823,9 @@ const APP_VERSION = 'v2.45.287';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.288', date: '2026-06-25', changes: [
+    { tag: 'improve', text: '🧸 단짝 연승 보상 상향 — 스택이 오를수록 보상이 확실히 커지도록 재조정했어요(낮은 스택만 받지 말고 더 들고 있을 맛이 나게). 1스택(2연승) 150G → 2스택 300G+정밀 강화권 → 3스택 400G+골드복권 → 4스택 500G+과부하 강화권 → 5스택 600G+프리즘복권 → 6스택(7연승) 700G+정수2+프리즘복권. 단짝 보상으로 풀린 골드는 별도(buddyGold)로 추적돼요.' },
+  ] },
   { ver: 'v2.45.287', date: '2026-06-25', changes: [
     { tag: 'new', text: '🧸 단짝 연승/연패 보상 정식 오픈! — 이제 단짝과 함께 내전 스택을 쌓아 보상을 받을 수 있어요. 2연승(연패)부터 1스택이 쌓이고, 원할 때 수령(연승=골드·강화권·복권·정수 / 연패=골드·강화권·복권·LP2배권). 더 들고 있으면 보상이 커지지만(연승 최대 6스택·연패 5스택) 승패가 갈리면 끊겨요. 단짝과 친해질수록(♥) 골드 보너스·끊겨도 안전망·보상 한 번 더(덤)가 붙어요. 인형뽑기로 같은 단짝을 또 뽑으면 ♥가 올라요. (LP2배권은 인벤토리에서 활성화하면 다음 승리 LP 2배)' },
   ] },
@@ -23539,7 +23542,8 @@ function calcPlayerGoldEarned(name, data) {
   const emblemSellG = CURRENT_SEASON >= 2 ? (data[sField('emblemSellG')] || 0) : 0; // 🔷 엠블럼 판매 환급 누적 (S2, v2.44.0)
   const passS2Gold  = CURRENT_SEASON >= 2 ? (data[sField('passGold')] || 0) : 0;     // 🎫 시즌2 패스 골드 보상 누적 (v2.44.1)
   const weddingGold = CURRENT_SEASON >= 2 ? calcWeddingGold(name) : 0;                // 💍 결혼 축의금 — 받은 축하 메시지 수×100 (v2.45.77)
-  return calcGoldFromMatches(name) + bonusLegacy + attendGold + achieveGold + passGold + lotteryGold + witnessGold + magollaGold + relayGold + secretQuestGold + mailGold + trashGold + resellGold + emblemSellG + passS2Gold + weddingGold;
+  const buddyGold   = CURRENT_SEASON >= 2 ? (data[sField('buddyGold')] || 0) : 0;     // 🧸 단짝 보상 골드 누적 (역산용·goldBonusLegacy와 분리, v2.45.288)
+  return calcGoldFromMatches(name) + bonusLegacy + attendGold + achieveGold + passGold + lotteryGold + witnessGold + magollaGold + relayGold + secretQuestGold + mailGold + trashGold + resellGold + emblemSellG + passS2Gold + weddingGold + buddyGold;
 }
 function calcRelayGold(claimed, base) {
   if (!claimed) return 0;
@@ -32055,7 +32059,8 @@ window.openClawTest3D = function(){
 // 🔓 보상·효과 활성화(v287, 명세 합의 후 오픈). true로 되돌리면 즉시 "준비 중(미정)" 잠금 — 수령·지급·효과표시 전부 비활성.
 const BUDDY_REWARDS_LOCKED = false;
 // 보상 묶음 {gold, tickets:{stable,precise,overload}, scratch:{0,1,2}, essence, lp2x, insurance}
-const BUDDY_WIN_REWARDS = { 2:{gold:150}, 3:{gold:100,tickets:{stable:2}}, 4:{scratch:{1:1},tickets:{precise:1}}, 5:{tickets:{overload:1},scratch:{1:1}}, 6:{scratch:{2:1},tickets:{overload:1}}, 7:{essence:2,scratch:{2:1}} };
+// 연승: 스택(연속-1) 오를수록 골드+아이템 확실히 커지게 (1→2스택 골드 2배로 보유 유인). 키=연속(2~7), 표시=연속-1
+const BUDDY_WIN_REWARDS = { 2:{gold:150}, 3:{gold:300,tickets:{precise:1}}, 4:{gold:400,scratch:{1:1}}, 5:{gold:500,tickets:{overload:1}}, 6:{gold:600,scratch:{2:1}}, 7:{gold:700,essence:2,scratch:{2:1}} };
 // 연패 위로 보상: 방어권(insurance)은 S2에서 LP 미보호(승점만)라 제거 → S2 실작동 보상으로 교체. lp2x=승리 LP 2배(인벤토리 활성화)
 const BUDDY_LOSS_REWARDS = { 2:{gold:150}, 3:{gold:120,tickets:{stable:1}}, 4:{lp2x:1,gold:100}, 5:{lp2x:1,scratch:{1:1}}, 6:{lp2x:2,tickets:{precise:1}} };
 const BUDDY_WIN_MAX = 7, BUDDY_LOSS_MAX = 6, BUDDY_MAX_LV = 5;
@@ -32113,7 +32118,7 @@ async function _buddyGrant(rewards, bonusGold){
     if(r.lp2x) for(let i=0;i<r.lp2x;i++) items.push({id:'s1_lp2x',active:false});
     if(r.insurance) for(let i=0;i<r.insurance;i++) items.push({id:'insurance',active:false});
   }
-  const u={ [sField('goldBonusLegacy')]:(data[sField('goldBonusLegacy')]||0)+gold, [emblemTicketsField()]:tk, [sField('freeScratch')]:ft, [sField('emblemEssence')]:essence, [sField('items')]:items };
+  const u={ [sField('buddyGold')]:(data[sField('buddyGold')]||0)+gold, [emblemTicketsField()]:tk, [sField('freeScratch')]:ft, [sField('emblemEssence')]:essence, [sField('items')]:items };   // 🧸 골드는 buddyGold_s2 별도 누적(역산용) — calcPlayerGoldEarned에 합산됨
   if(goldData[key]) Object.assign(goldData[key],u); await update(ref(db,'gold/'+key),u);
 }
 // 스택 보상 수령 (현재 스택 → 보상 + 강화효과(보너스/덤) + 로그 + 리셋)
@@ -32150,6 +32155,26 @@ async function _buddyOnMatch(won){
 window.buddySelect=buddySelect; window.buddyClaim=buddyClaim;
 window.buddyMatch=(won)=>_buddyOnMatch(!!won);                 // 경기 시뮬(연승/연패 스택 쌓기)
 window.buddyState=()=>{ console.log('단짝:',_buddyData(),'· 스택:',_buddyStreakData()); };
+window.buddyStats=()=>{   // 🧸 단짝 보상 감사 — 전체 유저 buddyClaimLog 역산 집계(누가·총 골드·아이템)
+  let totG=0, totClaims=0, totSafety=0; const items={}, rows=[]; const SC=['실버','골드','프리즘'];
+  for(const [,g] of Object.entries(goldData||{})){
+    const log=g[sField('buddyClaimLog')]||[]; if(!log.length) continue;
+    let pg=0, ps=0;
+    for(const e of log){ const r=e.reward||{}; pg+=(r.gold||0)+(e.bonusGold||0); if(e.safety) ps++;
+      if(r.tickets) for(const t in r.tickets) items['강화권:'+t]=(items['강화권:'+t]||0)+r.tickets[t];
+      if(r.scratch) for(const s in r.scratch){ const nm='복권:'+(SC[s]||s); items[nm]=(items[nm]||0)+r.scratch[s]; }
+      if(r.essence) items['정수']=(items['정수']||0)+r.essence;
+      if(r.lp2x) items['LP2배권']=(items['LP2배권']||0)+r.lp2x;
+    }
+    totG+=pg; totClaims+=log.length; totSafety+=ps;
+    rows.push({ 이름:g.name, 수령:log.length, 안전망:ps, 골드:pg, buddyGold필드:g[sField('buddyGold')]||0 });
+  }
+  rows.sort((a,b)=>b.골드-a.골드);
+  console.log(`🧸 단짝 보상 집계 — 수령 ${totClaims}회(안전망 ${totSafety}) · 풀린 골드 ${totG}G`);
+  if(rows.length){ console.table(rows); } else { console.log('(아직 수령 기록 없음)'); }
+  console.log('🎁 아이템 총계:', items);
+  return { totalClaims:totClaims, totalSafety:totSafety, totalGold:totG, items, players:rows };
+};
 window.buddyReset=()=>{ const key=getMyGoldKey(); if(!key) return; update(ref(db,'gold/'+key),{[sField('buddy')]:null,[sField('buddyStreak')]:null,[sField('buddyUpgradeLog')]:null,[sField('buddyClaimLog')]:null,[sField('buddyLevels')]:null}).then(()=>console.log('🧸 단짝 데이터 초기화')); };
 // 🧸 단짝인형 UI — 선정 모달 / 스택·수령 패널 / 경기 자동연동
 function _clawDdKey(file){ const s=String(file).replace(/\.glb$/i,''); return s.charAt(0).toUpperCase()+s.slice(1); }
