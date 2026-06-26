@@ -6864,7 +6864,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.335';
+const APP_VERSION = 'v2.45.336';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -32562,24 +32562,45 @@ function _injectArenaCss(){
   `;
   document.head.appendChild(s);
 }
-window.openArenaForge=function(){
-  const key=getMyGoldKey(); if(!key){ showS1Toast('닉네임을 먼저 선택해주세요'); return; }
-  _injectArenaCss(); _arenaEnsureStock();
-  if(!_arenaEligible(getMyGoldData())){ showS1Toast(`🔒 투기장은 인형 7종 보유 시 열려요 (현재 ${_arenaDistinct(getMyGoldData())}종)`); return; }
+function _arenaForgeSB(SB, champFile){   // 🧪 샌드박스 강화(메모리만·DB/실골드 무관)
+  const rk=_arenaRk(champFile), power=SB.power[rk]||0;
+  if(power>=ARENA_MAX_POWER) return {r:'max'};
+  if((SB.stock[rk]||0)<1) return {r:'nostock'};
+  const cost=arenaForgeCost(power); if(SB.gold<cost) return {r:'nogold',cost};
+  SB.gold-=cost;
+  const odds=arenaForgeOdds(power), roll=Math.random()*100; let result;
+  if(roll<odds.success){ SB.power[rk]=power+1; result='success'; }
+  else if(roll<odds.success+odds.hold){ result='hold'; }
+  else { SB.stock[rk]=Math.max(0,(SB.stock[rk]||0)-1); SB.power[rk]=0; result='destroy'; }
+  const distinct=Object.keys(SB.stock).filter(k=>SB.stock[k]>0).length;
+  return { r:result, power:SB.power[rk], cost, brokeGate: result==='destroy'&&(SB.stock[rk]||0)===0&&distinct<7 };
+}
+window.openArenaForge=function(sandbox){
+  const key=getMyGoldKey(); if(!key && !sandbox){ showS1Toast('닉네임을 먼저 선택해주세요'); return; }
+  _injectArenaCss();
+  let SB=null;
+  if(sandbox){ SB={ gold:999999, stock:{}, power:{}, fighter:ARENA_CHAMPS[0] }; ARENA_CHAMPS.forEach(f=>SB.stock[_arenaRk(f)]=5); }
+  else { _arenaEnsureStock(); if(!_arenaEligible(getMyGoldData())){ showS1Toast(`🔒 투기장은 인형 7종 보유 시 열려요 (현재 ${_arenaDistinct(getMyGoldData())}종)`); return; } }
   if(document.getElementById('arena-forge')) return;
-  let active=_arenaActiveFighter(getMyGoldData());
+  const getPower=c=> SB? (SB.power[_arenaRk(c)]||0) : _arenaPowerOf(c);   // 샌드박스면 메모리, 아니면 실데이터
+  const getStock=c=> SB? (SB.stock[_arenaRk(c)]||0) : _arenaStockOf(c);
+  const getGold =()=> SB? SB.gold : getMyGold();
+  const getStockMap=()=> SB? {...SB.stock} : _arenaStock(getMyGoldData());
+  const setFighter=c=>{ if(SB) SB.fighter=c; else _arenaSetFighter(c); };
+  const doForge=c=> SB? _arenaForgeSB(SB,c) : _arenaForge(c);
+  let active = SB? SB.fighter : _arenaActiveFighter(getMyGoldData());
   const ov=document.createElement('div'); ov.id='arena-forge'; ov.className='arena-ov';
   ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
   document.body.appendChild(ov);
   let busy=false;
   const render=(fx, msg)=>{
-    const d=getMyGoldData()||{}, k=_clawDdKey(active);
-    const power=_arenaPowerOf(active,d), stock=_arenaStockOf(active,d), maxed=power>=ARENA_MAX_POWER;
-    const odds=arenaForgeOdds(power), cost=arenaForgeCost(power), gold=getMyGold();
+    const k=_clawDdKey(active);
+    const power=getPower(active), stock=getStock(active), maxed=power>=ARENA_MAX_POWER;
+    const odds=arenaForgeOdds(power), cost=arenaForgeCost(power), gold=getGold();
     const canForge=!maxed && stock>0 && gold>=cost && !busy;
-    const stockMap=_arenaStock(d), owned=Object.keys(stockMap).filter(c=>stockMap[c]>0).sort();
+    const stockMap=getStockMap(), owned=Object.keys(stockMap).filter(c=>stockMap[c]>0).sort();
     ov.innerHTML=`<div class="arena-sheet" onclick="event.stopPropagation()">
-      <div class="arena-h">🗡️ 인형 투기장</div>
+      <div class="arena-h">🗡️ 인형 투기장${SB?' <span style="font-size:11px;color:#7CFC9A">· 🧪 테스트(데이터 무관)</span>':''}</div>
       <div class="arena-sub">전투 인형을 강화해 더 강하게! (배틀은 곧 추가)</div>
       <div class="arena-fighter ${fx?('fx-'+fx):''}"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'"></div>
       <div class="arena-power">+${power}<small> / ${ARENA_MAX_POWER} · ${escHtml(_buddyChampName(active))}</small></div>
@@ -32593,16 +32614,16 @@ window.openArenaForge=function(){
       </div>
       <div class="arena-cost">시도 비용 <b>${cost}G</b> · 보유 <b class="${gold<cost?'no':''}">${gold}G</b></div>
       <button class="arena-forge-btn" id="arena-go" ${canForge?'':'disabled'}>${stock<1?'재고 없음 — 인형뽑기로':gold<cost?'골드 부족':'⚒️ 강화 시도'}</button>`}
-      <div class="arena-pick">${owned.map(c=>`<div class="ap ${_arenaRk(active)===c?'on':''}" data-c="${c}.glb"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${_clawDdKey(c)}_0.jpg" onerror="this.style.visibility='hidden'"><div class="ap-p">+${_arenaPowerOf(c+'.glb',d)}</div><span class="ap-q">${stockMap[c]}</span></div>`).join('')}</div>
+      <div class="arena-pick">${owned.map(c=>`<div class="ap ${_arenaRk(active)===c?'on':''}" data-c="${c}.glb"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${_clawDdKey(c)}_0.jpg" onerror="this.style.visibility='hidden'"><div class="ap-p">+${getPower(c+'.glb')}</div><span class="ap-q">${stockMap[c]}</span></div>`).join('')}</div>
       <div class="arena-pick-lbl">↑ 전투 인형 선택 (배지=재고 · +N=전투력)</div>
       <button class="arena-close" id="arena-x">닫기</button>
     </div>`;
     ov.querySelector('#arena-x').onclick=()=>ov.remove();
-    ov.querySelectorAll('.ap').forEach(b=>b.onclick=()=>{ if(busy) return; active=b.dataset.c; _arenaSetFighter(active); render(); });
+    ov.querySelectorAll('.ap').forEach(b=>b.onclick=()=>{ if(busy) return; active=b.dataset.c; setFighter(active); render(); });
     const go=ov.querySelector('#arena-go');
     if(go) go.onclick=()=>{
       if(busy) return; busy=true;
-      const res=_arenaForge(active);
+      const res=doForge(active);
       if(res.r==='nogold'){ busy=false; render(null,'<span style="color:#ff6b6b">골드가 부족해요</span>'); return; }
       if(res.r==='nostock'){ busy=false; render(null,'<span style="color:#ff6b6b">재고가 없어요 — 인형뽑기로</span>'); return; }
       if(res.r==='max'){ busy=false; render(null,'👑 이미 최대치예요'); return; }
@@ -32611,18 +32632,22 @@ window.openArenaForge=function(){
       else if(res.r==='hold'){ msg='<span style="color:#9ab2cc">😐 보류 — 그대로 (재시도 가능)</span>'; }
       else if(res.r==='destroy'){ fx='destroy'; msg=`<span style="color:#ff6b6b">💥 파괴! 인형 1개 소멸 · 전투력 리셋</span>${res.brokeGate?'<br><span style="color:#ffb24a;font-size:12px">⚠️ 7종이 깨졌어요 — 인형뽑기로 다시 채워야 배틀 가능</span>':''}`; }
       render(fx,msg);
-      try{ updateMyInfoBar(); }catch(_){}
+      if(!SB){ try{ updateMyInfoBar(); }catch(_){} }
       setTimeout(()=>{ busy=false; render(null,msg); }, 520);   // 연출 후 버튼 재활성(결과 메시지 유지·애니 미반복)
     };
   };
   render();
 };
 // 🧪 콘솔: 강화창 프리뷰 + 테스트 재고/골드 시드
-window.arenaForgePreview=function(){ try{ openArenaForge(); }catch(e){ console.warn(e); } };
-window.arenaSeedTest=function(perChamp){
+window.arenaForgePreview=function(){ try{ openArenaForge(true); }catch(e){ console.warn(e); } };   // 🧪 샌드박스(메모리만·DB/실골드 0 영향)
+window.arenaSeedTest=function(perChamp){   // ⚠️ 실데이터에 재고 지급(라이브 경로 테스트용 — 되돌리려면 arenaTestReset())
   const key=getMyGoldKey(); if(!key) return console.warn('닉네임 먼저'); const n=perChamp||5;
   const stock={}; ARENA_CHAMPS.forEach(f=>stock[_arenaRk(f)]=n);
-  update(ref(db,'gold/'+key),{[sField('dollStock')]:stock}).then(()=>console.log(`🗡️ 테스트 재고 — 7종 각 ${n}개 지급. arenaForgePreview()로 강화창 열기`));
+  update(ref(db,'gold/'+key),{[sField('dollStock')]:stock}).then(()=>console.log(`🗡️ (실데이터) 테스트 재고 7종 각 ${n}개. 되돌리기=arenaTestReset()`));
+};
+window.arenaTestReset=function(){   // 🧹 투기장 데이터(재고·전투력·파이터·코인) 전부 삭제(되돌리기). ※실골드 차감분은 별개
+  const key=getMyGoldKey(); if(!key) return console.warn('닉네임 먼저');
+  update(ref(db,'gold/'+key),{[sField('dollStock')]:null,[sField('arenaPower')]:null,[sField('arenaFighter')]:null,[sField('arenaCoins')]:null}).then(()=>console.log('🧹 투기장 데이터 삭제됨'));
 };
 // 보상 지급 (묶음 배열 + 보너스골드) → 기존 필드
 async function _buddyGrant(rewards, bonusGold){
