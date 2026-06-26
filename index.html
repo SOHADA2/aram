@@ -529,6 +529,8 @@ header{text-align:center;padding:48px 0 24px;position:relative;}
 .ngbd-name.unmatched{color:#9fb6c8;font-weight:600;}
 .ngbd-tag{font-size:9px;color:#7c91a4;background:rgba(255,255,255,0.06);border-radius:6px;padding:1px 6px;flex-shrink:0;}
 .ngbd-foot{font-size:9.5px;color:#6b7a8a;text-align:center;margin-top:7px;}
+.ngbd-empty{font-size:12px;color:#9fb6c8;text-align:center;padding:14px 6px;line-height:1.6;}
+.ngbd-empty span{font-size:10px;color:#7c91a4;}
 @keyframes ngbdIn{from{opacity:0;transform:translate(-50%,8px);}to{opacity:1;transform:translate(-50%,0);}}
 /* 🛠️ 팀 결성 로비 상태 배너 — 팀원에게 화면 최하단 고정(.ngb와 동형, 진행자 준비/취소 안내) */
 .lsb{position:fixed;bottom:0;left:0;right:0;z-index:998;display:flex;align-items:center;justify-content:center;gap:7px;padding:7px 14px;font-size:11.5px;font-weight:700;font-family:'Noto Sans KR',sans-serif;letter-spacing:0.2px;backdrop-filter:blur(6px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 -3px 14px rgba(0,0,0,0.35);}
@@ -6878,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.343';
+const APP_VERSION = 'v2.45.344';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6887,6 +6889,9 @@ const APP_VERSION = 'v2.45.343';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.344', date: '2026-06-26', changes: [
+    { tag: 'fix', text: '🎮 "게임 진행 중" 배너 명단이 안 뜨던 경우 보강 — 명단을 못 받았을 땐 "참가자 명단을 받지 못했어요(진행자 브릿지 최신 버전 필요)" 안내가 떠서 왜 안 보이는지 알 수 있어요. 소환사명이 객체로 와도 이름을 뽑아내도록 처리.' },
+  ] },
   { ver: 'v2.45.343', date: '2026-06-26', changes: [
     { tag: 'improve', text: '🎮 화면 맨 아래 "게임 진행 중" 배너를 탭하면 누가 게임 중인지 명단이 떠요 — 등록 멤버로 매칭되면 닉네임, 매칭이 안 되면 인게임 소환사명으로라도 전원 보여줘서, 이름이 안 뜨던 경우에도 확인할 수 있어요. (배너/팝업 다시 탭하면 닫힘)' },
   ] },
@@ -13649,7 +13654,7 @@ function updateNormalGameBanner(){
   let bar = document.getElementById('normal-game-banner');
   if (!active){ if (bar) bar.remove(); document.getElementById('ngb-detail')?.remove(); if (_gameBannerTimer){ clearInterval(_gameBannerTimer); _gameBannerTimer = null; } return; }
   // 인게임 소환사명 → 등록 멤버 매칭 (중복 제거)
-  const members = (ig.players || []).map(sn => _normalMatchMember(sn)).filter(Boolean);
+  const members = (ig.players || []).map(sn => _normalMatchMember(_ngbPlayerName(sn))).filter(Boolean);
   const seen = new Set(); const uniq = [];
   for (const m of members){ const nn = normName(m); if (!seen.has(nn)){ seen.add(nn); uniq.push(m); } }
   // 🙈 이 배너는 "게임 안 하는 사람"에게 누가 게임 중인지 알리는 용도 → 참여자 본인에겐 숨김
@@ -13662,11 +13667,10 @@ function updateNormalGameBanner(){
   const label = isCustom ? '⚔️ 내전 진행 중' : '🎮 일반게임 진행 중';
   if (!bar){ bar = document.createElement('div'); bar.id = 'normal-game-banner'; bar.className = 'ngb'; document.body.appendChild(bar); }
   bar.classList.toggle('custom', isCustom);
-  const hasPlayers = !!(ig.players && ig.players.length);
-  const tapHint = hasPlayers ? ` <span class="ngb-tap">👆 명단</span>` : '';
+  const tapHint = ` <span class="ngb-tap">👆 명단</span>`;   // 항상 탭 가능(명단 없어도 안내 표시)
   bar.innerHTML = `<span class="ngb-dot"></span><span class="ngb-text">${label}${whoHtml} ${timeStr}${tapHint}</span>`;
-  bar.style.cursor = hasPlayers ? 'pointer' : 'default';
-  bar.onclick = hasPlayers ? (() => { try { _toggleGameBannerDetail(); } catch (_) {} }) : null;
+  bar.style.cursor = 'pointer';
+  bar.onclick = () => { try { _toggleGameBannerDetail(); } catch (_) {} };
   // 열려있는 명단 팝업이 있으면 최신 정보로 갱신
   if (document.getElementById('ngb-detail')) { try { _renderGameBannerDetail(); } catch (_) {} }
   // 화면 최하단 고정(.ngb bottom:0) — 상단 요소를 가리지 않음
@@ -13678,18 +13682,24 @@ function _toggleGameBannerDetail(){
   if (document.getElementById('ngb-detail')){ document.getElementById('ngb-detail').remove(); return; }
   _renderGameBannerDetail();
 }
+function _ngbPlayerName(p){   // inGame.players 항목이 문자열이든 객체든 소환사명 추출
+  if (!p) return '';
+  if (typeof p === 'string') return p;
+  return p.summonerName || p.name || p.riotIdGameName || p.gameName || (p.riotId ? String(p.riotId).split('#')[0] : '') || '';
+}
 function _renderGameBannerDetail(){
-  const ig = _bridgeInGame; const players = (ig && ig.players) || [];
-  let pop = document.getElementById('ngb-detail');
-  if (!players.length){ if (pop) pop.remove(); return; }
+  const ig = _bridgeInGame; const raw = (ig && ig.players) || [];
   const isCustom = !!(ig && ig.isCustom === true);
-  const rows = players.map(sn => { const m = _normalMatchMember(sn);
+  let pop = document.getElementById('ngb-detail');
+  const rows = raw.map(sn => { const nm = _ngbPlayerName(sn); const m = _normalMatchMember(nm);
     return m ? `<div class="ngbd-row"><span class="ngbd-name">${escHtml(m)}</span></div>`
-             : `<div class="ngbd-row"><span class="ngbd-name unmatched">${escHtml(sn)}</span><span class="ngbd-tag">소환사명</span></div>`;
+             : `<div class="ngbd-row"><span class="ngbd-name unmatched">${escHtml(nm || '?')}</span><span class="ngbd-tag">소환사명</span></div>`;
   }).join('');
+  const body = raw.length ? `<div class="ngbd-list">${rows}</div>`
+    : `<div class="ngbd-empty">참가자 명단을 받지 못했어요 🙏<br><span>진행자 브릿지가 명단을 보내야 떠요 (브릿지 최신 버전 필요)</span></div>`;
   if (!pop){ pop = document.createElement('div'); pop.id = 'ngb-detail'; document.body.appendChild(pop); pop.onclick = () => pop.remove(); }
   pop.className = 'ngbd' + (isCustom ? ' custom' : '');
-  pop.innerHTML = `<div class="ngbd-h">${isCustom ? '⚔️ 내전' : '🎮 일반게임'} 진행 중 · ${players.length}명</div><div class="ngbd-list">${rows}</div><div class="ngbd-foot">탭하면 닫혀요</div>`;
+  pop.innerHTML = `<div class="ngbd-h">${isCustom ? '⚔️ 내전' : '🎮 일반게임'} 진행 중${raw.length ? ` · ${raw.length}명` : ''}</div>${body}<div class="ngbd-foot">탭하면 닫혀요</div>`;
 }
 
 // ── 개발용: 투표 카드 챔피언 데이터 미리보기 ────────────────────────
