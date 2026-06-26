@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.353';
+const APP_VERSION = 'v2.45.354';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.353';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.354', date: '2026-06-26', changes: [
+    { tag: 'improve', text: '🔒 인형 투기장(강화·대전)을 잠시 잠갔어요 — "준비 중"으로 표시되며, 마무리되면 다시 열려요. (수집·인형뽑기·단짝은 그대로)' },
+  ] },
   { ver: 'v2.45.353', date: '2026-06-26', changes: [
     { tag: 'improve', text: '🗡️ 인형 투기장 강화를 골드 → 투기장 코인으로 전환! 이제 배틀로 번 🗡️투기장 코인으로 강화해요(골드 무관·완전 격리). 배틀에서 모으던 코인이 드디어 쓸 곳이 생겼어요 — 배틀로 코인 벌고 → 그 코인으로 강화하는 깔끔한 루프. 시도 비용 예: +1=1코인 · +10=9코인 · +19=25코인 (+20까지 최선 누적 ~200코인). 나중에 스킨샵도 투기장 코인으로 살 예정.' },
   ] },
@@ -32568,6 +32571,7 @@ function _buddyOnPull(champFile){   // 브릿지 pull 수신 — 7종 완성(수
 //   파괴=인형 수량−1 + 전투력 리셋. 7종 보유 게이트. 골드 sink만(투기장 골드생성 0). 상성/배틀=Phase2~3.
 const ARENA_CHAMPS = ['teemo','gwen','vex','ekko','yone','neeko','lux'].map(s=>s+'.glb');   // 기본 7종(확장 시 추가)
 const ARENA_MAX_POWER = 20;
+const ARENA_LIVE_ENABLED = false;   // 🔒 라이브 강화·대전 잠금(준비 중). 콘솔 arenaForgePreview()/arenaBattlePreview()(샌드박스)는 항상 가능. 열 땐 true로.
 const ARENA_ODDS = [   // [성공%, 파괴%] (보류=100-성공-파괴). index=현재 전투력(+N)
   // 🗡️ 재조정(v352): 파괴확률을 초반부터 고르게 분배(0%대 구간 제거·1%→12% 점증) + 초반 성공↑·비용↓로 많이 시도, 실패=대부분 "유지"(골드 sink)
   [96,0],[90,1],[84,2],[78,3],[70,4],                                   // +0~4 (파괴 0~4%·초반부터 작게)
@@ -32814,6 +32818,7 @@ function _arenaBattleSB(SB, opp){   // 🧪 샌드박스 배틀(메모리만)
   return { r:'ok', won, wr:Math.round(wr), adv, clawGain:rw.clawGain, coinGain:rw.coinGain, underdog:rw.underdog, myPow, oppPow:opp.power, left:SB.battlesLeft };
 }
 window.openArenaForge=function(sandbox){
+  if(!sandbox && !ARENA_LIVE_ENABLED){ showS1Toast('🔒 인형 투기장 강화는 준비 중이에요 (곧 열려요)'); return; }   // 🔒 라이브 잠금(샌드박스 프리뷰는 통과)
   const key=getMyGoldKey(); if(!key && !sandbox){ showS1Toast('닉네임을 먼저 선택해주세요'); return; }
   _injectArenaCss();
   let SB=null;
@@ -32886,6 +32891,7 @@ window.openArenaForge=function(sandbox){
 };
 // ⚔️ 배틀 창 — 상대(다른 7종 완성자) 목록·승률·도전. 강화창과 상호 링크. sandbox=메모리만(가짜 상대).
 window.openArenaBattle=function(sandbox){
+  if(!sandbox && !ARENA_LIVE_ENABLED){ showS1Toast('🔒 인형 투기장 대전은 준비 중이에요 (곧 열려요)'); return; }   // 🔒 라이브 잠금(샌드박스 프리뷰는 통과)
   const key=getMyGoldKey(); if(!key && !sandbox){ showS1Toast('닉네임을 먼저 선택해주세요'); return; }
   _injectArenaCss();
   let SB=null;
@@ -32967,6 +32973,9 @@ function _arenaEntryHtml(){
   let distinct=_arenaDistinct(data);
   if(distinct===0){ const coll=Array.isArray(data[sField('clawCollected')])?data[sField('clawCollected')]:[]; distinct=new Set(coll.map(_arenaRk)).size; }   // 재고 시드 전이면 컬렉션으로 추정
   if(distinct>=7){
+    if(!ARENA_LIVE_ENABLED){   // 🔒 라이브 잠금 — 7종 완성자에겐 "준비 중" 안내만
+      return `<div class="prism-claw-note" style="margin-top:9px;opacity:.8;">🗡️ <b style="color:#f0c04a;">인형 투기장</b>(강화·대전)은 <b style="color:#f0c04a;">준비 중</b>이에요 — 곧 열려요! (인형 7종 완성 ✅)</div>`;
+    }
     const fighter=_arenaActiveFighter(data), pw=_arenaPowerOf(fighter, data), left=_arenaBattleLeft(data);
     return `<button class="prism-claw-btn" style="margin-top:9px;background:linear-gradient(135deg,#7a2b2b,#c0453f);color:#ffe9e2;border-color:rgba(240,120,110,0.55);" onclick="window.openArenaForge()">🗡️ 인형 투기장 — 전투인형 강화${pw>0?` <span style="opacity:.85;font-weight:700;">(현재 +${pw})</span>`:''}</button>
       <button class="prism-claw-btn" style="margin-top:6px;background:linear-gradient(135deg,#3a2a5a,#6a4ab0);color:#efe6ff;border-color:rgba(160,130,240,0.5);" onclick="window.openArenaBattle()">⚔️ 배틀하러 가기 — 코인 벌기 <span style="opacity:.85;font-weight:700;">(오늘 ${left}/${ARENA_BATTLE_DAILY})</span></button>
