@@ -6864,7 +6864,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.332';
+const APP_VERSION = 'v2.45.333';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6873,7 +6873,7 @@ const APP_VERSION = 'v2.45.332';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
-  { ver: 'v2.45.332', date: '2026-06-26', changes: [
+  { ver: 'v2.45.333', date: '2026-06-26', changes: [
     { tag: 'new', text: '🐾 정산 결과 계산 중 로딩 화면에 3D 포로 마스코트가 등장해요 — 빙글빙글 돌고 폴짝폴짝 뛰며 정산을 기다리는 동안 심심하지 않게 해줘요. (모델 로드 전엔 기존 스피너 표시)' },
   ]},
   { ver: 'v2.45.328', date: '2026-06-26', changes: [
@@ -12831,6 +12831,8 @@ function _showSettlementPending(){
   _settlePendingTimer = setTimeout(_hideSettlementPending, 20000);   // 안전망(호스트 실패 등)
 }
 // 🐾 정산 로딩 마스코트 — poro.glb 단독 three.js 씬(폴짝/갸웃 절차 모션). 버디 3D와 독립(공유 캔버스 안 건드림)
+let _poroYOff = -0.16, _poroDist = 1.2, _activePoro = null;   // 정산 포로 위치(아래로 −)/줌(작을수록 큼) — 콘솔 _poroTune(yOff, dist)로 실시간 조정
+window._poroTune = function(y, dist){ if(y!=null) _poroYOff=+y; if(dist!=null) _poroDist=+dist; if(_activePoro) _activePoro.refit(); console.log(`🐾 포로 위치 — yOff=${_poroYOff} dist=${_poroDist} (마음에 들면 이 값 알려줘)`); };
 async function _settlePoro3d(mount){
   if (!mount) return;
   try {
@@ -12849,7 +12851,7 @@ async function _settlePoro3d(mount){
     const dir = new THREE.DirectionalLight(0xfff0d0, 1.4); dir.position.set(2,4,5); scene.add(dir);
     const camera = new THREE.PerspectiveCamera(30, w/h, 0.1, 100);
     const clock = new THREE.Clock(); let mixer=null, group=null, r=0.9, raf=0, disposed=false, nextHop=0.6, hop=0;
-    const dispose = ()=>{ if(disposed) return; disposed=true; cancelAnimationFrame(raf); try{renderer.dispose();}catch(_){} try{renderer.domElement.remove();}catch(_){} };
+    const dispose = ()=>{ if(disposed) return; disposed=true; _activePoro=null; cancelAnimationFrame(raf); try{renderer.dispose();}catch(_){} try{renderer.domElement.remove();}catch(_){} };
     mount._poroDispose = dispose;
     const loader = new GLTFLoader();
     loader.load('poro.glb', g=>{
@@ -12870,7 +12872,8 @@ async function _settlePoro3d(mount){
       model.scale.setScalar(s);
       model.position.copy(ctr).multiplyScalar(-s);   // ⚠️ 중심 오프셋도 스케일 반영(안 그러면 거대 ctr로 모델이 화면 밖 = 안 보임)
       group = new THREE.Group(); group.add(model); scene.add(group);
-      const fov = camera.fov*Math.PI/180; camera.position.set(0,0, r/Math.sin(fov/2)*1.3); camera.lookAt(0,0,0);
+      _activePoro = { camera, r, refit:()=>{ const fov=camera.fov*Math.PI/180; camera.position.set(0,0, r/Math.sin(fov/2)*_poroDist); camera.lookAt(0,0,0); } };
+      _activePoro.refit();
       if (g.animations && g.animations.length){ mixer=new THREE.AnimationMixer(model); mixer.clipAction(g.animations[0]).play(); }
       (function loop(){ if(disposed) return; raf=requestAnimationFrame(loop);
         const dt=Math.min(0.05, clock.getDelta()), t=clock.elapsedTime;
@@ -12878,8 +12881,8 @@ async function _settlePoro3d(mount){
         if(group){
           if(t>nextHop){ hop=1; nextHop=t+1.0+Math.random()*1.4; }   // 주기적 폴짝
           if(hop>0) hop=Math.max(0, hop-dt*2.3);
-          const k=1-hop, jump=hop>0?Math.sin(k*Math.PI)*r*0.30:0;
-          group.position.y = -r*0.04 + jump + Math.sin(t*2)*r*0.025;
+          const k=1-hop, jump=hop>0?Math.sin(k*Math.PI)*r*0.26:0;
+          group.position.y = _poroYOff*r + jump + Math.sin(t*2)*r*0.025;
           group.rotation.y = Math.sin(t*1.1)*0.6;            // 좌우 갸웃
           group.rotation.z = Math.sin(t*2.4)*0.06;
           const sq = hop>0?Math.sin(k*Math.PI*2)*0.09:0; group.scale.set(1-sq,1+sq,1-sq);   // 폴짝 스쿼시
