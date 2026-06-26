@@ -508,7 +508,9 @@ header{text-align:center;padding:48px 0 24px;position:relative;}
 .corner-badges-left .mailbox-btn svg{width:13px;height:13px;}
 .corner-badges-left .mb-badge{top:-5px;right:-5px;min-width:13px;height:13px;font-size:8px;}
 /* 🎮 일반게임 진행 중 배너 — 전체 상단 고정 (브릿지 inGame 기반, v2.45.52) */
-.ngb{position:fixed;bottom:0;left:0;right:0;z-index:997;display:flex;align-items:center;justify-content:center;gap:7px;padding:6px 14px;background:linear-gradient(0deg,rgba(12,20,30,0.97),rgba(8,14,22,0.92));border-top:1px solid rgba(125,211,252,0.35);color:#bfe3ff;font-size:11px;font-weight:700;font-family:'Noto Sans KR',sans-serif;letter-spacing:0.3px;backdrop-filter:blur(6px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 -3px 14px rgba(0,0,0,0.35);}
+.ngb{position:fixed;bottom:0;left:0;right:0;z-index:997;display:flex;align-items:center;justify-content:center;gap:7px;padding:7px 14px;background:linear-gradient(0deg,rgba(12,20,30,0.97),rgba(8,14,22,0.92));border-top:1px solid rgba(125,211,252,0.35);color:#bfe3ff;font-size:11px;font-weight:700;font-family:'Noto Sans KR',sans-serif;letter-spacing:0.3px;backdrop-filter:blur(6px);box-shadow:0 -3px 14px rgba(0,0,0,0.35);}
+.ngb-text{white-space:normal;text-align:center;line-height:1.5;word-break:keep-all;overflow-wrap:anywhere;}
+.ngb-text .ngb-names{color:#eaf6ff;font-weight:800;}
 .ngb-dot{width:7px;height:7px;border-radius:50%;background:#7dd3fc;box-shadow:0 0 7px #7dd3fc;animation:ngbDot 1.3s ease-in-out infinite;flex-shrink:0;}
 .ngb.custom{border-bottom-color:rgba(240,192,96,0.42);color:#ffe39a;background:linear-gradient(180deg,rgba(24,18,7,0.96),rgba(14,11,6,0.92));}
 .ngb.custom .ngb-dot{background:#f0c060;box-shadow:0 0 7px #f0c060;}
@@ -6861,7 +6863,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.326';
+const APP_VERSION = 'v2.45.327';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6870,6 +6872,9 @@ const APP_VERSION = 'v2.45.326';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.327', date: '2026-06-26', changes: [
+    { tag: 'improve', text: '🎮 화면 맨 아래 "게임 진행 중" 배너에 참가 팀원 이름을 전부 표시해요 — 예전엔 최대 3명까지만 보이고 나머지는 "외 N명"으로 숨겼는데, 이제 👥 아이콘과 함께 참여 중인 팀원 이름을 모두 보여주고 길면 줄바꿈돼서 누가 지금 게임 중인지 한눈에 알 수 있어요. (내전·일반게임 둘 다)' },
+  ]},
   { ver: 'v2.45.326', date: '2026-06-26', changes: [
     { tag: 'improve', text: '🧸 프로필 단짝 공간의 3D 인형 발밑 노란 빛도 제거했어요(은은한 바닥 그림자만 남김). 홈 대시보드 인형은 그대로예요.' },
   ]},
@@ -13540,14 +13545,14 @@ function updateNormalGameBanner(){
   const members = (ig.players || []).map(sn => _normalMatchMember(sn)).filter(Boolean);
   const seen = new Set(); const uniq = [];
   for (const m of members){ const nn = normName(m); if (!seen.has(nn)){ seen.add(nn); uniq.push(m); } }
-  const who = uniq.length ? ' · ' + (uniq.length <= 3 ? uniq.join(', ') : `${uniq.slice(0,2).join(', ')} 외 ${uniq.length-2}명`) : '';
+  const whoHtml = uniq.length ? ` · 👥 <span class="ngb-names">${escHtml(uniq.join(', '))}</span>` : '';   // 참가 팀원 전원 표시(누가 게임 중인지)
   // 진행 시간(시작=ig.at 기준 경과 분)
   const mins = ig.at ? Math.max(0, Math.floor((Date.now() - ig.at) / 60000)) : null;
   const timeStr = mins != null ? `<span class="ngb-time">· 진행 ${mins}분</span>` : '';
   const label = isCustom ? '⚔️ 내전 진행 중' : '🎮 일반게임 진행 중';
   if (!bar){ bar = document.createElement('div'); bar.id = 'normal-game-banner'; bar.className = 'ngb'; document.body.appendChild(bar); }
   bar.classList.toggle('custom', isCustom);
-  bar.innerHTML = `<span class="ngb-dot"></span>${label}${escHtml(who)} ${timeStr}`;
+  bar.innerHTML = `<span class="ngb-dot"></span><span class="ngb-text">${label}${whoHtml} ${timeStr}</span>`;
   // 화면 최하단 고정(.ngb bottom:0) — 상단 요소를 가리지 않음
   // 경과 시간 라이브 갱신 (30초)
   if (!_gameBannerTimer) _gameBannerTimer = setInterval(() => { try { updateNormalGameBanner(); } catch (_) {} }, 30000);
