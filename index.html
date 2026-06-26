@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.347';
+const APP_VERSION = 'v2.45.348';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.347';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.348', date: '2026-06-26', changes: [
+    { tag: 'new', text: '🏅 인형 투기장 등급 진화 — 전투력 +N에 따라 인형이 무명 → 견습 → 정예 → 숙련 → 정복자 → 영웅 → 전설 → 신화(무지개 오라)로 등급이 올라가요! 강화창에 현재 등급·색 오라·다음 등급까지 남은 강화량이 뜨고, 등급이 바뀌면 "🏅 등급 상승!" 연출이 떠요. 배틀 화면에서도 내/상대 인형 등급이 한눈에 보여요. (시각·동기부여 요소 — 골드/밸런스 영향 없음)' },
+  ] },
   { ver: 'v2.45.347', date: '2026-06-26', changes: [
     { tag: 'fix', text: '🗡️ 인형 수량은 7종을 다 모은 뒤부터만 쌓여요 — 7종 수집은 하나의 "인형뽑기 퀘스트"라, 그 전에 같은 인형을 또 뽑아도 수량이 쌓이지 않고 그냥 중복(꽝)이에요. 7종 완성 후부터 같은 인형을 뽑으면 "🗡️ 그웬 인형 +1 · 보유 N개"로 투기장 재고가 쌓입니다.' },
   ] },
@@ -32557,6 +32560,20 @@ const ARENA_ODDS = [   // [성공%, 파괴%] (보류=100-성공-파괴). index=�
 ];
 function arenaForgeCost(power){ return 80 + power*120; }   // 시도당 골드(점증·튜닝 가능)
 function arenaForgeOdds(power){ const o=ARENA_ODDS[Math.min(power,ARENA_MAX_POWER-1)]||[5,27]; return { success:o[0], destroy:o[1], hold:Math.max(0,100-o[0]-o[1]) }; }
+// 🏅 등급(검키우기식 단계 진화) — 전투력 +N → 이름·색(오라). 인플레 0(시각·동기부여만). min=그 등급 시작 전투력.
+const ARENA_GRADES = [
+  { min:0,  name:'무명',   c:'#8a93a6' },
+  { min:1,  name:'견습',   c:'#cfd6e4' },
+  { min:4,  name:'정예',   c:'#7CFC9A' },
+  { min:7,  name:'숙련',   c:'#5fb0ff' },
+  { min:10, name:'정복자', c:'#b98aff' },
+  { min:13, name:'영웅',   c:'#ffd24a' },
+  { min:16, name:'전설',   c:'#ff8b3a' },
+  { min:19, name:'신화',   c:'#ff5ec7', prism:true },
+];
+function _arenaGrade(power){ let g=ARENA_GRADES[0]; for(const x of ARENA_GRADES){ if((power||0)>=x.min) g=x; } return g; }
+function _arenaNextGrade(power){ for(const x of ARENA_GRADES){ if(x.min>(power||0)) return x; } return null; }   // 다음 등급(만렙이면 null)
+function _arenaGradeHtml(power){ const g=_arenaGrade(power); return `<span class="arena-grade${g.prism?' prism':''}" style="--gc:${g.c}">${g.name}</span>`; }
 const _arenaRk = c => String(c||'').replace(/\.glb$/,'');   // ⚠️Firebase 키 점 금지
 function _arenaStock(data){ return {...((data||getMyGoldData()||{})[sField('dollStock')]||{})}; }   // {champ:count}
 function _arenaStockOf(champ, data){ return _arenaStock(data)[_arenaRk(champ)]||0; }
@@ -32619,8 +32636,15 @@ function _injectArenaCss(){
   .arena-sheet{background:linear-gradient(180deg,#16131f,#0e0c16);border:1px solid rgba(240,200,90,.35);border-radius:18px;max-width:420px;width:100%;max-height:90vh;overflow:auto;padding:18px 16px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6);}
   .arena-h{font-family:'Black Han Sans','Noto Sans KR',sans-serif;font-size:20px;color:#ffd24a;margin-bottom:2px;}
   .arena-sub{font-size:11.5px;color:#9aa0b4;margin-bottom:12px;}
-  .arena-fighter{position:relative;width:124px;height:124px;margin:0 auto 4px;border-radius:18px;overflow:hidden;border:2px solid rgba(240,200,90,.5);background:radial-gradient(circle at 50% 35%,#243049,#0c1020);}
+  .arena-fighter{position:relative;width:124px;height:124px;margin:0 auto 4px;border-radius:18px;overflow:hidden;border:2.5px solid var(--ag,rgba(240,200,90,.5));background:radial-gradient(circle at 50% 35%,#243049,#0c1020);box-shadow:0 0 22px -3px var(--ag,transparent);transition:border-color .4s,box-shadow .4s;}
   .arena-fighter img{width:100%;height:100%;object-fit:cover;object-position:center top;}
+  .arena-fighter.myth{border-color:transparent;animation:arenaPrismAura 3s linear infinite;}
+  @keyframes arenaPrismAura{0%{box-shadow:0 0 24px -2px #ff5ec7;border-color:#ff5ec7;}25%{box-shadow:0 0 24px -2px #ffd24a;border-color:#ffd24a;}50%{box-shadow:0 0 24px -2px #5fffd0;border-color:#5fffd0;}75%{box-shadow:0 0 24px -2px #5fb0ff;border-color:#5fb0ff;}100%{box-shadow:0 0 24px -2px #ff5ec7;border-color:#ff5ec7;}}
+  .arena-grade{display:inline-block;font-size:11px;font-weight:800;color:var(--gc,#ffd24a);background:color-mix(in srgb,var(--gc,#ffd24a) 16%,transparent);border:1px solid color-mix(in srgb,var(--gc,#ffd24a) 50%,transparent);border-radius:8px;padding:1px 8px;vertical-align:middle;}
+  .arena-grade.prism{color:#fff;background:linear-gradient(90deg,#ff5ec7,#ffd24a,#5fffd0,#5fb0ff,#ff5ec7);background-size:300% 100%;border-color:transparent;animation:arenaPrismTxt 3s linear infinite;text-shadow:0 1px 3px rgba(0,0,0,.45);}
+  @keyframes arenaPrismTxt{0%{background-position:0% 50%;}100%{background-position:300% 50%;}}
+  .arena-grade-row{display:flex;align-items:center;justify-content:center;gap:7px;margin:5px 0 0;}
+  .arena-next{font-size:10.5px;color:#8b91a4;margin:3px 0 0;}.arena-next b{color:#cbd3e6;}
   .arena-power{font-family:'JetBrains Mono',monospace;font-size:32px;font-weight:900;color:#ffe39a;text-shadow:0 0 14px rgba(240,200,90,.5);margin:4px 0 0;}
   .arena-power small{font-size:12px;color:#9aa0b4;font-family:'Noto Sans KR',sans-serif;font-weight:600;}
   .arena-stock{font-size:12px;color:#cbd3e6;margin:2px 0 8px;}
@@ -32796,11 +32820,14 @@ window.openArenaForge=function(sandbox){
     const odds=arenaForgeOdds(power), cost=arenaForgeCost(power), gold=getGold();
     const canForge=!maxed && stock>0 && gold>=cost && !busy;
     const stockMap=getStockMap(), owned=Object.keys(stockMap).filter(c=>stockMap[c]>0).sort();
+    const grade=_arenaGrade(power), nextG=_arenaNextGrade(power);   // 🏅 등급(검키우기식 단계)
     ov.innerHTML=`<div class="arena-sheet" onclick="event.stopPropagation()">
       <div class="arena-h">🗡️ 인형 투기장${SB?' <span style="font-size:11px;color:#7CFC9A">· 🧪 테스트(데이터 무관)</span>':''}</div>
       <div class="arena-sub">전투 인형을 강화해 더 강하게! 강해지면 배틀에서 코인을 벌어요</div>
-      <div class="arena-fighter ${fx?('fx-'+fx):''}"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'"></div>
-      <div class="arena-power">+${power}<small> / ${ARENA_MAX_POWER} · ${escHtml(_buddyChampName(active))} ${_arenaElemHtml(active)}</small></div>
+      <div class="arena-fighter ${fx?('fx-'+fx):''}${grade.prism?' myth':''}" style="--ag:${grade.c}"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'"></div>
+      <div class="arena-grade-row">${_arenaGradeHtml(power)}<span style="font-size:13px;font-weight:700;color:#e6ebf2;">${escHtml(_buddyChampName(active))}</span> ${_arenaElemHtml(active)}</div>
+      <div class="arena-power">+${power}<small> / ${ARENA_MAX_POWER}</small></div>
+      ${nextG?`<div class="arena-next">다음 등급 <b style="color:${nextG.c}">${nextG.name}</b>까지 <b>+${nextG.min-power}</b></div>`:'<div class="arena-next">👑 최고 등급 달성!</div>'}
       <div class="arena-stock">🗡️ ${escHtml(_buddyChampName(active))} 인형 보유 <b>${stock}</b>개 ${stock<=1?'<span class="warn">· ⚠️ 파괴되면 7종 깨져요</span>':''}</div>
       <div class="arena-result">${msg||''}</div>
       ${maxed?'<div class="arena-cost">👑 최대 강화 달성!</div>':`
@@ -32827,7 +32854,10 @@ window.openArenaForge=function(sandbox){
       if(res.r==='nostock'){ busy=false; render(null,'<span style="color:#ff6b6b">보유 인형이 없어요 — 인형뽑기로</span>'); return; }
       if(res.r==='max'){ busy=false; render(null,'👑 이미 최대치예요'); return; }
       let fx=null, msg='';
-      if(res.r==='success'){ fx='success'; msg=`<span style="color:#7CFC9A">✨ 강화 성공! +${res.power}</span>`; }
+      if(res.r==='success'){ fx='success';
+        const gUp=_arenaGrade(res.power).name!==_arenaGrade(power).name;   // 🏅 등급 경계 넘으면 승급 연출
+        msg = gUp ? `<span style="color:${_arenaGrade(res.power).c}">🏅 등급 상승! <b>${_arenaGrade(res.power).name}</b> 등극! (+${res.power})</span>`
+                  : `<span style="color:#7CFC9A">✨ 강화 성공! +${res.power}</span>`; }
       else if(res.r==='hold'){ msg='<span style="color:#9ab2cc">😐 보류 — 그대로 (재시도 가능)</span>'; }
       else if(res.r==='destroy'){ fx='destroy'; msg=`<span style="color:#ff6b6b">💥 파괴! 인형 1개 소멸 · 전투력 리셋</span>${res.brokeGate?'<br><span style="color:#ffb24a;font-size:12px">⚠️ 7종이 깨졌어요 — 인형뽑기로 다시 채워야 배틀 가능</span>':''}`; }
       render(fx,msg);
@@ -32888,12 +32918,12 @@ window.openArenaBattle=function(sandbox){
     const myF=myFighter();
     const list=opps.length? opps.map((o,i)=>{ const adv=arenaTypeAdv(myF,o.fighter), wr=arenaWinRate(mp,o.power,adv); return `<div class="arena-opp">
       <img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${_clawDdKey(o.fighter)}_0.jpg" onerror="this.style.visibility='hidden'">
-      <div class="arena-opp-info"><div class="arena-opp-nm">${escHtml(o.name)} ${_arenaAdvHtml(adv)}</div><div class="arena-opp-pw">전투력 <b>+${o.power}</b> · ${_arenaElemHtml(o.fighter)||escHtml(_buddyChampName(o.fighter))}</div></div>
+      <div class="arena-opp-info"><div class="arena-opp-nm">${escHtml(o.name)} ${_arenaAdvHtml(adv)}</div><div class="arena-opp-pw">${_arenaGradeHtml(o.power)} <b>+${o.power}</b> · ${_arenaElemHtml(o.fighter)||escHtml(_buddyChampName(o.fighter))}</div></div>
       <div class="arena-opp-wr"><div class="wr-v ${wr>=55?'good':wr<=45?'bad':''}">${wr}%</div><button class="arena-opp-go" data-i="${i}" ${lf>0?'':'disabled'}>도전</button></div></div>`;}).join('')
       : `<div class="arena-bt-empty">아직 상대가 없어요 🥲<br><span>다른 친구가 인형 7종을 모으면 상대로 나타나요</span></div>`;
     ov.innerHTML=`<div class="arena-sheet" onclick="event.stopPropagation()">
       <div class="arena-h">⚔️ 인형 투기장 · 배틀${SB?' <span style="font-size:11px;color:#7CFC9A">· 🧪 테스트</span>':''}</div>
-      <div class="arena-sub">내 전투인형 <b style="color:#ffe39a">${escHtml(_buddyChampName(myFighter()))} +${mp}</b> ${_arenaElemHtml(myFighter())} · 오늘 <b style="color:#7CFC9A">${lf}</b>/${ARENA_BATTLE_DAILY}회</div>
+      <div class="arena-sub">내 전투인형 ${_arenaGradeHtml(mp)} <b style="color:#ffe39a">${escHtml(_buddyChampName(myFighter()))} +${mp}</b> ${_arenaElemHtml(myFighter())} · 오늘 <b style="color:#7CFC9A">${lf}</b>/${ARENA_BATTLE_DAILY}회</div>
       <div class="arena-bt-list">${list}</div>
       ${opps.length?`<button class="arena-bt-reroll" id="abt-reroll">🔄 다른 상대 보기</button>`:''}
       <div class="arena-bt-tip">승률 = 50% + (전투력 차)×2.5% <b>± 상성 10%</b> · 속성 상성: 🗡️그림자→🔮비전→☠️맹독→🛡️불굴→⛓️봉인→🗡️ (이기는 순환). <b>유리</b>면 승률↑!</div>
