@@ -6864,7 +6864,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.330';
+const APP_VERSION = 'v2.45.331';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6873,7 +6873,7 @@ const APP_VERSION = 'v2.45.330';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
-  { ver: 'v2.45.330', date: '2026-06-26', changes: [
+  { ver: 'v2.45.331', date: '2026-06-26', changes: [
     { tag: 'new', text: '🐾 정산 결과 계산 중 로딩 화면에 3D 포로 마스코트가 등장해요 — 빙글빙글 돌고 폴짝폴짝 뛰며 정산을 기다리는 동안 심심하지 않게 해줘요. (모델 로드 전엔 기존 스피너 표시)' },
   ]},
   { ver: 'v2.45.328', date: '2026-06-26', changes: [
@@ -12840,9 +12840,13 @@ async function _settlePoro3d(mount){
     const w = mount.clientWidth||128, h = mount.clientHeight||128;
     const renderer = new THREE.WebGLRenderer({ alpha:true, antialias:true, powerPreference:'low-power' });
     renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.75)); renderer.setSize(w,h,false); renderer.setClearAlpha(0);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.domElement.style.cssText = 'width:100%;height:100%;display:block;';
-    const scene = new THREE.Scene(); scene.add(new THREE.AmbientLight(0xffffff,1.4));
-    const key = new THREE.DirectionalLight(0xffffff,0.8); key.position.set(2,4,5); scene.add(key);
+    const scene = new THREE.Scene();
+    try { const { RoomEnvironment } = await import('three/addons/environments/RoomEnvironment.js');   // 🌅 PBR 재질이 새까맣게 안 나오도록 환경맵(인형뽑기와 동일)
+      const pmrem = new THREE.PMREMGenerator(renderer); scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture; } catch(_){}
+    scene.add(new THREE.HemisphereLight(0xe0eeff, 0x303048, 1.6));
+    const dir = new THREE.DirectionalLight(0xfff0d0, 1.4); dir.position.set(2,4,5); scene.add(dir);
     const camera = new THREE.PerspectiveCamera(30, w/h, 0.1, 100);
     const clock = new THREE.Clock(); let mixer=null, group=null, r=0.9, raf=0, disposed=false, nextHop=0.6, hop=0;
     const dispose = ()=>{ if(disposed) return; disposed=true; cancelAnimationFrame(raf); try{renderer.dispose();}catch(_){} try{renderer.domElement.remove();}catch(_){} };
@@ -12852,8 +12856,8 @@ async function _settlePoro3d(mount){
       if (disposed || !document.body.contains(mount)) { dispose(); return; }
       mount.querySelector('.sp-spinner')?.remove();   // 폴백 스피너 제거
       mount.appendChild(renderer.domElement);
-      const model = g.scene;
-      model.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false;
+      const model = g.scene; let _meshN=0;
+      model.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; _meshN++;
         const mats = Array.isArray(o.material)?o.material:[o.material];
         for(const m of mats){ if(!m) continue;
           if(m.transparent){ m.transparent=false; m.alphaTest=0.5; m.depthWrite=true; }   // 🐾 포로=unlit BLEND(투명) → 컷아웃(안 그러면 안 보임)
@@ -12861,6 +12865,7 @@ async function _settlePoro3d(mount){
         }
       }});
       const box = new THREE.Box3().setFromObject(model); const size=new THREE.Vector3(); box.getSize(size); const ctr=box.getCenter(new THREE.Vector3());
+      console.log('🐾 포로 로드 — meshes:', _meshN, 'size:', size.toArray().map(v=>+v.toFixed(2)), 'anims:', (g.animations||[]).length);
       model.position.sub(ctr);
       const maxDim = Math.max(size.x,size.y,size.z)||1; model.scale.setScalar(1.8/maxDim);   // 최대축 1.8로 정규화(armature로 bbox 커져도 안전)
       group = new THREE.Group(); group.add(model); scene.add(group);
