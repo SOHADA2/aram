@@ -6864,7 +6864,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.329';
+const APP_VERSION = 'v2.45.330';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6873,7 +6873,7 @@ const APP_VERSION = 'v2.45.329';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
-  { ver: 'v2.45.329', date: '2026-06-26', changes: [
+  { ver: 'v2.45.330', date: '2026-06-26', changes: [
     { tag: 'new', text: '🐾 정산 결과 계산 중 로딩 화면에 3D 포로 마스코트가 등장해요 — 빙글빙글 돌고 폴짝폴짝 뛰며 정산을 기다리는 동안 심심하지 않게 해줘요. (모델 로드 전엔 기존 스피너 표시)' },
   ]},
   { ver: 'v2.45.328', date: '2026-06-26', changes: [
@@ -12836,28 +12836,35 @@ async function _settlePoro3d(mount){
   try {
     const THREE = await import('three');
     const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
-    const { MeshoptDecoder } = await import('three/addons/libs/meshopt_decoder.module.js');
     if (!document.body.contains(mount)) return;   // 그 사이 로딩 닫힘
-    const w = mount.clientWidth||120, h = mount.clientHeight||120;
+    const w = mount.clientWidth||128, h = mount.clientHeight||128;
     const renderer = new THREE.WebGLRenderer({ alpha:true, antialias:true, powerPreference:'low-power' });
     renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.75)); renderer.setSize(w,h,false); renderer.setClearAlpha(0);
     renderer.domElement.style.cssText = 'width:100%;height:100%;display:block;';
-    const scene = new THREE.Scene(); scene.add(new THREE.AmbientLight(0xffffff,1.25));
-    const key = new THREE.DirectionalLight(0xffffff,0.85); key.position.set(2,4,5); scene.add(key);
+    const scene = new THREE.Scene(); scene.add(new THREE.AmbientLight(0xffffff,1.4));
+    const key = new THREE.DirectionalLight(0xffffff,0.8); key.position.set(2,4,5); scene.add(key);
     const camera = new THREE.PerspectiveCamera(30, w/h, 0.1, 100);
-    const clock = new THREE.Clock(); let mixer=null, group=null, r=1, raf=0, disposed=false, nextHop=0.6, hop=0;
+    const clock = new THREE.Clock(); let mixer=null, group=null, r=0.9, raf=0, disposed=false, nextHop=0.6, hop=0;
     const dispose = ()=>{ if(disposed) return; disposed=true; cancelAnimationFrame(raf); try{renderer.dispose();}catch(_){} try{renderer.domElement.remove();}catch(_){} };
     mount._poroDispose = dispose;
-    const loader = new GLTFLoader(); try{ loader.setMeshoptDecoder(MeshoptDecoder); }catch(_){}
+    const loader = new GLTFLoader();
     loader.load('poro.glb', g=>{
       if (disposed || !document.body.contains(mount)) { dispose(); return; }
       mount.querySelector('.sp-spinner')?.remove();   // 폴백 스피너 제거
       mount.appendChild(renderer.domElement);
-      const model = g.scene; model.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{m.side=THREE.DoubleSide;}); } });
-      const box = new THREE.Box3().setFromObject(model); const ctr = box.getCenter(new THREE.Vector3()); model.position.sub(ctr);
+      const model = g.scene;
+      model.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false;
+        const mats = Array.isArray(o.material)?o.material:[o.material];
+        for(const m of mats){ if(!m) continue;
+          if(m.transparent){ m.transparent=false; m.alphaTest=0.5; m.depthWrite=true; }   // 🐾 포로=unlit BLEND(투명) → 컷아웃(안 그러면 안 보임)
+          m.side=THREE.DoubleSide; m.needsUpdate=true;
+        }
+      }});
+      const box = new THREE.Box3().setFromObject(model); const size=new THREE.Vector3(); box.getSize(size); const ctr=box.getCenter(new THREE.Vector3());
+      model.position.sub(ctr);
+      const maxDim = Math.max(size.x,size.y,size.z)||1; model.scale.setScalar(1.8/maxDim);   // 최대축 1.8로 정규화(armature로 bbox 커져도 안전)
       group = new THREE.Group(); group.add(model); scene.add(group);
-      r = box.getBoundingSphere(new THREE.Sphere()).radius || 1;
-      const fov = camera.fov*Math.PI/180; camera.position.set(0,0, r/Math.sin(fov/2)*1.5); camera.lookAt(0,0,0);
+      const fov = camera.fov*Math.PI/180; camera.position.set(0,0, r/Math.sin(fov/2)*1.3); camera.lookAt(0,0,0);
       if (g.animations && g.animations.length){ mixer=new THREE.AnimationMixer(model); mixer.clipAction(g.animations[0]).play(); }
       (function loop(){ if(disposed) return; raf=requestAnimationFrame(loop);
         const dt=Math.min(0.05, clock.getDelta()), t=clock.elapsedTime;
