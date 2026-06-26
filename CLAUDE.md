@@ -21,7 +21,7 @@
 - **재화/루프(완전격리)**: 배틀승리=뽑기코인+투기장코인(**골드 보상 없음**). 투기장코인 용처=**캐릭터 스킨(3D 변경) 샵**(나중). 강화=골드. 루프: 배틀→코인→인형뽑기→재고 쌓기→강화 질주→파괴→재획득.
 - **단짝 재설계(마지막 Phase)**: 단짝 ♥**레벨 완전 제거** + 그 효과 제거(강화 일원화). BUT **연승/연패 보상 수급은 유지**(재미요소). 단짝 선정·3D·별칭 유지.
 
-**🔨 Phase 1 완료(v335~336)**: 데이터(`dollStock_s2`·`arenaPower_s2{챔프:전투력}`·`arenaFighter_s2`(활성)·`arenaCoins_s2`) + 수량+1 연동 + **전투력 강화창** `openArenaForge(sandbox)`(전투인형 선택·재고/전투력 배지·확률·골드·성공/파괴 연출). 기존 clawCollected→수량 1회 시드(`_arenaEnsureStock`). 콘솔: **`arenaForgePreview()`=완전 샌드박스(메모리만·실골드/DB 0 영향)** / `arenaSeedTest(n)`=실재고 지급(⚠️실데이터) / `arenaTestReset()`=투기장 데이터 삭제. 정식 UI 진입점=배틀 붙을 때 추가(현재 콘솔만).
+**🔨 Phase 1 완료(v335~336)**: 데이터(`dollStock_s2`·`arenaPower_s2{챔프:전투력}`·`arenaFighter_s2`(활성)·`arenaCoins_s2`) + 수량+1 연동 + **전투력 강화창** `openArenaForge(sandbox)`(전투인형 선택·재고/전투력 배지·확률·골드·성공/파괴 연출). 기존 clawCollected→수량 1회 시드(`_arenaEnsureStock`). 콘솔: **`arenaForgePreview()`=완전 샌드박스(메모리만·실골드/DB 0 영향)** / `arenaSeedTest(n)`=실재고 지급(⚠️실데이터) / `arenaTestReset()`=투기장 데이터 삭제. **✅ 라이브 진입점(v337)**: 가챠 컬렉션 탭(프리즘 완성 `_prismClawHtml`, 인형뽑기/단짝 진입 옆)에 `_arenaEntryHtml()` — 7종 보유 시 「🗡️ 인형 투기장」 버튼(→`openArenaForge()` 라이브)·미달 시 진행도(N/7) 잠금안내(재고 시드 전이면 clawCollected로 추정).
 
 **🔲 다음**: **Phase2**=비동기 배틀(상대 스냅샷·승률 `50%+전투력차×2.5%p` 10~90%클램프·언더독 보상 배율·승=뽑기+투기장코인/패=소량위로·1일 10회·전투력 불변). **Phase3**=상성 plug-in(사장님이 가위바위보 아닌 **카운터 속성 직접 설계 예정**·외형무관 배지[보석/오라/컬러]·소프트 ±10%·UI는 "유리/불리"로 표기·`ELEM_CYCLE`+`CHAMP_ELEM` 한 곳 plug-in) + 스킨샵(챔피언당 추가 GLB 필요). **마지막**=단짝 ♥효과 제거 마이그레이션. 수치 전부 튜닝가능(`ARENA_ODDS`/`arenaForgeCost`/승률식).
 
