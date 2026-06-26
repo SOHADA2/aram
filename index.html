@@ -527,6 +527,7 @@ header{text-align:center;padding:48px 0 24px;position:relative;}
 .settle-pending{position:fixed;inset:0;z-index:9200;display:flex;align-items:center;justify-content:center;background:rgba(6,10,18,0.72);backdrop-filter:blur(3px);animation:spFade .25s ease both;}
 @keyframes spFade{from{opacity:0;}to{opacity:1;}}
 .settle-pending .sp-box{display:flex;flex-direction:column;align-items:center;gap:12px;padding:26px 34px;border-radius:16px;background:linear-gradient(180deg,rgba(20,16,8,0.97),rgba(12,10,6,0.95));border:1px solid rgba(200,168,75,0.32);box-shadow:0 10px 40px rgba(0,0,0,0.5);}
+.settle-pending .sp-poro{width:128px;height:128px;display:flex;align-items:center;justify-content:center;}
 .settle-pending .sp-spinner{width:34px;height:34px;border-radius:50%;border:3px solid rgba(200,168,75,0.22);border-top-color:#e8c95a;animation:spSpin .8s linear infinite;}
 @keyframes spSpin{to{transform:rotate(360deg);}}
 .settle-pending .sp-txt{font-family:'Black Han Sans',sans-serif;font-size:16px;color:#ffe39a;letter-spacing:0.3px;}
@@ -6863,7 +6864,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.328';
+const APP_VERSION = 'v2.45.329';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6872,6 +6873,9 @@ const APP_VERSION = 'v2.45.328';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.329', date: '2026-06-26', changes: [
+    { tag: 'new', text: '🐾 정산 결과 계산 중 로딩 화면에 3D 포로 마스코트가 등장해요 — 빙글빙글 돌고 폴짝폴짝 뛰며 정산을 기다리는 동안 심심하지 않게 해줘요. (모델 로드 전엔 기존 스피너 표시)' },
+  ]},
   { ver: 'v2.45.328', date: '2026-06-26', changes: [
     { tag: 'fix', text: '🎮 "게임 진행 중" 배너를 참여자 본인에겐 숨겨요 — 이 배너는 게임 안 하는 사람에게 누가 게임 중인지 알리는 용도라, 지금 그 게임에 참여 중인 사람한테는 안 뜨도록 했어요. (내전·일반게임 둘 다)' },
   ]},
@@ -12819,16 +12823,65 @@ function _showSettlementPending(){
   if (!document.getElementById('settle-pending')){
     const ov = document.createElement('div');
     ov.id = 'settle-pending'; ov.className = 'settle-pending';
-    ov.innerHTML = `<div class="sp-box"><div class="sp-spinner"></div><div class="sp-txt">정산 결과 계산 중…</div><div class="sp-sub">잠시만 기다려 주세요</div></div>`;
+    ov.innerHTML = `<div class="sp-box"><div class="sp-poro" id="sp-poro-mount"><div class="sp-spinner"></div></div><div class="sp-txt">정산 결과 계산 중…</div><div class="sp-sub">포로가 열심히 계산하고 있어요</div></div>`;
     document.body.appendChild(ov);
+    try{ _settlePoro3d(document.getElementById('sp-poro-mount')); }catch(_){}   // 🐾 3D 포로 로딩 마스코트(로드 전엔 스피너 폴백)
   }
   if (_settlePendingTimer) clearTimeout(_settlePendingTimer);
   _settlePendingTimer = setTimeout(_hideSettlementPending, 20000);   // 안전망(호스트 실패 등)
 }
+// 🐾 정산 로딩 마스코트 — poro.glb 단독 three.js 씬(폴짝/갸웃 절차 모션). 버디 3D와 독립(공유 캔버스 안 건드림)
+async function _settlePoro3d(mount){
+  if (!mount) return;
+  try {
+    const THREE = await import('three');
+    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    const { MeshoptDecoder } = await import('three/addons/libs/meshopt_decoder.module.js');
+    if (!document.body.contains(mount)) return;   // 그 사이 로딩 닫힘
+    const w = mount.clientWidth||120, h = mount.clientHeight||120;
+    const renderer = new THREE.WebGLRenderer({ alpha:true, antialias:true, powerPreference:'low-power' });
+    renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.75)); renderer.setSize(w,h,false); renderer.setClearAlpha(0);
+    renderer.domElement.style.cssText = 'width:100%;height:100%;display:block;';
+    const scene = new THREE.Scene(); scene.add(new THREE.AmbientLight(0xffffff,1.25));
+    const key = new THREE.DirectionalLight(0xffffff,0.85); key.position.set(2,4,5); scene.add(key);
+    const camera = new THREE.PerspectiveCamera(30, w/h, 0.1, 100);
+    const clock = new THREE.Clock(); let mixer=null, group=null, r=1, raf=0, disposed=false, nextHop=0.6, hop=0;
+    const dispose = ()=>{ if(disposed) return; disposed=true; cancelAnimationFrame(raf); try{renderer.dispose();}catch(_){} try{renderer.domElement.remove();}catch(_){} };
+    mount._poroDispose = dispose;
+    const loader = new GLTFLoader(); try{ loader.setMeshoptDecoder(MeshoptDecoder); }catch(_){}
+    loader.load('poro.glb', g=>{
+      if (disposed || !document.body.contains(mount)) { dispose(); return; }
+      mount.querySelector('.sp-spinner')?.remove();   // 폴백 스피너 제거
+      mount.appendChild(renderer.domElement);
+      const model = g.scene; model.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{m.side=THREE.DoubleSide;}); } });
+      const box = new THREE.Box3().setFromObject(model); const ctr = box.getCenter(new THREE.Vector3()); model.position.sub(ctr);
+      group = new THREE.Group(); group.add(model); scene.add(group);
+      r = box.getBoundingSphere(new THREE.Sphere()).radius || 1;
+      const fov = camera.fov*Math.PI/180; camera.position.set(0,0, r/Math.sin(fov/2)*1.5); camera.lookAt(0,0,0);
+      if (g.animations && g.animations.length){ mixer=new THREE.AnimationMixer(model); mixer.clipAction(g.animations[0]).play(); }
+      (function loop(){ if(disposed) return; raf=requestAnimationFrame(loop);
+        const dt=Math.min(0.05, clock.getDelta()), t=clock.elapsedTime;
+        if(mixer) mixer.update(dt);
+        if(group){
+          if(t>nextHop){ hop=1; nextHop=t+1.0+Math.random()*1.4; }   // 주기적 폴짝
+          if(hop>0) hop=Math.max(0, hop-dt*2.3);
+          const k=1-hop, jump=hop>0?Math.sin(k*Math.PI)*r*0.30:0;
+          group.position.y = -r*0.04 + jump + Math.sin(t*2)*r*0.025;
+          group.rotation.y = Math.sin(t*1.1)*0.6;            // 좌우 갸웃
+          group.rotation.z = Math.sin(t*2.4)*0.06;
+          const sq = hop>0?Math.sin(k*Math.PI*2)*0.09:0; group.scale.set(1-sq,1+sq,1-sq);   // 폴짝 스쿼시
+        }
+        renderer.render(scene,camera);
+      })();
+    }, undefined, e=>{ console.warn('정산 포로 GLB 로드 실패', e); });
+  } catch(e){ console.warn('정산 포로 3D 실패', e); }
+}
 function _hideSettlementPending(){
   if (_settlePendingTimer){ clearTimeout(_settlePendingTimer); _settlePendingTimer = null; }
-  const ov = document.getElementById('settle-pending'); if (ov) ov.remove();
+  const ov = document.getElementById('settle-pending');
+  if (ov){ const m=ov.querySelector('#sp-poro-mount'); if(m && m._poroDispose){ try{ m._poroDispose(); }catch(_){} } ov.remove(); }
 }
+window._settleLoadPreview = function(ms){ _showSettlementPending(); if(_settlePendingTimer) clearTimeout(_settlePendingTimer); _settlePendingTimer=setTimeout(_hideSettlementPending, ms||10000); console.log('🐾 정산 로딩(포로) 프리뷰 — '+((ms||10000)/1000)+'초 후 닫힘'); };
 
 onValue(ref(db, 'lastSettlement'), (snapshot) => {
   const data = snapshot.val();
