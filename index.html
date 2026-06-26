@@ -1466,6 +1466,8 @@ select option{background:var(--surface2);}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.2}}
 .sync-refresh{background:none;border:none;color:var(--text-dim);cursor:pointer;padding:2px 4px;font-size:13px;line-height:1;opacity:0.5;transition:opacity 0.15s;}
 .sync-refresh:hover{opacity:1;}
+.sync-refresh.radio-btn{opacity:0.8;font-size:14px;}
+.sync-refresh.radio-btn.on{opacity:1;color:#ffd24a;text-shadow:0 0 7px rgba(255,210,74,0.65);}
 .account-change-btn{background:none;border:1px solid rgba(110,144,184,0.25);color:var(--text-dim);font-size:10px;cursor:pointer;padding:2px 9px;border-radius:4px;font-family:'Noto Sans KR',sans-serif;font-weight:700;transition:all 0.15s;white-space:nowrap;letter-spacing:0.5px;}
 .account-change-btn:hover{border-color:var(--gold);color:var(--gold);}
 /* ── 이벤트 매치 ── */
@@ -6088,7 +6090,7 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 <div class="sync-bar">
   <div class="sync-dot syncing" id="sync-dot"></div>
   <span id="sync-msg">연결 중...</span>
-  <button class="sync-refresh" onclick="manualSync()" title="새로고침">↻</button>
+  <button class="sync-refresh radio-btn" id="radio-btn" onclick="window._radioToggle()" title="📻 라디오 — 클릭해서 BGM 켜기/끄기">📻</button>
   <div class="bridge-status-wrap">
     <div class="sync-dot err" id="bridge-dot" title="LCU 브릿지 연결 상태"></div>
     <span id="bridge-msg" style="font-size:10px;">브릿지 없음</span>
@@ -6845,7 +6847,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.319';
+const APP_VERSION = 'v2.45.320';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6854,6 +6856,9 @@ const APP_VERSION = 'v2.45.319';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.320', date: '2026-06-26', changes: [
+    { tag: 'new', text: '📻 상단 라디오 — 연결 상태 옆의 새로고침(↻) 버튼을 라디오 버튼으로 바꿨어요(사이트 자체 새로고침이 따로 있어 중복이라). 클릭하면 인형뽑기 가게에서 나오던 BGM(Suno 9곡)을 메인에서도 들을 수 있어요. 자동으로 켜지지 않고 클릭해야 재생되고, 다시 누르면 꺼져요(재생 중엔 📻 아이콘이 금색으로 빛나요). 한 곡 끝나면 다음 곡으로 자동 전환.' },
+  ]},
   { ver: 'v2.45.319', date: '2026-06-25', changes: [
     { tag: 'fix', text: '🧸 단짝 변경이 저장 안 되고 "저장 실패"가 뜨던 진짜 근본원인 수정 — 단짝 강화 기록(레벨/별칭)을 챔피언 파일명(예: gwen.glb)을 키로 저장했는데, 데이터베이스는 점(.)이 든 키를 거부해서 저장 자체가 막혔어요(그래서 새로고침하면 원래대로). 점을 떼서 정상 저장되게 고쳤어요 — 이제 바꾼 단짝이 새로고침해도 유지돼요.' },
   ] },
@@ -13650,6 +13655,22 @@ function setSyncStatus(state, msg) {
   document.getElementById('sync-dot').className = 'sync-dot ' + state;
   document.getElementById('sync-msg').textContent = msg;
 }
+
+// 📻 상단 라디오 — 인형뽑기 가게 BGM(Suno 9곡)을 메인에서도 클릭 시 재생(자동재생 X·작게)
+const RADIO_TRACKS = ['bgm-claw.mp3','bgm-aram.mp3','bgm-lotto.mp3','bgm-loss.mp3','bgm-loss2.mp3','bgm-steel.mp3','bgm-onemore.mp3','bgm-augment.mp3','bgm-sad.mp3'];
+const RADIO_NAMES = {'bgm-claw.mp3':'인형뽑기','bgm-aram.mp3':'칼바람 아수라장','bgm-lotto.mp3':'복권 골든라이너','bgm-loss.mp3':'연패 스택','bgm-loss2.mp3':'연패 스택2','bgm-steel.mp3':'강철의 심장','bgm-onemore.mp3':'한 판만 더','bgm-augment.mp3':'사기 증강','bgm-sad.mp3':'또 졌어'};
+let _radioAudio=null, _radioIdx=0, _radioOn=false;
+window._radioToggle = function(){
+  const btn=document.getElementById('radio-btn');
+  if(_radioOn){ if(_radioAudio) _radioAudio.pause(); _radioOn=false; if(btn) btn.classList.remove('on'); try{showS1Toast('📻 라디오 OFF');}catch(_){} return; }
+  if(!_radioAudio){
+    _radioIdx=Math.floor(Math.random()*RADIO_TRACKS.length);
+    _radioAudio=new Audio(RADIO_TRACKS[_radioIdx]); _radioAudio.volume=0.5;
+    _radioAudio.addEventListener('ended', ()=>{ _radioIdx=(_radioIdx+1)%RADIO_TRACKS.length; _radioAudio.src=RADIO_TRACKS[_radioIdx]; _radioAudio.play().catch(()=>{}); });
+  }
+  _radioAudio.play().then(()=>{ _radioOn=true; if(btn) btn.classList.add('on'); try{showS1Toast('📻 '+(RADIO_NAMES[RADIO_TRACKS[_radioIdx]]||'라디오')+' ♪');}catch(_){} })
+    .catch(e=>{ console.warn('라디오 재생 실패', e); });
+};
 
 window.manualSync = function() {
   setSyncStatus('syncing', '새로고침 중...');
