@@ -135,7 +135,7 @@
   <span class="pill">수집 <b id="coll">0/7</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 154 · claw</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 155 · claw</span>
   <div id="bgm-ctrl" style="display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0;background:rgba(10,10,18,.55);padding:4px 9px;border-radius:16px;border:1px solid #3a3a4a;">
     <button id="bgm-spk" onclick="_bgmMute()" title="음악 켜기/끄기" style="background:none;border:none;font-size:16px;cursor:pointer;padding:0;line-height:1;">🔊</button>
     <input id="bgm-vol" type="range" min="0" max="100" value="45" oninput="_bgmSetVol(this.value)" title="음량" style="width:62px;accent-color:#ffd24a;cursor:pointer;">
@@ -1221,18 +1221,18 @@ function loop(now){
     if(b.y < 0.5 && Math.abs(b.x-HOME.x) < HOLE_RX+0.3 && Math.abs(b.z-HOME.z) < HOLE_RZ+0.3){   // 구멍 위에서 바닥 높이 이하로 내려오면 획득(관대 — 출구 걸친 것도 인정). 바닥 인형(y≈0.65)은 제외
       p.won=true;
       const _pp = p.proto;
-      if(_pp && !_pp.dud){ _postParent('pull', {champion:_pp.file}); _dollAdd(_pp.file); }   // 챔피언 집기 보고(앱이 수량 +1) + 로컬 수량 표시용 +1
+      if(_pp && !_pp.dud) _postParent('pull', {champion:_pp.file});   // 챔피언 집기 보고(앱이 7종 완성 후에만 수량 +1)
       if(_pp && _pp.dud){                              // 🐾 포로 = 꽝
         Sfx.dud(); showResult('포로다! 🐾','#9fd6ff');
         _playResolved=true; _postParent('log', {ev:'result', outcome:'poro'});   // 📋 역추적
       } else if(_pp && isCollected(_pp.file)){         // 이미 수집한 챔피언
         _playResolved=true;
-        if(_collComplete()){                            // 🗡️ 2단계: 7종 다 모은 뒤 = 투기장 강화용 재고 쌓기 → '꽝' 아님, 보유 수량 표시
-          const isBud = _buddyChamp && _pp.file===_buddyChamp, _q=_dollCount(_pp.file);
-          Sfx.win(); showResult(`${isBud?'🧸 단짝 ':'🗡️ '}${_dollName(_pp.file)} 인형 +1 · 보유 ${_q}개`, isBud?'#ffd24a':'#9fd6ff');
+        if(_collComplete()){                            // 🗡️ 2단계(7종 완성 후): 투기장 인형 수량 쌓기 → '꽝' 아님, 보유 수량 표시
+          const _q=_dollAdd(_pp.file);                  // 로컬 수량 +1(표시용·앱이 실제 저장)
+          Sfx.win(); showResult(`🗡️ ${_dollName(_pp.file)} 인형 +1 · 보유 ${_q}개`,'#9fd6ff');
           _postParent('log', {ev:'result', outcome:'stock', champion:_pp.file, count:_q});   // 📋 역추적(보유 수량)
-        } else {                                        // 1단계: 새 챔피언이 목표라 중복 = 꽝(단, 재고는 보관됨)
-          Sfx.dud(); showResult(`중복! 꽝 😅 (${_dollName(_pp.file)} 보관 ${_dollCount(_pp.file)}개)`,'#ffb86b');
+        } else {                                        // 1단계: 7종 수집이 목표(수집 퀘스트) → 중복=꽝, 수량 안 쌓임
+          Sfx.dud(); showResult('중복! 꽝 😅','#ffb86b');
           _postParent('log', {ev:'result', outcome:'dup', champion:_pp.file});   // 📋 역추적
         }
       } else if(_pp){                                  // 🆕 새 챔피언 = 수집!
@@ -1365,7 +1365,8 @@ const _DOLL_KR = { teemo:'티모', gwen:'그웬', vex:'벡스', ekko:'에코', y
 function _dollRk(file){ return String(file||'').replace(/\.glb$/i,'').toLowerCase(); }
 function _dollName(file){ const k=_dollRk(file); return _DOLL_KR[k] || _ddKey(file); }
 function _dollCount(file){ return _dollStock[_dollRk(file)] || 0; }
-function _dollAdd(file){ const k=_dollRk(file); _dollStock[k]=(_dollStock[k]||0)+1; return _dollStock[k]; }
+function _dollEnsureSeed(){ if(Object.keys(_dollStock).length) return; collected.forEach(f=>{ _dollStock[_dollRk(f)]=1; }); }   // 앱 _arenaEnsureStock 미러 — 7종 완성 후 첫 표시 시 각 1개 베이스(빈 상태일 때만)
+function _dollAdd(file){ _dollEnsureSeed(); const k=_dollRk(file); _dollStock[k]=(_dollStock[k]||0)+1; return _dollStock[k]; }
 function _updStartBtn(){
   const b=document.getElementById('start-btn'); if(!b) return;
   if(_modelsReady){ b.disabled=false; b.classList.remove('loading'); b.innerHTML='🪙 START<span class="sb-sub">코인 1개 · 1게임</span>'; }

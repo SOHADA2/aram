@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.346';
+const APP_VERSION = 'v2.45.347';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.346';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.347', date: '2026-06-26', changes: [
+    { tag: 'fix', text: '🗡️ 인형 수량은 7종을 다 모은 뒤부터만 쌓여요 — 7종 수집은 하나의 "인형뽑기 퀘스트"라, 그 전에 같은 인형을 또 뽑아도 수량이 쌓이지 않고 그냥 중복(꽝)이에요. 7종 완성 후부터 같은 인형을 뽑으면 "🗡️ 그웬 인형 +1 · 보유 N개"로 투기장 재고가 쌓입니다.' },
+  ] },
   { ver: 'v2.45.346', date: '2026-06-26', changes: [
     { tag: 'improve', text: '🗡️ 인형뽑기 — 7종을 다 모은 뒤 같은 인형을 또 뽑으면 "또 만났네!" 같은 모호한 표현 대신 "🗡️ 그웬 인형 +1 · 보유 N개"처럼 정확한 보유 수량이 떠요. 투기장 강화창도 "재고" → "보유 N개"로 통일해서, 강화할 때 그 인형을 몇 개 가지고 있는지 한눈에 확인할 수 있어요.' },
   ] },
@@ -32534,8 +32537,10 @@ async function _buddyUpgradeAttempt(){
   try{ const _fx={ champion:b.champion, fromLv:lv, toLv:newLv, success, rate }; if(!_buddyShowUpgradeFx(_fx)) _buddyUpgradeFx(_fx); }catch(_){}   // 인형뽑기 열려있으면 3D, 아니면 2D
   return logE;
 }
-function _buddyOnPull(champFile){   // 브릿지 pull 수신 → 단짝이면 함께한 횟수만 누적 (♥ 유대 단계 제거 — 강화는 투기장으로 일원화)
-  try{ _arenaAddStock(champFile); }catch(_){}   // 🗡️ 투기장: 뽑을 때마다 인형 수량(재고) +1
+function _buddyOnPull(champFile){   // 브릿지 pull 수신 — 7종 완성(수집 퀘스트 클리어) 후에만 인형 수량 누적
+  const data=getMyGoldData()||{};
+  const coll=Array.isArray(data[sField('clawCollected')])?data[sField('clawCollected')]:[];
+  if(coll.length>=7){ try{ _arenaAddStock(champFile); }catch(_){} }   // 🗡️ 7종 전엔 수집만(재고 안 쌓임) · 완성 후부터 같은 인형=수량 +1
   const b=_buddyData(); if(!b || b.champion!==champFile) return;
   const key=getMyGoldKey(); if(key) update(ref(db,'gold/'+key),{[sField('buddy')]:{...b,pulls:(b.pulls||0)+1}}).catch(()=>{});
 }
@@ -32572,8 +32577,10 @@ function _arenaEnsureStock(){
   if(goldData[key]) goldData[key][sField('dollStock')]=stock;
   update(ref(db,'gold/'+key),{[sField('dollStock')]:stock}).catch(()=>{});
 }
-function _arenaAddStock(champFile){   // 인형뽑기 pull 시 호출 — 수량 +1
-  const key=getMyGoldKey(); if(!key) return; const data=getMyGoldData()||{};
+function _arenaAddStock(champFile){   // 인형뽑기 pull 시 호출 — 수량 +1 (7종 완성 후에만 _buddyOnPull이 호출)
+  const key=getMyGoldKey(); if(!key) return;
+  _arenaEnsureStock();   // ⚠️ 먼저 7종 1개씩 베이스 시드(빈 상태서 +1만 하면 나머지 6종이 안 잡혀 _arenaEnsureStock이 영영 못 채움)
+  const data=getMyGoldData()||{};
   const stock={...(data[sField('dollStock')]||{})}; const rk=_arenaRk(champFile);
   stock[rk]=(stock[rk]||0)+1;
   if(goldData[key]) goldData[key][sField('dollStock')]=stock;
