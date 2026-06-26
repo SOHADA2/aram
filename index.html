@@ -6861,7 +6861,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.322';
+const APP_VERSION = 'v2.45.323';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6870,6 +6870,9 @@ const APP_VERSION = 'v2.45.322';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.323', date: '2026-06-26', changes: [
+    { tag: 'improve', text: '🧸 단짝 인형이 더 생동감 있게 — 평소에 가만히 한 동작만 반복하던 미니 인형이 이제 가끔(4.5~10초마다) 춤·장난·인사·도발 같은 다른 모션으로 환기해요(GLB에 들어있는 모션 중 랜덤). 인형을 탭하면 매번 다른 랜덤 반응을 보여줘요. (연승=춤, 연패=시무룩 모션은 그대로)' },
+  ]},
   { ver: 'v2.45.322', date: '2026-06-26', changes: [
     { tag: 'fix', text: '🔔 아바타 알림(출석·인형뽑기 등)이 스크롤할 때 깜빡이며 들썩이던 문제 수정 — 알림 말풍선이 화면 고정(fixed) 방식이라 스크롤마다 위치를 다시 계산하느라 한 박자씩 늦게 따라왔어요. 이제 아바타에 자연스럽게 붙어 함께 스크롤되도록 바꿔서, 알림이 1개든 여러 개든 흔들림 없이 딱 붙어 있어요. (X로 닫으면 알림만 깔끔히 꺼지고 다른 동작은 실행되지 않아요)' },
     { tag: 'improve', text: '📻 라디오 패널 디자인을 앱 톤(네이비+골드)에 맞게 정리했어요.' },
@@ -32711,7 +32714,7 @@ async function _buddy3dShow(mountId, champFile, mood){
       const spd = ctx.mood==='win'?1.12 : ctx.mood==='loss'?0.7 : 1.0;
       if(ctx.mixer) ctx.mixer.update(dt*spd);
       if(ctx.group){ const t=ctx.clock.elapsedTime, r=ctx.r; const _ma=_buddyAdj(ctx.champ, ctx.frameMode);   // 🧸 모델 위치보정(모드별)을 bob 기준으로 (안 그러면 매 프레임 덮어써 Y가 안 먹힘)
-        const amp = ctx.mood==='win'?0.0 : ctx.mood==='loss'?0.012 : 0.03, bs = 2.5;   // 연승=춤 모션이 움직임 담당(절차적 bob 0)
+        const amp = (ctx.mood==='win'||ctx._breaking)?0.0 : ctx.mood==='loss'?0.012 : 0.03, bs = 2.5;   // 연승/환기모션=클립이 움직임 담당(절차적 bob 0)
         let y=(_ma.y||0)*r + (ctx.mood==='loss'? -r*0.05:0) + Math.sin(t*bs)*r*amp;
         let rotY=ctx.group.rotation.y*0.9, sx=1, sy=1;
         if(ctx.react>0){ ctx.react=Math.max(0,ctx.react-dt); const k=1-ctx.react/0.6;   // 탭 반응: 점프+회전+squash
@@ -32820,11 +32823,26 @@ function _bClip(ctx, names){ if(!ctx||!ctx.clips) return null; for(const n of na
 function _buddy3dPlay(clip, loop){ const ctx=_buddy3dCtx; if(!ctx||!ctx.mixer||!clip) return; const {THREE}=ctx;
   const a=ctx.mixer.clipAction(clip); a.reset(); a.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce); if(!loop) a.clampWhenFinished=true; a.fadeIn(0.2).play();
   if(ctx.cur && ctx.cur!==a) ctx.cur.fadeOut(0.2); ctx.cur=a; }
-function _buddy3dApplyMood(){ const ctx=_buddy3dCtx; if(!ctx||!ctx.mixer) return;
+function _buddy3dApplyMood(){ const ctx=_buddy3dCtx; if(!ctx||!ctx.mixer) return; ctx._breaking=false;
   const clip = ctx.mood==='win' ? _bClip(ctx,['Dance_Loop','Dance','DanceLoop','Celebrate','Idle_Base']) : _bClip(ctx,['Idle_Base']);
-  _buddy3dPlay(clip, true); }
-function _buddy3dReact(){ const ctx=_buddy3dCtx; if(!ctx) return; ctx.react=0.6;   // 탭: 절차적 점프 + 장난 모션 1회
-  const rc=_bClip(ctx,['Joke','Joke_Loop','Joke_In','Laugh','Laugh_Loop','Laugh01','Taunt','Greeting','Interact']);
+  _buddy3dPlay(clip, true); _buddyScheduleIdleBreak(); }
+// 🎭 평소(none) 상태에서 가끔 다른 모션(춤·장난·인사·도발 등 GLB에 있는 클립)으로 환기 — 한 동작만 반복 안 하게
+function _buddyIdleBreakPool(ctx){ if(!ctx||!ctx.clips) return [];
+  const base=ctx.clips['Idle_Base'];
+  return Object.values(ctx.clips).filter(c=> c && c!==base && (c.duration||0)>0.4 && (c.duration||0)<8); }
+function _buddyScheduleIdleBreak(){ const ctx=_buddy3dCtx; if(!ctx) return; clearTimeout(ctx._idleBreakT); clearTimeout(ctx._idleRetT);
+  if(ctx.mood!=='none') return;   // 연승(춤)·연패(다운)는 자체 모션 유지
+  ctx._idleBreakT=setTimeout(()=>{
+    if(_buddy3dCtx!==ctx || ctx.mood!=='none' || ctx.react>0){ _buddyScheduleIdleBreak(); return; }   // mood 변화·탭 반응 중이면 스킵·재예약
+    const pool=_buddyIdleBreakPool(ctx); if(!pool.length){ _buddyScheduleIdleBreak(); return; }
+    const clip=pool[(Math.random()*pool.length)|0]; ctx._breaking=true; _buddy3dPlay(clip, false);   // 랜덤 모션 1회
+    ctx._idleRetT=setTimeout(()=>{ if(_buddy3dCtx===ctx && ctx.mood==='none'){ ctx._breaking=false; _buddy3dPlay(_bClip(ctx,['Idle_Base']), true); _buddyScheduleIdleBreak(); } },
+      Math.min(5000,(clip.duration||1.5)*1000+200));
+  }, 4500 + Math.random()*6000);   // 4.5~10.5초마다 환기(랜덤 간격)
+}
+function _buddy3dReact(){ const ctx=_buddy3dCtx; if(!ctx) return; ctx.react=0.6; ctx._breaking=false; clearTimeout(ctx._idleBreakT); clearTimeout(ctx._idleRetT);   // 탭: 절차적 점프 + 장난 모션 1회 (대기중 환기 타이머 정리)
+  const pool=_buddyIdleBreakPool(ctx); const rc = pool.length ? pool[(Math.random()*pool.length)|0]   // 탭마다 랜덤 모션(다양한 반응)
+    : _bClip(ctx,['Joke','Joke_Loop','Joke_In','Laugh','Laugh_Loop','Laugh01','Taunt','Greeting','Interact']);
   if(ctx.mixer && rc){ _buddy3dPlay(rc, false);
     clearTimeout(ctx._retT); ctx._retT=setTimeout(()=>{ if(_buddy3dCtx===ctx) _buddy3dApplyMood(); }, Math.min(3000,(rc.duration||1.5)*1000+150)); } }
 function _buddy3dClose(){ if(_buddy3dCtx && _buddy3dCtx.canvas.parentNode!==_buddy3dCtx.holder){ _buddy3dCtx.mount=null; _buddy3dCtx.holder.appendChild(_buddy3dCtx.canvas); }
