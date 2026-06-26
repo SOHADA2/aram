@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.345';
+const APP_VERSION = 'v2.45.346';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.345';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.346', date: '2026-06-26', changes: [
+    { tag: 'improve', text: '🗡️ 인형뽑기 — 7종을 다 모은 뒤 같은 인형을 또 뽑으면 "또 만났네!" 같은 모호한 표현 대신 "🗡️ 그웬 인형 +1 · 보유 N개"처럼 정확한 보유 수량이 떠요. 투기장 강화창도 "재고" → "보유 N개"로 통일해서, 강화할 때 그 인형을 몇 개 가지고 있는지 한눈에 확인할 수 있어요.' },
+  ] },
   { ver: 'v2.45.345', date: '2026-06-26', changes: [
     { tag: 'improve', text: '🧸 단짝 ♥ 유대 단계 제거 — 하트 게이지(♥1~5)·단계 호칭·"친해지기" 강화를 없앴어요. 이제 단짝은 선정·3D·별칭·연승/연패 보상만 유지되고, 강화는 🗡️ 인형 투기장으로 일원화됩니다. 연승/연패 보상은 레벨 보너스 없이 스택 그대로 받아요(강화 레벨에 따른 추가 골드·덤·안전망 효과 제거).' },
   ] },
@@ -32382,8 +32385,9 @@ function _claw3dInit(){    // 현재 상태 반환 — iframe init 메시지로 
     if (key) update(ref(db,'gold/'+key), { [sField('clawCoins')]:coins, [sField('clawLaunchBonus')]:true }).catch(()=>{});
   }
   const plays = (data[sField('clawPlayDate')] === today) ? (data[sField('clawPlays')]||0) : 0;   // 새 날이면 1단계 일일횟수 리셋
-  const buddy = _buddyData()?.champion || null;   // 🧸 2단계 강화 대상 단짝 — 같은 챔피언 뽑으면 '꽝' 아닌 '강화' 메시지용
-  return { collected, coins, plays, eligible, buddy };
+  const buddy = _buddyData()?.champion || null;   // 🧸 2단계 강화 대상 단짝
+  const dollStock = _arenaStock(data);   // 🗡️ 인형 보유 수량 {key:개수} — 인형뽑기 결과창에 "보유 N개" 표시용(시드)
+  return { collected, coins, plays, eligible, buddy, dollStock };
 }
 function _claw3dSave(d){   // iframe이 보낸 상태 스냅샷 → Firebase
   const key = getMyGoldKey(); if (!key) return;
@@ -32790,7 +32794,7 @@ window.openArenaForge=function(sandbox){
       <div class="arena-sub">전투 인형을 강화해 더 강하게! 강해지면 배틀에서 코인을 벌어요</div>
       <div class="arena-fighter ${fx?('fx-'+fx):''}"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'"></div>
       <div class="arena-power">+${power}<small> / ${ARENA_MAX_POWER} · ${escHtml(_buddyChampName(active))} ${_arenaElemHtml(active)}</small></div>
-      <div class="arena-stock">재고 <b>${stock}</b>개 ${stock<=1?'<span class="warn">· ⚠️ 파괴되면 7종 깨져요</span>':''}</div>
+      <div class="arena-stock">🗡️ ${escHtml(_buddyChampName(active))} 인형 보유 <b>${stock}</b>개 ${stock<=1?'<span class="warn">· ⚠️ 파괴되면 7종 깨져요</span>':''}</div>
       <div class="arena-result">${msg||''}</div>
       ${maxed?'<div class="arena-cost">👑 최대 강화 달성!</div>':`
       <div class="arena-odds">
@@ -32799,9 +32803,9 @@ window.openArenaForge=function(sandbox){
         <div class="oo-d"><div class="oo-l">파괴</div><div class="oo-v">${odds.destroy}%</div></div>
       </div>
       <div class="arena-cost">시도 비용 <b>${cost}G</b> · 보유 <b class="${gold<cost?'no':''}">${gold}G</b></div>
-      <button class="arena-forge-btn" id="arena-go" ${canForge?'':'disabled'}>${stock<1?'재고 없음 — 인형뽑기로':gold<cost?'골드 부족':'⚒️ 강화 시도'}</button>`}
+      <button class="arena-forge-btn" id="arena-go" ${canForge?'':'disabled'}>${stock<1?'보유 인형 없음 — 인형뽑기로':gold<cost?'골드 부족':'⚒️ 강화 시도'}</button>`}
       <div class="arena-pick">${owned.map(c=>`<div class="ap ${_arenaRk(active)===c?'on':''}" data-c="${c}.glb"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${_clawDdKey(c)}_0.jpg" onerror="this.style.visibility='hidden'"><div class="ap-p">+${getPower(c+'.glb')}</div><span class="ap-q">${stockMap[c]}</span></div>`).join('')}</div>
-      <div class="arena-pick-lbl">↑ 전투 인형 선택 (배지=재고 · +N=전투력)</div>
+      <div class="arena-pick-lbl">↑ 전투 인형 선택 (배지=보유 수량 · +N=전투력)</div>
       <button class="arena-nav battle" id="arena-to-battle">⚔️ 배틀하러 가기 (코인 벌기)</button>
       <button class="arena-close" id="arena-x">닫기</button>
     </div>`;
@@ -32813,7 +32817,7 @@ window.openArenaForge=function(sandbox){
       if(busy) return; busy=true;
       const res=doForge(active);
       if(res.r==='nogold'){ busy=false; render(null,'<span style="color:#ff6b6b">골드가 부족해요</span>'); return; }
-      if(res.r==='nostock'){ busy=false; render(null,'<span style="color:#ff6b6b">재고가 없어요 — 인형뽑기로</span>'); return; }
+      if(res.r==='nostock'){ busy=false; render(null,'<span style="color:#ff6b6b">보유 인형이 없어요 — 인형뽑기로</span>'); return; }
       if(res.r==='max'){ busy=false; render(null,'👑 이미 최대치예요'); return; }
       let fx=null, msg='';
       if(res.r==='success'){ fx='success'; msg=`<span style="color:#7CFC9A">✨ 강화 성공! +${res.power}</span>`; }
