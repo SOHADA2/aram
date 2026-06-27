@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.385';
+const APP_VERSION = 'v2.45.386';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.385';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.386', date: '2026-06-27', changes: [
+    { tag: 'improve', text: '⚔️ 투기장 경합 표시를 스킬 버튼에 통합 — 별도 경합 보드를 없애고, 스킬을 탭한 순서대로 버튼에 1번·2번·3번 배지가 붙어요. 대결하면 그 버튼에 상대 스킬·승패(✅이김/❌짐)가 바로 표시되고 체력바도 같이 깎여, 한곳에서 깔끔하게 진행돼요.' },
+  ] },
   { ver: 'v2.45.385', date: '2026-06-27', changes: [
     { tag: 'improve', text: '⚔️ 투기장 경합 표시를 세로 → 가로 행으로 — 각 경합이 "경합 N  내스킬 vs 상대  결과" 한 줄로 깔끔하게 정렬돼 레이아웃에 더 잘 맞아요.' },
   ] },
@@ -32909,7 +32912,17 @@ function _injectArenaCss(){
   .arena-skill:hover{background:rgba(224,88,79,.22);} .arena-skill:active{transform:translateY(1px);}
   .arena-skill b{font-size:19px;font-family:'JetBrains Mono',monospace;color:#ff8b8b;line-height:1;}
   .arena-skill span{font-size:10.5px;font-weight:800;line-height:1.2;text-align:center;word-break:keep-all;}
-  .arena-skill i{font-size:9px;font-style:normal;color:#9aa0b4;}
+  .arena-skill i,.arena-skill .ask-hint{font-size:9px;font-style:normal;color:#9aa0b4;line-height:1.2;text-align:center;word-break:keep-all;}
+  .arena-skill{position:relative;}
+  .arena-skill.pop{animation:arenaPop .34s;}
+  .arena-skill .ask-ord{position:absolute;top:-8px;left:-8px;min-width:20px;height:20px;padding:0 4px;border-radius:10px;background:#ffd24a;color:#1a1206;font-size:10px;font-weight:900;display:none;align-items:center;justify-content:center;border:2px solid #16131f;box-shadow:0 1px 4px rgba(0,0,0,.5);z-index:2;}
+  .arena-skill.picked{background:linear-gradient(180deg,rgba(58,107,208,.34),rgba(35,71,160,.22));border-color:#7da6ff;}
+  .arena-skill.picked .ask-ord{display:flex;}
+  .arena-skill.picked b{color:#bcd4ff;}
+  .arena-skill.active{box-shadow:0 0 13px rgba(255,255,255,.55);transform:scale(1.05);border-color:#fff;}
+  .arena-skill.won{border-color:#7CFC9A;box-shadow:0 0 11px rgba(124,252,154,.5);} .arena-skill.won .ask-ord{background:#7CFC9A;} .arena-skill.won .ask-hint{color:#7CFC9A;}
+  .arena-skill.lost{border-color:#ff7d6c;box-shadow:0 0 11px rgba(255,125,108,.45);} .arena-skill.lost .ask-ord{background:#ff7d6c;color:#2a0f0c;} .arena-skill.lost .ask-hint{color:#ff8b8b;}
+  .arena-skill.tied{border-color:#cbd3e6;} .arena-skill.tied .ask-hint{color:#cbd3e6;}
   .arena-skill-vs{font-size:12px;color:#cbd3e6;margin:5px 0 2px;}.arena-skill-vs b{font-family:'JetBrains Mono',monospace;color:#ffd24a;}.arena-skill-vs .svs-x{color:#9aa0b4;margin:0 4px;font-weight:700;}
   /* 🎬 3D 전투 스테이지 */
   .arena3d-stage{position:relative;width:100%;height:236px;margin:6px 0 4px;border-radius:14px;overflow:hidden;background:linear-gradient(180deg,#0a0c14,#13101a 58%,#1b1018);border:1px solid rgba(240,200,90,.22);transition:box-shadow .3s,border-color .3s;}
@@ -33402,7 +33415,7 @@ window.openArenaBattle=function(sandbox, opts){
       <div class="arena-sub">내 전투인형 ${_arenaGradeHtml(mp)} <b style="color:#ffe39a">${escHtml(_buddyChampName(myFighter()))} +${mp}</b> · 오늘 <b style="color:#7CFC9A">${lf}</b>/${ARENA_BATTLE_DAILY}회</div>
       <div class="arena-bt-list">${list}</div>
       ${opps.length?`<button class="arena-bt-reroll" id="abt-reroll">🔄 다른 상대 보기</button>`:''}
-      <div class="arena-bt-tip">기본 승률 = 50% + (전투력 차)×2.5% · 도전하면 <b>세 번의 경합</b>마다 Q/W/E 스킬을 골라 내요(상대는 랜덤 방어)! 이긴 경합마다 <b>+5%</b>(다 이기면 +15%)·진 경합 −5% — 전투력과 별개인 <b>피지컬 럭키</b></div>
+      <div class="arena-bt-tip">기본 승률 = 50% + (전투력 차)×2.5% · 도전하면 Q/W/E 스킬을 <b>탭한 순서</b>대로 세 번 내요(상대는 랜덤 방어)! 이긴 경합마다 <b>+5%</b>(다 이기면 +15%)·진 경합 −5% — 전투력과 별개인 <b>피지컬 럭키</b></div>
       <button class="arena-nav forge" id="abt-forge">⚒️ 전투력 강화하러 가기</button>
       <button class="arena-close" id="abt-x">닫기</button>
     </div>`;
@@ -33414,21 +33427,12 @@ window.openArenaBattle=function(sandbox, opts){
       renderPick(opps[i]);   // ⚔️ 스킬 선택 화면으로
     });
   };
-  // ⚔️ 세 번의 경합 — Q/W/E 스킬을 1·2·3 순서대로 먼저 다 고른 뒤 「대결」로 한 번에! 내 1번→상대 1번→2번→3번 순차 공개·3D 동작
+  // ⚔️ 세 번의 경합 — 스킬을 탭한 순서가 곧 1·2·3번(버튼에 순서·상대·결과를 녹여 표시). 셋 다 고르면 「대결」로 한 번에
   const renderPick=(opp)=>{
     _arenaBattle3DStop();
     const mk=_clawDdKey(myFighter()), mp=myPower(), sk=_champSkills(myFighter());
     ov.innerHTML=`<div class="arena-sheet" onclick="event.stopPropagation()">
       <div class="arena-h">⚔️ 배틀${SB?' <span style="font-size:11px;color:#7CFC9A">· 🧪 테스트</span>':''}</div>
-      <div class="arena-cboard" id="abt-board">
-        ${[0,1,2].map(i=>`<div class="acb-col" data-col="${i}">
-          <div class="acb-hd">경합 ${i+1}</div>
-          <div class="acb-cell acb-me" id="acb-me-${i}">·</div>
-          <div class="acb-vs">vs</div>
-          <div class="acb-cell acb-op" id="acb-op-${i}">?</div>
-          <div class="acb-res" id="acb-res-${i}"></div>
-        </div>`).join('')}
-      </div>
       <div class="arena3d-stage" id="arena3d-stage">
         <div class="arena-pkbox me" id="pk-me">
           <div class="pk-top"><span class="pk-nm">${escHtml(_buddyChampName(myFighter()))}</span><span class="pk-lv">Lv.${mp}</span></div>
@@ -33446,18 +33450,15 @@ window.openArenaBattle=function(sandbox, opts){
         <div class="arena3d-loading">⚔️ 준비 중…</div>
       </div>
       <div id="abt-bottom">
-        <div class="arena-sub" id="abt-lbl">⚔️ 세 경합에 낼 스킬을 <b>1 → 2 → 3</b> 순서대로 고르세요! 상대는 <b style="color:#ffd24a">랜덤</b> 방어 · Q▶W▶E▶Q 이기면 <b style="color:#7CFC9A">+5%</b></div>
-        <div class="arena-skills" id="abt-skills">${SKILL_SLOTS.map(s=>`<button class="arena-skill" data-s="${s}"><b>${s}</b><span>${escHtml(sk[s])}</span><i>▶ ${SKILL_BEATS[s]} 이김</i></button>`).join('')}</div>
+        <div class="arena-sub" id="abt-lbl">⚔️ 스킬을 <b>탭한 순서</b>가 곧 경합 1·2·3! 세 개를 골라 내세요 (상대는 <b style="color:#ffd24a">랜덤</b> 방어)</div>
+        <div class="arena-skills" id="abt-skills">${SKILL_SLOTS.map(s=>`<button class="arena-skill" data-s="${s}"><span class="ask-ord"></span><b>${s}</b><span>${escHtml(sk[s])}</span><i class="ask-hint">▶ ${SKILL_BEATS[s]} 이김</i></button>`).join('')}</div>
         <div class="arena-pick-actions" id="abt-actions"></div>
       </div>
     </div>`;
     const stage=ov.querySelector('#arena3d-stage');
     try{ _arenaBattle3D(stage, myFighter(), opp.fighter).then(()=>{ const ld=stage.querySelector('.arena3d-loading'); if(ld) ld.remove(); }).catch(()=>{ const ld=stage.querySelector('.arena3d-loading'); if(ld) ld.remove(); }); }catch(_){}
-    let picks=[], battling=false;
-    const colEl=i=>ov.querySelector('.acb-col[data-col="'+i+'"]');
-    const meCell=i=>ov.querySelector('#acb-me-'+i);
+    let picks=[], pickBtns=[], battling=false, finished=false;
     const skillBtns=()=>[...ov.querySelectorAll('.arena-skill')];
-    let finished=false;
     const finishBattle=(bonus, clashRes)=>{
       if(finished || !document.body.contains(ov)) return;   // 중복/닫힘 가드(대결 중 닫으면 배틀 소비 안 함)
       finished=true;
@@ -33470,22 +33471,20 @@ window.openArenaBattle=function(sandbox, opts){
       if(battling || picks.length<3) return;
       if(left()<=0){ showS1Toast('오늘 배틀을 다 했어요 (내일 다시)'); return; }
       battling=true; busy=true;
-      skillBtns().forEach(b=>{ b.disabled=true; b.style.opacity='.4'; });
+      skillBtns().forEach(b=>{ if(!b.classList.contains('picked')) b.style.opacity='.22'; b.disabled=true; b.style.pointerEvents='none'; });
+      const act=ov.querySelector('#abt-actions'); if(act) act.innerHTML='';
+      const lbl=ov.querySelector('#abt-lbl'); if(lbl) lbl.innerHTML='⚔️ <b>대결 중…</b> 탭한 순서대로 겨뤄요';
       const oppSkills=[_randSkill(),_randSkill(),_randSkill()];
       const clashRes=picks.map((my,i)=>({my, op:oppSkills[i], a:_skillAdv(my,oppSkills[i])}));
-      const bottom=ov.querySelector('#abt-bottom'); if(bottom) bottom.innerHTML=`<div class="arena-sub" id="abt-lbl" style="text-align:center;">⚔️ 대결 중…</div>`;
-      [0,1,2].forEach(i=>{ const c=colEl(i); if(c) c.classList.remove('cur'); });
       let bonus=0, myHp=100, oppHp=100; const CLASH_DMG=26, CLASH_TIE=8;   // ❤️ 경합 패자 체력 감소(결판은 이 HP에서 이어짐)
       setHp(-1,100); setHp(1,100);
       const _t=[]; const T=(ms,fn)=>_t.push(setTimeout(()=>{try{fn();}catch(_){}},ms));
       const CLASH=1700, sMy=_champSkills(myFighter()), sOp=_champSkills(opp.fighter);
-      clashRes.forEach((c,i)=>{ const b=i*CLASH;
-        T(b, ()=>{ const col=colEl(i); if(col) col.classList.add('active'); const m=meCell(i); if(m) m.classList.add('hl');   // ① 내 스킬 i 공개 + 내 3D 동작
-          floatAt(-1, `<b>${c.my}</b> ${escHtml(sMy[c.my]||'')}`, 'me'); _arena3dLunge(-1); });
-        T(b+560, ()=>{ const o=ov.querySelector('#acb-op-'+i); if(o){ o.textContent=c.op; o.className='acb-cell acb-op filled s-'+c.op+' hl'; }   // ② 상대 스킬 i 공개 + 상대 3D 동작
-          floatAt(1, `<b>${c.op}</b> ${escHtml(sOp[c.op]||'')}`, 'opp'); _arena3dLunge(1); });
+      clashRes.forEach((c,i)=>{ const b=i*CLASH, btn=pickBtns[i];
+        T(b, ()=>{ if(btn) btn.classList.add('active'); floatAt(-1, `<b>${c.my}</b> ${escHtml(sMy[c.my]||'')}`, 'me'); _arena3dLunge(-1); });   // ① 내 스킬 i (그 버튼 강조)
+        T(b+560, ()=>{ const h=btn&&btn.querySelector('.ask-hint'); if(h) h.innerHTML=`vs <b>${c.op}</b> ${escHtml(sOp[c.op]||'')}`; floatAt(1, `<b>${c.op}</b> ${escHtml(sOp[c.op]||'')}`, 'opp'); _arena3dLunge(1); });   // ② 상대 스킬 i (버튼에 표기)
         T(b+1120, ()=>{ const winSide=c.a>0?-1:c.a<0?1:0; bonus+=c.a*ARENA_CLASH_ADV;   // ③ 판정 + 승자 가격 + 패자 체력 감소
-          const rs=ov.querySelector('#acb-res-'+i); if(rs){ rs.textContent=c.a>0?'승 +5':c.a<0?'패 −5':'무 ±0'; rs.className='acb-res '+(c.a>0?'win':c.a<0?'lose':'tie'); }
+          if(btn){ btn.classList.remove('active'); btn.classList.add(c.a>0?'won':c.a<0?'lost':'tied'); const h=btn.querySelector('.ask-hint'); if(h) h.innerHTML=c.a>0?'✅ 이김 +5%':c.a<0?'❌ 짐 −5%':'➖ 비김'; }
           if(winSide!==0){ _arena3dLunge(winSide); setTimeout(()=>{ _arena3dHurt(-winSide); hitFx(-winSide);   // 경합 패자 체력 감소(즉사 방지=하한 8)
             if(winSide<0){ oppHp=Math.max(8, oppHp-CLASH_DMG); setHp(1, oppHp); } else { myHp=Math.max(8, myHp-CLASH_DMG); setHp(-1, myHp); } },300); }
           else { setTimeout(()=>{ myHp=Math.max(8,myHp-CLASH_TIE); oppHp=Math.max(8,oppHp-CLASH_TIE); setHp(-1,myHp); setHp(1,oppHp); hitFx(-1); hitFx(1); },300); }   // 비김=양쪽 소량
@@ -33493,22 +33492,23 @@ window.openArenaBattle=function(sandbox, opts){
       });
       T(3*CLASH+200, ()=>{ finishBattle(bonus, clashRes); });
     };
+    const resetPicks=()=>{ picks=[]; pickBtns=[]; skillBtns().forEach(b=>{ b.classList.remove('picked','active','won','lost','tied','pop'); b.style.opacity=''; b.disabled=false; b.style.pointerEvents='';
+      const o=b.querySelector('.ask-ord'); if(o) o.textContent=''; const h=b.querySelector('.ask-hint'); if(h) h.innerHTML='▶ '+SKILL_BEATS[b.dataset.s]+' 이김'; }); refreshSel(); };
     const refreshSel=()=>{
-      [0,1,2].forEach(i=>{ const c=colEl(i); if(c) c.classList.toggle('cur', i===picks.length && !battling);
-        const m=meCell(i); if(m){ if(i<picks.length){ m.textContent=picks[i]; m.className='acb-cell acb-me filled s-'+picks[i]; } else { m.textContent='·'; m.className='acb-cell acb-me'; } } });
-      const l=ov.querySelector('#abt-lbl'); if(l){ l.innerHTML = picks.length<3
-        ? `⚔️ <b>${picks.length+1}번</b> 경합에 낼 스킬을 고르세요! 상대는 <b style="color:#ffd24a">랜덤</b> 방어`
-        : `✅ 스킬 셋업 완료! <b style="color:#ffd24a">대결</b>을 눌러 한 번에 겨뤄요`; }
-      skillBtns().forEach(b=>{ const d=picks.length>=3; b.disabled=d; b.style.opacity=d?'.4':''; });
+      const l=ov.querySelector('#abt-lbl'); if(l && !battling){ l.innerHTML = picks.length<3
+        ? `⚔️ <b>${picks.length+1}번</b>으로 낼 스킬을 탭하세요! (탭한 순서 = 경합 1·2·3 · 상대 <b style="color:#ffd24a">랜덤</b>)`
+        : `✅ 셋업 완료! <b style="color:#ffd24a">대결</b>을 눌러 한 번에 겨뤄요`; }
       const act=ov.querySelector('#abt-actions');
-      if(act){ act.innerHTML=`${picks.length>0?'<button class="arena-bt-reroll acb-half" id="abt-reset">↺ 다시 고르기</button>':'<button class="arena-bt-reroll acb-half" id="abt-back">← 상대 다시</button>'}${picks.length>=3?'<button class="arena-clash-go acb-half" id="abt-go">⚔️ 대결!</button>':''}`;
-        const rs=ov.querySelector('#abt-reset'); if(rs) rs.onclick=()=>{ if(!battling){ picks=[]; refreshSel(); } };
+      if(act){ act.innerHTML=`${picks.length>0?'<button class="arena-bt-reroll acb-half" id="abt-reset">↺ 다시</button>':'<button class="arena-bt-reroll acb-half" id="abt-back">← 상대 다시</button>'}${picks.length>=3?'<button class="arena-clash-go acb-half" id="abt-go">⚔️ 대결!</button>':''}`;
+        const rs=ov.querySelector('#abt-reset'); if(rs) rs.onclick=()=>{ if(!battling) resetPicks(); };
         const bk=ov.querySelector('#abt-back'); if(bk) bk.onclick=()=>{ if(!battling){ _arenaBattle3DStop(); render(); } };
         const go=ov.querySelector('#abt-go'); if(go) go.onclick=()=>startClashes();
       }
     };
-    skillBtns().forEach(b=> b.onclick=()=>{ if(battling||picks.length>=3) return; picks.push(b.dataset.s);
-      refreshSel(); const m=meCell(picks.length-1); if(m){ m.classList.remove('pop'); void m.offsetWidth; m.classList.add('pop'); } });
+    skillBtns().forEach(b=> b.onclick=()=>{ if(battling || picks.length>=3 || b.classList.contains('picked')) return;
+      picks.push(b.dataset.s); pickBtns.push(b); b.classList.add('picked');
+      const o=b.querySelector('.ask-ord'); if(o) o.textContent=picks.length+'번';
+      b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop'); refreshSel(); });
     refreshSel();
   };
   // 🏁 결말 연출 — 패자 HP 0으로 + 죽는 모션(Death) + 결과/보상 공개
@@ -33540,7 +33540,7 @@ window.openArenaBattle=function(sandbox, opts){
   render();
   if(opts && opts.demo){   // 🎬 자동 데모 — 첫 상대 선택 후 경합 1·2·3 자동 클릭(실제 흐름·3D 연출 즉시 확인)
     setTimeout(()=>{ try{ if(opps.length){ renderPick(opps[0]);
-      let n=0; const pick=()=>{ const bs=[...ov.querySelectorAll('.arena-skill')].filter(x=>!x.disabled); if(n<3 && bs.length){ bs[Math.floor(Math.random()*bs.length)].click(); n++; setTimeout(pick, 520); } else { const go=ov.querySelector('#abt-go'); if(go) go.click(); } };
+      let n=0; const pick=()=>{ const bs=[...ov.querySelectorAll('.arena-skill')].filter(x=>!x.disabled && !x.classList.contains('picked')); if(n<3 && bs.length){ bs[Math.floor(Math.random()*bs.length)].click(); n++; setTimeout(pick, 560); } else { const go=ov.querySelector('#abt-go'); if(go) go.click(); } };
       setTimeout(pick, 1700);
     } }catch(_){} }, 700);
   }
