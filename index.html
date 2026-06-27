@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.387';
+const APP_VERSION = 'v2.45.388';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.387';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.388', date: '2026-06-27', changes: [
+    { tag: 'improve', text: '🎮 [개발] 진행 중 게임 배너(내전/일반 참가자 표시)를 실제 게임 없이 확인하는 프리뷰 추가 — 주소에 ?gamebanner(일반)·?gamebanner=custom(내전)을 붙이거나 콘솔 gameBannerPreview(\'custom\'/\'normal\')로 가짜 진행 배너를 띄워 누가 참여 중인지 보이는지 확인할 수 있어요(끄기 gameBannerPreviewOff). ※ 실제로는 진행자 브릿지가 참가자 명단을 보내야 뜨고(최신 버전 필요), 그 게임에 참여 중인 본인 화면엔 안 보여요.' },
+  ] },
   { ver: 'v2.45.387', date: '2026-06-27', changes: [
     { tag: 'fix', text: '🙅 이 내전에 참여하지 않는 팀원에게도 팀 결과 화면이 떠서 메인을 가리던 문제 수정 — 이제 결과창은 양 팀·관전자·라이브(또는 이름 미선택)에게만 보이고, 비참여 팀원은 메인/대기화면을 그대로 볼 수 있어요. (관전자 베팅 발표 후·라이브 전환 시에도 동일 적용)' },
   ] },
@@ -13849,6 +13852,17 @@ function _renderGameBannerDetail(){
   pop.className = 'ngbd' + (isCustom ? ' custom' : '');
   pop.innerHTML = `<div class="ngbd-h">${isCustom ? '⚔️ 내전' : '🎮 일반게임'} 진행 중${raw.length ? ` · ${raw.length}명` : ''}</div>${body}<div class="ngbd-foot">탭하면 닫혀요</div>`;
 }
+// 🧪 진행 중 게임 배너 프리뷰 — 실제 게임/브릿지 없이 배너를 눈으로 확인(가짜 inGame·다음 브릿지 업데이트 시 사라짐)
+window.gameBannerPreview = function(kind){   // kind: 'custom'(내전) | 그 외(일반)
+  const isCustom = kind === 'custom' || kind === true;
+  const others = Object.values(registeredPlayers || {}).map(p => p.name)
+    .filter(n => normName(n) !== normName(myName || '')).slice(0, 5);   // 본인 제외(참여자 본인엔 숨겨지므로)
+  const players = others.length ? others : ['플레이어A', '플레이어B', '플레이어C', '플레이어D', '플레이어E'];
+  _bridgeInGame = { isCustom, players, at: Date.now() - 3 * 60000 };
+  try { updateNormalGameBanner(); } catch (e) { console.warn(e); }
+  console.log(`🎮 ${isCustom ? '내전' : '일반게임'} 진행 배너 프리뷰 — 화면 맨 아래 배너 탭하면 명단. 끄기=gameBannerPreviewOff()`);
+};
+window.gameBannerPreviewOff = function(){ _bridgeInGame = null; try { updateNormalGameBanner(); } catch(_) {} document.getElementById('ngb-detail')?.remove(); console.log('배너 프리뷰 종료'); };
 
 // ── 개발용: 투표 카드 챔피언 데이터 미리보기 ────────────────────────
 window.__previewVotesDone = () => {
@@ -23746,6 +23760,8 @@ if (location.search.includes('arena3d')) setTimeout(()=>{ try{ window.arena3dDem
 else if (location.search.includes('arenabattle')) setTimeout(()=>{ try{ window.openArenaBattle(true); }catch(_){} }, 1500);
 else if (location.search.includes('arenaforge')) setTimeout(()=>{ try{ window.openArenaForge(true); }catch(_){} }, 1500);
 else if (location.search.includes('arena')) setTimeout(()=>{ try{ window.openArenaBattle(true); }catch(_){} }, 1500);
+// 🎮 진행 중 게임 배너 프리뷰 — ?gamebanner(일반) / ?gamebanner=custom(내전). 가짜 inGame로 배너만 띄움(실데이터 0 영향)
+if (location.search.includes('gamebanner')) setTimeout(()=>{ try{ window.gameBannerPreview(/custom/.test(location.search)?'custom':'normal'); }catch(_){} }, 1500);
 // 🏠 단짝 공간 프리뷰 링크 — ?buddypreview[=챔피언,무드,스택,레벨] (데이터 무변경). 예: ?buddypreview=gwen,win,4,3
 { const _bp = new URLSearchParams(location.search).get('buddypreview');
   if (_bp !== null) setTimeout(()=>{ try{
