@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.382';
+const APP_VERSION = 'v2.45.383';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.382';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.383', date: '2026-06-27', changes: [
+    { tag: 'fix', text: '⚔️ 투기장 배틀이 경합 3번 끝난 뒤에도 또 한참 싸우던 문제 수정 — 경합이 곧 전투라, 세 경합이 끝나면 바로 결판(결정타 1회 → 패자 쓰러짐 → 결과)으로 짧게 마무리해요. 대결 중에 창을 닫으면 그 판은 소비되지 않도록도 막았어요.' },
+  ] },
   { ver: 'v2.45.382', date: '2026-06-27', changes: [
     { tag: 'fix', text: '⚔️ 투기장 경합 1·2·3 보드를 훨씬 작게 — 칸·글씨·여백을 줄이고 가운데로 모아 전투 화면을 더 넓게 썼어요.' },
   ] },
@@ -33448,7 +33451,10 @@ window.openArenaBattle=function(sandbox, opts){
     const colEl=i=>ov.querySelector('.acb-col[data-col="'+i+'"]');
     const meCell=i=>ov.querySelector('#acb-me-'+i);
     const skillBtns=()=>[...ov.querySelectorAll('.arena-skill')];
+    let finished=false;
     const finishBattle=(bonus, clashRes)=>{
+      if(finished || !document.body.contains(ov)) return;   // 중복/닫힘 가드(대결 중 닫으면 배틀 소비 안 함)
+      finished=true;
       const res=doBattle(opp, bonus, clashRes);
       if(res.r!=='ok'){ busy=false; battling=false; showS1Toast(res.r==='nolimit'?'오늘 배틀을 다 했어요 (내일 다시)':'배틀을 진행할 수 없어요'); render(); return; }
       res._oppName=opp.name; res._oppFighter=opp.fighter; res._bonus=Math.max(-15,Math.min(15,bonus));
@@ -33510,22 +33516,17 @@ window.openArenaBattle=function(sandbox, opts){
     const ag=ov.querySelector('#abt-again'); if(ag) ag.onclick=()=>reroll();
     if(!SB){ try{ updateMyInfoBar(); }catch(_){} }
     const winnerSide=r.won?-1:1, loserSide=-winnerSide;
-    const winnerEnd=44+Math.floor(Math.random()*24);   // 승자 잔여 HP 44~67
     setHp(-1,100); setHp(1,100);
     const _t=[]; const T=(ms,fn)=>_t.push(setTimeout(()=>{ try{fn();}catch(_){} }, ms));
-    const STEP=640, loserSteps=[58,24,0];   // 승자 3타로 패자 100→0
-    loserSteps.forEach((hp,i)=>{ const base=i*STEP+220;
-      T(base, ()=>{ _arena3dLunge(winnerSide); });
-      T(base+300, ()=>{ _arena3dHurt(loserSide); setHp(loserSide, hp); hitFx(loserSide);
-        if(i===2) floatAt(loserSide,'⚡ 일격!','hit'); else if(i===0) floatAt(loserSide,'명중!','hit'); });
-    });
-    T(STEP+280, ()=>{ setHp(winnerSide, winnerEnd); });   // 승자도 약간 피해(연출)
-    T(3*STEP+380, ()=>{ _arena3dFinish(winnerSide); });    // 승자 승리포즈 · 패자 죽는 모션(Death)
+    // 경합 3번이 곧 전투 — 끝나면 바로 결판: 결정타 1회 → 패자 즉시 쓰러짐(죽는 모션) → 결과
+    T(120, ()=>{ _arena3dLunge(winnerSide); });
+    T(430, ()=>{ _arena3dHurt(loserSide); setHp(loserSide, 0); hitFx(loserSide); floatAt(loserSide, '⚡ 결정타!', 'hit'); });
+    T(780, ()=>{ _arena3dFinish(winnerSide); });   // 승자 승리포즈 · 패자 죽는 모션(Death)
     const reveal=()=>{ const st=_stage(); if(st){ st.classList.add(r.won?'win-glow':'lose-glow'); if(r.won){ try{ _arenaWinSparks(st); }catch(_){} } }
       const el=ov.querySelector('#arena-bt-reveal'); if(el) el.classList.add('show'); };
     let revealed=false; const doReveal=()=>{ if(revealed) return; revealed=true; reveal(); };
-    T(3*STEP+860, doReveal);
-    setTimeout(doReveal, 7000);   // 안전망
+    T(1180, doReveal);
+    setTimeout(doReveal, 4500);   // 안전망
   };
   render();
   if(opts && opts.demo){   // 🎬 자동 데모 — 첫 상대 선택 후 경합 1·2·3 자동 클릭(실제 흐름·3D 연출 즉시 확인)
