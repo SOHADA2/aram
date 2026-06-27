@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.386';
+const APP_VERSION = 'v2.45.387';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.386';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.387', date: '2026-06-27', changes: [
+    { tag: 'fix', text: '🙅 이 내전에 참여하지 않는 팀원에게도 팀 결과 화면이 떠서 메인을 가리던 문제 수정 — 이제 결과창은 양 팀·관전자·라이브(또는 이름 미선택)에게만 보이고, 비참여 팀원은 메인/대기화면을 그대로 볼 수 있어요. (관전자 베팅 발표 후·라이브 전환 시에도 동일 적용)' },
+  ] },
   { ver: 'v2.45.386', date: '2026-06-27', changes: [
     { tag: 'improve', text: '⚔️ 투기장 경합 표시를 스킬 버튼에 통합 — 별도 경합 보드를 없애고, 스킬을 탭한 순서대로 버튼에 1번·2번·3번 배지가 붙어요. 대결하면 그 버튼에 상대 스킬·승패(✅이김/❌짐)가 바로 표시되고 체력바도 같이 깎여, 한곳에서 깔끔하게 진행돼요.' },
   ] },
@@ -13088,6 +13091,14 @@ onValue(ref(db, 'lastSettlement'), (snapshot) => {
 });
 
 // ── SESSION SYNC (팀짜기 실시간 공유) ─────────────────────────
+// 🙅 현재 내전에 참여 중인지(라이브·이름미선택·양팀·관전자) — 비참여 팀원에겐 결과창을 강제하지 않기 위함
+function _amInvolvedInMatch() {
+  const n = normName(myName || '');
+  return liveMode || !n
+    || currentTeamA.some(p => normName(p.name) === n)
+    || currentTeamB.some(p => normName(p.name) === n)
+    || currentSpectators.some(s => normName(s.name) === n);
+}
 function applySessionData(data) {
   if (!data || !data.active) return;
   const reconstruct = (names) => (names || []).map(name => {
@@ -13195,6 +13206,13 @@ function applySessionData(data) {
   }
 
   if (currentTeamA.length || currentTeamB.length) {
+    // 🙅 이 내전에 참여하지 않는 팀원(이름 선택했고 양 팀·관전자 어디에도 없음)은 결과창을 강제하지 않음 → 메인/대기화면 유지
+    const _amInvolved = _amInvolvedInMatch();
+    if (!_amInvolved) {
+      const _sec = document.getElementById('result-section'); if (_sec) _sec.style.display = 'none';
+      _justMadeTeams = false;
+      try { updateMemberModeDisplay(); } catch (_) {}
+    } else {
     // 팀 멤버가 바뀐 경우에만 결과 DOM 재생성 (MVP·매너 투표로 인한 불필요한 재렌더 방지)
     if (teamsChanged) {
       renderResult();
@@ -13230,6 +13248,7 @@ function applySessionData(data) {
     if (teamsChanged && typeof _maybeShowSecretQuestModal === 'function') {
       setTimeout(_maybeShowSecretQuestModal, 9000);
     }
+    }   // ← 참여자(_amInvolved) 분기 닫기
   }
   _initialSessionLoaded = true;
   // 팀 복원 후 대기 중인 MVP / 매너 데이터 적용
@@ -15309,7 +15328,10 @@ function applySpectatorPickResult(pick, existingOverlay) {
   setTimeout(() => {
     if (overlay) {
       overlay.style.animation = 'taFadeOut 0.3s ease forwards';
-      setTimeout(() => { overlay?.remove(); renderResult(); }, 350);
+      setTimeout(() => { overlay?.remove();
+        if (_amInvolvedInMatch()) renderResult();
+        else { const _s = document.getElementById('result-section'); if (_s) _s.style.display = 'none'; try { updateMemberModeDisplay(); } catch (_) {} }
+      }, 350);
     }
   }, 3500);
 }
@@ -25257,7 +25279,7 @@ function handleLiveKicked(newOwner) {
   updateMyInfoBar();
   updateMemberModeDisplay();
   stopBgm();
-  if (currentTeamA.length || currentTeamB.length) renderResult();
+  if ((currentTeamA.length || currentTeamB.length) && _amInvolvedInMatch()) renderResult();
   const label = newOwner?.label || '다른 기기';
   if (typeof showGoldToast === 'function') {
     showGoldToast(`🔄 ${label} 에서 라이브 모드를 가져갔습니다`);
@@ -25434,14 +25456,14 @@ window.enterLiveMode = function() {
   myName = null;
   setLiveMode(true); // startLiveHeartbeat 내부 호출됨
   updateLiveHouseGold();
-  if (currentTeamA.length || currentTeamB.length) renderResult();
+  if ((currentTeamA.length || currentTeamB.length) && _amInvolvedInMatch()) renderResult();
 };
 window.exitLiveMode = async function() {
   myName = localStorage.getItem('myName') || null; // 이전 닉네임 복원
   setLiveMode(false); // stopLiveHeartbeat 내부 호출됨
   updateLiveHouseGold();
   await releaseLiveOwner();
-  if (currentTeamA.length || currentTeamB.length) renderResult();
+  if ((currentTeamA.length || currentTeamB.length) && _amInvolvedInMatch()) renderResult();
 };
 window.selectMyName = async function(name) {
   // 라이브 모드에서 일반 계정으로 전환 시 확인
