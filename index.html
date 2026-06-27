@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.373';
+const APP_VERSION = 'v2.45.374';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.373';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.374', date: '2026-06-27', changes: [
+    { tag: 'improve', text: '⚔️ 투기장 전투 HUD를 포켓몬 배틀처럼 — 상대 정보(이름·Lv·HP)는 좌상단, 내 정보(HP 숫자 포함)는 우하단 크림색 정보박스로. 체력바는 HP에 따라 초록→노랑→빨강으로 바뀌어 한눈에 보여요. 캐릭터에 안 맞게 떠다니던 이름·체력바 문제가 해결됐어요.' },
+  ] },
   { ver: 'v2.45.373', date: '2026-06-27', changes: [
     { tag: 'fix', text: '⚔️ 투기장 전투 캐릭터가 너무 커지고 HUD가 어긋나던 문제 수정 — 스테이지 높이를 원래대로 되돌려 캐릭터 크기를 정상화하고, 체력바·이름표를 캐릭터 중심점 기준으로 배치해(꼬리·머리카락 때문에 빗나가던 박스 계산 제거) 머리 위/발 아래에 더 잘 맞도록 했어요.' },
   ] },
@@ -32843,12 +32846,20 @@ function _injectArenaCss(){
   .arena3d-stage .arena-bt-vs{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:14px;margin:0;}
   .arena-bt-reveal{opacity:0;transform:translateY(6px);transition:opacity .45s,transform .45s;pointer-events:none;}
   .arena-bt-reveal.show{opacity:1;transform:none;pointer-events:auto;}
-  /* 🟦🟥 네임플레이트(롤 톤 — 레벨 원형 + 이름·발 아래) */
-  .arena-nameplate{position:absolute;z-index:5;font-size:11px;font-weight:700;padding:2px 8px 2px 3px;border-radius:12px;display:flex;align-items:center;gap:5px;pointer-events:none;white-space:nowrap;background:rgba(7,10,17,.84);box-shadow:0 2px 9px rgba(0,0,0,.6);letter-spacing:.2px;}
-  .arena-nameplate .np-lv{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 3px;border-radius:50%;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:800;color:#241803;background:linear-gradient(180deg,#ffe384,#dca838);border:1px solid rgba(0,0,0,.55);box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);}
-  .arena-nameplate .np-nm{font-weight:800;}
-  .arena-nameplate.me{left:8px;bottom:8px;border:1px solid rgba(110,165,255,.85);color:#dbe7ff;}
-  .arena-nameplate.opp{right:8px;top:8px;border:1px solid rgba(255,110,110,.85);color:#ffdede;}
+  /* 🟫 포켓몬식 정보박스(상대=좌상단·나=우하단·크림카드+이름+Lv+HP바) */
+  .arena-pkbox{position:absolute;z-index:5;min-width:138px;max-width:56%;padding:6px 11px 7px;background:linear-gradient(180deg,#fbfaef,#dcdccb);border:2px solid #23242c;box-shadow:0 3px 0 rgba(0,0,0,.32),0 4px 11px rgba(0,0,0,.5);pointer-events:none;}
+  .arena-pkbox.opp{left:10px;top:10px;border-radius:13px 5px 13px 5px;}
+  .arena-pkbox.me{right:10px;bottom:10px;border-radius:5px 13px 5px 13px;}
+  .arena-pkbox .pk-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:4px;}
+  .arena-pkbox .pk-nm{font-weight:900;font-size:12.5px;color:#23242c;letter-spacing:.2px;text-shadow:0 1px 0 rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .arena-pkbox .pk-lv{flex:none;font-family:'JetBrains Mono',monospace;font-weight:800;font-size:10.5px;color:#3a3b46;}
+  .arena-pkbox .pk-hprow{display:flex;align-items:center;gap:6px;}
+  .arena-pkbox .pk-hplabel{flex:none;font-weight:900;font-style:italic;font-size:10px;color:#c79a1e;text-shadow:0 1px 0 rgba(255,255,255,.5);}
+  .arena-pkbox .pk-hpb{position:relative;flex:1;height:7px;border-radius:4px;background:#2f2622;border:1px solid #17100c;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.5);}
+  .arena-pkbox .pk-hpf{position:absolute;left:0;top:0;bottom:0;width:100%;border-radius:4px;background:linear-gradient(180deg,#74e489,#2fc35a);transition:width .32s cubic-bezier(.4,0,.2,1),background .3s;}
+  .arena-pkbox .pk-hpf.mid{background:linear-gradient(180deg,#ffdf6a,#f0b42c);}
+  .arena-pkbox .pk-hpf.low{background:linear-gradient(180deg,#ff7d6c,#e23a2b);}
+  .arena-pkbox .pk-hpnum{text-align:right;font-family:'JetBrains Mono',monospace;font-weight:800;font-size:10px;color:#2a2b34;margin-top:2px;}
   /* 💬 스킬 콜아웃(순차 — 내 공격→상대 방어→상성) */
   .arena-callout{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%) scale(.86);z-index:4;font-size:13px;font-weight:800;padding:6px 15px;border-radius:11px;background:rgba(11,9,18,.86);border:1.5px solid rgba(255,255,255,.2);color:#fff;opacity:0;transition:opacity .18s,transform .18s;pointer-events:none;white-space:nowrap;box-shadow:0 5px 18px rgba(0,0,0,.6);text-align:center;}
   .arena-callout.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
@@ -32859,15 +32870,6 @@ function _injectArenaCss(){
   .arena-callout.good{color:#7CFC9A;border-color:rgba(124,252,154,.7);} .arena-callout.good b{color:#7CFC9A;}
   .arena-callout.bad{color:#ff8b8b;border-color:rgba(255,139,139,.7);} .arena-callout.bad b{color:#ff8b8b;}
   .arena-callout.neu{color:#cbd3e6;} .arena-callout.neu b{color:#cbd3e6;}
-  /* ❤️ 체력바(롤 톤 — 머리 위·아군 초록/적 빨강·눈금 프레임) */
-  .arena-hp{position:absolute;z-index:5;width:34%;max-width:116px;}
-  .arena-hp.me{left:8px;bottom:30px;} .arena-hp.opp{right:8px;top:30px;}
-  .arena-hp .hpb{position:relative;height:8px;border-radius:2px;background:#0a0d12;border:1px solid #000;box-shadow:0 0 0 1px rgba(255,255,255,.10),0 1px 3px rgba(0,0,0,.65);overflow:hidden;}
-  .arena-hp .hpf{position:absolute;top:0;bottom:0;left:0;width:100%;transition:width .3s cubic-bezier(.4,0,.2,1);}
-  .arena-hp .hpf::after{content:'';position:absolute;left:0;right:0;top:0;height:50%;background:linear-gradient(180deg,rgba(255,255,255,.4),transparent);}
-  .arena-hp .hpb::after{content:'';position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(25% - 1px),rgba(0,0,0,.55) calc(25% - 1px),rgba(0,0,0,.55) 25%);}
-  .arena-hp.me .hpf{background:linear-gradient(180deg,#63e591,#27bd60);}
-  .arena-hp.opp .hpf{background:linear-gradient(180deg,#ff6f62,#d8362a);}
   /* 🔮 상성(유리/불리·속성) */
   .arena-adv{font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:7px;vertical-align:middle;}
   .arena-adv.good{color:#7CFC9A;background:rgba(124,252,154,.14);border:1px solid rgba(124,252,154,.4);}
@@ -33183,7 +33185,6 @@ async function _arenaBattle3D(stage, atkFile, defFile){   // stage=컨테이너.
   // 대치(idle) — 전투는 _arena3dFight로 같은 씬서. 픽이 먼저면 _pendingFight 대기
   _arena3dPlay(ctx,ctx.units[0],ARENA_BATTLE_CLIPS.idle,true); _arena3dPlay(ctx,ctx.units[1],ARENA_BATTLE_CLIPS.idle,true);
   ctx.ready=true;
-  try{ _arena3dPlaceTags(); }catch(_){}   // 🏷️ 네임플레이트·체력바를 캐릭터 위치에 맞춰 배치
   if(ctx._pendingFight){ const pf=ctx._pendingFight; ctx._pendingFight=null; _arena3dRunChoreo(ctx, pf.result, pf.onDone); }
 }
 function _arena3dFight(result, onDone){   // 현재 씬서 전투 연출 트리거(없거나 실패=즉시 onDone). 로딩 중 호출=ready 후 실행
@@ -33215,26 +33216,6 @@ function _arena3dFinish(winnerSide){   // 마지막: 승자=승리 포즈(루프
   const win=ctx.units[winnerSide<0?0:1], lose=ctx.units[winnerSide<0?1:0];
   if(win) _arena3dPlay(ctx,win,ARENA_BATTLE_CLIPS.win,true);
   if(lose) _arena3dPlay(ctx,lose,ARENA_BATTLE_CLIPS.lose,false);
-}
-// 🏷️ 네임플레이트(발 아래)·❤️체력바(머리 위)를 캐릭터 3D 위치에 맞춰 화면 투영 배치
-function _arena3dPlaceTags(){
-  const ctx=_arena3dCtx; if(!ctx||!ctx.alive||!ctx.canvas) return;
-  const stage=ctx.canvas.parentElement; if(!stage) return;
-  const W=ctx.canvas.clientWidth||stage.clientWidth||300, H=ctx.canvas.clientHeight||stage.clientHeight||188;
-  const T=ctx.THREE;
-  const toPx=(x,y,z)=>{ const v=new T.Vector3(x,y,z).project(ctx.camera); return { x:(v.x*0.5+0.5)*W, y:(-v.y*0.5+0.5)*H }; };
-  const cx=(v)=>Math.max(10,Math.min(W-10,v));
-  // 캐릭터 중심점은 정확히 투영(단일 점). 머리/발은 박스 대신 고정 픽셀 오프셋으로(근경=나 큼·원경=상대 작음 — 꼬리/머리카락 박스 오차 회피)
-  const place=(u, side)=>{
-    if(!u||!u.base) return;
-    const me=side<0, cls=me?'me':'opp';
-    const np=stage.querySelector('.arena-nameplate.'+cls), hp=stage.querySelector('.arena-hp.'+cls);
-    const ctr=toPx(u.base.x, u.base.y, u.base.z);
-    const up=me?66:46, dn=me?60:44;   // 머리위(체력바)·발아래(이름) 픽셀 오프셋
-    if(hp){ hp.style.left=Math.round(cx(ctr.x))+'px'; hp.style.right='auto'; hp.style.top=Math.max(3,Math.round(ctr.y-up))+'px'; hp.style.bottom='auto'; hp.style.transform='translateX(-50%)'; }
-    if(np){ np.style.left=Math.round(cx(ctr.x))+'px'; np.style.right='auto'; np.style.bottom='auto'; np.style.top=Math.min(H-22,Math.round(ctr.y+dn))+'px'; np.style.transform='translateX(-50%)'; }
-  };
-  place(ctx.units[0], -1); place(ctx.units[1], 1);
 }
 // ⚔️ 배틀 창 — 상대(다른 7종 완성자) 목록·승률·도전. 강화창과 상호 링크. sandbox=메모리만(가짜 상대).
 window.openArenaBattle=function(sandbox, opts){
@@ -33332,8 +33313,15 @@ window.openArenaBattle=function(sandbox, opts){
       <div class="arena-h">⚔️ 배틀${SB?' <span style="font-size:11px;color:#7CFC9A">· 🧪 테스트</span>':''}</div>
       <div class="arena-skill-vs" id="abt-skillvs" style="display:none;"></div>
       <div class="arena3d-stage" id="arena3d-stage">
-        <div class="arena-nameplate me"><span class="np-lv">${mp}</span><span class="np-nm">${escHtml(_buddyChampName(myFighter()))}</span></div>
-        <div class="arena-nameplate opp"><span class="np-lv">${opp.power}</span><span class="np-nm">${escHtml(opp.name)}</span></div>
+        <div class="arena-pkbox opp" id="pk-opp">
+          <div class="pk-top"><span class="pk-nm">${escHtml(opp.name)}</span><span class="pk-lv">Lv.${opp.power}</span></div>
+          <div class="pk-hprow"><span class="pk-hplabel">HP</span><div class="pk-hpb"><div class="pk-hpf"></div></div></div>
+        </div>
+        <div class="arena-pkbox me" id="pk-me">
+          <div class="pk-top"><span class="pk-nm">${escHtml(_buddyChampName(myFighter()))}</span><span class="pk-lv">Lv.${mp}</span></div>
+          <div class="pk-hprow"><span class="pk-hplabel">HP</span><div class="pk-hpb"><div class="pk-hpf"></div></div></div>
+          <div class="pk-hpnum"><span class="pk-cur">100</span>/100</div>
+        </div>
         <div class="arena-bt-vs">
           <div class="arena-bt-side"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${mk}_0.jpg" onerror="this.style.visibility='hidden'"><div class="arena-bt-nm">나 <b>+${mp}</b></div></div>
           <div class="arena-bt-mid" style="color:#cbd3e6;font-size:15px;">⚔️</div>
@@ -33370,15 +33358,13 @@ window.openArenaBattle=function(sandbox, opts){
     ov.querySelector('#abt-x').onclick=()=>{ _arenaBattle3DStop(); ov.remove(); };
     const ag=ov.querySelector('#abt-again'); if(ag) ag.onclick=()=>reroll();
     if(!SB){ try{ updateMyInfoBar(); }catch(_){} }
-    // ❤️ 체력바 + 💬 콜아웃 생성
+    // ❤️ 체력바(포켓몬식 코너 정보박스 안) + 💬 콜아웃 생성
     const stage=ov.querySelector('#arena3d-stage');
-    const mkHp=(cls)=>{ if(!stage) return null; let el=stage.querySelector('.arena-hp.'+cls); if(!el){ el=document.createElement('div'); el.className='arena-hp '+cls; el.innerHTML='<div class="hpb"><div class="hpf"></div></div>'; stage.appendChild(el); } const f=el.querySelector('.hpf'); if(f) f.style.width='100%'; return f; };
-    const myHpEl=mkHp('me'), opHpEl=mkHp('opp');
-    try{ _arena3dPlaceTags(); }catch(_){}   // 🏷️ 체력바=머리 위·네임플레이트=발 아래로 배치(3D 로드됐을 때)
+    const myHpEl=stage&&stage.querySelector('#pk-me .pk-hpf'), opHpEl=stage&&stage.querySelector('#pk-opp .pk-hpf');
     let callout=stage&&stage.querySelector('.arena-callout');
     if(stage && !callout){ callout=document.createElement('div'); callout.className='arena-callout'; stage.appendChild(callout); }
     const showCall=(html,cls)=>{ if(!callout) return; callout.classList.remove('show'); callout.innerHTML=html; callout.className='arena-callout '+(cls||''); void callout.offsetWidth; callout.classList.add('show'); };
-    const setHp=(el,pct)=>{ if(el) el.style.width=Math.max(0,pct)+'%'; };
+    const setHp=(el,pct)=>{ if(!el) return; const p=Math.max(0,Math.min(100,pct)); el.style.width=p+'%'; el.classList.remove('mid','low'); if(p<=20)el.classList.add('low'); else if(p<=50)el.classList.add('mid'); const box=el.closest('.arena-pkbox'); const num=box&&box.querySelector('.pk-cur'); if(num) num.textContent=Math.round(p); };
     const mySk=escHtml(_champSkills(myFighter())[r.mySkill]||''), oppSk=escHtml(_champSkills(r._oppFighter)[r.oppSkill]||'');
     // 결과(승패·보상)는 RNG로 이미 확정 — 연출만 3라운드: 승자 3타(패자 100→0)·패자 2타(승자 100→잔여)·승자 마지막 일격
     const winMe=r.won, winnerSide=winMe?-1:1, loserSide=-winnerSide;
