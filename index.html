@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.357';
+const APP_VERSION = 'v2.45.358';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.357';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.358', date: '2026-06-26', changes: [
+    { tag: 'improve', text: '💰 인형 판매가 재설계 — 저강은 손해(무한 돈복사 방지), 적정선(+7~)부터는 운 좋게 키웠으면 투입보다 더 받게(잭팟), 평균은 약손해(경제 안정). 판매가 예: +5=92 · +7=232 · +10=834 · +15=3,455 · +19=6,402 코인. 강화는 운빨이라 고강을 싸게 키운 사람은 팔아서 이득, 운 나빠 돈 많이 쓴 사람은 손해 — "키워서 한 방" 도박의 맛.' },
+  ] },
   { ver: 'v2.45.357', date: '2026-06-26', changes: [
     { tag: 'new', text: '💰 인형 판매 → 투기장 코인! 강화창에서 인형을 팔아 🗡️투기장 코인으로 바꿀 수 있어요. 강화될수록 비싸게 팔려요(투입의 60% 환급) — 예: +0=10 · +10=315 · +15=839 · +19=1,547 코인. "키워서 팔고 다시 도전"하는 검키우기식 코인 수급 핵심 루프! (강화된 인형을 팔면 그 종류 전투력은 +0으로 리셋·잉여 인형 정리에도 좋아요)' },
   ] },
@@ -32664,11 +32667,22 @@ function _arenaForge(champFile){   // 강화 1회 시도 → 결과
   const brokeGate = result==='destroy' && (stockMap[rk]||0)===0 && _arenaDistinct(getMyGoldData())<7;
   return { r:result, power:powerMap[rk], cost, brokeGate };
 }
-// 💰 인형 판매 → 투기장 코인 환급(강화될수록 비쌈). 검키우기식 "키워서 팔기" — 투기장 코인 핵심 수급
-const ARENA_SELL_BASE = 10;        // 인형 1개 기본 판매가(코인)
-const ARENA_SELL_REFUND = 0.6;     // 강화 투입(최선 기준 누적)의 환급률 — 항상 투입<환급이라 무한루프 없음
-function _arenaCumCost(power){ let s=0; for(let k=0;k<(power||0);k++) s+=arenaForgeCost(k); return s; }   // +0→+power 최선 누적 비용
-function _arenaSellValue(power){ return ARENA_SELL_BASE + Math.round(_arenaCumCost(power)*ARENA_SELL_REFUND); }   // 판매가 = 기본 + 강화 투입 환급
+// 💰 인형 판매 → 투기장 코인. 검키우기식 "키워서 팔기" 핵심 수급.
+//   설계: 저강(안전)=손해(무한 farming 방지) · 적정선(+7~) 이상 럭키하면 투입보다 이득(잭팟) · 평균은 항상 손해(무한증식 방지).
+//   판매가 = min( 기대투입R×환급 , 베스트투입×상한 ) — 앞항이 저강을 손해로, 뒤항이 고강 폭발(기대비용이 파괴리셋으로 폭증)을 억제.
+const ARENA_SELL_BASE = 8;         // +0(미강화) 인형 처분가
+const ARENA_SELL_REFUND = 0.6;     // 기대투입(R[N]) 대비 환급률 (저강=손해 보장)
+const ARENA_SELL_CAP = 2.5;        // 베스트투입 대비 상한배율 (고강 판매가 폭발 방지·잭팟은 유지)
+function _arenaCumCost(power){ let s=0; for(let k=0;k<(power||0);k++) s+=arenaForgeCost(k); return s; }   // +0→+power 최선 누적(럭키)
+let _arenaRCache=null;
+function _arenaExpCost(power){   // 0→power 첫 도달 기대비용(파괴=0리셋 반영). A[k]=(c+pd·R[k])/ps · R[k+1]=R[k]+A[k]. 메모이즈
+  if(!_arenaRCache){ const R=[0]; for(let k=0;k<ARENA_MAX_POWER;k++){ const o=arenaForgeOdds(k), ps=Math.max(0.01,o.success/100), pd=o.destroy/100; R[k+1]=R[k]+(arenaForgeCost(k)+pd*R[k])/ps; } _arenaRCache=R; }
+  return _arenaRCache[Math.min(power||0, ARENA_MAX_POWER)]||0;
+}
+function _arenaSellValue(power){
+  power=power||0; if(power<=0) return ARENA_SELL_BASE;
+  return Math.max(ARENA_SELL_BASE, Math.round(Math.min(ARENA_SELL_REFUND*_arenaExpCost(power), ARENA_SELL_CAP*_arenaCumCost(power))));
+}
 function _arenaSell(champFile){   // 인형 1개 판매 → 코인. 강화된(power>0) 인형이면 그 종류 전투력 리셋(=강화한 그 인형을 넘김)
   const key=getMyGoldKey(); if(!key) return {r:'nokey'};
   const data=getMyGoldData()||{}; const rk=_arenaRk(champFile);
