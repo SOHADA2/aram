@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.377';
+const APP_VERSION = 'v2.45.378';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.377';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.378', date: '2026-06-27', changes: [
+    { tag: 'improve', text: '⚔️ 투기장 전투 — 캐릭터를 코너로 더(약 2배) 몰아 대치 구도를 키우고, 잘리지 않게 스테이지를 키우고 모델을 살짝 줄이고 카메라를 더 당겼어요. 피격 시 밀려나는 반동도 줄여 가장자리로 안 벗어나게 했고, 대치 모션도 다른 클립을 우선 시도해요. "명중!" 효과 텍스트는 매 타격마다 → 첫 타격·마지막 일격만 뜨도록 줄였어요.' },
+  ] },
   { ver: 'v2.45.377', date: '2026-06-27', changes: [
     { tag: 'improve', text: '⚔️ 투기장 전투 연출 다듬기 — 내 캐릭터를 왼쪽 하단, 상대 캐릭터를 오른쪽 상단 코너로 더 몰아 대치 구도를 분명히 했어요. 상황 글(스킬·명중·상성)은 외부 배너 대신 전투 화면 안에서 공격/피격한 캐릭터 근처에 작게 떠올랐다 사라지는 효과 텍스트로 바꿔, "명중!"·스킬명 같은 게 그 캐릭터 옆에서 작게 보입니다.' },
   ] },
@@ -32850,7 +32853,7 @@ function _injectArenaCss(){
   .arena-skill i{font-size:9px;font-style:normal;color:#9aa0b4;}
   .arena-skill-vs{font-size:12px;color:#cbd3e6;margin:5px 0 2px;}.arena-skill-vs b{font-family:'JetBrains Mono',monospace;color:#ffd24a;}.arena-skill-vs .svs-x{color:#9aa0b4;margin:0 4px;font-weight:700;}
   /* 🎬 3D 전투 스테이지 */
-  .arena3d-stage{position:relative;width:100%;height:196px;margin:6px 0 4px;border-radius:14px;overflow:hidden;background:linear-gradient(180deg,#0a0c14,#13101a 58%,#1b1018);border:1px solid rgba(240,200,90,.22);transition:box-shadow .3s,border-color .3s;}
+  .arena3d-stage{position:relative;width:100%;height:236px;margin:6px 0 4px;border-radius:14px;overflow:hidden;background:linear-gradient(180deg,#0a0c14,#13101a 58%,#1b1018);border:1px solid rgba(240,200,90,.22);transition:box-shadow .3s,border-color .3s;}
   .arena3d-stage::before{content:'';position:absolute;left:0;right:0;bottom:0;height:64%;pointer-events:none;background:radial-gradient(ellipse 68% 100% at 50% 122%,rgba(240,200,90,.22),rgba(192,69,63,.12) 44%,transparent 72%);}
   .arena3d-stage::after{content:'';position:absolute;inset:0;pointer-events:none;border-radius:14px;background:radial-gradient(ellipse 124% 82% at 50% 38%,transparent 54%,rgba(4,3,9,.6) 100%);box-shadow:inset 0 0 54px rgba(0,0,0,.45);}
   .arena3d-stage.win-glow{border-color:rgba(124,252,154,.7);box-shadow:inset 0 0 46px -6px rgba(124,252,154,.4),0 0 24px -4px rgba(124,252,154,.42);}
@@ -33130,7 +33133,7 @@ const ARENA_BATTLE_CLIPS = {   // 동작별 후보 클립명(앞에서부터 있
   hurt:   ['Death','Hit','Flinch','Sad','Idle_Base'],
   win:    ['Dance_Loop','Dance','DanceLoop','Celebrate','Laugh','Laugh_Loop','Idle_Base'],
   lose:   ['Death','Sad','Joke','Idle_Base'],
-  idle:   ['Idle_Base'],
+  idle:   ['Idle_Combat','Idle_Battle','Idle_Loop','Idle','Idle_Base'],   // 다른 대치 모션 우선(없으면 Idle_Base 폴백)
 };
 const ARENA_SKILL_CLIPS = {};   // (B용) 챔피언별 Q/W/E 실제 스킬 클립: 예 { 'gwen.glb':{ Q:['Gwen_Q'], W:[...], E:[...] } } — 비면 attack 사용
 function _arenaClipPick(clips, names){ if(!clips) return null; for(const n of names) if(clips[n]) return clips[n]; return clips['Idle_Base']||Object.values(clips)[0]||null; }
@@ -33170,10 +33173,11 @@ async function _arenaBattle3D(stage, atkFile, defFile){   // stage=컨테이너.
       const adj=_buddyAdj(file,'full');
       // 🎬 포켓몬식 거리감: 내 캐릭터(side -1)=앞·아래·크게 / 상대(side +1)=뒤·위·작게(원근으로 크기차)
       const me = side<0;
-      const bx = side * r * (me?0.78:0.84) + (adj.x||0)*r*0.16;   // 🎬 나=더 왼쪽 / 상대=더 오른쪽(코너로 몰기)
-      const by = (me? -r*0.42 : r*0.40) + (adj.y||0)*r*0.28;       // 나=더 아래(하단) / 상대=더 위(상단)
-      const bz = me? r*0.50 : -r*0.82;   // +z=앞(카메라쪽·큼) / −z=뒤(작음)
+      const bx = side * r * (me?1.16:1.20) + (adj.x||0)*r*0.14;   // 🎬 나=훨씬 왼쪽 / 상대=훨씬 오른쪽(코너로 2배 몰기)
+      const by = (me? -r*0.62 : r*0.60) + (adj.y||0)*r*0.24;       // 나=훨씬 아래(하단) / 상대=훨씬 위(상단)
+      const bz = me? r*0.46 : -r*0.80;   // +z=앞(카메라쪽·큼) / −z=뒤(작음)
       group.position.set(bx, by, bz);
+      group.scale.setScalar(0.82);   // 모델 축소 — 코너로 몰아도 화면 밖으로 안 잘리게
       group.rotation.y = me ? Math.PI : -0.14;   // 🎬 내 캐릭터=뒷모습(180°·포켓몬식)·상대=정면(카메라 쪽)
       group.rotation.x = me ? -_buddyHeadTilt : _buddyHeadTilt;   // 뒷모습은 기울임 반대로
       scene.add(group);
@@ -33188,7 +33192,7 @@ async function _arenaBattle3D(stage, atkFile, defFile){   // stage=컨테이너.
   stage.querySelectorAll('.arena3d-loading,.arena-bt-vs').forEach(el=>el.remove());   // 로딩/정적 폴백 제거
   stage.appendChild(canvas);
   const maxR=Math.max(ctx.units[0].r, ctx.units[1].r, 1);
-  camera.position.set(0, maxR*0.12, maxR*6.3); camera.lookAt(0, 0, -maxR*0.08);   // 더 뒤로 당겨 코너로 몰린 둘 다 화면 안에
+  camera.position.set(0, maxR*0.06, maxR*7.0); camera.lookAt(0, 0, -maxR*0.05);   // 더 뒤로 당겨 코너로 2배 몰린 둘 다 화면 안에(안 잘리게)
   (function loop(){ if(!ctx.alive) return; ctx.raf=requestAnimationFrame(loop);
     const dt=Math.min(0.05, ctx.clock.getDelta());
     ctx.units.forEach(u=>{ if(!u||!u.base) return; if(u.mixer) u.mixer.update(dt);
@@ -33198,7 +33202,7 @@ async function _arenaBattle3D(stage, atkFile, defFile){   // stage=컨테이너.
         x += (other.base.x-u.base.x)*0.42*k; y += (other.base.y-u.base.y)*0.42*k; z += (other.base.z-u.base.z)*0.42*k; }
       if(u._flinch>0 && other){ u._flinch=Math.max(0,u._flinch-dt*1.8); const k=Math.sin((1-u._flinch/0.42)*Math.PI);   // 피격=상대 반대로 밀림
         const dx=u.base.x-other.base.x, dy=u.base.y-other.base.y, dz=u.base.z-other.base.z, len=Math.hypot(dx,dy,dz)||1;
-        x += dx/len*u.r*0.32*k; y += dy/len*u.r*0.32*k; z += dz/len*u.r*0.32*k; rz = -u.side*k*0.16; }
+        x += dx/len*u.r*0.18*k; y += dy/len*u.r*0.18*k; z += dz/len*u.r*0.18*k; rz = -u.side*k*0.16; }
       u.group.position.set(x,y,z); u.group.rotation.z=rz;
     });
     ctx.renderer.render(ctx.scene, ctx.camera);
@@ -33422,7 +33426,7 @@ window.openArenaBattle=function(sandbox, opts){
         else if(atkSide>0 && !opShown){ opShown=true; floatAt(1, `<b>${r.oppSkill}</b> ${oppSk}`, 'opp'); }
       });
       T(base+IMPACT, ()=>{ _arena3dHurt(defSide); setHp(dmgBar, dmgHp); hitFx(dmgBar&&dmgBar.closest('.arena-pkbox'));   // ② 닿는 순간 피격·HP·반동
-        floatAt(defSide, k===4?'⚡ 일격!':'명중!', 'hit');   // 맞은 캐릭터 쪽에 작은 효과 텍스트
+        if(k===4) floatAt(defSide, '⚡ 일격!', 'hit'); else if(k===0) floatAt(defSide, '명중!', 'hit');   // 첫 타격·마지막만(덜 나오게)
         if(!advShown && r.adv){ advShown=true; if(r.adv>0) floatAt(-1,'🔥 유리','good'); else floatAt(1,'🛡 불리','bad'); }
       });
     }
