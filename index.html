@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.367';
+const APP_VERSION = 'v2.45.368';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.367';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.368', date: '2026-06-27', changes: [
+    { tag: 'improve', text: '⚔️ 투기장 전투 연출 직관성 개선 — (1) 포켓몬식 거리감: 내 캐릭터는 앞·아래·크게, 상대는 뒤·위·작게 배치해 누가 내 인형인지 한눈에. (2) 🔵나(좌하단)/🔴상대(우상단) 네임플레이트를 전투 내내 표시. (3) 스킬을 순차로 — 내 공격 스킬 → 상대 방어 스킬 → 가위바위보 유리/불리를 차례로 띄워 무슨 스킬을 썼는지 명확하게.' },
+  ] },
   { ver: 'v2.45.367', date: '2026-06-27', changes: [
     { tag: 'improve', text: '🎴 투기장 배틀 상대 선택 목록은 다시 2D 초상화로 — 3D는 실제 전투 화면에만 유지(목록은 초상화가 더 깔끔). 전투 연출은 그대로 3D.' },
   ] },
@@ -32822,6 +32825,22 @@ function _injectArenaCss(){
   .arena3d-stage .arena-bt-vs{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:14px;margin:0;}
   .arena-bt-reveal{opacity:0;transform:translateY(6px);transition:opacity .45s,transform .45s;pointer-events:none;}
   .arena-bt-reveal.show{opacity:1;transform:none;pointer-events:auto;}
+  /* 🟦🟥 네임플레이트(포켓몬식 내/상대 구분·전투 내내 유지) */
+  .arena-nameplate{position:absolute;z-index:3;font-size:11px;font-weight:800;padding:3px 9px;border-radius:9px;display:flex;align-items:center;gap:5px;pointer-events:none;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.45);}
+  .arena-nameplate b{font-family:'JetBrains Mono',monospace;}
+  .arena-nameplate .np-tag{font-size:9.5px;opacity:.9;font-weight:800;}
+  .arena-nameplate.me{left:8px;bottom:8px;background:rgba(38,86,176,.62);border:1px solid rgba(125,172,255,.75);color:#e2ecff;}
+  .arena-nameplate.opp{right:8px;top:8px;background:rgba(172,52,52,.62);border:1px solid rgba(255,140,140,.75);color:#ffe2e2;}
+  /* 💬 스킬 콜아웃(순차 — 내 공격→상대 방어→상성) */
+  .arena-callout{position:absolute;left:50%;top:46%;transform:translate(-50%,-50%) scale(.86);z-index:4;font-size:13px;font-weight:800;padding:6px 15px;border-radius:11px;background:rgba(11,9,18,.86);border:1.5px solid rgba(255,255,255,.2);color:#fff;opacity:0;transition:opacity .18s,transform .18s;pointer-events:none;white-space:nowrap;box-shadow:0 5px 18px rgba(0,0,0,.6);text-align:center;}
+  .arena-callout.show{opacity:1;transform:translate(-50%,-50%) scale(1);}
+  .arena-callout b{font-family:'JetBrains Mono',monospace;font-size:15px;margin:0 3px;color:#ffd24a;}
+  .arena-callout .acl-side{display:inline-block;font-size:10px;opacity:.85;margin-right:6px;font-weight:800;}
+  .arena-callout.me{border-color:rgba(125,172,255,.8);} .arena-callout.me b{color:#9ec0ff;}
+  .arena-callout.opp{border-color:rgba(255,140,140,.8);} .arena-callout.opp b{color:#ff9e9e;}
+  .arena-callout.good{color:#7CFC9A;border-color:rgba(124,252,154,.7);} .arena-callout.good b{color:#7CFC9A;}
+  .arena-callout.bad{color:#ff8b8b;border-color:rgba(255,139,139,.7);} .arena-callout.bad b{color:#ff8b8b;}
+  .arena-callout.neu{color:#cbd3e6;} .arena-callout.neu b{color:#cbd3e6;}
   /* 🔮 상성(유리/불리·속성) */
   .arena-adv{font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:7px;vertical-align:middle;}
   .arena-adv.good{color:#7CFC9A;background:rgba(124,252,154,.14);border:1px solid rgba(124,252,154,.4);}
@@ -33098,12 +33117,17 @@ async function _arenaBattle3D(stage, atkFile, defFile){   // stage=컨테이너.
       const r=box.getBoundingSphere(new THREE.Sphere()).radius||1;
       const group=new THREE.Group(); group.add(model);
       const adj=_buddyAdj(file,'full');
-      group.position.set(side*r*1.25 + (adj.x||0)*r*0.3, (adj.y||0)*r*0.5 - r*0.12, 0);
-      group.rotation.y = -side*0.42;   // 서로 안쪽으로 살짝 틀어 마주봄(정면 유지)
+      // 🎬 포켓몬식 거리감: 내 캐릭터(side -1)=앞·아래·크게 / 상대(side +1)=뒤·위·작게(원근으로 크기차)
+      const me = side<0;
+      const bx = side * r * (me?0.58:0.72) + (adj.x||0)*r*0.22;
+      const by = (me? -r*0.34 : r*0.30) + (adj.y||0)*r*0.40;
+      const bz = me? r*0.80 : -r*1.10;   // +z=앞(카메라쪽·큼) / −z=뒤(작음)
+      group.position.set(bx, by, bz);
+      group.rotation.y = -side*0.5;   // 서로 안쪽으로 틀어 마주봄
       group.rotation.x = _buddyHeadTilt;
       scene.add(group);
       const mixer=new THREE.AnimationMixer(model); const clips={}; (g.animations||[]).forEach(cl=>clips[cl.name]=cl);
-      ctx.units[side<0?0:1]={ file, side, group, model, mixer, clips, r, baseX:group.position.x };
+      ctx.units[side<0?0:1]={ file, side, group, model, mixer, clips, r, base:{x:bx,y:by,z:bz} };
       res();
     }, undefined, ()=>res());
   });
@@ -33113,14 +33137,18 @@ async function _arenaBattle3D(stage, atkFile, defFile){   // stage=컨테이너.
   stage.querySelectorAll('.arena3d-loading,.arena-bt-vs').forEach(el=>el.remove());   // 로딩/정적 폴백 제거
   stage.appendChild(canvas);
   const maxR=Math.max(ctx.units[0].r, ctx.units[1].r, 1);
-  camera.position.set(0, maxR*0.05, maxR*4.4); camera.lookAt(0, -maxR*0.12, 0);
+  camera.position.set(0, maxR*0.26, maxR*4.9); camera.lookAt(0, -maxR*0.04, -maxR*0.12);   // 약간 위에서 내려봄(상대=위쪽·작게)
   (function loop(){ if(!ctx.alive) return; ctx.raf=requestAnimationFrame(loop);
     const dt=Math.min(0.05, ctx.clock.getDelta());
-    ctx.units.forEach(u=>{ if(!u) return; if(u.mixer) u.mixer.update(dt);
-      let x=u.baseX, rz=0;
-      if(u._lunge>0){ u._lunge=Math.max(0,u._lunge-dt*2.0); const k=Math.sin((1-u._lunge/0.5)*Math.PI); x = u.baseX + (-u.side)*k*u.r*0.6; }   // 공격=중앙으로 돌진
-      if(u._flinch>0){ u._flinch=Math.max(0,u._flinch-dt*2.4); const k=Math.sin((1-u._flinch/0.42)*Math.PI); x = u.baseX + (u.side)*k*u.r*0.35; rz = -u.side*k*0.18; }   // 피격=뒤로 밀림
-      u.group.position.x=x; u.group.rotation.z=rz;
+    ctx.units.forEach(u=>{ if(!u||!u.base) return; if(u.mixer) u.mixer.update(dt);
+      let x=u.base.x, y=u.base.y, z=u.base.z, rz=0;
+      const other=ctx.units[u.side<0?1:0];
+      if(u._lunge>0 && other){ u._lunge=Math.max(0,u._lunge-dt*2.0); const k=Math.sin((1-u._lunge/0.5)*Math.PI);   // 공격=상대 쪽으로 대각선 돌진
+        x += (other.base.x-u.base.x)*0.42*k; y += (other.base.y-u.base.y)*0.42*k; z += (other.base.z-u.base.z)*0.42*k; }
+      if(u._flinch>0 && other){ u._flinch=Math.max(0,u._flinch-dt*2.4); const k=Math.sin((1-u._flinch/0.42)*Math.PI);   // 피격=상대 반대로 밀림
+        const dx=u.base.x-other.base.x, dy=u.base.y-other.base.y, dz=u.base.z-other.base.z, len=Math.hypot(dx,dy,dz)||1;
+        x += dx/len*u.r*0.32*k; y += dy/len*u.r*0.32*k; z += dz/len*u.r*0.32*k; rz = -u.side*k*0.16; }
+      u.group.position.set(x,y,z); u.group.rotation.z=rz;
     });
     ctx.renderer.render(ctx.scene, ctx.camera);
   })();
@@ -33242,6 +33270,8 @@ window.openArenaBattle=function(sandbox, opts){
       <div class="arena-h">⚔️ 배틀${SB?' <span style="font-size:11px;color:#7CFC9A">· 🧪 테스트</span>':''}</div>
       <div class="arena-skill-vs" id="abt-skillvs" style="display:none;"></div>
       <div class="arena3d-stage" id="arena3d-stage">
+        <div class="arena-nameplate me"><span class="np-tag">🔵 나</span> ${escHtml(_buddyChampName(myFighter()))} <b>+${mp}</b></div>
+        <div class="arena-nameplate opp"><span class="np-tag">🔴 상대</span> ${escHtml(opp.name)} <b>+${opp.power}</b></div>
         <div class="arena-bt-vs">
           <div class="arena-bt-side"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${mk}_0.jpg" onerror="this.style.visibility='hidden'"><div class="arena-bt-nm">나 <b>+${mp}</b></div></div>
           <div class="arena-bt-mid" style="color:#cbd3e6;font-size:15px;">⚔️</div>
@@ -33266,9 +33296,7 @@ window.openArenaBattle=function(sandbox, opts){
       res._oppName=opp.name; res._oppFighter=opp.fighter; showResultInline(opp, res);   // busy 유지 — 계속/닫기에서 reroll로 해제
     });
   };
-  const showResultInline=(opp, r)=>{   // 같은 화면서 전투 연출(3D) + 결과 공개(스킬선택 자리 → 결과로 교체)
-    const sv=ov.querySelector('#abt-skillvs');
-    if(sv){ sv.style.display=''; sv.innerHTML=`내 <b>${r.mySkill}</b> ${escHtml(_champSkills(myFighter())[r.mySkill]||'')} <span class="svs-x">vs</span> 상대 <b>${r.oppSkill}</b> ${escHtml(_champSkills(r._oppFighter)[r.oppSkill]||'')} ${_skillAdvHtml(r.adv)}`; }
+  const showResultInline=(opp, r)=>{   // 같은 화면서 전투 연출(3D) + 순차 스킬 콜아웃 + 결과 공개
     const bottom=ov.querySelector('#abt-bottom');
     if(bottom){ bottom.innerHTML=`<div class="arena-bt-reveal" id="arena-bt-reveal">
       <div class="arena-bt-res ${r.won?'win':'lose'}">${r.won?'🎉 승리!':'😢 패배'} <span>(승률 ${r.wr}%)</span></div>
@@ -33280,10 +33308,24 @@ window.openArenaBattle=function(sandbox, opts){
     ov.querySelector('#abt-x').onclick=()=>{ _arenaBattle3DStop(); ov.remove(); };
     const ag=ov.querySelector('#abt-again'); if(ag) ag.onclick=()=>reroll();
     if(!SB){ try{ updateMyInfoBar(); }catch(_){} }
-    const reveal=()=>{ const el=ov.querySelector('#arena-bt-reveal'); if(el) el.classList.add('show'); };
+    // 💬 순차 스킬 콜아웃(내 공격 → 상대 방어 → 상성) — 3D 안무 타이밍에 맞춤
+    const stage=ov.querySelector('#arena3d-stage');
+    let callout=stage&&stage.querySelector('.arena-callout');
+    if(stage && !callout){ callout=document.createElement('div'); callout.className='arena-callout'; stage.appendChild(callout); }
+    const showCall=(html,cls)=>{ if(!callout) return; callout.classList.remove('show'); callout.innerHTML=html; callout.className='arena-callout '+(cls||''); void callout.offsetWidth; callout.classList.add('show'); };
+    const mySk=escHtml(_champSkills(myFighter())[r.mySkill]||''), oppSk=escHtml(_champSkills(r._oppFighter)[r.oppSkill]||'');
+    const cTimers=[];
+    cTimers.push(setTimeout(()=>showCall(`<span class="acl-side">🔵 내 공격</span><b>${r.mySkill}</b> ${mySk}`,'me'), 360));
+    cTimers.push(setTimeout(()=>showCall(`<span class="acl-side">🔴 상대 방어</span><b>${r.oppSkill}</b> ${oppSk}`,'opp'), 880));
+    cTimers.push(setTimeout(()=>{ const v=r.adv>0?`🔥 <b>${r.mySkill}</b>▶<b>${r.oppSkill}</b> 유리! +10%`:r.adv<0?`🛡 <b>${r.mySkill}</b>는 <b>${r.oppSkill}</b>에 불리 −10%`:'➖ 가위바위보 비김'; showCall(v, r.adv>0?'good':r.adv<0?'bad':'neu'); }, 1380));
+    // 최종 결과 공개(콜아웃 끝난 뒤) + 매치 요약줄
+    const reveal=()=>{ const el=ov.querySelector('#arena-bt-reveal'); if(el) el.classList.add('show');
+      const sv=ov.querySelector('#abt-skillvs'); if(sv){ sv.style.display=''; sv.innerHTML=`내 <b>${r.mySkill}</b> ${mySk} <span class="svs-x">vs</span> 상대 <b>${r.oppSkill}</b> ${oppSk} ${_skillAdvHtml(r.adv)}`; }
+      if(callout) callout.classList.remove('show'); };
     let revealed=false; const doReveal=()=>{ if(revealed) return; revealed=true; reveal(); };
-    const safety=setTimeout(doReveal, 4000);
-    try{ _arena3dFight(r, ()=>{ clearTimeout(safety); setTimeout(doReveal, 400); }); }catch(_){ clearTimeout(safety); doReveal(); }
+    const minReveal=setTimeout(doReveal, 1950);   // 콜아웃 3단계 끝난 뒤 공개
+    const safety=setTimeout(doReveal, 4500);
+    try{ _arena3dFight(r, ()=>{}); }catch(_){ }   // 3D 안무 트리거(연출). 결과 공개 타이밍은 콜아웃 기준
   };
   render();
   if(opts && opts.demo){   // 🎬 자동 데모 — 첫 상대 선택 후 스킬 자동 클릭(실제 흐름·3D 연출 즉시 확인)
