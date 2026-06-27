@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.356';
+const APP_VERSION = 'v2.45.357';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.356';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.357', date: '2026-06-26', changes: [
+    { tag: 'new', text: '💰 인형 판매 → 투기장 코인! 강화창에서 인형을 팔아 🗡️투기장 코인으로 바꿀 수 있어요. 강화될수록 비싸게 팔려요(투입의 60% 환급) — 예: +0=10 · +10=315 · +15=839 · +19=1,547 코인. "키워서 팔고 다시 도전"하는 검키우기식 코인 수급 핵심 루프! (강화된 인형을 팔면 그 종류 전투력은 +0으로 리셋·잉여 인형 정리에도 좋아요)' },
+  ] },
   { ver: 'v2.45.356', date: '2026-06-26', changes: [
     { tag: 'new', text: '🎁 인형 투기장 오픈 기념 코인 — 투기장이 열린 뒤 처음 입장하면 🗡️투기장 코인 200개를 1회 지급해요. 배틀 없이도 바로 강화를 몇 번 굴려볼 수 있어요. (배틀은 코인이 안 들고, 져도 코인을 주니 이후엔 배틀로 모으면 돼요)' },
   ] },
@@ -32661,6 +32664,32 @@ function _arenaForge(champFile){   // 강화 1회 시도 → 결과
   const brokeGate = result==='destroy' && (stockMap[rk]||0)===0 && _arenaDistinct(getMyGoldData())<7;
   return { r:result, power:powerMap[rk], cost, brokeGate };
 }
+// 💰 인형 판매 → 투기장 코인 환급(강화될수록 비쌈). 검키우기식 "키워서 팔기" — 투기장 코인 핵심 수급
+const ARENA_SELL_BASE = 10;        // 인형 1개 기본 판매가(코인)
+const ARENA_SELL_REFUND = 0.6;     // 강화 투입(최선 기준 누적)의 환급률 — 항상 투입<환급이라 무한루프 없음
+function _arenaCumCost(power){ let s=0; for(let k=0;k<(power||0);k++) s+=arenaForgeCost(k); return s; }   // +0→+power 최선 누적 비용
+function _arenaSellValue(power){ return ARENA_SELL_BASE + Math.round(_arenaCumCost(power)*ARENA_SELL_REFUND); }   // 판매가 = 기본 + 강화 투입 환급
+function _arenaSell(champFile){   // 인형 1개 판매 → 코인. 강화된(power>0) 인형이면 그 종류 전투력 리셋(=강화한 그 인형을 넘김)
+  const key=getMyGoldKey(); if(!key) return {r:'nokey'};
+  const data=getMyGoldData()||{}; const rk=_arenaRk(champFile);
+  const stock=_arenaStockOf(champFile, data); if(stock<1) return {r:'nostock'};
+  const power=_arenaPowerOf(champFile, data), value=_arenaSellValue(power);
+  const stockMap=_arenaStock(data); stockMap[rk]=Math.max(0,stock-1);
+  const powerMap=_arenaPowerMap(data); powerMap[rk]=0;   // 판매=강화한 인형을 넘김 → 그 종류 전투력 +0
+  const coins=(data[sField('arenaCoins')]||0)+value;
+  const u={ [sField('arenaCoins')]:coins, [sField('dollStock')]:stockMap, [sField('arenaPower')]:powerMap };
+  if(goldData[key]) Object.assign(goldData[key], u);
+  update(ref(db,'gold/'+key), u).catch(()=>{});
+  const brokeGate=(stockMap[rk]||0)===0 && _arenaDistinct(getMyGoldData())<7;
+  return { r:'ok', value, power, brokeGate };
+}
+function _arenaSellSB(SB, champFile){   // 🧪 샌드박스 판매(메모리만)
+  const rk=_arenaRk(champFile), stock=SB.stock[rk]||0; if(stock<1) return {r:'nostock'};
+  const power=SB.power[rk]||0, value=_arenaSellValue(power);
+  SB.stock[rk]=Math.max(0,stock-1); SB.power[rk]=0; SB.arenaCoins=(SB.arenaCoins||0)+value;
+  const distinct=Object.keys(SB.stock).filter(k=>SB.stock[k]>0).length;
+  return { r:'ok', value, power, brokeGate:(SB.stock[rk]||0)===0&&distinct<7 };
+}
 function _arenaSetFighter(champFile){
   const key=getMyGoldKey(); if(!key) return;
   if(goldData[key]) goldData[key][sField('arenaFighter')]=champFile;
@@ -32697,6 +32726,8 @@ function _injectArenaCss(){
   .arena-cost{font-size:12.5px;color:#cbd3e6;margin-bottom:10px;} .arena-cost b{color:#ffd24a;} .arena-cost .no{color:#ff6b6b;}
   .arena-forge-btn{width:100%;background:linear-gradient(90deg,#f0c060,#e0a82e);border:0;color:#1a1206;border-radius:12px;padding:13px;font-size:15px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(240,200,90,.3);}
   .arena-forge-btn:disabled{filter:grayscale(.6);opacity:.55;cursor:not-allowed;}
+  .arena-sell-btn{width:100%;margin-top:7px;background:rgba(240,200,90,.1);border:1px solid rgba(240,200,90,.4);color:#ffe39a;border-radius:11px;padding:9px;font-size:12.5px;font-weight:800;cursor:pointer;}
+  .arena-sell-btn:active{transform:translateY(1px);} .arena-sell-btn:disabled{filter:grayscale(.6);opacity:.5;cursor:not-allowed;}
   .arena-pick{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;margin:12px 0 2px;}
   .arena-pick .ap{position:relative;background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.12);border-radius:10px;padding:3px;cursor:pointer;width:48px;}
   .arena-pick .ap.on{border-color:#ffd24a;box-shadow:0 0 8px rgba(240,200,90,.4);}
@@ -32848,6 +32879,7 @@ window.openArenaForge=function(sandbox){
   const getStockMap=()=> SB? {...SB.stock} : _arenaStock(getMyGoldData());
   const setFighter=c=>{ if(SB) SB.fighter=c; else _arenaSetFighter(c); };
   const doForge=c=> SB? _arenaForgeSB(SB,c) : _arenaForge(c);
+  const doSell=c=> SB? _arenaSellSB(SB,c) : _arenaSell(c);
   let active = SB? SB.fighter : _arenaActiveFighter(getMyGoldData());
   const ov=document.createElement('div'); ov.id='arena-forge'; ov.className='arena-ov';
   ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
@@ -32877,6 +32909,7 @@ window.openArenaForge=function(sandbox){
       </div>
       <div class="arena-cost">시도 비용 <b>🗡️${cost}</b> · 보유 <b class="${coins<cost?'no':''}">🗡️${coins}</b> 코인</div>
       <button class="arena-forge-btn" id="arena-go" ${canForge?'':'disabled'}>${stock<1?'보유 인형 없음 — 인형뽑기로':coins<cost?'투기장 코인 부족 — 배틀로':'⚒️ 강화 시도'}</button>`}
+      <button class="arena-sell-btn" id="arena-sell" ${stock<1?'disabled':''}>💰 ${escHtml(_buddyChampName(active))} 팔기 → 🗡️${_arenaSellValue(power)} 코인${power>0?` <span style="opacity:.8;font-size:11px;">(+${power}→리셋)</span>`:''}</button>
       <div class="arena-pick">${owned.map(c=>`<div class="ap ${_arenaRk(active)===c?'on':''}" data-c="${c}.glb"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${_clawDdKey(c)}_0.jpg" onerror="this.style.visibility='hidden'"><div class="ap-p">+${getPower(c+'.glb')}</div><span class="ap-q">${stockMap[c]}</span></div>`).join('')}</div>
       <div class="arena-pick-lbl">↑ 전투 인형 선택 (배지=보유 수량 · +N=전투력)</div>
       <button class="arena-nav battle" id="arena-to-battle">⚔️ 배틀하러 가기 (코인 벌기)</button>
@@ -32885,6 +32918,19 @@ window.openArenaForge=function(sandbox){
     ov.querySelector('#arena-x').onclick=()=>ov.remove();
     { const tb=ov.querySelector('#arena-to-battle'); if(tb) tb.onclick=()=>{ ov.remove(); try{ openArenaBattle(SB?true:false); }catch(_){} }; }
     ov.querySelectorAll('.ap').forEach(b=>b.onclick=()=>{ if(busy) return; active=b.dataset.c; setFighter(active); render(); });
+    { const sl=ov.querySelector('#arena-sell'); if(sl) sl.onclick=()=>{
+      if(busy) return;
+      const pw=getPower(active), stk=getStock(active), val=_arenaSellValue(pw); if(stk<1) return;
+      let warn=`${_buddyChampName(active)} 인형 1개를 팔아 🗡️${val} 코인을 받아요.`;
+      if(pw>0) warn+=`\n⚠️ 전투력 +${pw}가 +0으로 리셋돼요 (강화한 인형을 넘기는 거예요).`;
+      if(stk<=1) warn+=`\n⚠️ 마지막 1개라 7종이 깨져요 — 인형뽑기로 다시 채워야 배틀 가능.`;
+      if(!confirm(warn)) return;
+      busy=true; const res=doSell(active);
+      if(res.r!=='ok'){ busy=false; render(null,'<span style="color:#ff6b6b">판매할 인형이 없어요</span>'); return; }
+      if(!SB){ try{ updateMyInfoBar(); }catch(_){} }
+      render(null, `<span style="color:#ffd24a">💰 판매 완료 — 🗡️${res.value} 코인 획득</span>${res.brokeGate?'<br><span style="color:#ffb24a;font-size:12px">⚠️ 7종이 깨졌어요 — 인형뽑기로 다시 채워야 배틀 가능</span>':''}`);
+      busy=false;
+    }; }
     const go=ov.querySelector('#arena-go');
     if(go) go.onclick=()=>{
       if(busy) return; busy=true;
