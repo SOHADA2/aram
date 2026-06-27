@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.369';
+const APP_VERSION = 'v2.45.370';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,11 @@ const APP_VERSION = 'v2.45.369';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.370', date: '2026-06-27', changes: [
+    { tag: 'fix', text: '⚔️ 투기장 전투에서 내 캐릭터 뒷모습이 투명하게 비쳐 보이던 버그를 고쳤어요(투명 재질을 컷아웃 처리).' },
+    { tag: 'improve', text: '⚔️ 투기장 전투가 너무 빨라 잘 안 보이던 걸 한 박자 느리게 — 타격 간격을 늘리고 돌진·피격 모션을 더 또렷하게 보이도록 했어요.' },
+    { tag: 'improve', text: '⚔️ 투기장 전투 문구의 "가위바위보"를 "스킬 상성"으로 바꿔 톤앤매너를 맞췄어요.' },
+  ] },
   { ver: 'v2.45.369', date: '2026-06-27', changes: [
     { tag: 'improve', text: '⚔️ 투기장 전투를 ❤️체력바 3라운드 주고받기로 — 한 방에 끝나던 걸, 두 캐릭터 체력바가 서로 깎이며 약 3번 공방을 주고받다 마지막 일격으로 끝나게 했어요(승패·보상은 그대로, 연출만 길어짐). 또 내 캐릭터를 뒷모습으로 돌려 포켓몬 전투처럼 내/상대 구분이 더 명확해졌어요.' },
   ] },
@@ -33122,7 +33127,7 @@ async function _arenaBattle3D(stage, atkFile, defFile){   // stage=컨테이너.
   const loadOne=(file,side)=> new Promise(res=>{
     loader.load(file, g=>{
       if(!ctx.alive) return res();
-      const model=g.scene; model.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{m.side=THREE.DoubleSide;}); } });
+      const model=g.scene; model.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(m.transparent){ m.transparent=false; m.alphaTest=0.5; m.depthWrite=true; } m.side=THREE.DoubleSide; m.needsUpdate=true; }); } });   // 🎬 투명 재질→컷아웃(뒷모습 관통 버그 방지·단짝/포로 로더와 동일)
       const box=new THREE.Box3().setFromObject(model); const c=box.getCenter(new THREE.Vector3()); model.position.sub(c);
       const r=box.getBoundingSphere(new THREE.Sphere()).radius||1;
       const group=new THREE.Group(); group.add(model);
@@ -33153,9 +33158,9 @@ async function _arenaBattle3D(stage, atkFile, defFile){   // stage=컨테이너.
     ctx.units.forEach(u=>{ if(!u||!u.base) return; if(u.mixer) u.mixer.update(dt);
       let x=u.base.x, y=u.base.y, z=u.base.z, rz=0;
       const other=ctx.units[u.side<0?1:0];
-      if(u._lunge>0 && other){ u._lunge=Math.max(0,u._lunge-dt*2.0); const k=Math.sin((1-u._lunge/0.5)*Math.PI);   // 공격=상대 쪽으로 대각선 돌진
+      if(u._lunge>0 && other){ u._lunge=Math.max(0,u._lunge-dt*1.45); const k=Math.sin((1-u._lunge/0.5)*Math.PI);   // 공격=상대 쪽으로 대각선 돌진
         x += (other.base.x-u.base.x)*0.42*k; y += (other.base.y-u.base.y)*0.42*k; z += (other.base.z-u.base.z)*0.42*k; }
-      if(u._flinch>0 && other){ u._flinch=Math.max(0,u._flinch-dt*2.4); const k=Math.sin((1-u._flinch/0.42)*Math.PI);   // 피격=상대 반대로 밀림
+      if(u._flinch>0 && other){ u._flinch=Math.max(0,u._flinch-dt*1.8); const k=Math.sin((1-u._flinch/0.42)*Math.PI);   // 피격=상대 반대로 밀림
         const dx=u.base.x-other.base.x, dy=u.base.y-other.base.y, dz=u.base.z-other.base.z, len=Math.hypot(dx,dy,dz)||1;
         x += dx/len*u.r*0.32*k; y += dy/len*u.r*0.32*k; z += dz/len*u.r*0.32*k; rz = -u.side*k*0.16; }
       u.group.position.set(x,y,z); u.group.rotation.z=rz;
@@ -33273,7 +33278,7 @@ window.openArenaBattle=function(sandbox, opts){
       <div class="arena-sub">내 전투인형 ${_arenaGradeHtml(mp)} <b style="color:#ffe39a">${escHtml(_buddyChampName(myFighter()))} +${mp}</b> · 오늘 <b style="color:#7CFC9A">${lf}</b>/${ARENA_BATTLE_DAILY}회</div>
       <div class="arena-bt-list">${list}</div>
       ${opps.length?`<button class="arena-bt-reroll" id="abt-reroll">🔄 다른 상대 보기</button>`:''}
-      <div class="arena-bt-tip">기본 승률 = 50% + (전투력 차)×2.5% · 도전 시 <b>Q/W/E 스킬 택1</b> → 상대는 <b>랜덤</b> 방어 → <b>Q▶W▶E▶Q</b> 가위바위보로 이기면 <b>+10%</b>, 지면 −10%!</div>
+      <div class="arena-bt-tip">기본 승률 = 50% + (전투력 차)×2.5% · 도전 시 <b>Q/W/E 스킬 택1</b> → 상대는 <b>랜덤</b> 방어 → <b>Q▶W▶E▶Q</b> 스킬 상성으로 이기면 <b>+10%</b>, 지면 −10%!</div>
       <button class="arena-nav forge" id="abt-forge">⚒️ 전투력 강화하러 가기</button>
       <button class="arena-close" id="abt-x">닫기</button>
     </div>`;
@@ -33303,7 +33308,7 @@ window.openArenaBattle=function(sandbox, opts){
         <div class="arena3d-loading">⚔️ 준비 중…</div>
       </div>
       <div id="abt-bottom">
-        <div class="arena-sub">어떤 스킬로 공격할까요? 상대는 방어 스킬을 <b style="color:#ffd24a">랜덤</b>으로 꺼내요 — <b>Q▶W▶E▶Q</b> 가위바위보!</div>
+        <div class="arena-sub">어떤 스킬로 공격할까요? 상대는 방어 스킬을 <b style="color:#ffd24a">랜덤</b>으로 꺼내요 — <b>Q▶W▶E▶Q</b> 스킬 상성!</div>
         <div class="arena-skills">${SKILL_SLOTS.map(s=>`<button class="arena-skill" data-s="${s}"><b>${s}</b><span>${escHtml(sk[s])}</span><i>▶ ${SKILL_BEATS[s]} 이김</i></button>`).join('')}</div>
         <button class="arena-bt-reroll" id="abt-back">← 상대 다시 고르기</button>
       </div>
@@ -33347,14 +33352,14 @@ window.openArenaBattle=function(sandbox, opts){
     const loserHpSteps=[67,33,0];                          // 패자 100→0 (3타)
     const winnerHpSteps=[Math.round((100+winnerFinal)/2), winnerFinal];   // 승자 100→잔여 (2타)
     const _t=[]; const T=(ms,fn)=>_t.push(setTimeout(()=>{ try{fn();}catch(_){} }, ms));
-    const STEP=520; let wi=0, li=0, meShown=false, opShown=false, advShown=false;
+    const STEP=820; let wi=0, li=0, meShown=false, opShown=false, advShown=false;
     for(let k=0;k<5;k++){   // 승자선공 교대(승3타·패2타)
       const isWinnerAtk=(k%2===0), atkSide=isWinnerAtk?winnerSide:loserSide;
       const dmgBar=isWinnerAtk?loserBar:winnerBar, dmgHp=isWinnerAtk?loserHpSteps[wi++]:winnerHpSteps[li++];
       T(k*STEP+80, ()=>{ _arena3dLunge(atkSide); setHp(dmgBar, dmgHp);
         if(atkSide<0 && !meShown){ meShown=true; showCall(`<span class="acl-side">🔵 내 공격</span><b>${r.mySkill}</b> ${mySk}`,'me'); }
         else if(atkSide>0 && !opShown){ opShown=true; showCall(`<span class="acl-side">🔴 상대 방어</span><b>${r.oppSkill}</b> ${oppSk}`,'opp'); }
-        else if(!advShown){ advShown=true; const v=r.adv>0?`🔥 <b>${r.mySkill}</b>▶<b>${r.oppSkill}</b> 유리! +10%`:r.adv<0?`🛡 <b>${r.mySkill}</b>는 <b>${r.oppSkill}</b>에 불리 −10%`:'➖ 가위바위보 비김'; showCall(v, r.adv>0?'good':r.adv<0?'bad':'neu'); }
+        else if(!advShown){ advShown=true; const v=r.adv>0?`🔥 <b>${r.mySkill}</b>▶<b>${r.oppSkill}</b> 상성 유리! +10%`:r.adv<0?`🛡 <b>${r.mySkill}</b>는 <b>${r.oppSkill}</b>에 상성 불리 −10%`:'➖ 스킬 상성 막상막하'; showCall(v, r.adv>0?'good':r.adv<0?'bad':'neu'); }
         else if(k===4){ showCall('⚡ 마지막 일격!','neu'); }
       });
     }
@@ -33364,7 +33369,7 @@ window.openArenaBattle=function(sandbox, opts){
       if(callout) callout.classList.remove('show'); };
     let revealed=false; const doReveal=()=>{ if(revealed) return; revealed=true; reveal(); };
     T(5*STEP+560, doReveal);   // 마지막 일격 뒤 결과 공개(~3.2초)
-    setTimeout(doReveal, 6000);   // 안전망
+    setTimeout(doReveal, 8000);   // 안전망
   };
   render();
   if(opts && opts.demo){   // 🎬 자동 데모 — 첫 상대 선택 후 스킬 자동 클릭(실제 흐름·3D 연출 즉시 확인)
