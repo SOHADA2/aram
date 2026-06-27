@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.361';
+const APP_VERSION = 'v2.45.362';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.361';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.362', date: '2026-06-26', changes: [
+    { tag: 'improve', text: '🎬 [개발] 모바일에서 3D 전투 바로 보기 — 주소에 ?arena3d를 붙이면 샌드박스 배틀이 자동으로 시작돼 3D 포켓몬식 전투 연출이 바로 재생돼요(탭 없이·실데이터 0 영향). 콘솔 arena3dDemo()도 동일.' },
+  ] },
   { ver: 'v2.45.361', date: '2026-06-26', changes: [
     { tag: 'new', text: '🎬 투기장 배틀 3D 연출 — 도전하면 카드 대신 내 인형과 상대 인형이 3D로 마주 서서, 공격(돌진)·피격(밀려남)·승리/패배 모션을 주고받는 포켓몬식 전투가 펼쳐져요! 연출이 끝나면 결과·보상이 공개돼요. (3D가 안 되는 기기는 기존 카드로 자동 폴백)' },
   ] },
@@ -23641,8 +23644,9 @@ if (location.search.includes('hofdemo')) setTimeout(()=>{ try{ window.previewS1H
 if (location.search.includes('claw')) setTimeout(()=>{ try{ window.clawTest(); }catch(_){} }, 1500);
 // 🧾 ?settlement 붙이면 정산창 프리뷰 자동 오픈(콘솔 없이 모바일 확인) — 실데이터/저장 무관
 if (location.search.includes('settlement')) setTimeout(()=>{ try{ window.settlementPreview(); }catch(_){} }, 1500);
-// 🗡️ 인형 투기장 프리뷰(샌드박스·메모리만·실데이터 0 영향) — 모바일 콘솔 없이 확인. ?arenabattle=배틀 / ?arenaforge=강화 / ?arena=배틀(기본)
-if (location.search.includes('arenabattle')) setTimeout(()=>{ try{ window.openArenaBattle(true); }catch(_){} }, 1500);
+// 🗡️ 인형 투기장 프리뷰(샌드박스·메모리만·실데이터 0 영향) — 모바일 콘솔 없이 확인. ?arena3d=3D전투 자동데모 / ?arenabattle=배틀 / ?arenaforge=강화 / ?arena=배틀(기본)
+if (location.search.includes('arena3d')) setTimeout(()=>{ try{ window.arena3dDemo(); }catch(_){} }, 1500);
+else if (location.search.includes('arenabattle')) setTimeout(()=>{ try{ window.openArenaBattle(true); }catch(_){} }, 1500);
 else if (location.search.includes('arenaforge')) setTimeout(()=>{ try{ window.openArenaForge(true); }catch(_){} }, 1500);
 else if (location.search.includes('arena')) setTimeout(()=>{ try{ window.openArenaBattle(true); }catch(_){} }, 1500);
 // 🏠 단짝 공간 프리뷰 링크 — ?buddypreview[=챔피언,무드,스택,레벨] (데이터 무변경). 예: ?buddypreview=gwen,win,4,3
@@ -33115,7 +33119,7 @@ async function _arenaBattle3D(stage, atkFile, defFile, result, onDone){   // sta
   }, 1750));
 }
 // ⚔️ 배틀 창 — 상대(다른 7종 완성자) 목록·승률·도전. 강화창과 상호 링크. sandbox=메모리만(가짜 상대).
-window.openArenaBattle=function(sandbox){
+window.openArenaBattle=function(sandbox, opts){
   if(!sandbox && !ARENA_LIVE_ENABLED){ showS1Toast('🔒 인형 투기장 대전은 준비 중이에요 (곧 열려요)'); return; }   // 🔒 라이브 잠금(샌드박스 프리뷰는 통과)
   const key=getMyGoldKey(); if(!key && !sandbox){ showS1Toast('닉네임을 먼저 선택해주세요'); return; }
   _injectArenaCss();
@@ -33226,8 +33230,12 @@ window.openArenaBattle=function(sandbox){
     });
   };
   render();
+  if(opts && opts.demo){   // 🎬 자동 데모 — 첫 상대에게 랜덤 스킬로 바로 배틀(모바일서 3D 연출 즉시 확인)
+    setTimeout(()=>{ try{ if(opps.length){ const o=opps[0], res=doBattle(o, _randSkill()); if(res && res.r==='ok'){ res._oppName=o.name; res._oppFighter=o.fighter; render(res); } } }catch(_){} }, 700);
+  }
 };
 window.arenaBattlePreview=function(){ try{ openArenaBattle(true); }catch(e){ console.warn(e); } };   // 🧪 배틀 샌드박스(가짜 상대·메모리만)
+window.arena3dDemo=function(){ try{ openArenaBattle(true, {demo:true}); }catch(e){ console.warn(e); } };   // 🎬 3D 전투 자동 데모(모바일 확인용)
 // 🗡️ 라이브 진입점 — 가챠 컬렉션 탭(인형뽑기/단짝 진입 옆)에 삽입. 7종 보유 시 버튼, 아니면 진행도 잠금 안내.
 function _arenaEntryHtml(){
   const data=getMyGoldData()||{};
