@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.372';
+const APP_VERSION = 'v2.45.373';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.372';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.373', date: '2026-06-27', changes: [
+    { tag: 'fix', text: '⚔️ 투기장 전투 캐릭터가 너무 커지고 HUD가 어긋나던 문제 수정 — 스테이지 높이를 원래대로 되돌려 캐릭터 크기를 정상화하고, 체력바·이름표를 캐릭터 중심점 기준으로 배치해(꼬리·머리카락 때문에 빗나가던 박스 계산 제거) 머리 위/발 아래에 더 잘 맞도록 했어요.' },
+  ] },
   { ver: 'v2.45.372', date: '2026-06-27', changes: [
     { tag: 'fix', text: '⚔️ 투기장 전투 HUD가 캐릭터와 안 맞던 버그 수정 — 실제 모델 높이로 화면 투영을 다시 계산해 ❤️체력바는 머리 위, 🏷️이름은 발 아래에 정확히 붙도록 했어요. 전투 스테이지도 키워 위/아래 공간을 확보했어요.' },
     { tag: 'improve', text: '⚔️ 체력바·네임플레이트를 롤(LoL) 톤으로 — 체력바는 아군 초록·적 빨강에 눈금 프레임, 네임플레이트는 금색 레벨 원형 + 깔끔한 이름으로 바꿨어요.' },
@@ -32835,7 +32838,7 @@ function _injectArenaCss(){
   .arena-skill i{font-size:9px;font-style:normal;color:#9aa0b4;}
   .arena-skill-vs{font-size:12px;color:#cbd3e6;margin:5px 0 2px;}.arena-skill-vs b{font-family:'JetBrains Mono',monospace;color:#ffd24a;}.arena-skill-vs .svs-x{color:#9aa0b4;margin:0 4px;font-weight:700;}
   /* 🎬 3D 전투 스테이지 */
-  .arena3d-stage{position:relative;width:100%;height:236px;margin:6px 0 4px;border-radius:12px;overflow:hidden;background:radial-gradient(ellipse 90% 70% at 50% 95%,rgba(192,69,63,.16),transparent 60%),linear-gradient(180deg,#0c0e16,#15101a);border:1px solid rgba(240,200,90,.18);}
+  .arena3d-stage{position:relative;width:100%;height:192px;margin:6px 0 4px;border-radius:12px;overflow:hidden;background:radial-gradient(ellipse 90% 70% at 50% 95%,rgba(192,69,63,.16),transparent 60%),linear-gradient(180deg,#0c0e16,#15101a);border:1px solid rgba(240,200,90,.18);}
   .arena3d-loading{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:11px;color:#9aa0b4;}
   .arena3d-stage .arena-bt-vs{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:14px;margin:0;}
   .arena-bt-reveal{opacity:0;transform:translateY(6px);transition:opacity .45s,transform .45s;pointer-events:none;}
@@ -33144,8 +33147,8 @@ async function _arenaBattle3D(stage, atkFile, defFile){   // stage=컨테이너.
       const adj=_buddyAdj(file,'full');
       // 🎬 포켓몬식 거리감: 내 캐릭터(side -1)=앞·아래·크게 / 상대(side +1)=뒤·위·작게(원근으로 크기차)
       const me = side<0;
-      const bx = side * r * (me?0.74:0.95) + (adj.x||0)*r*0.22;   // 🎬 좌우 간격 넓힘(근경=나 작게·원경=상대 크게 보정)
-      const by = (me? -r*0.20 : r*0.16) + (adj.y||0)*r*0.40;   // 🎬 중앙 쪽으로 — 머리 위(체력바)·발 아래(이름) 공간 확보
+      const bx = side * r * (me?0.66:0.84) + (adj.x||0)*r*0.22;   // 🎬 좌우 간격(원래보다 약간 넓힘·근경/원경 보정)
+      const by = (me? -r*0.34 : r*0.30) + (adj.y||0)*r*0.40;
       const bz = me? r*0.80 : -r*1.10;   // +z=앞(카메라쪽·큼) / −z=뒤(작음)
       group.position.set(bx, by, bz);
       group.rotation.y = me ? Math.PI : -0.14;   // 🎬 내 캐릭터=뒷모습(180°·포켓몬식)·상대=정면(카메라 쪽)
@@ -33220,15 +33223,16 @@ function _arena3dPlaceTags(){
   const W=ctx.canvas.clientWidth||stage.clientWidth||300, H=ctx.canvas.clientHeight||stage.clientHeight||188;
   const T=ctx.THREE;
   const toPx=(x,y,z)=>{ const v=new T.Vector3(x,y,z).project(ctx.camera); return { x:(v.x*0.5+0.5)*W, y:(-v.y*0.5+0.5)*H }; };
-  const cx=(v)=>Math.max(8,Math.min(W-8,v));
+  const cx=(v)=>Math.max(10,Math.min(W-10,v));
+  // 캐릭터 중심점은 정확히 투영(단일 점). 머리/발은 박스 대신 고정 픽셀 오프셋으로(근경=나 큼·원경=상대 작음 — 꼬리/머리카락 박스 오차 회피)
   const place=(u, side)=>{
     if(!u||!u.base) return;
-    const cls=side<0?'me':'opp';
+    const me=side<0, cls=me?'me':'opp';
     const np=stage.querySelector('.arena-nameplate.'+cls), hp=stage.querySelector('.arena-hp.'+cls);
-    const hH=u.halfH||u.r;
-    const head=toPx(u.base.x, u.base.y + hH*1.02, u.base.z), foot=toPx(u.base.x, u.base.y - hH*1.02, u.base.z);
-    if(hp){ hp.style.left=Math.round(cx(head.x))+'px'; hp.style.right='auto'; hp.style.top=Math.max(3,Math.round(head.y-9))+'px'; hp.style.bottom='auto'; hp.style.transform='translate(-50%,-100%)'; }
-    if(np){ np.style.left=Math.round(cx(foot.x))+'px'; np.style.right='auto'; np.style.bottom='auto'; np.style.top=Math.min(H-22,Math.round(foot.y+3))+'px'; np.style.transform='translateX(-50%)'; }
+    const ctr=toPx(u.base.x, u.base.y, u.base.z);
+    const up=me?66:46, dn=me?60:44;   // 머리위(체력바)·발아래(이름) 픽셀 오프셋
+    if(hp){ hp.style.left=Math.round(cx(ctr.x))+'px'; hp.style.right='auto'; hp.style.top=Math.max(3,Math.round(ctr.y-up))+'px'; hp.style.bottom='auto'; hp.style.transform='translateX(-50%)'; }
+    if(np){ np.style.left=Math.round(cx(ctr.x))+'px'; np.style.right='auto'; np.style.bottom='auto'; np.style.top=Math.min(H-22,Math.round(ctr.y+dn))+'px'; np.style.transform='translateX(-50%)'; }
   };
   place(ctx.units[0], -1); place(ctx.units[1], 1);
 }
