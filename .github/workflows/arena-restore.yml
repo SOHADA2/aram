@@ -1,0 +1,36 @@
+name: arena-restore
+on:
+  push:
+    branches: [claude/resume-work-sync-45829l]
+    paths: ['.github/workflows/arena-restore.yml']
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restore doll counts + coins (keep power reverted)
+        run: |
+          python3 - <<'PY'
+          import urllib.request, json
+          BASE="https://aramchaos-ca022-default-rtdb.asia-southeast1.firebasedatabase.app"
+          # key: (name, dollStock, coins)
+          targets={
+            "-OowXInAIfDm6j7PKe0M":("애긔반달곰(테스트)", {"ekko":1,"gwen":2,"lux":2,"neeko":1,"teemo":1,"vex":1,"yone":1}, 0),
+            "-OowYfQE7rB6Olhef4XD":("울퉁쓰",            {"ekko":1,"gwen":1,"lux":1,"neeko":1,"teemo":1,"vex":1,"yone":1}, 17),
+            "-Oowbh8uq15kMK_X46tA":("빛나는언즈",          {"ekko":2,"gwen":1,"lux":1,"neeko":1,"teemo":1,"vex":1,"yone":1}, 14),
+          }
+          def patch(url,obj):
+            req=urllib.request.Request(url,data=json.dumps(obj).encode(),method='PATCH',headers={'Content-Type':'application/json'})
+            with urllib.request.urlopen(req) as r: return r.status
+          def get(url):
+            with urllib.request.urlopen(url) as r: return json.load(r)
+          print("=== 복원(인형 수량 + 코인 / 전투력은 +0 유지) ===")
+          for k,(nm,stock,coins) in targets.items():
+            st=patch(f"{BASE}/gold/{k}.json", {"dollStock_s2":stock, "arenaCoins_s2":coins})
+            tot=sum(stock.values())
+            print(f"  [{nm}] 인형 {tot}개 복원 + 코인 {coins}  http={st}")
+          print("\n=== 복원 후 확인 ===")
+          for k,(nm,stock,coins) in targets.items():
+            g=get(f"{BASE}/gold/{k}.json") or {}
+            print(f"  [{nm}] dollStock={g.get('dollStock_s2')}")
+            print(f"          arenaPower(강화)={g.get('arenaPower_s2')}  arenaCoins={g.get('arenaCoins_s2')}  goldBonusLegacy={g.get('goldBonusLegacy_s2')}")
+          PY
