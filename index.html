@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.370';
+const APP_VERSION = 'v2.45.371';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.370';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.371', date: '2026-06-27', changes: [
+    { tag: 'improve', text: '⚔️ 투기장 전투 화면 정리 — ❤️체력바는 캐릭터 머리 위, 🏷️네임플레이트(닉네임·전투력)는 발 아래로 옮겨 캐릭터마다 따라붙게 했고, 좌우 캐릭터 간격을 넓혀 겹침을 줄였어요.' },
+  ] },
   { ver: 'v2.45.370', date: '2026-06-27', changes: [
     { tag: 'fix', text: '⚔️ 투기장 전투에서 내 캐릭터 뒷모습이 투명하게 비쳐 보이던 버그를 고쳤어요(투명 재질을 컷아웃 처리).' },
     { tag: 'improve', text: '⚔️ 투기장 전투가 너무 빨라 잘 안 보이던 걸 한 박자 느리게 — 타격 간격을 늘리고 돌진·피격 모션을 더 또렷하게 보이도록 했어요.' },
@@ -33134,7 +33137,7 @@ async function _arenaBattle3D(stage, atkFile, defFile){   // stage=컨테이너.
       const adj=_buddyAdj(file,'full');
       // 🎬 포켓몬식 거리감: 내 캐릭터(side -1)=앞·아래·크게 / 상대(side +1)=뒤·위·작게(원근으로 크기차)
       const me = side<0;
-      const bx = side * r * (me?0.58:0.72) + (adj.x||0)*r*0.22;
+      const bx = side * r * (me?0.74:0.95) + (adj.x||0)*r*0.22;   // 🎬 좌우 간격 넓힘(근경=나 작게·원경=상대 크게 보정)
       const by = (me? -r*0.34 : r*0.30) + (adj.y||0)*r*0.40;
       const bz = me? r*0.80 : -r*1.10;   // +z=앞(카메라쪽·큼) / −z=뒤(작음)
       group.position.set(bx, by, bz);
@@ -33170,6 +33173,7 @@ async function _arenaBattle3D(stage, atkFile, defFile){   // stage=컨테이너.
   // 대치(idle) — 전투는 _arena3dFight로 같은 씬서. 픽이 먼저면 _pendingFight 대기
   _arena3dPlay(ctx,ctx.units[0],ARENA_BATTLE_CLIPS.idle,true); _arena3dPlay(ctx,ctx.units[1],ARENA_BATTLE_CLIPS.idle,true);
   ctx.ready=true;
+  try{ _arena3dPlaceTags(); }catch(_){}   // 🏷️ 네임플레이트·체력바를 캐릭터 위치에 맞춰 배치
   if(ctx._pendingFight){ const pf=ctx._pendingFight; ctx._pendingFight=null; _arena3dRunChoreo(ctx, pf.result, pf.onDone); }
 }
 function _arena3dFight(result, onDone){   // 현재 씬서 전투 연출 트리거(없거나 실패=즉시 onDone). 로딩 중 호출=ready 후 실행
@@ -33201,6 +33205,23 @@ function _arena3dFinish(winnerSide){   // 마지막: 승자=승리 포즈(루프
   const win=ctx.units[winnerSide<0?0:1], lose=ctx.units[winnerSide<0?1:0];
   if(win) _arena3dPlay(ctx,win,ARENA_BATTLE_CLIPS.win,true);
   if(lose) _arena3dPlay(ctx,lose,ARENA_BATTLE_CLIPS.lose,false);
+}
+// 🏷️ 네임플레이트(발 아래)·❤️체력바(머리 위)를 캐릭터 3D 위치에 맞춰 화면 투영 배치
+function _arena3dPlaceTags(){
+  const ctx=_arena3dCtx; if(!ctx||!ctx.alive||!ctx.canvas) return;
+  const stage=ctx.canvas.parentElement; if(!stage) return;
+  const W=ctx.canvas.clientWidth||stage.clientWidth||300, H=ctx.canvas.clientHeight||stage.clientHeight||188;
+  const T=ctx.THREE;
+  const toPx=(x,y,z)=>{ const v=new T.Vector3(x,y,z).project(ctx.camera); return { x:(v.x*0.5+0.5)*W, y:(-v.y*0.5+0.5)*H }; };
+  const place=(u, side)=>{
+    if(!u||!u.base) return;
+    const cls=side<0?'me':'opp';
+    const np=stage.querySelector('.arena-nameplate.'+cls), hp=stage.querySelector('.arena-hp.'+cls);
+    const head=toPx(u.base.x, u.base.y + u.r*0.95, u.base.z), foot=toPx(u.base.x, u.base.y - u.r*0.92, u.base.z);
+    if(hp){ hp.style.left=Math.round(head.x)+'px'; hp.style.right='auto'; hp.style.top=Math.max(2,Math.round(head.y-13))+'px'; hp.style.bottom='auto'; hp.style.transform='translateX(-50%)'; }
+    if(np){ np.style.left=Math.round(foot.x)+'px'; np.style.right='auto'; np.style.bottom='auto'; np.style.top=Math.min(H-22,Math.round(foot.y+5))+'px'; np.style.transform='translateX(-50%)'; }
+  };
+  place(ctx.units[0], -1); place(ctx.units[1], 1);
 }
 // ⚔️ 배틀 창 — 상대(다른 7종 완성자) 목록·승률·도전. 강화창과 상호 링크. sandbox=메모리만(가짜 상대).
 window.openArenaBattle=function(sandbox, opts){
@@ -33340,6 +33361,7 @@ window.openArenaBattle=function(sandbox, opts){
     const stage=ov.querySelector('#arena3d-stage');
     const mkHp=(cls)=>{ if(!stage) return null; let el=stage.querySelector('.arena-hp.'+cls); if(!el){ el=document.createElement('div'); el.className='arena-hp '+cls; el.innerHTML='<div class="hpb"><div class="hpf"></div></div>'; stage.appendChild(el); } const f=el.querySelector('.hpf'); if(f) f.style.width='100%'; return f; };
     const myHpEl=mkHp('me'), opHpEl=mkHp('opp');
+    try{ _arena3dPlaceTags(); }catch(_){}   // 🏷️ 체력바=머리 위·네임플레이트=발 아래로 배치(3D 로드됐을 때)
     let callout=stage&&stage.querySelector('.arena-callout');
     if(stage && !callout){ callout=document.createElement('div'); callout.className='arena-callout'; stage.appendChild(callout); }
     const showCall=(html,cls)=>{ if(!callout) return; callout.classList.remove('show'); callout.innerHTML=html; callout.className='arena-callout '+(cls||''); void callout.offsetWidth; callout.classList.add('show'); };
