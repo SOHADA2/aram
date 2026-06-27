@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.383';
+const APP_VERSION = 'v2.45.384';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.383';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.384', date: '2026-06-27', changes: [
+    { tag: 'improve', text: '⚔️ 투기장 경합 중 체력바가 실제로 깎이도록 — 내가 이긴 경합은 상대 HP가, 진 경합은 내 HP가 줄고(비김은 양쪽 소량) 결판은 그 체력에서 이어져 패자가 쓰러져요. 경합이 진행되는 게 체력으로도 보입니다.' },
+  ] },
   { ver: 'v2.45.383', date: '2026-06-27', changes: [
     { tag: 'fix', text: '⚔️ 투기장 배틀이 경합 3번 끝난 뒤에도 또 한참 싸우던 문제 수정 — 경합이 곧 전투라, 세 경합이 끝나면 바로 결판(결정타 1회 → 패자 쓰러짐 → 결과)으로 짧게 마무리해요. 대결 중에 창을 닫으면 그 판은 소비되지 않도록도 막았어요.' },
   ] },
@@ -33469,16 +33472,20 @@ window.openArenaBattle=function(sandbox, opts){
       const clashRes=picks.map((my,i)=>({my, op:oppSkills[i], a:_skillAdv(my,oppSkills[i])}));
       const bottom=ov.querySelector('#abt-bottom'); if(bottom) bottom.innerHTML=`<div class="arena-sub" id="abt-lbl" style="text-align:center;">⚔️ 대결 중…</div>`;
       [0,1,2].forEach(i=>{ const c=colEl(i); if(c) c.classList.remove('cur'); });
-      let bonus=0; const _t=[]; const T=(ms,fn)=>_t.push(setTimeout(()=>{try{fn();}catch(_){}},ms));
+      let bonus=0, myHp=100, oppHp=100; const CLASH_DMG=26, CLASH_TIE=8;   // ❤️ 경합 패자 체력 감소(결판은 이 HP에서 이어짐)
+      setHp(-1,100); setHp(1,100);
+      const _t=[]; const T=(ms,fn)=>_t.push(setTimeout(()=>{try{fn();}catch(_){}},ms));
       const CLASH=1700, sMy=_champSkills(myFighter()), sOp=_champSkills(opp.fighter);
       clashRes.forEach((c,i)=>{ const b=i*CLASH;
         T(b, ()=>{ const col=colEl(i); if(col) col.classList.add('active'); const m=meCell(i); if(m) m.classList.add('hl');   // ① 내 스킬 i 공개 + 내 3D 동작
           floatAt(-1, `<b>${c.my}</b> ${escHtml(sMy[c.my]||'')}`, 'me'); _arena3dLunge(-1); });
         T(b+560, ()=>{ const o=ov.querySelector('#acb-op-'+i); if(o){ o.textContent=c.op; o.className='acb-cell acb-op filled s-'+c.op+' hl'; }   // ② 상대 스킬 i 공개 + 상대 3D 동작
           floatAt(1, `<b>${c.op}</b> ${escHtml(sOp[c.op]||'')}`, 'opp'); _arena3dLunge(1); });
-        T(b+1120, ()=>{ const winSide=c.a>0?-1:c.a<0?1:0; bonus+=c.a*ARENA_CLASH_ADV;   // ③ 판정 + 승자 가격
+        T(b+1120, ()=>{ const winSide=c.a>0?-1:c.a<0?1:0; bonus+=c.a*ARENA_CLASH_ADV;   // ③ 판정 + 승자 가격 + 패자 체력 감소
           const rs=ov.querySelector('#acb-res-'+i); if(rs){ rs.textContent=c.a>0?'승 +5':c.a<0?'패 −5':'무 ±0'; rs.className='acb-res '+(c.a>0?'win':c.a<0?'lose':'tie'); }
-          if(winSide!==0){ _arena3dLunge(winSide); setTimeout(()=>{ _arena3dHurt(-winSide); hitFx(-winSide); },280); }
+          if(winSide!==0){ _arena3dLunge(winSide); setTimeout(()=>{ _arena3dHurt(-winSide); hitFx(-winSide);   // 경합 패자 체력 감소(즉사 방지=하한 8)
+            if(winSide<0){ oppHp=Math.max(8, oppHp-CLASH_DMG); setHp(1, oppHp); } else { myHp=Math.max(8, myHp-CLASH_DMG); setHp(-1, myHp); } },300); }
+          else { setTimeout(()=>{ myHp=Math.max(8,myHp-CLASH_TIE); oppHp=Math.max(8,oppHp-CLASH_TIE); setHp(-1,myHp); setHp(1,oppHp); hitFx(-1); hitFx(1); },300); }   // 비김=양쪽 소량
           floatAt(0, c.a>0?'이김! +5%':c.a<0?'짐 −5%':'비김 ±0', c.a>0?'good':c.a<0?'bad':'hit'); });
       });
       T(3*CLASH+200, ()=>{ finishBattle(bonus, clashRes); });
@@ -33516,9 +33523,8 @@ window.openArenaBattle=function(sandbox, opts){
     const ag=ov.querySelector('#abt-again'); if(ag) ag.onclick=()=>reroll();
     if(!SB){ try{ updateMyInfoBar(); }catch(_){} }
     const winnerSide=r.won?-1:1, loserSide=-winnerSide;
-    setHp(-1,100); setHp(1,100);
     const _t=[]; const T=(ms,fn)=>_t.push(setTimeout(()=>{ try{fn();}catch(_){} }, ms));
-    // 경합 3번이 곧 전투 — 끝나면 바로 결판: 결정타 1회 → 패자 즉시 쓰러짐(죽는 모션) → 결과
+    // 경합으로 깎인 HP에서 이어짐 — 끝나면 바로 결판: 결정타 1회 → 패자 즉시 쓰러짐(죽는 모션) → 결과
     T(120, ()=>{ _arena3dLunge(winnerSide); });
     T(430, ()=>{ _arena3dHurt(loserSide); setHp(loserSide, 0); hitFx(loserSide); floatAt(loserSide, '⚡ 결정타!', 'hit'); });
     T(780, ()=>{ _arena3dFinish(winnerSide); });   // 승자 승리포즈 · 패자 죽는 모션(Death)
