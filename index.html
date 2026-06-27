@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.362';
+const APP_VERSION = 'v2.45.363';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.362';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.363', date: '2026-06-26', changes: [
+    { tag: 'improve', text: '⚔️ 투기장 배틀 흐름 통일 — 스킬을 고른 그 화면에서 바로 3D 전투가 펼쳐지고, 그 자리에서 결과·보상이 나타나요(예전엔 결과가 별도 화면으로 넘어가 어색했어요). 3D 무대는 그대로 두고 아래만 스킬선택 → 전투 → 결과로 바뀌어 한눈에 이어져요.' },
+  ] },
   { ver: 'v2.45.362', date: '2026-06-26', changes: [
     { tag: 'improve', text: '🎬 [개발] 모바일에서 3D 전투 바로 보기 — 주소에 ?arena3d를 붙이면 샌드박스 배틀이 자동으로 시작돼 3D 포켓몬식 전투 연출이 바로 재생돼요(탭 없이·실데이터 0 영향). 콘솔 arena3dDemo()도 동일.' },
   ] },
@@ -33058,7 +33061,7 @@ function _arenaBattle3DStop(){
 function _arena3dPlay(ctx,u,names,loop){ const T=ctx.THREE; if(!u||!u.mixer) return; const clip=_arenaClipPick(u.clips,names); if(!clip) return;
   try{ u.mixer.stopAllAction(); const a=u.mixer.clipAction(clip); a.reset(); a.setLoop(loop?T.LoopRepeat:T.LoopOnce, loop?Infinity:1); a.clampWhenFinished=!loop; a.play(); }catch(_){}
 }
-async function _arenaBattle3D(stage, atkFile, defFile, result, onDone){   // stage=컨테이너 div. 실패 시 throw → 호출부가 정적 폴백
+async function _arenaBattle3D(stage, atkFile, defFile){   // stage=컨테이너. 두 모델 로드+대치(idle). 전투는 _arena3dFight로 같은 씬서 재생. 실패=throw→정적 폴백
   _arenaBattle3DStop();
   const THREE=await import('three'); const { GLTFLoader }=await import('three/addons/loaders/GLTFLoader.js');
   let MeshoptDecoder=null; try{ ({ MeshoptDecoder }=await import('three/addons/libs/meshopt_decoder.module.js')); }catch(_){}
@@ -33106,17 +33109,27 @@ async function _arenaBattle3D(stage, atkFile, defFile, result, onDone){   // sta
     });
     ctx.renderer.render(ctx.scene, ctx.camera);
   })();
-  // 안무: 대치 → 공격 돌진+모션 → 피격 → 승/패 포즈
-  const atk=ctx.units[0], def=ctx.units[1];
-  _arena3dPlay(ctx,atk,ARENA_BATTLE_CLIPS.idle,true); _arena3dPlay(ctx,def,ARENA_BATTLE_CLIPS.idle,true);
+  // 대치(idle) — 전투는 _arena3dFight로 같은 씬서. 픽이 먼저면 _pendingFight 대기
+  _arena3dPlay(ctx,ctx.units[0],ARENA_BATTLE_CLIPS.idle,true); _arena3dPlay(ctx,ctx.units[1],ARENA_BATTLE_CLIPS.idle,true);
+  ctx.ready=true;
+  if(ctx._pendingFight){ const pf=ctx._pendingFight; ctx._pendingFight=null; _arena3dRunChoreo(ctx, pf.result, pf.onDone); }
+}
+function _arena3dFight(result, onDone){   // 현재 씬서 전투 연출 트리거(없거나 실패=즉시 onDone). 로딩 중 호출=ready 후 실행
+  const ctx=_arena3dCtx;
+  if(!ctx||!ctx.alive){ try{ onDone&&onDone(); }catch(_){} return; }
+  if(ctx.ready) _arena3dRunChoreo(ctx, result, onDone);
+  else ctx._pendingFight={ result, onDone };
+}
+function _arena3dRunChoreo(ctx, result, onDone){   // 공격 돌진+모션 → 피격 밀림 → 승/패 포즈 → onDone
+  const atk=ctx.units[0], def=ctx.units[1]; if(!atk||!def){ try{ onDone&&onDone(); }catch(_){} return; }
   const skillClips=(ARENA_SKILL_CLIPS[atk.file]&&ARENA_SKILL_CLIPS[atk.file][result.mySkill])||ARENA_BATTLE_CLIPS.attack;
-  ctx.timers.push(setTimeout(()=>{ if(!ctx.alive) return; atk._lunge=0.5; _arena3dPlay(ctx,atk,skillClips,false); }, 650));
-  ctx.timers.push(setTimeout(()=>{ if(!ctx.alive) return; def._flinch=0.42; _arena3dPlay(ctx,def,ARENA_BATTLE_CLIPS.hurt,false); }, 1000));
+  ctx.timers.push(setTimeout(()=>{ if(!ctx.alive) return; atk._lunge=0.5; _arena3dPlay(ctx,atk,skillClips,false); }, 350));
+  ctx.timers.push(setTimeout(()=>{ if(!ctx.alive) return; def._flinch=0.42; _arena3dPlay(ctx,def,ARENA_BATTLE_CLIPS.hurt,false); }, 700));
   ctx.timers.push(setTimeout(()=>{ if(!ctx.alive) return;
     const winU=result.won?atk:def, loseU=result.won?def:atk;
     _arena3dPlay(ctx,winU,ARENA_BATTLE_CLIPS.win,true); _arena3dPlay(ctx,loseU,ARENA_BATTLE_CLIPS.lose,false);
     try{ onDone&&onDone(); }catch(_){}
-  }, 1750));
+  }, 1450));
 }
 // ⚔️ 배틀 창 — 상대(다른 7종 완성자) 목록·승률·도전. 강화창과 상호 링크. sandbox=메모리만(가짜 상대).
 window.openArenaBattle=function(sandbox, opts){
@@ -33207,31 +33220,59 @@ window.openArenaBattle=function(sandbox, opts){
     });
   };
   // ⚔️ 스킬(Q/W/E) 선택 화면 — 가위바위보. 고르면 배틀 resolve.
-  const renderPick=(opp)=>{
+  const renderPick=(opp)=>{   // ⚔️ 한 화면: 3D 스테이지(대치) + 스킬선택 → 같은 화면서 전투·결과(모달 전환 없음)
+    _arenaBattle3DStop();
     const mk=_clawDdKey(myFighter()), mp=myPower(), sk=_champSkills(myFighter());
     ov.innerHTML=`<div class="arena-sheet" onclick="event.stopPropagation()">
-      <div class="arena-h">⚔️ 스킬 선택${SB?' <span style="font-size:11px;color:#7CFC9A">· 🧪 테스트</span>':''}</div>
-      <div class="arena-bt-vs">
-        <div class="arena-bt-side"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${mk}_0.jpg" onerror="this.style.visibility='hidden'"><div class="arena-bt-nm">나 <b>+${mp}</b></div></div>
-        <div class="arena-bt-mid" style="color:#cbd3e6;font-size:16px;">VS</div>
-        <div class="arena-bt-side"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${_clawDdKey(opp.fighter)}_0.jpg" onerror="this.style.visibility='hidden'"><div class="arena-bt-nm">${escHtml(opp.name)} <b>+${opp.power}</b></div></div>
+      <div class="arena-h">⚔️ 배틀${SB?' <span style="font-size:11px;color:#7CFC9A">· 🧪 테스트</span>':''}</div>
+      <div class="arena-skill-vs" id="abt-skillvs" style="display:none;"></div>
+      <div class="arena3d-stage" id="arena3d-stage">
+        <div class="arena-bt-vs">
+          <div class="arena-bt-side"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${mk}_0.jpg" onerror="this.style.visibility='hidden'"><div class="arena-bt-nm">나 <b>+${mp}</b></div></div>
+          <div class="arena-bt-mid" style="color:#cbd3e6;font-size:15px;">⚔️</div>
+          <div class="arena-bt-side"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${_clawDdKey(opp.fighter)}_0.jpg" onerror="this.style.visibility='hidden'"><div class="arena-bt-nm">${escHtml(opp.name)} <b>+${opp.power}</b></div></div>
+        </div>
+        <div class="arena3d-loading">⚔️ 준비 중…</div>
       </div>
-      <div class="arena-sub">어떤 스킬로 공격할까요? 상대는 방어 스킬을 <b style="color:#ffd24a">랜덤</b>으로 꺼내요 — <b>Q▶W▶E▶Q</b> 가위바위보!</div>
-      <div class="arena-skills">${SKILL_SLOTS.map(s=>`<button class="arena-skill" data-s="${s}"><b>${s}</b><span>${escHtml(sk[s])}</span><i>▶ ${SKILL_BEATS[s]} 이김</i></button>`).join('')}</div>
-      <button class="arena-bt-reroll" id="abt-back">← 상대 다시 고르기</button>
+      <div id="abt-bottom">
+        <div class="arena-sub">어떤 스킬로 공격할까요? 상대는 방어 스킬을 <b style="color:#ffd24a">랜덤</b>으로 꺼내요 — <b>Q▶W▶E▶Q</b> 가위바위보!</div>
+        <div class="arena-skills">${SKILL_SLOTS.map(s=>`<button class="arena-skill" data-s="${s}"><b>${s}</b><span>${escHtml(sk[s])}</span><i>▶ ${SKILL_BEATS[s]} 이김</i></button>`).join('')}</div>
+        <button class="arena-bt-reroll" id="abt-back">← 상대 다시 고르기</button>
+      </div>
     </div>`;
-    ov.querySelector('#abt-back').onclick=()=>{ if(!busy){ busy=false; render(); } };
+    const stage=ov.querySelector('#arena3d-stage');
+    try{ _arenaBattle3D(stage, myFighter(), opp.fighter).then(()=>{ const ld=stage.querySelector('.arena3d-loading'); if(ld) ld.remove(); }).catch(()=>{ const ld=stage.querySelector('.arena3d-loading'); if(ld) ld.remove(); }); }catch(_){}
+    ov.querySelector('#abt-back').onclick=()=>{ if(!busy){ _arenaBattle3DStop(); render(); } };
     ov.querySelectorAll('.arena-skill').forEach(btn=>btn.onclick=()=>{
       if(busy) return; if(left()<=0){ showS1Toast('오늘 배틀을 다 했어요 (내일 다시)'); return; }
       busy=true; const res=doBattle(opp, btn.dataset.s);
       if(res.r==='nolimit'){ busy=false; showS1Toast('오늘 배틀을 다 했어요 (내일 다시)'); render(); return; }
       if(res.r!=='ok'){ busy=false; showS1Toast('배틀을 진행할 수 없어요'); render(); return; }
-      res._oppName=opp.name; res._oppFighter=opp.fighter; render(res);   // busy 유지 — 계속/닫기에서 reroll로 해제
+      res._oppName=opp.name; res._oppFighter=opp.fighter; showResultInline(opp, res);   // busy 유지 — 계속/닫기에서 reroll로 해제
     });
   };
+  const showResultInline=(opp, r)=>{   // 같은 화면서 전투 연출(3D) + 결과 공개(스킬선택 자리 → 결과로 교체)
+    const sv=ov.querySelector('#abt-skillvs');
+    if(sv){ sv.style.display=''; sv.innerHTML=`내 <b>${r.mySkill}</b> ${escHtml(_champSkills(myFighter())[r.mySkill]||'')} <span class="svs-x">vs</span> 상대 <b>${r.oppSkill}</b> ${escHtml(_champSkills(r._oppFighter)[r.oppSkill]||'')} ${_skillAdvHtml(r.adv)}`; }
+    const bottom=ov.querySelector('#abt-bottom');
+    if(bottom){ bottom.innerHTML=`<div class="arena-bt-reveal" id="arena-bt-reveal">
+      <div class="arena-bt-res ${r.won?'win':'lose'}">${r.won?'🎉 승리!':'😢 패배'} <span>(승률 ${r.wr}%)</span></div>
+      <div class="arena-bt-reward">${r.won?`🪙 인형뽑기 코인 +${r.clawGain} · 🗡️ 투기장 코인 +${r.coinGain}${r.underdog?' <b style="color:#ffd24a">⚡ 언더독 보너스!</b>':''}`:`🗡️ 위로 코인 +${r.coinGain}`}</div>
+      <div class="arena-bt-left">오늘 남은 배틀 <b>${r.left}</b>/${ARENA_BATTLE_DAILY}</div>
+      <button class="arena-forge-btn" id="abt-again" ${r.left>0?'':'disabled'}>${r.left>0?'⚔️ 계속 배틀':'오늘 배틀 끝 (내일 다시)'}</button>
+      <button class="arena-close" id="abt-x">닫기</button>
+    </div>`; }
+    ov.querySelector('#abt-x').onclick=()=>{ _arenaBattle3DStop(); ov.remove(); };
+    const ag=ov.querySelector('#abt-again'); if(ag) ag.onclick=()=>reroll();
+    if(!SB){ try{ updateMyInfoBar(); }catch(_){} }
+    const reveal=()=>{ const el=ov.querySelector('#arena-bt-reveal'); if(el) el.classList.add('show'); };
+    let revealed=false; const doReveal=()=>{ if(revealed) return; revealed=true; reveal(); };
+    const safety=setTimeout(doReveal, 4000);
+    try{ _arena3dFight(r, ()=>{ clearTimeout(safety); setTimeout(doReveal, 400); }); }catch(_){ clearTimeout(safety); doReveal(); }
+  };
   render();
-  if(opts && opts.demo){   // 🎬 자동 데모 — 첫 상대에게 랜덤 스킬로 바로 배틀(모바일서 3D 연출 즉시 확인)
-    setTimeout(()=>{ try{ if(opps.length){ const o=opps[0], res=doBattle(o, _randSkill()); if(res && res.r==='ok'){ res._oppName=o.name; res._oppFighter=o.fighter; render(res); } } }catch(_){} }, 700);
+  if(opts && opts.demo){   // 🎬 자동 데모 — 첫 상대 선택 후 스킬 자동 클릭(실제 흐름·3D 연출 즉시 확인)
+    setTimeout(()=>{ try{ if(opps.length){ renderPick(opps[0]); setTimeout(()=>{ const b=ov.querySelector('.arena-skill'); if(b) b.click(); }, 1500); } }catch(_){} }, 700);
   }
 };
 window.arenaBattlePreview=function(){ try{ openArenaBattle(true); }catch(e){ console.warn(e); } };   // 🧪 배틀 샌드박스(가짜 상대·메모리만)
