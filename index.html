@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.365';
+const APP_VERSION = 'v2.45.366';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.365';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.366', date: '2026-06-27', changes: [
+    { tag: 'fix', text: '🎴 투기장 상대 카드 3D 다듬기 — (1) 3D 로드 전 2D 얼굴이 깜빡이던 것 제거(처음부터 숨기고 3D 실패 시에만 폴백) (2) 캐릭터 키(높이) 기준으로 크기를 통일해 세로 위치가 제각각이던 것 정렬.' },
+  ] },
   { ver: 'v2.45.365', date: '2026-06-27', changes: [
     { tag: 'improve', text: '🎴 투기장 배틀 — 상대 선택 카드도 3D 캐릭터로! 2D 초상화 대신 각 상대의 인형이 카드 안에서 살아 움직여요. (단일 캔버스에 한 번에 그려 가볍게·배틀에 들어가면 자동 정리)' },
   ] },
@@ -33171,24 +33174,21 @@ async function _arenaList3D(listEl, items){   // items=[{file, boxEl}]
     loader.load(it.file, g=>{
       if(!ctx.alive) return res();
       const model=g.scene; model.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{m.side=THREE.DoubleSide;}); } });
-      const b=new THREE.Box3().setFromObject(model); const c=b.getCenter(new THREE.Vector3()); model.position.sub(c);
-      const r=b.getBoundingSphere(new THREE.Sphere()).radius||1;
+      const b=new THREE.Box3().setFromObject(model); const c=b.getCenter(new THREE.Vector3()), size=b.getSize(new THREE.Vector3());
+      model.position.sub(c);   // bbox 중심을 원점에
       const cx=box.offsetLeft+box.offsetWidth/2, cy=box.offsetTop+box.offsetHeight/2;
-      const target=Math.min(box.offsetWidth, box.offsetHeight)*0.94;
-      const s=(target/2)/r;
+      const s=(box.offsetHeight*1.08)/Math.max(0.001,size.y);   // 🎯 높이(키) 기준 통일 스케일 — 전부 같은 키로 보이게(스피어 반지름은 무기/포즈에 따라 들쭉날쭉)
       const group=new THREE.Group(); group.add(model);
-      const adj=_buddyAdj(it.file,'full');
       group.scale.setScalar(s);
-      group.position.set(cx + (adj.x||0)*target*0.16, (H-cy) - (adj.y||0)*target*0.16, 0);
+      group.position.set(cx, H-cy, 0);   // bbox 중심을 카드 중심에 — 전부 동일 정렬
       group.rotation.x=_buddyHeadTilt;
       scene.add(group);
       const mixer=new THREE.AnimationMixer(model); const clips={}; (g.animations||[]).forEach(cl=>clips[cl.name]=cl);
       const idle=clips['Idle_Base']||Object.values(clips)[0];
       if(idle){ try{ mixer.clipAction(idle).play(); }catch(_){} }
       ctx.units.push({ file:it.file, group, model, mixer });
-      try{ const img=box.querySelector('img'); if(img) img.style.visibility='hidden'; }catch(_){}   // 3D 성공 → 2D 폴백 숨김
       res();
-    }, undefined, ()=>res());
+    }, undefined, ()=>{ try{ const img=box.querySelector('img'); if(img) img.style.visibility=''; }catch(_){}; res(); });   // 로드 실패 → 2D 폴백 노출
   });
   await Promise.all(items.map(loadOne));
   if(!ctx.alive){ _arenaList3DStop(); return; }
@@ -33266,7 +33266,7 @@ window.openArenaBattle=function(sandbox, opts){
       return;
     }
     const list=opps.length? opps.map((o,i)=>{ const wr=arenaWinRate(mp,o.power,0); return `<div class="arena-opp">
-      <div class="arena-opp-3d"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${_clawDdKey(o.fighter)}_0.jpg" onerror="this.style.visibility='hidden'"></div>
+      <div class="arena-opp-3d"><img style="visibility:hidden" src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${_clawDdKey(o.fighter)}_0.jpg" onerror="this.style.visibility='hidden'"></div>
       <div class="arena-opp-info"><div class="arena-opp-nm">${escHtml(o.name)}</div><div class="arena-opp-pw">${_arenaGradeHtml(o.power)} <b>+${o.power}</b> · ${escHtml(_buddyChampName(o.fighter))}</div></div>
       <div class="arena-opp-wr"><div class="wr-v ${wr>=55?'good':wr<=45?'bad':''}">${wr}%</div><button class="arena-opp-go" data-i="${i}" ${lf>0?'':'disabled'}>도전</button></div></div>`;}).join('')
       : `<div class="arena-bt-empty">아직 상대가 없어요 🥲<br><span>다른 친구가 인형 7종을 모으면 상대로 나타나요</span></div>`;
@@ -33290,7 +33290,7 @@ window.openArenaBattle=function(sandbox, opts){
     const listEl=ov.querySelector('.arena-bt-list');
     if(listEl && opps.length){ const boxes=ov.querySelectorAll('.arena-opp-3d');
       const items=opps.map((o,i)=>({ file:o.fighter, boxEl:boxes[i] })).filter(it=>it.boxEl);
-      requestAnimationFrame(()=>{ try{ _arenaList3D(listEl, items); }catch(_){} });   // 레이아웃 확정 후 박스 위치 계산
+      requestAnimationFrame(()=>{ _arenaList3D(listEl, items).catch(()=>{ try{ ov.querySelectorAll('.arena-opp-3d img').forEach(im=>im.style.visibility=''); }catch(_){} }); });   // 레이아웃 확정 후 박스 위치 계산·실패=2D 폴백 노출
     }
   };
   // ⚔️ 스킬(Q/W/E) 선택 화면 — 가위바위보. 고르면 배틀 resolve.
