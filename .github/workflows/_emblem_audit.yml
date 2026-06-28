@@ -1,0 +1,48 @@
+name: emblem-audit
+on:
+  push:
+    branches: [claude/update-needed-tm0tj9]
+    paths: ['.github/workflows/_emblem_audit.yml']
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: run audit
+        run: |
+          cat > /tmp/audit.mjs <<'SCRIPT'
+          const DB='https://aramchaos-ca022-default-rtdb.asia-southeast1.firebasedatabase.app';
+          const get=async p=>{ const r=await fetch(DB+p+'.json'); return r.json(); };
+          const norm=s=>String(s||'').trim().replace(/\s+/g,' ');
+          const matches=await get('/matches')||{};
+          const gold=await get('/gold')||{};
+          let s2=0, embM=0, lpWin=0, lpLoss=0, gambleLpProc=0;
+          const exp={}; const sample=[];
+          const ms=Object.values(matches).filter(m=>m && m.season===2).sort((a,b)=>(b.timestamp||0)-(a.timestamp||0));
+          for(const m of ms){ s2++;
+            const em=m.emblemEffects; if(!em) continue; embM++;
+            const wnames=(m.winner==='blue'?m.teamA:m.teamB)||[];
+            const wset=new Set(wnames.map(norm));
+            const mvpW=norm(m.mvpWinner||''), mvpL=norm(m.mvpLoser||'');
+            const ie=m.itemEffects||{};
+            for(const [k,e] of Object.entries(em)){ const nk=norm(k);
+              const isWin=wset.has(nk);
+              let g=(e.matchG||0)+(isWin?(e.winG||0):0);
+              if(nk===mvpW||nk===mvpL) g+=(e.mvpG||0);
+              exp[nk]=(exp[nk]||0)+g;
+              const usedGamble=Array.isArray(ie[k])&&ie[k].includes('s1_gamble');
+              if(isWin&&e.winLpProc){ lpWin++; if(usedGamble) gambleLpProc++; }
+              if(!isWin&&e.lossLpProc){ lpLoss++; if(usedGamble) gambleLpProc++; }
+            }
+            if(sample.length<6) sample.push(`${m.date} ${m.winner} | `+Object.entries(em).map(([k,e])=>`${k}:+${e.power} g(${e.matchG}/${e.winG}/${e.mvpG}) LP(${e.winLP}${e.winLpProc?'O':'x'}/${e.lossLP}${e.lossLpProc?'O':'x'})`).join(' || '));
+          }
+          const gByN={}; for(const g of Object.values(gold)){ if(g&&g.name) gByN[norm(g.name)]=g; }
+          console.log('=== 강철심장 걸작 적용 감사 ===');
+          console.log(`S2 매치 ${s2} / emblemEffects 기록된 매치 ${embM} / 승리LP발동 ${lpWin} / 패배방어발동 ${lpLoss} / (그중 도박권 동시 LP발동 ${gambleLpProc}건=표시버그 대상)`);
+          console.log('--- 최근 스냅샷 샘플 ---'); sample.forEach(s=>console.log(' '+s));
+          console.log('--- 플레이어별 기대 걸작골드(누적) ≤ goldBonusLegacy_s2 ? ---');
+          const rows=Object.entries(exp).filter(([,v])=>v>0).map(([nk,eg])=>{ const g=gByN[nk]; const gbl=g?(g.goldBonusLegacy_s2??null):null; return {nk,eg,gbl,ok:gbl==null?'(골드문서없음)':(gbl>=eg?'OK':'⚠부족!')}; }).sort((a,b)=>b.eg-a.eg);
+          rows.forEach(r=>console.log(` ${r.nk}: 기대걸작골드 ${r.eg} ≤ goldBonusLegacy_s2 ${r.gbl} → ${r.ok}`));
+          const bad=rows.filter(r=>r.ok==='⚠부족!');
+          console.log(bad.length? `\n⚠ 골드 부족 ${bad.length}명 — 걸작골드 미적용 의심`: '\n✅ 전원 goldBonusLegacy_s2 ≥ 기대 걸작골드 (걸작 골드 적용 정상 신호)');
+          SCRIPT
+          node /tmp/audit.mjs
