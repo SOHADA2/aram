@@ -6895,7 +6895,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.393';
+const APP_VERSION = 'v2.45.394';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6904,6 +6904,9 @@ const APP_VERSION = 'v2.45.393';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.394', date: '2026-06-28', changes: [
+    { tag: 'improve', text: '🕹️ 아바타 인형뽑기 알림 정리 — 챔피언 7종을 다 모아 뽑기 횟수가 무제한이 된 사람에겐 "인형뽑기 하러 가기" 알림이 더 이상 안 떠요(언제든 가능하니 상시 노출이 거슬리던 것). 아직 일일 5회 제한인 1단계 사용자에게만 코인·남은 횟수 알림을 보여줍니다.' },
+  ] },
   { ver: 'v2.45.393', date: '2026-06-28', changes: [
     { tag: 'improve', text: '🪙 상단 내 정보 바에 골드만 보이던 자리에 🕹️ 인형뽑기 코인 · 🗡️ 투기장 코인을 함께 표시 — 골드 아래로 세 통화가 세로로 정렬돼요. (시즌2 · 아케이드 해금자 또는 코인 보유 시 표시)' },
   ] },
@@ -22109,13 +22112,14 @@ function _coachActions() {
     else if (st === 'done') out.push({ k: 'ycollect', ic: '🎁', t: '유미 수령', s: '주워온 골드 받기', fn: 'openTrashCan' });
   }
   if (CURRENT_SEASON === 2 && _allPrismDone(d)) {   // 🕹️ 인형뽑기 — 코인 있고 오늘 기회 남으면 (결혼 이벤트 종료로 교체)
-    const today = getLocalDateKey();
-    const coins = d[sField('clawCoins')] || 0;
-    const plays = (d[sField('clawPlayDate')] === today) ? (d[sField('clawPlays')]||0) : 0;
     const collected = Array.isArray(d[sField('clawCollected')]) ? d[sField('clawCollected')] : [];
-    const dailyLeft = (collected.length >= 7) ? Infinity : Math.max(0, 5 - plays);   // 2단계(7종)=무제한 · 1단계=하루 5회
-    const left = Math.min(coins, dailyLeft);   // 실제 뽑기 가능 횟수 = 코인 vs 일일잔여 중 작은 값
-    if (left > 0) out.push({ k: 'claw', ic: '🕹️', t: '인형뽑기', s: `🪙${coins} · ${left}회 뽑기 가능`, fn: 'openClawTest3D' });
+    // 2단계(7종 완성)=뽑기 무제한 → 언제든 가능하니 복귀 독려 알림 불필요(상시 노출 방지). 1단계(일일 5회)만 알림.
+    if (collected.length < 7) {
+      const coins = d[sField('clawCoins')] || 0;
+      const plays = (d[sField('clawPlayDate')] === getLocalDateKey()) ? (d[sField('clawPlays')]||0) : 0;
+      const left = Math.min(coins, Math.max(0, 5 - plays));   // 실제 뽑기 가능 횟수 = 코인 vs 일일잔여 중 작은 값
+      if (left > 0) out.push({ k: 'claw', ic: '🕹️', t: '인형뽑기', s: `🪙${coins} · ${left}회 뽑기 가능`, fn: 'openClawTest3D' });
+    }
   }
   if (CURRENT_SEASON === 2 && typeof _buddyData === 'function') {   // 🧸 단짝 연승/연패 보상 받기(프리뷰 포함)
     const _pv = (typeof _buddyPvState!=='undefined' && _buddyPvState && _buddyPvState.mode==='space') ? _buddyPvState : null;
