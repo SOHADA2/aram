@@ -6895,7 +6895,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.399';
+const APP_VERSION = 'v2.45.400';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6904,6 +6904,9 @@ const APP_VERSION = 'v2.45.399';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.400', date: '2026-06-28', changes: [
+    { tag: 'improve', text: '🎬 [투기장·개발] 전투 데모 랜덤 매치업 — 샌드박스 프리뷰(?arenabattle·?arena3d)에서 내 인형이 늘 같은 챔피언으로 고정이던 것을, 열 때마다 7종 중 랜덤으로 골라 서로 다른 챔피언끼리 붙게 했어요(새로고침마다 다른 매치업). 콘솔에서 arena3dDemo(\'lux\')·arenaBattlePreview(\'vex\')처럼 특정 챔피언을 지정해 볼 수도 있어요. (개발용·실데이터 0 영향)' },
+  ] },
   { ver: 'v2.45.399', date: '2026-06-28', changes: [
     { tag: 'improve', text: '⚔️ [투기장·준비 중] 전투 중 워딩 정리 — 같은 결과를 "이김!/✅이김+5%/➖비김/짐 −5%"처럼 제각각(이모지·느낌표·기호 혼용)으로 띄우던 것을 「이김 +5% · 짐 −5% · 비김」 한 가지 표기로 통일했어요. "⚡결정타!"→"결정타", 안내 문구의 이모지·과한 강조도 덜어내고, 떠오르는 글자(스킬명·결과)의 크기·색을 차분하게 낮춰 덜 튀게 했어요.' },
   ] },
@@ -33552,10 +33555,15 @@ window.openArenaBattle=function(sandbox, opts){
   _injectArenaCss();
   let SB=null;
   if(sandbox){
-    SB={ fighter:ARENA_CHAMPS[0], power:{}, arenaCoins:0, battlesLeft:ARENA_BATTLE_DAILY };
-    SB.power[_arenaRk(ARENA_CHAMPS[0])]=8;   // 데모: 내 +8
-    const nm=['검사봇','마법봇','궁수봇','탱커봇','암살봇','서폿봇'], pw=[3,8,14,11,5,17];
-    SB._opps=ARENA_CHAMPS.slice(1).map((f,i)=>({ key:'sb'+i, name:nm[i]||('상대'+i), fighter:f, power:pw[i]||7 }));
+    // 🎬 데모: 매번 랜덤 매치업(새로고침마다 다른 챔피언끼리 — 7종 다 보기) · opts.fighter로 특정 챔피언 지정 가능
+    const _shuf=[...ARENA_CHAMPS]; for(let i=_shuf.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [_shuf[i],_shuf[j]]=[_shuf[j],_shuf[i]]; }
+    const _ovF=(opts&&opts.fighter)?ARENA_CHAMPS.find(f=>_arenaRk(f)===_arenaRk(opts.fighter)):null;
+    const myF=_ovF||_shuf[0];
+    const others=_shuf.filter(f=>_arenaRk(f)!==_arenaRk(myF));
+    SB={ fighter:myF, power:{}, arenaCoins:0, battlesLeft:ARENA_BATTLE_DAILY };
+    SB.power[_arenaRk(myF)]=8;   // 데모: 내 +8
+    const pw=[3,8,14,11,5,17];
+    SB._opps=others.map((f,i)=>({ key:'sb'+i, name:_buddyChampName(f)+' 봇', fighter:f, power:pw[i]||7 }));
   } else {
     _arenaEnsureStock();
     if(!_arenaEligible(getMyGoldData())){ showS1Toast(`🔒 투기장은 인형뽑기로 챔피언 7종을 모으면 열려요`); return; }
@@ -33765,8 +33773,8 @@ window.openArenaBattle=function(sandbox, opts){
     } }catch(_){} }, 700);
   }
 };
-window.arenaBattlePreview=function(){ try{ openArenaBattle(true); }catch(e){ console.warn(e); } };   // 🧪 배틀 샌드박스(가짜 상대·메모리만)
-window.arena3dDemo=function(){ try{ openArenaBattle(true, {demo:true}); }catch(e){ console.warn(e); } };   // 🎬 3D 전투 자동 데모(모바일 확인용)
+window.arenaBattlePreview=function(champ){ try{ openArenaBattle(true, champ?{fighter:champ}:undefined); }catch(e){ console.warn(e); } };   // 🧪 배틀 샌드박스(랜덤 매치업·champ 지정 시 그 챔피언으로, 예: arenaBattlePreview('vex'))
+window.arena3dDemo=function(champ){ try{ openArenaBattle(true, {demo:true, fighter:champ||undefined}); }catch(e){ console.warn(e); } };   // 🎬 3D 전투 자동 데모(champ 지정 가능, 예: arena3dDemo('lux'))
 // 🗡️ 라이브 진입점 — 가챠 컬렉션 탭(인형뽑기/단짝 진입 옆)에 삽입. 7종 수집 완료(영구) 시 버튼, 아니면 진행도 잠금 안내.
 function _arenaEntryHtml(){
   const data=getMyGoldData()||{};
