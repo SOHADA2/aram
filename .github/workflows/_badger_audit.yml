@@ -17,58 +17,67 @@ jobs:
                   return json.load(r)
           def norm(s): return " ".join(str(s or "").split())
           TARGET = norm("맹독 벌꿀오소리")
-          players = get("/players") or {}
-          key=None; pname=None
-          for k,v in players.items():
+          goldall = get("/gold") or {}
+          key=None; gold=None
+          for k,v in goldall.items():
               if norm((v or {}).get("name",""))==TARGET:
-                  key=k; pname=v.get("name"); break
-          print("player key:", key, "name:", pname)
-          gold = get("/gold/"+key) if key else None
+                  key=k; gold=v; break
+          print("gold key:", key)
           if not gold:
               print("NO GOLD RECORD"); raise SystemExit
-          print("\n==== gold record scalar fields ====")
+          print("\n==== scalar fields (정렬) ====")
           for f in sorted(gold.keys()):
               v=gold[f]
               if isinstance(v,(int,float,str,bool)) or v is None:
                   print(f, "=", v)
-          print("\n==== arrays/objects ====")
+          print("\n==== arrays/dicts ====")
           for f in sorted(gold.keys()):
               v=gold[f]
-              if isinstance(v,list):
-                  print(f, "= list len", len(v))
-              elif isinstance(v,dict):
-                  print(f, "= dict keys", len(v))
+              if isinstance(v,list): print(f, "= list len", len(v))
+              elif isinstance(v,dict): print(f, "= dict keys", len(v))
           lh = gold.get("lotteryHistory") or []
-          cnt2=0; win2=0
-          for h in lh:
-              if h.get("season",1)==2:
-                  cnt2+=1; win2 += h.get("gold",0) or 0
+          from collections import Counter
+          s2=[h for h in lh if h.get("season",1)==2]
+          win2=sum(h.get("gold",0) or 0 for h in s2)
+          # tier/type breakdown
+          tc=Counter()
+          for h in s2:
+              tc[h.get("tier", h.get("type","?"))]+=1
           print("\n==== lotteryHistory ====")
-          print("total entries:", len(lh), "| season2 entries:", cnt2, "| s2 winnings sum:", win2)
+          print("total:", len(lh), "| s2 entries:", len(s2), "| s2 winnings sum:", win2)
+          print("s2 by tier/type:", dict(tc))
+          # premium flags
+          prem=sum(1 for h in s2 if h.get("premium"))
+          print("s2 premium entries:", prem)
           print("\n==== gacha ====")
-          print("gachaSpent_s2:", gold.get("gachaSpent_s2"))
-          gl=gold.get("gachaLog_s2") or []
-          print("gachaLog_s2 entries:", len(gl))
+          print("gachaSpent_s2:", gold.get("gachaSpent_s2"), "| gachaLog_s2:", len(gold.get("gachaLog_s2") or []))
           ah=gold.get("attendanceHistory") or []
-          s2att=[a for a in ah if (a.get("season",1)==2)]
+          s2att=[a for a in ah if a.get("season",1)==2]
           print("\n==== attendance ====")
-          print("attendanceHistory total:", len(ah), "| s2:", len(s2att), "| s2 gold:", sum(a.get("gold",0) for a in s2att))
+          print("total:", len(ah), "| s2:", len(s2att), "| s2 gold:", sum(a.get("gold",0) for a in s2att))
+          # arena
+          print("\n==== arena ====")
+          for f in ["arenaCoins_s2","arenaWelcomeBonus_s2"]:
+              print(f, "=", gold.get(f))
+          ds=gold.get("dollStock_s2"); ap=gold.get("arenaPower_s2")
+          print("dollStock_s2:", ds, "| arenaPower_s2:", ap)
+          # matches earnings
           matches = get("/matches") or {}
           def normset(arr): return set(norm(x) for x in (arr or []))
-          played=0; wins=0; losses=0
+          played=wins=losses=0
           for mk,m in matches.items():
               if (m or {}).get("season")!=2: continue
               a=normset(m.get("teamA")); b=normset(m.get("teamB"))
-              if TARGET in a:
-                  played+=1; wins+= 1 if m.get("winner")=="blue" else 0; losses+= 0 if m.get("winner")=="blue" else 1
-              elif TARGET in b:
-                  played+=1; wins+= 1 if m.get("winner")=="red" else 0; losses+= 0 if m.get("winner")=="red" else 1
+              side=None
+              if TARGET in a: side="blue"
+              elif TARGET in b: side="red"
+              if side:
+                  played+=1
+                  if m.get("winner")==side: wins+=1
+                  else: losses+=1
           print("\n==== S2 matches ====")
           print("played:", played, "wins:", wins, "losses:", losses)
-          try:
-              s2p = get("/season2/players/"+ urllib.request.quote(TARGET))
-          except Exception as e:
-              s2p = {"err":str(e)}
-          print("\n==== S2 LP ====")
+          s2p = get("/season2/players/"+ urllib.request.quote(TARGET))
+          print("\n==== S2 LP/tier ====")
           print(json.dumps(s2p, ensure_ascii=False))
           PY
