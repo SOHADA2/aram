@@ -1,0 +1,74 @@
+name: badger_audit
+on:
+  push:
+    branches: [claude/update-needed-tm0tj9]
+    paths: ['.github/workflows/_badger_audit.yml']
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: fetch and analyze
+        run: |
+          python3 - << 'PY'
+          import json, urllib.request
+          DB="https://aramchaos-ca022-default-rtdb.asia-southeast1.firebasedatabase.app"
+          def get(p):
+              with urllib.request.urlopen(DB+p+".json") as r:
+                  return json.load(r)
+          def norm(s): return " ".join(str(s or "").split())
+          TARGET = norm("맹독 벌꿀오소리")
+          players = get("/players") or {}
+          key=None; pname=None
+          for k,v in players.items():
+              if norm((v or {}).get("name",""))==TARGET:
+                  key=k; pname=v.get("name"); break
+          print("player key:", key, "name:", pname)
+          gold = get("/gold/"+key) if key else None
+          if not gold:
+              print("NO GOLD RECORD"); raise SystemExit
+          print("\n==== gold record scalar fields ====")
+          for f in sorted(gold.keys()):
+              v=gold[f]
+              if isinstance(v,(int,float,str,bool)) or v is None:
+                  print(f, "=", v)
+          print("\n==== arrays/objects ====")
+          for f in sorted(gold.keys()):
+              v=gold[f]
+              if isinstance(v,list):
+                  print(f, "= list len", len(v))
+              elif isinstance(v,dict):
+                  print(f, "= dict keys", len(v))
+          lh = gold.get("lotteryHistory") or []
+          cnt2=0; win2=0
+          for h in lh:
+              if h.get("season",1)==2:
+                  cnt2+=1; win2 += h.get("gold",0) or 0
+          print("\n==== lotteryHistory ====")
+          print("total entries:", len(lh), "| season2 entries:", cnt2, "| s2 winnings sum:", win2)
+          print("\n==== gacha ====")
+          print("gachaSpent_s2:", gold.get("gachaSpent_s2"))
+          gl=gold.get("gachaLog_s2") or []
+          print("gachaLog_s2 entries:", len(gl))
+          ah=gold.get("attendanceHistory") or []
+          s2att=[a for a in ah if (a.get("season",1)==2)]
+          print("\n==== attendance ====")
+          print("attendanceHistory total:", len(ah), "| s2:", len(s2att), "| s2 gold:", sum(a.get("gold",0) for a in s2att))
+          matches = get("/matches") or {}
+          def normset(arr): return set(norm(x) for x in (arr or []))
+          played=0; wins=0; losses=0
+          for mk,m in matches.items():
+              if (m or {}).get("season")!=2: continue
+              a=normset(m.get("teamA")); b=normset(m.get("teamB"))
+              if TARGET in a:
+                  played+=1; wins+= 1 if m.get("winner")=="blue" else 0; losses+= 0 if m.get("winner")=="blue" else 1
+              elif TARGET in b:
+                  played+=1; wins+= 1 if m.get("winner")=="red" else 0; losses+= 0 if m.get("winner")=="red" else 1
+          print("\n==== S2 matches ====")
+          print("played:", played, "wins:", wins, "losses:", losses)
+          try:
+              s2p = get("/season2/players/"+ urllib.request.quote(TARGET))
+          except Exception as e:
+              s2p = {"err":str(e)}
+          print("\n==== S2 LP ====")
+          print(json.dumps(s2p, ensure_ascii=False))
+          PY
