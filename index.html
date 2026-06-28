@@ -6880,7 +6880,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.389';
+const APP_VERSION = 'v2.45.390';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6889,9 @@ const APP_VERSION = 'v2.45.389';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.390', date: '2026-06-27', changes: [
+    { tag: 'fix', text: '🔨 정산창 "이번 판 발동 효과"에서 강철심장 LP가 실제로는 안 들어갔는데 발동했다고 뜨던 문제 수정 — 도박권을 쓰면 강철심장의 승리 LP·패배 방어는 적용되지 않는데(배치고사·승급전도 동일), 발동 표시줄에만 이 조건이 빠져 "강철심장 +N LP 발동"이 잘못 떴어요. 이제 실제 적용(LP 숫자)과 똑같이, 도박권·배치·승급전에선 강철심장 LP 발동 줄을 표시하지 않아요. (골드 효과는 그대로 적용·표시)' },
+  ] },
   { ver: 'v2.45.389', date: '2026-06-27', changes: [
     { tag: 'fix', text: '🙅 MVP·매너왕 투표창도 이 내전에 참여하지 않는 팀원에게 뜨던 문제 수정 — 이제 투표창(과 투표 탭 이동·배너)은 양 팀·관전자·라이브에게만 보이고, 비참여 팀원은 메인 화면을 그대로 봅니다.' },
   ] },
@@ -17622,8 +17625,12 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
       const _em = emblemSnap[normName(name)];
       if (_em) {
         const _p = [];
-        if (isWin && _em.winLpProc && _em.winLP) _p.push(`+${_em.winLP} LP`);
-        if (!isWin && _em.lossLpProc && _em.lossLP) _p.push(`LP ${_em.lossLP} 방어`);
+        // ⚠️ 강철심장 LP(승리 LP·패배 방어)는 도박권·배치고사·승급전에선 적용되지 않음(s1ApplyMatchResult·LP 숫자와 동일) → 발동 표시도 제외해 "발동했는데 안 들어옴" 오해 방지
+        const _emS = (s1LpBefore && Object.keys(s1LpBefore).length > 0) ? s1LpBefore : _s1LpSnapshot;
+        const _emB = _emS ? _emS[normName(name)] : null;
+        const _emLpSuppress = (effects.find(e => e.startsWith('s1_')) === 's1_gamble') || (_emB && (!_emB.placementDone || _emB.promoActive));
+        if (isWin && _em.winLpProc && _em.winLP && !_emLpSuppress) _p.push(`+${_em.winLP} LP`);
+        if (!isWin && _em.lossLpProc && _em.lossLP && !_emLpSuppress) _p.push(`LP ${_em.lossLP} 방어`);
         let _eg = (_em.matchG || 0) + (isWin ? (_em.winG || 0) : 0);
         if (normName(name) === normName(mvpWinner || '') || normName(name) === normName(mvpLoser || '')) _eg += (_em.mvpG || 0);
         if (_eg) _p.push(`+${_eg}G`);
