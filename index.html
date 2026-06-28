@@ -5425,6 +5425,10 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .brw-title{font-size:16px;font-weight:800;color:#ffe39a;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:6px;}
 .brw-sub{font-size:11px;color:#c8c8d0;margin-bottom:14px;line-height:1.55;}
 .brw-list{display:flex;flex-direction:column;gap:8px;margin-bottom:18px;}
+.brw-fortune{position:relative;background:linear-gradient(160deg,rgba(255,255,255,.045),rgba(255,255,255,.01));border:1px solid var(--fc,#c89230);border-radius:10px;padding:11px 13px;margin-bottom:14px;text-align:left;box-shadow:0 0 18px -7px var(--fc,#c89230);}
+.brwf-hd{font-size:10.5px;font-weight:800;color:#bfa05a;letter-spacing:.3px;display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.brwf-grade{font-size:12.5px;font-weight:900;color:var(--fc,#ffe39a);}
+.brwf-msg{font-size:12.5px;font-weight:700;color:#ececf2;line-height:1.5;}
 .brw-row{display:flex;align-items:center;gap:10px;background:rgba(240,192,96,.06);border:1px solid rgba(240,192,96,.2);border-radius:9px;padding:8px 12px;}
 .brw-ic{width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;}
 .brw-ic img{width:28px;height:28px;border-radius:5px;}
@@ -6880,7 +6884,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.390';
+const APP_VERSION = 'v2.45.391';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6889,6 +6893,9 @@ const APP_VERSION = 'v2.45.390';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.391', date: '2026-06-28', changes: [
+    { tag: 'new', text: '🔮 오늘의 운세 추가 — 협력 빙고 출석을 하면 출석 보상 팝업에 그날의 운세가 함께 떠요. 대길·중길·소길·평·흉 등급별로 색이 다르고, 운세는 날짜+닉네임 기준으로 하루 동안 고정(오전·오후 같은 운세). 50종 문구가 매일 랜덤으로 돌아갑니다.' },
+  ] },
   { ver: 'v2.45.390', date: '2026-06-27', changes: [
     { tag: 'fix', text: '🔨 정산창 "이번 판 발동 효과"에서 강철심장 LP가 실제로는 안 들어갔는데 발동했다고 뜨던 문제 수정 — 도박권을 쓰면 강철심장의 승리 LP·패배 방어는 적용되지 않는데(배치고사·승급전도 동일), 발동 표시줄에만 이 조건이 빠져 "강철심장 +N LP 발동"이 잘못 떴어요. 이제 실제 적용(LP 숫자)과 똑같이, 도박권·배치·승급전에선 강철심장 LP 발동 줄을 표시하지 않아요. (골드 효과는 그대로 적용·표시)' },
   ] },
@@ -21166,9 +21173,84 @@ window.bingoSelect=function(i){
   for(const li in d.lines){ if(BINGO_LINES[li] && BINGO_LINES[li].includes(i)){ showGoldToast('이미 완성된 줄의 칸이에요'); return; } }
   _bingoSel=(_bingoSel===i)?null:i; _bingoRerender();
 };
+// 🔮 오늘의 운세 — 출석 시 표시. 날짜+닉네임 시드로 하루 고정(오전/오후 동일)
+const FORTUNE_GRADE = {
+  대길:{c:'#ffd24a', e:'🌟'}, 중길:{c:'#7fd0ff', e:'✨'}, 소길:{c:'#9be29b', e:'🍀'},
+  평:{c:'#cfcfd6', e:'🌿'}, 흉:{c:'#ff9a8a', e:'🌫️'}
+};
+const DAILY_FORTUNES = [
+  // 🌟 대길
+  {g:'대길', m:'한타 각이 전부 들어맞는 날. 망설이지 말고 들어가세요.'},
+  {g:'대길', m:'오늘의 주사위는 당신 편. 도박권 한 번쯤 질러도 좋아요.'},
+  {g:'대길', m:'폭풍 같은 캐리력. 잡는 챔피언마다 손에 착착 붙습니다.'},
+  {g:'대길', m:'연승의 기운이 가득. 팀을 믿고 끝까지 밀어붙이세요.'},
+  {g:'대길', m:'운빨로도 이기는 날. 복권 긁는 손끝이 가볍습니다.'},
+  {g:'대길', m:'귀인이 같은 팀에 옵니다. 좋은 듀오를 만날 운세.'},
+  {g:'대길', m:'오늘은 MVP가 보이는 날. 자신 있게 앞라인을 서세요.'},
+  // ✨ 중길
+  {g:'중길', m:'무난하게 좋은 흐름. 큰 욕심만 안 부리면 승리합니다.'},
+  {g:'중길', m:'초반은 평범해도 후반에 빛나는 날. 인내가 곧 캐리.'},
+  {g:'중길', m:'딜이 잘 박히는 날. 포지션만 지키면 충분히 캐리각.'},
+  {g:'중길', m:'오늘은 한 발 빼는 판단이 이득을 부릅니다.'},
+  {g:'중길', m:'집중력이 좋은 날. 스킬샷 적중률이 올라갑니다.'},
+  {g:'중길', m:'작은 양보가 큰 보상으로. 매너왕 운세가 들어와요.'},
+  {g:'중길', m:'교전보다 운영. 차분히 굴리면 스노우볼이 굴러갑니다.'},
+  {g:'중길', m:'오늘 강화 한 번은 성공 기운. 무리하지 않는 선에서.'},
+  {g:'중길', m:'관전 예측이 잘 맞는 날. 베팅 감이 살아있어요.'},
+  {g:'중길', m:'팀워크가 살아나는 날. 콜 한 번이 승부를 가릅니다.'},
+  {g:'중길', m:'평정심이 무기. 기우는 판도 뒤집을 저력이 있어요.'},
+  {g:'중길', m:'꾸준함이 보답받는 날. 출석처럼 차곡차곡 쌓으세요.'},
+  // 🍀 소길
+  {g:'소길', m:'나쁘지 않은 하루. 욕심 줄이면 본전 이상은 합니다.'},
+  {g:'소길', m:'작은 행운이 곳곳에. 복권 한 장의 재미를 누려보세요.'},
+  {g:'소길', m:'평타는 치는 날. 무리한 다이브만 조심하면 OK.'},
+  {g:'소길', m:'소소한 골드 운이 따릅니다. 쓰레기통도 뒤져볼 만해요.'},
+  {g:'소길', m:'잔잔하게 좋은 흐름. 한 끗 차 승리가 보입니다.'},
+  {g:'소길', m:'오늘은 안전제일. 빠지는 타이밍이 잘 보입니다.'},
+  {g:'소길', m:'작은 친절이 골드로 돌아옵니다. 단짝을 챙겨보세요.'},
+  {g:'소길', m:'무난한 컨디션. 익숙한 챔피언으로 가면 안정적이에요.'},
+  {g:'소길', m:'느리지만 분명한 상승세. 조급해하지 마세요.'},
+  {g:'소길', m:'오늘 한 줄 빙고는 채울 운세. 칸 선택을 신중히.'},
+  {g:'소길', m:'작은 도전이 즐거움을 줍니다. 새 챔피언 한 판 어때요?'},
+  {g:'소길', m:'소소한 럭키. 첫 한타만 잘 풀어도 흐름을 가져옵니다.'},
+  {g:'소길', m:'안정적인 하루. 평소 실력만 내면 충분합니다.'},
+  // 🌿 평
+  {g:'평', m:'특별할 것 없는 평범한 날. 기본기가 곧 승률입니다.'},
+  {g:'평', m:'오르락내리락하는 흐름. 멘탈 관리가 핵심이에요.'},
+  {g:'평', m:'판단보다 침착함이 필요한 날. 한 박자 쉬어가세요.'},
+  {g:'평', m:'큰 기대도 큰 걱정도 금물. 평소대로가 정답입니다.'},
+  {g:'평', m:'운은 중립. 결국 실력과 집중이 결과를 만듭니다.'},
+  {g:'평', m:'무던한 하루. 욕심내지 말고 한 판 한 판 충실히.'},
+  {g:'평', m:'평온한 기운. 무리수보다 정석 플레이가 어울려요.'},
+  {g:'평', m:'흐름이 미지근한 날. 작은 실수만 줄여도 충분합니다.'},
+  {g:'평', m:'오늘은 관망의 날. 서두르면 손해를 봅니다.'},
+  {g:'평', m:'특별한 행운은 없지만 큰 불운도 없어요. 담담하게.'},
+  // 🌫️ 흉
+  {g:'흉', m:'교전 욕심이 화를 부르는 날. 한 발 물러서세요.'},
+  {g:'흉', m:'오늘 도박권은 잠시 넣어두세요. 변동성이 큰 날입니다.'},
+  {g:'흉', m:'무리한 다이브 금지. 살아남는 것이 곧 이득이에요.'},
+  {g:'흉', m:'컨디션이 살짝 처지는 날. 어려운 챔피언은 피하세요.'},
+  {g:'흉', m:'핑퐁이 꼬이기 쉬운 날. 콜은 짧고 분명하게.'},
+  {g:'흉', m:'작은 손해는 받아들이고 다음 판을 노리세요.'},
+  {g:'흉', m:'오늘은 안전운전. 큰 베팅·무리한 강화는 내일로.'}
+];
+function _dailyFortune(seed){
+  seed = String(seed||'');
+  let h=2166136261;
+  for(let i=0;i<seed.length;i++){ h^=seed.charCodeAt(i); h=Math.imul(h,16777619); }
+  return DAILY_FORTUNES[(h>>>0)%DAILY_FORTUNES.length];
+}
+function _fortuneHtml(f){
+  if(!f) return '';
+  const gm=FORTUNE_GRADE[f.g]||{c:'#cfcfd6',e:'🔮'};
+  return `<div class="brw-fortune" style="--fc:${gm.c}">
+    <div class="brwf-hd"><span>🔮 오늘의 운세</span><span class="brwf-grade">${gm.e} ${f.g}</span></div>
+    <div class="brwf-msg">${escHtml(f.m)}</div>
+  </div>`;
+}
 // 빙고 출석 — 슬롯 출석 + 칸 픽(트랜잭션)
 // 🎁 출석/빙고 보상 팝업 — 아이콘 + 받은 항목 표시, 확인 버튼으로 닫기(자동 안 사라짐)
-function showBingoReward(title, sub, items){
+function showBingoReward(title, sub, items, fortune){
   const old=document.getElementById('bingo-reward-overlay'); if(old) old.remove();
   if(!items || !items.length) return;
   const ov=document.createElement('div'); ov.id='bingo-reward-overlay'; ov.className='brw-overlay season-2';
@@ -21177,6 +21259,7 @@ function showBingoReward(title, sub, items){
   ov.innerHTML=`<div class="brw-card">
     <div class="brw-title"><span class="bg-dia"></span>${title}</div>
     ${sub?`<div class="brw-sub">${sub}</div>`:''}
+    ${_fortuneHtml(fortune)}
     <div class="brw-list">${rows}</div>
     <button class="brw-ok" onclick="document.getElementById('bingo-reward-overlay')?.remove()">확인</button>
   </div>`;
@@ -21240,7 +21323,7 @@ async function doBingoAttendance(){
     items.push({ iconHtml:'🎯', name:`협력 빙고 ${top.n}줄 보상`, qty:'🎁 수령 대기', color:'#f0c060' });
     setTimeout(()=>{ const f=document.getElementById('bingo-flash'); if(f){ f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); } }, 60);
   }
-  showBingoReward(`${sName} 출석 완료`, sub, items);
+  showBingoReward(`${sName} 출석 완료`, sub, items, _dailyFortune(todayKey+'|'+me));
 }
 // 빙고 줄 보상 수령 (미수령 log 전부)
 window.bingoClaim=async function(){
