@@ -33601,7 +33601,7 @@ async function _forge3dShow(mount, glbFile, gradeColor, prism){
       const bx=new THREE.Box3().setFromObject(model); const c=bx.getCenter(new THREE.Vector3()); model.position.sub(c);
       const grp=new THREE.Group(); grp.add(model); scene.add(grp); const R=bx.getBoundingSphere(new THREE.Sphere()).radius||1;
       const adj=(typeof CHAMP_PREVIEW!=='undefined'&&CHAMP_PREVIEW[glbFile])||{}; const z=adj.zoom||1;   // 🎨 스킨샵과 동일 프레이밍(full 모델 다리만 보이던 문제 수정)
-      grp.position.y=-R*0.05 + (adj.yOff||0)*R;
+      grp.position.x=(adj.xOff||0)*R; grp.position.y=-R*0.05 + (adj.yOff||0)*R;
       const fov=camera.fov*Math.PI/180; camera.position.set(0,0, R/Math.sin(fov/2)*1.18/z); camera.lookAt(0,0,0);
       ctx.group=grp; ctx.baseScale=1;
       const clips={}; (g.animations||[]).forEach(cl=>clips[cl.name]=cl);
@@ -34201,7 +34201,7 @@ function _injectSkinCss(){ if(document.getElementById('skin-css')) return; const
   .sk-champ span{font-size:9px;color:#9aa0b4;}.sk-champ.sel span{color:#ffd24a;}
   `; document.head.appendChild(s);
 }
-// 🎨 변형별 미리보기 조정값(상점 3D) — 키=glb파일. zoom(>1 크게)·yOff(R비율 상하). 없으면 기본(1/0)
+// 🎨 변형별 미리보기 조정값(상점 3D·강화창 공용) — 키=glb파일. zoom(>1 크게)·xOff(R비율 좌우)·yOff(R비율 상하). 없으면 기본(1/0/0). 🔧 조절도구=스킨-위치조정-목업.html 또는 콘솔 skinPrevTune()
 const CHAMP_PREVIEW = {
   'teemo_full.glb':  { zoom:0.70, yOff:-0.60 }, 'teemo_skin1.glb': { zoom:0.70, yOff:-0.60 },
   'gwen_full.glb':   { zoom:1.00, yOff:-0.60 }, 'gwen_skin1.glb':  { zoom:1.00, yOff:-0.60 },
@@ -34212,7 +34212,7 @@ const CHAMP_PREVIEW = {
   'lux_full.glb':    { zoom:0.40, yOff:-0.60 }, 'lux_skin1.glb':   { zoom:0.40, yOff:-0.60 },
 };
 let _skinTuneOn=false, _skinShopRender=null;
-function _skinPrevCopy(){ let s='// CHAMP_PREVIEW (상점 미리보기 조정값)\n'; let n=0; for(const k in CHAMP_PREVIEW){ const v=CHAMP_PREVIEW[k]||{}; s+=`  '${k}': { zoom:${(+(v.zoom||1)).toFixed(2)}, yOff:${(+(v.yOff||0)).toFixed(2)} },\n`; n++; } return n?s:'(아직 조정한 변형 없음 — 슬라이더 움직이면 여기 떠요)'; }
+function _skinPrevCopy(){ let s='// CHAMP_PREVIEW (상점 미리보기 조정값)\n'; let n=0; for(const k in CHAMP_PREVIEW){ const v=CHAMP_PREVIEW[k]||{}; s+=`  '${k}': { zoom:${(+(v.zoom||1)).toFixed(2)}, xOff:${(+(v.xOff||0)).toFixed(2)}, yOff:${(+(v.yOff||0)).toFixed(2)} },\n`; n++; } return n?s:'(아직 조정한 변형 없음 — 슬라이더 움직이면 여기 떠요)'; }
 window.skinPrevTune=function(){ _skinTuneOn=!_skinTuneOn; if(_skinShopRender) _skinShopRender(); else if(window.openSkinShop) window.openSkinShop(); return _skinTuneOn?'🔧 미리보기 조정 ON — 줌/높이 맞추고 textarea 값 주세요':'조정 OFF'; };
 let _skinPrevDispose=null, _skinPrevApply=null;
 async function _skinPreview3d(mount, glbFile, opts){
@@ -34246,8 +34246,8 @@ async function _skinPreview3d(mount, glbFile, opts){
       group=new THREE.Group(); group.add(model); scene.add(group);
       const R=bx.getBoundingSphere(new THREE.Sphere()).radius||1;
       const fov=camera.fov*Math.PI/180; const baseDist=R/Math.sin(fov/2)*1.18, baseY=-R*0.05;   // 바운딩 구 맞춤 기준
-      _skinPrevApply=(zoom,yOff)=>{ const z=zoom||1; camera.position.set(0,0, baseDist/z); camera.lookAt(0,0,0); group.position.y = baseY + (yOff||0)*R; };   // 🔧 줌·높이 라이브 조정(리로드 없이)
-      _skinPrevApply(opts.zoom, opts.yOff);
+      _skinPrevApply=(zoom,yOff,xOff)=>{ const z=zoom||1; camera.position.set(0,0, baseDist/z); camera.lookAt(0,0,0); group.position.x=(xOff||0)*R; group.position.y = baseY + (yOff||0)*R; };   // 🔧 줌·좌우·높이 라이브 조정(리로드 없이)
+      _skinPrevApply(opts.zoom, opts.yOff, opts.xOff);
       const clips={}; (g.animations||[]).forEach(cl=>clips[cl.name]=cl);
       const idle=(opts.idle&&clips[opts.idle])||clips['Idle1']||clips['Idle_Base']||clips['Idle']||Object.values(clips)[0];   // 🎨 배틀과 같은 idle 우선
       if(idle){ mixer=new THREE.AnimationMixer(model); mixer.clipAction(idle).play(); }
@@ -34293,8 +34293,9 @@ window.openSkinShop=function(){
     const pf=previewFile(); const clipKey=selId?pf:selChamp; const idleClip=(CHAMP_CLIPS[clipKey]&&CHAMP_CLIPS[clipKey].idle)||null; const prv=CHAMP_PREVIEW[pf]||{};
     const tuneHtml = _skinTuneOn ? `<div style="margin:8px 0;padding:8px 9px;border:1px dashed rgba(240,200,90,.5);border-radius:10px;background:rgba(240,200,90,.06);">
       <div style="font-size:11px;color:#ffd24a;font-weight:800;margin-bottom:5px;">🔧 미리보기 조정 · ${escHtml(vname)} <span style="opacity:.55;font-weight:400">${pf}</span></div>
-      <div style="display:flex;align-items:center;gap:7px;font-size:11px;margin:4px 0;"><span style="width:26px;">줌</span><input type="range" id="sk-tz" min="0.4" max="2.5" step="0.05" value="${+(prv.zoom||1)}" style="flex:1;accent-color:#ffd24a;"><span id="sk-tzv" style="width:34px;text-align:right;font-family:monospace;color:#cfe;">${(+(prv.zoom||1)).toFixed(2)}</span></div>
-      <div style="display:flex;align-items:center;gap:7px;font-size:11px;margin:4px 0;"><span style="width:26px;">높이</span><input type="range" id="sk-ty" min="-0.6" max="0.6" step="0.02" value="${+(prv.yOff||0)}" style="flex:1;accent-color:#ffd24a;"><span id="sk-tyv" style="width:34px;text-align:right;font-family:monospace;color:#cfe;">${(+(prv.yOff||0)).toFixed(2)}</span></div>
+      <div style="display:flex;align-items:center;gap:7px;font-size:11px;margin:4px 0;"><span style="width:26px;">크기</span><input type="range" id="sk-tz" min="0.4" max="2.5" step="0.05" value="${+(prv.zoom||1)}" style="flex:1;accent-color:#ffd24a;"><span id="sk-tzv" style="width:34px;text-align:right;font-family:monospace;color:#cfe;">${(+(prv.zoom||1)).toFixed(2)}</span></div>
+      <div style="display:flex;align-items:center;gap:7px;font-size:11px;margin:4px 0;"><span style="width:26px;">좌우</span><input type="range" id="sk-tx" min="-0.6" max="0.6" step="0.02" value="${+(prv.xOff||0)}" style="flex:1;accent-color:#ffd24a;"><span id="sk-txv" style="width:34px;text-align:right;font-family:monospace;color:#cfe;">${(+(prv.xOff||0)).toFixed(2)}</span></div>
+      <div style="display:flex;align-items:center;gap:7px;font-size:11px;margin:4px 0;"><span style="width:26px;">상하</span><input type="range" id="sk-ty" min="-0.6" max="0.6" step="0.02" value="${+(prv.yOff||0)}" style="flex:1;accent-color:#ffd24a;"><span id="sk-tyv" style="width:34px;text-align:right;font-family:monospace;color:#cfe;">${(+(prv.yOff||0)).toFixed(2)}</span></div>
       <textarea id="sk-tcopy" readonly style="width:100%;height:74px;margin-top:5px;background:#0c0e16;color:#8fe;border:1px solid #333a52;border-radius:6px;font-family:monospace;font-size:9px;padding:5px;box-sizing:border-box;resize:vertical;">${escHtml(_skinPrevCopy())}</textarea></div>` : '';
     ov.querySelector('#sk-body').innerHTML=`
       <div style="text-align:center;"><span class="sk-coinpill">🗡️ <b>${coins}</b> 투기장 코인</span></div>
@@ -34313,12 +34314,12 @@ window.openSkinShop=function(){
       else if(a==='buy'){ const cost=+act.dataset.cost, r=_skinBuy(selChamp,id,cost);
         if(r==='ok'){ _skinEquip(selChamp,id); render('🎉 구매 + 장착 완료!'); try{updateMyInfoBar();}catch(_){} }
         else if(r==='nocoin') render('<span style="color:#ff6b6b">🗡️ 투기장 코인이 부족해요 (배틀로 모아요)</span>'); } };
-    if(_skinTuneOn){ const tz=ov.querySelector('#sk-tz'), ty=ov.querySelector('#sk-ty'); if(tz&&ty){
-      const upd=()=>{ const z=+tz.value, y=+ty.value; CHAMP_PREVIEW[pf]={zoom:z,yOff:y};
-        ov.querySelector('#sk-tzv').textContent=z.toFixed(2); ov.querySelector('#sk-tyv').textContent=y.toFixed(2);
-        if(_skinPrevApply) _skinPrevApply(z,y); const t=ov.querySelector('#sk-tcopy'); if(t) t.value=_skinPrevCopy(); };
-      tz.oninput=upd; ty.oninput=upd; } }
-    if(pf!==curPrev){ curPrev=pf; if(!mount.querySelector('.sk-prev-load')) mount.innerHTML='<div class="sk-prev-load">불러오는 중…</div>'; try{ _skinPreview3d(mount, pf, {idle:idleClip, zoom:prv.zoom, yOff:prv.yOff}); }catch(_){} }
+    if(_skinTuneOn){ const tz=ov.querySelector('#sk-tz'), ty=ov.querySelector('#sk-ty'), tx=ov.querySelector('#sk-tx'); if(tz&&ty&&tx){
+      const upd=()=>{ const z=+tz.value, y=+ty.value, x=+tx.value; CHAMP_PREVIEW[pf]={zoom:z,xOff:x,yOff:y};
+        ov.querySelector('#sk-tzv').textContent=z.toFixed(2); ov.querySelector('#sk-tyv').textContent=y.toFixed(2); ov.querySelector('#sk-txv').textContent=x.toFixed(2);
+        if(_skinPrevApply) _skinPrevApply(z,y,x); const t=ov.querySelector('#sk-tcopy'); if(t) t.value=_skinPrevCopy(); };
+      tz.oninput=upd; ty.oninput=upd; tx.oninput=upd; } }
+    if(pf!==curPrev){ curPrev=pf; if(!mount.querySelector('.sk-prev-load')) mount.innerHTML='<div class="sk-prev-load">불러오는 중…</div>'; try{ _skinPreview3d(mount, pf, {idle:idleClip, zoom:prv.zoom, xOff:prv.xOff, yOff:prv.yOff}); }catch(_){} }
   };
   render();
 };

@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>🎨 스킨/강화 미리보기 위치 조정 — 목업</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+  :root{ --gold:#ffd24a; }
+  *{ box-sizing:border-box; }
+  body{ margin:0; background:#0a0c14; color:#e8ecf6; font-family:'Pretendard','Segoe UI',system-ui,sans-serif; -webkit-text-size-adjust:100%; }
+  .wrap{ max-width:420px; margin:0 auto; padding:14px 14px 40px; }
+  h1{ font-size:16px; text-align:center; color:var(--gold); margin:6px 0 2px; }
+  .hint{ font-size:11px; color:#8a90a6; text-align:center; margin:0 0 12px; line-height:1.5; }
+  .champs{ display:grid; grid-template-columns:repeat(7,1fr); gap:5px; margin-bottom:8px; }
+  .champ{ background:#141826; border:1px solid #2a3146; border-radius:9px; padding:3px 2px 4px; cursor:pointer; text-align:center; transition:.12s; }
+  .champ.sel{ border-color:var(--gold); box-shadow:0 0 9px rgba(240,200,90,.4); }
+  .champ img{ width:100%; aspect-ratio:1; object-fit:cover; border-radius:6px; display:block; }
+  .champ span{ font-size:8.5px; color:#9aa0b4; }
+  .champ.sel span{ color:var(--gold); }
+  .vbtns{ display:flex; gap:8px; margin-bottom:8px; }
+  .vbtn{ flex:1; background:#141826; border:1px solid #2a3146; border-radius:9px; padding:8px; color:#cfd4e6; font-size:13px; font-weight:700; cursor:pointer; }
+  .vbtn.sel{ border-color:var(--gold); background:rgba(240,200,90,.1); color:var(--gold); }
+  .preview{ width:100%; height:300px; border-radius:16px; position:relative; overflow:hidden; border:1px solid rgba(240,200,90,.28); margin:0 0 6px;
+    background:radial-gradient(ellipse 60% 50% at 50% 38%,rgba(245,205,120,.16),transparent 64%),radial-gradient(ellipse 90% 60% at 50% 110%,rgba(120,74,208,.22),transparent 70%),linear-gradient(180deg,#0c0a16,#161021 70%,#1d1330); }
+  .preview canvas{ width:100%; height:100%; display:block; }
+  .prev-load{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#9aa0b4; font-size:12px; }
+  .vlabel{ text-align:center; font-size:12px; color:#cfe; margin:0 0 8px; font-family:monospace; }
+  .row{ display:flex; align-items:center; gap:9px; font-size:12px; margin:7px 0; }
+  .row > span:first-child{ width:34px; color:#cfd4e6; font-weight:700; }
+  .row input[type=range]{ flex:1; accent-color:var(--gold); }
+  .row .val{ width:46px; text-align:right; font-family:monospace; color:#8fe; }
+  .tools{ display:flex; gap:8px; align-items:center; margin:10px 0 6px; }
+  .tools button{ background:#1b2030; border:1px solid #333a52; border-radius:8px; color:#cfd4e6; font-size:12px; padding:7px 10px; cursor:pointer; }
+  .tools label{ font-size:12px; color:#9aa0b4; display:flex; align-items:center; gap:5px; margin-left:auto; cursor:pointer; }
+  textarea{ width:100%; height:200px; margin-top:8px; background:#0c0e16; color:#8fe; border:1px solid #333a52; border-radius:8px; font-family:monospace; font-size:11px; padding:8px; resize:vertical; }
+  .copy{ width:100%; margin-top:6px; background:var(--gold); border:none; border-radius:9px; color:#1a1206; font-size:13px; font-weight:800; padding:11px; cursor:pointer; }
+  .foot{ font-size:11px; color:#727892; line-height:1.6; margin-top:12px; }
+  .foot b{ color:#aab0c6; }
+  code{ background:#161a28; padding:1px 5px; border-radius:4px; color:#cfe; font-size:11px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🎨 스킨·강화 미리보기 위치 조정</h1>
+  <p class="hint">챔피언·변형을 고르고 <b>크기·좌우·상하</b>를 맞춘 뒤,<br>아래 출력값을 복사해 주세요 (그대로 앱에 박아드려요).</p>
+
+  <div class="champs" id="champs"></div>
+  <div class="vbtns">
+    <button class="vbtn sel" id="v-full" data-v="full">기본</button>
+    <button class="vbtn" id="v-skin1" data-v="skin1">스킨</button>
+  </div>
+
+  <div class="preview" id="preview"><div class="prev-load" id="prev-load">불러오는 중…</div></div>
+  <div class="vlabel" id="vlabel">—</div>
+
+  <div class="row"><span>크기</span><input type="range" id="s-zoom" min="0.4" max="2.5" step="0.05"><span class="val" id="v-zoom">1.00</span></div>
+  <div class="row"><span>좌우</span><input type="range" id="s-x" min="-0.6" max="0.6" step="0.02"><span class="val" id="v-x">0.00</span></div>
+  <div class="row"><span>상하</span><input type="range" id="s-y" min="-0.6" max="0.6" step="0.02"><span class="val" id="v-y">0.00</span></div>
+
+  <div class="tools">
+    <button id="reset">↺ 이 변형 리셋</button>
+    <button id="center">⌖ 좌우·상하 0</button>
+    <label><input type="checkbox" id="freeze"> 회전 멈춤</label>
+  </div>
+
+  <textarea id="out" readonly></textarea>
+  <button class="copy" id="copy">📋 CHAMP_PREVIEW 값 복사</button>
+
+  <p class="foot">
+    <b>실행</b>: 앱 폴더에서 <code>node _clawserve.mjs "C:\\Users\\so\\aram"</code> 실행 →
+    브라우저로 <code>http://localhost:8731/스킨-위치조정-목업.html</code> 열기.
+    (<code>file://</code>로 열면 GLB가 CORS로 안 불러와져요.)<br>
+    <b>적용</b>: 값 복사해서 주시면 제가 <code>index.html</code>의 <code>CHAMP_PREVIEW</code>에 반영합니다.
+    이 값은 <b>스킨 상점 미리보기</b>와 <b>강화창 3D</b> 양쪽에 같이 적용돼요.<br>
+    <b>크기</b>=값↑ 크게 · <b>좌우</b>=−왼쪽/+오른쪽 · <b>상하</b>=−아래/+위 (모델 반지름 비율).
+  </p>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+let MeshoptDecoder=null;
+try{ ({ MeshoptDecoder } = await import('three/addons/libs/meshopt_decoder.module.js')); }catch(_){}
+
+// 챔피언 7종 (key=glb 접두어, kr=한글명, dd=ddragon 초상화 키)
+const CHAMPS = [
+  { key:'teemo', kr:'티모',  dd:'Teemo' },
+  { key:'gwen',  kr:'그웬',  dd:'Gwen'  },
+  { key:'vex',   kr:'벡스',  dd:'Vex'   },
+  { key:'ekko',  kr:'에코',  dd:'Ekko'  },
+  { key:'yone',  kr:'요네',  dd:'Yone'  },
+  { key:'neeko', kr:'니코',  dd:'Neeko' },
+  { key:'lux',   kr:'럭스',  dd:'Lux'   },
+];
+
+// 현재 앱의 CHAMP_PREVIEW 기준값 (여기서 조절 → 출력값 복사 → 앱 반영)
+const PREVIEW = {
+  'teemo_full.glb':{zoom:0.70,xOff:0,yOff:-0.60}, 'teemo_skin1.glb':{zoom:0.70,xOff:0,yOff:-0.60},
+  'gwen_full.glb': {zoom:1.00,xOff:0,yOff:-0.60}, 'gwen_skin1.glb': {zoom:1.00,xOff:0,yOff:-0.60},
+  'vex_full.glb':  {zoom:0.65,xOff:0,yOff:-0.60}, 'vex_skin1.glb':  {zoom:0.60,xOff:0,yOff:-0.60},
+  'ekko_full.glb': {zoom:0.55,xOff:0,yOff:-0.60}, 'ekko_skin1.glb': {zoom:0.55,xOff:0,yOff:-0.60},
+  'yone_full.glb': {zoom:0.85,xOff:0,yOff:-0.60}, 'yone_skin1.glb': {zoom:0.75,xOff:0,yOff:-0.60},
+  'neeko_full.glb':{zoom:1.00,xOff:0,yOff:-0.42}, 'neeko_skin1.glb':{zoom:0.55,xOff:0,yOff:-0.60},
+  'lux_full.glb':  {zoom:0.40,xOff:0,yOff:-0.60}, 'lux_skin1.glb':  {zoom:0.40,xOff:0,yOff:-0.60},
+};
+const DEFAULTS = JSON.parse(JSON.stringify(PREVIEW));
+
+let champ = CHAMPS[3].key;   // 에코로 시작(스크린샷 케이스)
+let variant = 'full';
+let frozen = false;
+const curFile = ()=> `${champ}_${variant}.glb`;
+
+// ── 챔피언 버튼
+const champsEl = document.getElementById('champs');
+champsEl.innerHTML = CHAMPS.map(c=>`<button class="champ ${c.key===champ?'sel':''}" data-c="${c.key}">
+  <img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${c.dd}_0.jpg" onerror="this.style.visibility='hidden'">
+  <span>${c.kr}</span></button>`).join('');
+champsEl.querySelectorAll('.champ').forEach(b=> b.onclick = ()=>{ champ=b.dataset.c; syncChampUI(); loadModel(); });
+function syncChampUI(){ champsEl.querySelectorAll('.champ').forEach(b=> b.classList.toggle('sel', b.dataset.c===champ)); }
+
+// ── 변형 토글
+document.querySelectorAll('.vbtn').forEach(b=> b.onclick = ()=>{
+  variant = b.dataset.v;
+  document.querySelectorAll('.vbtn').forEach(x=> x.classList.toggle('sel', x===b));
+  loadModel();
+});
+
+// ── 슬라이더
+const sZoom=document.getElementById('s-zoom'), sX=document.getElementById('s-x'), sY=document.getElementById('s-y');
+const vZoom=document.getElementById('v-zoom'), vX=document.getElementById('v-x'), vY=document.getElementById('v-y');
+function syncSliders(){
+  const p = PREVIEW[curFile()] || {zoom:1,xOff:0,yOff:0};
+  sZoom.value=p.zoom; sX.value=p.xOff||0; sY.value=p.yOff||0;
+  vZoom.textContent=(+p.zoom).toFixed(2); vX.textContent=(+(p.xOff||0)).toFixed(2); vY.textContent=(+(p.yOff||0)).toFixed(2);
+  document.getElementById('vlabel').textContent = `${curFile()}  ·  zoom ${(+p.zoom).toFixed(2)} / xOff ${(+(p.xOff||0)).toFixed(2)} / yOff ${(+(p.yOff||0)).toFixed(2)}`;
+}
+function onSlide(){
+  const p = PREVIEW[curFile()] = { zoom:+sZoom.value, xOff:+sX.value, yOff:+sY.value };
+  vZoom.textContent=p.zoom.toFixed(2); vX.textContent=p.xOff.toFixed(2); vY.textContent=p.yOff.toFixed(2);
+  document.getElementById('vlabel').textContent = `${curFile()}  ·  zoom ${p.zoom.toFixed(2)} / xOff ${p.xOff.toFixed(2)} / yOff ${p.yOff.toFixed(2)}`;
+  apply(); refreshOut();
+}
+sZoom.oninput=onSlide; sX.oninput=onSlide; sY.oninput=onSlide;
+document.getElementById('reset').onclick = ()=>{ PREVIEW[curFile()] = JSON.parse(JSON.stringify(DEFAULTS[curFile()]||{zoom:1,xOff:0,yOff:0})); syncSliders(); apply(); refreshOut(); };
+document.getElementById('center').onclick = ()=>{ const p=PREVIEW[curFile()]||{zoom:1}; p.xOff=0; p.yOff=0; PREVIEW[curFile()]={zoom:+sZoom.value,xOff:0,yOff:0}; syncSliders(); apply(); refreshOut(); };
+document.getElementById('freeze').onchange = e=>{ frozen = e.target.checked; };
+
+// ── 출력
+function refreshOut(){
+  let s='// CHAMP_PREVIEW (index.html 에 붙여넣기)\n';
+  for(const c of CHAMPS){ for(const v of ['full','skin1']){ const k=`${c.key}_${v}.glb`; const p=PREVIEW[k]||{};
+    s += `  '${k}': { zoom:${(+(p.zoom||1)).toFixed(2)}, xOff:${(+(p.xOff||0)).toFixed(2)}, yOff:${(+(p.yOff||0)).toFixed(2)} },\n`; } }
+  document.getElementById('out').value = s;
+}
+document.getElementById('copy').onclick = ()=>{ const t=document.getElementById('out'); t.select();
+  try{ navigator.clipboard.writeText(t.value); }catch(_){ document.execCommand('copy'); }
+  const b=document.getElementById('copy'); const o=b.textContent; b.textContent='✅ 복사됨!'; setTimeout(()=>b.textContent=o,1100); };
+
+// ── 3D
+const mount = document.getElementById('preview');
+const renderer = new THREE.WebGLRenderer({ alpha:true, antialias:true, powerPreference:'low-power' });
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.75)); renderer.setClearAlpha(0); renderer.outputColorSpace = THREE.SRGBColorSpace;
+function size(){ const w=mount.clientWidth||320, h=mount.clientHeight||300; renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); }
+const scene = new THREE.Scene();
+try{ const pm=new THREE.PMREMGenerator(renderer); scene.environment = pm.fromScene(new RoomEnvironment(),0.04).texture; }catch(_){}
+scene.add(new THREE.HemisphereLight(0xe0eeff,0x303048,1.55));
+const dl=new THREE.DirectionalLight(0xfff0d0,1.3); dl.position.set(2,5,6); scene.add(dl);
+const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 8000);
+const loader = new GLTFLoader(); if(MeshoptDecoder){ try{ loader.setMeshoptDecoder(MeshoptDecoder); }catch(_){} }
+
+let group=null, mixer=null, R=1, baseDist=1, baseY=0, loadToken=0;
+const clock = new THREE.Clock();
+
+function apply(){
+  if(!group) return;
+  const p = PREVIEW[curFile()] || {zoom:1,xOff:0,yOff:0};
+  const z = p.zoom||1;
+  camera.position.set(0,0, baseDist/z); camera.lookAt(0,0,0);
+  group.position.x = (p.xOff||0)*R;
+  group.position.y = baseY + (p.yOff||0)*R;
+}
+
+function loadModel(){
+  syncSliders(); refreshOut();
+  const file = curFile(); const token = ++loadToken;
+  document.getElementById('prev-load').style.display='flex';
+  if(group){ scene.remove(group); group.traverse(o=>{ if(o.isMesh){ o.geometry?.dispose?.(); } }); group=null; mixer=null; }
+  loader.load(file, g=>{
+    if(token!==loadToken) return;
+    document.getElementById('prev-load').style.display='none';
+    const model = g.scene;
+    model.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(m.transparent){ m.transparent=false; m.alphaTest=0.5; m.depthWrite=true; } m.side=THREE.DoubleSide; m.needsUpdate=true; }); } });
+    const bx = new THREE.Box3().setFromObject(model); const c = bx.getCenter(new THREE.Vector3());
+    model.position.sub(c);
+    group = new THREE.Group(); group.add(model); scene.add(group);
+    R = bx.getBoundingSphere(new THREE.Sphere()).radius || 1;
+    const fov = camera.fov*Math.PI/180; baseDist = R/Math.sin(fov/2)*1.18; baseY = -R*0.05;
+    apply();
+    const clips={}; (g.animations||[]).forEach(cl=>clips[cl.name]=cl);
+    const idle = clips['Idle1']||clips['Idle_Base']||clips['Idle']||Object.values(clips)[0];
+    if(idle){ mixer=new THREE.AnimationMixer(model); mixer.clipAction(idle).play(); }
+  }, undefined, e=>{ if(token!==loadToken) return; document.getElementById('prev-load').textContent='로드 실패: '+file; console.warn('GLB 로드 실패', file, e); });
+}
+
+mount.appendChild(renderer.domElement);
+size(); addEventListener('resize', size);
+(function loop(){ requestAnimationFrame(loop); const dt=Math.min(0.05, clock.getDelta());
+  if(mixer) mixer.update(dt);
+  if(group && !frozen) group.rotation.y += dt*0.55;
+  renderer.render(scene,camera); })();
+
+loadModel();
+</script>
+</body>
+</html>
