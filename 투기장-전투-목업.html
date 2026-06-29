@@ -80,7 +80,7 @@
     </div>
   </div>
   <div id="panel">
-    <h2>🗡️ 투기장 전투 목업 <span style="font-size:10px;color:#666;">BUILD 9</span></h2>
+    <h2>🗡️ 투기장 전투 목업 <span style="font-size:10px;color:#666;">BUILD 10</span></h2>
 
     <div class="sec me">
       <div class="sec-h">🔵 내 캐릭터 <b id="me-now"></b></div>
@@ -162,8 +162,32 @@ function loadStore(){ try{ const d=JSON.parse(localStorage.getItem('arenaMock7')
   const old=JSON.parse(localStorage.getItem('arenaMock6')); if(old&&old.CLIPSEL) Object.assign(CLIPSEL, old.CLIPSEL);   // 정규화로 좌표계 변경→위치만 리셋, 클립 이어받음
 }catch(e){} }
 loadStore();
-if(!CLIPSEL.gwen) CLIPSEL.gwen={attack:'Attack1',idle:'Idle1',death:'Death'};   // 이전 작업 시드
-if(!CLIPSEL.yone) CLIPSEL.yone={attack:'Attack4',idle:'Idle1_Base',death:'Death'};
+// 🎯 기본 챔피언 최종 튜닝값(앱 CHAMP_BATTLE_POS/CLIPS와 동일) — 시드 출발점
+const BASE_POS = {
+  teemo:{ me:{X:1.4,Y:1.45,Z:0.52,S:0.3,R:2.50},  op:{X:2.5,Y:-0.05,Z:2,S:0.21,R:-0.50} },
+  gwen: { me:{X:1.45,Y:1.8,Z:0.52,S:0.5,R:2.98},  op:{X:2.35,Y:-0.3,Z:1.3,S:0.29,R:-0.50} },
+  vex:  { me:{X:1.75,Y:1.45,Z:0.52,S:0.4,R:2.58}, op:{X:2.35,Y:-0.15,Z:0.95,S:0.25,R:-0.68} },
+  ekko: { me:{X:1.95,Y:1.7,Z:0.15,S:0.3,R:2.80},  op:{X:2.45,Y:-0.1,Z:0.95,S:0.15,R:-0.60} },
+  yone: { me:{X:1.95,Y:1.35,Z:0.52,S:0.3,R:1.78}, op:{X:2.75,Y:-0.1,Z:0.95,S:0.17,R:-1.58} },
+  neeko:{ me:{X:1.35,Y:1.15,Z:0.52,S:0.4,R:2.26}, op:{X:2.2,Y:-0.05,Z:0.95,S:0.31,R:-0.76} },
+  lux:  { me:{X:1.75,Y:1.8,Z:0.52,S:0.7,R:2.42},  op:{X:2.45,Y:-0.4,Z:0.95,S:0.41,R:-0.98} },
+};
+const BASE_CLIP = {
+  teemo:{attack:'Attack2_ToIdle',idle:'Idle_In',death:'Death'}, gwen:{attack:'Attack1',idle:'Idle.anm',death:'Death'},
+  vex:{attack:'Attack1_Hit',idle:'Idle_In',death:'Death'}, ekko:{attack:'Attack1',idle:'Idle01_to_Idle2',death:'Death'},
+  yone:{attack:'Attack4',idle:'Idle1_Base',death:'Death'}, neeko:{attack:'Attack1',idle:'Idlein_Animal',death:'Death'},
+  lux:{attack:'Attack1',idle:'Idle1',death:'Death'},
+};
+const _needSeed = !localStorage.getItem('arenaMockSkinSeedV1');   // 🎨 스킨 시작점 1회 강제 시드(기존 잘못된 기본값 덮어쓰기)
+['teemo','gwen','vex','ekko','yone','neeko','lux'].forEach(c=>{
+  if(!POS[c]) POS[c]={ me:{...BASE_POS[c].me}, op:{...BASE_POS[c].op} };   // 기본 챔프도 비어있으면 baked값 출발
+  if(!CLIPSEL[c]) CLIPSEL[c]={...BASE_CLIP[c]};
+  const sk=c+'_skin1';   // 🎨 스킨 시작점 = 기본 챔프 값(크기·위치·클립 동일)으로 — 사장님이 세부 조정
+  if(_needSeed || !POS[sk]) POS[sk]={ me:{...POS[c].me}, op:{...POS[c].op} };
+  if(_needSeed || !CLIPSEL[sk]) CLIPSEL[sk]={...CLIPSEL[c]};
+});
+try{ localStorage.setItem('arenaMockSkinSeedV1','1'); }catch(e){}
+save();
 function posOf(champ, slot){ if(!POS[champ]) POS[champ]={}; if(!POS[champ][slot]) POS[champ][slot]={...BASE[slot]}; return POS[champ][slot]; }
 
 const box = document.getElementById('box');
