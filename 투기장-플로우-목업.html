@@ -130,6 +130,24 @@
   .arena-ov{display:none;}
   .arena-ov.on{display:flex;}
   .arena3d-loading{display:none;}  /* 목업은 정적 VS만(실제 사이트는 여기에 3D 캐릭터) */
+  /* ===== 가독성 + ? 모달 + 하단 탭 (사이트 적용 대상) ===== */
+  .arena-sub{font-size:12.5px;color:#aab0c6;line-height:1.55;}
+  .arena-hd{position:relative;display:flex;align-items:center;justify-content:center;margin-bottom:12px;min-height:30px;}
+  .arena-hd .arena-h{margin-bottom:0;}
+  .arena-x2{position:absolute;left:0;top:0;width:30px;height:30px;border-radius:9px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#aeb2c0;font-size:14px;font-weight:800;cursor:pointer;line-height:1;}
+  .arena-q{position:absolute;right:0;top:0;width:30px;height:30px;border-radius:50%;background:rgba(240,200,90,.12);border:1px solid rgba(240,200,90,.45);color:#ffd24a;font-size:15px;font-weight:900;cursor:pointer;line-height:1;}
+  .arena-tabs{display:flex;gap:5px;margin-top:14px;background:rgba(0,0,0,.28);border:1px solid rgba(240,200,90,.2);border-radius:13px;padding:4px;}
+  .arena-tab{flex:1;background:none;border:0;color:#9aa0b4;border-radius:10px;padding:10px 4px;font-size:13px;font-weight:800;cursor:pointer;transition:.12s;font-family:inherit;}
+  .arena-tab.on{background:rgba(240,200,90,.18);color:#ffd24a;box-shadow:inset 0 0 0 1px rgba(240,200,90,.3);}
+  .arena-help-ov{position:fixed;inset:0;z-index:3700;display:none;align-items:center;justify-content:center;background:rgba(6,5,12,.82);padding:22px;}
+  .arena-help-ov.on{display:flex;}
+  .arena-help-card{background:linear-gradient(180deg,#1b1827,#110f1a);border:1px solid rgba(240,200,90,.45);border-radius:16px;max-width:340px;width:100%;padding:18px 18px 14px;box-shadow:0 20px 60px rgba(0,0,0,.6);}
+  .arena-help-card h4{margin:0 0 10px;font-size:17px;color:#ffd24a;font-family:'Black Han Sans','Noto Sans KR',sans-serif;text-align:center;}
+  .arena-help-card .hp-row{font-size:13px;line-height:1.7;color:#cdd3e6;margin:8px 0;text-align:left;}
+  .arena-help-card .hp-row b{color:#ffe39a;} .arena-help-card .hp-k{color:#ffd24a;font-weight:800;}
+  .arena-help-close{width:100%;margin-top:13px;background:rgba(240,200,90,.14);border:1px solid rgba(240,200,90,.4);color:#ffe39a;border-radius:11px;padding:11px;font-size:13.5px;font-weight:800;cursor:pointer;font-family:inherit;}
+  .arena-opp-nm{font-size:14px;} .arena-opp-pw{font-size:11.5px;} .arena-opp-wr .wr-v{font-size:17px;}
+  .arena-odds .oo-v{font-size:16px;} .arena-odds .oo-l{font-size:10.5px;} .arena-stock{font-size:12.5px;}
 </style>
 </head>
 <body>
@@ -144,6 +162,7 @@
 <div id="screen-pick" class="arena-ov"></div>
 <div id="screen-result" class="arena-ov"></div>
 <div class="mock-note">↑ 사이트 실제 CSS·HTML 구조 그대로 · 전투 스테이지는 정적 VS(실제 사이트는 여기에 3D 캐릭터가 들어감)</div>
+<div id="arena-help" class="arena-help-ov" onclick="this.classList.remove('on')"><div class="arena-help-card" onclick="event.stopPropagation()"><h4 id="ah-title">도움말</h4><div id="ah-body"></div><button class="arena-help-close" onclick="document.getElementById('arena-help').classList.remove('on')">알겠어요</button></div></div>
 <script>
 const DD=k=>`https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg`;
 const GRADES=[{min:0,name:'무명',c:'#8a93a6'},{min:1,name:'견습',c:'#b9a877'},{min:4,name:'정예',c:'#cdb061'},{min:7,name:'숙련',c:'#e0c052'},{min:10,name:'정복자',c:'#f0c84a'},{min:13,name:'영웅',c:'#ffd24a'},{min:16,name:'전설',c:'#ffe07a'},{min:19,name:'신화',c:'#ff5ec7',prism:true}];
@@ -158,36 +177,51 @@ const STOCK={'티모':2,'그웬':1,'벡스':3,'에코':1,'요네':1,'니코':1,'
 const PICKS=[['Teemo','티모',5],['Gwen','그웬',2],['Vex','벡스',0],['Ekko','에코',1],['Yone','요네',0],['Neeko','니코',1],['Lux','럭스',3]];
 const OPPS=[{name:'울퉁쓰',dd:'Vex',kr:'벡스',power:3},{name:'빛나는언즈',dd:'Ekko',kr:'에코',power:8},{name:'맹독 벌꿀오소리',dd:'Lux',kr:'럭스',power:1}];
 
-// ===== ① 강화 (openArenaForge render와 동일 마크업) =====
+// 헤더(✕ · 제목 · ?) + 하단 탭 — 공용
+const hd=(title,helpKey)=>`<div class="arena-hd"><button class="arena-x2" title="닫기">✕</button><div class="arena-h">${title}</div><button class="arena-q" onclick="help('${helpKey}')">?</button></div>`;
+const tabs=on=>`<div class="arena-tabs"><button class="arena-tab ${on==='forge'?'on':''}" onclick="go('forge')">⚒️ 강화</button><button class="arena-tab ${on==='list'?'on':''}" onclick="go('list')">⚔️ 배틀</button><button class="arena-tab" onclick="skinTab()">🎨 스킨</button></div>`;
+// ? 도움말 내용 — 화면에 흩어져 있던 설명을 전부 여기로
+const HELP={
+  forge:{t:'⚒️ 인형 강화', b:`<div class="hp-row"><span class="hp-k">강화</span>로 전투인형의 전투력을 <b>+0~+20</b>까지 올려요.</div>
+    <div class="hp-row">시도하면 → <b style="color:#7CFC9A">성공</b> 전투력 +1 · <b>보류</b> 그대로 · <b style="color:#ff8b8b">파괴</b> 인형 −1 & 전투력 리셋.</div>
+    <div class="hp-row">강화엔 <span class="hp-k">🗡️ 투기장 코인</span>이 들어요 (배틀로 벌어요).</div>
+    <div class="hp-row">아래 줄에서 강화할 인형을 골라요 — <b>배지 = 보유 수량</b>, <b>+N = 전투력</b>.</div>
+    <div class="hp-row"><b>팔기</b>로 인형을 코인으로 바꿀 수 있어요 (전투력은 리셋).</div>`},
+  battle:{t:'⚔️ 배틀', b:`<div class="hp-row">기본 승률 = <b>50% + (전투력 차) × 2.5%</b>.</div>
+    <div class="hp-row">도전하면 <span class="hp-k">Q·W·E</span> 스킬을 <b>낼 순서대로</b> 세 번 탭해요. 상대는 랜덤 방어.</div>
+    <div class="hp-row">이긴 경합마다 <b style="color:#7CFC9A">+5%</b>(다 이기면 +15%) · 진 경합 <b style="color:#ff8b8b">−5%</b> — 전투력과 별개인 <b>피지컬 럭키</b>!</div>
+    <div class="hp-row">스킬 상성: <span class="hp-k">Q ▶ W ▶ E ▶ Q</span> (가위바위보).</div>
+    <div class="hp-row">하루 <b>${ARENA_BATTLE_DAILY}회</b> 도전 · 승리 시 인형뽑기 코인 + 투기장 코인.</div>`},
+};
+function help(k){ const h=HELP[k]||HELP.forge; document.getElementById('ah-title').textContent=h.t; document.getElementById('ah-body').innerHTML=h.b; document.getElementById('arena-help').classList.add('on'); }
+function skinTab(){ alert('🎨 스킨 상점은 별도 화면이에요 (이 목업은 강화→배틀 흐름 위주)'); }
+
+// ===== ① 강화 =====
 function renderForge(){
   const power=5, stock=2, cost=50, coins=320, odds={success:62,hold:33,destroy:5}, sell=92, g=grade(power), ng=nextG(power);
   const picks=PICKS.map(([dd,kr,pw])=>`<div class="ap ${kr==='티모'?'on':''}"><img src="${DD(dd)}"><div class="ap-p">+${pw}</div><span class="ap-q">${STOCK[kr]}</span></div>`).join('');
   document.getElementById('screen-forge').innerHTML=`<div class="arena-sheet">
-    <div class="arena-h">🗡️ 인형 투기장</div>
-    <div class="arena-sub">전투 인형을 강화해 더 강하게! 강화엔 🗡️투기장 코인이 들어요 (배틀로 벌어요)</div>
+    ${hd('⚒️ 인형 강화','forge')}
     <div class="arena-fighter" style="--ag:${g.c}"><img src="${DD(ME.dd)}"></div>
-    <div class="arena-grade-row">${gBadge(power)}<span style="font-size:13px;font-weight:700;color:#e6ebf2;">${ME.kr}</span></div>
+    <div class="arena-grade-row">${gBadge(power)}<span style="font-size:14px;font-weight:700;color:#e6ebf2;">${ME.kr}</span></div>
     <div class="arena-power">+${power}<small> / ${ARENA_MAX_POWER}</small></div>
     <div class="arena-next">다음 등급 <b style="color:${ng.c}">${ng.name}</b>까지 <b>+${ng.min-power}</b></div>
-    <div class="arena-stock">🗡️ ${ME.kr} 인형 보유 <b>${stock}</b>개</div>
+    <div class="arena-stock">🗡️ 보유 인형 <b>${stock}</b>개</div>
     <div class="arena-result"></div>
     <div class="arena-odds">
       <div class="oo-s"><div class="oo-l">성공</div><div class="oo-v">${odds.success}%</div></div>
       <div class="oo-h"><div class="oo-l">보류</div><div class="oo-v">${odds.hold}%</div></div>
       <div class="oo-d"><div class="oo-l">파괴</div><div class="oo-v">${odds.destroy}%</div></div>
     </div>
-    <div class="arena-cost">시도 비용 <b>🗡️${cost}</b> · 보유 <b>🗡️${coins}</b> 코인</div>
+    <div class="arena-cost">시도 비용 <b>🗡️${cost}</b> · 보유 <b>🗡️${coins}</b></div>
     <button class="arena-forge-btn">⚒️ 강화 시도</button>
-    <button class="arena-sell-btn">💰 ${ME.kr} 팔기 → 🗡️${sell} 코인 <span style="opacity:.8;font-size:11px;">(+${power}→리셋)</span></button>
+    <button class="arena-sell-btn">💰 팔기 <span style="opacity:.85">(🗡️${sell})</span></button>
     <div class="arena-pick">${picks}</div>
-    <div class="arena-pick-lbl">↑ 전투 인형 선택 (배지=보유 수량 · +N=전투력)</div>
-    <button class="arena-nav battle" onclick="go('list')">⚔️ 배틀하러 가기 (코인 벌기)</button>
-    <button class="arena-nav">🎨 스킨 상점</button>
-    <button class="arena-close">닫기</button>
+    ${tabs('forge')}
   </div>`;
 }
 
-// ===== ② 상대 고르기 (openArenaBattle 목록 render와 동일) =====
+// ===== ② 상대 고르기 =====
 function renderList(){
   const mp=ME.power;
   const list=OPPS.map((o,i)=>{const wr=Math.max(10,Math.min(90,Math.round(50+(mp-o.power)*2.5)));const g=grade(o.power);return `<div class="arena-opp" style="--gc:${g.c}">
@@ -195,22 +229,20 @@ function renderList(){
     <div class="arena-opp-info"><div class="arena-opp-nm">${o.name}</div><div class="arena-opp-pw">${gBadge(o.power)} <b>+${o.power}</b> · ${o.kr}</div></div>
     <div class="arena-opp-wr"><div class="wr-v ${wr>=55?'good':wr<=45?'bad':''}">${wr}%</div><div class="wr-bar"><div style="width:${wr}%"></div></div><button class="arena-opp-go" onclick="go('pick')">도전</button></div></div>`;}).join('');
   document.getElementById('screen-list').innerHTML=`<div class="arena-sheet">
-    <div class="arena-h">⚔️ 인형 투기장 · 배틀</div>
-    <div class="arena-sub">내 전투인형 ${gBadge(mp)} <b style="color:#ffe39a">${ME.kr} +${mp}</b> · 오늘 <b style="color:#7CFC9A">7</b>/${ARENA_BATTLE_DAILY}회</div>
+    ${hd('⚔️ 배틀','battle')}
+    <div class="arena-sub">내 인형 ${gBadge(mp)} <b style="color:#ffe39a">${ME.kr} +${mp}</b> · 오늘 <b style="color:#7CFC9A">7</b>/${ARENA_BATTLE_DAILY}회</div>
     <div class="arena-bt-list">${list}</div>
     <button class="arena-bt-reroll">🔄 다른 상대 보기</button>
-    <div class="arena-bt-tip">기본 승률 = 50% + (전투력 차)×2.5% · 도전하면 Q/W/E 스킬을 <b>탭한 순서</b>대로 세 번 내요(상대는 랜덤 방어)! 이긴 경합마다 <b>+5%</b>(다 이기면 +15%)·진 경합 −5% — 전투력과 별개인 <b>피지컬 럭키</b></div>
-    <button class="arena-nav forge" onclick="go('forge')">⚒️ 전투력 강화하러 가기</button>
-    <button class="arena-close">닫기</button>
+    ${tabs('list')}
   </div>`;
 }
 
-// ===== ③ 전투(스킬 선택) (renderPick과 동일) =====
+// ===== ③ 전투 준비(스킬 선택) =====
 function renderPick(){
   const mp=ME.power, opp=OPPS[0], sk=ME.skills, SLOTS=['Q','W','E'], BEATS={Q:'W',W:'E',E:'Q'};
   const skills=SLOTS.map(s=>`<button class="arena-skill"><span class="ask-ord"></span><b>${s}</b><span>${sk[s]}</span><i class="ask-hint">▶ ${BEATS[s]} 이김</i></button>`).join('');
   document.getElementById('screen-pick').innerHTML=`<div class="arena-sheet">
-    <div class="arena-h">⚔️ 배틀</div>
+    ${hd('⚔️ 전투 준비','battle')}
     <div class="arena3d-stage">
       <div class="arena3d-env" aria-hidden="true"><div class="a3e-wall"></div><div class="a3e-floor"></div><div class="a3e-horizon"></div></div>
       <div class="arena-pkbox me"><div class="pk-top"><span class="pk-nm">${ME.kr}</span><span class="pk-lv">Lv.${mp}</span></div><div class="pk-hprow"><span class="pk-hplabel">HP</span><div class="pk-hpb"><div class="pk-hpghost"></div><div class="pk-hpf"></div></div></div></div>
@@ -221,19 +253,16 @@ function renderPick(){
         <div class="arena-bt-side"><img src="${DD(opp.dd)}"><div class="arena-bt-nm">${opp.name} <b>+${opp.power}</b></div></div>
       </div>
     </div>
-    <div>
-      <div class="arena-sub">Q·W·E 스킬을 <b>탭한 순서</b>대로 세 번 내요 · 상대는 랜덤 방어</div>
-      <div class="arena-skills">${skills}</div>
-      <div class="arena-pick-actions"></div>
-    </div>
+    <div class="arena-sub" style="margin:8px 0 2px;">Q·W·E를 <b>낼 순서</b>대로 탭하세요</div>
+    <div class="arena-skills">${skills}</div>
   </div>`;
 }
 
-// ===== ④ 전투 결과 (render result와 동일) =====
+// ===== ④ 전투 결과 =====
 function renderResult(){
-  const r={won:true,wr:62,myPow:5,oppPow:3,oppName:'울퉁쓰',oppDd:'Vex',mySkill:'Q',oppSkill:'W',clawGain:1,coinGain:42,underdog:false,left:7};
+  const r={won:true,wr:62,myPow:5,oppPow:3,oppName:'울퉁쓰',oppDd:'Vex',mySkill:'Q',oppSkill:'W',clawGain:1,coinGain:42,left:7};
   document.getElementById('screen-result').innerHTML=`<div class="arena-sheet">
-    <div class="arena-h">⚔️ 배틀</div>
+    ${hd('⚔️ 전투 결과','battle')}
     <div class="arena-skill-vs">내 <b>${r.mySkill}</b> ${ME.skills.Q} <span class="svs-x">vs</span> 상대 <b>${r.oppSkill}</b> 침묵의 장막 <span class="arena-adv good" style="font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:7px;color:#7CFC9A;background:rgba(124,252,154,.14);border:1px solid rgba(124,252,154,.4);">유리</span></div>
     <div class="arena3d-stage win-glow">
       <div class="arena3d-env" aria-hidden="true"><div class="a3e-wall"></div><div class="a3e-floor"></div><div class="a3e-horizon"></div></div>
@@ -248,7 +277,6 @@ function renderResult(){
       <div class="arena-bt-reward">🪙 인형뽑기 코인 +${r.clawGain} · 🗡️ 투기장 코인 +${r.coinGain}</div>
       <div class="arena-bt-left">오늘 남은 배틀 <b>${r.left}</b>/${ARENA_BATTLE_DAILY}</div>
       <button class="arena-forge-btn" onclick="go('list')">⚔️ 계속 배틀</button>
-      <button class="arena-close">닫기</button>
     </div>
   </div>`;
 }
