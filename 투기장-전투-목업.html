@@ -80,7 +80,7 @@
     </div>
   </div>
   <div id="panel">
-    <h2>🗡️ 투기장 전투 목업 <span style="font-size:10px;color:#666;">BUILD 8</span></h2>
+    <h2>🗡️ 투기장 전투 목업 <span style="font-size:10px;color:#666;">BUILD 9</span></h2>
 
     <div class="sec me">
       <div class="sec-h">🔵 내 캐릭터 <b id="me-now"></b></div>
@@ -140,8 +140,12 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 
-const CHAMPS = ['teemo','gwen','vex','ekko','yone','neeko','lux'];
 const KR = { teemo:'티모', gwen:'그웬', vex:'벡스', ekko:'에코', yone:'요네', neeko:'니코', lux:'럭스' };
+const SKINNM = { teemo:'꿀잼 티모', gwen:'귀염둥이 카페', vex:'별 돌보미', ekko:'펄스파이어', yone:'T1', neeko:'프레스티지 별수호자', lux:'별 수호자' };
+const VARIANTS=[]; ['teemo','gwen','vex','ekko','yone','neeko','lux'].forEach(c=>{ VARIANTS.push({key:c,file:c+'_full.glb',name:KR[c]}); VARIANTS.push({key:c+'_skin1',file:c+'_skin1.glb',name:'🎨 '+SKINNM[c]}); });
+const CHAMPS = VARIANTS.map(v=>v.key);   // base 7 + 스킨 7 = 14 변형(◀▶로 순환)
+const varName=k=>{ const v=VARIANTS.find(x=>x.key===k); return v?v.name:k; };
+const varFile=k=>{ const v=VARIANTS.find(x=>x.key===k); return v?v.file:(k+'_full.glb'); };
 const BW=388, BH=236;
 const BASE = { me:{X:2,Y:1.8,Z:0.52,S:1.8,R:Math.PI}, op:{X:2.65,Y:0,Z:0.95,S:1.1,R:-0.14} };   // 챔피언별 위치 초기값(슬롯별)
 let CAM = { cD:7.0, cH:0.06, cL:-0.05, cF:34, zoom:1.9 };   // 카메라·확대(공용)
@@ -181,7 +185,7 @@ const units = { me:null, op:null };
 function autoPick(clips, cands){ for(const n of cands) if(clips[n]) return n; return Object.keys(clips)[0]||''; }
 
 function loadChamp(slot, champ){
-  loader.load(champ+'_full.glb', g=>{
+  loader.load(varFile(champ), g=>{
     if(units[slot]){ scene.remove(units[slot].group); }
     const model=g.scene; model.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(m.transparent){ m.transparent=false; m.alphaTest=0.5; m.depthWrite=true; } m.side=THREE.DoubleSide; m.needsUpdate=true; }); } });
     const bx=new THREE.Box3().setFromObject(model); const c=bx.getCenter(new THREE.Vector3()); const size=bx.getSize(new THREE.Vector3());
@@ -196,11 +200,11 @@ function loadChamp(slot, champ){
     posOf(champ, slot);   // 위치 보장
     setupClips(slot); loadSliders(slot);
     document.getElementById(slot+'-clips').textContent='전체: '+Object.keys(clips).join(' · ');
-    document.getElementById('pk-'+(slot==='me'?'me':'opp')+'-nm').textContent=KR[champ];
-    document.getElementById(slot+'-now').textContent='('+KR[champ]+' 위치)';
-    console.log('⚔️ '+champ+'_full.glb 클립('+Object.keys(clips).length+'):', Object.keys(clips).join(', '));
+    document.getElementById('pk-'+(slot==='me'?'me':'opp')+'-nm').textContent=varName(champ);
+    document.getElementById(slot+'-now').textContent='('+varName(champ)+' 위치)';
+    console.log('⚔️ '+varFile(champ)+' 클립('+Object.keys(clips).length+'):', Object.keys(clips).join(', '));
     applyTransforms(); playIdle(slot); updCopy();
-  }, undefined, e=>{ console.warn(champ+'_full.glb 로드 실패', e); document.getElementById(slot+'-clips').textContent='❌ 로드 실패'; });
+  }, undefined, e=>{ console.warn(varFile(champ)+' 로드 실패', e); document.getElementById(slot+'-clips').textContent='❌ 로드 실패'; });
 }
 function setupClips(slot){ const u=units[slot], keys=Object.keys(u.clips);
   for(const cat of CATS){ const sel=document.getElementById(slot+'-c-'+cat); sel.innerHTML='';
@@ -245,7 +249,7 @@ function bindSlider(id){ const el=document.getElementById(id), v=document.getEle
 Object.keys(POSAXES).concat(['cD','cH','cL','cF','zoom']).forEach(bindSlider);
 
 const meSel=document.getElementById('me-champ'), opSel=document.getElementById('op-champ');
-CHAMPS.forEach(c=>{ const a=document.createElement('option'); a.value=c; a.textContent=KR[c]; meSel.appendChild(a); const b=a.cloneNode(true); opSel.appendChild(b); });
+CHAMPS.forEach(c=>{ const a=document.createElement('option'); a.value=c; a.textContent=varName(c); meSel.appendChild(a); const b=a.cloneNode(true); opSel.appendChild(b); });
 meSel.value='yone'; opSel.value='gwen';
 meSel.onchange=e=>loadChamp('me', e.target.value); opSel.onchange=e=>loadChamp('op', e.target.value);
 document.querySelectorAll('.cyc button').forEach(b=>b.onclick=()=>{ const slot=b.dataset.slot, d=+b.dataset.d, sel=document.getElementById(slot+'-champ');
