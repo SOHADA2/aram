@@ -816,7 +816,23 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.45.436 (2026-06-29) — 🗡️ 인형 투기장 정식 오픈 (`ARENA_LIVE_ENABLED=true`) ← 최신
+### v2.45.437 (2026-06-29) — ⚔️ 배틀 진짜 수싸움화(방어 순서 설정·정찰·15분 쿨다운) ← 최신
+
+> 같은 원격 세션(작업브랜치 `claude/resume-work-in-progress-bdxxwh`). 배포 `main`+작업브랜치 둘 다. 사장님 진단: "랜덤 방어=동전던지기라 게임성 약함" → **읽고 바꾸는 고양이-쥐 RPS**로 전환.
+
+- **문제(사장님과 합의)**: 대칭 RPS는 합리적 상대가 1/3 믹스하면 원래 코인플립. "읽기 허용=악용 가능"이 본질. 해결 = **방어 순서를 고정 노출하되(읽힘), 방어자가 바꿀 수 있게(악용 무효화) + 같은 상대 15분 쿨다운**(farming에 노력 비용). 사장님 핵심 보강: *"15분 안에 상대가 바꿔야 의미 — 고정이면 안 됨"*.
+- **구현**(`_randSkill` 직후 ~L33375 헬퍼 블록):
+  - 데이터 `arenaDefenseOrder_s2`(['Q','W','E'])·`arenaAtkCd_s2`{defKey:ts}·`arenaScout_s2`{defKey:{order,at}}.
+  - `_arenaDefOrder(data,key)`=설정값 or **키 해시 기반 기본 permutation**(미설정자도 읽히되 변경 가능·`_ARENA_SKILL_PERMS` 6종). `_arenaSetDefOrder`·`_arenaTargetCdLeft`·`_arenaScoutOf`·`_arenaCdMin`.
+  - **배틀 클래시**(~L33993): `oppSkills = SB?랜덤 : _arenaDefOrderOf(opp.key)` — 실유저는 방어자 고정 순서로 막음(랜덤 아님). `SKILL_BEATS{Q:W,W:E,E:Q}` 카운터=opp Q→E·W→Q·E→W, 완벽 카운터 3승=+15%.
+  - **`_arenaBattle` 가드/기록**: 시작 시 `opp.key` 쿨다운 체크(`{r:'cooldown',wait}`) · 성공 시 `u`에 `arenaAtkCd[opp.key]=now` + `arenaScout[opp.key]={order:clashes.map(c=>c.op),at}` 기록(이번에 본 순서).
+  - **UI**(openArenaBattle render): 상대 카드에 🔎정찰(`arena-opp-scout`·"지난 방어 Q→W→E·N분 전") + ⏳쿨다운(도전 버튼→"⏳N분" disabled). 목록 아래 **`arena-defset`**(내 방어 순서 3슬롯 `ads-slot`·탭하면 Q→W→E→Q 순환·`_arenaSetDefOrder`+재렌더). CSS `.arena-opp-scout/.arena-defset/.ads-*`. `_ARENA_HELP.battle` 갱신. 쿨다운 토스트.
+  - ⚠️SB(샌드박스)=방어 랜덤 유지(가짜 상대). 정찰/쿨다운/방어설정 비SB만.
+- **검증**: node --check 7/7 + 로직테스트(기본순서 키별 안정·카운터 [E,Q,W]→3승+15%·랜덤vs랜덤 0·쿨다운 15→16분 해제) + Chromium 스크린샷(정찰·쿨다운·방어설정 OK).
+- **연계**: 방어자는 v432 방어 알림으로 "누가 자꾸 이기네" 감지 → 순서 변경 트리거(설계 의도된 루프).
+- ⏭️ 미세: 쿨다운 상대도 상대 풀에 뜸(타이머 표시·reroll로 회피·소규모 풀 무문제). 향후 상대풀 커지면 쿨다운 제외 픽 고려.
+
+### v2.45.436 (2026-06-29) — 🗡️ 인형 투기장 정식 오픈 (`ARENA_LIVE_ENABLED=true`)
 
 > 같은 원격 세션(작업브랜치 `claude/resume-work-in-progress-bdxxwh`). 배포 `main`+작업브랜치 둘 다. **사장님 결정으로 오픈 진행.** 오픈 전 점검(#1 방어로그 수정·경제 재시뮬·스킨 +1%) 마치고 GO.
 
