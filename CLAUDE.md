@@ -816,7 +816,20 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.45.432 (2026-06-29) — 🛡️ 투기장 방어 알림(공격당함) 프로필 1건 묶음 + 클릭 상세 ← 최신
+### v2.45.433 (2026-06-29) — 🏆 투기장 랭킹 신설(랭킹 탭 S2 토글·강화›스킨›순승) ← 최신
+
+> 같은 원격 세션(작업브랜치 `claude/resume-work-in-progress-bdxxwh`). 배포 시 `main`+작업브랜치 둘 다.
+
+- **요구(사장님)**: 랭킹 탭에 **투기장 랭킹 별도 신설**. 정렬 = **강화 우선 → 같으면 스킨 → 같으면 승패**. (AskUserQuestion으로 세부 확정: 강화=**최고 전투력 1기**(max) / 승패=**순승(승−패)** / 스킨=보유 개수.)
+- **구현**(투기장 랭킹 블록 = `window.arenaAudit` 바로 앞 ~L34245대):
+  - 누적 승/패 카운터 **신설** `arenaWins_s2`/`arenaLosses_s2` — `_arenaBattle`(공격 배틀 only=내가 한 대전)에서 win/loss 증가. ⚠️배틀 로그(`arenaBattleLog_s2`)는 50건 캡이라 표시·정렬용 별도 누적. `_arenaWL(g)`=카운터 우선·없으면 로그(비방어분)에서 추정(레거시 폴백).
+  - `_arenaRankRows()` — goldData 순회, 투기장 활동자만(maxPw>0‖games>0‖skins>0) → `{name,maxPw,skins,w,l,net,games}`. 정렬 `maxPw↓ → skins↓ → net↓ → w↓ → name`. maxPw=`Math.max(arenaPower_s2 값들)`, skins=`arenaSkinsOwned_s2.length`.
+  - `renderArenaRanking()` → `#rank-list`에 행 렌더(`.ark-*` CSS·`_injectArenaRankCss` 멱등). 행=순위/메달 + 이름(나 배지) + 등급배지(`_arenaGradeHtml`)·+N + 🎨스킨N + 승/패/순승. 좌측 액센트바=등급색. 클릭=`openProfileModal`. 헤더 GAMES=총배틀·PLAYERS=활동자수로 표시.
+  - **토글**: 랭킹 탭 `#rank-list` 앞 `#rk-board-seg`(내전 랭킹/🗡️투기장 랭킹) — **S2에서만 노출**. 상태 `_rankBoard`('lp'|'arena', ~L22657 rankViewSeason 옆). `window.setRankBoard(mode)`→renderRanking. `renderRanking()` 상단서 isS2 토글 가시성·세그 버튼 sync·arena 분기(투기장 모드면 tier-criteria-card 숨기고 renderArenaRanking 후 return). gold onValue→renderRanking 체인이라 강화/배틀 시 **실시간 갱신**.
+- **검증**: node --check 7/7. scratchpad 목업+Chromium 스크린샷(토글·등급배지 신화 프리즘·정렬·액센트바 OK).
+- ⚠️ 투기장 `ARENA_LIVE_ENABLED=false` 유지 — 라이브 전엔 잠금 전 강화한 테스트 계정(애긔/울퉁쓰/빛나는언즈 등)만 순위에 뜸(maxPw>0). 정상. 토글은 S2면 상시 노출(데이터 없으면 빈 안내).
+
+### v2.45.432 (2026-06-29) — 🛡️ 투기장 방어 알림(공격당함) 프로필 1건 묶음 + 클릭 상세
 
 > 이 세션 = **원격(web) 환경**(작업브랜치 `claude/resume-work-in-progress-bdxxwh`·`origin/main`과 내용 동일에서 출발). 배포 시 `main` + 작업브랜치 둘 다 푸시. 매 변경 인라인 `<script>` 7블록 `node --check` 통과 후 커밋·APP_VERSION+1. ⚠️Firebase egress 차단 가능(직접 REST 시 러너 우회) — 이번 작업은 코드만이라 무관.
 

@@ -6510,6 +6510,10 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
       </div>
     </div>
   </div>
+  <div id="rk-board-seg" class="rk-board-seg" style="display:none;">
+    <button id="rk-seg-lp" class="rk-seg on" onclick="window.setRankBoard('lp')">내전 랭킹</button>
+    <button id="rk-seg-arena" class="rk-seg" onclick="window.setRankBoard('arena')">🗡️ 투기장 랭킹</button>
+  </div>
   <div id="rank-list">
     <div class="empty-state"><div class="icon">🏆</div>경기 기록이 쌓이면 랭킹이 생성됩니다</div>
   </div>
@@ -6895,7 +6899,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.432';
+const APP_VERSION = 'v2.45.433';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6904,6 +6908,9 @@ const APP_VERSION = 'v2.45.432';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.433', date: '2026-06-29', changes: [
+    { tag: 'new', text: '🏆 랭킹 탭에 🗡️ 투기장 랭킹을 신설했어요 (시즌2). 랭킹 탭 상단 [내전 랭킹 / 투기장 랭킹] 토글로 전환해요. 순위는 ① 강화(가장 강하게 키운 인형 1기의 최고 전투력) ② 같으면 보유 스킨 수 ③ 그래도 같으면 순승(승−패) 순으로 매겨집니다. 각 줄에 등급(무명~신화)·최고 전투력·스킨 수·승/패가 표시돼요.' },
+  ] },
   { ver: 'v2.45.432', date: '2026-06-29', changes: [
     { tag: 'new', text: '🛡️ 투기장 방어 알림 — 배틀은 비동기라 내가 접속하지 않아도 다른 투사가 내 인형에게 도전(공격)할 수 있어요. 공격받으면 프로필(아바타)에 알림이 1건 떠요. 한 사람이 하루 10번을 모두 나에게 공격해도 알림은 1건으로 묶여서, 알림으로 피곤할 일이 없어요. 알림을 누르면 누가 몇 번 공격했고 몇 번 막아냈는지(💢 뚫림 포함)·번 코인을 상세로 볼 수 있고, 확인하면 알림이 사라집니다.' },
   ] },
@@ -22655,6 +22662,7 @@ function buildRankRow(name, season = CURRENT_SEASON) {
 
 // 랭킹 탭 전용 시즌 상태
 let rankViewSeason = 0; // CURRENT_SEASON 로드 후 동기화
+let _rankBoard = 'lp';  // 🗡️ 랭킹 탭 보기 모드 'lp'(내전 LP) | 'arena'(투기장) — S2에서만 토글 노출
 // 랭킹 열람용 — 다른 시즌(읽기전용) LP 데이터 스냅샷 캐시 (예: S2 중 S1 랭킹 보기)
 // season1Data 는 항상 "현재 시즌" 플레이어를 가리키므로, 과거 시즌은 따로 1회 로드해 캐시한다.
 let _rankSeasonPlayers = null, _rankSeasonPlayersFor = null;
@@ -22916,6 +22924,22 @@ window.showSeasonInfoModal = function() {
 };
 
 function renderRanking() {
+  // 🗡️ 투기장 랭킹 토글 — S2에서만 노출. S2 아니면 강제로 내전(lp) 모드
+  const isS2 = (rankViewSeason === 2);
+  const seg = document.getElementById('rk-board-seg');
+  if (isS2) { try { _injectArenaRankCss(); } catch(_){} }
+  if (seg) seg.style.display = isS2 ? 'flex' : 'none';
+  if (!isS2 && _rankBoard === 'arena') _rankBoard = 'lp';
+  document.getElementById('rk-seg-lp')?.classList.toggle('on', _rankBoard !== 'arena');
+  document.getElementById('rk-seg-arena')?.classList.toggle('on', _rankBoard === 'arena');
+  const critCard = document.getElementById('tier-criteria-card');
+  if (isS2 && _rankBoard === 'arena') {
+    if (critCard) critCard.style.display = 'none';
+    const lbl = document.getElementById('rk-season-label'); if (lbl) lbl.textContent = 'S' + rankViewSeason;
+    renderArenaRanking();
+    return;
+  }
+  if (critCard) critCard.style.display = '';
   renderTierCriteriaCard();
   if (rankViewSeason >= 1) {
     if (rankViewSeason === CURRENT_SEASON) {
@@ -33438,6 +33462,9 @@ function _arenaBattle(opp, bonus, clashes){   // 라이브 1회 배틀 → 결�
   const u={ [sField('arenaBattleCount')]:used+1, [sField('arenaBattleDate')]:t,
             [sField('arenaCoins')]:(data[sField('arenaCoins')]||0)+rw.coinGain };
   if(rw.clawGain) u[sField('clawCoins')]=(data[sField('clawCoins')]||0)+rw.clawGain;
+  // 🏆 누적 승/패(내가 도전한 배틀만) — 배틀 로그가 50건 캡이라 랭킹/표시용 별도 누적(역산 불가 방지)
+  if(won) u[sField('arenaWins')]=(data[sField('arenaWins')]||0)+1;
+  else    u[sField('arenaLosses')]=(data[sField('arenaLosses')]||0)+1;
   const log=[...(data[sField('arenaBattleLog')]||[]), { at:Date.now(), opp:opp.name, myPow, oppPow:opp.power, wr:Math.round(wr), won, clawGain:rw.clawGain, coinGain:rw.coinGain, bonus, clashWins }].slice(-50);
   u[sField('arenaBattleLog')]=log;
   if(goldData[key]) Object.assign(goldData[key],u);
@@ -34242,6 +34269,80 @@ window.arenaForgeLog=function(name){   // 🔍 강화·판매 역추적 — 결�
   if(name){ const k=normName(name); const ent=Object.entries(goldData).find(([_,d])=>normName(d.name||'')===k); if(ent){ if(!dump(ent[1].name,ent[1])) console.log('강화 로그 없음:',ent[1].name); } else console.warn('플레이어 없음:',name); }
   else { const d=getMyGoldData(); if(!d||!dump(myName||'나',d)) console.log('내 강화 로그 없음'); }
 };
+// ════ 🏆 투기장 랭킹 (강화 › 스킨 › 순승) — 랭킹 탭 S2 전용 ════════════════
+function _arenaWL(g){   // 누적 승/패 — 카운터 우선, 없으면 배틀 로그(공격 배틀만)에서 추정
+  let w=g[sField('arenaWins')], l=g[sField('arenaLosses')];
+  if(w==null && l==null){ const log=g[sField('arenaBattleLog')]||[]; w=0; l=0;
+    for(const e of log){ if(!e||e.defended) continue; if(e.won) w++; else l++; } }
+  return { w:w||0, l:l||0 };
+}
+function _arenaRankRows(){   // 투기장 활동 유저만 → 강화(최고전투력) › 스킨 수 › 순승(승−패) 순 정렬
+  const rows=[];
+  for(const [k,g] of Object.entries(goldData||{})){ if(!g||!g.name) continue;
+    const pw=g[sField('arenaPower')]||{};
+    const maxPw=Math.max(0,...Object.values(pw).map(v=>+v||0));
+    const skins=(Array.isArray(g[sField('arenaSkinsOwned')])?g[sField('arenaSkinsOwned')]:[]).length;
+    const {w,l}=_arenaWL(g); const games=w+l;
+    if(maxPw<=0 && games<=0 && skins<=0) continue;   // 투기장 활동(강화/배틀/스킨) 없는 사람 제외
+    rows.push({ name:g.name, key:k, maxPw, skins, w, l, net:w-l, games });
+  }
+  rows.sort((a,b)=> b.maxPw-a.maxPw || b.skins-a.skins || b.net-a.net || b.w-a.w || normName(a.name).localeCompare(normName(b.name)));
+  return rows;
+}
+function _injectArenaRankCss(){
+  if(document.getElementById('arena-rank-css')) return;
+  const s=document.createElement('style'); s.id='arena-rank-css';
+  s.textContent=`
+  .rk-board-seg{display:flex;gap:6px;margin:10px 14px 0;background:rgba(0,0,0,.25);border:1px solid rgba(240,200,90,.2);border-radius:12px;padding:4px;}
+  .rk-seg{flex:1;background:none;border:0;color:#9aa0b4;border-radius:9px;padding:9px 4px;font-size:13px;font-weight:800;cursor:pointer;font-family:inherit;}
+  .rk-seg.on{background:rgba(240,200,90,.18);color:#ffd24a;box-shadow:inset 0 0 0 1px rgba(240,200,90,.3);}
+  .ark-legend{margin:12px 14px 9px;font-size:11px;color:#9aa0b4;text-align:center;line-height:1.5;} .ark-legend b{color:#ffd24a;}
+  .ark-list{display:flex;flex-direction:column;gap:7px;padding:0 14px 4px;}
+  .ark-row{display:flex;align-items:center;gap:10px;background:linear-gradient(100deg,rgba(255,255,255,.05),rgba(255,255,255,.018));border:1px solid rgba(240,200,90,.16);border-radius:13px;padding:9px 12px 9px 13px;cursor:pointer;position:relative;overflow:hidden;transition:border-color .15s,transform .1s;}
+  .ark-row::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--gc,#8a93a6);opacity:.9;}
+  .ark-row:hover{border-color:rgba(240,200,90,.4);transform:translateY(-1px);}
+  .ark-row.me{border-color:rgba(240,200,90,.55);background:linear-gradient(100deg,rgba(240,200,90,.13),rgba(240,200,90,.03));}
+  .ark-row.top .ark-rank{font-size:19px;}
+  .ark-rank{flex:0 0 auto;width:30px;text-align:center;font-family:'JetBrains Mono',monospace;font-weight:800;font-size:15px;color:#cbd3e6;}
+  .ark-main{flex:1;min-width:0;text-align:left;}
+  .ark-nm{font-size:14px;font-weight:800;color:#e6ebf2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ark-nm .ark-me{font-size:10px;background:rgba(240,200,90,.2);color:#ffd24a;border-radius:5px;padding:0 5px;margin-left:4px;font-weight:800;}
+  .ark-sub{display:flex;align-items:center;gap:6px;margin-top:3px;}
+  .ark-sub .ark-pw{font-size:11px;color:#9aa0b4;font-weight:700;font-family:'JetBrains Mono',monospace;}
+  .ark-stat{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:3px;}
+  .ark-skin{font-size:11px;color:#cbd3e6;}
+  .ark-wl{font-size:11px;font-family:'JetBrains Mono',monospace;} .ark-wl .w{color:#7CFC9A;} .ark-wl .l{color:#ff8b8b;} .ark-wl .net{color:#9aa0b4;font-weight:800;margin-left:3px;}
+  .ark-empty{padding:40px 16px;text-align:center;color:#cbd3e6;font-size:13px;line-height:1.9;} .ark-empty span{font-size:11px;color:#9aa0b4;}
+  `;
+  document.head.appendChild(s);
+}
+function renderArenaRanking(){
+  const el=document.getElementById('rank-list'); if(!el) return;
+  _injectArenaRankCss();
+  const rows=_arenaRankRows();
+  const gamesEl=document.getElementById('rk-stat-games'), playersEl=document.getElementById('rk-stat-players');
+  if(gamesEl) gamesEl.textContent=rows.reduce((a,r)=>a+r.games,0).toLocaleString();
+  if(playersEl) playersEl.textContent=rows.length.toLocaleString();
+  if(!rows.length){ el.innerHTML=`<div class="ark-empty">아직 투기장 활동(강화·배틀)이 없어요<br><span>인형 7종을 모아 투기장에 입장해 강화하면 순위에 올라요</span></div>`; return; }
+  let html=`<div class="ark-legend">순위 기준 · <b>강화(최고 전투력)</b> › <b>스킨 수</b> › <b>순승(승−패)</b></div><div class="ark-list">`;
+  rows.forEach((r,i)=>{ const rank=i+1; const g=_arenaGrade(r.maxPw);
+    const me=myName && normName(r.name)===normName(myName);
+    html+=`<div class="ark-row${me?' me':''}${rank<=3?' top':''}" data-name="${escHtml(r.name)}" style="--gc:${g.c}">`
+      +`<div class="ark-rank">${rank<=3?['🥇','🥈','🥉'][rank-1]:rank}</div>`
+      +`<div class="ark-main"><div class="ark-nm">${escHtml(r.name)}${me?' <span class="ark-me">나</span>':''}</div>`
+      +`<div class="ark-sub">${_arenaGradeHtml(r.maxPw)}<span class="ark-pw">+${r.maxPw}</span></div></div>`
+      +`<div class="ark-stat"><div class="ark-skin">🎨 스킨 ${r.skins}</div>`
+      +`<div class="ark-wl"><b class="w">${r.w}승</b> <b class="l">${r.l}패</b><span class="net">${r.net>=0?'+':''}${r.net}</span></div></div>`
+      +`</div>`;
+  });
+  html+=`</div>`;
+  el.innerHTML=html;
+  el.querySelectorAll('.ark-row[data-name]').forEach(c=>c.addEventListener('click',()=>{
+    const entry=Object.entries(registeredPlayers).find(([,p])=>normName(p.name)===normName(c.dataset.name));
+    if(entry) openProfileModal(entry[0]);
+  }));
+}
+window.setRankBoard=function(mode){ _rankBoard=(mode==='arena')?'arena':'lp'; renderRanking(); };
 window.arenaAudit=function(){   // 🔍 전체 유저 투기장 현황 한눈에(강화/배틀한 사람 추출)
   const rows=[];
   for(const [k,g] of Object.entries(goldData||{})){ if(!g||!g.name) continue;
