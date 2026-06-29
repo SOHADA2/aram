@@ -6895,7 +6895,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.425';
+const APP_VERSION = 'v2.45.426';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -33395,7 +33395,7 @@ function _arenaBuddyNick(data, champFile){ try{ data=data||{}; const rk=_arenaRk
 function _arenaPkName(data, champFile){ const nk=_arenaBuddyNick(data, champFile); const kr=_buddyChampName(champFile); return nk?`${nk}(${kr})`:kr; }
 function _arenaHd(title, helpKey, sb){ return `<div class="arena-hd"><button class="arena-x2" id="arena-x" title="닫기">✕</button><div class="arena-h">${title}${sb?' <span style="font-size:11px;color:#7CFC9A">· 🧪</span>':''}</div><button class="arena-q" onclick="window._arenaHelp('${helpKey}')">?</button></div>`; }
 function _arenaTabs(on, sb){ return `<div class="arena-tabs"><button class="arena-tab ${on==='forge'?'on':''}" onclick="window._arenaGoTab('forge',${sb?1:0})">강화</button><button class="arena-tab ${on==='battle'?'on':''}" onclick="window._arenaGoTab('battle',${sb?1:0})">배틀</button><button class="arena-tab" onclick="window._arenaGoTab('skin',${sb?1:0})">스킨</button></div>`; }
-window._arenaGoTab=function(which, sb){ ['arena-forge','arena-battle','skin-shop'].forEach(id=>{ const el=document.getElementById(id); if(el){ try{_arenaBattle3DStop();}catch(_){} el.remove(); } });
+window._arenaGoTab=function(which, sb){ ['arena-forge','arena-battle','skin-shop'].forEach(id=>{ const el=document.getElementById(id); if(el){ try{_arenaBattle3DStop();}catch(_){} try{_forge3dDispose();}catch(_){} el.remove(); } });
   try{ if(which==='forge') openArenaForge(!!sb); else if(which==='battle') openArenaBattle(!!sb); else openSkinShop(); }catch(_){} };
 const _ARENA_HELP={
   forge:{t:'인형 강화', b:`<div class="hp-row"><span class="hp-k">강화</span>로 전투인형의 전투력을 <b>+0~+20</b>까지 올려요.</div><div class="hp-row">시도 → <b style="color:#7CFC9A">성공</b> 전투력 +1 · <b>보류</b> 그대로 · <b style="color:#ff8b8b">파괴</b> 인형 −1 & 전투력 리셋.</div><div class="hp-row">강화엔 <span class="hp-k">투기장 코인</span>이 들어요(배틀로 벌어요).</div><div class="hp-row">아래 줄에서 강화할 인형 선택 — <b>배지=보유 수량</b>, <b>+N=전투력</b>.</div><div class="hp-row"><b>팔기</b>로 인형을 코인으로(전투력 리셋).</div><div class="hp-row">전투력이 오르면 <span class="hp-k">등급</span>도 올라요: 무명→견습→정예→숙련→정복자→영웅→전설→신화.</div>`},
@@ -33405,6 +33405,53 @@ window._arenaHelp=function(k){ const h=_ARENA_HELP[k]||_ARENA_HELP.forge; _injec
   const ov=document.createElement('div'); ov.className='arena-help-ov'; ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
   ov.innerHTML=`<div class="arena-help-card"><h4>${h.t}</h4>${h.b}<button class="arena-help-close">알겠어요</button></div>`;
   ov.querySelector('.arena-help-close').onclick=()=>ov.remove(); document.body.appendChild(ov); };
+// 🔨 강화창 3D — 활성 인형을 3D로(등급색 림라이트·강화 펄스). ⚠️자체 컨텍스트·자체 크기(fit-to-sphere)라 단짝(_BUDDY_MODEL_ADJ)과 완전 독립
+let _forge3dCtx=null;
+function _forge3dDispose(){ const c=_forge3dCtx; _forge3dCtx=null; if(!c) return; c.alive=false; cancelAnimationFrame(c.raf); try{c.renderer.dispose();}catch(_){} try{c.renderer.domElement.remove();}catch(_){} }
+function _forge3dSetGrade(color, prism){ const ctx=_forge3dCtx; if(!ctx||!ctx.rim) return; ctx.prism=!!prism; try{ ctx.rim.color.copy(new ctx.THREE.Color(color||'#ffd24a')); ctx._baseRim=prism?2.4:1.7; ctx.rim.intensity=ctx._baseRim; }catch(_){} }
+function _forge3dPulse(){ const ctx=_forge3dCtx; if(ctx) ctx.pulse=1; }   // 강화 성공 — 확 커지며 빛남
+async function _forge3dShow(mount, glbFile, gradeColor, prism){
+  if(!mount) return;
+  if(_forge3dCtx && _forge3dCtx.alive && _forge3dCtx.glb===glbFile){ try{ mount.innerHTML=''; mount.appendChild(_forge3dCtx.renderer.domElement); }catch(_){} _forge3dSetGrade(gradeColor, prism); return; }   // 같은 모델=캔버스만 이동+색 갱신(재로드 X)
+  _forge3dDispose();
+  try{
+    const THREE=await import('three'); const { GLTFLoader }=await import('three/addons/loaders/GLTFLoader.js');
+    let MSD=null; try{({MeshoptDecoder:MSD}=await import('three/addons/libs/meshopt_decoder.module.js'));}catch(_){}
+    let RoomEnvironment=null; try{({RoomEnvironment}=await import('three/addons/environments/RoomEnvironment.js'));}catch(_){}
+    if(!document.body.contains(mount)) return;
+    const w=mount.clientWidth||124, h=mount.clientHeight||124;
+    const renderer=new THREE.WebGLRenderer({alpha:true,antialias:true,powerPreference:'low-power'});
+    renderer.setPixelRatio(Math.min(devicePixelRatio||1,2)); renderer.setSize(w,h,false); renderer.setClearAlpha(0); renderer.outputColorSpace=THREE.SRGBColorSpace;
+    renderer.domElement.style.cssText='width:100%;height:100%;display:block;';
+    const scene=new THREE.Scene();
+    try{ if(RoomEnvironment){ const pm=new THREE.PMREMGenerator(renderer); scene.environment=pm.fromScene(new RoomEnvironment(),0.04).texture; } }catch(_){}
+    scene.add(new THREE.HemisphereLight(0xe8eeff,0x202028,1.35));
+    const rim=new THREE.PointLight(0xffd24a, 1.7, 10); rim.position.set(0.6,1.8,2.6); scene.add(rim);
+    const camera=new THREE.PerspectiveCamera(30,w/h,0.1,6000);
+    const ctx={ THREE, renderer, scene, camera, clock:new THREE.Clock(), rim, _baseRim:1.7, glb:glbFile, group:null, mixer:null, raf:0, alive:true, prism:!!prism, pulse:0, hue:0 };
+    _forge3dCtx=ctx; _forge3dSetGrade(gradeColor, prism);
+    const loader=new GLTFLoader(); if(MSD){try{loader.setMeshoptDecoder(MSD);}catch(_){}}
+    _loadAppGlb(loader, glbFile, g=>{
+      if(!ctx.alive||!document.body.contains(mount)) return;
+      mount.innerHTML=''; mount.appendChild(renderer.domElement);
+      const model=g.scene; model.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(m.transparent){m.transparent=false;m.alphaTest=0.5;m.depthWrite=true;} m.side=THREE.DoubleSide; m.needsUpdate=true; }); } });
+      const bx=new THREE.Box3().setFromObject(model); const c=bx.getCenter(new THREE.Vector3()); model.position.sub(c);
+      const grp=new THREE.Group(); grp.add(model); scene.add(grp); const R=bx.getBoundingSphere(new THREE.Sphere()).radius||1; grp.position.y=-R*0.04;
+      const fov=camera.fov*Math.PI/180; camera.position.set(0,0,R/Math.sin(fov/2)*1.12); camera.lookAt(0,0,0);
+      ctx.group=grp; ctx.baseScale=1;
+      const clips={}; (g.animations||[]).forEach(cl=>clips[cl.name]=cl);
+      const champBase=String(glbFile).replace(/_full\.glb$/i,'.glb');
+      const idleName=(CHAMP_CLIPS[glbFile]&&CHAMP_CLIPS[glbFile].idle)||(CHAMP_CLIPS[champBase]&&CHAMP_CLIPS[champBase].idle);
+      const idle=(idleName&&clips[idleName])||clips['Idle1']||clips['Idle_Base']||clips['Idle']||Object.values(clips)[0];
+      if(idle){ ctx.mixer=new THREE.AnimationMixer(model); ctx.mixer.clipAction(idle).play(); }
+    }, ()=>{});
+    (function loop(){ if(!ctx.alive) return; ctx.raf=requestAnimationFrame(loop); const dt=Math.min(0.05, ctx.clock.getDelta());
+      if(ctx.mixer) ctx.mixer.update(dt); if(ctx.group) ctx.group.rotation.y+=dt*0.5;
+      if(ctx.prism){ ctx.hue=(ctx.hue+dt*0.12)%1; ctx.rim.color.setHSL(ctx.hue,0.8,0.62); }
+      if(ctx.pulse>0){ ctx.pulse=Math.max(0,ctx.pulse-dt*2.0); if(ctx.group) ctx.group.scale.setScalar(1+ctx.pulse*0.16); ctx.rim.intensity=ctx._baseRim+ctx.pulse*7; }
+      renderer.render(scene,camera); })();
+  }catch(e){ console.warn('강화 3D 실패', e); }
+}
 window.openArenaForge=function(sandbox){
   if(!sandbox && !ARENA_LIVE_ENABLED){ showS1Toast('🔒 인형 투기장 강화는 준비 중이에요 (곧 열려요)'); return; }   // 🔒 라이브 잠금(샌드박스 프리뷰는 통과)
   const key=getMyGoldKey(); if(!key && !sandbox){ showS1Toast('닉네임을 먼저 선택해주세요'); return; }
@@ -33422,7 +33469,7 @@ window.openArenaForge=function(sandbox){
   const doSell=c=> SB? _arenaSellSB(SB,c) : _arenaSell(c);
   let active = SB? SB.fighter : _arenaActiveFighter(getMyGoldData());
   const ov=document.createElement('div'); ov.id='arena-forge'; ov.className='arena-ov';
-  ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
+  ov.onclick=(e)=>{ if(e.target===ov){ _forge3dDispose(); ov.remove(); } };
   document.body.appendChild(ov);
   let busy=false;
   const render=(fx, msg)=>{
@@ -33435,7 +33482,7 @@ window.openArenaForge=function(sandbox){
     ov.innerHTML=`<div class="arena-sheet" onclick="event.stopPropagation()">
       ${_arenaHd('인형 강화','forge',SB)}
       <div class="arena-topinfo"><span class="ti-pill">인형 <b>${stock}</b></span><span class="ti-pill">🗡️ <b class="${coins<cost?'':''}">${coins}</b></span></div>
-      <div class="arena-fighter ${fx?('fx-'+fx):''}${grade.prism?' myth':''}" style="--ag:${grade.c}"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${k}_0.jpg" onerror="this.style.visibility='hidden'"></div>
+      <div class="arena-fighter ${fx?('fx-'+fx):''}${grade.prism?' myth':''}" id="arena-fighter-3d" style="--ag:${grade.c}"></div>
       <div class="arena-grade-row">${_arenaGradeHtml(power)}<span style="font-size:15px;font-weight:700;color:#e6ebf2;">${escHtml(_buddyChampName(active))}</span></div>
       <div class="arena-power">+${power}<small> / ${ARENA_MAX_POWER}</small></div>
       ${stock<=1&&!maxed?'<div class="arena-next" style="color:#ffb24a">⚠️ 마지막 1개 — 파괴 시 소진</div>':''}
@@ -33451,7 +33498,8 @@ window.openArenaForge=function(sandbox){
       <div class="arena-pick">${owned.map(c=>`<div class="ap ${_arenaRk(active)===c?'on':''}" data-c="${c}.glb"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${_clawDdKey(c)}_0.jpg" onerror="this.style.visibility='hidden'"><div class="ap-p">+${getPower(c+'.glb')}</div><span class="ap-q">${stockMap[c]}</span></div>`).join('')}</div>
       ${_arenaTabs('forge',SB)}
     </div>`;
-    ov.querySelector('#arena-x').onclick=()=>ov.remove();
+    ov.querySelector('#arena-x').onclick=()=>{ _forge3dDispose(); ov.remove(); };
+    { const _fm=ov.querySelector('#arena-fighter-3d'); if(_fm){ try{ _forge3dShow(_fm, _appGlb(active, getMyGoldData()||{}), grade.c, grade.prism); }catch(_){} } }   // 🔨 활성 인형 3D(등급색·자체 크기)
     ov.querySelectorAll('.ap').forEach(b=>b.onclick=()=>{ if(busy) return; active=b.dataset.c; setFighter(active); render(); });
     { const sl=ov.querySelector('#arena-sell'); if(sl) sl.onclick=()=>{
       if(busy) return;
@@ -33481,6 +33529,7 @@ window.openArenaForge=function(sandbox){
       else if(res.r==='hold'){ msg='<span style="color:#9ab2cc">😐 보류 — 그대로 (재시도 가능)</span>'; }
       else if(res.r==='destroy'){ fx='destroy'; msg=`<span style="color:#ff6b6b">💥 파괴! 인형 1개 소멸 · 전투력 리셋</span>${res.brokeGate?'<br><span style="color:#ffb24a;font-size:12px">ℹ️ 마지막 인형 소진 — 다시 뽑으면 강화 가능 (입장·배틀은 유지)</span>':''}`; }
       render(fx,msg);
+      if(res.r==='success') _forge3dPulse();   // 🔨 3D 강화 펄스(확 커지며 빛남)
       if(!SB){ try{ updateMyInfoBar(); }catch(_){} }
       setTimeout(()=>{ busy=false; render(null,msg); }, 520);   // 연출 후 버튼 재활성(결과 메시지 유지·애니 미반복)
     };
