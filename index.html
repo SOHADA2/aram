@@ -6899,7 +6899,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.437';
+const APP_VERSION = 'v2.45.438';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6908,6 +6908,9 @@ const APP_VERSION = 'v2.45.437';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.438', date: '2026-06-29', changes: [
+    { tag: 'fix', text: '🔨 인형 강화창의 3D 인형이 다리만 보이게 잘려 나오던 문제 수정 — 강화창이 풀 모델을 자체 기준으로만 맞춰서 캐릭터가 너무 크고 위로 떠 있었어요. 이제 스킨 상점과 똑같이 챔피언별로 맞춰둔 줌·높이 보정을 적용해, 인형 전신이 프레임 안에 제대로 들어옵니다.' },
+  ] },
   { ver: 'v2.45.437', date: '2026-06-29', changes: [
     { tag: 'improve', text: '⚔️ 투기장 배틀이 진짜 수싸움이 됐어요 — 방어 스킬이 랜덤이 아니라, 방어자가 미리 정해둔 순서로 막아요(배틀 화면 아래에서 내 방어 순서를 탭으로 변경). 공격자는 한 번 싸우면 상대 방어 순서가 🔎 기억돼서 다음엔 카운터칠 수 있어요(완벽 카운터 시 +15%). 단 ⏳ 같은 상대는 15분 쿨다운이고, 그 사이 방어자가 순서를 바꾸면 정찰 정보가 무효가 돼요("바뀌었을 수 있음"). 공격받는 알림이 자주 오면 방어 순서를 바꿔 카운터를 피하세요 — 읽고 바꾸는 고양이-쥐 싸움!' },
   ] },
@@ -33596,8 +33599,10 @@ async function _forge3dShow(mount, glbFile, gradeColor, prism){
       mount.innerHTML=''; mount.appendChild(renderer.domElement);
       const model=g.scene; model.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(m.transparent){m.transparent=false;m.alphaTest=0.5;m.depthWrite=true;} m.side=THREE.DoubleSide; m.needsUpdate=true; }); } });
       const bx=new THREE.Box3().setFromObject(model); const c=bx.getCenter(new THREE.Vector3()); model.position.sub(c);
-      const grp=new THREE.Group(); grp.add(model); scene.add(grp); const R=bx.getBoundingSphere(new THREE.Sphere()).radius||1; grp.position.y=-R*0.04;
-      const fov=camera.fov*Math.PI/180; camera.position.set(0,0,R/Math.sin(fov/2)*1.12); camera.lookAt(0,0,0);
+      const grp=new THREE.Group(); grp.add(model); scene.add(grp); const R=bx.getBoundingSphere(new THREE.Sphere()).radius||1;
+      const adj=(typeof CHAMP_PREVIEW!=='undefined'&&CHAMP_PREVIEW[glbFile])||{}; const z=adj.zoom||1;   // 🎨 스킨샵과 동일 프레이밍(full 모델 다리만 보이던 문제 수정)
+      grp.position.y=-R*0.05 + (adj.yOff||0)*R;
+      const fov=camera.fov*Math.PI/180; camera.position.set(0,0, R/Math.sin(fov/2)*1.18/z); camera.lookAt(0,0,0);
       ctx.group=grp; ctx.baseScale=1;
       const clips={}; (g.animations||[]).forEach(cl=>clips[cl.name]=cl);
       const champBase=String(glbFile).replace(/_full\.glb$/i,'.glb');
