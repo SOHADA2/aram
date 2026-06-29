@@ -6895,7 +6895,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.420';
+const APP_VERSION = 'v2.45.421';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -34514,20 +34514,22 @@ function _bClip(ctx, names){ if(!ctx||!ctx.clips) return null; for(const n of na
 function _buddy3dPlay(clip, loop){ const ctx=_buddy3dCtx; if(!ctx||!ctx.mixer||!clip) return; const {THREE}=ctx;
   const a=ctx.mixer.clipAction(clip); a.reset(); a.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce); if(!loop) a.clampWhenFinished=true; a.fadeIn(0.2).play();
   if(ctx.cur && ctx.cur!==a) ctx.cur.fadeOut(0.2); ctx.cur=a; }
+function _buddyIdleNames(ctx){ const names=[]; try{ const ck=(typeof _arenaSkinKey==='function')?_arenaSkinKey(ctx&&ctx.champ, getMyGoldData(), CHAMP_CLIPS):(ctx&&ctx.champ); const m=CHAMP_CLIPS[ck]; if(m&&m.idle) names.push(m.idle); }catch(_){}   // 🎯 전투에서 튠한 idle을 단짝 평소동작에도(공격모션 반복 방지)
+  return names.concat(['Idle_Base','Idle1','Idle2','Idle']); }
 function _buddy3dApplyMood(){ const ctx=_buddy3dCtx; if(!ctx||!ctx.mixer) return; ctx._breaking=false;
-  const clip = ctx.mood==='win' ? _bClip(ctx,['Dance_Loop','Dance','DanceLoop','Celebrate','Idle_Base']) : _bClip(ctx,['Idle_Base']);
+  const clip = ctx.mood==='win' ? _bClip(ctx,['Dance_Loop','Dance','DanceLoop','Celebrate'].concat(_buddyIdleNames(ctx))) : _bClip(ctx,_buddyIdleNames(ctx));
   _buddy3dPlay(clip, true); _buddyScheduleIdleBreak(); }
-// 🎭 평소(none) 상태에서 가끔 다른 모션(춤·장난·인사·도발 등 GLB에 있는 클립)으로 환기 — 한 동작만 반복 안 하게
+// 🎭 평소(none) 상태에서 가끔 다른 모션(춤·장난·인사 등)으로 환기 — 전투/죽음/현재 idle은 제외(아바타=쉬는 모습)
 function _buddyIdleBreakPool(ctx){ if(!ctx||!ctx.clips) return [];
-  const base=ctx.clips['Idle_Base'];
-  return Object.values(ctx.clips).filter(c=> c && c!==base && (c.duration||0)>0.4 && (c.duration||0)<8); }
+  const base=ctx.clips['Idle_Base'], idleNm=_buddyIdleNames(ctx)[0]; const COMBAT=/attack|spell|crit|channel|death|hit|flinch|recall/i;
+  return Object.values(ctx.clips).filter(c=> c && c!==base && c.name!==idleNm && !COMBAT.test(c.name||'') && (c.duration||0)>0.4 && (c.duration||0)<8); }
 function _buddyScheduleIdleBreak(){ const ctx=_buddy3dCtx; if(!ctx) return; clearTimeout(ctx._idleBreakT); clearTimeout(ctx._idleRetT);
   if(ctx.mood!=='none') return;   // 연승(춤)·연패(다운)는 자체 모션 유지
   ctx._idleBreakT=setTimeout(()=>{
     if(_buddy3dCtx!==ctx || ctx.mood!=='none' || ctx.react>0){ _buddyScheduleIdleBreak(); return; }   // mood 변화·탭 반응 중이면 스킵·재예약
     const pool=_buddyIdleBreakPool(ctx); if(!pool.length){ _buddyScheduleIdleBreak(); return; }
     const clip=pool[(Math.random()*pool.length)|0]; ctx._breaking=true; _buddy3dPlay(clip, false);   // 랜덤 모션 1회
-    ctx._idleRetT=setTimeout(()=>{ if(_buddy3dCtx===ctx && ctx.mood==='none'){ ctx._breaking=false; _buddy3dPlay(_bClip(ctx,['Idle_Base']), true); _buddyScheduleIdleBreak(); } },
+    ctx._idleRetT=setTimeout(()=>{ if(_buddy3dCtx===ctx && ctx.mood==='none'){ ctx._breaking=false; _buddy3dPlay(_bClip(ctx,_buddyIdleNames(ctx)), true); _buddyScheduleIdleBreak(); } },
       Math.min(5000,(clip.duration||1.5)*1000+200));
   }, 4500 + Math.random()*6000);   // 4.5~10.5초마다 환기(랜덤 간격)
 }
