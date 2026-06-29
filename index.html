@@ -6895,7 +6895,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.403';
+const APP_VERSION = 'v2.45.404';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6904,6 +6904,9 @@ const APP_VERSION = 'v2.45.403';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.404', date: '2026-06-28', changes: [
+    { tag: 'fix', text: '🔨 내 아이템(소비)에서 강화권을 탭해 강화하면 오른의 망치질 연출 없이 "몰래" 강화되던 문제 수정 — 오른 작업대는 🔨 대장간 탭에만 있어서, 다른 탭에서 강화하면 연출 대상이 화면에 없었어요. 이제 강화권을 탭하면 자동으로 대장간 탭(오른 작업대)으로 이동·스크롤한 뒤 망치질 연출과 함께 강화됩니다.' },
+  ] },
   { ver: 'v2.45.403', date: '2026-06-28', changes: [
     { tag: 'improve', text: '🔥 메인 화면 프로필 바에서 연승/연패 표시를 제거했어요 — 티어 배지만 깔끔하게 남겼습니다. (연승/연패는 대기화면·기록 등에서 그대로 볼 수 있어요)' },
   ] },
@@ -11343,7 +11346,17 @@ function _enchFromInventory(type, fromAnvilDrop){
   const em = getEmblem(data);
   if(!em){ showS1Toast(getEmblems(data).length ? '강철심장을 먼저 장착하세요 (대장간 하단)' : '먼저 강철심장을 가져오세요'); return; }
   if(emblemLocked(em)){ showS1Toast('강화 슬롯이 모두 소진됐어요 (5/5)'); return; }
-  window.emblemDoEnhance(type);   // 탭/드롭 모두 즉시 강화
+  // 🔨 오른 작업대(#forge-stage)가 화면에 없으면(소비/장비 탭의 내 아이템에서 탭) → 대장간 탭으로 이동 후 강화
+  //   (작업대 없이 강화하면 오른 망치질 연출이 안 보이고 "몰래" 강화되던 문제 — 작업대로 보내 연출 노출)
+  if(!document.getElementById('forge-stage')){
+    try{ window.gotoForgeTab(); }catch(_){}
+    setTimeout(()=>{
+      try{ document.getElementById('forge-stage')?.scrollIntoView({behavior:'smooth', block:'center'}); }catch(_){}
+      setTimeout(()=>{ try{ window.emblemDoEnhance(type); }catch(_){} }, 300);   // 스크롤·작업대 렌더 안정화 후 강화
+    }, 150);
+    return;
+  }
+  window.emblemDoEnhance(type);   // 작업대가 이미 보이면 바로 강화(오른 망치질 연출)
 }
 
 window.emblemDoBuyBase   = async function(){ if (await emblemBuyBase()) renderEmblemBody(); };
