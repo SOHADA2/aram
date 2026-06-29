@@ -80,7 +80,7 @@
     </div>
   </div>
   <div id="panel">
-    <h2>🗡️ 투기장 전투 목업 <span style="font-size:10px;color:#666;">BUILD 6</span></h2>
+    <h2>🗡️ 투기장 전투 목업 <span style="font-size:10px;color:#666;">BUILD 7</span></h2>
 
     <div class="sec me">
       <div class="sec-h">🔵 내 캐릭터 <b id="me-now"></b></div>
@@ -152,8 +152,11 @@ const CAT_CAND={ attack:['Attack1','Attack2','Spell1','Spell2','Crit','Taunt','J
 const POSAXES={ meX:['me','X'],meY:['me','Y'],meZ:['me','Z'],meS:['me','S'],meR:['me','R'], opX:['op','X'],opY:['op','Y'],opZ:['op','Z'],opS:['op','S'],opR:['op','R'] };
 
 // 저장/복원(localStorage)
-function save(){ try{ localStorage.setItem('arenaMock6', JSON.stringify({POS,CLIPSEL,CAM})); }catch(e){} }
-function loadStore(){ try{ const d=JSON.parse(localStorage.getItem('arenaMock6')); if(d){ Object.assign(POS,d.POS||{}); Object.assign(CLIPSEL,d.CLIPSEL||{}); if(d.CAM) Object.assign(CAM,d.CAM); } }catch(e){} }
+function save(){ try{ localStorage.setItem('arenaMock7', JSON.stringify({POS,CLIPSEL,CAM})); }catch(e){} }
+function loadStore(){ try{ const d=JSON.parse(localStorage.getItem('arenaMock7'));
+  if(d){ Object.assign(POS,d.POS||{}); Object.assign(CLIPSEL,d.CLIPSEL||{}); if(d.CAM) Object.assign(CAM,d.CAM); return; }
+  const old=JSON.parse(localStorage.getItem('arenaMock6')); if(old&&old.CLIPSEL) Object.assign(CLIPSEL, old.CLIPSEL);   // 정규화로 좌표계 변경→위치만 리셋, 클립 이어받음
+}catch(e){} }
 loadStore();
 if(!CLIPSEL.gwen) CLIPSEL.gwen={attack:'Attack1',idle:'Idle1',death:'Death'};   // 이전 작업 시드
 if(!CLIPSEL.yone) CLIPSEL.yone={attack:'Attack4',idle:'Idle1_Base',death:'Death'};
@@ -181,9 +184,11 @@ function loadChamp(slot, champ){
   loader.load(champ+'_full.glb', g=>{
     if(units[slot]){ scene.remove(units[slot].group); }
     const model=g.scene; model.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(m.transparent){ m.transparent=false; m.alphaTest=0.5; m.depthWrite=true; } m.side=THREE.DoubleSide; m.needsUpdate=true; }); } });
-    const bx=new THREE.Box3().setFromObject(model); const c=bx.getCenter(new THREE.Vector3()); const size=bx.getSize(new THREE.Vector3()); model.position.sub(c);
-    const r=bx.getBoundingSphere(new THREE.Sphere()).radius||1;
-    console.log('📐 '+champ+' size:['+size.x.toFixed(1)+', '+size.y.toFixed(1)+', '+size.z.toFixed(1)+'] r:'+r.toFixed(2)+' center:['+c.x.toFixed(1)+', '+c.y.toFixed(1)+', '+c.z.toFixed(1)+']');
+    const bx=new THREE.Box3().setFromObject(model); const c=bx.getCenter(new THREE.Vector3()); const size=bx.getSize(new THREE.Vector3());
+    const norm=2.0/(size.y||1);   // 🔧 키(세로) 정규화 — 챔피언마다 모델 크기 천차만별(럭스135·니코475)이라 통일해야 조정 감도 동일
+    model.scale.setScalar(norm); model.position.copy(c).multiplyScalar(-norm);   // 중심정렬(스케일 반영)
+    const r=1.0;   // 정규화 후 반높이 일정 → 모든 챔피언 동일
+    console.log('📐 '+champ+' 원본size:['+size.x.toFixed(1)+', '+size.y.toFixed(1)+', '+size.z.toFixed(1)+'] → norm×'+norm.toFixed(3));
     const group=new THREE.Group(); group.add(model); scene.add(group);
     const mixer=new THREE.AnimationMixer(model); const clips={}; (g.animations||[]).forEach(cl=>clips[cl.name]=cl);
     units[slot]={ group, model, mixer, clips, r, champ, side:(slot==='me'?-1:1), action:null };
