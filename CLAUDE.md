@@ -816,7 +816,20 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.45.433 (2026-06-29) — 🏆 투기장 랭킹 신설(랭킹 탭 S2 토글·강화›스킨›순승) ← 최신
+### v2.45.434 (2026-06-29) — 🛡️ 방어 기록 append-only inbox 전환(동시 공격 유실/본인 로그 클로버 수정) ← 최신
+
+> 같은 원격 세션(작업브랜치 `claude/resume-work-in-progress-bdxxwh`). 배포 시 `main`+작업브랜치 둘 다. **오픈 전 점검(사장님 요청)에서 식별한 #1 수정** — 투기장 오픈 시 리스크 분석 결과 중 비동기 방어 쓰기의 로그 충돌 문제.
+
+- **문제(#1)**: `_arenaBattle`에서 공격자 클라가 방어자 `arenaBattleLog_s2` **배열을 자기 로컬 스냅샷+1줄로 통째 `update`** → ① 동시 공격/방어자 본인 배틀과 경합 시 **방어 엔트리 1건 유실**(=방어 알림 누락) ② 방어자 **본인 최근 배틀 로그가 공격자 스냅샷에 덮임**. 코인은 트랜잭션이라 정확하지만 로그는 비보호였음.
+- **수정**: 방어 기록을 **append-only inbox**로 전환.
+  - 공격자: `arenaBattleLog` 덮어쓰기 제거 → `push(ref(db,'gold/{def}/'+sField('arenaDefendInbox')), {at,opp,oppPow,myPow,won,coinGain})`. push=고유키라 **충돌 0**(방어자 본인 로그도 안 건드림). 코인은 기존 `runTransaction` 유지.
+  - `_arenaDefenseSummary(data)`: 소스 = **inbox(신규) + 옛 로그 defended 엔트리(레거시 전환기 호환)** 둘 다 읽어 `at>seen` 집계. `keys`(소비한 inbox 키) 반환.
+  - `_arenaDefenseConsume(ds)` **공통 헬퍼 신설**: 워터마크(`arenaDefendSeen_s2`) 갱신 + **소비한 inbox 키만 개별 `remove()`**(키 단위라 진행 중 새 공격 push와 경합 없음·inbox 무한 증식 방지). `_arenaDefenseNotify`(배틀창 토스트)·`openArenaDefenseLog`(상세 모달) 둘 다 이 헬퍼 사용 → 일관.
+- **데이터**: `arenaDefendInbox_s2` = `{pushId: {at,opp,oppPow,myPow,won,coinGain}}` (gold/{key} 하위). 읽으면 소비키 삭제. ⚠️부수효과(긍정): `arenaBattleLog`에 더 이상 defended 안 섞임 → `arenaAudit`의 배틀 카운트·`_arenaWL` 폴백이 더 정확.
+- **검증**: node --check 7/7 + 독립 시뮬(울퉁쓰 10회=1줄 묶음·inbox+레거시 합산·읽음 후 0건·읽는 도중 새 공격 2건 무손실). 
+- ⏭️ **오픈 전 점검에서 식별한 나머지(미수정·사장님 판단 대기)**: #2 방어자 본인 강화/판매/배틀의 절대값 코인 `update`가 공격자 트랜잭션 증분을 덮을 수 있음(코인 down-leak·인플레 아님) · #3 방어 코인=추가 faucet→강자 집중+총량 인플레(방어 코인 포함 **경제 재시뮬** 권장) · #4 엔드게임 코인 sink 고갈(강화+스킨 일회성) · #5 소규모 상대풀 · #6 "누가 내 캐릭터" 구분(v401 미해결).
+
+### v2.45.433 (2026-06-29) — 🏆 투기장 랭킹 신설(랭킹 탭 S2 토글·강화›스킨›순승)
 
 > 같은 원격 세션(작업브랜치 `claude/resume-work-in-progress-bdxxwh`). 배포 시 `main`+작업브랜치 둘 다.
 
