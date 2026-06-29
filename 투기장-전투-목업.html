@@ -79,7 +79,7 @@
     </div>
   </div>
   <div id="panel">
-    <h2>🗡️ 투기장 전투 목업 <span style="font-size:10px;color:#666;">BUILD 4</span></h2>
+    <h2>🗡️ 투기장 전투 목업 <span style="font-size:10px;color:#666;">BUILD 5</span></h2>
 
     <div class="sec me">
       <div class="sec-h">🔵 내 캐릭터 (좌하·뒷모습)</div>
@@ -204,8 +204,13 @@ function clip(slot, name, loop){ const u=units[slot]; if(!u||!u.clips[name]) ret
   const a=u.mixer.clipAction(u.clips[name]); a.reset(); a.setLoop(loop?THREE.LoopRepeat:THREE.LoopOnce); if(!loop) a.clampWhenFinished=true; a.fadeIn(0.18).play(); u.action=a; }
 function playIdle(slot){ const u=units[slot]; if(!u) return; const n=(CLIPSEL[u.champ]&&CLIPSEL[u.champ].idle)||autoPick(u.clips,CAT_CAND.idle); if(n) clip(slot,n,true); }
 function playCat(slot, cat){ const u=units[slot]; if(!u) return; const name=CLIPSEL[u.champ][cat]; if(!name) return;
-  clip(slot, name, cat==='idle'); clearTimeout(u.retT);
-  if(cat!=='idle') u.retT=setTimeout(()=>{ if(units[slot]) playIdle(slot); }, Math.max(1400,(u.clips[name]?u.clips[name].duration*1000:1500)+300)); }
+  if(u._finL){ u.mixer.removeEventListener('finished', u._finL); u._finL=null; }   // 이전 복귀 리스너 정리
+  clip(slot, name, cat==='idle');
+  if(cat==='attack'){   // 🎬 공격 끝나는 순간 기본으로 크로스페이드 복귀(끝 포즈 정지 제거 → 안 멈춰 보임)
+    u._finL=(e)=>{ if(!units[slot]) return; u.mixer.removeEventListener('finished', u._finL); u._finL=null; playIdle(slot); };
+    u.mixer.addEventListener('finished', u._finL);
+  }   // 죽음=그대로 클램프(죽은 포즈 유지)
+}
 
 // 드롭다운 바꾸면 즉시 재생 + 저장
 for(const slot of ['me','op']){ for(const cat of CATS){ const sel=document.getElementById(slot+'-c-'+cat);
@@ -214,10 +219,8 @@ document.querySelectorAll('.cs-row button').forEach(b=>b.onclick=()=>playCat(b.d
 
 document.getElementById('fight').onclick=()=>{
   const um=units.me, uo=units.op; if(!um||!uo) return;
-  clip('me', CLIPSEL[um.champ].attack, false);
-  clearTimeout(um.retT); clearTimeout(uo.retT);
-  setTimeout(()=>{ clip('op', CLIPSEL[uo.champ].death, false); }, 650);
-  setTimeout(()=>{ playIdle('me'); }, 2400);
+  playCat('me','attack');   // 공격(끝나면 자동 기본 복귀)
+  setTimeout(()=>{ if(units.op) clip('op', CLIPSEL[units.op.champ].death, false); }, 650);   // 상대 죽음(그대로 클램프)
 };
 
 function bindSlider(id){ const el=document.getElementById(id), v=document.getElementById(id+'-v');
