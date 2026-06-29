@@ -6895,7 +6895,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.405';
+const APP_VERSION = 'v2.45.406';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -33441,6 +33441,13 @@ function _arenaBattle3DStop(){
 function _arena3dPlay(ctx,u,names,loop){ const T=ctx.THREE; if(!u||!u.mixer) return; const clip=_arenaClipPick(u.clips,names); if(!clip) return;
   try{ u.mixer.stopAllAction(); const a=u.mixer.clipAction(clip); a.reset(); a.setLoop(loop?T.LoopRepeat:T.LoopOnce, loop?Infinity:1); a.clampWhenFinished=!loop; a.play(); }catch(_){}
 }
+// ⚔️ 배틀 캐릭터 배치 팩터(풀 모델 기준·콘솔 _arenaBattleTune로 실시간 조정). me=내캐릭(좌하·크게)/op=상대(우상·멀리·작게). X=좌우폭·Y=상하·Z=깊이(앞큼/뒤작음)·S=스케일
+let _ABF = { meX:1.45, meY:0.92, meZ:0.52, meS:1.02, opX:1.55, opY:0.92, opZ:0.95, opS:0.80 };
+window._arenaBattleTune = function(p){ Object.assign(_ABF, p||{});
+  const ctx=_arena3dCtx; if(ctx&&ctx.units){ ctx.units.forEach(u=>{ if(!u) return; const me=u.side<0, r=u.r, adj=_buddyAdj(u.file,'full');
+    const bx=u.side*r*(me?_ABF.meX:_ABF.opX)+(adj.x||0)*r*0.14, by=(me?-r*_ABF.meY:r*_ABF.opY)+(adj.y||0)*r*0.24, bz=me?r*_ABF.meZ:-r*_ABF.opZ;
+    u.group.position.set(bx,by,bz); u.group.scale.setScalar(me?_ABF.meS:_ABF.opS); u.base={x:bx,y:by,z:bz}; }); }
+  console.log('⚔️ 배틀 위치', JSON.stringify(_ABF), '(좋으면 이 값 알려줘)'); };
 async function _arenaBattle3D(stage, atkFile, defFile){   // stage=컨테이너. 두 모델 로드+대치(idle). 전투는 _arena3dFight로 같은 씬서 재생. 실패=throw→정적 폴백
   _arenaBattle3DStop();
   const THREE=await import('three'); const { GLTFLoader }=await import('three/addons/loaders/GLTFLoader.js');
@@ -33466,11 +33473,11 @@ async function _arenaBattle3D(stage, atkFile, defFile){   // stage=컨테이너.
       const adj=_buddyAdj(file,'full');
       // 🎬 포켓몬식 거리감: 내 캐릭터(side -1)=앞·아래·크게 / 상대(side +1)=뒤·위·작게(원근으로 크기차)
       const me = side<0;
-      const bx = side * r * (me?1.16:1.20) + (adj.x||0)*r*0.14;   // 🎬 나=훨씬 왼쪽 / 상대=훨씬 오른쪽(코너로 2배 몰기)
-      const by = (me? -r*0.62 : r*0.60) + (adj.y||0)*r*0.24;       // 나=훨씬 아래(하단) / 상대=훨씬 위(상단)
-      const bz = me? r*0.46 : -r*0.80;   // +z=앞(카메라쪽·큼) / −z=뒤(작음)
+      const bx = side * r * (me?_ABF.meX:_ABF.opX) + (adj.x||0)*r*0.14;   // 🎬 나=왼쪽 / 상대=오른쪽 (_ABF로 튜닝)
+      const by = (me? -r*_ABF.meY : r*_ABF.opY) + (adj.y||0)*r*0.24;       // 나=아래 / 상대=위
+      const bz = me? r*_ABF.meZ : -r*_ABF.opZ;   // +z=앞(큼) / −z=뒤(작음)
       group.position.set(bx, by, bz);
-      group.scale.setScalar(0.82);   // 모델 축소 — 코너로 몰아도 화면 밖으로 안 잘리게
+      group.scale.setScalar(me?_ABF.meS:_ABF.opS);   // 내 캐릭=크게 / 상대=작게
       group.rotation.y = me ? Math.PI : -0.14;   // 🎬 내 캐릭터=뒷모습(180°·포켓몬식)·상대=정면(카메라 쪽)
       group.rotation.x = me ? -_buddyHeadTilt : _buddyHeadTilt;   // 뒷모습은 기울임 반대로
       scene.add(group);
