@@ -6895,7 +6895,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.413';
+const APP_VERSION = 'v2.45.414';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -33903,7 +33903,7 @@ async function _skinPreview3d(mount, glbFile){
     const scene=new THREE.Scene();
     try{ if(RoomEnvironment){ const pm=new THREE.PMREMGenerator(renderer); scene.environment=pm.fromScene(new RoomEnvironment(),0.04).texture; } }catch(_){}
     scene.add(new THREE.HemisphereLight(0xe0eeff,0x303048,1.55)); const dl=new THREE.DirectionalLight(0xfff0d0,1.3); dl.position.set(2,5,6); scene.add(dl);
-    const camera=new THREE.PerspectiveCamera(30, w/h, 0.1, 100);
+    const camera=new THREE.PerspectiveCamera(30, w/h, 0.1, 8000);   // far 충분히(네이티브 크기 모델 안 잘리게)
     const clock=new THREE.Clock(); let mixer=null, group=null, raf=0, disposed=false;
     const dispose=()=>{ if(disposed) return; disposed=true; cancelAnimationFrame(raf); try{renderer.dispose();}catch(_){} try{renderer.domElement.remove();}catch(_){} };
     _skinPrevDispose=dispose;
@@ -33913,11 +33913,12 @@ async function _skinPreview3d(mount, glbFile){
       const ld=mount.querySelector('.sk-prev-load'); if(ld) ld.remove();
       mount.appendChild(renderer.domElement);
       const model=g.scene; model.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(m.transparent){ m.transparent=false; m.alphaTest=0.5; m.depthWrite=true; } m.side=THREE.DoubleSide; m.needsUpdate=true; }); } });
-      const bx=new THREE.Box3().setFromObject(model); const size=bx.getSize(new THREE.Vector3()); const c=bx.getCenter(new THREE.Vector3());
-      const norm=2.0/(size.y||1); model.scale.setScalar(norm); model.position.copy(c).multiplyScalar(-norm);
-      model.position.y -= 0.15;
+      const bx=new THREE.Box3().setFromObject(model); const c=bx.getCenter(new THREE.Vector3());
+      model.position.sub(c);   // 중심정렬(네이티브 크기 유지)
       group=new THREE.Group(); group.add(model); scene.add(group);
-      const fov=camera.fov*Math.PI/180; camera.position.set(0,0, 1/Math.sin(fov/2)*1.35); camera.lookAt(0,0,0);
+      const R=bx.getBoundingSphere(new THREE.Sphere()).radius||1;
+      const fov=camera.fov*Math.PI/180; camera.position.set(0, 0, R/Math.sin(fov/2)*1.18); camera.lookAt(0,0,0);   // 🔧 바운딩 구 맞춤 → 모든 스킨/챔프 일관되게 프레임에 꽉(커보이던 문제 해결)
+      group.position.y = -R*0.05;
       const clips={}; (g.animations||[]).forEach(cl=>clips[cl.name]=cl);
       const idle=clips['Idle1']||clips['Idle_Base']||clips['Idle']||Object.values(clips)[0];
       if(idle){ mixer=new THREE.AnimationMixer(model); mixer.clipAction(idle).play(); }
