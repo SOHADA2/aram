@@ -816,7 +816,22 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 
-### v2.45.405~431 + 브릿지 v1.1.36~37 (2026-06-29) — 🎨 스킨 상점 + 🗡️ 투기장 UI 전면 리디자인(검정+골드) + 🔨 강화창 3D + 🔌 브릿지 명단/업데이트안내 ← 최신
+### v2.45.432 (2026-06-29) — 🛡️ 투기장 방어 알림(공격당함) 프로필 1건 묶음 + 클릭 상세 ← 최신
+
+> 이 세션 = **원격(web) 환경**(작업브랜치 `claude/resume-work-in-progress-bdxxwh`·`origin/main`과 내용 동일에서 출발). 배포 시 `main` + 작업브랜치 둘 다 푸시. 매 변경 인라인 `<script>` 7블록 `node --check` 통과 후 커밋·APP_VERSION+1. ⚠️Firebase egress 차단 가능(직접 REST 시 러너 우회) — 이번 작업은 코드만이라 무관.
+
+- **요구(사장님)**: 하루 10번 대전 가능한데 비동기라 **남이 나를 공격(도전)** 해 성공/실패가 생김 → 공격당한 내가 알아야 함. 단 **한 사람이 10번 모두 공격해도 알림이 10건 뜨면 피곤** → 프로필에 **1건으로 묶어** 띄우고, 클릭하면 상세.
+- **기존 구조**: 공격자 클라가 `_arenaBattle`(~L33360)에서 방어자 `arenaBattleLog_s2`에 `defended:true` 엔트리 push(`opp`=공격자명·`won`=방어성공·`coinGain`=방어코인 `ARENA_DEFEND_WIN`20/`LOSE`8). `_arenaDefenseNotify`(~L33349)는 **배틀창 열 때만** 미확인분(`arenaDefendSeen_s2` 워터마크 이후) 1토스트로 요약 — 배틀창 열어야만 보임이 한계.
+- **구현**(전부 `_arenaDefenseNotify` 직후 + `_coachActions` + `_injectArenaCss` + `_ARENA_HELP`):
+  - `_arenaDefenseSummary(data)` — 미확인 방어전(`defended:true` & `at>seen`)을 **공격자별(byOpp)로 묶어** 집계 `{count,coins,wins,losses,attackers[{name,count,held,coins,lastAt}],lastAt}`. 한 사람이 N번=공격자 1명·count N(=1줄).
+  - `_coachActions()`(~L22176)에 **방어 알림 1줄** 추가(`CURRENT_SEASON===2 && count>0`): `{k:'arenadefend',ic:'🛡️',s:'{공격자명}님이/N명이 N회 공격 · +코인',fn:'openArenaDefenseLog'}`. 프로필 아바타 코치마크는 `gold` onValue→`updateMyInfoBar`→…→`updateAttendCoach` 체인으로 **공격 동기화 즉시 자동 갱신**. 이름=escHtml.
+  - `window.openArenaDefenseLog()` — 상세 모달(검정+골드 `arena-ov`/`arena-sheet`/`_arenaHd('...','defense')`). 공격자별 행(`.adf-row`: 이름·N회 / 🛡️막음·💢뚫림 / +코인) + 상단 요약(`.adf-sum`). **열면 `arenaDefendSeen_s2`=lastAt로 갱신(읽음 처리)** → 다음 갱신부터 코치마크 사라짐(피로감 방지). `updateAttendCoach()` 호출.
+  - CSS `.adf-sum/.adf-list/.adf-row/.adf-nm/.adf-cnt/.adf-res(.adf-w/.adf-l)/.adf-coin`(arena CSS 템플릿 끝). `_ARENA_HELP.defense` 도움말 추가.
+  - `_arenaDefenseNotify`(배틀창 토스트)는 **그대로 유지** — 같은 `arenaDefendSeen_s2` 워터마크 공유라 어디서 봐도 일관(둘 다 읽으면 클리어).
+- **검증**: node --check 7/7 통과. scratchpad 목업+Chromium 스크린샷으로 모달 시각 확인(울퉁쓰 10회=1줄로 묶임 OK).
+- ⚠️ 투기장 `ARENA_LIVE_ENABLED=false`(준비중) 유지 — defended 엔트리는 실배틀에서만 생기므로 라이브 열려야 실제 알림 발생. 현재는 `count>0` 게이트라 평소엔 안 뜸. **다음**: 라이브 열면 실기기에서 비동기 방어 알림/읽음처리 동작 확인.
+
+### v2.45.405~431 + 브릿지 v1.1.36~37 (2026-06-29) — 🎨 스킨 상점 + 🗡️ 투기장 UI 전면 리디자인(검정+골드) + 🔨 강화창 3D + 🔌 브릿지 명단/업데이트안내
 
 > 이 세션 = **로컬 컴퓨터**(`C:\Users\sbs_n`, Firebase REST 직접 가능). aram 배포=`git push origin main`(Pages 1~3분). 매 변경 인라인 `<script>` `node --check` 후 커밋·APP_VERSION+1. **투기장은 `ARENA_LIVE_ENABLED=false`(준비중) 유지** — 테스트는 콘솔 샌드박스 `arenaForgePreview()`/`arenaBattlePreview()`('vex' 등 챔프 지정 가능). ⚠️**메모리(project_aram_*)는 기기-로컬이라 안 따라감 — 이 CLAUDE.md가 유일한 핸드오프**.
 
