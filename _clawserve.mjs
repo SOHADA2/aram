@@ -11,7 +11,7 @@ const MIME = {
   '.png':'image/png', '.jpg':'image/jpeg', '.webp':'image/webp', '.mp3':'audio/mpeg', '.wav':'audio/wav',
 };
 createServer((req, res) => {
-  let p = decodeURIComponent(req.url.split('?')[0]);
+  let p; try { p = decodeURIComponent(req.url.split('?')[0]); } catch { p = req.url.split('?')[0]; }
   if (p === '/' ) p = '/인형뽑기-물리-목업.html';
   const safe = normalize(p).replace(/^([\\/]|\.\.[\\/])+/, '');
   const fp = join(ROOT, safe);
