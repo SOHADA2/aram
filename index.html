@@ -6895,7 +6895,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.410';
+const APP_VERSION = 'v2.45.411';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -33727,7 +33727,7 @@ window.openArenaBattle=function(sandbox, opts){
       const _t=[]; const T=(ms,fn)=>_t.push(setTimeout(()=>{try{fn();}catch(_){}},ms));
       const CLASH=1700, sMy=_champSkills(myFighter()), sOp=_champSkills(opp.fighter);
       clashRes.forEach((c,i)=>{ const b=i*CLASH, btn=pickBtns[i];
-        T(b, ()=>{ if(btn) btn.classList.add('active'); floatAt(-1, `<b>${c.my}</b> ${escHtml(sMy[c.my]||'')}`, 'me'); _arena3dLunge(-1); });   // ① 내 스킬 i (그 버튼 강조)
+        T(b, ()=>{ if(btn){ btn.classList.remove('won','lost','tied'); btn.classList.add('active'); } floatAt(-1, `<b>${c.my}</b> ${escHtml(sMy[c.my]||'')}`, 'me'); _arena3dLunge(-1); });   // ① 내 스킬 i (그 버튼 강조·반복스킬은 이전결과 지움)
         T(b+560, ()=>{ const h=btn&&btn.querySelector('.ask-hint'); if(h) h.innerHTML=`vs <b>${c.op}</b> ${escHtml(sOp[c.op]||'')}`; floatAt(1, `<b>${c.op}</b> ${escHtml(sOp[c.op]||'')}`, 'opp'); _arena3dLunge(1); });   // ② 상대 스킬 i (버튼에 표기)
         T(b+1120, ()=>{ const winSide=c.a>0?-1:c.a<0?1:0; bonus+=c.a*ARENA_CLASH_ADV;   // ③ 판정 + 승자 가격 + 패자 체력 감소
           if(btn){ btn.classList.remove('active'); btn.classList.add(c.a>0?'won':c.a<0?'lost':'tied'); const h=btn.querySelector('.ask-hint'); if(h) h.innerHTML=c.a>0?'이김 +5%':c.a<0?'짐 −5%':'비김'; }
@@ -33738,7 +33738,7 @@ window.openArenaBattle=function(sandbox, opts){
       });
       T(3*CLASH+200, ()=>{ finishBattle(bonus, clashRes); });
     };
-    const resetPicks=()=>{ picks=[]; pickBtns=[]; skillBtns().forEach(b=>{ b.classList.remove('picked','active','won','lost','tied','pop'); b.style.opacity=''; b.disabled=false; b.style.pointerEvents='';
+    const resetPicks=()=>{ picks=[]; pickBtns=[]; skillBtns().forEach(b=>{ b._ords=null; b.classList.remove('picked','active','won','lost','tied','pop'); b.style.opacity=''; b.disabled=false; b.style.pointerEvents='';
       const o=b.querySelector('.ask-ord'); if(o) o.textContent=''; const h=b.querySelector('.ask-hint'); if(h) h.innerHTML='▶ '+SKILL_BEATS[b.dataset.s]+' 이김'; }); refreshSel(); };
     const refreshSel=()=>{
       const l=ov.querySelector('#abt-lbl'); if(l && !battling){ l.innerHTML = picks.length<3
@@ -33751,9 +33751,10 @@ window.openArenaBattle=function(sandbox, opts){
         const go=ov.querySelector('#abt-go'); if(go) go.onclick=()=>startClashes();
       }
     };
-    skillBtns().forEach(b=> b.onclick=()=>{ if(battling || picks.length>=3 || b.classList.contains('picked')) return;
+    skillBtns().forEach(b=> b.onclick=()=>{ if(battling || picks.length>=3) return;   // 같은 스킬 3번까지 허용(상대 랜덤이라 어느 조합이든 승률 동일)
       picks.push(b.dataset.s); pickBtns.push(b); b.classList.add('picked');
-      const o=b.querySelector('.ask-ord'); if(o) o.textContent=picks.length+'번';
+      b._ords=b._ords||[]; b._ords.push(picks.length);   // 한 스킬을 여러 번 골라도 순서 다 표기(예: 1,3)
+      const o=b.querySelector('.ask-ord'); if(o) o.textContent=b._ords.join(',');
       b.classList.remove('pop'); void b.offsetWidth; b.classList.add('pop'); refreshSel(); });
     refreshSel();
   };
