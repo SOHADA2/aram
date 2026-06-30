@@ -6899,7 +6899,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.481';
+const APP_VERSION = 'v2.45.482';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6908,6 +6908,9 @@ const APP_VERSION = 'v2.45.481';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.482', date: '2026-06-30', changes: [
+    { tag: 'improve', text: '🏰 광장 포탑/넥서스 배치를 설치 후 자유롭게 조정 — 「박기/올리기」 대신 X·Y·Z 각 축 이동 버튼(◀X / X▶ / Z− / Z＋ / 높이− / 높이＋)과 ↻회전을 추가했어요. 제한 없이 어느 방향으로든 옮기고 땅에 관통시킬 수 있어요(마지막 설치 포탑+대칭 짝에 적용). 크기 조정 시 바닥이 고정되게 개선, 조정한 위치·높이는 저장에 반영됩니다.' },
+  ] },
   { ver: 'v2.45.481', date: '2026-06-30', changes: [
     { tag: 'new', text: '🏰 광장 포탑/넥서스 높이(Y축) 조정 — 「▼ 박기 / ▲ 올리기」 버튼 추가. 포탑을 땅에 박아 관통시키거나 위로 띄울 수 있어요(마지막 설치 포탑+대칭 짝에 적용). 조정한 높이는 저장에도 반영됩니다.' },
   ] },
@@ -33948,56 +33951,47 @@ window.openPlaza=async function(){
   const _PROP_SIZE={nexus:6,turret:3.5}; const _PLAZA_PROPS=[];
   const _propCache={}, _placed=[]; let _propBrush='turretB', _placeMode=false, _propMirrorOn=true;
   function _loadProp(key,cb){ const f=_PROP_GLB[key]; if(_propCache[f]){cb(_propCache[f]);return;} const pl=new GLTFLoader(); if(MSD){try{pl.setMeshoptDecoder(MSD);}catch(_){}} pl.load(f,g=>{_propCache[f]=g.scene;cb(g.scene);},undefined,e=>console.warn('prop',key,e)); }
-  function _addProp(key,x,z,ry,scale,yOff){ _loadProp(key,src=>{ if(!_plazaActive)return; const o=(_SkelClone?_SkelClone(src):src.clone(true)); o.traverse(n=>{ if(n.isMesh){ n.frustumCulled=false; (Array.isArray(n.material)?n.material:[n.material]).forEach(m=>{ m.toneMapped=false; m.side=THREE.DoubleSide; }); } }); const grp=new THREE.Group(); grp.add(o); scene.add(grp); grp.updateMatrixWorld(true); const bx0=new THREE.Box3().setFromObject(o); const h=(bx0.max.y-bx0.min.y)||1; const tgt=key.indexOf('nexus')===0?_PROP_SIZE.nexus:_PROP_SIZE.turret; grp.scale.setScalar((tgt*(scale||1))/h); grp.updateMatrixWorld(true); const bx=new THREE.Box3().setFromObject(grp); grp.position.set(x,groundY(x,z)-bx.min.y+(yOff||0),z); grp.rotation.y=ry||0; _placed.push({key,x,z,ry:ry||0,scale:scale||1,yOff:yOff||0,obj:grp,h0:h}); try{ showS1Toast((key.indexOf('nexus')===0?'🏰 넥서스':'🗼 포탑')+' 설치됨 ('+_placed.length+'개)'); }catch(_){} }); }
-  _PLAZA_PROPS.forEach(p=>_addProp(p.key,p.x,p.z,p.ry,p.scale,p.yOff));
+  function _addProp(key,x,z,ry,scale,y){ _loadProp(key,src=>{ if(!_plazaActive)return; const o=(_SkelClone?_SkelClone(src):src.clone(true)); o.traverse(n=>{ if(n.isMesh){ n.frustumCulled=false; (Array.isArray(n.material)?n.material:[n.material]).forEach(m=>{ m.toneMapped=false; m.side=THREE.DoubleSide; }); } }); const grp=new THREE.Group(); grp.add(o); scene.add(grp); grp.updateMatrixWorld(true); const bx0=new THREE.Box3().setFromObject(o); const h=(bx0.max.y-bx0.min.y)||1; const tgt=key.indexOf('nexus')===0?_PROP_SIZE.nexus:_PROP_SIZE.turret; grp.scale.setScalar((tgt*(scale||1))/h); grp.updateMatrixWorld(true); const bx=new THREE.Box3().setFromObject(grp); const gy=(typeof y==='number'&&isFinite(y))?y:(groundY(x,z)-bx.min.y); grp.position.set(x,gy,z); grp.rotation.y=ry||0; _placed.push({key,x,y:gy,z,ry:ry||0,scale:scale||1,obj:grp,h0:h}); try{ showS1Toast((key.indexOf('nexus')===0?'🏰 넥서스':'🗼 포탑')+' 설치됨 ('+_placed.length+'개)'); }catch(_){} }); }
+  _PLAZA_PROPS.forEach(p=>_addProp(p.key,p.x,p.z,p.ry,p.scale,p.y));
   window._propPick=(k)=>{ if(!_PROP_GLB[k])return '키: nexusB nexusR turretB turretR'; _propBrush=k; _placeMode=true; return 'brush='+k+' · 배치모드 ON — 바닥 클릭하면 설치(이동 대신)'; };
   window._propPlace=(on)=>{ _placeMode=(on!==false); return '배치모드 '+(_placeMode?'ON(클릭=설치)':'OFF(클릭=이동)'); };
   window._propMirror=(on)=>{ _propMirrorOn=(on!==false); return '대칭배치(블루↔레드 자동) '+(_propMirrorOn?'ON':'OFF'); };
   window._propUndo=()=>{ const p=_placed.pop(); if(p)scene.remove(p.obj); return _placed.length+'개 남음'; };
   window._propClear=()=>{ _placed.forEach(p=>scene.remove(p.obj)); _placed.length=0; return '전부 삭제'; };
-  window._propSize=(type,v)=>{ if(_PROP_SIZE[type]==null)return "type: 'nexus' 또는 'turret'"; _PROP_SIZE[type]=v; _placed.filter(p=>(p.key.indexOf('nexus')===0)===(type==='nexus')).forEach(p=>{ p.obj.scale.setScalar((v*(p.scale||1))/(p.h0||1)); p.obj.updateMatrixWorld(true); const bx=new THREE.Box3().setFromObject(p.obj); p.obj.position.y=groundY(p.x,p.z)-bx.min.y+(p.yOff||0); }); return type+' 크기='+v; };
-  window._propDump=()=>{ const d=_placed.map(p=>({key:p.key,x:+p.x.toFixed(1),z:+p.z.toFixed(1),ry:+p.ry.toFixed(2),scale:p.scale,yOff:+(p.yOff||0).toFixed(2)})); console.log('PROPS='+JSON.stringify(d)); return d.length+'개 — 콘솔의 PROPS=... 줄을 복사해서 클로드에게 주세요'; };
+  window._propSize=(type,v)=>{ if(_PROP_SIZE[type]==null)return "type: 'nexus' 또는 'turret'"; _PROP_SIZE[type]=v; _placed.filter(p=>(p.key.indexOf('nexus')===0)===(type==='nexus')).forEach(p=>{ p.obj.updateMatrixWorld(true); const bottom=new THREE.Box3().setFromObject(p.obj).min.y; p.obj.scale.setScalar((v*(p.scale||1))/(p.h0||1)); p.obj.updateMatrixWorld(true); const b1=new THREE.Box3().setFromObject(p.obj); p.obj.position.y+=(bottom-b1.min.y); p.y=p.obj.position.y; }); return type+' 크기='+v; };   // 베이스(바닥) 고정 리사이즈
+  window._propDump=()=>{ const d=_placed.map(p=>({key:p.key,x:+p.x.toFixed(1),z:+p.z.toFixed(1),ry:+p.ry.toFixed(2),scale:p.scale,y:+(p.y||0).toFixed(2)})); console.log('PROPS='+JSON.stringify(d)); return d.length+'개 — 콘솔의 PROPS=... 줄을 복사해서 클로드에게 주세요'; };
   // 🏰 배치 패널 UI (상단 🏰 버튼으로 열기)
   { const BS='padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#ffe7b0;font-weight:800;font-size:12px;cursor:pointer;';
     const bp=document.createElement('div'); bp.style.cssText='position:absolute;left:50%;bottom:52px;transform:translateX(-50%);z-index:7;display:none;flex-direction:column;gap:6px;background:rgba(10,8,16,.93);border:1px solid rgba(240,200,90,.45);border-radius:12px;padding:10px 12px;';
     const mk=(t)=>{ const b=document.createElement('button'); b.textContent=t; b.style.cssText=BS; return b; };
     const sels=[['turretB','🔵 포탑'],['turretR','🔴 포탑'],['nexusB','🔵 넥서스'],['nexusR','🔴 넥서스']]; const selBtns={};
     function info(){ const nm=(sels.find(x=>x[0]===_propBrush)||['','?'])[1]; inf.textContent='설치 '+_placed.length+'개 · '+(_placeMode?('['+nm+'] 선택됨 — 바닥을 클릭'):'이동 모드'); }
-    function sz(mult){ const type=_propBrush.indexOf('nexus')===0?'nexus':'turret'; _PROP_SIZE[type]*=mult; _placed.filter(p=>(p.key.indexOf('nexus')===0)===(type==='nexus')).forEach(p=>{ p.obj.scale.setScalar((_PROP_SIZE[type]*(p.scale||1))/(p.h0||1)); p.obj.updateMatrixWorld(true); const bx=new THREE.Box3().setFromObject(p.obj); p.obj.position.y=groundY(p.x,p.z)-bx.min.y+(p.yOff||0); }); }   // ⚠️ p.h0(원본 높이) 사용 — 스케일된 객체서 재측정하면 점점 작아져 사라짐
+    function sz(mult){ const type=_propBrush.indexOf('nexus')===0?'nexus':'turret'; _PROP_SIZE[type]*=mult; _placed.filter(p=>(p.key.indexOf('nexus')===0)===(type==='nexus')).forEach(p=>{ p.obj.updateMatrixWorld(true); const bottom=new THREE.Box3().setFromObject(p.obj).min.y; p.obj.scale.setScalar((_PROP_SIZE[type]*(p.scale||1))/(p.h0||1)); p.obj.updateMatrixWorld(true); const b1=new THREE.Box3().setFromObject(p.obj); p.obj.position.y+=(bottom-b1.min.y); p.y=p.obj.position.y; }); }   // ⚠️ p.h0(원본 높이)로 스케일·베이스(바닥) 고정 — 안 그러면 점점 작아져 사라지거나 위치가 튐
     const _mirKey=(k)=>k.slice(0,-1)+(k.slice(-1)==='B'?'R':'B');
-    function _moveProp(p,x,z){ p.x=x; p.z=z; p.obj.position.x=x; p.obj.position.z=z; p.obj.updateMatrixWorld(true); const bx=new THREE.Box3().setFromObject(p.obj); p.obj.position.y=groundY(x,z)-bx.min.y+(p.yOff||0); }
-    function _applyY(p){ p.obj.updateMatrixWorld(true); const bx=new THREE.Box3().setFromObject(p.obj); p.obj.position.y=groundY(p.x,p.z)-bx.min.y+(p.yOff||0); }   // yOff>0=띄움 / yOff<0=땅에 박음(관통)
-    function adjustLastY(delta){ if(!_placed.length){ showS1Toast('포탑을 먼저 설치하세요'); return; }
-      const brushProp=[..._placed].reverse().find(p=>p.key===_propBrush) || _placed[_placed.length-1];
-      brushProp.yOff=(brushProp.yOff||0)+delta; _applyY(brushProp);
-      const mate=[..._placed].reverse().find(p=>p!==brushProp && p.key===_mirKey(brushProp.key));
-      if(_propMirrorOn && mate){ mate.yOff=(mate.yOff||0)+delta; _applyY(mate); }
-      info();
-    }
-    function moveLastHere(){ if(!_placed.length){ showS1Toast('이동할 포탑이 없어요 (먼저 설치)'); return; }
-      const x=me.pos.x, z=me.pos.z;
-      const brushProp=[..._placed].reverse().find(p=>p.key===_propBrush) || _placed[_placed.length-1];   // 선택 색 우선, 없으면 마지막
-      _moveProp(brushProp, x, z);
-      const mate=[..._placed].reverse().find(p=>p!==brushProp && p.key===_mirKey(brushProp.key));   // 미러 짝(있으면 같이)
-      if(_propMirrorOn && mate) _moveProp(mate, -x, -z);
-      showS1Toast('📍 여기로 이동했어요'); info();
-    }
+    const _setPos=(p)=>{ p.obj.position.set(p.x,p.y,p.z); };
+    function _groundAlign(p,x,z){ p.x=x; p.z=z; p.obj.position.set(x,0,z); p.obj.updateMatrixWorld(true); const bx=new THREE.Box3().setFromObject(p.obj); p.y=groundY(x,z)-bx.min.y; p.obj.position.y=p.y; }   // 바닥에 딱 맞춤(여기로 이동용)
+    function _targetProps(){ const bp=[..._placed].reverse().find(p=>p.key===_propBrush) || _placed[_placed.length-1]; const mate=bp?[..._placed].reverse().find(p=>p!==bp && p.key===_mirKey(bp.key)):null; return {bp,mate}; }   // 선택색 마지막 + 미러 짝
+    function nudgeLast(dx,dy,dz){ if(!_placed.length){ showS1Toast('포탑을 먼저 설치하세요'); return; } const {bp,mate}=_targetProps(); bp.x+=dx; bp.y+=dy; bp.z+=dz; _setPos(bp); if(_propMirrorOn && mate){ mate.x-=dx; mate.y+=dy; mate.z-=dz; _setPos(mate); } info(); }   // 각 축 자유 이동(제한 없음·Y는 땅 관통 가능)
+    function rotLast(da){ if(!_placed.length)return; const {bp,mate}=_targetProps(); bp.ry=(bp.ry||0)+da; bp.obj.rotation.y=bp.ry; if(_propMirrorOn && mate){ mate.ry=(mate.ry||0)+da; mate.obj.rotation.y=mate.ry; } }
+    function moveLastHere(){ if(!_placed.length){ showS1Toast('이동할 포탑이 없어요 (먼저 설치)'); return; } const x=me.pos.x, z=me.pos.z; const {bp,mate}=_targetProps(); _groundAlign(bp,x,z); if(_propMirrorOn && mate) _groundAlign(mate,-x,-z); showS1Toast('📍 여기로 이동(바닥)'); info(); }
     const r1=document.createElement('div'); r1.style.cssText='display:flex;gap:6px;flex-wrap:wrap;justify-content:center;';
     sels.forEach(([k,t])=>{ const b=mk(t); selBtns[k]=b; b.onclick=()=>{ _propBrush=k; _placeMode=true; Object.values(selBtns).forEach(x=>x.style.background='rgba(255,255,255,.08)'); b.style.background='rgba(240,200,90,.4)'; info(); }; r1.appendChild(b); });
     const r2=document.createElement('div'); r2.style.cssText='display:flex;gap:6px;flex-wrap:wrap;justify-content:center;';
     const bMir=mk('대칭 ✓'); bMir.onclick=()=>{ _propMirrorOn=!_propMirrorOn; bMir.textContent='대칭 '+(_propMirrorOn?'✓':'✕'); };
     const bDn=mk('크기 −'); bDn.onclick=()=>sz(0.85);
     const bUp=mk('크기 ＋'); bUp.onclick=()=>sz(1.18);
-    const _yStep=()=>{ const t=_propBrush.indexOf('nexus')===0?'nexus':'turret'; return (_PROP_SIZE[t]||3.5)*0.1; };   // 크기 비례 높이 스텝
-    const bSink=mk('▼ 박기'); bSink.style.background='rgba(180,120,255,.26)'; bSink.onclick=()=>adjustLastY(-_yStep());   // 땅으로 관통(아래로)
-    const bRaise=mk('▲ 올리기'); bRaise.style.background='rgba(180,120,255,.26)'; bRaise.onclick=()=>adjustLastY(_yStep());   // 위로
+    const bRot=mk('↻ 회전'); bRot.onclick=()=>rotLast(Math.PI/12);
     const bU=mk('↩ 취소'); bU.onclick=()=>{ const p=_placed.pop(); if(p)scene.remove(p.obj); info(); };
-    const bW=mk('📍 여기로 이동'); bW.style.background='rgba(120,180,255,.28)'; bW.onclick=()=>moveLastHere();   // 설치된 포탑(+미러)을 내 캐릭터 위치로 이동(모바일=바닥터치 막혀 이게 유일한 이동수단)
-    const bSv=mk('💾 저장'); bSv.style.background='rgba(120,240,150,.25)'; bSv.onclick=()=>{ try{ set(ref(db,'plaza_props'), _placed.map(p=>({key:p.key,x:+p.x.toFixed(1),z:+p.z.toFixed(1),ry:+p.ry.toFixed(2),scale:p.scale,yOff:+(p.yOff||0).toFixed(2)}))); showS1Toast('💾 '+_placed.length+'개 저장됨!'); }catch(e){ showS1Toast('저장 실패'); } };
+    const bW=mk('📍 여기로'); bW.style.background='rgba(120,180,255,.28)'; bW.onclick=()=>moveLastHere();   // 캐릭터 위치(바닥)로 스냅
+    const bSv=mk('💾 저장'); bSv.style.background='rgba(120,240,150,.25)'; bSv.onclick=()=>{ try{ set(ref(db,'plaza_props'), _placed.map(p=>({key:p.key,x:+p.x.toFixed(1),z:+p.z.toFixed(1),ry:+p.ry.toFixed(2),scale:p.scale,y:+(p.y||0).toFixed(2)}))); showS1Toast('💾 '+_placed.length+'개 저장됨!'); }catch(e){ showS1Toast('저장 실패'); } };
     const bHere=mk('📍 여기 설치'); bHere.style.background='rgba(240,200,90,.3)'; bHere.onclick=()=>{ const x=me.pos.x, z=me.pos.z; _addProp(_propBrush,x,z,0,1); if(_propMirrorOn){ const mk2=_propBrush.slice(0,-1)+(_propBrush.slice(-1)==='B'?'R':'B'); _addProp(mk2,-x,-z,Math.PI,1); } info(); };
-    [bMir,bDn,bUp,bSink,bRaise,bU,bW,bHere,bSv].forEach(b=>r2.appendChild(b));
+    [bMir,bDn,bUp,bRot,bU,bW,bHere,bSv].forEach(b=>r2.appendChild(b));
+    // 🎚️ 마지막 설치 포탑(+미러) 각 축 자유 이동 — 제한 없음(Y는 땅 관통까지). 스텝: 가로 1.0 / 높이 0.5
+    const r3=document.createElement('div'); r3.style.cssText='display:flex;gap:6px;flex-wrap:wrap;justify-content:center;';
+    const SX=1.0, SY=0.5; const nb=(t,dx,dy,dz)=>{ const b=mk(t); b.style.background='rgba(180,120,255,.24)'; b.onclick=()=>nudgeLast(dx,dy,dz); return b; };
+    [nb('◀ X',-SX,0,0),nb('X ▶',SX,0,0),nb('Z −',0,0,-SX),nb('Z ＋',0,0,SX),nb('높이 −',0,-SY,0),nb('높이 ＋',0,SY,0)].forEach(b=>r3.appendChild(b));
     const inf=document.createElement('div'); inf.style.cssText='text-align:center;font-size:11px;color:#cbd3e6;';
-    bp.appendChild(r1); bp.appendChild(r2); bp.appendChild(inf); ov.appendChild(bp); info();
+    bp.appendChild(r1); bp.appendChild(r2); bp.appendChild(r3); bp.appendChild(inf); ov.appendChild(bp); info();
     const tg=document.createElement('button'); tg.textContent='🏰'; tg.title='배치 도구'; tg.style.cssText='pointer-events:auto;margin-right:8px;width:36px;height:36px;border-radius:10px;background:rgba(240,200,90,.22);border:1px solid rgba(240,200,90,.55);color:#ffe7b0;font-size:16px;cursor:pointer;';
     tg.onclick=()=>{ const open=bp.style.display==='none'; bp.style.display=open?'flex':'none'; if(!open)_placeMode=false; };
     const xb=ov.querySelector('#pz-x'); if(xb&&xb.parentNode)xb.parentNode.insertBefore(tg,xb);
