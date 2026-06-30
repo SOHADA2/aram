@@ -6899,7 +6899,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.467';
+const APP_VERSION = 'v2.45.468';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -33753,7 +33753,7 @@ window.openPlaza=async function(){
     try{({RoomEnvironment}=await import('three/addons/environments/RoomEnvironment.js'));}catch(_){}
     try{({EffectComposer}=await import('three/addons/postprocessing/EffectComposer.js')); ({RenderPass}=await import('three/addons/postprocessing/RenderPass.js')); ({UnrealBloomPass}=await import('three/addons/postprocessing/UnrealBloomPass.js')); ({OutputPass}=await import('three/addons/postprocessing/OutputPass.js'));}catch(_){}
   }catch(e){ _plazaActive=false; showS1Toast('3D 로드 실패'); return; }
-  const SPEED=4.4;
+  const WALK_SPEED=3.4, RUN_SPEED=7.2, RUN_AFTER=1.1;
   const ov=document.createElement('div'); ov.id='plaza-ov';
   ov.innerHTML=`<div class="plaza-top"><div><div class="pz-title">🏘️ 단짝 광장 <span style="font-size:11px;color:#7CFC9A;font-family:'Noto Sans KR'">베타</span></div><div class="pz-count" id="pz-count">접속 …</div></div><button class="plaza-x" id="pz-x">✕</button></div><div id="plaza-stage"></div><div class="plaza-hint">PC: 클릭/WASD 이동 · 휠로 줌 · 모바일: 화면 드래그(조이스틱) · 친구들이 실시간으로 보여요</div>`;
   document.body.appendChild(ov);
@@ -33768,7 +33768,7 @@ window.openPlaza=async function(){
   // 🗺️ 소환사 협곡 맵 (튜닝: 콘솔 _riftTune({scale,fit,ox,oy,oz,ry}))
   const _RIFT = (window._RIFT_CFG = window._RIFT_CFG || {scale:1, rx:0, ry:0, rz:0, ox:0, oy:0, oz:0, fit:220});
   let HALF=Math.round(_RIFT.fit*0.42);   // 이동 경계(맵 크기에 맞춤)
-  let riftRoot=null, _riftRaw=null;
+  let riftRoot=null, _riftRaw=null, _snapCam=true;
   function applyRift(){ if(!riftRoot||!_riftRaw)return; const {c,sz,minY}=_riftRaw; const s=(_RIFT.fit/Math.max(sz.x,sz.z))*_RIFT.scale;
     riftRoot.scale.setScalar(s); riftRoot.rotation.set(_RIFT.rx,_RIFT.ry,_RIFT.rz);
     riftRoot.position.set(-c.x*s+_RIFT.ox, -minY*s+_RIFT.oy, -c.z*s+_RIFT.oz); HALF=Math.round(_RIFT.fit*0.42); }
@@ -33781,7 +33781,7 @@ window.openPlaza=async function(){
         const noTex=ms.length&&ms.every(m=>!m.map);
         if(noTex&&o.geometry&&o.geometry.attributes.position){ const pos=o.geometry.attributes.position, uv=new Float32Array(pos.count*2); for(let vi=0;vi<pos.count;vi++){ uv[vi*2]=pos.getX(vi)*0.15; uv[vi*2+1]=pos.getY(vi)*0.15; } o.geometry.setAttribute('uv',new THREE.BufferAttribute(uv,2)); }   // 평면 투영 UV
         ms.forEach(m=>{ if(!m.map){ if(_fbMap){ const t=_fbMap.clone(); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.needsUpdate=true; m.map=t; m.color&&m.color.setHex(0xffffff); } else m.color&&m.color.setHex(0x5a5448); m.needsUpdate=true; } m.toneMapped=false; m.side=THREE.DoubleSide; m.transparent=false; m.alphaTest=0.08; m.depthWrite=true; }); } });
-      scene.add(root); riftRoot=root; applyRift(); try{ if(!_RIFT._aligned){ const rc=new THREE.Raycaster(); rc.set(new THREE.Vector3(0,400,0),new THREE.Vector3(0,-1,0)); const hh=rc.intersectObject(root,true); if(hh.length){ _RIFT.oy-=hh[0].point.y; _RIFT._aligned=true; applyRift(); } } }catch(_){}
+      scene.add(root); riftRoot=root; applyRift(); try{ if(!_RIFT._aligned){ const rc=new THREE.Raycaster(); rc.set(new THREE.Vector3(0,400,0),new THREE.Vector3(0,-1,0)); const hh=rc.intersectObject(root,true); if(hh.length){ _RIFT.oy-=hh[0].point.y; _RIFT._aligned=true; applyRift(); } } }catch(_){} _snapCam=true;
     }, undefined, e=>{ console.warn('rift load fail',e); });
   }
   const grnd=new THREE.Mesh(new THREE.PlaneGeometry(500,500), new THREE.MeshBasicMaterial({visible:false})); grnd.rotation.x=-Math.PI/2; scene.add(grnd);   // 무형 바닥(레이캐스트 전용)
@@ -33816,7 +33816,7 @@ window.openPlaza=async function(){
   me.pos.set(-28+(Math.random()*4-2), 0, 58+(Math.random()*4-2)); me.target.copy(me.pos);   // 시작=맵 왼쪽 하단
   loadInto(me,myChamp,myData);
   { const np=document.createElement('div'); np.className='pz-nameplate me'; np.textContent=(myName||myData.name||'나'); stage.appendChild(np); me.np=np; }
-  camera.position.set(me.pos.x,16,me.pos.z+18);
+  camera.position.set(me.pos.x,6.5,me.pos.z+7.5);
   const ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
   renderer.domElement.addEventListener('pointerdown',e=>{ if(e.pointerType==='touch')return; const r=renderer.domElement.getBoundingClientRect(); ndc.x=((e.clientX-r.left)/r.width)*2-1; ndc.y=-((e.clientY-r.top)/r.height)*2+1; ray.setFromCamera(ndc,camera); const hit=ray.intersectObject(grnd)[0]; if(hit) me.target.set(Math.max(-HALF,Math.min(HALF,hit.point.x)),0,Math.max(-HALF,Math.min(HALF,hit.point.z))); });
   // ⌨️ WASD/방향키 (PC)
@@ -33827,10 +33827,10 @@ window.openPlaza=async function(){
   // 🕹️ 모바일 조이스틱(터치 위치에 떠서 드래그)
   const joy={active:false,vx:0,vz:0,cx:0,cy:0};
   if(('ontouchstart' in window)||navigator.maxTouchPoints>0){
-    const jb=document.createElement('div'); jb.className='pz-joy'; jb.innerHTML='<div class="pz-joy-knob"></div>'; ov.appendChild(jb); const knob=jb.querySelector('.pz-joy-knob'); const R=46;
-    const jstart=e=>{ const t=e.touches?e.touches[0]:e; joy.active=true; joy.cx=t.clientX; joy.cy=t.clientY; jb.style.left=(t.clientX-60)+'px'; jb.style.top=(t.clientY-60)+'px'; jb.style.display='block'; e.preventDefault(); };
-    const jmove=e=>{ if(!joy.active)return; const t=e.touches?e.touches[0]:e; let dx=t.clientX-joy.cx, dy=t.clientY-joy.cy; const dd=Math.hypot(dx,dy)||1; if(dd>R){ dx=dx/dd*R; dy=dy/dd*R; } knob.style.transform='translate('+dx+'px,'+dy+'px)'; joy.vx=dx/R; joy.vz=dy/R; e.preventDefault(); };
-    const jend=()=>{ joy.active=false; joy.vx=joy.vz=0; knob.style.transform='translate(0,0)'; jb.style.display='none'; };
+    const jb=document.createElement('div'); jb.className='pz-joy'; jb.innerHTML='<div class="pz-joy-knob"></div>'; ov.appendChild(jb); const knob=jb.querySelector('.pz-joy-knob'); const R=46; let _pinchD=0;
+    const jstart=e=>{ if(e.touches&&e.touches.length>=2){ joy.active=false; jb.style.display='none'; const a=e.touches[0],b=e.touches[1]; _pinchD=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY); e.preventDefault(); return; } const t=e.touches?e.touches[0]:e; joy.active=true; joy.cx=t.clientX; joy.cy=t.clientY; jb.style.left=(t.clientX-60)+'px'; jb.style.top=(t.clientY-60)+'px'; jb.style.display='block'; e.preventDefault(); };
+    const jmove=e=>{ if(e.touches&&e.touches.length>=2){ const a=e.touches[0],b=e.touches[1]; const d=Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)||1; if(_pinchD)camZoom=Math.max(0.55,Math.min(2.6,camZoom*(_pinchD/d))); _pinchD=d; e.preventDefault(); return; } if(!joy.active)return; const t=e.touches?e.touches[0]:e; let dx=t.clientX-joy.cx, dy=t.clientY-joy.cy; const dd=Math.hypot(dx,dy)||1; if(dd>R){ dx=dx/dd*R; dy=dy/dd*R; } knob.style.transform='translate('+dx+'px,'+dy+'px)'; joy.vx=dx/R; joy.vz=dy/R; e.preventDefault(); };
+    const jend=()=>{ _pinchD=0; joy.active=false; joy.vx=joy.vz=0; knob.style.transform='translate(0,0)'; jb.style.display='none'; };
     stage.addEventListener('touchstart',jstart,{passive:false}); stage.addEventListener('touchmove',jmove,{passive:false}); stage.addEventListener('touchend',jend); stage.addEventListener('touchcancel',jend);
   }
   const myRef=ref(db,'plaza/'+myKey);
@@ -33857,19 +33857,19 @@ window.openPlaza=async function(){
     const _ox=me.pos.x,_oz=me.pos.z; let ix=0,iz=0;
     if(keys['w']||keys['arrowup'])iz-=1; if(keys['s']||keys['arrowdown'])iz+=1; if(keys['a']||keys['arrowleft'])ix-=1; if(keys['d']||keys['arrowright'])ix+=1;
     if(joy.active){ ix+=joy.vx; iz+=joy.vz; }
-    const il=Math.hypot(ix,iz);
-    if(il>0.12){ ix/=il; iz/=il; me.moving=true; me.pos.x+=ix*SPEED*dt; me.pos.z+=iz*SPEED*dt; me.dir=Math.atan2(ix,iz); me.target.copy(me.pos); }
-    else { const d=tmp.copy(me.target).sub(me.pos); d.y=0; const dist=d.length(); if(dist>0.12){ me.moving=true; d.normalize(); me.pos.addScaledVector(d,Math.min(dist,SPEED*dt)); me.dir=Math.atan2(d.x,d.z); } else me.moving=false; }
+    const _run=(me.moveT||0)>RUN_AFTER; me.spd=(me.spd||WALK_SPEED)+((_run?RUN_SPEED:WALK_SPEED)-(me.spd||WALK_SPEED))*0.1; const il=Math.hypot(ix,iz);
+    if(il>0.12){ ix/=il; iz/=il; me.moving=true; me.pos.x+=ix*me.spd*dt; me.pos.z+=iz*me.spd*dt; me.dir=Math.atan2(ix,iz); me.target.copy(me.pos); }
+    else { const d=tmp.copy(me.target).sub(me.pos); d.y=0; const dist=d.length(); if(dist>0.12){ me.moving=true; d.normalize(); me.pos.addScaledVector(d,Math.min(dist,me.spd*dt)); me.dir=Math.atan2(d.x,d.z); } else me.moving=false; }
     me.pos.x=Math.max(-HALF,Math.min(HALF,me.pos.x)); me.pos.z=Math.max(-HALF,Math.min(HALF,me.pos.z));
     { const _gh=groundHit(me.pos.x,me.pos.z); if(_gh===null){ me.pos.x=_ox; me.pos.z=_oz; me.target.set(_ox,0,_oz); me.moving=false; me.gy=groundY(_ox,_oz); } else me.gy=_gh; }
-    if(me.group){ me.group.position.set(me.pos.x,me.gy,me.pos.z); me.group.rotation.y=me.dir; setAnim(me,me.moving?me.run:me.idle); }
+    me.moveT=me.moving?((me.moveT||0)+dt):0; if(me.group){ me.group.position.set(me.pos.x,me.gy,me.pos.z); me.group.rotation.y=me.dir; setAnim(me,me.moving?me.run:me.idle); if(me._cur&&me.moving)me._cur.timeScale=Math.max(0.7,Math.min(1.5,me.spd/4.8)); }
     if(me.blob)me.blob.position.set(me.pos.x,me.gy+0.04,me.pos.z);
     if(me.mixer)me.mixer.update(dt);
     const t=performance.now(); if(t-_lastWrite>(me.moving?110:700)){ if(me.moving||_wasMoving!==me.moving){ writeMe(); } _wasMoving=me.moving; _lastWrite=t; }
     for(const k in others){ const u=others[k]; if(u.group){ const dd=tmp.copy(u.target).sub(u.pos); dd.y=0; const dl=dd.length();
-      if(dl>0.06){ dd.normalize(); u.pos.addScaledVector(dd,Math.min(dl,SPEED*1.1*dt)); u.dir=Math.atan2(dd.x,dd.z); u.group.rotation.y=u.dir; setAnim(u,u.run); } else setAnim(u,u.idle);
+      if(dl>0.06){ dd.normalize(); u.pos.addScaledVector(dd,Math.min(dl,RUN_SPEED*1.3*dt)); u.dir=Math.atan2(dd.x,dd.z); u.group.rotation.y=u.dir; u.moveT=(u.moveT||0)+dt; setAnim(u,u.run); if(u._cur)u._cur.timeScale=u.moveT>RUN_AFTER?1.3:0.85; } else { u.moveT=0; setAnim(u,u.idle); }
       u.gy=groundY(u.pos.x,u.pos.z); u.group.position.set(u.pos.x,u.gy,u.pos.z); } if(u.blob)u.blob.position.set(u.pos.x,(u.gy||0)+0.04,u.pos.z); if(u.mixer)u.mixer.update(dt); }
-    camera.position.lerp(tmp.set(me.pos.x,(me.gy||0),me.pos.z).addScaledVector(camOff,camZoom),0.08); camera.lookAt(me.pos.x,(me.gy||0)+0.8,me.pos.z);
+    { const _ct=tmp.set(me.pos.x,(me.gy||0),me.pos.z).addScaledVector(camOff,camZoom); if(_snapCam){ camera.position.copy(_ct); _snapCam=false; } else camera.position.lerp(_ct,0.08); } camera.lookAt(me.pos.x,(me.gy||0)+0.8,me.pos.z);
     { const pa=motes.geometry.attributes.position.array; for(let i=0;i<ptN;i++){ pa[i*3+1]+=dt*0.4; if(pa[i*3+1]>8.6){ pa[i*3+1]=0; pa[i*3]=Math.random()*HALF*2-HALF; pa[i*3+2]=Math.random()*HALF*2-HALF; } } motes.geometry.attributes.position.needsUpdate=true;
       const tt=clock.elapsedTime; for(const f of _flick){ f.lt.intensity=f.base*(0.82+0.18*Math.sin(tt*9+f.ph)+0.08*Math.sin(tt*23+f.ph*2)); f.fire.scale.setScalar(0.9+0.12*Math.sin(tt*11+f.ph)); } }
     if(composer)composer.render(); else renderer.render(scene,camera);
