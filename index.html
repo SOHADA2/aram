@@ -6899,7 +6899,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.448';
+const APP_VERSION = 'v2.45.449';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -33739,6 +33739,8 @@ function _injectPlazaCss(){ if(document.getElementById('plaza-css'))return; cons
   .plaza-hint{position:absolute;bottom:14px;left:0;right:0;text-align:center;z-index:5;font-size:11.5px;color:#9aa0b4;pointer-events:none;}
   .pz-nameplate{position:absolute;transform:translate(-50%,-100%);z-index:4;pointer-events:none;background:linear-gradient(165deg,rgba(26,21,12,.92),rgba(12,10,7,.94));border:1px solid rgba(240,200,90,.5);border-radius:8px;padding:1px 8px;font-size:11px;font-weight:800;color:#ffe7b0;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.7);}
   .pz-nameplate.me{border-color:#7CFC9A;color:#bfffce;}
+  .pz-joy{position:absolute;display:none;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.07),rgba(255,255,255,.02));border:2px solid rgba(240,200,90,.4);z-index:6;pointer-events:none;}
+  .pz-joy-knob{position:absolute;left:50%;top:50%;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#ffe08a,#cf9a2e);border:2px solid rgba(255,255,255,.35);box-shadow:0 3px 10px rgba(0,0,0,.5);}
   `; document.head.appendChild(s);
 }
 window.openPlaza=async function(){
@@ -33752,7 +33754,7 @@ window.openPlaza=async function(){
   }catch(e){ _plazaActive=false; showS1Toast('3D 로드 실패'); return; }
   const SPEED=4.4;
   const ov=document.createElement('div'); ov.id='plaza-ov';
-  ov.innerHTML=`<div class="plaza-top"><div><div class="pz-title">🏘️ 단짝 광장 <span style="font-size:11px;color:#7CFC9A;font-family:'Noto Sans KR'">베타</span></div><div class="pz-count" id="pz-count">접속 …</div></div><button class="plaza-x" id="pz-x">✕</button></div><div id="plaza-stage"></div><div class="plaza-hint">바닥을 클릭 = 그쪽으로 걸어가기 · 접속한 친구들이 실시간으로 보여요</div>`;
+  ov.innerHTML=`<div class="plaza-top"><div><div class="pz-title">🏘️ 단짝 광장 <span style="font-size:11px;color:#7CFC9A;font-family:'Noto Sans KR'">베타</span></div><div class="pz-count" id="pz-count">접속 …</div></div><button class="plaza-x" id="pz-x">✕</button></div><div id="plaza-stage"></div><div class="plaza-hint">PC: 클릭/WASD 이동 · 휠로 줌 · 모바일: 화면 드래그(조이스틱) · 친구들이 실시간으로 보여요</div>`;
   document.body.appendChild(ov);
   const stage=ov.querySelector('#plaza-stage');
   const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'low-power'});
@@ -33762,7 +33764,10 @@ window.openPlaza=async function(){
   try{ if(RoomEnvironment){ const pm=new THREE.PMREMGenerator(renderer); scene.environment=pm.fromScene(new RoomEnvironment(),0.04).texture; } }catch(_){}
   scene.add(new THREE.HemisphereLight(0xdfeaff,0x1a1a24,1.25)); const dl=new THREE.DirectionalLight(0xfff0d0,1.1); dl.position.set(6,12,8); scene.add(dl);
   const grnd=new THREE.Mesh(new THREE.PlaneGeometry(120,120), new THREE.MeshStandardMaterial({color:0x14111e,roughness:.96,metalness:.08})); grnd.rotation.x=-Math.PI/2; scene.add(grnd);
-  const grid=new THREE.GridHelper(120,60,0x4a3c20,0x2a2114); grid.position.y=0.01; scene.add(grid);
+  const HALF=22;   // 🏟️ 광장 반경(±22 = 44×44)
+  const grid=new THREE.GridHelper(HALF*2,HALF,0x4a3c20,0x2a2114); grid.position.y=0.01; scene.add(grid);
+  const wallMat=new THREE.MeshStandardMaterial({color:0x2a2114,emissive:0xe0a82e,emissiveIntensity:.2,transparent:true,opacity:.55,roughness:.7});
+  [[0,-HALF,0],[0,HALF,0],[-HALF,0,Math.PI/2],[HALF,0,Math.PI/2]].forEach(([wx,wz,ry])=>{ const w=new THREE.Mesh(new THREE.BoxGeometry(HALF*2+0.6,1.5,0.35),wallMat); w.position.set(wx,0.75,wz); if(ry)w.rotation.y=ry; scene.add(w); });
   const camera=new THREE.PerspectiveCamera(50,1,0.1,260);
   function resize(){ const w=stage.clientWidth||innerWidth, h=stage.clientHeight||innerHeight; renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); }
   resize(); window.addEventListener('resize',resize);
@@ -33788,7 +33793,21 @@ window.openPlaza=async function(){
   { const np=document.createElement('div'); np.className='pz-nameplate me'; np.textContent=(myName||myData.name||'나'); stage.appendChild(np); me.np=np; }
   camera.position.set(me.pos.x,16,me.pos.z+18);
   const ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
-  renderer.domElement.addEventListener('pointerdown',e=>{ const r=renderer.domElement.getBoundingClientRect(); ndc.x=((e.clientX-r.left)/r.width)*2-1; ndc.y=-((e.clientY-r.top)/r.height)*2+1; ray.setFromCamera(ndc,camera); const hit=ray.intersectObject(grnd)[0]; if(hit) me.target.set(Math.max(-40,Math.min(40,hit.point.x)),0,Math.max(-40,Math.min(40,hit.point.z))); });
+  renderer.domElement.addEventListener('pointerdown',e=>{ if(e.pointerType==='touch')return; const r=renderer.domElement.getBoundingClientRect(); ndc.x=((e.clientX-r.left)/r.width)*2-1; ndc.y=-((e.clientY-r.top)/r.height)*2+1; ray.setFromCamera(ndc,camera); const hit=ray.intersectObject(grnd)[0]; if(hit) me.target.set(Math.max(-HALF,Math.min(HALF,hit.point.x)),0,Math.max(-HALF,Math.min(HALF,hit.point.z))); });
+  // ⌨️ WASD/방향키 (PC)
+  const keys={}; const kd=e=>{ const k=(e.key||'').toLowerCase(); if('wasd'.includes(k)||k.startsWith('arrow')){ keys[k]=true; e.preventDefault(); } }; const ku=e=>{ const k=(e.key||'').toLowerCase(); if('wasd'.includes(k)||k.startsWith('arrow')) keys[k]=false; };
+  window.addEventListener('keydown',kd); window.addEventListener('keyup',ku);
+  // 🖱️ 휠 줌(멀리/가까이)
+  let camZoom=1; renderer.domElement.addEventListener('wheel',e=>{ camZoom=Math.max(0.55,Math.min(2.6,camZoom+e.deltaY*0.0013)); e.preventDefault(); },{passive:false});
+  // 🕹️ 모바일 조이스틱(터치 위치에 떠서 드래그)
+  const joy={active:false,vx:0,vz:0,cx:0,cy:0};
+  if(('ontouchstart' in window)||navigator.maxTouchPoints>0){
+    const jb=document.createElement('div'); jb.className='pz-joy'; jb.innerHTML='<div class="pz-joy-knob"></div>'; ov.appendChild(jb); const knob=jb.querySelector('.pz-joy-knob'); const R=46;
+    const jstart=e=>{ const t=e.touches?e.touches[0]:e; joy.active=true; joy.cx=t.clientX; joy.cy=t.clientY; jb.style.left=(t.clientX-60)+'px'; jb.style.top=(t.clientY-60)+'px'; jb.style.display='block'; e.preventDefault(); };
+    const jmove=e=>{ if(!joy.active)return; const t=e.touches?e.touches[0]:e; let dx=t.clientX-joy.cx, dy=t.clientY-joy.cy; const dd=Math.hypot(dx,dy)||1; if(dd>R){ dx=dx/dd*R; dy=dy/dd*R; } knob.style.transform='translate('+dx+'px,'+dy+'px)'; joy.vx=dx/R; joy.vz=dy/R; e.preventDefault(); };
+    const jend=()=>{ joy.active=false; joy.vx=joy.vz=0; knob.style.transform='translate(0,0)'; jb.style.display='none'; };
+    stage.addEventListener('touchstart',jstart,{passive:false}); stage.addEventListener('touchmove',jmove,{passive:false}); stage.addEventListener('touchend',jend); stage.addEventListener('touchcancel',jend);
+  }
   const myRef=ref(db,'plaza/'+myKey);
   const writeMe=()=>{ set(myRef,{ name:(myName||myData.name||'?'), champ:myChamp, x:+me.pos.x.toFixed(2), z:+me.pos.z.toFixed(2), dir:+me.dir.toFixed(2), moving:me.moving, at:Date.now() }).catch(()=>{}); };
   try{ onDisconnect(myRef).remove(); }catch(_){}
@@ -33803,21 +33822,26 @@ window.openPlaza=async function(){
       u.target.set(e.x||0,0,e.z||0); u.moving=!!e.moving; if(u.np)u.np.textContent=e.name||'?'; }
     for(const k in others){ if(!live[k]){ const u=others[k]; if(u.group)scene.remove(u.group); if(u.np)u.np.remove(); delete others[k]; } }
   }
-  const cleanup=()=>{ if(!_plazaActive)return; _plazaActive=false; cancelAnimationFrame(raf); clearInterval(_hb); try{unsub();}catch(_){} try{remove(myRef);}catch(_){} try{onDisconnect(myRef).cancel();}catch(_){} window.removeEventListener('resize',resize); try{renderer.dispose();}catch(_){} if(me.np)me.np.remove(); for(const k in others){ if(others[k].np)others[k].np.remove(); } try{ov.remove();}catch(_){} };
+  const cleanup=()=>{ if(!_plazaActive)return; _plazaActive=false; cancelAnimationFrame(raf); clearInterval(_hb); try{unsub();}catch(_){} try{remove(myRef);}catch(_){} try{onDisconnect(myRef).cancel();}catch(_){} window.removeEventListener('resize',resize); window.removeEventListener('keydown',kd); window.removeEventListener('keyup',ku); try{renderer.dispose();}catch(_){} if(me.np)me.np.remove(); for(const k in others){ if(others[k].np)others[k].np.remove(); } try{ov.remove();}catch(_){} };
   ov.querySelector('#pz-x').onclick=cleanup;
   const clock=new THREE.Clock(), camOff=new THREE.Vector3(0,16,18), tmp=new THREE.Vector3(); let raf=0;
   const place=(u)=>{ if(!u.np||!u.group){ if(u.np)u.np.style.display='none'; return; } tmp.copy(u.pos); tmp.y+=2.0; tmp.project(camera); if(tmp.z>1){ u.np.style.display='none'; return; } u.np.style.display='block'; const w=stage.clientWidth,h=stage.clientHeight; u.np.style.left=((tmp.x*0.5+0.5)*w)+'px'; u.np.style.top=((-tmp.y*0.5+0.5)*h)+'px'; };
   (function loop(){ if(!_plazaActive)return; raf=requestAnimationFrame(loop); const dt=Math.min(0.05,clock.getDelta());
     syncOthers();
-    const d=tmp.copy(me.target).sub(me.pos); d.y=0; const dist=d.length();
-    if(dist>0.12){ me.moving=true; d.normalize(); me.pos.addScaledVector(d,Math.min(dist,SPEED*dt)); me.dir=Math.atan2(d.x,d.z); } else me.moving=false;
+    let ix=0,iz=0;
+    if(keys['w']||keys['arrowup'])iz-=1; if(keys['s']||keys['arrowdown'])iz+=1; if(keys['a']||keys['arrowleft'])ix-=1; if(keys['d']||keys['arrowright'])ix+=1;
+    if(joy.active){ ix+=joy.vx; iz+=joy.vz; }
+    const il=Math.hypot(ix,iz);
+    if(il>0.12){ ix/=il; iz/=il; me.moving=true; me.pos.x+=ix*SPEED*dt; me.pos.z+=iz*SPEED*dt; me.dir=Math.atan2(ix,iz); me.target.copy(me.pos); }
+    else { const d=tmp.copy(me.target).sub(me.pos); d.y=0; const dist=d.length(); if(dist>0.12){ me.moving=true; d.normalize(); me.pos.addScaledVector(d,Math.min(dist,SPEED*dt)); me.dir=Math.atan2(d.x,d.z); } else me.moving=false; }
+    me.pos.x=Math.max(-HALF,Math.min(HALF,me.pos.x)); me.pos.z=Math.max(-HALF,Math.min(HALF,me.pos.z));
     if(me.group){ me.group.position.copy(me.pos); me.group.rotation.y=me.dir; setAnim(me,me.moving?me.run:me.idle); }
     if(me.mixer)me.mixer.update(dt);
     const t=performance.now(); if(t-_lastWrite>(me.moving?110:700)){ if(me.moving||_wasMoving!==me.moving){ writeMe(); } _wasMoving=me.moving; _lastWrite=t; }
     for(const k in others){ const u=others[k]; if(u.group){ const dd=tmp.copy(u.target).sub(u.pos); dd.y=0; const dl=dd.length();
       if(dl>0.06){ dd.normalize(); u.pos.addScaledVector(dd,Math.min(dl,SPEED*1.1*dt)); u.dir=Math.atan2(dd.x,dd.z); u.group.rotation.y=u.dir; setAnim(u,u.run); } else setAnim(u,u.idle);
       u.group.position.copy(u.pos); } if(u.mixer)u.mixer.update(dt); }
-    camera.position.lerp(tmp.copy(me.pos).add(camOff),0.08); camera.lookAt(me.pos.x,me.pos.y+0.8,me.pos.z);
+    camera.position.lerp(tmp.copy(camOff).multiplyScalar(camZoom).add(me.pos),0.08); camera.lookAt(me.pos.x,me.pos.y+0.8,me.pos.z);
     renderer.render(scene,camera);
     place(me); for(const k in others) place(others[k]);
   })();
