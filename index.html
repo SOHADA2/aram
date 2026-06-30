@@ -6899,7 +6899,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.471';
+const APP_VERSION = 'v2.45.472';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -33867,6 +33867,29 @@ window.openPlaza=async function(){
   window._propClear=()=>{ _placed.forEach(p=>scene.remove(p.obj)); _placed.length=0; return '전부 삭제'; };
   window._propSize=(type,v)=>{ if(_PROP_SIZE[type]==null)return "type: 'nexus' 또는 'turret'"; _PROP_SIZE[type]=v; _placed.filter(p=>(p.key.indexOf('nexus')===0)===(type==='nexus')).forEach(p=>{ p.obj.scale.setScalar(v*(p.scale||1)); const bx=new THREE.Box3().setFromObject(p.obj); p.obj.position.y=groundY(p.x,p.z)-bx.min.y; }); return type+' 크기='+v; };
   window._propDump=()=>{ const d=_placed.map(p=>({key:p.key,x:+p.x.toFixed(1),z:+p.z.toFixed(1),ry:+p.ry.toFixed(2),scale:p.scale})); console.log('PROPS='+JSON.stringify(d)); return d.length+'개 — 콘솔의 PROPS=... 줄을 복사해서 클로드에게 주세요'; };
+  // 🏰 배치 패널 UI (상단 🏰 버튼으로 열기)
+  { const BS='padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#ffe7b0;font-weight:800;font-size:12px;cursor:pointer;';
+    const bp=document.createElement('div'); bp.style.cssText='position:absolute;left:50%;bottom:52px;transform:translateX(-50%);z-index:7;display:none;flex-direction:column;gap:6px;background:rgba(10,8,16,.93);border:1px solid rgba(240,200,90,.45);border-radius:12px;padding:10px 12px;';
+    const mk=(t)=>{ const b=document.createElement('button'); b.textContent=t; b.style.cssText=BS; return b; };
+    const sels=[['turretB','🔵 포탑'],['turretR','🔴 포탑'],['nexusB','🔵 넥서스'],['nexusR','🔴 넥서스']]; const selBtns={};
+    function info(){ const nm=(sels.find(x=>x[0]===_propBrush)||['','?'])[1]; inf.textContent='설치 '+_placed.length+'개 · '+(_placeMode?('['+nm+'] 선택됨 — 바닥을 클릭'):'이동 모드'); }
+    function sz(mult){ const type=_propBrush.indexOf('nexus')===0?'nexus':'turret'; _PROP_SIZE[type]*=mult; _placed.filter(p=>(p.key.indexOf('nexus')===0)===(type==='nexus')).forEach(p=>{ p.obj.scale.setScalar(_PROP_SIZE[type]*(p.scale||1)); const bx=new THREE.Box3().setFromObject(p.obj); p.obj.position.y=groundY(p.x,p.z)-bx.min.y; }); }
+    const r1=document.createElement('div'); r1.style.cssText='display:flex;gap:6px;flex-wrap:wrap;justify-content:center;';
+    sels.forEach(([k,t])=>{ const b=mk(t); selBtns[k]=b; b.onclick=()=>{ _propBrush=k; _placeMode=true; Object.values(selBtns).forEach(x=>x.style.background='rgba(255,255,255,.08)'); b.style.background='rgba(240,200,90,.4)'; info(); }; r1.appendChild(b); });
+    const r2=document.createElement('div'); r2.style.cssText='display:flex;gap:6px;flex-wrap:wrap;justify-content:center;';
+    const bMir=mk('대칭 ✓'); bMir.onclick=()=>{ _propMirrorOn=!_propMirrorOn; bMir.textContent='대칭 '+(_propMirrorOn?'✓':'✕'); };
+    const bDn=mk('크기 −'); bDn.onclick=()=>sz(0.85);
+    const bUp=mk('크기 ＋'); bUp.onclick=()=>sz(1.18);
+    const bU=mk('↩ 취소'); bU.onclick=()=>{ const p=_placed.pop(); if(p)scene.remove(p.obj); info(); };
+    const bW=mk('🚶 이동'); bW.onclick=()=>{ _placeMode=false; Object.values(selBtns).forEach(x=>x.style.background='rgba(255,255,255,.08)'); info(); };
+    const bSv=mk('💾 저장'); bSv.style.background='rgba(120,240,150,.25)'; bSv.onclick=()=>{ try{ set(ref(db,'plaza_props'), _placed.map(p=>({key:p.key,x:+p.x.toFixed(1),z:+p.z.toFixed(1),ry:+p.ry.toFixed(2),scale:p.scale}))); showS1Toast('💾 '+_placed.length+'개 저장됨!'); }catch(e){ showS1Toast('저장 실패'); } };
+    [bMir,bDn,bUp,bU,bW,bSv].forEach(b=>r2.appendChild(b));
+    const inf=document.createElement('div'); inf.style.cssText='text-align:center;font-size:11px;color:#cbd3e6;';
+    bp.appendChild(r1); bp.appendChild(r2); bp.appendChild(inf); ov.appendChild(bp); info();
+    const tg=document.createElement('button'); tg.textContent='🏰'; tg.title='배치 도구'; tg.style.cssText='pointer-events:auto;margin-right:8px;width:36px;height:36px;border-radius:10px;background:rgba(240,200,90,.22);border:1px solid rgba(240,200,90,.55);color:#ffe7b0;font-size:16px;cursor:pointer;';
+    tg.onclick=()=>{ const open=bp.style.display==='none'; bp.style.display=open?'flex':'none'; if(!open)_placeMode=false; };
+    const xb=ov.querySelector('#pz-x'); if(xb&&xb.parentNode)xb.parentNode.insertBefore(tg,xb);
+  }
   (function loop(){ if(!_plazaActive)return; raf=requestAnimationFrame(loop); const dt=Math.min(0.05,clock.getDelta());
     syncOthers();
     const _ox=me.pos.x,_oz=me.pos.z; let ix=0,iz=0;
