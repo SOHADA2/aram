@@ -6899,7 +6899,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.470';
+const APP_VERSION = 'v2.45.471';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -33819,7 +33819,7 @@ window.openPlaza=async function(){
   { const np=document.createElement('div'); np.className='pz-nameplate me'; np.textContent=(myName||myData.name||'나'); stage.appendChild(np); me.np=np; }
   camera.position.set(me.pos.x,6.5,me.pos.z+7.5);
   const ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
-  renderer.domElement.addEventListener('pointerdown',e=>{ if(e.pointerType==='touch')return; const r=renderer.domElement.getBoundingClientRect(); ndc.x=((e.clientX-r.left)/r.width)*2-1; ndc.y=-((e.clientY-r.top)/r.height)*2+1; ray.setFromCamera(ndc,camera); const hit=ray.intersectObject(grnd)[0]; if(hit) me.target.set(Math.max(-HALF,Math.min(HALF,hit.point.x)),0,Math.max(-HALF,Math.min(HALF,hit.point.z))); });
+  renderer.domElement.addEventListener('pointerdown',e=>{ if(e.pointerType==='touch')return; const r=renderer.domElement.getBoundingClientRect(); ndc.x=((e.clientX-r.left)/r.width)*2-1; ndc.y=-((e.clientY-r.top)/r.height)*2+1; ray.setFromCamera(ndc,camera); const hit=ray.intersectObject(grnd)[0]; if(!hit)return; const px=Math.max(-HALF,Math.min(HALF,hit.point.x)), pz=Math.max(-HALF,Math.min(HALF,hit.point.z)); if(_placeMode){ _addProp(_propBrush,px,pz,0,1); if(_propMirrorOn){ const mk=_propBrush.slice(0,-1)+(_propBrush.slice(-1)==='B'?'R':'B'); _addProp(mk,-px,-pz,Math.PI,1); } return; } me.target.set(px,0,pz); });
   // ⌨️ WASD/방향키 (PC)
   const keys={}; const kd=e=>{ const k=(e.key||'').toLowerCase(); if('wasd'.includes(k)||k.startsWith('arrow')){ keys[k]=true; e.preventDefault(); } }; const ku=e=>{ const k=(e.key||'').toLowerCase(); if('wasd'.includes(k)||k.startsWith('arrow')) keys[k]=false; };
   window.addEventListener('keydown',kd); window.addEventListener('keyup',ku);
@@ -33853,6 +33853,20 @@ window.openPlaza=async function(){
   const clock=new THREE.Clock(), camOff=new THREE.Vector3(0,6.5,7.5), tmp=new THREE.Vector3(); let raf=0;
   const _gRay=new THREE.Raycaster(), _gDown=new THREE.Vector3(0,-1,0), _gV=new THREE.Vector3(); const groundHit=(x,z)=>{ if(!riftRoot)return 0; _gRay.set(_gV.set(x,200,z),_gDown); const h=_gRay.intersectObject(riftRoot,true); return h.length?h[0].point.y:null; }; const groundY=(x,z)=>{ const y=groundHit(x,z); return y==null?0:y; };
   const place=(u)=>{ if(!u.np||!u.group){ if(u.np)u.np.style.display='none'; return; } tmp.set(u.pos.x,(u.gy||0)+0.56,u.pos.z); tmp.project(camera); if(tmp.z>1){ u.np.style.display='none'; return; } u.np.style.display='block'; const w=stage.clientWidth,h=stage.clientHeight; u.np.style.left=((tmp.x*0.5+0.5)*w)+'px'; u.np.style.top=((-tmp.y*0.5+0.5)*h)+'px'; };
+  // 🏰 포탑/넥서스 배치 도구 — 콘솔: _propPick('turretB') 후 바닥 클릭, 끝나면 _propDump()
+  const _PROP_GLB={nexusB:'nexus.glb',nexusR:'nexus.glb',turretB:'turret_blue.glb',turretR:'turret_red.glb'};
+  const _PROP_SIZE={nexus:0.006,turret:0.0042}; const _PLAZA_PROPS=[];
+  const _propCache={}, _placed=[]; let _propBrush='turretB', _placeMode=false, _propMirrorOn=true;
+  function _loadProp(key,cb){ const f=_PROP_GLB[key]; if(_propCache[f]){cb(_propCache[f]);return;} const pl=new GLTFLoader(); if(MSD){try{pl.setMeshoptDecoder(MSD);}catch(_){}} pl.load(f,g=>{_propCache[f]=g.scene;cb(g.scene);},undefined,e=>console.warn('prop',key,e)); }
+  function _addProp(key,x,z,ry,scale){ _loadProp(key,src=>{ if(!_plazaActive)return; const o=src.clone(true); o.traverse(n=>{ if(n.isMesh){ n.frustumCulled=true; (Array.isArray(n.material)?n.material:[n.material]).forEach(m=>{ m.toneMapped=false; m.side=THREE.DoubleSide; }); } }); const base=key.indexOf('nexus')===0?_PROP_SIZE.nexus:_PROP_SIZE.turret; o.scale.setScalar(base*(scale||1)); const bx=new THREE.Box3().setFromObject(o); o.position.set(x,groundY(x,z)-bx.min.y,z); o.rotation.y=ry||0; scene.add(o); _placed.push({key,x,z,ry:ry||0,scale:scale||1,obj:o}); }); }
+  _PLAZA_PROPS.forEach(p=>_addProp(p.key,p.x,p.z,p.ry,p.scale));
+  window._propPick=(k)=>{ if(!_PROP_GLB[k])return '키: nexusB nexusR turretB turretR'; _propBrush=k; _placeMode=true; return 'brush='+k+' · 배치모드 ON — 바닥 클릭하면 설치(이동 대신)'; };
+  window._propPlace=(on)=>{ _placeMode=(on!==false); return '배치모드 '+(_placeMode?'ON(클릭=설치)':'OFF(클릭=이동)'); };
+  window._propMirror=(on)=>{ _propMirrorOn=(on!==false); return '대칭배치(블루↔레드 자동) '+(_propMirrorOn?'ON':'OFF'); };
+  window._propUndo=()=>{ const p=_placed.pop(); if(p)scene.remove(p.obj); return _placed.length+'개 남음'; };
+  window._propClear=()=>{ _placed.forEach(p=>scene.remove(p.obj)); _placed.length=0; return '전부 삭제'; };
+  window._propSize=(type,v)=>{ if(_PROP_SIZE[type]==null)return "type: 'nexus' 또는 'turret'"; _PROP_SIZE[type]=v; _placed.filter(p=>(p.key.indexOf('nexus')===0)===(type==='nexus')).forEach(p=>{ p.obj.scale.setScalar(v*(p.scale||1)); const bx=new THREE.Box3().setFromObject(p.obj); p.obj.position.y=groundY(p.x,p.z)-bx.min.y; }); return type+' 크기='+v; };
+  window._propDump=()=>{ const d=_placed.map(p=>({key:p.key,x:+p.x.toFixed(1),z:+p.z.toFixed(1),ry:+p.ry.toFixed(2),scale:p.scale})); console.log('PROPS='+JSON.stringify(d)); return d.length+'개 — 콘솔의 PROPS=... 줄을 복사해서 클로드에게 주세요'; };
   (function loop(){ if(!_plazaActive)return; raf=requestAnimationFrame(loop); const dt=Math.min(0.05,clock.getDelta());
     syncOthers();
     const _ox=me.pos.x,_oz=me.pos.z; let ix=0,iz=0;
