@@ -6899,7 +6899,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.474';
+const APP_VERSION = 'v2.45.475';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -33761,6 +33761,27 @@ function _injectPlazaCss(){ if(document.getElementById('plaza-css'))return; cons
   @keyframes pzEmote{0%{opacity:0;transform:translate(-50%,-60%) scale(.4);}18%{opacity:1;transform:translate(-50%,-100%) scale(1.15);}30%{transform:translate(-50%,-105%) scale(1);}100%{opacity:0;transform:translate(-50%,-220%) scale(1);}}
   .pz-joy{border:2px solid rgba(200,170,110,.5) !important;background:radial-gradient(circle,rgba(30,200,200,.08),rgba(255,255,255,.02)) !important;box-shadow:0 0 14px rgba(30,200,200,.15),inset 0 0 18px rgba(0,0,0,.3) !important;}
   .pz-joy-knob{background:radial-gradient(circle at 40% 35%,#f0d894,#c8964a) !important;border:2px solid rgba(240,220,160,.5) !important;box-shadow:0 0 10px rgba(240,200,90,.4) !important;}
+  .pz-mini{position:absolute;top:62px;right:14px;z-index:6;width:124px;height:124px;background:radial-gradient(circle at 50% 50%,rgba(14,26,34,.92),rgba(6,12,18,.96));border:2px solid rgba(200,170,110,.55);border-radius:6px;clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);box-shadow:0 2px 12px rgba(0,0,0,.5),inset 0 0 18px rgba(30,200,200,.1);overflow:hidden;pointer-events:none;animation:pzIn .4s ease-out;}
+  .pz-mini::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,transparent 47%,rgba(200,170,110,.13) 48%,rgba(200,170,110,.13) 52%,transparent 53%);}
+  .pz-mlabel{position:absolute;top:3px;left:7px;font-size:9px;font-weight:800;color:rgba(200,170,110,.7);letter-spacing:1.5px;z-index:2;}
+  .pz-mdot{position:absolute;width:7px;height:7px;border-radius:50%;transform:translate(-50%,-50%);background:#cfe0ff;box-shadow:0 0 4px rgba(255,255,255,.6);transition:left .12s linear,top .12s linear;}
+  .pz-mdot.me{width:10px;height:10px;background:#7CFC9A;box-shadow:0 0 8px rgba(124,252,154,.95);z-index:3;}
+  @keyframes pzIn{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
+  .pz-pcard,.pz-actions{animation:pzIn .4s ease-out;}
+  .pz-pcard{position:relative;}
+  .pz-pcard::after{content:'';position:absolute;inset:0;clip-path:polygon(0 0,100% 0,calc(100% - 14px) 100%,0 100%);animation:pzGlow 3s ease-in-out infinite;pointer-events:none;}
+  @keyframes pzGlow{0%,100%{box-shadow:inset 0 0 8px rgba(30,200,200,0);}50%{box-shadow:inset 0 0 11px rgba(30,200,200,.22);}}
+  .pz-pop{position:absolute;z-index:9;background:linear-gradient(180deg,rgba(14,24,34,.97),rgba(9,16,24,.97));border:1px solid rgba(200,170,110,.5);border-radius:8px;padding:8px;box-shadow:0 6px 18px rgba(0,0,0,.6);pointer-events:auto;animation:pzIn .18s ease-out;}
+  .pz-emowheel{display:none;right:78px;bottom:20px;grid-template-columns:repeat(4,40px);gap:6px;}
+  .pz-emowheel button{width:40px;height:40px;border-radius:50%;font-size:20px;border:1px solid rgba(200,170,110,.3);background:rgba(255,255,255,.06);cursor:pointer;}
+  .pz-emowheel button:active{transform:scale(.88);}
+  .pz-plist,.pz-set{top:200px;right:14px;min-width:150px;}
+  .pz-plist{max-height:46vh;overflow:auto;}
+  .pz-plist .pl-hd{font-size:11px;font-weight:800;color:#c8aa6e;padding:2px 6px 6px;border-bottom:1px solid rgba(200,170,110,.25);margin-bottom:4px;}
+  .pz-plist .pl-row{display:flex;align-items:center;gap:7px;padding:4px 6px;font-size:12px;color:#e6e0cf;}
+  .pz-plist .pl-av{width:22px;height:22px;border-radius:50%;border:1px solid rgba(200,170,110,.5);background:#0a1018;}
+  .pz-set label{display:flex;align-items:center;justify-content:space-between;gap:14px;font-size:12px;color:#e6e0cf;padding:5px 4px;cursor:pointer;}
+  .pz-set input{accent-color:#c8aa6e;width:16px;height:16px;}
   `; document.head.appendChild(s);
 }
 window.openPlaza=async function(){
@@ -33867,6 +33888,28 @@ window.openPlaza=async function(){
       mkA('🏠',true,()=>{ me.target.set(-28+(Math.random()*4-2),0,58+(Math.random()*4-2)); });
     }
   }
+  // WR HUD 확장: 미니맵/이모트휠/접속자목록/설정
+  let _showNames=true, _fx=true;
+  function _champPortrait(cf){ try{ const cap=String(cf||'teemo.glb').replace(/\.glb$/i,'').replace(/_.*$/,''); const dk=cap.charAt(0).toUpperCase()+cap.slice(1); const ver=(typeof DDRAGON_VERSION!=='undefined'&&DDRAGON_VERSION)?DDRAGON_VERSION:'14.10.1'; return 'https://ddragon.leagueoflegends.com/cdn/'+ver+'/img/champion/'+dk+'.png'; }catch(_){ return ''; } }
+  const _miniEl=document.createElement('div'); _miniEl.className='pz-mini'; { const lb=document.createElement('span'); lb.className='pz-mlabel'; lb.textContent='MAP'; _miniEl.appendChild(lb); } ov.appendChild(_miniEl);
+  me.dot=document.createElement('div'); me.dot.className='pz-mdot me'; _miniEl.appendChild(me.dot);
+  function _miniXY(x,z){ const f=v=>Math.max(2,Math.min(98,(v+HALF)/(2*HALF)*100)); return [f(x),f(z)]; }
+  function _updateMini(){ if(me.dot){ const a=_miniXY(me.pos.x,me.pos.z); me.dot.style.left=a[0]+'%'; me.dot.style.top=a[1]+'%'; } for(const k in others){ const u=others[k]; if(u.dot){ const b=_miniXY(u.pos.x,u.pos.z); u.dot.style.left=b[0]+'%'; u.dot.style.top=b[1]+'%'; } } }
+  // 이모트 휠
+  const _wheel=document.createElement('div'); _wheel.className='pz-pop pz-emowheel'; ov.appendChild(_wheel);
+  ['👋','😆','❤️','🔥','👍','🎉','😎','😭'].forEach(em=>{ const b=document.createElement('button'); b.textContent=em; b.onclick=()=>{ _emote(em); _wheel.style.display='none'; }; _wheel.appendChild(b); });
+  { const eb=ov.querySelector('#pz-actions .pz-abtn'); if(eb)eb.onclick=()=>{ _wheel.style.display=_wheel.style.display==='grid'?'none':'grid'; }; }
+  // 접속자 목록
+  const _plist=document.createElement('div'); _plist.className='pz-pop pz-plist'; _plist.style.display='none'; ov.appendChild(_plist);
+  function _plAdd(cf,nm,isMe){ const row=document.createElement('div'); row.className='pl-row'; const im=document.createElement('img'); im.className='pl-av'; im.src=_champPortrait(cf); im.onerror=()=>{im.style.visibility='hidden';}; const sp=document.createElement('span'); sp.textContent=(isMe?'⭐ ':'')+(nm||'?'); row.appendChild(im); row.appendChild(sp); _plist.appendChild(row); }
+  function _renderPlist(){ while(_plist.firstChild)_plist.removeChild(_plist.firstChild); const now=Date.now(); let cnt=1; for(const k in _snap){ const e=_snap[k]; if(e&&k!==myKey&&e.at&&now-e.at<35000)cnt++; } const hd=document.createElement('div'); hd.className='pl-hd'; hd.textContent='접속자 '+cnt+'명'; _plist.appendChild(hd); _plAdd(myChamp,(myName||myData.name||'나'),true); for(const k in _snap){ const e=_snap[k]; if(!e||k===myKey||!e.at||now-e.at>35000)continue; _plAdd(e.champ,e.name,false); } }
+  // 설정
+  const _sett=document.createElement('div'); _sett.className='pz-pop pz-set'; _sett.style.display='none'; ov.appendChild(_sett);
+  { const l1=document.createElement('label'); l1.textContent='이름표 표시'; const c1=document.createElement('input'); c1.type='checkbox'; c1.checked=true; c1.onchange=()=>{ _showNames=c1.checked; }; l1.appendChild(c1); _sett.appendChild(l1); const l2=document.createElement('label'); l2.textContent='고급 효과(블룸)'; const c2=document.createElement('input'); c2.type='checkbox'; c2.checked=true; c2.onchange=()=>{ _fx=c2.checked; }; l2.appendChild(c2); _sett.appendChild(l2); }
+  // 상단 아이콘 추가
+  { const xb=ov.querySelector('#pz-x'); const mkIco=(t,fn)=>{ const b=document.createElement('button'); b.className='pz-ico'; b.textContent=t; b.onclick=fn; if(xb&&xb.parentNode)xb.parentNode.insertBefore(b,xb); };
+    mkIco('👥',()=>{ const open=_plist.style.display!=='block'; _sett.style.display='none'; _plist.style.display=open?'block':'none'; if(open)_renderPlist(); });
+    mkIco('⚙️',()=>{ const open=_sett.style.display!=='block'; _plist.style.display='none'; _sett.style.display=open?'block':'none'; }); }
   const myRef=ref(db,'plaza/'+myKey);
   const writeMe=()=>{ set(myRef,{ name:(myName||myData.name||'?'), champ:myChamp, x:+me.pos.x.toFixed(2), z:+me.pos.z.toFixed(2), dir:+me.dir.toFixed(2), moving:me.moving, at:Date.now() }).catch(()=>{}); };
   try{ onDisconnect(myRef).remove(); }catch(_){}
@@ -33876,16 +33919,16 @@ window.openPlaza=async function(){
   const unsub=onValue(ref(db,'plaza'),snap=>{ _snap=snap.val()||{}; const now=Date.now(); const cnt=Object.keys(_snap).filter(k=>_snap[k]&&_snap[k].at&&now-_snap[k].at<35000).length; const ce=ov.querySelector('#pz-count'); if(ce)ce.textContent='접속 '+Math.max(1,cnt)+'명'; });
   function syncOthers(){ const now=Date.now(); const live={}; let n=0;
     for(const k in _snap){ const e=_snap[k]; if(!e||k===myKey||!e.at||now-e.at>35000)continue; if(n++>=8)break; live[k]=1;
-      let u=others[k]; if(!u){ u=others[k]=mkUnit(); u.blob=_mkBlob(); u.pos.set(e.x||0,0,e.z||0); u.target.copy(u.pos); u.dir=e.dir||0; loadInto(u,e.champ||'teemo.glb',(typeof goldData!=='undefined'&&goldData)?goldData[k]:null);
+      let u=others[k]; if(!u){ u=others[k]=mkUnit(); u.blob=_mkBlob(); u.dot=document.createElement('div'); u.dot.className='pz-mdot'; if(_miniEl)_miniEl.appendChild(u.dot); u.pos.set(e.x||0,0,e.z||0); u.target.copy(u.pos); u.dir=e.dir||0; loadInto(u,e.champ||'teemo.glb',(typeof goldData!=='undefined'&&goldData)?goldData[k]:null);
         const np=document.createElement('div'); np.className='pz-nameplate'; np.textContent=e.name||'?'; stage.appendChild(np); u.np=np; }
       u.target.set(e.x||0,0,e.z||0); u.moving=!!e.moving; if(u.np)u.np.textContent=e.name||'?'; }
-    for(const k in others){ if(!live[k]){ const u=others[k]; if(u.group)scene.remove(u.group); if(u.blob)scene.remove(u.blob); if(u.np)u.np.remove(); delete others[k]; } }
+    for(const k in others){ if(!live[k]){ const u=others[k]; if(u.group)scene.remove(u.group); if(u.blob)scene.remove(u.blob); if(u.np)u.np.remove(); if(u.dot)u.dot.remove(); delete others[k]; } }
   }
   const cleanup=()=>{ if(!_plazaActive)return; _plazaActive=false; cancelAnimationFrame(raf); clearInterval(_hb); try{unsub();}catch(_){} try{remove(myRef);}catch(_){} try{onDisconnect(myRef).cancel();}catch(_){} window.removeEventListener('resize',resize); window.removeEventListener('keydown',kd); window.removeEventListener('keyup',ku); try{renderer.dispose();}catch(_){} if(me.np)me.np.remove(); for(const k in others){ if(others[k].np)others[k].np.remove(); } try{ov.remove();}catch(_){} };
   ov.querySelector('#pz-x').onclick=cleanup;
   const clock=new THREE.Clock(), camOff=new THREE.Vector3(0,6.5,7.5), tmp=new THREE.Vector3(); let raf=0;
   const _gRay=new THREE.Raycaster(), _gDown=new THREE.Vector3(0,-1,0), _gV=new THREE.Vector3(); const groundHit=(x,z)=>{ if(!riftRoot)return 0; _gRay.set(_gV.set(x,200,z),_gDown); const h=_gRay.intersectObject(riftRoot,true); return h.length?h[0].point.y:null; }; const groundY=(x,z)=>{ const y=groundHit(x,z); return y==null?0:y; };
-  const place=(u)=>{ if(!u.np||!u.group){ if(u.np)u.np.style.display='none'; return; } tmp.set(u.pos.x,(u.gy||0)+0.56,u.pos.z); tmp.project(camera); if(tmp.z>1){ u.np.style.display='none'; return; } u.np.style.display='block'; const w=stage.clientWidth,h=stage.clientHeight; u.np.style.left=((tmp.x*0.5+0.5)*w)+'px'; u.np.style.top=((-tmp.y*0.5+0.5)*h)+'px'; };
+  const place=(u)=>{ if(!_showNames){ if(u.np)u.np.style.display='none'; return; } if(!u.np||!u.group){ if(u.np)u.np.style.display='none'; return; } tmp.set(u.pos.x,(u.gy||0)+0.56,u.pos.z); tmp.project(camera); if(tmp.z>1){ u.np.style.display='none'; return; } u.np.style.display='block'; const w=stage.clientWidth,h=stage.clientHeight; u.np.style.left=((tmp.x*0.5+0.5)*w)+'px'; u.np.style.top=((-tmp.y*0.5+0.5)*h)+'px'; };
   // 🏰 포탑/넥서스 배치 도구 — 콘솔: _propPick('turretB') 후 바닥 클릭, 끝나면 _propDump()
   const _PROP_GLB={nexusB:'nexus.glb',nexusR:'nexus.glb',turretB:'turret_blue.glb',turretR:'turret_red.glb'};
   const _PROP_SIZE={nexus:0.006,turret:0.0042}; const _PLAZA_PROPS=[];
@@ -33943,8 +33986,8 @@ window.openPlaza=async function(){
     { const _ct=tmp.set(me.pos.x,(me.gy||0),me.pos.z).addScaledVector(camOff,camZoom); if(_snapCam){ camera.position.copy(_ct); _snapCam=false; } else camera.position.lerp(_ct,0.08); } camera.lookAt(me.pos.x,(me.gy||0)+0.8,me.pos.z);
     { const pa=motes.geometry.attributes.position.array; for(let i=0;i<ptN;i++){ pa[i*3+1]+=dt*0.4; if(pa[i*3+1]>8.6){ pa[i*3+1]=0; pa[i*3]=Math.random()*HALF*2-HALF; pa[i*3+2]=Math.random()*HALF*2-HALF; } } motes.geometry.attributes.position.needsUpdate=true;
       const tt=clock.elapsedTime; for(const f of _flick){ f.lt.intensity=f.base*(0.82+0.18*Math.sin(tt*9+f.ph)+0.08*Math.sin(tt*23+f.ph*2)); f.fire.scale.setScalar(0.9+0.12*Math.sin(tt*11+f.ph)); } }
-    if(composer)composer.render(); else renderer.render(scene,camera);
-    place(me); for(const k in others) place(others[k]);
+    if(composer&&_fx)composer.render(); else renderer.render(scene,camera);
+    place(me); for(const k in others) place(others[k]); _updateMini();
   })();
 };
 window.openArenaForge=function(sandbox){
