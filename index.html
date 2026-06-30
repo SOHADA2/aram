@@ -6899,7 +6899,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.442';
+const APP_VERSION = 'v2.45.443';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6908,6 +6908,9 @@ const APP_VERSION = 'v2.45.442';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.443', date: '2026-06-30', changes: [
+    { tag: 'improve', text: '🧸 아케이드 단짝 패널을 좌(3D 캐릭터)/우(정보·버튼) 가로 레이아웃으로 정리하고, 🗡️ 인형 투기장 버튼(🔨강화·⚔️배틀·🎨스킨)을 단짝 패널 우측에 녹였어요 — 단짝과 투기장이 한 카드에 모여 한눈에 들어와요. (좁은 화면에서도 캐릭터는 왼쪽, 정보·버튼은 오른쪽 유지)' },
+  ] },
   { ver: 'v2.45.442', date: '2026-06-30', changes: [
     { tag: 'improve', text: '🧸 단짝 패널을 프로필 → 🕹️ 가챠 「아케이드」 탭으로 옮겼어요 — 인형뽑기·투기장과 한곳에 모여 더 직관적이에요. 단짝 3D·연승/연패 스택·보상 수령·단짝 변경 전부 아케이드 탭에서. (프로필엔 어디로 갔는지 안내만 남김)' },
     { tag: 'improve', text: '🎁 단짝 보상 알림이 「📈 더 쌓기 / 🎁 지금 받기」 두 갈래로 바뀌었어요 — 무심코 받아서 스택이 초기화되는 걸 막아요. 알림을 누르면 지금 받을 보상 + 한 판 더 하면 받을 보상 + 스택별 보상표(불꽃 게이지)를 보여줘서, 얼마나 더 쌓으면 뭐가 터지는지 한눈에! 「더 쌓기」는 알림만 끄고 계속 쌓아요(다음 스택부터 다시 알림).' },
@@ -32799,12 +32802,27 @@ function _gachaBookHtml(star, cardsHtml, forceDone){
   </div>`;
 }
 // 🏆 3성 18종 컴플리트 — 인형뽑기 테스트 진입(실험용). 컬렉션 북 아래 축하 블록
-function _buddyArcadeHtml(){   // 🧸 단짝 패널을 아케이드 탭에 통합(v442 프로필→아케이드 이동) — 3D+스택+수령+변경
+function _arenaActionsHtml(data){   // 🗡️ 투기장 버튼(강화/배틀/스킨)만 — 단짝 패널 우측에 녹임(v442). 미자격=빈문자
+  data=data||getMyGoldData()||{};
+  if(!_arenaEligible(data)) return '';
+  if(!ARENA_LIVE_ENABLED) return `<div class="bsp-arena"><div class="bsp-arena-h">🗡️ 인형 투기장</div><div class="bsp-arena-note">⚙️ 준비 중 — 곧 열려요!</div></div>`;
+  const fighter=_arenaActiveFighter(data), pw=_arenaPowerOf(fighter, data), left=_arenaBattleLeft(data);
+  return `<div class="bsp-arena">
+    <div class="bsp-arena-h">🗡️ 인형 투기장</div>
+    <div class="bsp-arena-grid">
+      <button class="prism-claw-btn" onclick="window.openArenaForge()">🔨 강화${pw>0?` <span class="ac-stat">+${pw}</span>`:''}</button>
+      <button class="prism-claw-btn sec" onclick="window.openArenaBattle()">⚔️ 배틀 <span class="ac-stat">${left}/${ARENA_BATTLE_DAILY}</span></button>
+    </div>
+    <button class="prism-claw-btn sec bsp-arena-skin" onclick="window.openSkinShop()">🎨 스킨 상점</button>
+  </div>`;
+}
+function _buddyArcadeHtml(){   // 🧸 단짝 패널을 아케이드 탭에 통합(v442) — 좌 3D / 우 정보+버튼, 투기장 버튼도 우측에 녹임
   try{ _injectBuddyCss(); }catch(_){}
   const data=getMyGoldData()||{}, b=_buddyData();
-  if(b) return _buddySpaceHtml(b, _buddyStreakData(), false);
+  const arenaBtns=(function(){try{return _arenaActionsHtml(data);}catch(_){return '';}})();
+  if(b) return _buddySpaceHtml(b, _buddyStreakData(), false, arenaBtns);
   const coll=Array.isArray(data[sField('clawCollected')])?data[sField('clawCollected')]:[];
-  if(coll.length>=7 && _allPrismDone(data)) return _buddySelectInlineHtml(coll, false);
+  if(coll.length>=7 && _allPrismDone(data)) return _buddySelectInlineHtml(coll, false) + (arenaBtns?`<div class="wm-card buddy-space" style="margin-top:9px;">${arenaBtns}</div>`:'');   // 7종이나 단짝 미선정: 선정 + 투기장 버튼
   return _buddyHomePromptHtml();
 }
 function _prismClawHtml(){
@@ -32815,7 +32833,6 @@ function _prismClawHtml(){
       <button class="prism-claw-btn" onclick="window.openClawTest3D()">🕹️ 인형뽑기 하러 가기</button>
     </div>
     ${(function(){try{return _buddyArcadeHtml();}catch(e){console.warn('buddy arcade',e);return '';}})()}
-    ${(function(){try{return _arenaEntryHtml();}catch(e){console.warn('arena entry',e);return '';}})()}
   </div>`;
 }
 // 🕹️ 3D 인형뽑기 프로토타입(실험용 테스트) — 앱 안 "브라우저 창"처럼 띄움(타이틀바+최소화/최대화/닫기). 같은 출처라 iframe 임베드 OK
@@ -34691,9 +34708,10 @@ function _injectBuddyCss(){
   /* 🧸 단짝 메인 인라인 — 공간(space) */
   .buddy-space{padding:13px 15px;}
   .bsp-hd{font-size:13px;font-weight:800;color:#ffd24a;margin-bottom:10px;}
-  .bsp-body{display:flex;gap:16px;align-items:flex-start;}
-  .bsp-3d{flex:none;display:flex;flex-direction:column;align-items:center;}
-  .bsp-3d .buddy-home-mount{width:140px;height:156px;background:radial-gradient(ellipse 54px 9px at 50% 93%,rgba(0,0,0,.34),rgba(0,0,0,0) 74%);}   /* 🧸 골드 글로우 제거(은은한 바닥 그림자만) */
+  .bsp-body{display:flex;gap:12px;align-items:flex-start;}
+  .bsp-3d{flex:none;width:118px;display:flex;flex-direction:column;align-items:center;}   /* ⚠️ 너비 고정 — 안 하면 아래 캡션이 한 줄로 늘어나 우측 정보칸을 밀어 잘림 */
+  .bsp-3d .buddy-home-mount{width:100%;height:150px;background:radial-gradient(ellipse 48px 8px at 50% 93%,rgba(0,0,0,.34),rgba(0,0,0,0) 74%);}   /* 🧸 좌측 캐릭터(좁은 아케이드서도 가로 유지 위해 축소) */
+  .bsp-3d .buddy3d-tap{font-size:10px;line-height:1.3;}
   .bsp-3d .buddy-home-mount::after{display:none;}   /* 발치 골드 풀 제거 */
   .bsp-3d .buddy3d-tap{margin:4px 0 0;}
   .bsp-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
@@ -34704,6 +34722,14 @@ function _injectBuddyCss(){
   .bsp-lvdetails{margin-top:2px;}
   .bsp-lvdetails summary{font-size:12px;color:#ffd24a;cursor:pointer;font-weight:700;}
   .bsp-lvdetails .bl-card{margin-top:8px;background:rgba(0,0,0,.2);border-radius:10px;padding:10px 12px;}
+  /* 🗡️ 투기장 버튼을 단짝 우측에 녹임(v442) */
+  .bsp-arena{margin:2px 0;padding:9px 10px;background:rgba(240,200,90,.06);border:1px solid rgba(240,200,90,.18);border-radius:11px;}
+  .bsp-arena-h{font-size:11.5px;font-weight:800;color:#f0c04a;margin-bottom:7px;}
+  .bsp-arena-grid{display:flex;gap:6px;margin-bottom:6px;}
+  .bsp-arena .prism-claw-btn{margin:0;font-size:12px;padding:9px 5px;}
+  .bsp-arena-grid .prism-claw-btn{flex:1;min-width:0;}
+  .bsp-arena .bsp-arena-skin{width:100%;}
+  .bsp-arena-note{font-size:11px;color:#cbd3e6;opacity:.85;}
   .bsp-pvbar{background:rgba(127,214,255,.12);border:1px solid rgba(127,214,255,.3);color:#7fd6ff;font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:8px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;}
   .bsp-pvbar button{background:rgba(127,214,255,.2);border:0;color:#cdeeff;border-radius:6px;padding:3px 10px;font-size:11px;cursor:pointer;white-space:nowrap;}
   /* 인라인 선정 */
@@ -34713,7 +34739,7 @@ function _injectBuddyCss(){
   .bsel-card:hover{border-color:#ffd24a;transform:translateY(-2px);box-shadow:0 5px 14px rgba(240,200,90,.28);}
   .bsel-card img{width:100%;aspect-ratio:3/4;object-fit:cover;object-position:center 14%;display:block;}
   .bsel-card span{font-size:11px;font-weight:700;color:#ffe39a;padding:5px 2px;}
-  @media(max-width:560px){ .bsp-body{flex-direction:column;align-items:center;text-align:center;} .bsp-info{align-items:center;width:100%;} .bsp-lvdetails{width:100%;} }
+  @media(max-width:560px){ .bsp-body{gap:10px;} .bsp-3d{width:104px;} .bsp-3d .buddy-home-mount{height:134px;} .bsp-name{font-size:15px;} }   /* 좁아도 가로 유지(좌 캐릭터/우 정보) — 캐릭터만 더 축소 */
   /* 🧸 대시보드 미니 단짝 (2D·클릭→프로필) */
   .buddy-mini{display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;transition:border-color .15s;}
   .buddy-mini:hover{border-color:rgba(240,200,90,.5);}
@@ -35032,7 +35058,7 @@ function _buddySectionHtml(){
   if(b) return _buddyMiniHtml(b);
   return '';   // 단짝 미보유 시 대시보드 비움 — 인형뽑기/선정 안내는 프로필·인형뽑기 완성 프롬프트에서
 }
-function _buddySpaceHtml(b, st, pv){   // 단짝 공간(3D+스택+수령+강화) 인라인
+function _buddySpaceHtml(b, st, pv, arenaHtml){   // 단짝 공간(3D+스택+수령+강화) 인라인 · arenaHtml=우측에 녹인 투기장 버튼(v442)
   const type=st.type, stack=st.count||0, lv=b.level||1;
   const cur=(type&&stack>=2)?_buddyRewardAt(type,stack):null;
   const next=type?_buddyRewardAt(type, Math.max(stack+1,2)):null;
@@ -35048,6 +35074,7 @@ function _buddySpaceHtml(b, st, pv){   // 단짝 공간(3D+스택+수령+강화)
         <div class="buddy-streak ${type||'none'}">${streakTxt}</div>
         <div class="buddy-reward">${BUDDY_REWARDS_LOCKED ? '🔒 보상·효과는 <b>준비 중</b>이에요 (미정)<br><span style="opacity:.6;">스택은 계속 쌓이니 — 보상은 곧 공개!</span>' : `${cur?`지금 수령: <b>${_buddyRewardText(cur)}</b>${_buddyAtCap(type,stack)?' <span style="color:#ffd24a;">· 최대치</span>':''}`:'아직 수령할 보상 없음 (1스택부터)'}${(type&&stack>=2)?(_buddyAtCap(type,stack)?`<br><span style="opacity:.6;">🏆 최고 보상 도달 — 스택은 더 쌓여도 보상은 동일</span>`:(next?`<br><span style="opacity:.6;">한 판 더: ${_buddyRewardText(next)}</span>`:'')):''}`}</div>
         <button class="buddy-claim" ${(cur && !BUDDY_REWARDS_LOCKED)?'':'disabled'} onclick="window.buddyClaimInline(${pv?1:0})">${BUDDY_REWARDS_LOCKED?'🔒 보상 준비 중':(cur?'🎁 보상 수령 (스택 0)':'수령 불가')}</button>
+        ${arenaHtml||''}
         <details class="buddy-help bsp-lvdetails"><summary>🎁 연승·연패 보상 보기</summary><div class="bl-card">${_buddyLvListHtml()}</div></details>
         ${!pv?`<button class="buddy-change-btn" onclick="event.stopPropagation();window._buddyChangeBuddy()">🔄 다른 단짝으로 변경</button>`:''}
       </div>
