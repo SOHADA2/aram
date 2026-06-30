@@ -6899,7 +6899,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.478';
+const APP_VERSION = 'v2.45.479';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -33788,11 +33788,11 @@ window.openPlaza=async function(){
   const myKey=getMyGoldKey(); if(!myKey){ showS1Toast('닉네임을 먼저 선택해주세요'); return; }
   if(document.getElementById('plaza-ov')||_plazaActive) return; _plazaActive=true;
   _injectPlazaCss();
-  let THREE,GLTFLoader,MSD=null,RoomEnvironment=null,EffectComposer=null,RenderPass=null,UnrealBloomPass=null,OutputPass=null;
+  let THREE,GLTFLoader,MSD=null,RoomEnvironment=null,EffectComposer=null,RenderPass=null,UnrealBloomPass=null,OutputPass=null,_SkelClone=null;
   try{ THREE=await import('three'); ({GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js'));
     try{({MeshoptDecoder:MSD}=await import('three/addons/libs/meshopt_decoder.module.js'));}catch(_){}
     try{({RoomEnvironment}=await import('three/addons/environments/RoomEnvironment.js'));}catch(_){}
-    try{({EffectComposer}=await import('three/addons/postprocessing/EffectComposer.js')); ({RenderPass}=await import('three/addons/postprocessing/RenderPass.js')); ({UnrealBloomPass}=await import('three/addons/postprocessing/UnrealBloomPass.js')); ({OutputPass}=await import('three/addons/postprocessing/OutputPass.js'));}catch(_){}
+    try{({EffectComposer}=await import('three/addons/postprocessing/EffectComposer.js')); ({RenderPass}=await import('three/addons/postprocessing/RenderPass.js')); ({UnrealBloomPass}=await import('three/addons/postprocessing/UnrealBloomPass.js')); ({OutputPass}=await import('three/addons/postprocessing/OutputPass.js'));}catch(_){} try{ const _su=await import('three/addons/utils/SkeletonUtils.js'); _SkelClone=_su.clone||(_su.SkeletonUtils&&_su.SkeletonUtils.clone); }catch(_){}
   }catch(e){ _plazaActive=false; showS1Toast('3D 로드 실패'); return; }
   const WALK_SPEED=3.4, RUN_SPEED=7.2, RUN_AFTER=1.1;
   const ov=document.createElement('div'); ov.id='plaza-ov';
@@ -33889,14 +33889,13 @@ window.openPlaza=async function(){
     }
   }
   // WR HUD 확장: 미니맵/이모트휠/접속자목록/설정
-  let _showNames=true, _fx=true; let _MINI_R=HALF*0.72;
+  let _showNames=true, _fx=true; let _SNAP_R=HALF, _VIEW_R=HALF*0.3;
   function _champPortrait(cf){ try{ const cap=String(cf||'teemo.glb').replace(/\.glb$/i,'').replace(/_.*$/,''); const dk=cap.charAt(0).toUpperCase()+cap.slice(1); const ver=(typeof DDRAGON_VERSION!=='undefined'&&DDRAGON_VERSION)?DDRAGON_VERSION:'14.10.1'; return 'https://ddragon.leagueoflegends.com/cdn/'+ver+'/img/champion/'+dk+'.png'; }catch(_){ return ''; } }
   const _miniEl=document.createElement('div'); _miniEl.className='pz-mini'; { const lb=document.createElement('span'); lb.className='pz-mlabel'; lb.textContent='MAP'; _miniEl.appendChild(lb); } ov.appendChild(_miniEl);
   me.dot=document.createElement('div'); me.dot.className='pz-mdot me'; _miniEl.appendChild(me.dot);
-  function _miniXY(x,z){ const f=v=>Math.max(1,Math.min(99,(v+_MINI_R)/(2*_MINI_R)*100)); return [f(x),f(z)]; }
-  window._miniZoom=(f)=>{ _MINI_R=HALF*(f||0.72); if(typeof _miniSnapshot==='function')_miniSnapshot(); return '미니맵 줌 '+(_MINI_R/HALF).toFixed(2)+'배'; };
-  function _updateMini(){ if(me.dot){ const a=_miniXY(me.pos.x,me.pos.z); me.dot.style.left=a[0]+'%'; me.dot.style.top=a[1]+'%'; } for(const k in others){ const u=others[k]; if(u.dot){ const b=_miniXY(u.pos.x,u.pos.z); u.dot.style.left=b[0]+'%'; u.dot.style.top=b[1]+'%'; } } }
-  function _miniSnapshot(){ try{ if(!_miniEl||!renderer||!riftRoot)return; const SZ=240; const rt=new THREE.WebGLRenderTarget(SZ,SZ); const oc=new THREE.OrthographicCamera(-_MINI_R,_MINI_R,_MINI_R,-_MINI_R,1,3000); oc.position.set(0,1200,0); oc.up.set(0,0,-1); oc.lookAt(0,0,0); oc.updateProjectionMatrix();
+  window._miniZoom=(f)=>{ _VIEW_R=HALF*(f||0.3); return '미니맵 시야 '+(_VIEW_R/HALF).toFixed(2)+' (작을수록 확대)'; };
+  function _updateMini(){ if(!_miniEl)return; const S=_miniEl.clientWidth||124; const zoom=_SNAP_R/_VIEW_R; const bg=S*zoom; const u=(me.pos.x+_SNAP_R)/(2*_SNAP_R), v=(me.pos.z+_SNAP_R)/(2*_SNAP_R); if(_miniEl.style.backgroundImage&&_miniEl.style.backgroundImage!=='none'){ _miniEl.style.backgroundSize=bg+'px '+bg+'px'; _miniEl.style.backgroundPosition=(S/2-u*bg)+'px '+(S/2-v*bg)+'px'; } if(me.dot){ me.dot.style.left='50%'; me.dot.style.top='50%'; } for(const k in others){ const o2=others[k]; if(!o2.dot)continue; const dx=50+(o2.pos.x-me.pos.x)/(2*_VIEW_R)*100, dz=50+(o2.pos.z-me.pos.z)/(2*_VIEW_R)*100; if(dx<0||dx>100||dz<0||dz>100){ o2.dot.style.display='none'; } else { o2.dot.style.display='block'; o2.dot.style.left=dx+'%'; o2.dot.style.top=dz+'%'; } } }
+  function _miniSnapshot(){ try{ if(!_miniEl||!renderer||!riftRoot)return; const SZ=240; const rt=new THREE.WebGLRenderTarget(SZ,SZ); const oc=new THREE.OrthographicCamera(-_SNAP_R,_SNAP_R,_SNAP_R,-_SNAP_R,1,3000); oc.position.set(0,1200,0); oc.up.set(0,0,-1); oc.lookAt(0,0,0); oc.updateProjectionMatrix();
     const hl=[me.group,grnd,motes].concat(Object.keys(others).map(k=>others[k]&&others[k].group)); const vis=hl.map(o=>o?o.visible:false); hl.forEach(o=>{if(o)o.visible=false;}); const pf=scene.fog; scene.fog=null;
     renderer.setRenderTarget(rt); renderer.render(scene,oc); renderer.setRenderTarget(null); scene.fog=pf; hl.forEach((o,i)=>{if(o)o.visible=vis[i];});
     const buf=new Uint8Array(SZ*SZ*4); renderer.readRenderTargetPixels(rt,0,0,SZ,SZ,buf); rt.dispose();
@@ -33943,7 +33942,7 @@ window.openPlaza=async function(){
   const _PROP_SIZE={nexus:6,turret:3.5}; const _PLAZA_PROPS=[];
   const _propCache={}, _placed=[]; let _propBrush='turretB', _placeMode=false, _propMirrorOn=true;
   function _loadProp(key,cb){ const f=_PROP_GLB[key]; if(_propCache[f]){cb(_propCache[f]);return;} const pl=new GLTFLoader(); if(MSD){try{pl.setMeshoptDecoder(MSD);}catch(_){}} pl.load(f,g=>{_propCache[f]=g.scene;cb(g.scene);},undefined,e=>console.warn('prop',key,e)); }
-  function _addProp(key,x,z,ry,scale){ _loadProp(key,src=>{ if(!_plazaActive)return; const o=src.clone(true); o.traverse(n=>{ if(n.isMesh){ n.frustumCulled=false; (Array.isArray(n.material)?n.material:[n.material]).forEach(m=>{ m.toneMapped=false; m.side=THREE.DoubleSide; }); } }); const grp=new THREE.Group(); grp.add(o); scene.add(grp); grp.updateMatrixWorld(true); const bx0=new THREE.Box3().setFromObject(o); const h=(bx0.max.y-bx0.min.y)||1; const tgt=key.indexOf('nexus')===0?_PROP_SIZE.nexus:_PROP_SIZE.turret; grp.scale.setScalar((tgt*(scale||1))/h); grp.updateMatrixWorld(true); const bx=new THREE.Box3().setFromObject(grp); grp.position.set(x,groundY(x,z)-bx.min.y,z); grp.rotation.y=ry||0; _placed.push({key,x,z,ry:ry||0,scale:scale||1,obj:grp}); try{ showS1Toast((key.indexOf('nexus')===0?'🏰 넥서스':'🗼 포탑')+' 설치됨 ('+_placed.length+'개)'); }catch(_){} }); }
+  function _addProp(key,x,z,ry,scale){ _loadProp(key,src=>{ if(!_plazaActive)return; const o=(_SkelClone?_SkelClone(src):src.clone(true)); o.traverse(n=>{ if(n.isMesh){ n.frustumCulled=false; (Array.isArray(n.material)?n.material:[n.material]).forEach(m=>{ m.toneMapped=false; m.side=THREE.DoubleSide; }); } }); const grp=new THREE.Group(); grp.add(o); scene.add(grp); grp.updateMatrixWorld(true); const bx0=new THREE.Box3().setFromObject(o); const h=(bx0.max.y-bx0.min.y)||1; const tgt=key.indexOf('nexus')===0?_PROP_SIZE.nexus:_PROP_SIZE.turret; grp.scale.setScalar((tgt*(scale||1))/h); grp.updateMatrixWorld(true); const bx=new THREE.Box3().setFromObject(grp); grp.position.set(x,groundY(x,z)-bx.min.y,z); grp.rotation.y=ry||0; _placed.push({key,x,z,ry:ry||0,scale:scale||1,obj:grp}); try{ showS1Toast((key.indexOf('nexus')===0?'🏰 넥서스':'🗼 포탑')+' 설치됨 ('+_placed.length+'개)'); }catch(_){} }); }
   _PLAZA_PROPS.forEach(p=>_addProp(p.key,p.x,p.z,p.ry,p.scale));
   window._propPick=(k)=>{ if(!_PROP_GLB[k])return '키: nexusB nexusR turretB turretR'; _propBrush=k; _placeMode=true; return 'brush='+k+' · 배치모드 ON — 바닥 클릭하면 설치(이동 대신)'; };
   window._propPlace=(on)=>{ _placeMode=(on!==false); return '배치모드 '+(_placeMode?'ON(클릭=설치)':'OFF(클릭=이동)'); };
