@@ -6899,7 +6899,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.468';
+const APP_VERSION = 'v2.45.469';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -33724,7 +33724,8 @@ async function _forge3dShow(mount, glbFile, gradeColor, prism){
   }catch(e){ console.warn('강화 3D 실패', e); }
 }
 // ════════ 🏘️ 단짝 광장 — 접속 팀원의 3D 캐릭터가 함께 걸어다니는 공유 공간(MVP·베타) ════════
-const _PLAZA_RUN={teemo:'Run_Base',gwen:'Run.anm',vex:'Run_Base',ekko:'Run_Base',yone:'Run_Base',neeko:'Run_Base',lux:'Run'};
+const _PLAZA_RUN={teemo:'Run_Base',gwen:'Run.anm',vex:'Run_Haste',ekko:'Run_Haste',yone:'Run_Fast',neeko:'Run_Base',lux:'Run'};
+const _PLAZA_WALK={teemo:'Run_Base',gwen:'Run.anm',vex:'Run_Base',ekko:'Run_Slow',yone:'Run_Base',neeko:'Run_Base',lux:'Run'};
 const _PLAZA_IDLE={teemo:'Idle_In',gwen:'Idle.anm',vex:'Idle_In',ekko:'Idle01_to_Idle2',yone:'Idle1_Base',neeko:'Idlein_Animal',lux:'Idle1'};
 let _plazaActive=false;
 function _injectPlazaCss(){ if(document.getElementById('plaza-css'))return; const s=document.createElement('style'); s.id='plaza-css';
@@ -33807,7 +33808,7 @@ window.openPlaza=async function(){
       model.scale.setScalar(norm); model.position.set(-c.x*norm,-bx.min.y*norm,-c.z*norm);
       const grp=new THREE.Group(); grp.add(model); grp.position.copy(u.pos); scene.add(grp); u.group=grp;
       u.mixer=new THREE.AnimationMixer(model); u.clips={}; (g.animations||[]).forEach(cl=>u.clips[cl.name]=cl);
-      const b=baseOf(champFile); u.run=u.clips[_PLAZA_RUN[b]]?_PLAZA_RUN[b]:(u.clips['Run_Base']?'Run_Base':(Object.keys(u.clips).find(n=>/run/i.test(n))||u.idle)); u.idle=u.clips[_PLAZA_IDLE[b]]?_PLAZA_IDLE[b]:'Idle1';
+      const b=baseOf(champFile); u.run=u.clips[_PLAZA_RUN[b]]?_PLAZA_RUN[b]:(u.clips['Run_Base']?'Run_Base':(Object.keys(u.clips).find(n=>/run/i.test(n))||u.idle)); u.walk=u.clips[_PLAZA_WALK[b]]?_PLAZA_WALK[b]:u.run; u.idle=u.clips[_PLAZA_IDLE[b]]?_PLAZA_IDLE[b]:'Idle1';
       setAnim(u,u.idle);
     },()=>{ u.loading=false; }, ownerData);
   }
@@ -33862,12 +33863,12 @@ window.openPlaza=async function(){
     else { const d=tmp.copy(me.target).sub(me.pos); d.y=0; const dist=d.length(); if(dist>0.12){ me.moving=true; d.normalize(); me.pos.addScaledVector(d,Math.min(dist,me.spd*dt)); me.dir=Math.atan2(d.x,d.z); } else me.moving=false; }
     me.pos.x=Math.max(-HALF,Math.min(HALF,me.pos.x)); me.pos.z=Math.max(-HALF,Math.min(HALF,me.pos.z));
     { const _gh=groundHit(me.pos.x,me.pos.z); if(_gh===null){ me.pos.x=_ox; me.pos.z=_oz; me.target.set(_ox,0,_oz); me.moving=false; me.gy=groundY(_ox,_oz); } else me.gy=_gh; }
-    me.moveT=me.moving?((me.moveT||0)+dt):0; if(me.group){ me.group.position.set(me.pos.x,me.gy,me.pos.z); me.group.rotation.y=me.dir; setAnim(me,me.moving?me.run:me.idle); if(me._cur&&me.moving)me._cur.timeScale=Math.max(0.7,Math.min(1.5,me.spd/4.8)); }
+    me.moveT=me.moving?((me.moveT||0)+dt):0; if(me.group){ me.group.position.set(me.pos.x,me.gy,me.pos.z); me.group.rotation.y=me.dir; setAnim(me,me.moving?(_run?me.run:me.walk):me.idle); if(me._cur&&me.moving)me._cur.timeScale=Math.max(0.85,Math.min(1.25,me.spd/6.0)); }
     if(me.blob)me.blob.position.set(me.pos.x,me.gy+0.04,me.pos.z);
     if(me.mixer)me.mixer.update(dt);
     const t=performance.now(); if(t-_lastWrite>(me.moving?110:700)){ if(me.moving||_wasMoving!==me.moving){ writeMe(); } _wasMoving=me.moving; _lastWrite=t; }
     for(const k in others){ const u=others[k]; if(u.group){ const dd=tmp.copy(u.target).sub(u.pos); dd.y=0; const dl=dd.length();
-      if(dl>0.06){ dd.normalize(); u.pos.addScaledVector(dd,Math.min(dl,RUN_SPEED*1.3*dt)); u.dir=Math.atan2(dd.x,dd.z); u.group.rotation.y=u.dir; u.moveT=(u.moveT||0)+dt; setAnim(u,u.run); if(u._cur)u._cur.timeScale=u.moveT>RUN_AFTER?1.3:0.85; } else { u.moveT=0; setAnim(u,u.idle); }
+      if(dl>0.06){ dd.normalize(); u.pos.addScaledVector(dd,Math.min(dl,RUN_SPEED*1.3*dt)); u.dir=Math.atan2(dd.x,dd.z); u.group.rotation.y=u.dir; u.moveT=(u.moveT||0)+dt; const _ur=u.moveT>RUN_AFTER; setAnim(u,_ur?u.run:u.walk); if(u._cur)u._cur.timeScale=_ur?1.2:0.9; } else { u.moveT=0; setAnim(u,u.idle); }
       u.gy=groundY(u.pos.x,u.pos.z); u.group.position.set(u.pos.x,u.gy,u.pos.z); } if(u.blob)u.blob.position.set(u.pos.x,(u.gy||0)+0.04,u.pos.z); if(u.mixer)u.mixer.update(dt); }
     { const _ct=tmp.set(me.pos.x,(me.gy||0),me.pos.z).addScaledVector(camOff,camZoom); if(_snapCam){ camera.position.copy(_ct); _snapCam=false; } else camera.position.lerp(_ct,0.08); } camera.lookAt(me.pos.x,(me.gy||0)+0.8,me.pos.z);
     { const pa=motes.geometry.attributes.position.array; for(let i=0;i<ptN;i++){ pa[i*3+1]+=dt*0.4; if(pa[i*3+1]>8.6){ pa[i*3+1]=0; pa[i*3]=Math.random()*HALF*2-HALF; pa[i*3+2]=Math.random()*HALF*2-HALF; } } motes.geometry.attributes.position.needsUpdate=true;
