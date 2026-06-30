@@ -6899,7 +6899,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.483';
+const APP_VERSION = 'v2.45.484';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6908,6 +6908,9 @@ const APP_VERSION = 'v2.45.483';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.484', date: '2026-06-30', changes: [
+    { tag: 'improve', text: '🏰 광장 배치 도구 다듬기 — ① 이동 스텝을 더 세밀하게(가로 0.15·높이 0.1) ② 💾 저장한 배치를 실제로 불러오게(Firebase에서 로드 → 모두에게 공유되고 패널 없이도 보임) ③ 배치 패널을 화면 왼쪽 아래 작은 박스로 옮기고 컴팩트하게(스크롤) — 화면을 덜 가려요.' },
+  ] },
   { ver: 'v2.45.483', date: '2026-06-30', changes: [
     { tag: 'improve', text: '🏰 광장 포탑/넥서스 배치 — 개별 편집으로 개선. ① 여러 개를 놔도 「◀ 선택 / 선택 ▶」으로 고른 1개(노란 링 표시)만 이동·회전·크기 조정돼요(전부 같이 움직이던 문제 해결). ② 이동 스텝을 더 세밀하게(가로 0.3·높이 0.2). ③ 포탑이 바라보는 방향을 ↺/↻(7.5°씩) 돌릴 수 있어요. 「🗑 삭제」는 선택한 포탑만 지워요. 위치·높이·방향·크기 모두 저장에 반영됩니다.' },
   ] },
@@ -33964,6 +33967,7 @@ window.openPlaza=async function(){
   function _loadProp(key,cb){ const f=_PROP_GLB[key]; if(_propCache[f]){cb(_propCache[f]);return;} const pl=new GLTFLoader(); if(MSD){try{pl.setMeshoptDecoder(MSD);}catch(_){}} pl.load(f,g=>{_propCache[f]=g.scene;cb(g.scene);},undefined,e=>console.warn('prop',key,e)); }
   function _addProp(key,x,z,ry,scale,y){ _loadProp(key,src=>{ if(!_plazaActive)return; const o=(_SkelClone?_SkelClone(src):src.clone(true)); o.traverse(n=>{ if(n.isMesh){ n.frustumCulled=false; (Array.isArray(n.material)?n.material:[n.material]).forEach(m=>{ m.toneMapped=false; m.side=THREE.DoubleSide; }); } }); const grp=new THREE.Group(); grp.add(o); scene.add(grp); grp.updateMatrixWorld(true); const bx0=new THREE.Box3().setFromObject(o); const h=(bx0.max.y-bx0.min.y)||1; const tgt=key.indexOf('nexus')===0?_PROP_SIZE.nexus:_PROP_SIZE.turret; grp.scale.setScalar((tgt*(scale||1))/h); grp.updateMatrixWorld(true); const bx=new THREE.Box3().setFromObject(grp); const gy=(typeof y==='number'&&isFinite(y))?y:(groundY(x,z)-bx.min.y); grp.position.set(x,gy,z); grp.rotation.y=ry||0; _placed.push({key,x,y:gy,z,ry:ry||0,scale:scale||1,obj:grp,h0:h}); _selectProp(_placed.length-1); try{ showS1Toast((key.indexOf('nexus')===0?'🏰 넥서스':'🗼 포탑')+' 설치됨 ('+_placed.length+'개)'); }catch(_){} }); }
   _PLAZA_PROPS.forEach(p=>_addProp(p.key,p.x,p.z,p.ry,p.scale,p.y));
+  try{ get(ref(db,'plaza_props')).then(s=>{ if(!_plazaActive)return; const a=s&&s.val(); if(Array.isArray(a)) a.forEach(p=>{ try{ _addProp(p.key,p.x,p.z,p.ry,p.scale,p.y); }catch(_){} }); }).catch(()=>{}); }catch(_){}   // 💾 저장된 배치 불러오기(전원 공유·패널 없어도 보임)
   window._propPick=(k)=>{ if(!_PROP_GLB[k])return '키: nexusB nexusR turretB turretR'; _propBrush=k; _placeMode=true; return 'brush='+k+' · 배치모드 ON — 바닥 클릭하면 설치(이동 대신)'; };
   window._propPlace=(on)=>{ _placeMode=(on!==false); return '배치모드 '+(_placeMode?'ON(클릭=설치)':'OFF(클릭=이동)'); };
   window._propMirror=(on)=>{ _propMirrorOn=(on!==false); return '대칭배치(블루↔레드 자동) '+(_propMirrorOn?'ON':'OFF'); };
@@ -33972,8 +33976,8 @@ window.openPlaza=async function(){
   window._propSize=(type,v)=>{ if(_PROP_SIZE[type]==null)return "type: 'nexus' 또는 'turret'"; _PROP_SIZE[type]=v; _placed.filter(p=>(p.key.indexOf('nexus')===0)===(type==='nexus')).forEach(p=>{ p.obj.updateMatrixWorld(true); const bottom=new THREE.Box3().setFromObject(p.obj).min.y; p.obj.scale.setScalar((v*(p.scale||1))/(p.h0||1)); p.obj.updateMatrixWorld(true); const b1=new THREE.Box3().setFromObject(p.obj); p.obj.position.y+=(bottom-b1.min.y); p.y=p.obj.position.y; }); return type+' 크기='+v; };   // 베이스(바닥) 고정 리사이즈
   window._propDump=()=>{ const d=_placed.map(p=>({key:p.key,x:+p.x.toFixed(1),z:+p.z.toFixed(1),ry:+p.ry.toFixed(2),scale:p.scale,y:+(p.y||0).toFixed(2)})); console.log('PROPS='+JSON.stringify(d)); return d.length+'개 — 콘솔의 PROPS=... 줄을 복사해서 클로드에게 주세요'; };
   // 🏰 배치 패널 UI (상단 🏰 버튼으로 열기)
-  { const BS='padding:7px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#ffe7b0;font-weight:800;font-size:12px;cursor:pointer;';
-    const bp=document.createElement('div'); bp.style.cssText='position:absolute;left:50%;bottom:52px;transform:translateX(-50%);z-index:7;display:none;flex-direction:column;gap:6px;background:rgba(10,8,16,.93);border:1px solid rgba(240,200,90,.45);border-radius:12px;padding:10px 12px;';
+  { const BS='padding:5px 7px;border-radius:7px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#ffe7b0;font-weight:800;font-size:11px;cursor:pointer;white-space:nowrap;';
+    const bp=document.createElement('div'); bp.style.cssText='position:absolute;left:8px;bottom:64px;z-index:7;display:none;flex-direction:column;gap:5px;width:198px;max-height:46vh;overflow-y:auto;background:rgba(10,8,16,.82);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);border:1px solid rgba(240,200,90,.45);border-radius:12px;padding:8px 9px;';
     const mk=(t)=>{ const b=document.createElement('button'); b.textContent=t; b.style.cssText=BS; return b; };
     const sels=[['turretB','🔵 포탑'],['turretR','🔴 포탑'],['nexusB','🔵 넥서스'],['nexusR','🔴 넥서스']]; const selBtns={};
     function info(){ const p=_selProp(); const sel=p?('✦선택 '+(_selIdx+1)+'/'+_placed.length+' '+((sels.find(x=>x[0]===p.key)||['','?'])[1])):'선택 없음'; const nm=(sels.find(x=>x[0]===_propBrush)||['','?'])[1]; inf.textContent='설치 '+_placed.length+'개 · '+sel+' · 설치색['+nm+']'; }
@@ -33999,7 +34003,7 @@ window.openPlaza=async function(){
     [bMir,bPrev,bNext,bDn,bUp,bRotL,bRotR,bDel,bW,bHere,bSv].forEach(b=>r2.appendChild(b));
     // 🎚️ 선택한 포탑 1개만 각 축 세밀 이동 — 제한 없음(Y는 땅 관통까지). 스텝: 가로 0.3 / 높이 0.2
     const r3=document.createElement('div'); r3.style.cssText='display:flex;gap:6px;flex-wrap:wrap;justify-content:center;';
-    const SX=0.3, SY=0.2; const nb=(t,dx,dy,dz)=>{ const b=mk(t); b.style.background='rgba(180,120,255,.24)'; b.onclick=()=>nudgeLast(dx,dy,dz); return b; };
+    const SX=0.15, SY=0.1; const nb=(t,dx,dy,dz)=>{ const b=mk(t); b.style.background='rgba(180,120,255,.24)'; b.onclick=()=>nudgeLast(dx,dy,dz); return b; };
     [nb('◀ X',-SX,0,0),nb('X ▶',SX,0,0),nb('Z −',0,0,-SX),nb('Z ＋',0,0,SX),nb('높이 −',0,-SY,0),nb('높이 ＋',0,SY,0)].forEach(b=>r3.appendChild(b));
     const inf=document.createElement('div'); inf.style.cssText='text-align:center;font-size:11px;color:#cbd3e6;';
     bp.appendChild(r1); bp.appendChild(r2); bp.appendChild(r3); bp.appendChild(inf); ov.appendChild(bp); info();
