@@ -6899,7 +6899,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.476';
+const APP_VERSION = 'v2.45.477';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -33822,7 +33822,7 @@ window.openPlaza=async function(){
         const noTex=ms.length&&ms.every(m=>!m.map);
         if(noTex&&o.geometry&&o.geometry.attributes.position){ const pos=o.geometry.attributes.position, uv=new Float32Array(pos.count*2); for(let vi=0;vi<pos.count;vi++){ uv[vi*2]=pos.getX(vi)*0.15; uv[vi*2+1]=pos.getY(vi)*0.15; } o.geometry.setAttribute('uv',new THREE.BufferAttribute(uv,2)); }   // 평면 투영 UV
         ms.forEach(m=>{ if(!m.map){ if(_fbMap){ const t=_fbMap.clone(); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.needsUpdate=true; m.map=t; m.color&&m.color.setHex(0xffffff); } else m.color&&m.color.setHex(0x5a5448); m.needsUpdate=true; } m.toneMapped=false; m.side=THREE.DoubleSide; m.transparent=false; m.alphaTest=0.08; m.depthWrite=true; }); } });
-      scene.add(root); riftRoot=root; applyRift(); try{ if(!_RIFT._aligned){ const rc=new THREE.Raycaster(); rc.set(new THREE.Vector3(0,400,0),new THREE.Vector3(0,-1,0)); const hh=rc.intersectObject(root,true); if(hh.length){ _RIFT.oy-=hh[0].point.y; _RIFT._aligned=true; applyRift(); } } }catch(_){} _snapCam=true; setTimeout(()=>{ if(_plazaActive&&typeof _miniSnapshot==='function')_miniSnapshot(); },900);
+      scene.add(root); riftRoot=root; applyRift(); try{ if(!_RIFT._aligned){ const rc=new THREE.Raycaster(); rc.set(new THREE.Vector3(0,400,0),new THREE.Vector3(0,-1,0)); const hh=rc.intersectObject(root,true); if(hh.length){ _RIFT.oy-=hh[0].point.y; _RIFT._aligned=true; applyRift(); } } }catch(_){} _snapCam=true; [1200,2600,4500].forEach(ms=>setTimeout(()=>{ if(_plazaActive&&typeof _miniSnapshot==='function')_miniSnapshot(); },ms));
     }, undefined, e=>{ console.warn('rift load fail',e); });
   }
   const grnd=new THREE.Mesh(new THREE.PlaneGeometry(500,500), new THREE.MeshBasicMaterial({visible:false})); grnd.rotation.x=-Math.PI/2; scene.add(grnd);   // 무형 바닥(레이캐스트 전용)
@@ -33900,7 +33900,7 @@ window.openPlaza=async function(){
     renderer.setRenderTarget(rt); renderer.render(scene,oc); renderer.setRenderTarget(null); scene.fog=pf; hl.forEach((o,i)=>{if(o)o.visible=vis[i];});
     const buf=new Uint8Array(SZ*SZ*4); renderer.readRenderTargetPixels(rt,0,0,SZ,SZ,buf); rt.dispose();
     const cv=document.createElement('canvas'); cv.width=cv.height=SZ; const ctx=cv.getContext('2d'); const img=ctx.createImageData(SZ,SZ);
-    for(let y=0;y<SZ;y++)for(let x=0;x<SZ;x++){ const si=((SZ-1-y)*SZ+x)*4, di=(y*SZ+x)*4; img.data[di]=buf[si]; img.data[di+1]=buf[si+1]; img.data[di+2]=buf[si+2]; img.data[di+3]=255; }
+    const G=v=>Math.min(255,Math.round(255*Math.pow(v/255,0.4545))); for(let y=0;y<SZ;y++)for(let x=0;x<SZ;x++){ const si=((SZ-1-y)*SZ+x)*4, di=(y*SZ+x)*4; img.data[di]=G(buf[si]); img.data[di+1]=G(buf[si+1]); img.data[di+2]=G(buf[si+2]); img.data[di+3]=255; }
     ctx.putImageData(img,0,0); _miniEl.style.backgroundImage='url('+cv.toDataURL()+')'; _miniEl.style.backgroundSize='cover'; _miniEl.style.backgroundPosition='center';
   }catch(e){ console.warn('miniSnap',e); } }
   // 이모트 휠
@@ -33967,7 +33967,8 @@ window.openPlaza=async function(){
     const bU=mk('↩ 취소'); bU.onclick=()=>{ const p=_placed.pop(); if(p)scene.remove(p.obj); info(); };
     const bW=mk('🚶 이동'); bW.onclick=()=>{ _placeMode=false; Object.values(selBtns).forEach(x=>x.style.background='rgba(255,255,255,.08)'); info(); };
     const bSv=mk('💾 저장'); bSv.style.background='rgba(120,240,150,.25)'; bSv.onclick=()=>{ try{ set(ref(db,'plaza_props'), _placed.map(p=>({key:p.key,x:+p.x.toFixed(1),z:+p.z.toFixed(1),ry:+p.ry.toFixed(2),scale:p.scale}))); showS1Toast('💾 '+_placed.length+'개 저장됨!'); }catch(e){ showS1Toast('저장 실패'); } };
-    [bMir,bDn,bUp,bU,bW,bSv].forEach(b=>r2.appendChild(b));
+    const bHere=mk('📍 여기 설치'); bHere.style.background='rgba(240,200,90,.3)'; bHere.onclick=()=>{ const x=me.pos.x, z=me.pos.z; _addProp(_propBrush,x,z,0,1); if(_propMirrorOn){ const mk2=_propBrush.slice(0,-1)+(_propBrush.slice(-1)==='B'?'R':'B'); _addProp(mk2,-x,-z,Math.PI,1); } info(); };
+    [bMir,bDn,bUp,bU,bW,bHere,bSv].forEach(b=>r2.appendChild(b));
     const inf=document.createElement('div'); inf.style.cssText='text-align:center;font-size:11px;color:#cbd3e6;';
     bp.appendChild(r1); bp.appendChild(r2); bp.appendChild(inf); ov.appendChild(bp); info();
     const tg=document.createElement('button'); tg.textContent='🏰'; tg.title='배치 도구'; tg.style.cssText='pointer-events:auto;margin-right:8px;width:36px;height:36px;border-radius:10px;background:rgba(240,200,90,.22);border:1px solid rgba(240,200,90,.55);color:#ffe7b0;font-size:16px;cursor:pointer;';
