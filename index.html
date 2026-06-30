@@ -6899,7 +6899,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.443';
+const APP_VERSION = 'v2.45.444';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -34717,6 +34717,8 @@ function _injectBuddyCss(){
   .bsp-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;}
   .bsp-name{font-size:17px;font-weight:800;color:#ffe6a0;}
   .bsp-lv{font-size:11.5px;color:#cbb98a;display:flex;align-items:center;gap:7px;}
+  .bsp-meta{font-size:12px;color:#cbb98a;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .bsp-meta b{color:#ffe6a0;}
   .bsp-info .buddy-streak,.bsp-info .buddy-reward{margin:0;}
   .bsp-info .buddy-claim{margin:0;}
   .bsp-lvdetails{margin-top:2px;}
@@ -34793,13 +34795,17 @@ function _injectBuddyCss(){
   .buddy-home-cta-dim{position:relative;z-index:1;font-size:11px;color:var(--rk-text-muted,#9aa0b4);line-height:1.5;padding:6px;}
   .buddy-name{font-weight:800;font-size:15px;color:#ffe39a;}
   .buddy-lv{font-size:11.5px;color:#9aa0b4;margin-top:2px;}
-  .buddy-streak{text-align:center;padding:10px;border-radius:10px;margin-bottom:10px;font-weight:800;}
-  .buddy-streak.win{background:rgba(240,200,90,.12);color:#ffd24a;}
-  .buddy-streak.loss{background:rgba(120,160,255,.12);color:#8fb6ff;}
-  .buddy-streak.none{background:rgba(255,255,255,.05);color:#9aa0b4;font-weight:600;}
-  .buddy-reward{font-size:12.5px;color:#c8cad6;line-height:1.6;background:rgba(0,0,0,.2);border-radius:9px;padding:9px 11px;margin-bottom:11px;}
+  .buddy-streak{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:800;}
+  .buddy-streak.win{background:rgba(240,200,90,.16);color:#ffd24a;}
+  .buddy-streak.loss{background:rgba(160,170,195,.14);color:#aab2c8;}
+  .buddy-streak.none{background:rgba(255,255,255,.05);color:#9aa0b4;font-weight:700;}
+  .buddy-reward{font-size:12px;color:#9aa0b4;line-height:1.55;}
+  .buddy-reward.claimable{color:#e8e2d0;background:rgba(240,200,90,.1);border:1px solid rgba(240,200,90,.3);border-radius:9px;padding:8px 11px;}
+  .buddy-reward b{color:#ffe39a;}
   .buddy-claim{width:100%;background:linear-gradient(90deg,#f0c060,#e0a030);border:0;color:#1a1208;font-weight:800;border-radius:11px;padding:11px;cursor:pointer;font-size:14px;}
-  .buddy-change-btn{width:100%;margin-top:7px;background:rgba(255,255,255,0.05);border:1px solid var(--rk-border);color:var(--text-dim);font-weight:600;border-radius:9px;padding:7px;cursor:pointer;font-size:11.5px;transition:.15s;}
+  .bsp-foot{display:flex;align-items:flex-start;gap:8px;margin-top:2px;}
+  .bsp-foot .bsp-lvdetails{flex:1;margin-top:0;}
+  .buddy-change-btn{flex:none;width:auto;margin-top:0;background:rgba(255,255,255,0.05);border:1px solid rgba(240,200,90,.28);color:#cbb98a;font-weight:700;border-radius:9px;padding:6px 13px;cursor:pointer;font-size:11.5px;transition:.15s;white-space:nowrap;}
   .buddy-change-btn:hover{background:rgba(255,255,255,0.09);color:#bfeede;border-color:#3a5a6a;}
   .buddy-claim:disabled{opacity:.4;cursor:not-allowed;filter:grayscale(1);}
   .bup-stage{position:relative;width:138px;height:138px;margin:14px auto 6px;display:flex;align-items:center;justify-content:center;}
@@ -35059,24 +35065,31 @@ function _buddySectionHtml(){
   return '';   // 단짝 미보유 시 대시보드 비움 — 인형뽑기/선정 안내는 프로필·인형뽑기 완성 프롬프트에서
 }
 function _buddySpaceHtml(b, st, pv, arenaHtml){   // 단짝 공간(3D+스택+수령+강화) 인라인 · arenaHtml=우측에 녹인 투기장 버튼(v442)
-  const type=st.type, stack=st.count||0, lv=b.level||1;
+  const type=st.type, stack=st.count||0;
   const cur=(type&&stack>=2)?_buddyRewardAt(type,stack):null;
   const next=type?_buddyRewardAt(type, Math.max(stack+1,2)):null;
-  const streakTxt=!type?'스택 없음 (경기를 하면 쌓여요)':(stack<2?`${type==='win'?'🔥 1승':'🛡 1패'} (아직 스택 없음 · 2연${type==='win'?'승':'패'}부터)`:`${type==='win'?'🔥 연승':'🛡 연패'} ${stack-1}스택`);   // 표시 스택=연속-1 (내부 count는 연속 그대로)
+  const claimable = cur && !BUDDY_REWARDS_LOCKED;
+  const streakPill = !type ? '스택 없음'
+    : (type==='win' ? (stack<2?'🔥 1승':`🔥 연승 ${stack-1}`) : (stack<2?'🛡 1패':`🛡 연패 ${stack-1}`));
+  const rewardLine = BUDDY_REWARDS_LOCKED ? '🔒 보상은 준비 중이에요 (스택은 계속 쌓여요)'
+    : claimable ? `지금 수령: <b>${_buddyRewardText(cur)}</b>${_buddyAtCap(type,stack)?' <span style="color:#ffd24a">· 최대치</span>':''}`
+    : !type ? '🎁 경기를 하면 보상이 쌓여요'
+    : `🎁 <b>2연${type==='win'?'승':'패'}</b>부터 보상${next?` · 다음 ${_buddyRewardText(next)}`:''}`;
   return `<div class="wm-card buddy-space${pv?' pv':''}">
     ${pv?'<div class="bsp-pvbar">👀 프리뷰 — 수령은 저장 안 돼요 <button onclick="window._buddyExitPreview()">종료</button></div>':''}
     <div class="bsp-hd">🧸 내 단짝</div>
     <div class="bsp-body">
-      <div class="bsp-3d"><div id="buddy-space-mount" class="buddy-home-mount"></div><div class="buddy3d-tap">👆 콕 찌르면 반응${type==='win'?' · 신나 보여요!':type==='loss'?' · 기운 내자…':''}</div></div>
+      <div class="bsp-3d"><div id="buddy-space-mount" class="buddy-home-mount"></div><div class="buddy3d-tap">👆 콕 찌르면 반응</div></div>
       <div class="bsp-info">
         <div class="bsp-name">${_buddyNameHtml(b)}${!pv?` <button class="buddy-edit-nick" onclick="window._buddyOpenName()" title="별칭 짓기">✏️</button>`:''}</div>
-        <div class="bsp-lv">함께 ${b.pulls||0}회</div>
-        <div class="buddy-streak ${type||'none'}">${streakTxt}</div>
-        <div class="buddy-reward">${BUDDY_REWARDS_LOCKED ? '🔒 보상·효과는 <b>준비 중</b>이에요 (미정)<br><span style="opacity:.6;">스택은 계속 쌓이니 — 보상은 곧 공개!</span>' : `${cur?`지금 수령: <b>${_buddyRewardText(cur)}</b>${_buddyAtCap(type,stack)?' <span style="color:#ffd24a;">· 최대치</span>':''}`:'아직 수령할 보상 없음 (1스택부터)'}${(type&&stack>=2)?(_buddyAtCap(type,stack)?`<br><span style="opacity:.6;">🏆 최고 보상 도달 — 스택은 더 쌓여도 보상은 동일</span>`:(next?`<br><span style="opacity:.6;">한 판 더: ${_buddyRewardText(next)}</span>`:'')):''}`}</div>
-        <button class="buddy-claim" ${(cur && !BUDDY_REWARDS_LOCKED)?'':'disabled'} onclick="window.buddyClaimInline(${pv?1:0})">${BUDDY_REWARDS_LOCKED?'🔒 보상 준비 중':(cur?'🎁 보상 수령 (스택 0)':'수령 불가')}</button>
+        <div class="bsp-meta">함께 <b>${b.pulls||0}</b>회 <span class="buddy-streak ${type||'none'}">${streakPill}</span></div>
+        <div class="buddy-reward ${claimable?'claimable':''}">${rewardLine}</div>
+        ${claimable?`<button class="buddy-claim" onclick="window.buddyClaimInline(${pv?1:0})">🎁 보상 수령</button>`:''}
         ${arenaHtml||''}
-        <details class="buddy-help bsp-lvdetails"><summary>🎁 연승·연패 보상 보기</summary><div class="bl-card">${_buddyLvListHtml()}</div></details>
-        ${!pv?`<button class="buddy-change-btn" onclick="event.stopPropagation();window._buddyChangeBuddy()">🔄 다른 단짝으로 변경</button>`:''}
+        <div class="bsp-foot">
+          <details class="buddy-help bsp-lvdetails"><summary>🎁 보상표</summary><div class="bl-card">${_buddyLvListHtml()}</div></details>
+          ${!pv?`<button class="buddy-change-btn" onclick="event.stopPropagation();window._buddyChangeBuddy()">🔄 변경</button>`:''}
+        </div>
       </div>
     </div></div>`;
 }
