@@ -6658,7 +6658,7 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 <!-- Firebase SDK -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
-import { getDatabase, ref, get, set, onValue, remove, push, update, runTransaction } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
+import { getDatabase, ref, get, set, onValue, remove, push, update, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-database.js";
 
 // ── FIREBASE CONFIG ───────────────────────────────────────────
 const firebaseConfig = {
@@ -6899,7 +6899,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.446';
+const APP_VERSION = 'v2.45.447';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -32834,6 +32834,11 @@ function _prismClawHtml(){
       <button class="prism-claw-btn" onclick="window.openClawTest3D()">🕹️ 인형뽑기 하러 가기</button>
     </div>
     ${(function(){try{return _buddyArcadeHtml();}catch(e){console.warn('buddy arcade',e);return '';}})()}
+    <div class="arcade-sec">
+      <div class="arcade-sec-h">🏘️ 단짝 광장 <span style="font-size:9.5px;color:#7CFC9A;font-weight:700;">베타</span></div>
+      <button class="prism-claw-btn sec" onclick="window.openPlaza()">🏘️ 광장 입장 — 접속한 친구들과 모이기</button>
+      <div style="font-size:10.5px;color:#9aa0b4;text-align:center;margin-top:6px;">내 단짝 캐릭터로 걸어다니며 지금 접속한 친구들을 만나요</div>
+    </div>
   </div>`;
 }
 // 🕹️ 3D 인형뽑기 프로토타입(실험용 테스트) — 앱 안 "브라우저 창"처럼 띄움(타이틀바+최소화/최대화/닫기). 같은 출처라 iframe 임베드 OK
@@ -33718,6 +33723,105 @@ async function _forge3dShow(mount, glbFile, gradeColor, prism){
       renderer.render(scene,camera); })();
   }catch(e){ console.warn('강화 3D 실패', e); }
 }
+// ════════ 🏘️ 단짝 광장 — 접속 팀원의 3D 캐릭터가 함께 걸어다니는 공유 공간(MVP·베타) ════════
+const _PLAZA_RUN={teemo:'Run_Base',gwen:'Run.anm',vex:'Run_Base',ekko:'Run_Base',yone:'Run_Base',neeko:'Run_Base',lux:'Run'};
+const _PLAZA_IDLE={teemo:'Idle_In',gwen:'Idle.anm',vex:'Idle_In',ekko:'Idle01_to_Idle2',yone:'Idle1_Base',neeko:'Idlein_Animal',lux:'Idle1'};
+let _plazaActive=false;
+function _injectPlazaCss(){ if(document.getElementById('plaza-css'))return; const s=document.createElement('style'); s.id='plaza-css';
+  s.textContent=`
+  #plaza-ov{position:fixed;inset:0;z-index:4200;background:#06060d;}
+  #plaza-stage{position:absolute;inset:0;overflow:hidden;cursor:crosshair;}
+  #plaza-stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block;}
+  .plaza-top{position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:flex-start;justify-content:space-between;padding:12px 14px;background:linear-gradient(180deg,rgba(8,6,14,.92),transparent);pointer-events:none;}
+  .plaza-top .pz-title{font-family:'Black Han Sans','Noto Sans KR',sans-serif;font-size:19px;color:#ffd24a;text-shadow:0 1px 8px rgba(240,200,90,.3);}
+  .plaza-top .pz-count{font-size:12px;color:#cbd3e6;margin-top:2px;}
+  .plaza-x{pointer-events:auto;width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#dfe3ee;font-size:17px;font-weight:800;cursor:pointer;}
+  .plaza-hint{position:absolute;bottom:14px;left:0;right:0;text-align:center;z-index:5;font-size:11.5px;color:#9aa0b4;pointer-events:none;}
+  .pz-nameplate{position:absolute;transform:translate(-50%,-100%);z-index:4;pointer-events:none;background:linear-gradient(165deg,rgba(26,21,12,.92),rgba(12,10,7,.94));border:1px solid rgba(240,200,90,.5);border-radius:8px;padding:1px 8px;font-size:11px;font-weight:800;color:#ffe7b0;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,.7);}
+  .pz-nameplate.me{border-color:#7CFC9A;color:#bfffce;}
+  `; document.head.appendChild(s);
+}
+window.openPlaza=async function(){
+  const myKey=getMyGoldKey(); if(!myKey){ showS1Toast('닉네임을 먼저 선택해주세요'); return; }
+  if(document.getElementById('plaza-ov')||_plazaActive) return; _plazaActive=true;
+  _injectPlazaCss();
+  let THREE,GLTFLoader,MSD=null,RoomEnvironment=null;
+  try{ THREE=await import('three'); ({GLTFLoader}=await import('three/addons/loaders/GLTFLoader.js'));
+    try{({MeshoptDecoder:MSD}=await import('three/addons/libs/meshopt_decoder.module.js'));}catch(_){}
+    try{({RoomEnvironment}=await import('three/addons/environments/RoomEnvironment.js'));}catch(_){}
+  }catch(e){ _plazaActive=false; showS1Toast('3D 로드 실패'); return; }
+  const SPEED=4.4;
+  const ov=document.createElement('div'); ov.id='plaza-ov';
+  ov.innerHTML=`<div class="plaza-top"><div><div class="pz-title">🏘️ 단짝 광장 <span style="font-size:11px;color:#7CFC9A;font-family:'Noto Sans KR'">베타</span></div><div class="pz-count" id="pz-count">접속 …</div></div><button class="plaza-x" id="pz-x">✕</button></div><div id="plaza-stage"></div><div class="plaza-hint">바닥을 클릭 = 그쪽으로 걸어가기 · 접속한 친구들이 실시간으로 보여요</div>`;
+  document.body.appendChild(ov);
+  const stage=ov.querySelector('#plaza-stage');
+  const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'low-power'});
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.6)); renderer.outputColorSpace=THREE.SRGBColorSpace; renderer.setClearColor(0x06060d,1);
+  renderer.domElement.style.cssText='width:100%;height:100%;display:block;'; stage.appendChild(renderer.domElement);
+  const scene=new THREE.Scene(); scene.fog=new THREE.Fog(0x06060d,20,48);
+  try{ if(RoomEnvironment){ const pm=new THREE.PMREMGenerator(renderer); scene.environment=pm.fromScene(new RoomEnvironment(),0.04).texture; } }catch(_){}
+  scene.add(new THREE.HemisphereLight(0xdfeaff,0x1a1a24,1.25)); const dl=new THREE.DirectionalLight(0xfff0d0,1.1); dl.position.set(6,12,8); scene.add(dl);
+  const grnd=new THREE.Mesh(new THREE.PlaneGeometry(120,120), new THREE.MeshStandardMaterial({color:0x14111e,roughness:.96,metalness:.08})); grnd.rotation.x=-Math.PI/2; scene.add(grnd);
+  const grid=new THREE.GridHelper(120,60,0x4a3c20,0x2a2114); grid.position.y=0.01; scene.add(grid);
+  const camera=new THREE.PerspectiveCamera(46,1,0.1,200);
+  function resize(){ const w=stage.clientWidth||innerWidth, h=stage.clientHeight||innerHeight; renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); }
+  resize(); window.addEventListener('resize',resize);
+  const loader=new GLTFLoader(); if(MSD){try{loader.setMeshoptDecoder(MSD);}catch(_){}}
+  const baseOf=cf=>String(cf||'teemo.glb').replace(/\.glb$/i,'');
+  const mkUnit=()=>({group:null,mixer:null,clips:null,run:'Run_Base',idle:'Idle1',pos:new THREE.Vector3(),target:new THREE.Vector3(),dir:0,moving:false,_cur:null,curAnim:null,np:null,loading:false});
+  function setAnim(u,name){ if(!u.mixer||!u.clips||u.curAnim===name)return; const clip=u.clips[name]||u.clips[u.idle]||Object.values(u.clips)[0]; if(!clip)return; const a=u.mixer.clipAction(clip); a.reset().setLoop(THREE.LoopRepeat,Infinity).fadeIn(0.18).play(); if(u._cur&&u._cur!==a)u._cur.fadeOut(0.18); u._cur=a; u.curAnim=name; }
+  function loadInto(u,champFile,ownerData){ if(u.loading)return; u.loading=true;
+    _loadAppGlb(loader,champFile,g=>{ if(!_plazaActive)return;
+      const model=g.scene; model.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ if(m.transparent){m.transparent=false;m.alphaTest=0.5;m.depthWrite=true;} m.side=THREE.DoubleSide; }); } });
+      const bx=new THREE.Box3().setFromObject(model); const c=bx.getCenter(new THREE.Vector3()); const sz=bx.getSize(new THREE.Vector3()); const norm=1.75/(sz.y||1);
+      model.scale.setScalar(norm); model.position.set(-c.x*norm,-bx.min.y*norm,-c.z*norm);
+      const grp=new THREE.Group(); grp.add(model); grp.position.copy(u.pos); scene.add(grp); u.group=grp;
+      u.mixer=new THREE.AnimationMixer(model); u.clips={}; (g.animations||[]).forEach(cl=>u.clips[cl.name]=cl);
+      const b=baseOf(champFile); u.run=u.clips[_PLAZA_RUN[b]]?_PLAZA_RUN[b]:(u.clips['Run_Base']?'Run_Base':(Object.keys(u.clips).find(n=>/run/i.test(n))||u.idle)); u.idle=u.clips[_PLAZA_IDLE[b]]?_PLAZA_IDLE[b]:'Idle1';
+      setAnim(u,u.idle);
+    },()=>{ u.loading=false; }, ownerData);
+  }
+  const me=mkUnit(); const myData=getMyGoldData()||{};
+  const myChamp=((_buddyData()&&_buddyData().champion))||_arenaActiveFighter(myData)||'teemo.glb';
+  me.pos.set(Math.random()*8-4,0,Math.random()*8-4); me.target.copy(me.pos);
+  loadInto(me,myChamp,myData);
+  { const np=document.createElement('div'); np.className='pz-nameplate me'; np.textContent=(myName||myData.name||'나'); stage.appendChild(np); me.np=np; }
+  camera.position.set(me.pos.x,9.5,me.pos.z+11);
+  const ray=new THREE.Raycaster(), ndc=new THREE.Vector2();
+  renderer.domElement.addEventListener('pointerdown',e=>{ const r=renderer.domElement.getBoundingClientRect(); ndc.x=((e.clientX-r.left)/r.width)*2-1; ndc.y=-((e.clientY-r.top)/r.height)*2+1; ray.setFromCamera(ndc,camera); const hit=ray.intersectObject(grnd)[0]; if(hit) me.target.set(Math.max(-40,Math.min(40,hit.point.x)),0,Math.max(-40,Math.min(40,hit.point.z))); });
+  const myRef=ref(db,'plaza/'+myKey);
+  const writeMe=()=>{ set(myRef,{ name:(myName||myData.name||'?'), champ:myChamp, x:+me.pos.x.toFixed(2), z:+me.pos.z.toFixed(2), dir:+me.dir.toFixed(2), moving:me.moving, at:Date.now() }).catch(()=>{}); };
+  try{ onDisconnect(myRef).remove(); }catch(_){}
+  writeMe();
+  const _hb=setInterval(writeMe,12000); let _lastWrite=0, _wasMoving=false;
+  const others={}; let _snap={};
+  const unsub=onValue(ref(db,'plaza'),snap=>{ _snap=snap.val()||{}; const now=Date.now(); const cnt=Object.keys(_snap).filter(k=>_snap[k]&&_snap[k].at&&now-_snap[k].at<35000).length; const ce=ov.querySelector('#pz-count'); if(ce)ce.textContent='접속 '+Math.max(1,cnt)+'명'; });
+  function syncOthers(){ const now=Date.now(); const live={}; let n=0;
+    for(const k in _snap){ const e=_snap[k]; if(!e||k===myKey||!e.at||now-e.at>35000)continue; if(n++>=8)break; live[k]=1;
+      let u=others[k]; if(!u){ u=others[k]=mkUnit(); u.pos.set(e.x||0,0,e.z||0); u.target.copy(u.pos); u.dir=e.dir||0; loadInto(u,e.champ||'teemo.glb',(typeof goldData!=='undefined'&&goldData)?goldData[k]:null);
+        const np=document.createElement('div'); np.className='pz-nameplate'; np.textContent=e.name||'?'; stage.appendChild(np); u.np=np; }
+      u.target.set(e.x||0,0,e.z||0); u.moving=!!e.moving; if(u.np)u.np.textContent=e.name||'?'; }
+    for(const k in others){ if(!live[k]){ const u=others[k]; if(u.group)scene.remove(u.group); if(u.np)u.np.remove(); delete others[k]; } }
+  }
+  const cleanup=()=>{ if(!_plazaActive)return; _plazaActive=false; cancelAnimationFrame(raf); clearInterval(_hb); try{unsub();}catch(_){} try{remove(myRef);}catch(_){} try{onDisconnect(myRef).cancel();}catch(_){} window.removeEventListener('resize',resize); try{renderer.dispose();}catch(_){} if(me.np)me.np.remove(); for(const k in others){ if(others[k].np)others[k].np.remove(); } try{ov.remove();}catch(_){} };
+  ov.querySelector('#pz-x').onclick=cleanup;
+  const clock=new THREE.Clock(), camOff=new THREE.Vector3(0,9.5,11), tmp=new THREE.Vector3(); let raf=0;
+  const place=(u)=>{ if(!u.np||!u.group){ if(u.np)u.np.style.display='none'; return; } tmp.copy(u.pos); tmp.y+=2.0; tmp.project(camera); if(tmp.z>1){ u.np.style.display='none'; return; } u.np.style.display='block'; const w=stage.clientWidth,h=stage.clientHeight; u.np.style.left=((tmp.x*0.5+0.5)*w)+'px'; u.np.style.top=((-tmp.y*0.5+0.5)*h)+'px'; };
+  (function loop(){ if(!_plazaActive)return; raf=requestAnimationFrame(loop); const dt=Math.min(0.05,clock.getDelta());
+    syncOthers();
+    const d=tmp.copy(me.target).sub(me.pos); d.y=0; const dist=d.length();
+    if(dist>0.12){ me.moving=true; d.normalize(); me.pos.addScaledVector(d,Math.min(dist,SPEED*dt)); me.dir=Math.atan2(d.x,d.z); } else me.moving=false;
+    if(me.group){ me.group.position.copy(me.pos); me.group.rotation.y=me.dir; setAnim(me,me.moving?me.run:me.idle); }
+    if(me.mixer)me.mixer.update(dt);
+    const t=performance.now(); if(t-_lastWrite>(me.moving?110:700)){ if(me.moving||_wasMoving!==me.moving){ writeMe(); } _wasMoving=me.moving; _lastWrite=t; }
+    for(const k in others){ const u=others[k]; if(u.group){ const dd=tmp.copy(u.target).sub(u.pos); dd.y=0; const dl=dd.length();
+      if(dl>0.06){ dd.normalize(); u.pos.addScaledVector(dd,Math.min(dl,SPEED*1.1*dt)); u.dir=Math.atan2(dd.x,dd.z); u.group.rotation.y=u.dir; setAnim(u,u.run); } else setAnim(u,u.idle);
+      u.group.position.copy(u.pos); } if(u.mixer)u.mixer.update(dt); }
+    camera.position.lerp(tmp.copy(me.pos).add(camOff),0.08); camera.lookAt(me.pos.x,me.pos.y+0.8,me.pos.z);
+    renderer.render(scene,camera);
+    place(me); for(const k in others) place(others[k]);
+  })();
+};
 window.openArenaForge=function(sandbox){
   if(!sandbox && !ARENA_LIVE_ENABLED){ showS1Toast('🔒 인형 투기장 강화는 준비 중이에요 (곧 열려요)'); return; }   // 🔒 라이브 잠금(샌드박스 프리뷰는 통과)
   const key=getMyGoldKey(); if(!key && !sandbox){ showS1Toast('닉네임을 먼저 선택해주세요'); return; }
