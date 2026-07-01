@@ -5784,6 +5784,8 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 .fg2-head-ic{font-size:16px;}
 .fg2-head-glow{margin-left:auto;font-size:11px;font-weight:800;}
 .fg2-tut-btn{display:inline-flex;align-items:center;gap:3px;background:transparent;border:1px solid rgba(240,192,96,0.3);color:#c9a45c;font-size:10px;font-weight:600;border-radius:999px;padding:2px 8px;cursor:pointer;white-space:nowrap;letter-spacing:.2px;flex-shrink:0;}
+.fg2-skip-tog{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:#c9a45c;cursor:pointer;white-space:nowrap;flex-shrink:0;user-select:none;}
+.fg2-skip-tog input{width:13px;height:13px;accent-color:#f0c060;cursor:pointer;margin:0;}
 .fg2-tut-btn:hover{background:rgba(240,192,96,0.14);color:#f0c060;}
 /* 상단: 모루(좌) + 강화권(우) */
 .fg2-top{display:flex;gap:12px;align-items:stretch;}
@@ -6921,7 +6923,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.500';
+const APP_VERSION = 'v2.45.501';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -11165,7 +11167,7 @@ function renderEmblemBody(){
     : `<div class="fg2-noeq">강철심장 미장착<br>내 아이템·장비에서 클릭</div>`;
 
   body.innerHTML = `
-    <div class="fg2-head"><span class="fg2-head-ic">⚒️</span><span>대장간</span><span class="fg2-head-glow" style="color:${glow.color};">${em?glow.label:'미장착'}</span>${FORGE_TUT.active?'':'<button class="fg2-tut-btn" onclick="window.startForgeTut(true)">🎓 사용법</button>'}</div>
+    <div class="fg2-head"><span class="fg2-head-ic">⚒️</span><span>대장간</span><span class="fg2-head-glow" style="color:${glow.color};">${em?glow.label:'미장착'}</span><label class="fg2-skip-tog" title="체크하면 오른 모션 없이 망치 한 방으로 바로 결과"><input type="checkbox" id="forge-skip-chk"${_forgeSkipOn()?' checked':''} onchange="window._forgeToggleSkip(this.checked)"><span>⚡ 빠른 강화</span></label>${FORGE_TUT.active?'':'<button class="fg2-tut-btn" onclick="window.startForgeTut(true)">🎓 사용법</button>'}</div>
     <div class="fg2-forge-row">
       <div class="fg2-stage" id="forge-stage">
         <div class="fg2-scene">
@@ -11718,57 +11720,59 @@ function anvilClang(big){
   }catch(e){}
 }
 // 단조 — 소리 "땅 · 땅" 두 번 + 모루 클랭. 강화 단계 도달 시 "강해짐" 플래시, 최종은 거인의 결의 변신.
+function _forgeSkipOn(){ try{ return localStorage.getItem('forgeSkipAnim')==='1'; }catch(_){ return false; } }   // ⚡ 오른 모션 생략(빠른 강화) 설정
+window._forgeToggleSkip = function(on){ try{ localStorage.setItem('forgeSkipAnim', on?'1':'0'); }catch(_){} try{ showS1Toast?.(on?'⚡ 빠른 강화 — 오른 모션 없이 바로 결과':'🔨 오른 모션 보기 ON'); }catch(_){} };
 function _emblemForge(r){
   return new Promise(resolve=>{
     const anvil = document.getElementById('emblem-anvil');
     if (!anvil){ resolve(); return; }
     const col = r.def.color;
-    const TOTAL = 2200;  // 기준 단조 시간 — 땅…땅…땅…탕! 여유있게 (과거 너무 빨랐음)
-    const fD = (window.ornn3d?.durationOf?.('forge')||0)*1000;
-    const ts = fD>0 ? Math.max(0.55, Math.min(1.0, fD/TOTAL)) : 0.6;  // 자연 속도 이하(절대 빠르지 않게)
-    const playMs = fD>0 ? fD/ts : TOTAL;  // 🔨 오른 망치질 실제 재생시간 — 소리/일격을 여기에 맞춤
-    try { window.ornn3d?.playForge?.(ts); } catch(_){}   // 🔥 오른 망치질 — 느긋하게
     const stage = document.getElementById('forge-stage');
     const clang = (big=false)=>{ try { _gSfx.mergeImpact(big?3:2); } catch(_){} try { window.ornn3d?.flare?.(); } catch(_){} anvilClang(big); anvil.classList.remove('clang'); void anvil.offsetWidth; anvil.classList.add('clang'); if(big&&stage){ stage.classList.add('struck'); setTimeout(()=>stage.classList.remove('struck'),200); } };
-    // 땅 … 땅 … 땅 (앞~중반 가벼운 망치질, 오른 모션에 맞춤)
-    [0.18, 0.36, 0.53].forEach(f => setTimeout(()=>{ clang(false); _forgeSparks(anvil, col, 6); }, f*playMs));  // 3번째 타격 조금 더 앞당김(오른 모션에 정렬)
-    // 탕! (오른의 마지막 망치 내려치는 끝에 맞춘 큰 일격) → 결과 반영
-    setTimeout(()=>{
-      {
-        clang(true);                                             // 탕! 큰 일격
-        anvil.classList.remove('clang');
-        let endDelay = 820;  // 결과 반영·재렌더까지 대기 — 실패 시엔 실패 모션 끝까지 보이게 늘림
-        if (r.ok){
-          if (r.finalForm){
-            anvil.classList.add('forge-final');
-            try { _gSfx.mergeImpact(3); _gSfx.reveal(3); } catch(_){}
-            _forgeBurst(anvil, '#e879f9', true);
-            _forgeSparks(anvil, '#e879f9', 30);
-            _forgeLabel(anvil, '거인의 결의 완성!', '#e879f9');
-            showS1Toast(`⚒️ 오른의 걸작 · 거인의 결의 완성! 성능 ${r.power}`);
-          } else if (r.tierUp){
-            anvil.classList.add('forge-up');
-            try { _gSfx.mergeImpact(3); _gSfx.reveal(2); } catch(_){}
-            _forgeBurst(anvil, col, true);
-            _forgeSparks(anvil, col, 20);
-            _forgeLabel(anvil, '더 강해졌다!', _EMBLEM_GLOW_META[emblemEffects(r.power).glow]?.color || col);
-            showS1Toast(`🔥 강철심장이 더 강해졌어요! +${r.level} · 성능 ${r.power}`);
-          } else {
-            anvil.classList.add('forge-success');
-            try { _gSfx.mergeImpact(2); _gSfx.reveal(1); } catch(_){}
-            _forgeBurst(anvil, col, false);
-            _forgeSparks(anvil, col, 14);
-            showS1Toast(`⚒️ 단조 성공! +${r.level} · 성능 ${r.power}${r.locked?' · 🔒 LOCK':''}`);
-          }
+    // 🔨 탕! 큰 일격 + 성공/실패 결과 — 일반/빠른 모드 공통
+    const applyResult = () => {
+      clang(true);                                             // 탕! 큰 일격(망치 한 방)
+      anvil.classList.remove('clang');
+      let endDelay = 820;  // 결과 반영·재렌더까지 대기
+      if (r.ok){
+        if (r.finalForm){
+          anvil.classList.add('forge-final');
+          try { _gSfx.mergeImpact(3); _gSfx.reveal(3); } catch(_){}
+          _forgeBurst(anvil, '#e879f9', true);
+          _forgeSparks(anvil, '#e879f9', 30);
+          _forgeLabel(anvil, '거인의 결의 완성!', '#e879f9');
+          showS1Toast(`⚒️ 오른의 걸작 · 거인의 결의 완성! 성능 ${r.power}`);
+        } else if (r.tierUp){
+          anvil.classList.add('forge-up');
+          try { _gSfx.mergeImpact(3); _gSfx.reveal(2); } catch(_){}
+          _forgeBurst(anvil, col, true);
+          _forgeSparks(anvil, col, 20);
+          _forgeLabel(anvil, '더 강해졌다!', _EMBLEM_GLOW_META[emblemEffects(r.power).glow]?.color || col);
+          showS1Toast(`🔥 강철심장이 더 강해졌어요! +${r.level} · 성능 ${r.power}`);
         } else {
-          anvil.classList.add('forge-fail');
-          try { _gSfx.mergeImpact(1); } catch(_){}
-          // 🔥 오른 실패 모션 제거(사용자 요청) — 안빌 흔들림 + 토스트만, 오른은 idle 유지
-          showS1Toast(`💢 단조 실패… 성능 ${r.power} 유지 (슬롯 ${r.slotsUsed}/${EMBLEM_SLOTS})`);
+          anvil.classList.add('forge-success');
+          try { _gSfx.mergeImpact(2); _gSfx.reveal(1); } catch(_){}
+          _forgeBurst(anvil, col, false);
+          _forgeSparks(anvil, col, 14);
+          showS1Toast(`⚒️ 단조 성공! +${r.level} · 성능 ${r.power}${r.locked?' · 🔒 LOCK':''}`);
         }
-        setTimeout(()=>{ anvil.classList.remove('forge-success','forge-fail','forge-up','forge-final'); resolve(); }, endDelay);
+      } else {
+        anvil.classList.add('forge-fail');
+        try { _gSfx.mergeImpact(1); } catch(_){}
+        showS1Toast(`💢 단조 실패… 성능 ${r.power} 유지 (슬롯 ${r.slotsUsed}/${EMBLEM_SLOTS})`);
       }
-    }, playMs*0.88);  // 오른 망치질 막바지 = 마지막 내려치는 순간
+      setTimeout(()=>{ anvil.classList.remove('forge-success','forge-fail','forge-up','forge-final'); resolve(); }, endDelay);
+    };
+    // ⚡ 빠른 강화 — 오른 망치질(2.2초) 생략, 망치 한 방으로 바로 결과
+    if (_forgeSkipOn()){ setTimeout(applyResult, 120); return; }
+    // 🔥 일반 — 오른 망치질(느긋하게 땅…땅…땅…탕!)
+    const TOTAL = 2200;  // 기준 단조 시간
+    const fD = (window.ornn3d?.durationOf?.('forge')||0)*1000;
+    const ts = fD>0 ? Math.max(0.55, Math.min(1.0, fD/TOTAL)) : 0.6;  // 자연 속도 이하(절대 빠르지 않게)
+    const playMs = fD>0 ? fD/ts : TOTAL;  // 🔨 오른 망치질 실제 재생시간
+    try { window.ornn3d?.playForge?.(ts); } catch(_){}   // 🔥 오른 망치질
+    [0.18, 0.36, 0.53].forEach(f => setTimeout(()=>{ clang(false); _forgeSparks(anvil, col, 6); }, f*playMs));  // 땅 … 땅 … 땅
+    setTimeout(applyResult, playMs*0.88);  // 오른 망치질 막바지 = 마지막 내려치는 순간
   });
 }
 
