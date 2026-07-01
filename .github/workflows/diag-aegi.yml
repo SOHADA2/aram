@@ -7,35 +7,36 @@ jobs:
   diag:
     runs-on: ubuntu-latest
     steps:
-      - name: fetch and analyze gold
+      - name: analyze
         run: |
           DB="https://aramchaos-ca022-default-rtdb.asia-southeast1.firebasedatabase.app"
           KEY="-OowXInAIfDm6j7PKe0M"
           curl -s "$DB/gold/$KEY.json" -o gold.json
-          echo "bytes: $(wc -c < gold.json)"
           node -e '
             const d=JSON.parse(require("fs").readFileSync("gold.json","utf8"));
-            if(!d){console.log("NULL");process.exit(0);}
-            console.log("name:",d.name);
-            const g=k=>d[k];
-            const money=Object.keys(d).filter(k=>/gold|Gold|Spent|coin|Coin|rollback|Rollback|resell|sellG|Bonus/i.test(k)&&!Array.isArray(d[k])&&typeof d[k]!=="object");
-            console.log("== 금전 스칼라 필드 ==");
-            money.sort().forEach(k=>console.log("  "+k+" = "+d[k]));
-            const tail=(arr,n)=>Array.isArray(arr)?arr.slice(-n):[];
-            console.log("== lotteryHistory tail(12) ==");
-            tail(d.lotteryHistory,12).forEach(h=>console.log("  ",JSON.stringify(h)));
-            console.log("lotteryHistory total:",Array.isArray(d.lotteryHistory)?d.lotteryHistory.length:0);
-            const mh=d.magollaHistory_s2||d.magollaHistory_s1||d.magollaHistory;
-            console.log("== magollaHistory tail(12) ==");
-            tail(mh,12).forEach(h=>console.log("  ",JSON.stringify(h)));
-            const ah=d.attendanceHistory_s2||d.attendanceHistory;
-            console.log("attendanceHistory len:",Array.isArray(ah)?ah.length:0);
-            console.log("== purchaseLog tail(12) ==");
-            const pl=d.purchaseLog_s2||d.purchaseLog;
-            tail(pl,12).forEach(h=>console.log("  ",JSON.stringify(h)));
-            console.log("== forge/arena 로그 tail ==");
-            const af=d.arenaForgeLog_s2; tail(af,8).forEach(h=>console.log("  F",JSON.stringify(h)));
-            const cl=d.clawLog_s2; tail(cl,6).forEach(h=>console.log("  C",JSON.stringify(h)));
-            console.log("== emblem 관련 ==");
-            ["emblem_s2","emblemTickets_s2","emblemSellG_s2","emblemEssence_s2"].forEach(k=>{if(d[k]!==undefined)console.log("  "+k+" = "+JSON.stringify(d[k]).slice(0,200));});
+            const PRICE=[70,200,400];
+            const lh=(d.lotteryHistory||[]).filter(h=>(h.season??1)===2);
+            let spent=0,won=0,nfree=0,ndisc=0,nwin=0;
+            lh.forEach(h=>{ if(h.free){nfree++;} else {spent+=PRICE[h.tierIdx]||0;} if(h.discarded)ndisc++; if(h.win){nwin++; won+=(h.gold||0);} else if((h.gold||0)>0){won+=h.gold;} });
+            console.log("== S2 복권 집계 ==");
+            console.log("  총 티켓:",lh.length,"| 무료:",nfree,"| 유료지출합:",spent,"G");
+            console.log("  당첨:",nwin,"| 버림(discarded):",ndisc,"| 당첨금합:",won,"G | 복권 순손익:",won-spent,"G");
+            // 최근 시간대(마지막 ts 기준 6시간) 버스트
+            const maxTs=Math.max(...lh.map(h=>h.ts||0));
+            const win6=lh.filter(h=>(h.ts||0)>=maxTs-6*3600e3);
+            let s6=0,w6=0; win6.forEach(h=>{ if(!h.free)s6+=PRICE[h.tierIdx]||0; w6+=(h.gold||0); });
+            console.log("  최근6시간:",win6.length,"티켓 · 지출",s6,"G · 당첨",w6,"G · 순",w6-s6,"G");
+            const lastTs=new Date(maxTs).toISOString();
+            console.log("  마지막 복권 시각(UTC):",lastTs);
+            // 골드 잔액 추정(정확X — matches 제외)
+            const f=k=>d[k]||0;
+            const earnKnown=f("emblemSellG_s2")+f("trashGold_s2")+f("passGold_s2")+f("buddyGold_s2")+f("mailGold_s2")+f("resellGold_s2")+f("goldBonusLegacy_s2")+won;
+            console.log("== 잔액 참고 ==");
+            console.log("  goldSpent_s2:",f("goldSpent_s2"));
+            console.log("  알려진 획득합(매치·출석·업적 제외):",earnKnown,"= 엠블럼판매",f("emblemSellG_s2"),"+쓰레기통",f("trashGold_s2"),"+패스",f("passGold_s2"),"+단짝",f("buddyGold_s2"),"+우편",f("mailGold_s2"),"+되팔기",f("resellGold_s2"),"+레거시",f("goldBonusLegacy_s2"),"+복권당첨",won);
+            console.log("  (매치/출석/막고라 골드는 별도 — 이만큼 더 있음)");
+            // 막고라 s2
+            const mh=(d.magollaHistory_s2||d.magollaHistory||[]);
+            let mnet=0; mh.forEach(h=>mnet+=(h.delta||0));
+            console.log("  막고라 순손익:",mnet,"(엔트리",mh.length,")");
           '
