@@ -3225,6 +3225,8 @@ body:has(.scard-overlay) .hexfield .route-pulse{animation-play-state:paused;}
 .scard-act-discard{flex:1;background:rgba(255,255,255,0.07);color:rgba(255,255,255,0.82);
   border:1px solid rgba(255,255,255,0.2);}
 .scard-act-discard:hover{background:rgba(239,68,68,0.16);border-color:rgba(239,68,68,0.4);color:#fecaca;}
+.scard-act-again{flex:1;background:rgba(200,168,75,0.12);color:#e8cf8a;border:1px solid rgba(200,168,75,0.42);}
+.scard-act-again:hover{background:rgba(200,168,75,0.22);border-color:rgba(200,168,75,0.7);}
 .scard-act-confirm{flex:1.4;color:#1a1206;background:linear-gradient(135deg,#d4a843,#f0c84a,#c8a030);
   box-shadow:0 3px 12px rgba(200,168,75,0.35);}
 .scard-skip{background:none;border:none;color:rgba(200,168,75,0.25);font-size:11px;font-family:'Noto Sans KR',sans-serif;cursor:pointer;padding:4px;letter-spacing:0.3px;transition:color 0.15s;text-align:center;width:100%;}
@@ -3386,6 +3388,7 @@ body:has(.scard-overlay) .hexfield .route-pulse{animation-play-state:paused;}
 .season-2 .scard-overlay .scard-modal.scard-cross .scard-cell:not(.win-cell):not(.skull-hit){box-shadow:0 0 0 1.5px rgba(255,255,255,0.20) inset,0 1px 4px -2px rgba(0,0,0,0.35)!important;}
 .season-2 .scard-overlay .scard-modal .scard-act-discard{background:rgba(255,255,255,0.42)!important;border:1px solid var(--pl-deep)!important;color:var(--pl-shadow)!important;}
 .season-2 .scard-overlay .scard-modal .scard-act-replay{background:linear-gradient(135deg,var(--pl-mid),var(--pl-deep))!important;color:#fff!important;border:none!important;}
+.season-2 .scard-overlay .scard-modal .scard-act-again{background:rgba(255,255,255,0.28)!important;border:1px solid var(--pl-deep)!important;color:var(--pl-shadow)!important;}
 .season-2 .scard-overlay .scard-modal .scard-act-confirm{background:linear-gradient(135deg,#d4a843,#f0c84a,#c8a030)!important;color:#1a1206!important;border:none!important;}
 .season-2 .scard-overlay .scard-modal .scard-act-sub{color:inherit!important;opacity:0.82!important;}
 .season-2 .scard-overlay .scard-modal .scard-right{border-left:1px solid var(--pl-deep)!important;background:rgba(255,255,255,0.18)!important;}
@@ -6923,7 +6926,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.505';
+const APP_VERSION = 'v2.45.506';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -28321,6 +28324,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
             <div class="scard-result" id="scard-result"></div>
             <div class="scard-actions" id="scard-actions">
               ${testMode ? '' : `<button class="scard-act-btn scard-act-discard" id="scard-discard">🗑 복권 버리기</button>`}
+              ${testMode ? '' : `<button class="scard-act-btn scard-act-again" id="scard-again">🔄 다시 하기<span class="scard-act-sub">-${activeTier.price}G</span></button>`}
               ${testMode
                 ? ''
                 : `<button class="scard-act-btn scard-act-replay" id="scard-replay" style="display:none;">🔁 한 번 더<span class="scard-act-sub">-${activeTier.price}G</span></button>`}
@@ -28540,6 +28544,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     //    (나머지 칸을 다 안 긁어도 받을 수 있게 — 안 긁은 칸은 패널티 없이 넘어감)
     if (matchDone && !allDone) {
       const _db = overlay.querySelector('#scard-discard'); if (_db) _db.style.display = 'none';  // 당첨 확정 → 버리기 즉시 숨김(실수 포기 방지)
+      const _ag0 = overlay.querySelector('#scard-again'); if (_ag0) _ag0.style.display = 'none';
       setTimeout(finishReveal, 400);
     } else if (revealedCount === totalCells && !allDone) {
       setTimeout(finishReveal, 620);
@@ -28604,6 +28609,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
       confirmEl.innerHTML = win ? `💰 당첨금 받기<span class="scard-act-sub">보유 ${finalBalance}G</span>` : `확인<span class="scard-act-sub">보유 ${finalBalance}G</span>`;
       // 결과 확정 → 🗑 버리기 숨기고 확인·한 번 더 노출
       const _db = overlay.querySelector('#scard-discard'); if (_db) _db.style.display = 'none';
+      const _ag = overlay.querySelector('#scard-again');   if (_ag) _ag.style.display = 'none';
       const _cf = overlay.querySelector('#scard-confirm'); if (_cf) _cf.style.display = '';
       const _rp = overlay.querySelector('#scard-replay');  if (_rp) _rp.style.display = '';
     }
@@ -28788,6 +28794,32 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
       if (onDiscard) onDiscard();
       else if (onCancel) onCancel();   // 폴백(레거시)
       setTimeout(() => window.openLotteryHub(), 120);
+    };
+  });
+
+  // 🔄 다시 하기: 현재 복권을 버리고(당첨금 포기) 같은 티어를 새로 구매해 다시 시작 — 버리기 + 재구매 결합
+  overlay.querySelector('#scard-again')?.addEventListener('click', () => {
+    if (allDone) return;
+    const dlg = document.createElement('div');
+    dlg.className = 'scard-buy-confirm-overlay';
+    dlg.innerHTML = `
+      <div class="scard-buy-confirm-box">
+        <h4>🔄 다시 하기</h4>
+        <p>지금 복권을 버리고 <b>같은 복권을 새로 구매</b>해 다시 시작해요.<br><span style="opacity:.65;font-size:12px;">버린 복권은 당첨금을 받지 못하고, 구매비 ${activeTier.price}G가 새로 듭니다.</span></p>
+        <div class="scard-buy-confirm-btns">
+          <button class="scard-buy-confirm-cancel">계속 긁기</button>
+          <button class="scard-buy-confirm-ok scard-discard-ok">🔄 다시 하기</button>
+        </div>
+      </div>`;
+    document.body.appendChild(dlg);
+    dlg.querySelector('.scard-buy-confirm-cancel').onclick = () => dlg.remove();
+    dlg.addEventListener('click', e => { if (e.target === dlg) dlg.remove(); });
+    dlg.querySelector('.scard-buy-confirm-ok').onclick = async () => {
+      dlg.remove();
+      overlay.remove();
+      try { if (onDiscard) await onDiscard(); else if (onCancel) await onCancel(); } catch (_) {}   // 버리기 완료(보류 정리) 후 재구매
+      if (tierDef) window.buyItem(tierDef.id);   // 같은 티어 재구매 → 새 복권 시작
+      else setTimeout(() => window.openLotteryHub(), 120);
     };
   });
 
