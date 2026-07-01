@@ -3013,6 +3013,16 @@ body:has(.scard-overlay) .hexfield .route-pulse{animation-play-state:paused;}
 .scard-tool-row{flex-basis:100%;width:100%;text-align:center;line-height:1;}
 /* 🔑 최하단 만능 긁개 장착/해제 토글 행 */
 .scard-equip-row{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:7px;padding-top:7px;border-top:1px dashed rgba(255,255,255,0.12);}
+/* 🖌️ 긁개 아코디언 — 접었다 펴서 장착/구매 */
+.scard-equip-acc{margin-top:9px;}
+.scard-equip-acc-head{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 13px;border-radius:10px;cursor:pointer;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.11);color:rgba(255,255,255,0.82);font-size:12px;font-weight:800;letter-spacing:0.2px;transition:background 0.15s;}
+.scard-equip-acc-head:hover{background:rgba(255,255,255,0.09);}
+.scard-equip-acc-chev{font-size:11px;opacity:0.65;transition:transform 0.2s;}
+.scard-equip-acc.open .scard-equip-acc-chev{transform:rotate(180deg);}
+.scard-equip-acc-body{max-height:0;overflow:hidden;transition:max-height 0.25s ease;}
+.scard-equip-acc.open .scard-equip-acc-body{max-height:240px;overflow-y:auto;}
+.scard-equip-acc-body .scard-equip-row{border-top:none;margin-top:0;padding-top:8px;}
+.season-2 .scard-overlay .scard-modal .scard-equip-acc-head{background:rgba(255,255,255,0.42)!important;border:1px solid var(--pl-deep)!important;color:var(--pl-shadow)!important;}
 .scard-equip-name{font-size:11px;font-weight:700;color:rgba(255,255,255,0.62);letter-spacing:0.2px;}
 .scard-equip-state{font-size:10px;font-weight:600;margin-left:3px;opacity:0.7;}
 .scard-equip-btn{font-size:11px;font-weight:800;letter-spacing:0.3px;padding:4px 14px;border-radius:20px;cursor:pointer;border:1px solid rgba(200,168,75,0.5);background:rgba(200,168,75,0.1);color:rgba(200,168,75,0.95);transition:background 0.15s,color 0.15s,border-color 0.15s;}
@@ -6910,7 +6920,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.496';
+const APP_VERSION = 'v2.45.497';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -26461,8 +26471,9 @@ function _renderShopImmediate() {
   const filteredItems = myItems.filter((item, _i) => {
     const def = allDefs.find(s=>s.id===item.id);
     if (!def) return false;
-    // 만능 긁개(scratch_tool)는 장착/해제하는 장비 아이템으로 분류 (v2.43.234)
-    const isCon = isConsumeType(def.type) && def.type !== 'scratch_tool';
+    // 🖌️ 긁기 도구(scratch_tool)는 스크래치 복권 전용 → 상점처럼 인벤토리에서도 숨김(복권 모달에서 장착/구매)
+    if (def.type === 'scratch_tool') return false;
+    const isCon = isConsumeType(def.type);
     return invCatTab === 'equip' ? !isCon : isCon;
   });
   const invEl = document.getElementById('inv-grid');
@@ -28173,19 +28184,27 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   const KEY_PRICE = (S1_SHOP_ITEMS.find(s => s.id === 'scratch_key')?.price) ?? 500;
   const CROSS_PRICE = (S1_SHOP_ITEMS.find(s => s.id === 'scratch_cross')?.price) ?? 500;
   const equipRowHtml = testMode ? '' : `
-    <div class="scard-equip-row" id="scard-equip-row">
-      ${_scardOwnsKey
-        ? `<span class="scard-equip-name">🔑 만능 긁개<span class="scard-equip-state" id="scard-equip-state">${_scardKeyEquipped ? '· 장착됨' : '· 미장착'}</span></span>
-           <button class="scard-equip-btn${_scardKeyEquipped ? ' on' : ''}" id="scard-equip-btn">${_scardKeyEquipped ? '장착 해제' : '장착'}</button>`
-        : `<span class="scard-equip-name">🔑 만능 긁개<span class="scard-equip-state">· 미보유</span></span>
-           <button class="scard-equip-btn scard-equip-buy" id="scard-equip-buy">구매 ${KEY_PRICE}G</button>`}
-    </div>
-    <div class="scard-equip-row" id="scard-equip-row-cross">
-      ${_scardOwnsCross
-        ? `<span class="scard-equip-name">🖌️ 광역 긁개<span class="scard-equip-state" id="scard-equip-state-cross">${_scardCrossEquipped ? '· 장착됨' : '· 미장착'}</span></span>
-           <button class="scard-equip-btn${_scardCrossEquipped ? ' on' : ''}" id="scard-equip-btn-cross">${_scardCrossEquipped ? '장착 해제' : '장착'}</button>`
-        : `<span class="scard-equip-name">🖌️ 광역 긁개<span class="scard-equip-state">· 미보유</span></span>
-           <button class="scard-equip-btn scard-equip-buy" id="scard-equip-buy-cross">구매 ${CROSS_PRICE}G</button>`}
+    <div class="scard-equip-acc" id="scard-equip-acc">
+      <button type="button" class="scard-equip-acc-head" id="scard-equip-acc-head">
+        <span class="scard-equip-acc-title">🖌️ 긁개 장착 · 구매</span>
+        <span class="scard-equip-acc-chev">▾</span>
+      </button>
+      <div class="scard-equip-acc-body" id="scard-equip-acc-body">
+        <div class="scard-equip-row" id="scard-equip-row">
+          ${_scardOwnsKey
+            ? `<span class="scard-equip-name">🔑 만능 긁개<span class="scard-equip-state" id="scard-equip-state">${_scardKeyEquipped ? '· 장착됨' : '· 미장착'}</span></span>
+               <button class="scard-equip-btn${_scardKeyEquipped ? ' on' : ''}" id="scard-equip-btn">${_scardKeyEquipped ? '장착 해제' : '장착'}</button>`
+            : `<span class="scard-equip-name">🔑 만능 긁개<span class="scard-equip-state">· 미보유</span></span>
+               <button class="scard-equip-btn scard-equip-buy" id="scard-equip-buy">구매 ${KEY_PRICE}G</button>`}
+        </div>
+        <div class="scard-equip-row" id="scard-equip-row-cross">
+          ${_scardOwnsCross
+            ? `<span class="scard-equip-name">🖌️ 광역 긁개<span class="scard-equip-state" id="scard-equip-state-cross">${_scardCrossEquipped ? '· 장착됨' : '· 미장착'}</span></span>
+               <button class="scard-equip-btn${_scardCrossEquipped ? ' on' : ''}" id="scard-equip-btn-cross">${_scardCrossEquipped ? '장착 해제' : '장착'}</button>`
+            : `<span class="scard-equip-name">🖌️ 광역 긁개<span class="scard-equip-state">· 미보유</span></span>
+               <button class="scard-equip-btn scard-equip-buy" id="scard-equip-buy-cross">구매 ${CROSS_PRICE}G</button>`}
+        </div>
+      </div>
     </div>`;
   // 🛡️🪙 내 강철심장 복권 효과 배너 — 해골감소 줄 보유 시 (해골 감소율 + 당첨 시 보너스)를 복권창 안에 표시
   let _emFxHtml = '';
@@ -28623,6 +28642,10 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     });
   }
   _bindScardCrossToggle();
+  // 🖌️ 긁개 아코디언 접기/펴기
+  overlay.querySelector('#scard-equip-acc-head')?.addEventListener('click', () => {
+    overlay.querySelector('#scard-equip-acc')?.classList.toggle('open');
+  });
   overlay.querySelector('#scard-equip-buy-cross')?.addEventListener('click', async () => {
     const buyBtn = overlay.querySelector('#scard-equip-buy-cross');
     if (buyBtn?.dataset.busy) return;
