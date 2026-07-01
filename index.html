@@ -20,6 +20,8 @@
   if (localStorage.getItem('liveMode')) document.documentElement.classList.add('live-mode');
   else if (localStorage.getItem('myName')) document.documentElement.classList.add('member-mode');
 })();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Black+Han+Sans&family=Gmarket+Sans:wght@300;500;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -6851,7 +6853,13 @@ function renderSeasonBackground() {
   const existing = document.getElementById('season-hexfield');
   if (CURRENT_SEASON !== 2) { if (existing) existing.remove(); return; }
   if (existing || !document.body) return;
-  document.body.insertBefore(_buildHexfield('hexfield', 'season-hexfield'), document.body.firstChild);
+  // 헥스 배경(장식)은 첫 페인트 후 여유 시점에 생성 — 초기 렌더 경쟁 방지 (v2.45.513)
+  const build = () => {
+    if (CURRENT_SEASON !== 2 || document.getElementById('season-hexfield') || !document.body) return;
+    document.body.insertBefore(_buildHexfield('hexfield', 'season-hexfield'), document.body.firstChild);
+  };
+  if (window.requestIdleCallback) requestIdleCallback(build, { timeout: 1200 });
+  else setTimeout(build, 300);
 }
 
 // ── 막고라 아레나 헥스 배경(레드) — S2에서만, 모달 표시 시 주입 ──
@@ -6944,7 +6952,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.512';
+const APP_VERSION = 'v2.45.513';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6953,6 +6961,9 @@ const APP_VERSION = 'v2.45.512';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.513', date: '2026-07-01', changes: [
+    { tag: 'improve', text: '⚡ 첫 진입 속도 개선 — ① 폰트 preconnect로 렌더블로킹 완화 ② 안 보이는 기록·랭킹 탭은 진입할 때 렌더(로드 시 무거운 계산 생략) ③ 헥스 배경은 첫 페인트 후 여유 시점에 생성. 초기 버벅임 완화.' },
+  ] },
   { ver: 'v2.45.485', date: '2026-06-30', changes: [
     { tag: 'new', text: '🏘️ 단짝 광장 배치 도구(🏰)에 💎 억제기와 🛒 상점지기를 추가했어요 — 포탑·넥서스처럼 블루/레드 골라서 놓을 수 있고(대칭 배치도 됨), 상점지기는 idle 동작이 있으면 살아 움직여요.' },
   ] },
@@ -12701,8 +12712,9 @@ async function renderAllWhenReady() {
   if (goldLoaded) { seedGoldForAllPlayers(); migrateGoldBonusToLegacy(); }
   renderMemberGrid();
   renderSessionPlayers();
-  renderMatchHistory();
-  renderRanking();
+  // 무거운 탭(기록·랭킹)은 보일 때만 렌더 — 첫 로드 시 안 보이는 탭 렌더링 비용 절감 (v2.45.513)
+  if (_currentTabId === 'tab-record') { _dirtyRecord = false; renderMatchHistory(); } else { _dirtyRecord = true; }
+  if (_currentTabId === 'tab-rank')   { _dirtyRank   = false; renderRanking(); }      else { _dirtyRank   = true; }
   // 페이지 로드 전에 도착한 session 데이터가 있으면 적용
   if (pendingSessionData) { applySessionData(pendingSessionData); pendingSessionData = null; }
   updateMemberModeDisplay();
@@ -12870,8 +12882,9 @@ onValue(ref(db, 'config/currentSeason'), (snapshot) => {
   renderSeasonAdmin();
   renderHeaderSeasonLabel();
   // 시즌 전환 즉시 기록·랭킹·대기카드·업적/시즌패스·티어 기준 카드를 현재 시즌으로 다시 그림
-  renderMatchHistory();
-  renderRanking();
+  // (보이는 탭만 렌더, 나머지는 dirty 표시 — 진입 시 렌더 · v2.45.513)
+  if (_currentTabId === 'tab-record') { _dirtyRecord = false; renderMatchHistory(); } else { _dirtyRecord = true; }
+  if (_currentTabId === 'tab-rank')   { _dirtyRank   = false; renderRanking(); }      else { _dirtyRank   = true; }
   if (typeof renderTierCriteriaCard === 'function') renderTierCriteriaCard();
   updateMemberModeDisplay();
   if (typeof renderAchievementsOrPass === 'function') renderAchievementsOrPass();
@@ -14516,6 +14529,9 @@ window.showTab = function(id, btn) {
   // 상점 탭 진입 시 즉시 강제 렌더링 (백그라운드 동안 누락된 갱신 1회 동기화)
   if (id === 'tab-shop') renderShop();
   if (id === 'tab-gacha') renderGachaTab();
+  // 지연 렌더 탭 — 진입 시 갱신분 있으면(dirty) 1회 렌더 (v2.45.513)
+  if (id === 'tab-record' && _dirtyRecord) { _dirtyRecord = false; renderMatchHistory(); }
+  if (id === 'tab-rank'   && _dirtyRank)   { _dirtyRank   = false; renderRanking(); }
   if (id === 'tab-rank') {
     setTimeout(() => {
       const meEl = document.querySelector('#tab-rank .me');
@@ -14527,6 +14543,8 @@ window.showTab = function(id, btn) {
 
 // 현재 활성 탭 추적 (renderShop 가드용 — v2.37.11~)
 let _currentTabId = 'tab-team';
+// 무거운 탭 지연 렌더 플래그 (v2.45.513) — 데이터 변경 시 안 보이는 탭은 dirty 표시, 탭 진입 시 렌더
+let _dirtyRecord = true, _dirtyRank = true;
 
 // ── MEMBER CHECKBOX UI ────────────────────────────────────────
 function renderMemberGrid() {
