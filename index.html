@@ -6954,7 +6954,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.514';
+const APP_VERSION = 'v2.45.515';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6963,6 +6963,9 @@ const APP_VERSION = 'v2.45.514';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.515', date: '2026-07-01', changes: [
+    { tag: 'fix', text: '🔄 복권 「다시 하기」가 복권창을 껐다 다시 켜서 깜빡이던 문제 수정 — 새 복권을 먼저 띄운 뒤 이전 화면을 정리해 끊김 없이 이어지게 함.' },
+  ] },
   { ver: 'v2.45.514', date: '2026-07-01', changes: [
     { tag: 'improve', text: '📱 모바일에서 배경 헥스 회로의 움직이는 빛(펄스)을 생략하고 정적 격자만 남겨 더 가볍게 — 발열/버벅임 완화(데스크탑은 그대로). 배경·막고라·대기화면·복권 헥스에 일괄 적용.' },
   ] },
@@ -28874,10 +28877,17 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     dlg.addEventListener('click', e => { if (e.target === dlg) dlg.remove(); });
     dlg.querySelector('.scard-buy-confirm-ok').onclick = async () => {
       dlg.remove();
-      overlay.remove();
-      try { if (onDiscard) await onDiscard(); else if (onCancel) await onCancel(); } catch (_) {}   // 버리기 완료(보류 정리) 후 재구매
-      if (tierDef) window.buyItem(tierDef.id);   // 같은 티어 재구매 → 새 복권 시작
-      else setTimeout(() => window.openLotteryHub(), 120);
+      try { if (onDiscard) await onDiscard(); else if (onCancel) await onCancel(); } catch (_) {}   // 버리기(보류 정리)를 먼저 — 그래야 buyItem이 새 복권을 삼 (기존 overlay는 유지)
+      if (tierDef) {
+        // 🔄 껐다 켜지는 깜빡임 방지: 새 복권 모달을 먼저 띄운 뒤에 이전 모달을 제거 (v2.45.515)
+        await window.buyItem(tierDef.id);   // 새 복권 모달이 위에 쌓임
+        overlay.remove();                    // 그 다음 이전 모달 제거 → 화면 공백 없음
+        // 이전 모달 제거 옵저버가 body 스크롤 락을 풀 수 있어, 새 모달이 떠 있으면 재잠금
+        setTimeout(() => { if (document.querySelector('.scard-overlay')) document.body.style.overflow = 'hidden'; }, 0);
+      } else {
+        overlay.remove();
+        setTimeout(() => window.openLotteryHub(), 120);
+      }
     };
   });
 
