@@ -2193,7 +2193,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .lot-entry-desc{font-size:11px;color:rgba(245,209,255,0.65);margin-top:2px;}
 .lot-entry-arrow{font-size:22px;color:rgba(245,209,255,0.5);line-height:1;font-weight:700;}
 /* backdrop-filter 제거(v2.45.127): 카드 호버 transform이 새 레이어를 만들 때 backdrop-filter 재합성으로 뒷배경이 한 프레임 번쩍이던 버그 방지. 딤을 더 진하게 해 블러 없이도 충분히 가림 */
-.lh-overlay{position:fixed;inset:0;z-index:3500;background:rgba(4,6,16,0.94);display:flex;align-items:center;justify-content:center;padding:20px;animation:taFadeIn 0.2s ease;}
+.lh-overlay{position:fixed;inset:0;z-index:3500;background:rgba(4,6,16,0.94);display:flex;align-items:center;justify-content:center;padding:20px;animation:taFadeIn 0.2s ease;overflow-y:auto;overscroll-behavior:contain;}
 .lh-sheet{width:100%;max-width:560px;max-height:88vh;background:linear-gradient(180deg,#1a0f25 0%,#0d0918 100%);border:1px solid rgba(232,121,249,0.3);border-radius:14px;padding:18px;overflow-y:auto;box-shadow:0 12px 48px rgba(0,0,0,0.7);}
 .lh-head{display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:12px;}
 .lh-head-title{font-size:16px;font-weight:700;color:#f5d1ff;letter-spacing:0.5px;}
@@ -6937,7 +6937,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.509';
+const APP_VERSION = 'v2.45.510';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -27172,7 +27172,8 @@ function showLotteryModal(result, remainingGold) {
 
 /* ── 스크래치 복권 Hub 모달 (v2.43.98~) — 티어 선택 + 긁기 도구 통합 ── */
 window.closeLotteryHub = function() {
-  document.getElementById('lottery-hub-overlay')?.remove();
+  const el = document.getElementById('lottery-hub-overlay');
+  if (el) { document.body.style.overflow = el._prevBodyOverflow || ''; el.remove(); }   // 스크롤 락 복원
 };
 
 /* ── 🗑️ 쓰레기통 뒤지기 (v2.43.225~) — 재미용 미니 기능 ──
@@ -28014,7 +28015,10 @@ window.openLotteryHub = function() {
       </div>
     </div>`;
   }).join('');
-  document.getElementById('lottery-hub-overlay')?.remove();
+  const _oldHub = document.getElementById('lottery-hub-overlay');
+  // 재오픈(도구 토글·구매 후 재렌더) 시 원래 overflow 유지 — 이미 잠긴 값('hidden')을 prev로 잡지 않게
+  const _hubPrevOverflow = (_oldHub && _oldHub._prevBodyOverflow !== undefined) ? _oldHub._prevBodyOverflow : document.body.style.overflow;
+  _oldHub?.remove();
   const el = document.createElement('div');
   el.id = 'lottery-hub-overlay';
   el.className = 'lh-overlay';
@@ -28072,7 +28076,9 @@ window.openLotteryHub = function() {
       </div>
     </div>`;
   el.addEventListener('click', ev => { if (ev.target === el) window.closeLotteryHub(); });
+  el._prevBodyOverflow = _hubPrevOverflow;
   document.body.appendChild(el);
+  document.body.style.overflow = 'hidden';   // 📱 모달 열린 동안 뒷배경 스크롤 잠금
 };
 window._lhBuyTier = function(itemId) {
   const tierDef = SCRATCH_TIERS.find(t => t.id === itemId);
