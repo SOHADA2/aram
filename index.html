@@ -6899,7 +6899,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.490';
+const APP_VERSION = 'v2.45.491';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -28141,6 +28141,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   const SCRATCH_BASE_R = 0.062;                            // 브러시 반지름 = 캔버스폭 × 0.062 × 도구배율 (맨손 기준, 목업 동일)
   let brushMult = toolParams?.brushMult ?? 1.0;            // 맨손 1.0 / 만능 2.15 — 모달 안 장착 토글로 라이브 변경(let)
   let _crossScratch = !!(toolParams && toolParams.cross);   // 🖌️ 광역 긁개: 원 밖도 긁힘(여러 칸 동시)
+  let _crossDragging = false;
   let revealThreshold = toolParams?.threshold ?? 0.83;     // 맨손: 가운데 문양 거의 다 긁어야 공개 (목업 동일)
   // 🔑 만능 긁개 장착/해제 — 보유 시 모달 최하단 토글로 직접 장착·해제 (장비 탭 안 가도 됨)
   const _scardKeyItem = !testMode ? (getMyGoldData()?.[sField('items')] || []).find(it => it.id === 'scratch_key') : null;
@@ -28736,6 +28737,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   cellState.forEach(st => {
     const cv = st.canvas;
     cv.addEventListener('pointerdown', e => {
+      if (_crossScratch) return;   // 광역이면 그리드 핸들러가 배경부터 처리
       try { cv.setPointerCapture(e.pointerId); } catch (_) {}
       _activeScratch = st;
       st.scratching = true; st.prevX = st.prevY = undefined;
@@ -28745,6 +28747,28 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
       e.preventDefault();
     });
   });
+  // 🖌️ 광역 긁개: 복권 배경(원 밖) 어디서 눌러도 긁기 시작 — 지나가는 칸이 함께 긁힘
+  function _crossScratchAt(e) {
+    for (const st of cellState) {
+      if (st.revealed) continue;
+      const r = st.canvas.getBoundingClientRect();
+      if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+        if (!st.scratching) { st.scratching = true; st.prevX = st.prevY = undefined; }
+        doScratch(st, e); checkCellReveal(st);
+      }
+    }
+  }
+  const _scardGridEl = overlay.querySelector('.scard-grid');
+  if (_scardGridEl) {
+    _scardGridEl.addEventListener('pointerdown', e => {
+      if (!_crossScratch) return;   // 광역 아닐 땐 기존 칸별 동작
+      _crossDragging = true; hasScratched = true;
+      try { _scardGridEl.setPointerCapture(e.pointerId); } catch (_) {}
+      try { overlay.querySelector('.scard-modal') && overlay.querySelector('.scard-modal').style.setProperty('overflow-y','hidden','important'); } catch(_){}
+      _crossScratchAt(e);
+      e.preventDefault();
+    });
+  }
   function _scratchWinMove(e) {
     if (!document.body.contains(overlay)) {  // 모달 닫힘 → 리스너 자동 정리
       window.removeEventListener('pointermove', _scratchWinMove);
@@ -28752,22 +28776,12 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
       window.removeEventListener('pointercancel', _scratchWinEnd);
       return;
     }
-    if (_crossScratch) {
-      for (const st of cellState) {
-        if (st.revealed) continue;
-        const r = st.canvas.getBoundingClientRect();
-        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
-          if (!st.scratching) { st.scratching = true; st.prevX = st.prevY = undefined; }
-          doScratch(st, e); checkCellReveal(st);
-        }
-      }
-      return;
-    }
+    if (_crossScratch && _crossDragging) { _crossScratchAt(e); return; }
     if (_activeScratch && _activeScratch.scratching) doScratch(_activeScratch, e);
   }
   function _scratchWinEnd() {
-    if (!_activeScratch && !cellState.some(s => s.scratching)) return;
-    _activeScratch = null;
+    if (!_activeScratch && !_crossDragging && !cellState.some(s => s.scratching)) return;
+    _activeScratch = null; _crossDragging = false;
     try { overlay.querySelector('.scard-modal') && overlay.querySelector('.scard-modal').style.removeProperty('overflow-y'); } catch(_){}  // 스크롤 복원
     cellState.forEach(st => { if (st.scratching) { st.scratching = false; st.prevX = st.prevY = undefined; checkCellReveal(st); } });
   }
@@ -28776,7 +28790,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   window.addEventListener('pointercancel', _scratchWinEnd);
   function _scratchTouchMove(e) {
     if (!document.body.contains(overlay)) { document.removeEventListener('touchmove', _scratchTouchMove); return; }
-    if (_activeScratch) e.preventDefault();  // 긁는 중엔 페이지 스크롤 막음(iOS·광역 포함)
+    if (_activeScratch || _crossDragging) e.preventDefault();  // 긁는 중엔 페이지 스크롤 막음(iOS·광역 포함)
   }
   document.addEventListener('touchmove', _scratchTouchMove, { passive: false });
 
