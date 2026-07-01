@@ -3051,11 +3051,13 @@ body:has(.scard-overlay) .hexfield .route-pulse{animation-play-state:paused;}
 /* 티어별 그리드 (v2.43.101~) — 칸수에 맞춰 자연스러운 배치 + 원형 모양 */
 .scard-grid{display:grid;gap:7px;padding:4px 0;justify-content:center;align-content:center;touch-action:none;position:relative;}
 /* 🎟 광역 긁개 — 복권 전체를 하나의 은박으로 덮음. 배경 은박 캔버스는 원(칸) 아래(z:0), 원/래퍼는 위(z:1) */
-.scard-bg-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:0;border-radius:14px;display:none;pointer-events:none;touch-action:none;}
+/* 은박 = z1 (칸 번호 위 · 원 아래). 번호 헤드는 z0(은박 아래=흐리게 남음), 원은 z2(은박 위=정상 긁힘) */
+.scard-bg-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:1;border-radius:14px;display:none;pointer-events:none;touch-action:none;}
 /* 상단을 하나의 꽉 찬 복권 카드로 — 원+여백까지 은박이 덮이도록 패딩 + 카드 테두리 */
 .scard-grid.has-bgscratch{padding:22px 16px 26px;border-radius:14px;background:radial-gradient(circle at 50% 32%,rgba(255,247,224,0.16),rgba(13,10,6,0.62));box-shadow:inset 0 0 0 1px rgba(255,255,255,0.10),0 8px 20px -8px rgba(0,0,0,0.6);}
-.scard-grid.has-bgscratch .scard-cellwrap{position:relative;z-index:1;}
-.scard-grid.has-bgscratch .scard-cell-head{position:relative;z-index:1;}
+.scard-grid.has-bgscratch .scard-cellwrap{position:relative;}
+.scard-grid.has-bgscratch .scard-cell{z-index:2;}
+.scard-grid.has-bgscratch .scard-cell-head{position:relative;z-index:0;opacity:0.4;}   /* 은박 아래 흐린 각인(긁으면 드러남) */
 /* 🎟 광역 모드 — 상단=복권 / 하단=컨트롤 분리 */
 .scard-modal.scard-cross .scard-tool-badge,.scard-modal.scard-cross .scard-tool-row{display:none;}
 .scard-modal.scard-cross .scard-bottom{margin-top:12px;padding-top:11px;border-top:1px dashed rgba(255,255,255,0.16);}
@@ -6926,7 +6928,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.506';
+const APP_VERSION = 'v2.45.507';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -28377,6 +28379,19 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
       _sbg.height = Math.max(1, Math.round(_gr.height * SCRATCH_DPR));
       const _bctx = _sbg.getContext('2d', { willReadFrequently: true });
       _scardDrawCover(_bctx, _sbg.width, _sbg.height, CELL_LAYERS, activeTier.idx);
+      // 🔢 칸 번호(1 SCRATCH…)를 은박 위에 진하게 인쇄 → 긁으면 은박과 함께 지워짐(아래엔 흐린 헤드가 남음)
+      try {
+        _bctx.textAlign = 'center'; _bctx.textBaseline = 'middle';
+        _sgrid.querySelectorAll('.scard-cell-head .scard-cell-no, .scard-cell-head .scard-cell-label').forEach(el => {
+          const rr = el.getBoundingClientRect(); if (!rr.width) return;
+          const cx = (rr.left + rr.width / 2 - _gr.left) * SCRATCH_DPR;
+          const cy = (rr.top + rr.height / 2 - _gr.top) * SCRATCH_DPR;
+          const isNo = el.classList.contains('scard-cell-no');
+          _bctx.font = `${isNo ? '800' : '700'} ${(isNo ? 13 : 7.5) * SCRATCH_DPR}px "Noto Sans KR",sans-serif`;
+          _bctx.fillStyle = 'rgba(40,30,14,0.5)';   // 은박 위 어두운 각인
+          _bctx.fillText(el.textContent.trim(), cx, cy);
+        });
+      } catch (_) {}
       _sbg.style.display = 'block';
       _bgScratch = { canvas: _sbg, ctx: _bctx, prevX: undefined, prevY: undefined, scratching: false };
     }
