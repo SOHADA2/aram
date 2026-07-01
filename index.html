@@ -6923,7 +6923,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.501';
+const APP_VERSION = 'v2.45.502';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -11597,6 +11597,8 @@ async function ensureOrnn3d(){
     function showState(key,ts){ const m=M[key]; if(!m)return false; hideAll(); m.model.visible=true; active=key; if(m.action){m.action.reset();m.action.timeScale=ts||1;m.action.paused=false;m.action.play();} return true; }
     function showIdle(){ const have=['idle1','idle2'].filter(k=>M[k]); if(!have.length)return; showState(have[(Math.random()*have.length)|0],1); if(showIdle._t)clearTimeout(showIdle._t); showIdle._t=setTimeout(()=>{ if(active==='idle1'||active==='idle2')showIdle(); },7000+Math.random()*5000); }
     function playOnce(key,ts){ let k=M[key]?key:(M['forge']?'forge':null); if(!k)return; showState(k,ts); const dur=(M[k].dur||1)/(ts||1); if(playOnce._t)clearTimeout(playOnce._t); playOnce._t=setTimeout(()=>showIdle(),dur*1000+150); }
+    // ⚡ 빠른 강화 — 애니 중간(fromFrac)부터 재생(마지막 망치 내려치기만)
+    function playTail(key,fromFrac,ts){ let k=M[key]?key:(M['forge']?'forge':null); if(!k)return; const m=M[k]; hideAll(); m.model.visible=true; active=k; const dur=m.dur||1; const start=Math.max(0,Math.min(0.97,fromFrac||0))*dur; if(m.action){ m.action.reset(); m.action.timeScale=ts||1; m.action.paused=false; m.action.time=start; m.action.play(); } const remain=(dur-start)/(ts||1); if(playOnce._t)clearTimeout(playOnce._t); playOnce._t=setTimeout(()=>showIdle(), remain*1000+150); }
     STATES.forEach(st=>{
       loader.load('assets/forge/'+st.file, g=>{
         const model=g.scene; model.visible=false; scene.add(model);
@@ -11618,7 +11620,7 @@ async function ensureOrnn3d(){
         if(!active) showIdle();
       }, undefined, err=>console.error('오른 로드 실패 '+st.file,err));
     });
-    window.ornn3d={ playForge:(ts)=>playOnce('forge',ts), playFail:(ts)=>playOnce('fail',ts), idle:()=>showIdle(), durationOf:(key)=>M[key]?M[key].dur:0, flare:()=>{flareT=1;} };
+    window.ornn3d={ playForge:(ts)=>playOnce('forge',ts), playForgeTail:(fromFrac,ts)=>playTail('forge',fromFrac,ts), playFail:(ts)=>playOnce('fail',ts), idle:()=>showIdle(), durationOf:(key)=>M[key]?M[key].dur:0, flare:()=>{flareT=1;} };
     // ⚡ 렉 방지 — 캔버스가 실제 무대(#ornn-mount)에 떠 있고 탭이 활성일 때만 렌더.
     //   대장간을 닫으면 캔버스는 화면 밖 #ornn-holder로 대피(display:none 아님)되므로,
     //   부모 체크로 가드 안 하면 WebGL 렌더+믹서가 세션 내내 60fps로 계속 돌아 렉을 유발.
@@ -11763,8 +11765,19 @@ function _emblemForge(r){
       }
       setTimeout(()=>{ anvil.classList.remove('forge-success','forge-fail','forge-up','forge-final'); resolve(); }, endDelay);
     };
-    // ⚡ 빠른 강화 — 오른 망치질(2.2초) 생략, 망치 한 방으로 바로 결과
-    if (_forgeSkipOn()){ setTimeout(applyResult, 120); return; }
+    // ⚡ 빠른 강화 — 오른 망치질 앞부분(땅…땅…) 생략, 마지막 내려치는 한 방만 보여주고 바로 결과
+    if (_forgeSkipOn()){
+      const fD = (window.ornn3d?.durationOf?.('forge')||0)*1000;   // 실제 forge 클립 길이(ms)
+      if (fD>0 && window.ornn3d?.playForgeTail){
+        const FRAC = 0.62;                       // 마지막 망치 들어올리는 지점부터
+        window.ornn3d.playForgeTail(FRAC, 1.0);
+        const strikeMs = fD*(0.88-FRAC);         // 원래 큰 일격(0.88 지점)이 꼬리 재생 중 오는 순간
+        setTimeout(applyResult, Math.max(150, strikeMs));
+      } else {
+        setTimeout(applyResult, 150);            // 3D 미로드 시 즉시
+      }
+      return;
+    }
     // 🔥 일반 — 오른 망치질(느긋하게 땅…땅…땅…탕!)
     const TOTAL = 2200;  // 기준 단조 시간
     const fD = (window.ornn3d?.durationOf?.('forge')||0)*1000;
