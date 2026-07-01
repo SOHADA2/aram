@@ -3039,7 +3039,12 @@ body:has(.scard-overlay) .hexfield .route-pulse{animation-play-state:paused;}
   border-left:1px dashed rgba(200,168,75,0.2);
   background:rgba(200,168,75,0.03);}
 /* 티어별 그리드 (v2.43.101~) — 칸수에 맞춰 자연스러운 배치 + 원형 모양 */
-.scard-grid{display:grid;gap:7px;padding:4px 0;justify-content:center;align-content:center;touch-action:none;}
+.scard-grid{display:grid;gap:7px;padding:4px 0;justify-content:center;align-content:center;touch-action:none;position:relative;}
+/* 🎟 광역 긁개 — 복권 전체를 하나의 은박으로 덮음. 배경 은박 캔버스는 원(칸) 아래(z:0), 원/래퍼는 위(z:1) */
+.scard-bg-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:0;border-radius:12px;display:none;pointer-events:none;touch-action:none;}
+.scard-grid.has-bgscratch{background:radial-gradient(circle at 50% 36%,rgba(255,244,214,0.12),rgba(16,12,8,0.55));border-radius:12px;box-shadow:inset 0 0 0 1px rgba(255,255,255,0.06);}
+.scard-grid.has-bgscratch .scard-cellwrap{position:relative;z-index:1;}
+.scard-grid.has-bgscratch .scard-cell-head{position:relative;z-index:1;}
 /* ── 칸 그리드 — 목업 구조(번호+SCRATCH 위 / 원형 디스크 아래). 그리드는 래퍼(.scard-cellwrap) 배치 ── */
 .scard-grid{justify-items:center;}
 /* 🥈 실버 4칸 2x2 */
@@ -6899,7 +6904,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.492';
+const APP_VERSION = 'v2.45.493';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -28256,6 +28261,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
                   <canvas class="scard-canvas"></canvas>
                 </div>
               </div>`; }).join('')}
+            <canvas class="scard-bg-canvas" id="scard-bg-canvas"></canvas>
           </div>
           <div class="scard-bottom">
             ${_emFxHtml}
@@ -28310,6 +28316,23 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
              tick: 0, prevX: undefined, prevY: undefined, lastX: undefined, lastY: undefined,
              holdTimer: null, stopHold: null, layersLeft: CELL_LAYERS };
   });
+
+  // 🎟 광역 긁개: 원 사이 배경까지 하나의 은박으로 덮어 진짜 복권처럼 (배경도 함께 긁힘)
+  let _bgScratch = null;
+  if (_crossScratch) {
+    const _sgrid = overlay.querySelector('#scard-grid');
+    const _sbg = overlay.querySelector('#scard-bg-canvas');
+    if (_sgrid && _sbg) {
+      _sgrid.classList.add('has-bgscratch');
+      const _gr = _sgrid.getBoundingClientRect();
+      _sbg.width  = Math.max(1, Math.round(_gr.width  * SCRATCH_DPR));
+      _sbg.height = Math.max(1, Math.round(_gr.height * SCRATCH_DPR));
+      const _bctx = _sbg.getContext('2d', { willReadFrequently: true });
+      _scardDrawCover(_bctx, _sbg.width, _sbg.height, CELL_LAYERS, activeTier.idx);
+      _sbg.style.display = 'block';
+      _bgScratch = { canvas: _sbg, ctx: _bctx, prevX: undefined, prevY: undefined, scratching: false };
+    }
+  }
 
   let revealedCount = 0, revealedSkulls = 0, allDone = false, hasScratched = false;
   const matchCount = activeTier.matchCount || 2; // v2.43.107~ — 누락된 변수 추가 (이전 ReferenceError 원인)
@@ -28747,8 +28770,20 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
       e.preventDefault();
     });
   });
-  // 🖌️ 광역 긁개: 복권 배경(원 밖) 어디서 눌러도 긁기 시작 — 지나가는 칸이 함께 긁힘
+  // 🎟 배경 은박 긁기(원 밖 여백) — 리빌 판정 없이 은박만 벗김. 브러시는 원 셀 기준(과하지 않게)
+  function _scratchBg(e) {
+    if (!_bgScratch) return;
+    if (!_bgScratch.scratching) { _bgScratch.scratching = true; _bgScratch.prevX = _bgScratch.prevY = undefined; }
+    const { x, y } = getPos(_bgScratch.canvas, e);
+    const _cw = (cellState[0] && cellState[0].canvas.width) || (_bgScratch.canvas.width * 0.2);
+    const r = _cw * SCRATCH_BASE_R * brushMult;
+    scratchLine(_bgScratch.ctx, _bgScratch.prevX ?? x, _bgScratch.prevY ?? y, x, y, r);
+    if (Math.random() < 0.4) spawnDust(_bgScratch.canvas, x, y, brushMult);
+    _bgScratch.prevX = x; _bgScratch.prevY = y;
+  }
+  // 🖌️ 광역 긁개: 복권 배경(원 밖) 어디서 눌러도 긁기 시작 — 지나가는 칸 + 배경 은박이 함께 긁힘
   function _crossScratchAt(e) {
+    _scratchBg(e);
     for (const st of cellState) {
       if (st.revealed) continue;
       const r = st.canvas.getBoundingClientRect();
@@ -28782,6 +28817,7 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   function _scratchWinEnd() {
     if (!_activeScratch && !_crossDragging && !cellState.some(s => s.scratching)) return;
     _activeScratch = null; _crossDragging = false;
+    if (_bgScratch) { _bgScratch.scratching = false; _bgScratch.prevX = _bgScratch.prevY = undefined; }
     try { overlay.querySelector('.scard-modal') && overlay.querySelector('.scard-modal').style.removeProperty('overflow-y'); } catch(_){}  // 스크롤 복원
     cellState.forEach(st => { if (st.scratching) { st.scratching = false; st.prevX = st.prevY = undefined; checkCellReveal(st); } });
   }
