@@ -6899,7 +6899,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.488';
+const APP_VERSION = 'v2.45.489';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -10189,6 +10189,8 @@ const S1_SHOP_ITEMS = [
     desc:'7칸 긁기 · 3개 매칭 시 당첨 · 해골 평균 2개 (-10G) · 클로버 690G ~ 왕관 8580G' },
   { id:'scratch_key',  icon:'<span style="font-size:18px;line-height:1">🔑</span>', name:'만능 긁개',  color:'#fbbf24', price:500, type:'scratch_tool',
     desc:'스크래치 복권 긁기 시 브러시 3배 + 레이어 공개 임계값 완화 · 영구 적용' },
+  { id:'scratch_cross',  icon:'<span style="font-size:18px;line-height:1">🖌️</span>', name:'광역 긁개',  color:'#a78bfa', price:500, type:'scratch_tool',
+    desc:'스크래치 복권 긁기 시 동그라미 밖도 긁혀 · 한 줄로 쭉 그으면 여러 칸이 함께 긁혀요 · 영구 적용' },
   { id:'s1_promo_shield', icon:ITEM_SVG_ICONS.s1_promo_shield, name:'승급전 방어권', color:'#7dd3fc', price:100, type:'oneshot',
     desc:'승급전 중 패배 시 해당 판 기록 제외 · 승리 시 정상 기록' },
   { id:'s1_promo_win',    icon:ITEM_SVG_ICONS.s1_promo_win,    name:'승급전 승리권', color:'#ffd700', price:100, type:'oneshot',
@@ -17546,8 +17548,8 @@ window.showMatchSummary = function showMatchSummary({ winners, losers, itemEffec
   try{ _hideSettlementPending(); }catch(_){}   // ⏳ 정산창 뜨면 "계산 중" 안내 제거
   document.querySelector('.match-summary-overlay')?.remove();
   const ITEM_ICONS = ITEM_SVG_ICONS;
-  const ITEM_NAMES = { score2x: '승점 2배', insurance: '패배 방어', gamble: '도박 주사위', lottery: '골드 복권', lottery_premium: '프리미엄 복권', s1_gamble: '도박권', s1_promo_win: '승급전 승리권', s1_promo_shield: '승급전 방어권', s1_lp2x: 'LP 2배권', secret_quest: '비밀 퀘스트 토큰', scratch_key: '만능 긁개', scratch_coin: '긁기 동전' };
-  const _NON_MATCH_ITEMS = ['scratch_key', 'scratch_coin']; // 긁기 도구 = 복권 전용(경기 무관) → 정산창 칩에서 제외
+  const ITEM_NAMES = { score2x: '승점 2배', insurance: '패배 방어', gamble: '도박 주사위', lottery: '골드 복권', lottery_premium: '프리미엄 복권', s1_gamble: '도박권', s1_promo_win: '승급전 승리권', s1_promo_shield: '승급전 방어권', s1_lp2x: 'LP 2배권', secret_quest: '비밀 퀘스트 토큰', scratch_key: '만능 긁개', scratch_coin: '긁기 동전', scratch_cross: '광역 긁개' };
+  const _NON_MATCH_ITEMS = ['scratch_key', 'scratch_coin', 'scratch_cross']; // 긁기 도구 = 복권 전용(경기 무관) → 정산창 칩에서 제외
 
   const isWinnersTeamA = winners.some(n => currentTeamA.some(p => normName(p.name) === normName(n)));
   const winTeamLabel  = isWinnersTeamA ? '1팀' : '2팀';
@@ -26595,6 +26597,7 @@ const SCRATCH_TOOLS = {
   // 목업과 동일 스케일 (clearedRatio = 중앙이 '완전히' 벗겨진 비율, alpha<40) — 맨손 mult 1.0/thr 0.83
   scratch_coin: { brushMult: 1.6, threshold: 0.78 }, // 🪙 동전 — 맨손과 만능 사이
   scratch_key:  { brushMult: 2.15, threshold: 0.70 }, // 🔑 만능 긁개 — 목업과 정확히 동일(브러시 ~2배·문양 충분히 긁으면 공개)
+  scratch_cross:{ brushMult: 2.4, threshold: 0.68, cross: true }, // 🖌️ 광역 긁개 — 원(동그라미) 밖도 긁혀 한 줄에 여러 칸 동시
 };
 
 // v2.43.110~ 출연 확률(appear) 독립 추첨 + 모든 슬롯 무조건 심볼 + 사후 매칭 판정
@@ -28104,9 +28107,11 @@ window._lhResumeScratch = function(){
   };
   const onSetAside = (revealed) => savePendingScratch({ ...rec, revealed });
   // 🔑 보류 전 쓰던 긁기 도구 복원 · 없으면 현재 장착(active) 상태 반영(모달서 장착했으면 이어할 때도 적용)
+  const _scItems = getMyGoldData()?.[sField('items')] || [];
   const toolParams = rec.toolId
     ? (SCRATCH_TOOLS[rec.toolId] || null)
-    : ((getMyGoldData()?.[sField('items')] || []).some(it => it.id === 'scratch_key' && it.active) ? SCRATCH_TOOLS.scratch_key : null);
+    : (_scItems.some(it => it.id === 'scratch_cross' && it.active) ? SCRATCH_TOOLS.scratch_cross
+       : _scItems.some(it => it.id === 'scratch_key' && it.active) ? SCRATCH_TOOLS.scratch_key : null);
   const onDiscard = async () => {   // 🗑 쓰레기통에 버림 — 당첨금 지급 X(gold 0), 시도 기록만
     await clearPendingScratch();
     const latestData = getMyGoldData();
@@ -28135,21 +28140,26 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   const SCRATCH_DPR = Math.min(window.devicePixelRatio || 1, 2);
   const SCRATCH_BASE_R = 0.062;                            // 브러시 반지름 = 캔버스폭 × 0.062 × 도구배율 (맨손 기준, 목업 동일)
   let brushMult = toolParams?.brushMult ?? 1.0;            // 맨손 1.0 / 만능 2.15 — 모달 안 장착 토글로 라이브 변경(let)
+  let _crossScratch = !!(toolParams && toolParams.cross);   // 🖌️ 광역 긁개: 원 밖도 긁힘(여러 칸 동시)
   let revealThreshold = toolParams?.threshold ?? 0.83;     // 맨손: 가운데 문양 거의 다 긁어야 공개 (목업 동일)
   // 🔑 만능 긁개 장착/해제 — 보유 시 모달 최하단 토글로 직접 장착·해제 (장비 탭 안 가도 됨)
   const _scardKeyItem = !testMode ? (getMyGoldData()?.[sField('items')] || []).find(it => it.id === 'scratch_key') : null;
   const _scardOwnsKey = !!_scardKeyItem;
   let _scardKeyEquipped = !!(_scardKeyItem && _scardKeyItem.active);
+  const _scardCrossItem = !testMode ? (getMyGoldData()?.[sField('items')] || []).find(it => it.id === 'scratch_cross') : null;
+  const _scardOwnsCross = !!_scardCrossItem;
+  let _scardCrossEquipped = !!(_scardCrossItem && _scardCrossItem.active);
   const CELL_LAYERS = 1;
   const LAYER_THRESHOLD = 0.28; // 미사용
   // 제목은 그라데이션 클립 텍스트라 이모지를 같이 넣으면 이모지가 잘려 이상하게 보임 → 이모지는 별도 span(클립 밖)으로 분리
   const titleMap = ['실버 복권', '골드 복권', '프리즘 복권'];
   const titleEmoji = ['🥈', '🥇', '🌈'];
   const toolLabel = toolParams
-    ? `<span class="scard-tool-badge">${toolParams.threshold ? '🔑 만능 긁개 적용' : '🪙 긁기 동전 적용'}</span>`
+    ? `<span class="scard-tool-badge">${toolParams.cross ? '🖌️ 광역 긁개' : (toolParams.brushMult >= 2 ? '🔑 만능 긁개' : '🪙 긁기 동전')} 적용</span>`
     : '';
   // 🔑 최하단 행 — 보유 시 장착/해제 토글, 미보유 시 구매(=즉시 장착) 버튼. 테스트 모드는 숨김
   const KEY_PRICE = (S1_SHOP_ITEMS.find(s => s.id === 'scratch_key')?.price) ?? 500;
+  const CROSS_PRICE = (S1_SHOP_ITEMS.find(s => s.id === 'scratch_cross')?.price) ?? 500;
   const equipRowHtml = testMode ? '' : `
     <div class="scard-equip-row" id="scard-equip-row">
       ${_scardOwnsKey
@@ -28157,6 +28167,13 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
            <button class="scard-equip-btn${_scardKeyEquipped ? ' on' : ''}" id="scard-equip-btn">${_scardKeyEquipped ? '장착 해제' : '장착'}</button>`
         : `<span class="scard-equip-name">🔑 만능 긁개<span class="scard-equip-state">· 미보유</span></span>
            <button class="scard-equip-btn scard-equip-buy" id="scard-equip-buy">구매 ${KEY_PRICE}G</button>`}
+    </div>
+    <div class="scard-equip-row" id="scard-equip-row-cross">
+      ${_scardOwnsCross
+        ? `<span class="scard-equip-name">🖌️ 광역 긁개<span class="scard-equip-state" id="scard-equip-state-cross">${_scardCrossEquipped ? '· 장착됨' : '· 미장착'}</span></span>
+           <button class="scard-equip-btn${_scardCrossEquipped ? ' on' : ''}" id="scard-equip-btn-cross">${_scardCrossEquipped ? '장착 해제' : '장착'}</button>`
+        : `<span class="scard-equip-name">🖌️ 광역 긁개<span class="scard-equip-state">· 미보유</span></span>
+           <button class="scard-equip-btn scard-equip-buy" id="scard-equip-buy-cross">구매 ${CROSS_PRICE}G</button>`}
     </div>`;
   // 🛡️🪙 내 강철심장 복권 효과 배너 — 해골감소 줄 보유 시 (해골 감소율 + 당첨 시 보너스)를 복권창 안에 표시
   let _emFxHtml = '';
@@ -28556,6 +28573,52 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
     });
   }
   _bindScardEquipToggle();
+  function _bindScardCrossToggle() {
+    overlay.querySelector('#scard-equip-btn-cross')?.addEventListener('click', () => {
+      const k = getMyGoldKey(); const d = k ? goldData[k] : null; if (!d) return;
+      const items = (d[sField('items')] || []).map(it => it.id === 'scratch_cross' ? { ...it, active: !it.active } : it);
+      const nowOn = items.some(it => it.id === 'scratch_cross' && it.active);
+      d[sField('items')] = items;
+      update(ref(db, 'gold/' + k), { [sField('items')]: items }).catch(() => {});
+      _scardCrossEquipped = nowOn; _crossScratch = nowOn;
+      if (nowOn) { brushMult = SCRATCH_TOOLS.scratch_cross.brushMult; revealThreshold = SCRATCH_TOOLS.scratch_cross.threshold; }
+      else if (_scardKeyEquipped) { brushMult = SCRATCH_TOOLS.scratch_key.brushMult; revealThreshold = SCRATCH_TOOLS.scratch_key.threshold; }
+      else { brushMult = 1.0; revealThreshold = 0.83; }
+      const btn = overlay.querySelector('#scard-equip-btn-cross');
+      const stt = overlay.querySelector('#scard-equip-state-cross');
+      if (btn) { btn.textContent = nowOn ? '장착 해제' : '장착'; btn.classList.toggle('on', nowOn); }
+      if (stt) { stt.textContent = nowOn ? '· 장착됨' : '· 미장착'; }
+      try { showGoldToast(nowOn ? '🖌️ 광역 긁개 장착 — 한 줄로 쭉 그으면 여러 칸이 함께 긁혀요' : '🖌️ 광역 긁개 해제'); } catch (_) {}
+    });
+  }
+  _bindScardCrossToggle();
+  overlay.querySelector('#scard-equip-buy-cross')?.addEventListener('click', async () => {
+    const buyBtn = overlay.querySelector('#scard-equip-buy-cross');
+    if (buyBtn?.dataset.busy) return;
+    const k = getMyGoldKey(); const d = k ? goldData[k] : null; if (!d) return;
+    const def = S1_SHOP_ITEMS.find(s => s.id === 'scratch_cross');
+    const price = def?.price ?? 500;
+    const items0 = d[sField('items')] || [];
+    if (items0.some(it => it.id === 'scratch_cross')) return;
+    if (getMyGold() < price) { try { showGoldToast(`🪙 골드가 부족해요! (보유 ${getMyGold()} / 필요 ${price})`); } catch (_) {} return; }
+    if (buyBtn) { buyBtn.dataset.busy = '1'; buyBtn.textContent = '구매 중…'; }
+    const newItems = [...items0, { id: 'scratch_cross', ts: Date.now(), active: true }];
+    const newSpent = (d[sField('goldSpent')] ?? 0) + price;
+    const updates = { [sField('items')]: newItems, [sField('goldSpent')]: newSpent };
+    if (def) updates[sField('purchaseLog')] = _appendPurchaseLog(d, def);
+    d[sField('items')] = newItems; d[sField('goldSpent')] = newSpent;
+    await update(ref(db, 'gold/' + k), updates).catch(() => {});
+    _scardCrossEquipped = true; _crossScratch = true;
+    brushMult = SCRATCH_TOOLS.scratch_cross.brushMult; revealThreshold = SCRATCH_TOOLS.scratch_cross.threshold;
+    const row = overlay.querySelector('#scard-equip-row-cross');
+    if (row) {
+      row.innerHTML = `<span class="scard-equip-name">🖌️ 광역 긁개<span class="scard-equip-state" id="scard-equip-state-cross">· 장착됨</span></span>`
+        + `<button class="scard-equip-btn on" id="scard-equip-btn-cross">장착 해제</button>`;
+      _bindScardCrossToggle();
+    }
+    try { showGoldToast(`🖌️ 광역 긁개 구매·장착 완료! (-${price}G) 한 줄로 쭉 그어보세요`); } catch (_) {}
+    try { renderShop?.(); } catch (_) {}
+  });
   // 🔑 미보유 시 "구매" 버튼 — 구매 즉시 장착(active:true) + 행을 장착 토글로 교체 (허브/장비 탭 안 가도 됨)
   overlay.querySelector('#scard-equip-buy')?.addEventListener('click', async () => {
     const buyBtn = overlay.querySelector('#scard-equip-buy');
@@ -28689,21 +28752,31 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
       window.removeEventListener('pointercancel', _scratchWinEnd);
       return;
     }
+    if (_crossScratch) {
+      for (const st of cellState) {
+        if (st.revealed) continue;
+        const r = st.canvas.getBoundingClientRect();
+        if (e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom) {
+          if (!st.scratching) { st.scratching = true; st.prevX = st.prevY = undefined; }
+          doScratch(st, e); checkCellReveal(st);
+        }
+      }
+      return;
+    }
     if (_activeScratch && _activeScratch.scratching) doScratch(_activeScratch, e);
   }
   function _scratchWinEnd() {
-    if (!_activeScratch) return;
-    const st = _activeScratch; _activeScratch = null;
-    st.scratching = false; st.prevX = st.prevY = undefined;
+    if (!_activeScratch && !cellState.some(s => s.scratching)) return;
+    _activeScratch = null;
     try { overlay.querySelector('.scard-modal') && overlay.querySelector('.scard-modal').style.removeProperty('overflow-y'); } catch(_){}  // 스크롤 복원
-    checkCellReveal(st);
+    cellState.forEach(st => { if (st.scratching) { st.scratching = false; st.prevX = st.prevY = undefined; checkCellReveal(st); } });
   }
   window.addEventListener('pointermove', _scratchWinMove);
   window.addEventListener('pointerup', _scratchWinEnd);
   window.addEventListener('pointercancel', _scratchWinEnd);
   function _scratchTouchMove(e) {
     if (!document.body.contains(overlay)) { document.removeEventListener('touchmove', _scratchTouchMove); return; }
-    if (_activeScratch && _activeScratch.scratching) e.preventDefault();  // 긁는 중엔 페이지 스크롤 막음(iOS 포함)
+    if (_activeScratch) e.preventDefault();  // 긁는 중엔 페이지 스크롤 막음(iOS·광역 포함)
   }
   document.addEventListener('touchmove', _scratchTouchMove, { passive: false });
 
