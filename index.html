@@ -6923,7 +6923,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.503';
+const APP_VERSION = 'v2.45.504';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -28664,6 +28664,20 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   overlay.querySelector('#scard-equip-acc-head')?.addEventListener('click', () => {
     overlay.querySelector('#scard-equip-acc')?.classList.toggle('open');
   });
+  // 🪙 동전으로 긁기 — PC는 CSS 커서(_injectScardCoinCss), 모바일은 터치 지점에 동전 팔로워
+  _injectScardCoinCss();
+  const _coinEl = document.createElement('div'); _coinEl.className = 'scard-coin'; overlay.appendChild(_coinEl);
+  let _coinOn = false;
+  const _coinShow = (e) => { if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return; _coinOn = true; _coinEl.style.display = 'block'; _coinEl.style.left = e.clientX + 'px'; _coinEl.style.top = e.clientY + 'px'; };
+  const _coinMove = (e) => {
+    if (!document.body.contains(overlay)) { window.removeEventListener('pointermove', _coinMove); window.removeEventListener('pointerup', _coinHide); window.removeEventListener('pointercancel', _coinHide); return; }
+    if (!_coinOn) return; _coinEl.style.left = e.clientX + 'px'; _coinEl.style.top = e.clientY + 'px';
+  };
+  const _coinHide = () => { _coinOn = false; _coinEl.style.display = 'none'; };
+  overlay.querySelector('#scard-grid')?.addEventListener('pointerdown', _coinShow);
+  window.addEventListener('pointermove', _coinMove);
+  window.addEventListener('pointerup', _coinHide);
+  window.addEventListener('pointercancel', _coinHide);
   overlay.querySelector('#scard-equip-buy-cross')?.addEventListener('click', async () => {
     const buyBtn = overlay.querySelector('#scard-equip-buy-cross');
     if (buyBtn?.dataset.busy) return;
@@ -28887,6 +28901,17 @@ function showScratchModal(scratchResult, remainingGold, opts = {}) {
   }
 }
 
+// 🪙 동전으로 긁기 — 복권 칸 커서를 동전으로(PC) + 모바일 터치 팔로워용 배경(동일 SVG)
+function _injectScardCoinCss(){
+  if (document.getElementById('scard-coin-css')) return;
+  const svg = "<svg xmlns='http://www.w3.org/2000/svg' width='30' height='30'><defs><radialGradient id='sc' cx='38%' cy='32%'><stop offset='0%' stop-color='#fff0a8'/><stop offset='55%' stop-color='#e8be44'/><stop offset='100%' stop-color='#b7891f'/></radialGradient></defs><circle cx='15' cy='15' r='13' fill='url(#sc)' stroke='#8a6414' stroke-width='1.6'/><circle cx='15' cy='15' r='9' fill='none' stroke='#fff4bc' stroke-width='1' opacity='0.6'/><ellipse cx='10.5' cy='9.5' rx='3.2' ry='2' fill='#fff' opacity='0.55'/></svg>";
+  const url = "data:image/svg+xml," + encodeURIComponent(svg);
+  const st = document.createElement('style'); st.id = 'scard-coin-css';
+  st.textContent =
+    '.scard-cell,.scard-canvas,.scard-grid.has-bgscratch{cursor:url("' + url + '") 15 15, crosshair !important;}' +
+    '.scard-coin{position:fixed;left:0;top:0;width:36px;height:36px;margin:-18px 0 0 -18px;pointer-events:none;z-index:9999;display:none;background:url("' + url + '") center/contain no-repeat;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.55));transform:rotate(-16deg);}';
+  document.head.appendChild(st);
+}
 function _scardDrawCover(ctx, w, h, layerLeft = 1, tierIdx = 0) {
   // v2.43.121~ cover alpha 0.94 (긁기 전 거의 불투명)
   // v2.43.123~ tier 별 커버 — 일반/고급 = 황금 / 프리미엄 = 홀로그래픽 핑크-퍼플
