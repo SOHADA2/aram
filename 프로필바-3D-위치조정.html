@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>프로필 바 단짝 3D 위치조정</title>
+<style>
+  :root{--gold:#c8a84b;--bg:#0e1116;--card:#171b22;--line:rgba(255,255,255,.1);}
+  *{box-sizing:border-box;}
+  body{margin:0;background:#0a0c10;color:#e6e8ec;font-family:'Noto Sans KR',system-ui,sans-serif;padding:18px;}
+  h1{font-size:16px;margin:0 0 4px;}
+  .note{font-size:12px;color:#8b93a0;margin:0 0 16px;line-height:1.6;}
+  .note b{color:var(--gold);}
+  .wrap{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;}
+  .stage{flex:0 0 auto;}
+  /* ── 실제 프로필 바(my-info-bar) 근사 ── */
+  .mock-bar{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#1a1f28,#12151b);border:1px solid var(--line);border-radius:14px;padding:10px 16px 10px 12px;min-width:300px;box-shadow:0 6px 18px -8px rgba(0,0,0,.6);}
+  /* .my-info-avatar.has-buddy 와 동일 */
+  .avatar{width:64px;height:72px;position:relative;flex-shrink:0;overflow:visible;}
+  .avatar.guide{outline:1px dashed rgba(200,168,75,.55);border-radius:8px;}
+  .bar-mount{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:84px;height:94px;}
+  .bar-mount.guide{outline:1px dashed rgba(120,170,255,.5);}
+  .bar-mount canvas{width:100%;height:100%;display:block;}
+  .mock-info{display:flex;flex-direction:column;gap:3px;}
+  .mock-name{font-weight:800;font-size:14px;}
+  .mock-lv{font-size:11px;color:#8b93a0;}
+  .mock-gold{font-size:13px;font-weight:700;color:var(--gold);}
+  .stage-hint{font-size:11px;color:#6b7280;margin-top:10px;text-align:center;}
+  /* ── 컨트롤 ── */
+  .panel{flex:1 1 320px;min-width:300px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;}
+  .champs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;}
+  .champ-btn{padding:6px 12px;border-radius:20px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:#cbd0d8;font-size:13px;font-weight:700;cursor:pointer;}
+  .champ-btn.on{background:linear-gradient(135deg,#d4a843,#f0c84a);color:#1a1206;border-color:transparent;}
+  .row{display:grid;grid-template-columns:64px 1fr 54px;align-items:center;gap:10px;margin:10px 0;}
+  .row label{font-size:12px;color:#aeb4be;font-weight:700;}
+  .row input[type=range]{width:100%;}
+  .row .val{font-size:12px;font-family:ui-monospace,monospace;color:var(--gold);text-align:right;}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  .btn{padding:7px 13px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:#dfe3e9;font-size:12px;font-weight:700;cursor:pointer;}
+  .btn.gold{background:linear-gradient(135deg,#d4a843,#f0c84a);color:#1a1206;border-color:transparent;}
+  .out{margin-top:14px;}
+  .out textarea{width:100%;height:150px;background:#0b0e13;border:1px solid var(--line);border-radius:8px;color:#c9d4e0;font-family:ui-monospace,monospace;font-size:11px;padding:10px;resize:vertical;}
+  .toggles{display:flex;gap:14px;flex-wrap:wrap;margin:8px 0 2px;font-size:12px;color:#aeb4be;}
+  .toggles label{display:flex;align-items:center;gap:5px;cursor:pointer;}
+</style>
+</head>
+<body>
+  <h1>🧸 프로필 바 단짝 3D — 위치조정 목업</h1>
+  <p class="note">
+    메인화면 <b>프로필 바(내 정보 바)</b>의 단짝 아바타와 <b>완전히 동일한 세팅</b>(bust 모드·64×72 칸·84×94 마운트·같은 카메라 수식)이에요.<br>
+    슬라이더로 챔피언별 <b>좌우·상하·크기·얼굴높이</b>를 맞춘 뒤, 아래 출력값을 저에게 주시면 <b>bust 값만</b> 코드에 넣습니다 → 프로필 바만 바뀌고 다른 곳(프로필 모달·단짝 패널 등 full 모드)엔 영향 없어요.
+  </p>
+  <div class="wrap">
+    <div class="stage">
+      <div class="mock-bar">
+        <div class="avatar" id="avatar">
+          <div class="bar-mount" id="bar-mount"></div>
+        </div>
+        <div class="mock-info">
+          <div class="mock-name">애긔반달곰</div>
+          <div class="mock-lv">LV.24 · 챌린저</div>
+          <div class="mock-gold">🪙 12,340 G</div>
+        </div>
+      </div>
+      <div class="stage-hint" id="stage-hint">로딩 중…</div>
+      <div class="toggles">
+        <label><input type="checkbox" id="tg-pause"> 모션 정지(정밀 조정)</label>
+        <label><input type="checkbox" id="tg-guide" checked> 칸 가이드 표시</label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="champs" id="champs"></div>
+      <div class="row"><label>좌우 X</label><input type="range" id="s-x" min="-1" max="1" step="0.02"><span class="val" id="v-x"></span></div>
+      <div class="row"><label>상하 Y</label><input type="range" id="s-y" min="-1" max="1" step="0.02"><span class="val" id="v-y"></span></div>
+      <div class="row"><label>크기 Zoom</label><input type="range" id="s-zoom" min="0.2" max="2.5" step="0.02"><span class="val" id="v-zoom"></span></div>
+      <div class="row"><label>얼굴높이</label><input type="range" id="s-busty" min="-0.5" max="1.3" step="0.02"><span class="val" id="v-busty"></span></div>
+      <div class="btns">
+        <button class="btn" id="btn-reset">이 챔프 앱 기본값으로</button>
+        <button class="btn gold" id="btn-copy">📋 전체 출력 복사</button>
+      </div>
+      <div class="out"><textarea id="out" readonly></textarea></div>
+    </div>
+  </div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+
+const CHAMPS = ['teemo','gwen','vex','ekko','yone','neeko','lux'];
+const KR = { teemo:'티모', gwen:'그웬', vex:'벡스', ekko:'에코', yone:'요네', neeko:'니코', lux:'럭스' };
+// 앱 _BUDDY_MODEL_ADJ 의 bust 기본값 (여기서 시작)
+const APP_BUST = {
+  teemo:{x:0,   y:-0.1, zoom:0.55}, gwen:{x:0, y:-0.1, zoom:1.1}, vex:{x:0.1, y:-0.2, zoom:0.9},
+  ekko:{x:0.1,  y:-0.1, zoom:0.7},  yone:{x:0, y:-0.4, zoom:1.1}, neeko:{x:0.2, y:-0.4, zoom:0.7}, lux:{x:0, y:-0.2, zoom:0.8}
+};
+const APP_BUSTY = 0.45;    // _buddyBustY (전역 기본)
+const BUST_DIST = 0.9;     // _buddyBustDist (고정 — 앱과 동일)
+const HEAD_TILT = 0.20;    // _buddyHeadTilt
+
+// 챔프별 조정 상태
+const state = {};
+CHAMPS.forEach(c => state[c] = { ...APP_BUST[c], busty: APP_BUSTY });
+let cur = 'teemo';
+
+// ── three.js (앱 _buddy3dShow ctx 와 동일 세팅) ──
+const mount = document.getElementById('bar-mount');
+const canvas = document.createElement('canvas'); mount.appendChild(canvas);
+const renderer = new THREE.WebGLRenderer({ canvas, alpha:true, antialias:true, powerPreference:'low-power' });
+renderer.setPixelRatio(Math.min(devicePixelRatio||1, 1.75));
+renderer.setSize(190, 212, false); renderer.setClearAlpha(0); renderer.outputColorSpace = THREE.SRGBColorSpace;
+const scene = new THREE.Scene();
+scene.add(new THREE.AmbientLight(0xffffff, 1.15));
+const keyL = new THREE.DirectionalLight(0xffffff, 0.9); keyL.position.set(2,4,5); scene.add(keyL);
+const camera = new THREE.PerspectiveCamera(30, 190/212, 0.1, 5000);
+const loader = new GLTFLoader(); try { loader.setMeshoptDecoder(MeshoptDecoder); } catch(_){}
+const clock = new THREE.Clock();
+let group=null, r=1, mixer=null;
+
+const hint = document.getElementById('stage-hint');
+
+function loadChamp(c){
+  if (group){ scene.remove(group); group=null; mixer=null; }
+  hint.textContent = KR[c]+' 로딩 중…';
+  const tryLoad = (file, isFallback) => loader.load(file,
+    g => build(g, c),
+    undefined,
+    e => { if(!isFallback) tryLoad(c+'.glb', true); else hint.textContent='⚠️ 로드 실패 — http로 열어야 해요(파일:// 불가)'; }
+  );
+  tryLoad(c+'_full.glb', false);   // 앱과 동일: 풀모델 우선 → 실패 시 미니
+}
+function build(g, c){
+  if (c !== cur) return;
+  const model = g.scene;
+  model.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{m.side=THREE.DoubleSide;m.needsUpdate=true;}); } });
+  const box = new THREE.Box3().setFromObject(model);
+  const ctr = box.getCenter(new THREE.Vector3()); model.position.sub(ctr);
+  group = new THREE.Group(); group.add(model); scene.add(group);
+  r = box.getBoundingSphere(new THREE.Sphere()).radius;
+  group.rotation.x = HEAD_TILT;
+  mixer = new THREE.AnimationMixer(model);
+  const clips = g.animations||[];
+  const clip = clips.find(x=>/idle_base/i.test(x.name)) || clips.find(x=>/idle/i.test(x.name)) || clips[0];
+  if (clip) mixer.clipAction(clip).play();
+  applyFrame();
+  hint.textContent = KR[c]+' — 슬라이더로 맞춰보세요';
+}
+function applyFrame(){
+  if (!group) return;
+  const s = state[cur];
+  group.position.set((s.x||0)*r, (s.y||0)*r, 0);
+  const fov = camera.fov*Math.PI/180, asp = 190/212;
+  const fit = Math.max(r/Math.sin(fov/2), r/Math.sin(2*Math.atan(Math.tan(fov/2)*asp)/2));
+  const y = r*s.busty;
+  camera.position.set(0, y, fit*BUST_DIST/(s.zoom||1));
+  camera.lookAt(0, y, 0);
+}
+
+let paused = false;
+(function loop(){
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, clock.getDelta());
+  if (mixer && !paused) mixer.update(dt);
+  if (group){
+    const s = state[cur], t = clock.elapsedTime;
+    const amp = paused ? 0 : 0.03;   // 앱 idle bob
+    group.position.y = (s.y||0)*r + Math.sin(t*2.5)*r*amp;
+  }
+  renderer.render(scene, camera);
+})();
+
+// ── UI ──
+const champsEl = document.getElementById('champs');
+CHAMPS.forEach(c=>{
+  const b = document.createElement('button'); b.className='champ-btn'+(c===cur?' on':''); b.textContent=KR[c]; b.dataset.c=c;
+  b.onclick = ()=>{ cur=c; document.querySelectorAll('.champ-btn').forEach(x=>x.classList.toggle('on', x.dataset.c===c)); loadChamp(c); syncSliders(); };
+  champsEl.appendChild(b);
+});
+const S = { x:document.getElementById('s-x'), y:document.getElementById('s-y'), zoom:document.getElementById('s-zoom'), busty:document.getElementById('s-busty') };
+const V = { x:document.getElementById('v-x'), y:document.getElementById('v-y'), zoom:document.getElementById('v-zoom'), busty:document.getElementById('v-busty') };
+function syncSliders(){
+  const s = state[cur];
+  S.x.value=s.x; S.y.value=s.y; S.zoom.value=s.zoom; S.busty.value=s.busty;
+  V.x.textContent=(+s.x).toFixed(2); V.y.textContent=(+s.y).toFixed(2); V.zoom.textContent=(+s.zoom).toFixed(2); V.busty.textContent=(+s.busty).toFixed(2);
+  updateOut();
+}
+['x','y','zoom','busty'].forEach(k=>{
+  S[k].oninput = ()=>{ state[cur][k] = +S[k].value; V[k].textContent = (+S[k].value).toFixed(2); applyFrame(); updateOut(); };
+});
+document.getElementById('tg-pause').onchange = e=>{ paused = e.target.checked; };
+document.getElementById('tg-guide').onchange = e=>{
+  document.getElementById('avatar').classList.toggle('guide', e.target.checked);
+  document.getElementById('bar-mount').classList.toggle('guide', e.target.checked);
+};
+document.getElementById('btn-reset').onclick = ()=>{ state[cur] = { ...APP_BUST[cur], busty:APP_BUSTY }; applyFrame(); syncSliders(); };
+
+function updateOut(){
+  // _BUDDY_MODEL_ADJ 의 bust 부분 + (기본 0.45와 다르면) _BUDDY_BUST_Y
+  const bustLines = CHAMPS.map(c=>{
+    const s = state[c];
+    return `  '${c}.glb' bust: { x:${+(+s.x).toFixed(2)}, y:${+(+s.y).toFixed(2)}, zoom:${+(+s.zoom).toFixed(2)} }`;
+  }).join('\n');
+  const byLines = CHAMPS.filter(c=>Math.abs(state[c].busty-APP_BUSTY)>0.001)
+    .map(c=>`  '${c}.glb': ${+(+state[c].busty).toFixed(2)}`).join('\n');
+  document.getElementById('out').value =
+    '// 프로필 바 bust 값 (이 값을 그대로 주세요)\n' + bustLines +
+    (byLines ? ('\n\n// 얼굴높이(_BUDDY_BUST_Y) — 기본 0.45와 다른 것만\n' + byLines) : '');
+}
+document.getElementById('btn-copy').onclick = ()=>{ document.getElementById('out').select(); try{document.execCommand('copy');}catch(_){}; };
+
+// 초기 가이드 on
+document.getElementById('avatar').classList.add('guide');
+document.getElementById('bar-mount').classList.add('guide');
+loadChamp(cur); syncSliders();
+</script>
+</body>
+</html>
