@@ -6985,7 +6985,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.522';
+const APP_VERSION = 'v2.45.523';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6994,6 +6994,9 @@ const APP_VERSION = 'v2.45.522';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.523', date: '2026-07-02', changes: [
+    { tag: 'improve', text: '🤖 복권 자동 로봇 예약 연출 추가 — 복권을 예약하면 복권(🎟️)이 로봇 입으로 슉 하고 빨려 들어가고 🧾 영수증이 나오는 모션이 재생돼요. 효과음도 추가(복권 투입음 + 영수증 도트프린터 드르륵 출력음).' },
+  ] },
   { ver: 'v2.45.522', date: '2026-07-01', changes: [
     { tag: 'new', text: '🤖 복권 자동 로봇 — 실버 복권(해골 없음)을 자동으로 긁어주는 영구 소유 아이템. 복권 Hub 안에서 구매/조작. 등급 실버(5장·10분/장)→골드(10장·5분)→프리즘(20장·1분), 단계별 업그레이드(300→700→1000G). 예약 시 장당 70G 선불→실제 시각 기준 순차 완성(오프라인 진행)→영수증(당첨/꽝)+수령. 데이터 autoBotTier_s2·autoBotQueue_s2, 결과는 예약 시점 rollScratch(0)로 확정 저장(조작 불가). 당첨금 passGold, 지출 goldSpent(+goldSpendLog). 현재는 해골 있는 골드/프리즘 복권은 자동화 미지원.' },
   ] },
@@ -27476,8 +27479,93 @@ function _injectAutoBotCss(){
   .abot-rc-g.win{color:#86efac;}
   .abot-claim{width:100%;padding:13px;border:none;border-radius:11px;background:linear-gradient(135deg,#d4a843,#f0c84a,#c8a030);color:#1a1206;font-size:14px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-top:6px;animation:abotPulse 1.5s ease-in-out infinite;}
   @keyframes abotPulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.12)}}
-  .abot-note{font-size:10.5px;color:#6e7688;text-align:center;margin-top:10px;line-height:1.6;}`;
+  .abot-note{font-size:10.5px;color:#6e7688;text-align:center;margin-top:10px;line-height:1.6;}
+  /* 🎟️ 복권 투입 / 🧾 영수증 출력 연출 */
+  .abot-insert-stage{position:absolute;left:0;right:0;top:0;bottom:0;pointer-events:none;overflow:visible;z-index:6;}
+  .abot-fly-ticket{position:absolute;left:50%;top:100%;font-size:22px;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));will-change:transform,opacity;animation:abotFlyIn .52s cubic-bezier(.4,.1,.7,1) forwards;}
+  @keyframes abotFlyIn{
+    0%{transform:translate(calc(-50% + var(--dx,0px)),34px) scale(.55) rotate(-6deg);opacity:0;}
+    30%{opacity:1;}
+    75%{transform:translate(-50%,-22px) scale(.85) rotate(0deg);opacity:1;}
+    100%{transform:translate(-50%,-30px) scale(.14) rotate(0deg);opacity:0;}
+  }
+  .abot-receipt-out{position:absolute;left:50%;top:100%;font-size:26px;transform-origin:top center;filter:drop-shadow(0 3px 4px rgba(0,0,0,.5));will-change:transform,opacity;animation:abotReceiptOut .85s ease-out forwards;}
+  @keyframes abotReceiptOut{
+    0%{transform:translate(-50%,-30px) scaleY(.15);opacity:0;}
+    35%{opacity:1;}
+    100%{transform:translate(-50%,24px) scaleY(1);opacity:1;}
+  }
+  .abot-robot.abot-nudge{animation:abotNudge .24s ease;}
+  @keyframes abotNudge{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  .abot-robot.abot-chew .abot-mouth{animation:abotChew .28s ease 2;}
+  @keyframes abotChew{0%,100%{transform:scaleY(1)}50%{transform:scaleY(.35)}}`;
   document.head.appendChild(st);
+}
+// 🤖 자동 로봇 전용 효과음 (WebAudio·첫 입력에서 깨어남)
+let _abotActx=null;
+function _abotAC(){
+  if(!_abotActx) _abotActx=new (window.AudioContext||window.webkitAudioContext)();
+  if(_abotActx.state==='suspended') _abotActx.resume();
+  return _abotActx;
+}
+const _autoBotSfx = {
+  insert(){ try {                                   // 복권 투입 — 슉 하고 빨려드는 소리 + 종이 슥
+    const c=_abotAC(), t=c.currentTime;
+    const o=c.createOscillator(), g=c.createGain();
+    o.type='sine'; o.frequency.setValueAtTime(1400,t); o.frequency.exponentialRampToValueAtTime(480,t+0.16);
+    g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.12,t+0.03); g.gain.exponentialRampToValueAtTime(0.0001,t+0.2);
+    o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+0.22);
+    const dur=0.08, nn=Math.floor(c.sampleRate*dur), buf=c.createBuffer(1,nn,c.sampleRate), d=buf.getChannelData(0);
+    for(let i=0;i<nn;i++) d[i]=(Math.random()*2-1)*(1-i/nn);
+    const s=c.createBufferSource(); s.buffer=buf;
+    const hp=c.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=3000;
+    const g2=c.createGain(); g2.gain.setValueAtTime(0.06,t); g2.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    s.connect(hp); hp.connect(g2); g2.connect(c.destination); s.start(t); s.stop(t+dur);
+  } catch(e){} },
+  receipt(){ try {                                  // 영수증 출력 — 도트프린터 드르륵 + 완료 띵
+    const c=_abotAC(), t0=c.currentTime;
+    for(let i=0;i<14;i++){ const t=t0+i*0.045, o=c.createOscillator(), g=c.createGain();
+      o.type='square'; o.frequency.value=220+(i%2)*90;
+      g.gain.setValueAtTime(0.05,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.03);
+      o.connect(g); g.connect(c.destination); o.start(t); o.stop(t+0.035); }
+    const tEnd=t0+0.66, o2=c.createOscillator(), g2=c.createGain();
+    o2.type='triangle'; o2.frequency.setValueAtTime(880,tEnd); o2.frequency.exponentialRampToValueAtTime(1320,tEnd+0.12);
+    g2.gain.setValueAtTime(0.14,tEnd); g2.gain.exponentialRampToValueAtTime(0.0001,tEnd+0.3);
+    o2.connect(g2); g2.connect(c.destination); o2.start(tEnd); o2.stop(tEnd+0.32);
+  } catch(e){} },
+};
+// 🎟️→🤖→🧾 예약 연출: 복권이 로봇에 투입되고 영수증이 나옴
+let _autoBotFxBusy=false;
+function _autoBotReserveFx(n, onDone){
+  const el=document.getElementById('autobot-overlay');
+  const robot = el && el.querySelector('.abot-robot');
+  if(!robot){ onDone&&onDone(); return; }
+  _autoBotFxBusy=true;
+  robot.classList.add('busy');
+  const stage=document.createElement('div'); stage.className='abot-insert-stage';
+  robot.appendChild(stage);
+  const cnt=Math.max(1, Math.min(n, 6));   // 시각적으로 최대 6장까지만 표현
+  let i=0;
+  const finish=()=>{
+    _autoBotSfx.receipt();
+    robot.classList.add('abot-chew');
+    const rc=document.createElement('div'); rc.className='abot-receipt-out'; rc.textContent='🧾';
+    stage.appendChild(rc);
+    setTimeout(()=>{ try{ stage.remove(); }catch(_){} robot.classList.remove('abot-chew'); _autoBotFxBusy=false; onDone&&onDone(); }, 950);
+  };
+  const step=()=>{
+    if(!document.getElementById('autobot-overlay')){ _autoBotFxBusy=false; onDone&&onDone(); return; }
+    if(i>=cnt){ finish(); return; }
+    const tk=document.createElement('div'); tk.className='abot-fly-ticket'; tk.textContent='🎟️';
+    tk.style.setProperty('--dx', ((i-(cnt-1)/2)*14)+'px');
+    stage.appendChild(tk);
+    _autoBotSfx.insert();
+    robot.classList.remove('abot-nudge'); void robot.offsetWidth; robot.classList.add('abot-nudge');
+    setTimeout(()=>{ try{ tk.remove(); }catch(_){} }, 540);
+    i++;
+    setTimeout(step, 240);
+  };
+  step();
 }
 let _autoBotTimer=null, _autoBotLastDone=-1, _autoBotSelN=1;
 window.openAutoBotModal = function(){
@@ -27587,6 +27675,7 @@ window.autoBotBuy = async function(){
   _autoBotRefresh();
 };
 window.autoBotReserve = async function(n){
+  if(_autoBotFxBusy) return;   // 투입 연출 중 중복 예약 방지
   const key=getMyGoldKey(); if(!key) return;
   const data=goldData[key]; if(!data) return;
   const def=_autoBotDef(_autoBotTier(data));
@@ -27602,8 +27691,11 @@ window.autoBotReserve = async function(n){
   const upd={ [spentKey]:(data[spentKey]??0)+cost, [sField('autoBotQueue')]:q, ..._spendLogUpd(data,'autobot',`자동로봇 실버 ×${n}`,cost) };
   _applySpendLocal(key,upd);
   await update(ref(db,'gold/'+key),upd);
-  showS1Toast(`🤖 실버 복권 ${n}장 예약! 로봇이 긁기 시작해요`);
-  _autoBotLastDone=-1; _autoBotRefresh();
+  _autoBotLastDone=-1;
+  _autoBotReserveFx(n, ()=>{
+    showS1Toast(`🤖 실버 복권 ${n}장 예약! 로봇이 긁기 시작해요`);
+    _autoBotRefresh();
+  });
 };
 window.autoBotClaim = async function(){
   const key=getMyGoldKey(); if(!key) return;
