@@ -6985,7 +6985,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.524';
+const APP_VERSION = 'v2.45.525';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6994,6 +6994,9 @@ const APP_VERSION = 'v2.45.524';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.525', date: '2026-07-02', changes: [
+    { tag: 'new', text: '🤖 복권 자동 로봇 「긁기 보너스」 추가 — 로봇이 복권을 긁으면 당첨/꽝과 별개로 장당 추가 골드를 줘요! 등급이 높을수록 보너스↑: 🥈실버 +5G/장 · 🥇골드 +8G/장 · 🌈프리즘 +12G/장. 수령 시 당첨 골드 + 로봇 보너스가 함께 지급돼요(영수증에 별도 표시). ※무한증식 방지를 위해 실버 복권 자체 손실(장당 ~-15G)보다 작게 잡아, 로봇은 편의+소소한 보너스지 골드 머신은 아니에요.' },
+  ] },
   { ver: 'v2.45.524', date: '2026-07-02', changes: [
     { tag: 'improve', text: '🤖 복권 자동 로봇 대폭 업그레이드 — ①로봇 디자인 전면 리뉴얼(안테나·바이저 눈·LCD 상태 스크린·복권 투입구·영수증 출구·팔·바퀴, 티어 색 반영·프리즘은 무지개 오라) ②작동 중엔 로봇이 팔로 복권을 실제로 긁는 모션+은박 부스러기 ③예약 연출 강화(복권이 투입구로 빨려 들어가며 슬롯 발광→모터 가동음→접수 영수증 인쇄) ④모달 열어둔 채 복권이 완성되면 실시간 인쇄음+영수증 출력 모션, 전부 완성 시 팡파레 ⑤영수증 목록을 진짜 영수증 종이 디자인으로 ⑥수령 동전음·구매 가동음 추가.' },
     { tag: 'fix', text: '🤖 예약 연출 도중 1초 갱신 타이머가 화면을 다시 그려 연출이 끊기던 문제 수정.' },
@@ -27424,15 +27427,17 @@ window.closeLotteryHub = function() {
    예약 시 장수×70G 선불 차감 + 실버 결과를 미리 굴려 저장 → 실제 시각 기준 순차 완성(오프라인 OK).
    완성분은 영수증(당첨/낙첨)으로 뱉어지고 「수령」 시 당첨금(passGold) 지급. 데이터: autoBotTier_s2 · autoBotQueue_s2 */
 const AUTOBOT_TIERS = [
-  { tier:1, name:'실버 자동 로봇',   short:'실버',   cap:5,  perMin:10, price:300,  color:'#c4ced6', emoji:'🥈' },
-  { tier:2, name:'골드 자동 로봇',   short:'골드',   cap:10, perMin:5,  price:700,  color:'#f0c060', emoji:'🥇' },
-  { tier:3, name:'프리즘 자동 로봇', short:'프리즘', cap:20, perMin:1,  price:1000, color:'#e0a8ff', emoji:'🌈' },
+  // bonus = 로봇이 긁어줄 때 장당 추가로 주는 골드(당첨/꽝 무관). 실버 복권 순손실(~-15G/장)보다 작게 잡아 무한증식 방지.
+  { tier:1, name:'실버 자동 로봇',   short:'실버',   cap:5,  perMin:10, price:300,  color:'#c4ced6', emoji:'🥈', bonus:5  },
+  { tier:2, name:'골드 자동 로봇',   short:'골드',   cap:10, perMin:5,  price:700,  color:'#f0c060', emoji:'🥇', bonus:8  },
+  { tier:3, name:'프리즘 자동 로봇', short:'프리즘', cap:20, perMin:1,  price:1000, color:'#e0a8ff', emoji:'🌈', bonus:12 },
 ];
 const AUTOBOT_LOTTERY_PRICE = 70;   // 실버 복권 장당 가격
 function _autoBotTier(data){ return (data && data[sField('autoBotTier')]) || 0; }
 function _autoBotDef(tier){ return AUTOBOT_TIERS.find(t=>t.tier===tier) || null; }
 function _autoBotQueue(data){ const q = data && data[sField('autoBotQueue')]; return (q && q.count) ? q : null; }
 function _autoBotDone(q, now){ if(!q) return 0; const per=q.perMin*60000; return Math.max(0, Math.min(q.count, Math.floor((now - q.startAt)/per))); }
+function _autoBotBonus(q){ if(!q) return 0; const d=_autoBotDef(q.tier); return d?(d.bonus||0):0; }   // 장당 로봇 보너스 골드(예약 시점 등급 기준)
 function _autoBotFmt(ms){ ms=Math.max(0,ms); const s=Math.ceil(ms/1000); const m=Math.floor(s/60); const ss=s%60; return m>0?`${m}분 ${ss}초`:`${ss}초`; }
 function _injectAutoBotCss(){
   if(document.getElementById('autobot-css')) return;
@@ -27521,6 +27526,9 @@ function _injectAutoBotCss(){
   .abot-rc-res.lose{color:#a39c82;}
   .abot-rc-g{font-family:'JetBrains Mono',monospace;font-weight:800;}
   .abot-rc-g.win{color:#177a45;}
+  .abot-rc-bonus{border-top:1px dashed #c9c1a4;margin-top:2px;padding-top:5px;color:#0d6b5a;font-weight:700;}
+  .abot-rc-bonus .abot-rc-idx{font-size:12px;}
+  .abot-rc-bonus .abot-rc-g.win{color:#0d6b5a;}
   .abot-claim{width:100%;padding:13px;border:none;border-radius:11px;background:linear-gradient(135deg,#d4a843,#f0c84a,#c8a030);color:#1a1206;font-size:14px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-top:6px;animation:abotPulse 1.5s ease-in-out infinite;}
   @keyframes abotPulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.12)}}
   .abot-note{font-size:10.5px;color:#6e7688;text-align:center;margin-top:10px;line-height:1.6;}
@@ -27717,8 +27725,8 @@ function _autoBotRefresh(){
     const first=AUTOBOT_TIERS[0];
     body=`<div class="abot-center">
       ${_autoBotRobotHtml(null,{screen:'HELLO!'})}
-      <div class="abot-spec">복권을 <b>자동으로 긁어주는 로봇</b>이에요.<br>실버 복권(해골 없음)을 넣어두면 시간에 맞춰 긁어 <b>영수증</b>으로 뱉어줘요.</div>
-      <div class="abot-spec">🥈 실버 로봇 · 한 번에 <b>${first.cap}장</b> · 장당 <b>${first.perMin}분</b></div>
+      <div class="abot-spec">복권을 <b>자동으로 긁어주는 로봇</b>이에요.<br>실버 복권(해골 없음)을 넣어두면 시간에 맞춰 긁어 <b>영수증</b>으로 뱉어줘요.<br>게다가 로봇이 긁으면 <b style="color:#7fe0d0;">장당 추가 골드 보너스</b>까지!</div>
+      <div class="abot-spec">🥈 실버 로봇 · 한 번에 <b>${first.cap}장</b> · 장당 <b>${first.perMin}분</b> · 🤖 보너스 <b>+${first.bonus}G/장</b></div>
       <button class="abot-buy" ${myGold>=first.price?'':'disabled'} onclick="window.autoBotBuy()">🤖 실버 자동 로봇 구매 · ${first.price}G</button>
     </div>`;
   } else if(q){
@@ -27727,9 +27735,12 @@ function _autoBotRefresh(){
     const from=q.claimedCount||0;
     const per=q.perMin*60000;
     const claimable=Math.max(0,done-from);
+    const perBonus=_autoBotBonus(q);
     let claimGold=0; for(let i=from;i<done;i++) claimGold+=q.tickets[i].g||0;
+    const claimTotal=claimGold+perBonus*claimable;
     const rows=[]; for(let i=from;i<done;i++){ const t=q.tickets[i]; const win=(t.g||0)>0;
       rows.push(`<div class="abot-rc-row${i===done-1?' new':''}"><span class="abot-rc-idx">#${i+1}</span><span class="abot-rc-res ${win?'win':'lose'}">${win?`${t.e||'🎉'} ${escHtml(t.nm||'당첨')}`:'꽝'}</span><span class="abot-rc-g ${win?'win':''}">${win?'+'+t.g+'G':'-'}</span></div>`); }
+    if(perBonus>0 && claimable>0) rows.push(`<div class="abot-rc-row abot-rc-bonus"><span class="abot-rc-idx">🤖</span><span class="abot-rc-res">로봇 보너스 (장당 +${perBonus}G)</span><span class="abot-rc-g win">+${perBonus*claimable}G</span></div>`);
     const allDone=done>=q.count;
     const nextAt=q.startAt+(done+1)*per;
     const pct=Math.round(done/q.count*100);
@@ -27743,7 +27754,7 @@ function _autoBotRefresh(){
     </div>
     <div class="abot-bar"><div class="abot-bar-fill" style="width:${pct}%"></div></div>
     ${rows.length?`<div class="abot-receipt"><div class="abot-rc-head">🤖 AUTO SCRATCH · 영수증</div>${rows.join('')}</div>`:`<div class="abot-spec">로봇이 첫 복권을 긁고 있어요…</div>`}
-    <button class="abot-claim" ${claimable>0?'':'disabled'} style="${claimable>0?'':'opacity:.4;animation:none;cursor:not-allowed;'}" onclick="window.autoBotClaim()">🧾 ${claimable>0?`수령 (${claimable}장 · +${claimGold}G)`:'완성 대기 중'}</button>
+    <button class="abot-claim" ${claimable>0?'':'disabled'} style="${claimable>0?'':'opacity:.4;animation:none;cursor:not-allowed;'}" onclick="window.autoBotClaim()">🧾 ${claimable>0?`수령 (${claimable}장 · +${claimTotal}G)`:'완성 대기 중'}</button>
     <div class="abot-note">넣은 복권값(장당 ${AUTOBOT_LOTTERY_PRICE}G)은 예약 시 이미 지불됐어요. 수령은 완성된 만큼 언제든 가능.</div>`;
   } else {
     // 보유 + 예약 대기 — 수량 선택
@@ -27756,15 +27767,15 @@ function _autoBotRefresh(){
       ${_autoBotRobotHtml(def,{screen:'READY'})}
       <div class="abot-badge" style="background:${def.color}22;color:${def.color};border:1px solid ${def.color}66;">${def.emoji} ${def.name}</div>
     </div>
-    <div class="abot-spec">실버 복권을 넣을 만큼 골라서 예약하세요.<br>한 번에 <b>최대 ${def.cap}장</b> · 장당 <b>${def.perMin}분</b> (순서대로 완성)</div>
+    <div class="abot-spec">실버 복권을 넣을 만큼 골라서 예약하세요.<br>한 번에 <b>최대 ${def.cap}장</b> · 장당 <b>${def.perMin}분</b> · 🤖 긁기 보너스 <b style="color:#7fe0d0;">장당 +${def.bonus}G</b></div>
     <div class="abot-qty">
       <button class="abot-qbtn" ${_autoBotSelN<=1?'disabled':''} onclick="window.autoBotAdj(-1)">−</button>
       <span class="abot-qnum">${_autoBotSelN}</span>
       <button class="abot-qbtn" ${_autoBotSelN>=def.cap?'disabled':''} onclick="window.autoBotAdj(1)">+</button>
     </div>
-    <div class="abot-qsub">비용 <b style="color:#ffd24a;">${cost}G</b> · 전부 긁는 데 약 <b>${totalMin}분</b></div>
+    <div class="abot-qsub">비용 <b style="color:#ffd24a;">${cost}G</b> · 전부 긁는 데 약 <b>${totalMin}분</b> · 🤖 보너스 <b style="color:#7fe0d0;">+${_autoBotSelN*def.bonus}G</b></div>
     <button class="abot-reserve" ${canReserve?'':'disabled'} onclick="window.autoBotReserve(${_autoBotSelN})">${canReserve?`🤖 ${_autoBotSelN}장 예약 시작`:`🪙 골드 부족 (필요 ${cost}G)`}</button>
-    ${nextDef?`<button class="abot-up" ${myGold>=nextDef.price?'':'disabled'} onclick="window.autoBotBuy()">⬆️ ${nextDef.name}으로 업그레이드 · ${nextDef.price}G <span style="opacity:.7;font-weight:600">(${nextDef.cap}장·장당 ${nextDef.perMin}분)</span></button>`:`<div class="abot-note">🌈 최고 등급(프리즘)이에요!</div>`}`;
+    ${nextDef?`<button class="abot-up" ${myGold>=nextDef.price?'':'disabled'} onclick="window.autoBotBuy()">⬆️ ${nextDef.name}으로 업그레이드 · ${nextDef.price}G <span style="opacity:.7;font-weight:600">(${nextDef.cap}장·장당 ${nextDef.perMin}분·보너스 +${nextDef.bonus}G/장)</span></button>`:`<div class="abot-note">🌈 최고 등급(프리즘)이에요!</div>`}`;
   }
   el.innerHTML=`<div class="abot-sheet" onclick="event.stopPropagation();">
     <div class="abot-head"><span class="abot-title">🤖 복권 자동 로봇</span><span class="abot-gold">🪙 ${myGold}G</span><button class="abot-close" onclick="window.closeAutoBotModal()">✕</button></div>
@@ -27816,15 +27827,20 @@ window.autoBotClaim = async function(){
   const done=_autoBotDone(q,Date.now()); const from=q.claimedCount||0;
   if(done<=from){ showS1Toast('아직 완성된 복권이 없어요'); return; }
   let gold=0,wins=0; for(let i=from;i<done;i++){ const g=q.tickets[i].g||0; gold+=g; if(g>0)wins++; }
+  const claimedN=done-from;
+  const perBonus=_autoBotBonus(q); const bonus=perBonus*claimedN;   // 🤖 로봇 긁기 보너스(장당)
+  const total=gold+bonus;
   const gk=sField('passGold');
   const cleared=done>=q.count;
   const nq=cleared?null:{ ...q, claimedCount:done };
-  const upd={ [gk]:(data[gk]??0)+gold, [sField('autoBotQueue')]:nq };
+  const upd={ [gk]:(data[gk]??0)+total, [sField('autoBotQueue')]:nq };
   if(goldData[key]) Object.assign(goldData[key],upd);
   await update(ref(db,'gold/'+key),upd);
   try{updateMyInfoBar();}catch(_){}
   _autoBotSfx.coin();
-  showBingoReward('🤖 자동 로봇 정산', `${done-from}장 개봉 · 당첨 ${wins}장 / 꽝 ${(done-from)-wins}장`, [{iconHtml:'🪙',name:'수령 골드',qty:`+${gold}G`,color:'#ffd24a'}]);
+  const rewards=[{iconHtml:'🪙',name:'당첨 골드',qty:`+${gold}G`,color:'#ffd24a'}];
+  if(bonus>0) rewards.push({iconHtml:'🤖',name:`로봇 보너스 (장당 +${perBonus}G)`,qty:`+${bonus}G`,color:'#7fe0d0'});
+  showBingoReward('🤖 자동 로봇 정산', `${claimedN}장 개봉 · 당첨 ${wins}장 / 꽝 ${claimedN-wins}장`, rewards);
   _autoBotLastDone=-1; _autoBotRefresh();
 };
 
