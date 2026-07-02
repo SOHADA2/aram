@@ -2840,6 +2840,9 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .inv-count-badge{position:absolute;top:3px;right:3px;font-size:7px;font-weight:700;color:#0a0e1a;background:linear-gradient(135deg,#a07828,var(--gold));border-radius:4px;padding:1.5px 4px;line-height:1.4;letter-spacing:0.1px;}
 .inv-sell-btn{position:absolute;top:3px;left:3px;z-index:2;font-size:7px;font-weight:800;color:#fcd34d;background:rgba(80,60,10,0.85);border:1px solid rgba(251,191,36,0.45);border-radius:4px;padding:1.5px 4px;line-height:1.4;cursor:pointer;transition:filter .12s,background .12s;}
 .inv-sell-btn:hover{filter:brightness(1.2);background:rgba(110,80,15,0.95);}
+/* ✏️ 강철심장 애칭 버튼 — 💰(좌상단)의 우상단 짝 */
+.inv-nick-btn{position:absolute;top:3px;right:3px;z-index:2;font-size:8px;background:rgba(30,35,55,0.85);border:1px solid rgba(255,255,255,0.22);border-radius:4px;padding:1.5px 4px;line-height:1.4;cursor:pointer;transition:filter .12s;}
+.inv-nick-btn:hover{filter:brightness(1.35);}
 .inv-slot-action{font-size:7px;font-weight:700;padding:2px 7px;border-radius:4px;margin-top:1px;letter-spacing:0.2px;transition:all 0.15s;}
 .inv-action-use{background:rgba(255,255,255,0.07);color:var(--text-dim);}
 .inv-action-cancel{background:rgba(200,155,60,0.22);color:var(--gold);}
@@ -6986,7 +6989,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.533';
+const APP_VERSION = 'v2.45.534';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6995,6 +6998,9 @@ const APP_VERSION = 'v2.45.533';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.534', date: '2026-07-02', changes: [
+    { tag: 'new', text: '✏️ 강철심장 애칭 — 강철심장을 여러 개 가지고 있을 때 구분하기 쉽게 각각에 애칭(최대 3글자)을 지어줄 수 있어요. 대장간 장비 슬롯의 ✏️ 버튼으로 편집. 애칭이 있으면 대장간·대기화면 「강철심장 변경」·전투 준비 선택 목록에서 등급 대신 ‘애칭’으로 표시(등급·성능은 그대로 병기) → 성능 보고 골라 쓰기 편해짐.' },
+  ] },
   { ver: 'v2.45.533', date: '2026-07-02', changes: [
     { tag: 'fix', text: '🎟 모바일 복권 선택창에서 「무료권 N장」 배지가 복권 이름(실버/골드/프리즘)을 가리던 문제 수정 — 배지를 이름 옆 칩으로 배치(좁으면 자동 줄바꿈).' },
   ] },
@@ -11352,7 +11358,7 @@ function renderEmblemBody(){
             || `<div style="font-size:10px;color:#8b8b97;text-align:center;padding:4px;">성능을 올리고 걸작을 맞춰<br>효과를 발동하세요</div>`;
           return `
         <div class="fg2-midline2">
-          <span class="fg2-iname" style="color:${glow.color};">${item.kr}</span>
+          <span class="fg2-iname" style="color:${glow.color};">${emblemNick(em)?`‘${escHtml(emblemNick(em))}’ <span style="opacity:.55;font-size:.85em;">${item.kr}</span>`:item.kr}</span>
           <span class="fg2-powbox"><span class="fg2-pow-lbl">성능</span><b class="fg2-pow-n" style="color:${glow.color};text-shadow:0 0 12px ${glow.color}66;">${power}</b></span>
         </div>
         <div class="fg2-slotline"><span class="fg2-slotline-lbl">강화 ${lvl}/${EMBLEM_SLOTS}</span><span class="fg2-slotrow">${sdots}</span></div>
@@ -11449,10 +11455,12 @@ function _emblemInvSlotsHtml(cat){
       const lvc = _emblemLvColor(lvl);
       const slotStyle = `touch-action:none;border-color:${lvc};box-shadow:0 0 7px -2px ${lvc}99${isEq?`,inset 0 0 0 1px ${lvc},0 0 13px -1px ${lvc}`:''};`;
       const sellHeart = emblemSellPrice(e);
-      return `<div class="inv-slot inv-emblem-eq${isEq?' inv-active':''}" data-emid="${e.id}" style="${slotStyle}" title="${item.kr} · +${lvl} · 성능 ${power} · ${isEq?'장착 중 (작업대로 끌어내거나 더블클릭하면 빼기)':'클릭·드래그·더블클릭으로 장착'}">
+      const nick = emblemNick(e);   // ✏️ 유저 애칭(≤3자) — 여러 개 구분용
+      return `<div class="inv-slot inv-emblem-eq${isEq?' inv-active':''}" data-emid="${e.id}" style="${slotStyle}" title="${nick?`‘${escHtml(nick)}’ · `:''}${item.kr} · +${lvl} · 성능 ${power} · ${isEq?'장착 중 (작업대로 끌어내거나 더블클릭하면 빼기)':'클릭·드래그·더블클릭으로 장착'}">
         ${!isItemsEffectivelyLocked() ? `<button class="inv-sell-btn" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();window.emblemDoSell(${e.id})" title="강철심장 판매 ${sellHeart.toLocaleString()}G (정해진 환급가)">💰${sellHeart.toLocaleString()}</button>` : ''}
+        <button class="inv-nick-btn" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation();window.emblemDoNick(${e.id})" title="애칭 짓기 (최대 3글자)">✏️</button>
         <div class="inv-emblem-thumb" style="--gc:${lvc};"><img src="${_forgeItemImg(power)}" alt=""><span class="inv-emblem-lv">+${lvl}</span></div>
-        <div class="inv-slot-name">${item.kr}</div>
+        <div class="inv-slot-name">${nick?`<b style="color:#ffe39a;">‘${escHtml(nick)}’</b>`:item.kr}</div>
         <div class="inv-emblem-pow" style="color:${glow.color};">성능 ${power}</div>
         <div class="inv-slot-action inv-action-use" style="${isEq?'background:linear-gradient(135deg,#ffb867,#e08a2e);color:#1a1206;':'opacity:.8;'}">${isEq?'✓ 장착중':'장착'}</div>
       </div>`;
@@ -11619,6 +11627,48 @@ window.emblemDoEquip = async function(id, isEquipped){
 };
 window.emblemDoEquipById = async function(id){ if (await emblemEquip(id)) renderEmblemBody(); };
 window.emblemDoUnequip   = async function(){ if (await emblemEquip(null)) renderEmblemBody(); };
+
+// ✏️ 강철심장 애칭(최대 3글자) — 여러 개 보유 시 성능/등급 대신 내가 붙인 이름으로 구분 (v2.45.534)
+function emblemNick(e){ return (e && e.nick) ? [...String(e.nick)].slice(0,3).join('') : ''; }
+window.emblemDoNick = function(id){
+  const key = getMyGoldKey(); if (!key) return;
+  const data = goldData[key]; if (!data) return;
+  const arr = getEmblems(data);
+  const em = arr.find(e=>e.id===id); if (!em) return;
+  const cur = emblemNick(em);
+  const dlg = document.createElement('div');
+  dlg.className = 'scard-buy-confirm-overlay';
+  dlg.innerHTML = `
+    <div class="scard-buy-confirm-box">
+      <h4>✏️ 강철심장 애칭</h4>
+      <p style="margin:4px 0 10px;">이 강철심장을 부를 이름을 지어주세요.<br><span style="opacity:.65;font-size:12px;">최대 3글자 · 비우면 애칭 제거</span></p>
+      <input id="emnick-inp" type="text" maxlength="3" value="${escHtml(cur)}" placeholder="예: 달곰"
+        style="width:120px;text-align:center;font-size:20px;font-weight:800;padding:9px 10px;border-radius:10px;border:1px solid rgba(200,168,75,0.5);background:rgba(0,0,0,0.35);color:#ffe39a;outline:none;font-family:'Noto Sans KR',sans-serif;">
+      <div class="scard-buy-confirm-btns" style="margin-top:12px;">
+        <button class="scard-buy-confirm-cancel">취소</button>
+        <button class="scard-buy-confirm-ok">저장</button>
+      </div>
+    </div>`;
+  document.body.appendChild(dlg);
+  const inp = dlg.querySelector('#emnick-inp');
+  setTimeout(()=>{ try{ inp.focus(); inp.select(); }catch(_){} }, 50);
+  const close = ()=> dlg.remove();
+  dlg.querySelector('.scard-buy-confirm-cancel').onclick = close;
+  dlg.addEventListener('click', e=>{ if (e.target===dlg) close(); });
+  const save = async ()=>{
+    const nk = [...inp.value.trim()].slice(0,3).join('');
+    close();
+    const newArr = arr.map(e=> e.id===id ? { ...e, nick: nk || null } : e);
+    if (goldData[key]) goldData[key][emblemsField()] = newArr;   // 로컬 즉시 반영
+    await update(ref(db,'gold/'+key), { [emblemsField()]: newArr });
+    showS1Toast(nk ? `✏️ 애칭 저장: ‘${nk}’` : '애칭을 제거했어요');
+    try{ renderEmblemBody(); }catch(_){}
+    try{ renderShop(); }catch(_){}
+    try{ renderWaitingCard?.(); }catch(_){}
+  };
+  dlg.querySelector('.scard-buy-confirm-ok').onclick = save;
+  inp.addEventListener('keydown', e=>{ if (e.key==='Enter') save(); });
+};
 
 // 🖐️ 강철심장 장착/해제 드래그 — 인벤 강철심장 → 작업대(드롭)=장착 · 작업대 강철심장 → 밖(드롭)=해제. 더블클릭·탭도 동작.
 function _emPowerById(id){ const e=getEmblems(getMyGoldData()).find(x=>x.id===id); return e?emblemPower(e):0; }
@@ -16995,10 +17045,11 @@ function _qibEmEffTxt(em){
 function _qibEmAccordion(data){
   const ems = getEmblems(data).slice().sort((a,b)=>emblemPower(b)-emblemPower(a)), eqId = getEquippedId(data), eq = ems.find(e=>e.id===eqId);
   const _gr = pw => ({silver:'실버',gold:'골드',prismatic:'프리즘'}[emblemEffects(pw).glow]||'미강화');
-  const head = eq ? `<b style="color:#ffd24a">🔨 ${_gr(emblemPower(eq))} · 성능 ${emblemPower(eq)}</b>` : '<b class="qib-acc-none">미장착</b>';
+  const _nkh = e => { const nk=emblemNick(e); return nk?`‘${escHtml(nk)}’ · `:''; };   // ✏️ 애칭 접두
+  const head = eq ? `<b style="color:#ffd24a">🔨 ${_nkh(eq)}${_gr(emblemPower(eq))} · 성능 ${emblemPower(eq)}</b>` : '<b class="qib-acc-none">미장착</b>';
   const opts = ems.length ? ems.map(em=>{
     const on = em.id===eqId, pw=emblemPower(em);
-    return `<div class="qib-opt ${on?'on':''}" onclick="window.qibEquipEm(${em.id})"><span class="qib-opt-ic">🔨</span><span class="qib-opt-tx"><b style="color:#ffd24a">강철심장 +${emblemLevel(em)} · ${_gr(pw)} · 성능 ${pw}${on?' · 장착중':''}</b><i class="qib-opt-eff">${_qibEmEffTxt(em)}</i></span><span class="qib-opt-st">${on?'✓':''}</span></div>`;
+    return `<div class="qib-opt ${on?'on':''}" onclick="window.qibEquipEm(${em.id})"><span class="qib-opt-ic">🔨</span><span class="qib-opt-tx"><b style="color:#ffd24a">${_nkh(em)||'강철심장 '}+${emblemLevel(em)} · ${_gr(pw)} · 성능 ${pw}${on?' · 장착중':''}</b><i class="qib-opt-eff">${_qibEmEffTxt(em)}</i></span><span class="qib-opt-st">${on?'✓':''}</span></div>`;
   }).join('')+(eq?`<div class="qib-opt off" onclick="window.qibEquipEm(${eqId})"><span class="qib-opt-ic">🚫</span><span class="qib-opt-tx"><b>장착 해제</b></span></div>`:'') : '<div class="qib-opt-empty">보유한 강철심장이 없어요 · 대장간에서 만드세요</div>';
   return `<div class="qib-acc${eq?' has':''}"><div class="qib-acc-hd" onclick="this.parentNode.classList.toggle('open')">🔨 강철심장 ${head}<span class="qib-acc-chev">▾</span></div><div class="qib-acc-body">${opts}</div></div>`;
 }
@@ -25435,19 +25486,20 @@ async function renderS1WaitingCard(el) {
     if (em) {
       const pw = emblemPower(em);
       const _gm = _emGrade(pw);
-      // 헤더(접힘): 상단행 [아이콘+성능배지 · 강철심장 등급 · ▾] / 아래 걸작 효과 박스들 (시너지 칩과 동일 구조)
+      const _eqNick = emblemNick(em);   // ✏️ 유저 애칭 — 있으면 등급 대신 애칭이 간판
+      // 헤더(접힘): 상단행 [아이콘+성능배지 · 강철심장 등급/애칭 · ▾] / 아래 걸작 효과 박스들 (시너지 칩과 동일 구조)
       emCell = `<div class="wm-fx-cell wm-em-head" onclick="window._wmFxToggle(this,'.wm-em-body','.wm-syn-body')">
-        <div class="wm-fx-cell-top"><span class="wm-emimg-wrap"><img class="wm-fx-emimg" src="${_forgeItemImg(pw)}" alt="" onerror="this.style.display='none'"><span class="wm-emperf">${pw}</span></span><span class="wm-em-head-lbl" style="color:${_gm.c};">강철심장 ${_gm.t}</span><span class="wm-em-chev">▾</span></div>
+        <div class="wm-fx-cell-top"><span class="wm-emimg-wrap"><img class="wm-fx-emimg" src="${_forgeItemImg(pw)}" alt="" onerror="this.style.display='none'"><span class="wm-emperf">${pw}</span></span><span class="wm-em-head-lbl" style="color:${_gm.c};">강철심장${_eqNick?` ‘${escHtml(_eqNick)}’`:` ${_gm.t}`}</span><span class="wm-em-chev">▾</span></div>
         <div class="wm-em-efflist">${_emEffLines(em)}</div>
       </div>`;
       // 바디(펼침): 보유한 강철심장 목록 → 선택해서 장착 (성능 높은 순 상단)
       const emblems = getEmblems(myGoldData).slice().sort((a,b)=> emblemPower(b)-emblemPower(a));
       const eqId = getEquippedId(myGoldData);
       const emRows = emblems.map(e => {
-        const on = (e.id === eqId), pwe = emblemPower(e), gm = _emGrade(pwe);
+        const on = (e.id === eqId), pwe = emblemPower(e), gm = _emGrade(pwe), nk = emblemNick(e);
         return `<div class="wm-em-opt${on?' on':''}" onclick="window.equipEmblemFromMain(${e.id})">
           <div class="wm-em-opt-tx">
-            <div class="wm-em-opt-nm">강철심장 <span class="wm-em-grade" style="color:${gm.c};border-color:${gm.c}66;">${gm.t} · 성능 ${pwe}</span>${on?' <span class="wm-em-on-tag">· 장착중</span>':''}</div>
+            <div class="wm-em-opt-nm">${nk?`<b style="color:#ffe39a;">‘${escHtml(nk)}’</b>`:'강철심장'} <span class="wm-em-grade" style="color:${gm.c};border-color:${gm.c}66;">${gm.t} · 성능 ${pwe}</span>${on?' <span class="wm-em-on-tag">· 장착중</span>':''}</div>
             <div class="wm-em-efflist">${_emEffLines(e)}</div>
           </div>
         </div>`;
