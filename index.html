@@ -1993,6 +1993,7 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .season-2 .mib-cur.gold{border-color:rgba(240,192,96,.55);box-shadow:0 0 12px -5px rgba(240,192,96,.8);color:#ffe39a;}
 .season-2 .my-info-name{font-size:15px;letter-spacing:.3px;}
 .season-2 .mib-lv-bar{height:7px;}
+.mib-lp-big{font-size:13.5px;font-weight:800;font-family:'JetBrains Mono',monospace;letter-spacing:.2px;white-space:nowrap;}   /* 🏆 만렙 LP 강조 (v2.45.537) */
 .plv-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle;}
 /* 🎚️ 레벨업 연출 배너 (전문 톤·이모지 없음) */
 .plv-levelup-fx{position:fixed;left:50%;top:17%;transform:translate(-50%,-14px);z-index:9000;pointer-events:none;opacity:0;transition:opacity .35s ease,transform .4s cubic-bezier(.2,.8,.2,1);}
@@ -7003,7 +7004,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.536';
+const APP_VERSION = 'v2.45.537';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7012,6 +7013,9 @@ const APP_VERSION = 'v2.45.536';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.537', date: '2026-07-02', changes: [
+    { tag: 'improve', text: '🏆 프로필 바 — 내전 만렙(LV50) 달성자는 XP 게이지 대신 현재 랭크 상황을 강조 표시: 티어색 큰 LP 수치 + LP 진행바(티어색), 승급전 중엔 「승급전 1–0」, 배치 중엔 「배치 N/5」. 티어 배지의 LP 병기는 중복이라 만렙에선 생략.' },
+  ] },
   { ver: 'v2.45.536', date: '2026-07-02', changes: [
     { tag: 'improve', text: '📱 모바일 프로필 바 — 3D 단짝 대신 단짝 챔피언 2D 초상화(원형·티어색 링)로 표시. 출석 알림 점·말풍선 위치가 안정되고 더 가벼워요(3D는 아케이드·프로필에서 그대로). + 아이디가 잘려 보이던 문제 수정(통화 칩 고정폭 해제·이름 크기 조정).' },
   ] },
@@ -24899,6 +24903,10 @@ function updateMyInfoBar() {
   if (_arenaN) _arenaN.textContent = _ac.toLocaleString();
   if (_clawCur) _clawCur.style.display = _showCoins ? 'flex' : 'none';
   if (_arenaCur) _arenaCur.style.display = _showCoins ? 'flex' : 'none';
+  // 🎚️ S2 내전 레벨 선계산 — 티어 칩(LP 중복 방지)·레벨 영역(만렙=LP 강조 모드) 공용 (v2.45.537)
+  const _xpS2  = (CURRENT_SEASON === 2 && myName) ? calcPlayerXp(myName) : 0;
+  const _lvS2  = (CURRENT_SEASON === 2 && myName) ? plvLevelFromXp(_xpS2) : 0;
+  const _maxS2 = (CURRENT_SEASON === 2) && plvIsMax(_lvS2);
   if (pillsEl) {
     if (CURRENT_SEASON >= 1) {
       const d    = s1GetPlayer(myName) || s1DefaultPlayer();
@@ -24936,8 +24944,8 @@ function updateMyInfoBar() {
           }
         }
       }
-      // 🔧 메인 프로필 바 연승/연패 칩 제거(사장님 요청) — 티어 배지만 표시 (+LP 병기 v2.45.535)
-      const _lpTxt = (d.placementDone && d.tier !== 'unranked') ? ` · ${d.lp} LP` : '';
+      // 🔧 메인 프로필 바 연승/연패 칩 제거(사장님 요청) — 티어 배지만 표시 (+LP 병기 v2.45.535 · 만렙은 레벨 영역이 LP를 크게 보여주므로 칩엔 생략)
+      const _lpTxt = (!_maxS2 && d.placementDone && d.tier !== 'unranked') ? ` · ${d.lp} LP` : '';
       pillsEl.innerHTML = `<span style="font-size:11px;color:${meta.color};background:${meta.color}1a;border:1px solid ${meta.color}4d;border-radius:4px;padding:1px 6px;">${meta.label}${_lpTxt}</span>`;
     } else {
       avatarEl.style.setProperty('--mib-ring-color', '#4fc3f7');
@@ -24950,7 +24958,7 @@ function updateMyInfoBar() {
   if (lvEl) {
     if (CURRENT_SEASON === 2 && myName) {
       const _nn = normName(myName);
-      const xp = calcPlayerXp(myName), lv = plvLevelFromXp(xp), isMax = plvIsMax(lv);
+      const xp = _xpS2, lv = _lvS2, isMax = _maxS2;
       const inLv = xp - plvCumXp(lv), need = plvNeed(lv);
       const pct = isMax ? 100 : Math.max(0, Math.min(100, Math.round(inLv/need*100)));
       const k = getMyGoldKey(), dd = k ? goldData[k] : null;
@@ -24958,17 +24966,33 @@ function updateMyInfoBar() {
       const prev = _plvLastByName[_nn];
       // XP 원천 데이터(내전 matches + 일반게임 normalMatches) 로드 완료 여부 — 로드 중 0→실제레벨 점프를 레벨업으로 오인 방지 (v2.45.53)
       const _xpReady = matchesLoaded && _knownNormalKeys !== null;
-      // 같은 레벨이면 직전 진행률에서 증가분 애니, 레벨업이면 0부터 채움, 첫 렌더는 즉시 표시
-      const startPct = isMax ? 100 : (prev ? (prev.lv === lv ? prev.pct : 0) : pct);
+      const _claimBtn = claimable>0?`<button class="mib-lv-claim" onclick="event.stopPropagation();window.doClaimPlayerLevels()">보상 받기 ${claimable}</button>`:'';
       lvEl.style.display = 'flex';
+      if (isMax) {
+        // 🏆 만렙(LV50) — XP 대신 현재 LP 상황을 강조 (티어색 큰 LP + LP/승급전/배치 진행바, v2.45.537)
+        const d2 = s1GetPlayer(myName) || s1DefaultPlayer();
+        const m2 = S1_TIER_META[d2.tier] || S1_TIER_META.unranked;
+        let mainTxt, lpPct;
+        if (!d2.placementDone)      { mainTxt = `배치 ${d2.placementGames||0}/5`; lpPct = Math.round((d2.placementGames||0)/5*100); }
+        else if (d2.promoActive)    { mainTxt = `승급전 ${d2.promoWins||0}–${d2.promoLosses||0}`; lpPct = Math.round(Math.min(2, d2.promoWins||0)/2*100); }
+        else if (d2.tier === 'challenger') { mainTxt = `${(d2.lp||0).toLocaleString()} LP`; lpPct = 100; }
+        else                        { mainTxt = `${(d2.lp||0).toLocaleString()} LP`; lpPct = Math.max(0, Math.min(100, d2.lp||0)); }
+        lvEl.innerHTML = `
+          <div class="mib-lv-top"><span class="mib-lv-tag">LV ${lv} <span style="color:#ffe39a;">MAX</span></span><span style="display:flex;align-items:center;gap:6px;">${_claimBtn}<span class="mib-lp-big" style="color:${m2.color};text-shadow:0 0 10px ${m2.color}55;">${mainTxt}</span></span></div>
+          <div class="mib-lv-bar" style="border-color:${m2.color}44;"><div class="mib-lv-fill" style="width:${lpPct}%;background:linear-gradient(90deg,${m2.color}99,${m2.color});box-shadow:0 0 8px ${m2.color}88;"></div></div>`;
+        _plvLastByName[_nn] = { lv, pct: 100, ready: _xpReady };
+      } else {
+      // 같은 레벨이면 직전 진행률에서 증가분 애니, 레벨업이면 0부터 채움, 첫 렌더는 즉시 표시
+      const startPct = (prev ? (prev.lv === lv ? prev.pct : 0) : pct);
       lvEl.innerHTML = `
-        <div class="mib-lv-top"><span class="mib-lv-tag">LV ${lv}${isMax?' <span style="color:#ffe39a;">MAX</span>':''}</span><span style="display:flex;align-items:center;gap:6px;">${claimable>0?`<button class="mib-lv-claim" onclick="event.stopPropagation();window.doClaimPlayerLevels()">보상 받기 ${claimable}</button>`:''}<span class="mib-lv-xp">${isMax ? '만렙 달성' : `${inLv} / ${need} XP`}</span></span></div>
+        <div class="mib-lv-top"><span class="mib-lv-tag">LV ${lv}</span><span style="display:flex;align-items:center;gap:6px;">${_claimBtn}<span class="mib-lv-xp">${inLv} / ${need} XP</span></span></div>
         <div class="mib-lv-bar"><div class="mib-lv-fill" style="width:${startPct}%;"></div></div>`;
       const _fill = lvEl.querySelector('.mib-lv-fill');
       if (_fill && startPct !== pct) requestAnimationFrame(()=>{ _fill.style.width = pct + '%'; });
       // 직전 baseline이 실데이터로 잡혔을 때(ready)만 레벨업 발동 — 새로고침 직후 로드 catch-up 점프 제외
       if (prev && prev.ready && lv > prev.lv) _plvLevelUpFx(lv);   // 레벨업 → 간단 LEVEL UP 연출 배너(팝업 아님). 보상은 버튼으로
       _plvLastByName[_nn] = { lv, pct, ready: _xpReady };
+      }
     } else {
       lvEl.style.display = 'none';
     }
