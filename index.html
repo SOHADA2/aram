@@ -6985,7 +6985,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.520';
+const APP_VERSION = 'v2.45.521';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6994,6 +6994,10 @@ const APP_VERSION = 'v2.45.520';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.521', date: '2026-07-01', changes: [
+    { tag: 'fix', text: '🪙 상점에서 강철심장/강화권/정수 구매 시 상단 골드가 바로 안 줄던 문제 수정 — 이제 구매 즉시 반영(낙관적 업데이트). 일반 아이템·비밀퀘도 동일 적용.' },
+    { tag: 'improve', text: '💸 골드 지출 추적 강화 — 그동안 기록이 안 남던 엠블럼 구매(강화권·정수·강철심장)를 goldSpendLog_s2에 기록. 콘솔 goldSpendLog("닉")으로 엠블럼·상점·복권 지출을 시간순 통합 조회 가능(골드가 어디로 나갔는지 추적).' },
+  ] },
   { ver: 'v2.45.520', date: '2026-07-01', changes: [
     { tag: 'improve', text: '🎟 복권창을 다시 화면 가운데 정렬로 — 대신 긁는 중 나타나는 설명·버튼·당첨배너의 공간을 미리 확보해 모달 높이를 고정했어요. 가운데 정렬이어도 긁는 칸이 안 밀립니다(오긁힘 방지 유지).' },
   ] },
@@ -10494,6 +10498,17 @@ function emblemSellPrice(em){
 }
 
 // 강철심장 구매 — 보유 배열에 새 인스턴스 추가 (최대 EMBLEM_MAX_OWN). 첫 구매는 자동 장착.
+// 💸 골드 지출 이벤트 로그 (무엇에·언제·얼마) — goldSpendLog_s2, 최근 250건. 역추적 + "갑자기 줄었다" 원인 파악용 (v2.45.521)
+function _spendLogUpd(data, kind, label, amount){
+  const lk = sField('goldSpendLog');
+  const cur = Array.isArray(data && data[lk]) ? data[lk] : [];
+  return { [lk]: [...cur.slice(-249), { at: Date.now(), k: kind, l: String(label||'').slice(0,40), amt: amount }] };
+}
+// 구매 후 골드 즉시 반영(낙관적) — onValue 왕복 안 기다리고 상단바/상점 바로 갱신
+function _applySpendLocal(key, upd){
+  if (goldData[key]) Object.assign(goldData[key], upd);
+  try { updateMyInfoBar(); } catch(_){}
+}
 async function emblemBuyBase(){
   const key = getMyGoldKey();
   if (!key) { showGoldToast('닉네임을 먼저 선택해주세요!'); return false; }
@@ -10506,12 +10521,15 @@ async function emblemBuyBase(){
   const newArr = [...arr, { id:newId, slots:[], lines:[], createdAt:Date.now() }];  // 걸작 미적용(빈 줄) — 걸작 만들기로 채움 (v2.45.50)
   const curEquipped = getEquippedId(data);
   const spentKey = sField('goldSpent');
-  await update(ref(db,'gold/'+key), {
+  const upd = {
     [emblemsField()]: newArr,
     [emblemField()]: null,  // 구버전 단일 정리
     [emblemEquippedField()]: (curEquipped != null) ? curEquipped : newId,  // 기존 장착 유지, 없으면 새 것 장착
     [spentKey]: (data[spentKey] ?? 0) + EMBLEM_BASE_PRICE,
-  });
+    ..._spendLogUpd(data, 'emblem_base', '강철심장 구매', EMBLEM_BASE_PRICE),
+  };
+  _applySpendLocal(key, upd);
+  await update(ref(db,'gold/'+key), upd);
   showS1Toast(`⚒️ 강철심장 획득! (보유 ${newArr.length}/${EMBLEM_MAX_OWN})`);
   renderShop();
   return true;
@@ -10564,10 +10582,13 @@ async function emblemBuyEssence(qty){
   const cost = EMBLEM_REROLL_PRICE * qty, gold = getMyGold();
   if (gold < cost) { showGoldToast(`🪙 골드 부족 (보유 ${gold} / 필요 ${cost})`); return false; }
   const spentKey = sField('goldSpent');
-  await update(ref(db,'gold/'+key), {
+  const upd = {
     [emblemEssenceField()]: getEmblemEssence(data) + qty,
     [spentKey]: (data[spentKey] ?? 0) + cost,
-  });
+    ..._spendLogUpd(data, 'emblem_essence', `걸작의 정수 ×${qty}`, cost),
+  };
+  _applySpendLocal(key, upd);
+  await update(ref(db,'gold/'+key), upd);
   showS1Toast(`🔶 걸작의 정수 ${qty}개 구매`);
   renderShop();
   return true;
@@ -10588,10 +10609,13 @@ async function emblemBuyTicket(type, qty){
   const tickets = getEmblemTickets(data);
   tickets[type] = (tickets[type]||0) + qty;
   const spentKey = sField('goldSpent');
-  await update(ref(db,'gold/'+key), {
+  const upd = {
     [emblemTicketsField()]: tickets,
     [spentKey]: (data[spentKey] ?? 0) + cost,
-  });
+    ..._spendLogUpd(data, 'emblem_ticket', `${def.name} ×${qty}`, cost),
+  };
+  _applySpendLocal(key, upd);
+  await update(ref(db,'gold/'+key), upd);
   showS1Toast(`${def.icon} ${def.name} ${qty}개 구매 완료`);
   renderShop();
   return true;
@@ -29508,6 +29532,20 @@ window.purchaseLogOf = function(name) {
   });
   return log;
 };
+// 💸 통합 골드 지출 조회 — 엠블럼(goldSpendLog)+상점(purchaseLog)+복권(lotteryHistory)을 시간순 합쳐 표시 (v2.45.521)
+window.goldSpendLog = function(name){
+  const e = Object.values(goldData).find(d=>d&&d.name&&normName(d.name)===normName(name||myName||''));
+  if(!e){ console.log('이름 없음:',name); return; }
+  const rows=[];
+  (e[sField('goldSpendLog')]||[]).forEach(x=>rows.push({ts:x.at,src:'엠블럼',what:x.l,spent:x.amt}));
+  (e[sField('purchaseLog')]||[]).forEach(x=>rows.push({ts:x.ts,src:x.type==='sell'?'판매환급':'상점',what:x.name,spent:x.type==='sell'?-Math.abs(x.price):x.price}));
+  (e.lotteryHistory||[]).filter(h=>(h.season??1)===CURRENT_SEASON).forEach(h=>{ const price=[70,200,400][h.tierIdx]; if(!h.free&&price!=null) rows.push({ts:h.ts,src:'복권',what:(['실버','골드','프리즘'][h.tierIdx]||'')+' 복권'+(h.discarded?' (버림)':h.win?` (당첨 +${h.gold})`:' (꽝)'),spent:price}); });
+  rows.sort((a,b)=>b.ts-a.ts);
+  console.log(`💸 ${e.name} 골드 지출 (최신순 40건)`);
+  console.table(rows.slice(0,40).map(r=>({시각:new Date(r.ts).toLocaleString(),분류:r.src,내역:r.what,지출G:r.spent})));
+  console.log('전체 goldSpent_s2 =', e[sField('goldSpent')]||0, 'G');
+  return rows;
+};
 
 // buyItem 동기 잠금 (v2.43.97~) — 빠른 연속 클릭 시 Firebase onValue 캐시 지연으로 race condition 발생하던 문제
 // 특히 scratch_tool 같은 영구 소유 아이템이 중복 구매되던 케이스 차단
@@ -29787,13 +29825,15 @@ async function _buyItemImpl(itemId) {
     const newGoldSpent = (data[spentKey] ?? 0) + item.price;
     // 구매 즉시 active:true — 다음 매치 시작 시 _maybeShowSecretQuestModal 자동 발동
     const newItems = [...existingItems, {id:itemId, boughtAt:Date.now(), active:true, activatedAt:Date.now()}];
-    await update(ref(db,'gold/'+key), {
+    const sqUpd = {
       [spentKey]: newGoldSpent,
       [itemsKey]: newItems,
       secretQuestDate: today,
       secretQuestCount: sqCount + 1,
       [sField('purchaseLog')]: _appendPurchaseLog(data, item),
-    });
+    };
+    _applySpendLocal(key, sqUpd);
+    await update(ref(db,'gold/'+key), sqUpd);
     renderShop();
     // 안내 모달 — 구매 즉시 다음 매치 자동 적용 명시
     showSecretQuestPurchaseInfo(currentGold - item.price, sqCount + 1);
@@ -29802,7 +29842,10 @@ async function _buyItemImpl(itemId) {
 
   const newGoldSpent = (data[spentKey] ?? 0) + item.price;
   const newItems = [...(data[itemsKey]||[]), {id:itemId, boughtAt:Date.now(), active:false}];
-  await update(ref(db,'gold/'+key), {[spentKey]:newGoldSpent, [itemsKey]:newItems, [sField('purchaseLog')]:_appendPurchaseLog(data, item)});
+  const upd = {[spentKey]:newGoldSpent, [itemsKey]:newItems, [sField('purchaseLog')]:_appendPurchaseLog(data, item)};
+  _applySpendLocal(key, upd);   // 골드 즉시 반영(상단바) — onValue 왕복 안 기다림
+  await update(ref(db,'gold/'+key), upd);
+  try { renderShop(); } catch(_){}
   showGoldToast(`${item.icon} ${item.name} 구매! 🪙${currentGold - item.price} 남음`);
 };
 
