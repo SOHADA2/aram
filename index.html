@@ -6951,7 +6951,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.526';
+const APP_VERSION = 'v2.45.528';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6960,6 +6960,12 @@ const APP_VERSION = 'v2.45.526';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.528', date: '2026-07-02', changes: [
+    { tag: 'new', text: '🗡️ 출석하면 투기장 코인 지급! — 7종 수집(투기장 입장 자격)한 사람은 출석 시 오전 +50 · 오후 +50 = 하루 100 투기장 코인을 받아요. 배틀 코인에 더해지는 보너스라, 개근하면 인형 강화가 훨씬 수월해져요 (참고: +5강 도달에 약 150코인).' },
+  ] },
+  { ver: 'v2.45.527', date: '2026-07-02', changes: [
+    { tag: 'improve', text: '🗡️ 인형 강화 — 코인이 부족할 때도 다음 강화 비용을 보여줘요. 상단에 「강화 🗡️N」 비용 칩을 항상 표시하고, 부족하면 보유 코인이 빨갛게, 강화 버튼도 「🗡️N 필요 · M 부족(배틀로)」으로 얼마가 필요하고 얼마 모자란지 알려줘요.' },
+  ] },
   { ver: 'v2.45.526', date: '2026-07-02', changes: [
     { tag: 'improve', text: '🔍 골드 역산(감사 추적) 보강 — ①자동로봇 당첨금을 전용 autoBotGold_s2로 분리(passGold 혼합 해소)하고 수령마다 티켓별 결과 스냅샷을 autoBotLog_s2에 기록(콘솔 autoBotLog("닉")). 이전엔 수령 후 큐가 지워져 결과가 소실됐음 ②강철심장 판매 환급을 purchaseLog에 기록(그동안 무기록) ③유미 수령·쓰레기통 이스터에그 골드를 trashLog_s2에 기록. 이제 모든 골드 증감이 결과 스냅샷으로 역산 가능.' },
     { tag: 'improve', text: '⚡ 성능 최적화 — ①모바일(≤768px)에서 항상 떠있는 요소의 backdrop blur(네비 탭·코너 배지·하단 배너)와 무한 애니(시즌2 배경 모트·글로우 펄스, 아바타 링 회전)를 끔(발열↓, 출석 강조 링은 유지) ②데스크탑 헥스 배경 펄스 8→4개 ③골드 동기화 폭주 시(정산 직후 등) 무거운 재렌더를 80ms 내 1회로 합침 ④일반게임 기록 수신 시 랭킹 탭이 안 보이면 재렌더 생략(탭 진입 시 반영).' },
@@ -21506,6 +21512,8 @@ async function doBingoAttendance(){
   if(gotLines.length) updates[sField('bingoLines')]=(data[sField('bingoLines')]||0)+gotLines.length;   // 🏅 내가 완성시킨 줄 누계
   if(slot===1) updates[sField('lastAttendance')]=todayKey; else updates[sField('lastAttendance2')]=todayKey;
   if(_allPrismDone(data)) updates[sField('clawCoins')]=(data[sField('clawCoins')]||0)+(slot===1?2:3);   // 🕹️ 인형뽑기 코인(자격자 한정): 오전+2·오후+3 = 하루 5
+  const _arenaOk = (typeof _arenaEligible==='function') && _arenaEligible(data);
+  if(_arenaOk) updates[sField('arenaCoins')]=(data[sField('arenaCoins')]||0)+ARENA_ATTEND_COIN;   // 🗡️ 투기장 코인(7종 수집자): 오전+50·오후+50 = 하루 100
   const bonusItems=[];
   // 🌟 황금 칸 첫 발견 보너스 (즉시 지급)
   if(myGolden){ _bingoApplyRw(data,updates,BINGO_GOLDEN_REWARD); bonusItems.push(..._bingoRwItems(BINGO_GOLDEN_REWARD,'🌟 황금 칸')); }
@@ -21522,6 +21530,7 @@ async function doBingoAttendance(){
   // 보상 팝업 (아이콘 + 받은 항목, 확인 버튼으로 닫기)
   const items=[{ iconHtml:'🪙', name:`${sName} 출석 보상`, qty:`+${baseGold}G`, color:'#ffd24a' }];
   if(_allPrismDone(data)) items.push({ iconHtml:'🕹️', name:'인형뽑기 코인', qty:`+${slot===1?2:3}`, color:'#7fd0ff' });
+  if(_arenaOk) items.push({ iconHtml:'🗡️', name:'투기장 코인', qty:`+${ARENA_ATTEND_COIN}`, color:'#e0a8ff' });
   items.push(...bonusItems);
   let sub = dupWith.length ? `🔴 ${dupWith.join(', ')}님과 같은 칸을 골랐어요`
           : wasFirst ? '🎨 이 칸을 처음 골랐어요!' : '';
@@ -33870,6 +33879,7 @@ function _buddyOnPull(champFile){   // 브릿지 pull 수신 — 7종 완성(수
 //   파괴=인형 수량−1 + 전투력 리셋. 입장=7종 수집 퀘스트 1회 완료(영구·이후 수량<7이어도 유지·v396). 골드 sink만(투기장 골드생성 0). 상성/배틀=Phase2~3.
 const ARENA_CHAMPS = ['teemo','gwen','vex','ekko','yone','neeko','lux'].map(s=>s+'.glb');   // 기본 7종(확장 시 추가)
 const ARENA_MAX_POWER = 20;
+const ARENA_ATTEND_COIN = 50;       // 🗡️ 출석 슬롯당 투기장 코인(오전50·오후50=하루100)·7종 수집자만·+5강 도달 ~150코인(개근 ~1.5일분)
 const ARENA_LIVE_ENABLED = true;    // 🗡️ 라이브 오픈(v2.45.436). 강화·대전·방어·스킨 전부 활성. 되돌리려면 false 한 줄.
 const ARENA_ODDS = [   // [성공%, 파괴%] (보류=100-성공-파괴). index=현재 전투력(+N)
   // 🗡️ 재조정(v352): 파괴를 초반부터 고르게 분배 + 초반 성공↑·비용↓. 실패=대부분 "유지"(코인 sink)
@@ -34868,7 +34878,7 @@ window.openArenaForge=function(sandbox){
     const grade=_arenaGrade(power), nextG=_arenaNextGrade(power);   // 🏅 등급(검키우기식 단계)
     ov.innerHTML=`<div class="arena-sheet" onclick="event.stopPropagation()">
       ${_arenaHd('인형 강화','forge',SB)}
-      <div class="arena-topinfo"><span class="ti-pill">인형 <b>${stock}</b></span><span class="ti-pill">🗡️ <b class="${coins<cost?'':''}">${coins}</b></span></div>
+      <div class="arena-topinfo"><span class="ti-pill">인형 <b>${stock}</b></span><span class="ti-pill">보유 🗡️ <b style="${coins<cost&&!maxed?'color:#ff6b6b':''}">${coins}</b></span>${maxed?'':`<span class="ti-pill">강화 <b>🗡️${cost}</b></span>`}</div>
       <div class="arena-fighter ${fx?('fx-'+fx):''}${grade.prism?' myth':''}" id="arena-fighter-3d" style="--ag:${grade.c}"></div>
       <div class="arena-grade-row">${_arenaGradeHtml(power)}<span style="font-size:15px;font-weight:700;color:#e6ebf2;">${escHtml(_buddyChampName(active))}</span></div>
       <div class="arena-power">+${power}<small> / ${ARENA_MAX_POWER}</small></div>
@@ -34881,7 +34891,7 @@ window.openArenaForge=function(sandbox){
         <div class="od-c"><div class="od-l">파괴</div><div class="od-v d">${odds.destroy}%</div></div>
       </div>
       ${hasSkin?`<div class="arena-next" style="color:#7CFC9A;margin:-7px 0 9px;">🎨 스킨 효과 — 성공률 +${ARENA_SKIN_FORGE_BONUS}%p 적용 중</div>`:''}
-      <button class="arena-forge-btn" id="arena-go" ${canForge?'':'disabled'}>${stock<1?'보유 인형 없음 — 인형뽑기로':coins<cost?'투기장 코인 부족 — 배틀로':`강화 시도 <span class="fb-cost">· 🗡️${cost}</span>`}</button>`}
+      <button class="arena-forge-btn" id="arena-go" ${canForge?'':'disabled'}>${stock<1?'보유 인형 없음 — 인형뽑기로':coins<cost?`🗡️${cost} 필요 <span class="fb-cost">· ${cost-coins} 부족(배틀로)</span>`:`강화 시도 <span class="fb-cost">· 🗡️${cost}</span>`}</button>`}
       <button class="arena-sell-btn" id="arena-sell" ${stock<1?'disabled':''}>팔기 <span style="opacity:.82">· 🗡️${_arenaSellValue(power)}${power>0?` (+${power}→리셋)`:''}</span></button>
       <div class="arena-pick">${owned.map(c=>`<div class="ap ${_arenaRk(active)===c?'on':''}" data-c="${c}.glb"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${_clawDdKey(c)}_0.jpg" onerror="this.style.visibility='hidden'"><div class="ap-p">+${getPower(c+'.glb')}</div><span class="ap-q">${stockMap[c]}</span></div>`).join('')}</div>
       ${_arenaTabs('forge',SB)}
@@ -34906,7 +34916,7 @@ window.openArenaForge=function(sandbox){
     if(go) go.onclick=()=>{
       if(busy) return; busy=true;
       const res=doForge(active);
-      if(res.r==='nocoin'){ busy=false; render(null,'<span style="color:#ff6b6b">🗡️ 투기장 코인이 부족해요 — 배틀로 벌어요</span>'); return; }
+      if(res.r==='nocoin'){ busy=false; render(null,`<span style="color:#ff6b6b">🗡️ 코인 부족 — 강화에 ${res.cost} 코인 필요 (배틀로 벌어요)</span>`); return; }
       if(res.r==='nostock'){ busy=false; render(null,'<span style="color:#ff6b6b">보유 인형이 없어요 — 인형뽑기로</span>'); return; }
       if(res.r==='max'){ busy=false; render(null,'👑 이미 최대치예요'); return; }
       let fx=null, msg='';
