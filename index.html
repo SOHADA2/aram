@@ -6985,7 +6985,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.521';
+const APP_VERSION = 'v2.45.522';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -6994,6 +6994,9 @@ const APP_VERSION = 'v2.45.521';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.522', date: '2026-07-01', changes: [
+    { tag: 'new', text: '🤖 복권 자동 로봇 — 실버 복권(해골 없음)을 자동으로 긁어주는 영구 소유 아이템. 복권 Hub 안에서 구매/조작. 등급 실버(5장·10분/장)→골드(10장·5분)→프리즘(20장·1분), 단계별 업그레이드(300→700→1000G). 예약 시 장당 70G 선불→실제 시각 기준 순차 완성(오프라인 진행)→영수증(당첨/꽝)+수령. 데이터 autoBotTier_s2·autoBotQueue_s2, 결과는 예약 시점 rollScratch(0)로 확정 저장(조작 불가). 당첨금 passGold, 지출 goldSpent(+goldSpendLog). 현재는 해골 있는 골드/프리즘 복권은 자동화 미지원.' },
+  ] },
   { ver: 'v2.45.521', date: '2026-07-01', changes: [
     { tag: 'fix', text: '🪙 상점에서 강철심장/강화권/정수 구매 시 상단 골드가 바로 안 줄던 문제 수정 — 이제 구매 즉시 반영(낙관적 업데이트). 일반 아이템·비밀퀘도 동일 적용.' },
     { tag: 'improve', text: '💸 골드 지출 추적 강화 — 그동안 기록이 안 남던 엠블럼 구매(강화권·정수·강철심장)를 goldSpendLog_s2에 기록. 콘솔 goldSpendLog("닉")으로 엠블럼·상점·복권 지출을 시간순 통합 조회 가능(골드가 어디로 나갔는지 추적).' },
@@ -10102,6 +10105,8 @@ function _getToday() {
 //   새 큰 기능을 배포할 때만 최신순 맨 위에 1줄 추가. 다른 컴퓨터에서도 동일 적용.
 const CHANGELOG_MAJOR = [
   // 시크릿 챔피언(유미) 관련 항목은 스포일러 방지로 여기에 넣지 않음
+  { ver:'v2.45.522', date:'2026-07-01', emoji:'🤖', title:'복권 자동 로봇 — 실버 복권을 알아서 긁어주는 로봇',
+    desc:'복권 자동 로봇을 사면 실버 복권(해골 없는 그거)을 넣어두고 딴 거 하는 동안 로봇이 대신 긁어줘요! 복권 창(🎟) 안에서 구매/조작해요. 등급은 🥈실버(한 번에 5장·장당 10분)→🥇골드(10장·5분)→🌈프리즘(20장·1분)으로 업그레이드(300G→700G→1000G). 넣을 장수를 고르면 장당 70G를 미리 내고 예약 → 시간에 맞춰 한 장씩 긁혀서 당첨/꽝 영수증으로 나와요(앱 꺼놔도 시간은 흘러요). 「수령」 누르면 당첨금 지급! 지금은 해골 없는 실버 복권만 자동으로 긁을 수 있어요.' },
   { ver:'v2.45.516', date:'2026-07-01', emoji:'🎯', title:'협력 빙고 출석 대개편 — 스트릭·주간 상자·특수 칸·기여 명예',
     desc:'출석 이벤트에 재미 요소를 잔뜩 추가했어요! 🔥 연속 출석 스트릭 — 매일 출석하면 연속 일수가 쌓이고 3·7·14·30일마다 보너스(골드+강화권+복권)를 자동으로 받아요. 📦 주간 출석 상자 — 이번 주 5일 출석하면 상자를 열어 골드+강화권+복권! 🌟 황금 칸 — 빙고판에 숨은 황금 칸을 처음 고르면 즉석 보너스(블라인드라 운!), 💀 함정 칸 — 그 줄이 완성되면 보상이 줄어드니 조마조마. 🤝 협력 완성 보너스 — 한 판(3줄)을 다 같이 완성하면 그 판에 참여한 전원이 보너스를 받아요. 🏅 빙고 명예 — 내가 채운 칸·완성시킨 줄이 누적되고 최다 기여자 순위도 떠요.' },
   { ver:'v2.45.436', date:'2026-06-29', emoji:'🗡️', title:'인형 투기장 정식 오픈! — 키우고 싸우고 뺏기는 비동기 PvP',
@@ -27406,6 +27411,217 @@ window.closeLotteryHub = function() {
   if (el) { document.body.style.overflow = el._prevBodyOverflow || ''; el.remove(); }   // 스크롤 락 복원
 };
 
+/* ── 🤖 복권 자동 로봇 (v2.45.522) ──
+   기존 긁개처럼 영구 소유 아이템. 실버(해골 없음) 복권만 자동으로 긁음.
+   등급(실버1/골드2/프리즘3) = [예약 수량 한도 + 장당 속도] · 단계별 업그레이드(300→700→1000).
+   예약 시 장수×70G 선불 차감 + 실버 결과를 미리 굴려 저장 → 실제 시각 기준 순차 완성(오프라인 OK).
+   완성분은 영수증(당첨/낙첨)으로 뱉어지고 「수령」 시 당첨금(passGold) 지급. 데이터: autoBotTier_s2 · autoBotQueue_s2 */
+const AUTOBOT_TIERS = [
+  { tier:1, name:'실버 자동 로봇',   short:'실버',   cap:5,  perMin:10, price:300,  color:'#c4ced6', emoji:'🥈' },
+  { tier:2, name:'골드 자동 로봇',   short:'골드',   cap:10, perMin:5,  price:700,  color:'#f0c060', emoji:'🥇' },
+  { tier:3, name:'프리즘 자동 로봇', short:'프리즘', cap:20, perMin:1,  price:1000, color:'#e0a8ff', emoji:'🌈' },
+];
+const AUTOBOT_LOTTERY_PRICE = 70;   // 실버 복권 장당 가격
+function _autoBotTier(data){ return (data && data[sField('autoBotTier')]) || 0; }
+function _autoBotDef(tier){ return AUTOBOT_TIERS.find(t=>t.tier===tier) || null; }
+function _autoBotQueue(data){ const q = data && data[sField('autoBotQueue')]; return (q && q.count) ? q : null; }
+function _autoBotDone(q, now){ if(!q) return 0; const per=q.perMin*60000; return Math.max(0, Math.min(q.count, Math.floor((now - q.startAt)/per))); }
+function _autoBotFmt(ms){ ms=Math.max(0,ms); const s=Math.ceil(ms/1000); const m=Math.floor(s/60); const ss=s%60; return m>0?`${m}분 ${ss}초`:`${ss}초`; }
+function _injectAutoBotCss(){
+  if(document.getElementById('autobot-css')) return;
+  const st=document.createElement('style'); st.id='autobot-css';
+  st.textContent=`
+  .abot-overlay{position:fixed;inset:0;z-index:3600;background:rgba(4,6,16,0.94);display:flex;align-items:center;align-items:safe center;justify-content:center;padding:24px 16px;overflow-y:auto;overscroll-behavior:contain;}
+  .abot-sheet{width:100%;max-width:440px;background:linear-gradient(180deg,#0f1424,#0a0d18);border:1px solid rgba(200,168,75,0.35);border-radius:16px;padding:16px;box-shadow:0 16px 50px rgba(0,0,0,0.7);}
+  .abot-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+  .abot-title{font-size:16px;font-weight:800;color:#ffe39a;}
+  .abot-gold{font-size:12px;color:#ffd24a;font-weight:700;}
+  .abot-close{background:rgba(255,255,255,0.08);border:none;color:#cfcfd6;width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:14px;}
+  .abot-robot{position:relative;width:120px;height:120px;margin:6px auto 4px;}
+  .abot-body{position:absolute;inset:0;border-radius:22px;background:linear-gradient(160deg,#2a3550,#1a2436 60%,#141b2e);}
+  .abot-head3{position:absolute;left:16px;right:16px;top:12px;height:64px;border-radius:16px;background:linear-gradient(160deg,#37456a,#232e49);border:2px solid rgba(200,168,75,0.4);display:flex;align-items:center;justify-content:center;gap:12px;box-shadow:inset 0 0 12px rgba(0,0,0,0.4);}
+  .abot-eye{width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 40% 35%,#bfe6fb,#4db6e8);box-shadow:0 0 8px rgba(77,182,232,0.8);animation:abotBlink 3.5s infinite;}
+  @keyframes abotBlink{0%,92%,100%{transform:scaleY(1)}96%{transform:scaleY(.15)}}
+  .abot-mouth{position:absolute;left:34px;right:34px;bottom:20px;height:12px;border-radius:4px;background:#0a0d18;border:1px solid rgba(200,168,75,0.5);box-shadow:inset 0 2px 5px rgba(0,0,0,0.7);}
+  .abot-robot.busy .abot-eye{animation:abotBlink 1.1s infinite;background:radial-gradient(circle at 40% 35%,#ffe9a8,#f0c060);box-shadow:0 0 10px rgba(240,192,96,0.9);}
+  .abot-badge{display:inline-block;font-size:11px;font-weight:800;padding:3px 10px;border-radius:20px;margin:2px auto 10px;}
+  .abot-center{text-align:center;}
+  .abot-buy{width:100%;padding:13px;border:none;border-radius:10px;background:linear-gradient(135deg,#f0c060,#c89230);color:#1a1205;font-size:14px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-top:6px;}
+  .abot-buy:disabled{background:#1b1b20;color:#5a5a66;cursor:not-allowed;}
+  .abot-up{width:100%;padding:11px;border:1px solid rgba(200,168,75,0.5);border-radius:10px;background:rgba(200,168,75,0.12);color:#ffe39a;font-size:13px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-top:10px;}
+  .abot-spec{font-size:11.5px;color:#8b93a5;text-align:center;line-height:1.7;margin:8px 0;}
+  .abot-spec b{color:#cfd6e4;}
+  .abot-qty{display:flex;align-items:center;justify-content:center;gap:14px;margin:12px 0 6px;}
+  .abot-qbtn{width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:#fff;font-size:20px;font-weight:800;cursor:pointer;}
+  .abot-qbtn:disabled{opacity:.35;cursor:not-allowed;}
+  .abot-qnum{font-size:30px;font-weight:800;color:#ffe39a;min-width:56px;text-align:center;font-family:'JetBrains Mono',monospace;}
+  .abot-qsub{text-align:center;font-size:11.5px;color:#8b93a5;margin-bottom:10px;}
+  .abot-reserve{width:100%;padding:14px;border:none;border-radius:11px;background:linear-gradient(135deg,#4db6e8,#7fe0d0);color:#06202a;font-size:15px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif;}
+  .abot-reserve:disabled{background:#1b1b20;color:#5a5a66;cursor:not-allowed;}
+  .abot-prog{text-align:center;margin:8px 0 4px;}
+  .abot-prog-big{font-size:14px;font-weight:800;color:#7fe0d0;}
+  .abot-prog-sub{font-size:12px;color:#8b93a5;margin-top:2px;}
+  .abot-bar{height:9px;background:#1b2030;border-radius:6px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);margin:8px 0;}
+  .abot-bar-fill{height:100%;background:linear-gradient(90deg,#4db6e8,#7fe0d0);transition:width .5s;}
+  .abot-receipt{background:rgba(0,0,0,0.28);border:1px dashed rgba(200,168,75,0.4);border-radius:10px;padding:8px 10px;max-height:200px;overflow-y:auto;margin:8px 0;}
+  .abot-rc-row{display:flex;align-items:center;justify-content:space-between;font-size:12px;padding:3px 2px;border-bottom:1px dashed rgba(255,255,255,0.06);}
+  .abot-rc-row:last-child{border-bottom:none;}
+  .abot-rc-row.new{animation:abotEject .5s cubic-bezier(.2,1.3,.4,1);}
+  @keyframes abotEject{0%{opacity:0;transform:translateY(-18px) scale(.9)}100%{opacity:1;transform:none}}
+  .abot-rc-idx{color:#6e7688;width:26px;}
+  .abot-rc-res{flex:1;text-align:left;padding-left:6px;}
+  .abot-rc-res.win{color:#ffe39a;font-weight:700;}
+  .abot-rc-res.lose{color:#7a8296;}
+  .abot-rc-g{font-family:'JetBrains Mono',monospace;font-weight:700;}
+  .abot-rc-g.win{color:#86efac;}
+  .abot-claim{width:100%;padding:13px;border:none;border-radius:11px;background:linear-gradient(135deg,#d4a843,#f0c84a,#c8a030);color:#1a1206;font-size:14px;font-weight:800;cursor:pointer;font-family:'Noto Sans KR',sans-serif;margin-top:6px;animation:abotPulse 1.5s ease-in-out infinite;}
+  @keyframes abotPulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.12)}}
+  .abot-note{font-size:10.5px;color:#6e7688;text-align:center;margin-top:10px;line-height:1.6;}`;
+  document.head.appendChild(st);
+}
+let _autoBotTimer=null, _autoBotLastDone=-1, _autoBotSelN=1;
+window.openAutoBotModal = function(){
+  if (!myName) { showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
+  _injectAutoBotCss();
+  let el=document.getElementById('autobot-overlay');
+  if(!el){ el=document.createElement('div'); el.id='autobot-overlay'; el.className='abot-overlay';
+    el.addEventListener('click',ev=>{ if(ev.target===el) window.closeAutoBotModal(); });
+    document.body.appendChild(el); el._prevOv=document.body.style.overflow; document.body.style.overflow='hidden'; }
+  _autoBotLastDone=-1;
+  _autoBotRefresh();
+  if(_autoBotTimer) clearInterval(_autoBotTimer);
+  _autoBotTimer=setInterval(_autoBotTick, 1000);
+};
+window.closeAutoBotModal = function(){
+  if(_autoBotTimer){ clearInterval(_autoBotTimer); _autoBotTimer=null; }
+  const el=document.getElementById('autobot-overlay');
+  if(el){ document.body.style.overflow=el._prevOv||''; el.remove(); }
+};
+function _autoBotTick(){
+  const data=getMyGoldData(); const q=_autoBotQueue(data);
+  const el=document.getElementById('autobot-overlay'); if(!el) { if(_autoBotTimer){clearInterval(_autoBotTimer);_autoBotTimer=null;} return; }
+  if(!q){ if(_autoBotLastDone!==-2){ _autoBotLastDone=-2; _autoBotRefresh(); } return; }
+  const done=_autoBotDone(q, Date.now());
+  if(done!==_autoBotLastDone){ _autoBotRefresh(); return; }   // 새 복권 완성 → 전체 재렌더(뱉기 연출)
+  const cd=document.getElementById('abot-countdown');   // 아니면 카운트다운만 갱신
+  if(cd){ const per=q.perMin*60000; const nextAt=q.startAt+(done+1)*per; cd.textContent=_autoBotFmt(nextAt-Date.now()); }
+}
+function _autoBotRefresh(){
+  const el=document.getElementById('autobot-overlay'); if(!el) return;
+  const data=getMyGoldData(); const myGold=getMyGold();
+  const tier=_autoBotTier(data); const def=_autoBotDef(tier);
+  const q=_autoBotQueue(data); const now=Date.now();
+  let body='';
+  if(!def){
+    // 미보유 → 구매
+    const first=AUTOBOT_TIERS[0];
+    body=`<div class="abot-center">
+      <div class="abot-robot"><div class="abot-body"></div><div class="abot-head3"><span class="abot-eye"></span><span class="abot-eye"></span></div><div class="abot-mouth"></div></div>
+      <div class="abot-spec">복권을 <b>자동으로 긁어주는 로봇</b>이에요.<br>실버 복권(해골 없음)을 넣어두면 시간에 맞춰 긁어 <b>영수증</b>으로 뱉어줘요.</div>
+      <div class="abot-spec">🥈 실버 로봇 · 한 번에 <b>${first.cap}장</b> · 장당 <b>${first.perMin}분</b></div>
+      <button class="abot-buy" ${myGold>=first.price?'':'disabled'} onclick="window.autoBotBuy()">🤖 실버 자동 로봇 구매 · ${first.price}G</button>
+    </div>`;
+  } else if(q){
+    // 진행 중 — 영수증 + 수령
+    const done=_autoBotDone(q,now); _autoBotLastDone=done;
+    const from=q.claimedCount||0;
+    const per=q.perMin*60000;
+    const claimable=Math.max(0,done-from);
+    let claimGold=0; for(let i=from;i<done;i++) claimGold+=q.tickets[i].g||0;
+    const rows=[]; for(let i=from;i<done;i++){ const t=q.tickets[i]; const win=(t.g||0)>0;
+      rows.push(`<div class="abot-rc-row${i===done-1?' new':''}"><span class="abot-rc-idx">#${i+1}</span><span class="abot-rc-res ${win?'win':'lose'}">${win?`${t.e||'🎉'} ${escHtml(t.nm||'당첨')}`:'꽝'}</span><span class="abot-rc-g ${win?'win':''}">${win?'+'+t.g+'G':'-'}</span></div>`); }
+    const allDone=done>=q.count;
+    const nextAt=q.startAt+(done+1)*per;
+    const pct=Math.round(done/q.count*100);
+    body=`<div class="abot-center">
+      <div class="abot-robot busy"><div class="abot-body"></div><div class="abot-head3"><span class="abot-eye"></span><span class="abot-eye"></span></div><div class="abot-mouth"></div></div>
+      <div class="abot-badge" style="background:${def.color}22;color:${def.color};border:1px solid ${def.color}66;">${def.emoji} ${def.name}</div>
+    </div>
+    <div class="abot-prog">
+      <div class="abot-prog-big">${done} / ${q.count}장 완성</div>
+      ${allDone?`<div class="abot-prog-sub">전부 다 긁었어요! 수령하세요 🎉</div>`:`<div class="abot-prog-sub">다음 장까지 <span id="abot-countdown">${_autoBotFmt(nextAt-now)}</span></div>`}
+    </div>
+    <div class="abot-bar"><div class="abot-bar-fill" style="width:${pct}%"></div></div>
+    ${rows.length?`<div class="abot-receipt">${rows.join('')}</div>`:`<div class="abot-spec">로봇이 첫 복권을 긁고 있어요…</div>`}
+    <button class="abot-claim" ${claimable>0?'':'disabled'} style="${claimable>0?'':'opacity:.4;animation:none;cursor:not-allowed;'}" onclick="window.autoBotClaim()">🧾 ${claimable>0?`수령 (${claimable}장 · +${claimGold}G)`:'완성 대기 중'}</button>
+    <div class="abot-note">넣은 복권값(장당 ${AUTOBOT_LOTTERY_PRICE}G)은 예약 시 이미 지불됐어요. 수령은 완성된 만큼 언제든 가능.</div>`;
+  } else {
+    // 보유 + 예약 대기 — 수량 선택
+    _autoBotSelN=Math.max(1, Math.min(def.cap, _autoBotSelN||1));
+    const cost=_autoBotSelN*AUTOBOT_LOTTERY_PRICE;
+    const totalMin=_autoBotSelN*def.perMin;
+    const canReserve=myGold>=cost;
+    const nextDef=_autoBotDef(tier+1);
+    body=`<div class="abot-center">
+      <div class="abot-robot"><div class="abot-body"></div><div class="abot-head3"><span class="abot-eye"></span><span class="abot-eye"></span></div><div class="abot-mouth"></div></div>
+      <div class="abot-badge" style="background:${def.color}22;color:${def.color};border:1px solid ${def.color}66;">${def.emoji} ${def.name}</div>
+    </div>
+    <div class="abot-spec">실버 복권을 넣을 만큼 골라서 예약하세요.<br>한 번에 <b>최대 ${def.cap}장</b> · 장당 <b>${def.perMin}분</b> (순서대로 완성)</div>
+    <div class="abot-qty">
+      <button class="abot-qbtn" ${_autoBotSelN<=1?'disabled':''} onclick="window.autoBotAdj(-1)">−</button>
+      <span class="abot-qnum">${_autoBotSelN}</span>
+      <button class="abot-qbtn" ${_autoBotSelN>=def.cap?'disabled':''} onclick="window.autoBotAdj(1)">+</button>
+    </div>
+    <div class="abot-qsub">비용 <b style="color:#ffd24a;">${cost}G</b> · 전부 긁는 데 약 <b>${totalMin}분</b></div>
+    <button class="abot-reserve" ${canReserve?'':'disabled'} onclick="window.autoBotReserve(${_autoBotSelN})">${canReserve?`🤖 ${_autoBotSelN}장 예약 시작`:`🪙 골드 부족 (필요 ${cost}G)`}</button>
+    ${nextDef?`<button class="abot-up" ${myGold>=nextDef.price?'':'disabled'} onclick="window.autoBotBuy()">⬆️ ${nextDef.name}으로 업그레이드 · ${nextDef.price}G <span style="opacity:.7;font-weight:600">(${nextDef.cap}장·장당 ${nextDef.perMin}분)</span></button>`:`<div class="abot-note">🌈 최고 등급(프리즘)이에요!</div>`}`;
+  }
+  el.innerHTML=`<div class="abot-sheet" onclick="event.stopPropagation();">
+    <div class="abot-head"><span class="abot-title">🤖 복권 자동 로봇</span><span class="abot-gold">🪙 ${myGold}G</span><button class="abot-close" onclick="window.closeAutoBotModal()">✕</button></div>
+    ${body}
+  </div>`;
+}
+window.autoBotAdj = function(d){ const data=getMyGoldData(); const def=_autoBotDef(_autoBotTier(data)); if(!def) return; _autoBotSelN=Math.max(1,Math.min(def.cap,(_autoBotSelN||1)+d)); _autoBotRefresh(); };
+window.autoBotBuy = async function(){
+  const key=getMyGoldKey(); if(!key){ showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
+  const data=goldData[key]; if(!data) return;
+  const cur=_autoBotTier(data);
+  if(cur>=3){ showS1Toast('이미 최고 등급(프리즘)이에요'); return; }
+  const next=_autoBotDef(cur+1);
+  if(getMyGold()<next.price){ showGoldToast(`🪙 골드 부족 (보유 ${getMyGold()} / 필요 ${next.price})`); return; }
+  const spentKey=sField('goldSpent');
+  const upd={ [spentKey]:(data[spentKey]??0)+next.price, [sField('autoBotTier')]:cur+1, ..._spendLogUpd(data,'autobot_buy',(cur?'로봇 업그레이드 ':'로봇 구매 ')+next.short,next.price) };
+  _applySpendLocal(key,upd);
+  await update(ref(db,'gold/'+key),upd);
+  showS1Toast(`🤖 ${next.name} ${cur?'업그레이드':'구매'} 완료!`);
+  _autoBotRefresh();
+};
+window.autoBotReserve = async function(n){
+  const key=getMyGoldKey(); if(!key) return;
+  const data=goldData[key]; if(!data) return;
+  const def=_autoBotDef(_autoBotTier(data));
+  if(!def){ showS1Toast('먼저 복권 자동 로봇을 구매하세요'); return; }
+  if(_autoBotQueue(data)){ showS1Toast('이미 로봇이 복권을 긁고 있어요'); return; }
+  n=Math.max(1,Math.min(def.cap,Math.floor(n)||1));
+  const cost=n*AUTOBOT_LOTTERY_PRICE;
+  if(getMyGold()<cost){ showGoldToast(`🪙 골드 부족 (필요 ${cost}G)`); return; }
+  const tickets=[];
+  for(let i=0;i<n;i++){ const r=rollScratch(0); tickets.push({ w:r.win?r.win.id:null, g:r.win?r.win.gold:0, e:r.win?r.win.emoji:null, nm:r.win?r.win.name:null }); }
+  const q={ startAt:Date.now(), perMin:def.perMin, count:n, tier:def.tier, claimedCount:0, tickets };
+  const spentKey=sField('goldSpent');
+  const upd={ [spentKey]:(data[spentKey]??0)+cost, [sField('autoBotQueue')]:q, ..._spendLogUpd(data,'autobot',`자동로봇 실버 ×${n}`,cost) };
+  _applySpendLocal(key,upd);
+  await update(ref(db,'gold/'+key),upd);
+  showS1Toast(`🤖 실버 복권 ${n}장 예약! 로봇이 긁기 시작해요`);
+  _autoBotLastDone=-1; _autoBotRefresh();
+};
+window.autoBotClaim = async function(){
+  const key=getMyGoldKey(); if(!key) return;
+  const data=goldData[key]; const q=_autoBotQueue(data); if(!q) return;
+  const done=_autoBotDone(q,Date.now()); const from=q.claimedCount||0;
+  if(done<=from){ showS1Toast('아직 완성된 복권이 없어요'); return; }
+  let gold=0,wins=0; for(let i=from;i<done;i++){ const g=q.tickets[i].g||0; gold+=g; if(g>0)wins++; }
+  const gk=sField('passGold');
+  const cleared=done>=q.count;
+  const nq=cleared?null:{ ...q, claimedCount:done };
+  const upd={ [gk]:(data[gk]??0)+gold, [sField('autoBotQueue')]:nq };
+  if(goldData[key]) Object.assign(goldData[key],upd);
+  await update(ref(db,'gold/'+key),upd);
+  try{updateMyInfoBar();}catch(_){}
+  showBingoReward('🤖 자동 로봇 정산', `${done-from}장 개봉 · 당첨 ${wins}장 / 꽝 ${(done-from)-wins}장`, [{iconHtml:'🪙',name:'수령 골드',qty:`+${gold}G`,color:'#ffd24a'}]);
+  _autoBotLastDone=-1; _autoBotRefresh();
+};
+
 /* ── 🗑️ 쓰레기통 뒤지기 (v2.43.225~) — 재미용 미니 기능 ──
    직접 드래그(뒤적뒤적)로 뒤짐. 횟수 제한 없음(언제든) 대신:
    ① 빡센 드래그 임계값(1100px)으로 한 번 뒤지는 데 품이 들고
@@ -28292,6 +28508,22 @@ window.openLotteryHub = function() {
       ${pendingCard}
       <div class="lh-tier-grid">${tierCards}</div>
       <div class="lh-divider"></div>
+      ${(() => {
+        const _bt = _autoBotTier(data); const _bq = _autoBotQueue(data);
+        const _bdone = _bq ? _autoBotDone(_bq, Date.now()) : 0;
+        const _bclaim = _bq ? Math.max(0, _bdone - (_bq.claimedCount||0)) : 0;
+        const sub = !_bt ? '실버 복권을 자동으로 긁어주는 로봇 · 구매하기'
+          : _bq ? (_bclaim>0 ? `🧾 수령할 복권 ${_bclaim}장! · ${_bdone}/${_bq.count} 완성` : `로봇이 긁는 중… ${_bdone}/${_bq.count}`)
+          : `${_autoBotDef(_bt).emoji} ${_autoBotDef(_bt).short} 로봇 보유 · 복권 넣기`;
+        return `<div class="lh-trash-entry" onclick="window.openAutoBotModal()">
+          <span class="lh-trash-emoji">🤖</span>
+          <div class="lh-trash-txt">
+            <div class="lh-trash-name">복권 자동 로봇${_bclaim>0?' <span style="color:#ffd24a;">🧾 수령!</span>':''}</div>
+            <div class="lh-trash-desc">${sub}</div>
+          </div>
+          <span class="lh-trash-go">${!_bt?'구매 ›':'열기 ›'}</span>
+        </div>`;
+      })()}
       <!-- 🔑 긁기 도구(만능 긁개)는 복권 모달 안 장착/구매 행으로 이동 (v2.45.128) -->
       <div class="lh-section-title">🗑️ 뒷골목 <span class="lh-section-sub">공짜로 뒤적뒤적 · 언제든</span></div>
       <div class="lh-trash-entry" onclick="window.openTrashCan()">
