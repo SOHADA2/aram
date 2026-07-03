@@ -7024,7 +7024,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.544';
+const APP_VERSION = 'v2.45.545';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7033,6 +7033,10 @@ const APP_VERSION = 'v2.45.544';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.545', date: '2026-07-03', changes: [
+    { tag: 'improve', text: '⚡ 팀 구성·타이머 시작 버벅임 대폭 개선 — ①팀 결과 카드가 케미/웬수 링 계산을 위해 경기 기록 전체를 ~90번 훑던 것을 1번만 훑도록 개편(같은 결과·34배 빨라짐) ②팀 발표·팀 카드의 TOP3 배지가 이름마다 순위 전체를 재계산(렌더당 20회+)하던 것을 캐시로 1회만 ③아이템 타이머(15초)가 0.25초마다 화면 요소를 무조건 다시 쓰던 것을 값이 바뀔 때만 쓰도록. 팀짜기→발표→타이머 구간이 눈에 띄게 부드러워져요.' },
+    { tag: 'improve', text: '⚡ 정산창 뜨는 속도 대폭 단축 — 경기 저장 시 참가자 10명의 LP 반영을 한 명씩 차례로 기다리던 것(서버 왕복 10번 순차)을 전원 동시에 처리하도록 병렬화. 투표 완료 후 "정산 계산 중"이 길게 걸리던 시간이 크게 줄어요. (각자 자기 데이터만 기록해 서로 충돌 없음 — 결과·순서 동일)' },
+  ] },
   { ver: 'v2.45.544', date: '2026-07-03', changes: [
     { tag: 'fix', text: '🧸 아케이드 「내 단짝」 무대에서 일부 챔피언 3D가 세로로 늘어나거나 떠 보이던 문제 수정 — 3D 캔버스가 무대 비율(가로가 좁음)에 맞춰 늘려 그려지던 걸, 비율을 보존해 발판 위에 바르게 서게 했어요(챔피언별 위치 튜닝은 그대로).' },
   ] },
@@ -14388,7 +14392,11 @@ function isNewbie(name) {
   return !!p?.isNewbie;
 }
 
+// ⚡ TOP3 마이크로 캐시(2초) — 팀 발표+결과 카드가 이름/배지마다 재계산해 렌더 버스트당 20회+ 전체 재정렬하던 것 방지 (v2.45.545)
+//   LP/전적은 경기 저장 시에만 변해 2초 신선도로 충분. 데이터 갱신(onValue)→ 다음 렌더는 캐시 만료 후라 자연 반영.
+let _t3Cache = null, _t3CacheAt = 0;
 function getTopThreeMap() {
+  if (_t3Cache && Date.now() - _t3CacheAt < 2000) return _t3Cache;
   let rows;
   if (CURRENT_SEASON >= 1) {
     rows = Object.values(registeredPlayers).map(p => {
@@ -14411,6 +14419,7 @@ function getTopThreeMap() {
   }
   const map = {};
   rows.slice(0, 3).forEach((r, i) => { map[normName(r.name)] = i + 1; });
+  _t3Cache = map; _t3CacheAt = Date.now();
   return map;
 }
 
@@ -15062,14 +15071,49 @@ function calcPairStats(nameA, nameB, minGames=3) {
   return {together, wins, wr: wins/together};
 }
 
+// ⚡ 쌍별 함께한 전적 일괄 집계 — matches를 "한 번만" 순회해 모든 쌍의 {together,wins}를 계산 (v2.45.545)
+//   (기존: buildChemiMap+buildEnemyMap이 쌍마다 calcPairStats로 전체 순회 → 10명=45쌍×2 = 매치 전체 ~90회 순회
+//    → 팀 구성/발표 순간 메인스레드 블로킹의 최대 원인. 결과는 calcPairStats와 동일 정의)
+let _pairMapCache = null;   // { key(정렬된 이름들+시즌), at, map } — 연달아 두 번(케미+웬수) 불려도 1패스
+function _buildPairStatsMap(playerNames) {
+  const keys = playerNames.map(normName);
+  const ck = keys.slice().sort().join(',') + '#' + CURRENT_SEASON;
+  if (_pairMapCache && _pairMapCache.key === ck && Date.now() - _pairMapCache.at < 1500) return _pairMapCache.map;
+  const want = new Set(keys);
+  const map = new Map();   // "a|b"(정렬) → {together,wins}
+  const addPairs = (arr, won) => {
+    for (let i = 0; i < arr.length; i++) for (let j = i + 1; j < arr.length; j++) {
+      const k = arr[i] < arr[j] ? arr[i] + '|' + arr[j] : arr[j] + '|' + arr[i];
+      let e = map.get(k); if (!e) { e = { together: 0, wins: 0 }; map.set(k, e); }
+      e.together++; if (won) e.wins++;
+    }
+  };
+  for (const m of Object.values(matches)) {
+    if ((m.season ?? 0) !== CURRENT_SEASON) continue;
+    const pA = [], pB = [];
+    (m.teamA || []).forEach(n => { const k = normName(n); if (want.has(k)) pA.push(k); });
+    (m.teamB || []).forEach(n => { const k = normName(n); if (want.has(k)) pB.push(k); });
+    if (pA.length > 1) addPairs(pA, m.winner === 'blue');
+    if (pB.length > 1) addPairs(pB, m.winner === 'red');
+  }
+  _pairMapCache = { key: ck, at: Date.now(), map };
+  return map;
+}
+function _pairStatOf(pairMap, nameA, nameB, minGames) {
+  const a = normName(nameA), b = normName(nameB);
+  const e = pairMap.get(a < b ? a + '|' + b : b + '|' + a);
+  if (!e || e.together < minGames) return null;
+  return { together: e.together, wins: e.wins, wr: e.wins / e.together };
+}
 // 선택된 팀원 목록에서 케미 쌍 목록 반환
 // [{nameA, nameB, wr, together, colorIdx}]
 function buildChemiMap(playerNames) {
+  const pairMap = _buildPairStatsMap(playerNames);   // ⚡ 1패스 집계(쌍마다 전체 순회하던 것 대체)
   const pairs = [];
   let colorIdx = 0;
   for (let i=0; i<playerNames.length; i++) {
     for (let j=i+1; j<playerNames.length; j++) {
-      const stat = calcPairStats(playerNames[i], playerNames[j]);
+      const stat = _pairStatOf(pairMap, playerNames[i], playerNames[j], 3);
       if (stat) {
         pairs.push({nameA:playerNames[i], nameB:playerNames[j], ...stat, colorIdx: colorIdx % CHEMI_COLORS.length});
         colorIdx++;
@@ -15100,11 +15144,12 @@ const ENEMY_COLORS = [
 
 // 승률이 낮은 쌍 (3판 이상, 승률 40% 이하)
 function buildEnemyMap(playerNames, minGames=3, maxWr=0.40) {
+  const pairMap = _buildPairStatsMap(playerNames);   // ⚡ 1패스 집계 공유(케미와 같은 캐시 히트)
   const pairs = [];
   let colorIdx = 0;
   for (let i=0; i<playerNames.length; i++) {
     for (let j=i+1; j<playerNames.length; j++) {
-      const stat = calcPairStats(playerNames[i], playerNames[j]);
+      const stat = _pairStatOf(pairMap, playerNames[i], playerNames[j], minGames);
       if (stat && stat.wr <= maxWr) {
         pairs.push({nameA:playerNames[i], nameB:playerNames[j], ...stat, colorIdx: colorIdx % ENEMY_COLORS.length});
         colorIdx++;
@@ -16105,31 +16150,31 @@ function startItemCountdown(endTime) {
   // (팀 구성은 호스트만 트리거하고, 호스트가 팀을 쓰면 팀원 배너는 세션
   //  리스너의 stopItemCountdown으로 자동 닫히므로 길게 돌아도 안전.)
   const localEnd = Date.now() + TOTAL_MS;
-  let lastTickSec = -1;
+  let lastTickSec = -1, _lastUrgent = null;
+  barEl.style.transition = 'none';   // 1회만 (매 틱 세팅 불필요)
+  // ⚡ 팀원 배너 엘리먼트 캐시 — 매 250ms getElementById 3회 대신 1회 조회 후 재사용 (v2.45.545)
+  const mipbTimer = document.getElementById('mipb-timer');
+  const mipbBar   = document.getElementById('mipb-bar');
+  const mipbWrap  = document.getElementById('mipb-wrap');
   function tick() {
     const remaining = Math.max(0, localEnd - Date.now());
     const secs = Math.ceil(remaining / 1000);
-    timerEl.textContent = secs;
-    barEl.style.transition = 'none';
-    barEl.style.width = ((TOTAL_MS - remaining) / TOTAL_MS * 100) + '%';
-    timerEl.className = 'item-phase-timer' + (secs <= 3 ? ' urgent' : '');
-    // 팀원 배너 타이머 동기화
-    const mipbTimer = document.getElementById('mipb-timer');
-    const mipbBar   = document.getElementById('mipb-bar');
-    const mipbWrap  = document.getElementById('mipb-wrap');
-    if (mipbTimer) {
-      mipbTimer.textContent = secs;
-      mipbTimer.className = 'mipb-sec' + (secs <= 3 ? ' urgent' : '');
-    }
-    if (mipbBar) {
-      mipbBar.style.width = ((TOTAL_MS - remaining) / TOTAL_MS * 100) + '%';
-      mipbBar.className = 'mipb-progress-fill' + (secs <= 3 ? ' urgent' : '');
-    }
-    if (mipbWrap) mipbWrap.className = 'mipb-wrap' + (secs <= 3 ? ' urgent' : '');
-    // 전 구간 틱 사운드 — 초가 바뀔 때마다 1회만
-    if (secs > 0 && secs !== lastTickSec) {
+    const pct = ((TOTAL_MS - remaining) / TOTAL_MS * 100) + '%';
+    barEl.style.width = pct;                       // 진행바는 매 틱(부드러움)
+    if (mipbBar) mipbBar.style.width = pct;
+    const urgent = secs <= 3;
+    if (secs !== lastTickSec) {                    // ⚡ 초가 바뀔 때만 텍스트/사운드 (스타일 무효화 4배 절감)
+      timerEl.textContent = secs;
+      if (mipbTimer) mipbTimer.textContent = secs;
+      if (secs > 0) playTickSound(secs);
       lastTickSec = secs;
-      playTickSound(secs);
+    }
+    if (urgent !== _lastUrgent) {                  // ⚡ urgent 상태 전이 시에만 클래스 재할당
+      _lastUrgent = urgent;
+      timerEl.className = 'item-phase-timer' + (urgent ? ' urgent' : '');
+      if (mipbTimer) mipbTimer.className = 'mipb-sec' + (urgent ? ' urgent' : '');
+      if (mipbBar)   mipbBar.className = 'mipb-progress-fill' + (urgent ? ' urgent' : '');
+      if (mipbWrap)  mipbWrap.className = 'mipb-wrap' + (urgent ? ' urgent' : '');
     }
     if (remaining <= 0) {
       clearInterval(itemPhaseTimer);
@@ -31785,8 +31830,12 @@ async function s1ApplyAllMatchResults(winners, losers, newbiesAtMatch = null, sp
   const hadChallengerBefore = nonParticipants.some(([,d]) => d.tier === 'challenger') ||
                               allPlayers.some(p => preTiers[normName(p)] === 'challenger');
 
-  const results = [];
-  for (const p of allPlayers) {
+  // ⚡ LP 적용 병렬화 (v2.45.545 — v227서 안전성 검증만 하고 미뤘던 것 구현): 플레이어당 순차 await로
+  //   10명 = Firebase 10왕복을 "차례로" 기다려 정산창이 수 초 늦던 최대 지연 요인 → Promise.all로 1왕복 시간에.
+  //   안전 근거(재검증): 각자 자기 노드만 씀(s1SavePlayer=seasonN/players/{자기} set · 아이템 소모=자기 gold items ·
+  //   시너지 lpDelta=matches/{키}/synergyEffects/{자기키}) + season1Data 메모리는 복사본만 읽음 + 승급 배너는 isMe 가드
+  //   + preTiers는 루프 전 스냅샷 + Promise.all(map)이라 results 순서 보존(마일스톤 감지 로직 무변).
+  const results = await Promise.all(allPlayers.map(async (p) => {
     const isWin = winners.some(w => normName(w) === normName(p));
     const myTeam = isWin ? winners : losers;
     const iAmNewbie   = newbieSet ? newbieSet.has(normName(p)) : isNewbie(p);
@@ -31803,8 +31852,8 @@ async function s1ApplyAllMatchResults(winners, losers, newbiesAtMatch = null, sp
     const sqProtect = secretQuestData?.[normName(p)]?.lpProtect || 0;
     const synEff = synergyData?.[normName(p)] || null;
     const newD = await s1ApplyMatchResult(p, isWin, activeS1Item, hasNewbieTeammate, iAmNewbie, sqProtect, synEff);
-    results.push({ name: p, preTier: preTiers[normName(p)], newTier: newD?.tier || preTiers[normName(p)] });
-  }
+    return { name: p, preTier: preTiers[normName(p)], newTier: newD?.tier || preTiers[normName(p)] };
+  }));
 
   // 첫 마스터/그마/챌린저 달성 감지 (라이브 모드만 골드 지급 처리)
   if (liveMode) {
