@@ -7024,7 +7024,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.553';
+const APP_VERSION = 'v2.45.554';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7033,6 +7033,9 @@ const APP_VERSION = 'v2.45.553';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.554', date: '2026-07-03', changes: [
+    { tag: 'fix', text: '🗡️ [투기장 전투] 경합 연출 정리 — 그동안 양쪽 다 자기 스킬 공격 모션이 나왔는데, 이제 이긴 쪽만 스킬로 공격하고 진 쪽은 맞는 모션이 나와요(예: 내 Q가 상대 W를 이기면 상대는 W가 아니라 피격 모션). 막히면(비김) 양쪽이 부딪혀요.' },
+  ]},
   { ver: 'v2.45.553', date: '2026-07-03', changes: [
     { tag: 'improve', text: '🗡️ [투기장 전투] Q·W·E 스킬마다 다른 모션 — 그동안 세 스킬이 다 같은 평타였는데, 이제 챔피언별 진짜 스킬 시전 모션(Spell1/2/3 등)이 나와요. 피격도 몸통이 밀리는 데 더해 고개·상체가 뒤로 젖혀지는 움찔이 추가됐어요. (없는 챔프는 평타로 안전 폴백)' },
   ]},
@@ -35872,14 +35875,15 @@ window.openArenaBattle=function(sandbox, opts){
       setHp(-1,100); setHp(1,100);
       const _t=[]; const T=(ms,fn)=>_t.push(setTimeout(()=>{try{fn();}catch(_){}},ms));
       const CLASH=1700, sMy=_champSkills(myFighter()), sOp=_champSkills(opp.fighter);
-      clashRes.forEach((c,i)=>{ const b=i*CLASH, btn=pickBtns[i];
-        T(b, ()=>{ if(btn){ btn.classList.remove('won','lost','tied'); btn.classList.add('active'); } floatAt(-1, `<b>${c.my}</b> ${escHtml(sMy[c.my]||'')}`, 'me'); _arena3dLunge(-1, c.my); });   // ① 내 스킬 i (스킬별 시전 모션·반복스킬은 이전결과 지움)
-        T(b+560, ()=>{ const h=btn&&btn.querySelector('.ask-hint'); if(h) h.innerHTML=`vs <b>${c.op}</b> ${escHtml(sOp[c.op]||'')}`; floatAt(1, `<b>${c.op}</b> ${escHtml(sOp[c.op]||'')}`, 'opp'); _arena3dLunge(1, c.op); });   // ② 상대 스킬 i (스킬별 시전 모션)
-        T(b+1120, ()=>{ const winSide=c.a>0?-1:c.a<0?1:0; bonus+=c.a*ARENA_CLASH_ADV;   // ③ 판정 + 승자 가격 + 패자 체력 감소
+      clashRes.forEach((c,i)=>{ const b=i*CLASH, btn=pickBtns[i]; const winSide=c.a>0?-1:c.a<0?1:0;   // c.a>0=내가 이김(-1)·<0=상대 이김(+1)·0=막힘
+        T(b, ()=>{ if(btn){ btn.classList.remove('won','lost','tied'); btn.classList.add('active'); } floatAt(-1, `<b>${c.my}</b> ${escHtml(sMy[c.my]||'')}`, 'me'); });   // ① 내 스킬 라벨(정보)
+        T(b+420, ()=>{ const h=btn&&btn.querySelector('.ask-hint'); if(h) h.innerHTML=`vs <b>${c.op}</b> ${escHtml(sOp[c.op]||'')}`; floatAt(1, `<b>${c.op}</b> ${escHtml(sOp[c.op]||'')}`, 'opp'); });   // ② 상대 스킬 라벨(정보)
+        T(b+840, ()=>{ if(winSide===0){ _arena3dLunge(-1,c.my); _arena3dLunge(1,c.op); } else _arena3dLunge(winSide, winSide<0?c.my:c.op); });   // ③ 격돌: 이긴 쪽만 스킬 공격(막힘=양쪽 시전) — 진 쪽은 공격 안 함
+        T(b+1180, ()=>{ bonus+=c.a*ARENA_CLASH_ADV;   // ④ 판정: 진 쪽 피격 모션 + 체력 감소
           if(btn){ btn.classList.remove('active'); btn.classList.add(c.a>0?'won':c.a<0?'lost':'tied'); const h=btn.querySelector('.ask-hint'); if(h) h.innerHTML=c.a>0?'적중 성공 +5%':c.a<0?'적중 실패 −5%':'막힘'; }
-          if(winSide!==0){ _arena3dLunge(winSide, winSide<0?c.my:c.op); setTimeout(()=>{ _arena3dHurt(-winSide); hitFx(-winSide);   // 승자 스킬로 재가격 + 패자 피격 반동(즉사 방지=하한 8)
-            if(winSide<0){ oppHp=Math.max(8, oppHp-CLASH_DMG); setHp(1, oppHp); } else { myHp=Math.max(8, myHp-CLASH_DMG); setHp(-1, myHp); } },300); }
-          else { setTimeout(()=>{ myHp=Math.max(8,myHp-CLASH_TIE); oppHp=Math.max(8,oppHp-CLASH_TIE); setHp(-1,myHp); setHp(1,oppHp); hitFx(-1); hitFx(1); _arena3dHurt(-1,0.45); _arena3dHurt(1,0.45); },300); }   // 비김(막힘)=양쪽 소량+가벼운 방어 브레이스
+          if(winSide!==0){ _arena3dHurt(-winSide); hitFx(-winSide);   // 진 쪽 = 맞는 모션(자기 스킬 모션 아님)
+            if(winSide<0){ oppHp=Math.max(8, oppHp-CLASH_DMG); setHp(1, oppHp); } else { myHp=Math.max(8, myHp-CLASH_DMG); setHp(-1, myHp); } }
+          else { myHp=Math.max(8,myHp-CLASH_TIE); oppHp=Math.max(8,oppHp-CLASH_TIE); setHp(-1,myHp); setHp(1,oppHp); hitFx(-1); hitFx(1); _arena3dHurt(-1,0.45); _arena3dHurt(1,0.45); }   // 막힘=양쪽 소량+가벼운 브레이스
           floatAt(0, c.a>0?'적중 성공 +5%':c.a<0?'적중 실패 −5%':'막힘', c.a>0?'good':c.a<0?'bad':''); });
       });
       T(3*CLASH+200, ()=>{ finishBattle(bonus, clashRes); });
