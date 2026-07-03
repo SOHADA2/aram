@@ -161,7 +161,7 @@
   <span class="pill">수집 <b id="coll">0/7</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 162</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 163</span>
   <div id="bgm-ctrl" style="display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0;background:rgba(10,10,18,.55);padding:4px 9px;border-radius:16px;border:1px solid #3a3a4a;">
     <button id="bgm-spk" onclick="_bgmMute()" title="음악 켜기/끄기" style="background:none;border:none;font-size:16px;cursor:pointer;padding:0;line-height:1;">🔊</button>
     <input id="bgm-vol" type="range" min="0" max="100" value="45" oninput="_bgmSetVol(this.value)" title="음량" style="width:62px;accent-color:#ffd24a;cursor:pointer;">
@@ -938,6 +938,50 @@ function _staffUpdateLux(dt){
       _updStartBtn(); if(typeof updDailyHud==='function') updDailyHud();
       showResult('✨ 정리 완료! 새 배치로 도전하세요','#7dff9a'); } }
 }
+// ── 📱 폰용 직원 튜너 (콘솔 없이 화면서 조절) — BUILD 글자 3번 탭으로 열림·일반 플레이어엔 안 뜸 ──
+let _staffFreeze=false;
+const _STAFF_KEYS=[['front',0.2],['baseY',0.1],['h',0.2],['reachSh',0.1],['reachShZ',0.1],['reachEl',0.1],['lean',0.05],['stir',0.05]];
+function _staffTunerCss(){ if(document.getElementById('staff-tuner-css'))return; const s=document.createElement('style'); s.id='staff-tuner-css';
+  s.textContent=`#staff-tuner{position:fixed;left:6px;right:6px;bottom:6px;z-index:99999;background:rgba(12,14,22,.97);border:1px solid #4a6;border-radius:12px;padding:9px 11px;font:12px/1.3 sans-serif;color:#dfe;max-height:64vh;overflow:auto;display:none;box-shadow:0 6px 24px rgba(0,0,0,.5);}
+  #staff-tuner.on{display:block;}
+  #staff-tuner h4{margin:0 0 7px;font-size:13px;color:#7dff9a;display:flex;justify-content:space-between;align-items:center;}
+  #staff-tuner .st-row{display:flex;align-items:center;gap:7px;margin:4px 0;}
+  #staff-tuner .st-row label{flex:0 0 76px;color:#9fb;font-size:11.5px;}
+  #staff-tuner .st-row .st-v{flex:1;text-align:center;font-family:monospace;color:#ffe39a;}
+  #staff-tuner .st-row button{min-width:40px;padding:8px 0;background:#243;border:1px solid #6a7;border-radius:8px;color:#dfe;font-size:16px;}
+  #staff-tuner .st-acts{display:flex;gap:6px;flex-wrap:wrap;margin:7px 0;}
+  #staff-tuner .st-acts button{flex:1 1 30%;padding:9px 4px;background:#2a3550;border:1px solid #57e;border-radius:8px;color:#cfe;font-size:12px;}
+  #staff-tuner .st-x{padding:3px 9px;background:#432;border:1px solid #a66;border-radius:7px;color:#fdd;font-size:13px;}
+  #staff-tuner textarea{width:100%;height:40px;font-family:monospace;font-size:10px;background:#0a0c12;color:#9fb;border:1px solid #344;border-radius:6px;margin-top:4px;box-sizing:border-box;}`;
+  document.head.appendChild(s); }
+function _staffTunerRefresh(){ _STAFF_KEYS.forEach(([k])=>{ const v=document.getElementById('stv-'+k); if(v)v.textContent=(+_STAFF[k]).toFixed(2); }); const o=document.getElementById('st-out'); if(o)o.value=JSON.stringify(_STAFF); }
+function _staffFreezeToggle(){ _staffFreeze=!_staffFreeze;
+  if(_staffFreeze){ if(state!=='IDLE'){ _staffFreeze=false; showResult('게임 끝나고 고정하세요','#ffb86b'); return; } _buildStaff(); _staff.visible=true; _staffAnim=null;
+    if(_staff.userData.kind==='lux'){ const ud=_glassDoor?_glassDoor.userData:{CW:3.6,CD:3.6}; _staff.rotation.y=_STAFF.front+_STAFF.faceRum; _staff.position.set(ud.CW*0.42,_STAFF.baseY,ud.CD+1.3); _staffPlayClip(_STAFF.idle,0); }
+    showResult('🧊 뒤적임 포즈 고정 — 팔/방향 조절','#9fd6ff'); }
+  else { if(_staff){ _staff.visible=false; if(_staff.userData.kind==='lux'){ _staffReach(0,0); _staffLean(0);} } showResult('고정 해제','#9fd6ff'); }
+  const fb=document.getElementById('st-freeze'); if(fb) fb.style.background=_staffFreeze?'#175':'#2a3550'; }
+function _staffTunerToggle(){ _staffTunerCss(); let p=document.getElementById('staff-tuner');
+  if(!p){ p=document.createElement('div'); p.id='staff-tuner';
+    p.innerHTML=`<h4>🧑‍🔧 직원 튜너 <span class="st-x" id="st-x">닫기 ✕</span></h4>
+      <div class="st-acts"><button id="st-freeze">🧊 포즈 고정</button><button id="st-replay">🚶 다시 부르기</button><button id="st-flip">↩️ 방향 뒤집기</button></div>
+      <div id="st-rows"></div>
+      <div class="st-acts"><button id="st-copy">📋 값 복사(제게 붙여넣기)</button></div>
+      <textarea id="st-out" readonly></textarea>`;
+    document.body.appendChild(p);
+    document.getElementById('st-rows').innerHTML=_STAFF_KEYS.map(([k])=>`<div class="st-row"><label>${k}</label><button data-k="${k}" data-d="-1">−</button><span class="st-v" id="stv-${k}">0</span><button data-k="${k}" data-d="1">+</button></div>`).join('');
+    p.querySelectorAll('.st-row button').forEach(b=>b.onclick=()=>{ const k=b.dataset.k, step=(_STAFF_KEYS.find(x=>x[0]===k)||[0,0.1])[1]; const o={}; o[k]=+(+_STAFF[k]+(+b.dataset.d)*step).toFixed(3); _staffTune(o); _staffTunerRefresh(); });
+    document.getElementById('st-x').onclick=()=>p.classList.remove('on');
+    document.getElementById('st-freeze').onclick=_staffFreezeToggle;
+    document.getElementById('st-replay').onclick=()=>{ _staffLastAt=0; _staffFreeze=false; if(state==='IDLE') callStaff(); else showResult('게임 끝나고 눌러요','#ffb86b'); };
+    document.getElementById('st-flip').onclick=()=>{ _staffTune({front:+(_STAFF.front+Math.PI).toFixed(3)}); _staffTunerRefresh(); };
+    document.getElementById('st-copy').onclick=()=>{ const o=document.getElementById('st-out'); o.select(); try{navigator.clipboard.writeText(o.value);}catch(e){} try{document.execCommand('copy');}catch(e){} showResult('📋 복사됨 — 채팅에 붙여넣어 주세요','#7dff9a'); };
+  }
+  p.classList.toggle('on'); _staffTunerRefresh(); }
+window._staffTuner=_staffTunerToggle;   // 콘솔 폴백
+(function(){ const bind=()=>{ const bp=document.getElementById('build-pill'); if(!bp) return; bp.style.cursor='pointer'; let n=0,t0=0;
+  bp.addEventListener('click',()=>{ const now=performance.now(); if(now-t0>700)n=0; t0=now; if(++n>=3){ n=0; _staffTunerToggle(); } }); };
+  if(document.getElementById('build-pill')) bind(); else window.addEventListener('DOMContentLoaded',bind); })();
 window.callStaff = function(){
   Sfx.unlock();
   if(state!=='IDLE'){ showResult('게임 중엔 부를 수 없어요 🙅','#ffb86b'); return; }
@@ -955,6 +999,9 @@ window.callStaff = function(){
   showResult('🧑‍🔧 직원을 불렀어요!','#9fd6ff');
 };
 function _staffUpdate(dt){
+  if(_staffFreeze && _staff && _staff.userData.kind==='lux'){   // 🧊 튜너 포즈 고정 — 뒤적임 자세로 멈춰 팔/방향 실시간 조절
+    _staff.userData.mixer.update(dt); _staff.rotation.y=_STAFF.front+_STAFF.faceRum; _staff.position.y=_STAFF.baseY;
+    _staffReach(1, performance.now()/1000); _staffLean(1); return; }
   if(!_staffAnim || !_staff) return;
   if(_staff.userData.kind==='lux') return _staffUpdateLux(dt);   // 🧑‍🔧 럭스(GLB) 경로
   const A=_staffAnim; A.t+=dt;
