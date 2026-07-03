@@ -39,6 +39,16 @@
   @keyframes startPulse{0%,100%{transform:scale(1);box-shadow:0 6px 22px rgba(240,200,90,.5);}50%{transform:scale(1.04);box-shadow:0 9px 30px rgba(240,200,90,.75);}}
   #controls.idle #start-btn{display:flex;}
   #controls.idle #stick-base,#controls.idle .hint,#controls.idle .btns{display:none;}
+  #controls.idle{flex-direction:column;align-items:center;}   /* IDLE = 코인줄/START/직원버튼 세로 스택(넓은 화면서 START 옆에 붙는 것 방지) */
+  #controls.idle #start-btn{width:100%;}
+  /* 🧑‍🔧 직원 부르기 — IDLE(START 대기)에서만 노출. 게임 껐다켜기 리셋을 정식 기능으로 */
+  #staff-btn{display:none;flex:0 0 auto;margin:0 auto;padding:8px 16px;border:1px solid rgba(255,255,255,0.16);border-radius:12px;
+    background:#23232f;color:#dfe3ee;font-family:inherit;font-size:12.5px;font-weight:800;cursor:pointer;box-shadow:none;
+    flex-direction:column;align-items:center;gap:1px;}
+  #staff-btn .sbf{font-size:9.5px;font-weight:600;opacity:.55;letter-spacing:0;}
+  #staff-btn:disabled{opacity:.4;cursor:progress;}
+  #controls.idle #staff-btn{display:flex;}
+  body.is-touch #staff-btn{font-size:11.5px;padding:6px 13px;}
   #coin-fx{position:fixed;left:50%;top:44%;width:30px;height:30px;margin-left:-15px;border-radius:50%;z-index:9;opacity:0;pointer-events:none;
     background:radial-gradient(circle at 36% 30%,#fff0c0,#e6b23a 55%,#a9781c);box-shadow:0 0 12px rgba(240,200,90,.8),inset 0 -3px 5px rgba(0,0,0,.35),inset 0 2px 3px rgba(255,255,255,.5);}
   #coin-fx.go{animation:coinDrop .72s cubic-bezier(.5,0,.7,1) forwards;}
@@ -151,7 +161,7 @@
   <span class="pill">수집 <b id="coll">0/7</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 159</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 160</span>
   <div id="bgm-ctrl" style="display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0;background:rgba(10,10,18,.55);padding:4px 9px;border-radius:16px;border:1px solid #3a3a4a;">
     <button id="bgm-spk" onclick="_bgmMute()" title="음악 켜기/끄기" style="background:none;border:none;font-size:16px;cursor:pointer;padding:0;line-height:1;">🔊</button>
     <input id="bgm-vol" type="range" min="0" max="100" value="45" oninput="_bgmSetVol(this.value)" title="음량" style="width:62px;accent-color:#ffd24a;cursor:pointer;">
@@ -162,6 +172,7 @@
 <div id="controls" class="idle">
   <div class="cb-info" id="cb-info">🪙 0</div>
   <button id="start-btn" onclick="startGame()">🪙 START<span class="sb-sub">코인 1개 · 1게임</span></button>
+  <button id="staff-btn" onclick="callStaff()">🧑‍🔧 직원 부르기<span class="sbf">인형 다시 정리 (무료)</span></button>
   <div id="stick-base"><div id="stick"><div id="knob"></div></div></div>
   <div class="hint">
     🖥️ 이동 <b>WASD</b>·방향키 · 집기 <b>Space</b> · 리셋 <b>R</b> · 시점 <b>Q</b>/<b>E</b> · 들이대기 <b>F</b><br>
@@ -252,6 +263,9 @@ const Sfx = (()=>{
     bgmNote(f,g){ tone(f,0.22,'triangle',g||0.045); },                                   // 🎵 BGM 한 음(부드러운 저음량)
     charge(){ tone(150,1.55,'sawtooth',0.1,820); tone(300,1.55,'square',0.045,1640); for(let i=0;i<8;i++) tone(700+i*120,0.05,'square',0.1,null,0.15+i*0.18); },  // ⚡ 강화 충전 상승음+가속 틱
     boom(){ tone(95,0.5,'sine',0.42,42); tone(220,0.3,'square',0.2,80); noise(0.32,0.28,700); },  // 💥 성공 임팩트
+    staffBell(){ tone(880,0.09,'triangle',0.22,880); tone(1320,0.14,'triangle',0.18,1320,0.09); },   // 🧑‍🔧 직원 호출 벨 띵동
+    staffDoor(open){ if(open){ tone(220,0.34,'sawtooth',0.13,85); noise(0.1,0.08,900); } else { tone(120,0.16,'sawtooth',0.13,70); tone(520,0.06,'square',0.15,420,0.14); noise(0.05,0.1,1200); } },   // 🚪 유리문 끼익 / 닫힘 탁
+    staffRummage(){ noise(0.13,0.15,550); tone(170+Math.random()*180,0.09,'sine',0.07,110); },        // 🧸 뒤적뒤적 부스럭
   };
 })();
 addEventListener('pointerdown', ()=>{ Sfx.unlock(); _bgmStart(); }, {passive:true});
@@ -470,11 +484,14 @@ function makeEmblem(emoji, bg, ring){
   const t=new THREE.CanvasTexture(c); t.anisotropy=8; return t;
 }
 // ── 🪟 유리 박스(헥스텍 골드 프레임 + 네온 트림) ──
+let _glassDoor = null;   // 🚪 앞 유리판 = 여닫이문(🧑‍🔧 직원부르기 연출용) — 왼쪽 기둥 힌지 피벗
 (function buildCabinet(){
   const CW = BIN.x+0.55, CH = 8.4, CD = BIN.z+0.55;   // 천장 ↑(→8.4). 집게·레일은 그대로
   const glass = new THREE.MeshPhysicalMaterial({color:0xcfeaff, transparent:true, opacity:0.05, roughness:0.0, metalness:0, side:THREE.DoubleSide, depthWrite:false, clearcoat:1, clearcoatRoughness:0});
   const panel=(w,h,d,x,y,z)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),glass); m.position.set(x,y,z); scene.add(m); };
-  panel(CW*2, CH, 0.04,  0, CH/2,  CD); panel(CW*2, CH, 0.04,  0, CH/2, -CD);
+  _glassDoor = new THREE.Group(); _glassDoor.position.set(-CW,0,CD); _glassDoor.userData={CW,CH,CD}; scene.add(_glassDoor);
+  { const fm=new THREE.Mesh(new THREE.BoxGeometry(CW*2,CH,0.04),glass); fm.position.set(CW,CH/2,0); _glassDoor.add(fm); }   // 앞판(문짝) — 피벗 기준 +x로 뻗음, rotation.y<0 = 바깥쪽으로 열림
+  panel(CW*2, CH, 0.04,  0, CH/2, -CD);
   panel(0.04, CH, CD*2,  CW, CH/2, 0);  panel(0.04, CH, CD*2, -CW, CH/2, 0);
   const goldMat = new THREE.MeshStandardMaterial({color:GOLD, roughness:0.22, metalness:0.95});
   const post=(x,z)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(0.22,CH,0.22),goldMat); m.position.set(x,CH/2,z); m.castShadow=true; scene.add(m); };
@@ -786,6 +803,89 @@ function resetPrizes(){
   state='IDLE'; held=null; grabConstraint=null; _grabbing=null; _collectTouch=false; _lowerContactY=null; _prongTouch.clear(); if(revealAnim){scene.remove(revealAnim.mesh);revealAnim=null;} _loadCollectionTrophies(); updHud(); if(typeof updControls==='function') updControls();
 }
 
+// ══════════ 🧑‍🔧 직원 부르기 — "껐다 켜면 리셋"을 정식 기능으로(유리문 열고 뒤적뒤적 → 새 배치) ══════════
+// IDLE에서만 가능(코인 낸 게임 중엔 불가) + 쿨다운. 연출: 입장 → 문 열림 → 물리 임펄스로 인형 실제로 뒤섞기 → 혼돈 속 resetPrizes()(재배치가 "정리"로 보임) → 문 닫고 퇴장
+const STAFF_CD_MS = 25000;
+let _staff=null, _staffAnim=null, _staffLastAt=0;
+const _staffEase=k=>k<0.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+function _buildStaff(){
+  if(_staff) return _staff;
+  const g=new THREE.Group();
+  const suit=new THREE.MeshStandardMaterial({color:0x2a3040,roughness:0.8});
+  const skin=new THREE.MeshStandardMaterial({color:0xe8b98a,roughness:0.7});
+  const goldm=new THREE.MeshStandardMaterial({color:0xd9a726,roughness:0.4,metalness:0.6});
+  const M=(geo,mat,x,y,z)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);g.add(m);return m;};
+  M(new THREE.BoxGeometry(0.62,1.7,0.44),suit,0,3.15,0);                            // 몸통(작업복)
+  M(new THREE.BoxGeometry(0.66,0.16,0.48),goldm,0,3.55,0);                          // 허리 벨트(골드)
+  M(new THREE.SphereGeometry(0.4,18,14),skin,0,4.55,0);                             // 머리
+  M(new THREE.CylinderGeometry(0.44,0.44,0.24,16),goldm,0,4.94,0);                  // 모자(가게 골드톤)
+  M(new THREE.BoxGeometry(0.56,0.06,0.5),goldm,0,4.86,-0.32);                       // 챙(기계 쪽=-z)
+  M(new THREE.BoxGeometry(0.26,1.6,0.26),suit,-0.2,1.5,0);                          // 다리
+  M(new THREE.BoxGeometry(0.26,1.6,0.26),suit, 0.2,1.5,0);
+  { const al=new THREE.Mesh(new THREE.BoxGeometry(0.2,1.4,0.2),suit); al.position.set(-0.51,3.3,0); g.add(al); }   // 왼팔(내림)
+  const armR=new THREE.Group(); armR.position.set(0.51,3.95,0); g.add(armR);        // 오른팔 = 뒤적이는 팔(어깨 피벗)
+  { const ar=new THREE.Mesh(new THREE.BoxGeometry(0.2,1.5,0.2),suit); ar.position.y=-0.68; armR.add(ar);
+    const hand=new THREE.Mesh(new THREE.SphereGeometry(0.17,10,8),skin); hand.position.y=-1.5; armR.add(hand); }
+  g.userData={armR};
+  g.visible=false; scene.add(g);
+  _staff=g; return g;
+}
+window.callStaff = function(){
+  Sfx.unlock();
+  if(state!=='IDLE'){ showResult('게임 중엔 부를 수 없어요 🙅','#ffb86b'); return; }
+  if(!_modelsReady || _staffAnim) return;
+  const left = STAFF_CD_MS-(Date.now()-_staffLastAt);
+  if(left>0){ Sfx.error(); showResult('직원이 쉬는 중… '+Math.ceil(left/1000)+'초 뒤에 불러주세요 🧑‍🔧','#ffd24a'); return; }
+  _staffLastAt=Date.now();
+  _buildStaff().visible=true;
+  const sb=document.getElementById('staff-btn'); if(sb) sb.disabled=true;
+  const stb=document.getElementById('start-btn'); if(stb) stb.disabled=true;
+  Sfx.staffBell();
+  _postParent('log',{ev:'staff'});   // 📋 역추적(직원 호출 = 배치 새로고침)
+  _staffAnim={t:0, phase:'in', didReset:false, rummageAt:0};
+  showResult('🧑‍🔧 직원을 불렀어요!','#9fd6ff');
+};
+function _staffUpdate(dt){
+  if(!_staffAnim || !_staff) return;
+  const A=_staffAnim; A.t+=dt;
+  const ud=_glassDoor?_glassDoor.userData:{CW:3.6,CH:8.4,CD:3.6};
+  const armR=_staff.userData.armR;
+  const inX=ud.CW*0.42, inZ=ud.CD+1.3, offX=ud.CW+6;   // 등장 위치(문 오른쪽 앞)·화면 밖
+  if(A.phase==='in'){ const k=Math.min(1,A.t/0.9);
+    _staff.position.set(offX-(offX-inX)*_staffEase(k), Math.abs(Math.sin(A.t*11))*0.09, inZ);   // 걸어옴(콩콩)
+    _staff.rotation.y=Math.PI;   // 기계 쪽(-z)을 봄 = 카메라엔 등
+    if(k>=1){ A.phase='open'; A.t=0; Sfx.staffDoor(true); }
+  } else if(A.phase==='open'){ const k=Math.min(1,A.t/0.7);
+    if(_glassDoor) _glassDoor.rotation.y=-1.25*_staffEase(k);   // 🚪 바깥쪽으로 스윙
+    if(k>=1){ A.phase='rummage'; A.t=0; }
+  } else if(A.phase==='rummage'){
+    const sw=Math.sin(A.t*9);
+    _staff.rotation.x=-0.16;                                    // 앞으로 숙임
+    armR.rotation.x=-1.75+Math.cos(A.t*7)*0.35;                 // 팔 통 안으로 뻗어 휘휘
+    armR.rotation.z=sw*0.3;
+    _staff.rotation.y=Math.PI+sw*0.05;
+    if(!A.didReset && A.t-A.rummageAt>0.28){ A.rummageAt=A.t; Sfx.staffRummage();
+      for(const p of prizes){ if(p.won) continue; p.body.wakeUp();   // 🌪️ 실제 물리로 뒤섞기
+        p.body.velocity.set((Math.random()-0.5)*5, 1.2+Math.random()*2.4, (Math.random()-0.5)*5);
+        p.body.angularVelocity.set((Math.random()-0.5)*6,(Math.random()-0.5)*6,(Math.random()-0.5)*6); } }
+    if(!A.didReset && A.t>1.6){ A.didReset=true; resetPrizes(); }   // 혼돈이 절정일 때 재배치 → 새 인형들이 떨어지며 "정리된 새 더미"로 착지
+    if(A.t>=2.5){ A.phase='withdraw'; A.t=0; }
+  } else if(A.phase==='withdraw'){ const k=Math.min(1,A.t/0.45);
+    armR.rotation.x=-1.75*(1-k); armR.rotation.z*=(1-k); _staff.rotation.x=-0.16*(1-k); _staff.rotation.y=Math.PI;
+    if(k>=1){ A.phase='close'; A.t=0; Sfx.staffDoor(false); }
+  } else if(A.phase==='close'){ const k=Math.min(1,A.t/0.6);
+    if(_glassDoor) _glassDoor.rotation.y=-1.25*(1-_staffEase(k));
+    if(k>=1){ A.phase='out'; A.t=0; }
+  } else if(A.phase==='out'){ const k=Math.min(1,A.t/0.9);
+    _staff.position.set(inX+(offX-inX)*_staffEase(k), Math.abs(Math.sin(A.t*11))*0.09, inZ);
+    if(k>=1){ _staff.visible=false; _staffAnim=null;
+      if(_glassDoor) _glassDoor.rotation.y=0;
+      const sb=document.getElementById('staff-btn'); if(sb) sb.disabled=false;
+      _updStartBtn(); if(typeof updDailyHud==='function') updDailyHud();
+      showResult('✨ 정리 완료! 새 배치로 도전하세요','#7dff9a');
+    } }
+}
+
 // ══════════ 집게 ══════════
 const clawBody = new CANNON.Body({ mass:0, type:CANNON.Body.KINEMATIC, material:mClaw,
   shape:new CANNON.Box(new CANNON.Vec3(0.35,0.35,0.35)) });
@@ -1066,6 +1166,7 @@ let last=performance.now();
 function loop(now){
   requestAnimationFrame(loop);
   const dt = Math.min(0.033,(now-last)/1000); last=now;
+  _staffUpdate(dt);   // 🧑‍🔧 직원 부르기 연출(입장→문→뒤적뒤적→퇴장)
 
   // 🔊 상태 전이 효과음 + ⏱️ 자동 집기 타이머 재무장
   if(_lastState !== state){
