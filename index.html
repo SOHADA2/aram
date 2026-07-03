@@ -7024,7 +7024,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.545';
+const APP_VERSION = 'v2.45.546';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7033,6 +7033,10 @@ const APP_VERSION = 'v2.45.545';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.546', date: '2026-07-03', changes: [
+    { tag: 'improve', text: '🏠 정산창 확인 후 메인 화면으로 — 팀원은 정산창에서 확인을 누르면 지난 판 팀 결과가 아니라 내 대시보드(LP·전적·패스가 보이는 메인 대기화면)로 돌아가요. 끝난 판 화면이 남아 헷갈리던 문제 해소. 진행자가 재대결/새 팀을 만들면 결과 화면이 자동으로 다시 열려요. (진행자 화면은 저장 완료·재대결 버튼이 있어 기존 그대로)' },
+    { tag: 'fix', text: '⚙️ 타이머(팀 결정 대기) 중 시너지/강철심장 변경 아코디언이 저절로 닫히던 문제 수정 — 팀원들이 아이템을 살 때마다 오는 데이터 동기화가 화면을 통째로 다시 그려 열어둔 목록이 닫혔어요. 이제 내용이 그대로면 다시 안 그리고, 다시 그릴 때도 열림 상태를 기억해 복원해요(하단 배너 + 메인 대기화면의 ⚔️전투 준비 카드 둘 다). 아코디언 여닫을 때 렉도 같이 해소.' },
+  ] },
   { ver: 'v2.45.545', date: '2026-07-03', changes: [
     { tag: 'improve', text: '⚡ 팀 구성·타이머 시작 버벅임 대폭 개선 — ①팀 결과 카드가 케미/웬수 링 계산을 위해 경기 기록 전체를 ~90번 훑던 것을 1번만 훑도록 개편(같은 결과·34배 빨라짐) ②팀 발표·팀 카드의 TOP3 배지가 이름마다 순위 전체를 재계산(렌더당 20회+)하던 것을 캐시로 1회만 ③아이템 타이머(15초)가 0.25초마다 화면 요소를 무조건 다시 쓰던 것을 값이 바뀔 때만 쓰도록. 팀짜기→발표→타이머 구간이 눈에 띄게 부드러워져요.' },
     { tag: 'improve', text: '⚡ 정산창 뜨는 속도 대폭 단축 — 경기 저장 시 참가자 10명의 LP 반영을 한 명씩 차례로 기다리던 것(서버 왕복 10번 순차)을 전원 동시에 처리하도록 병렬화. 투표 완료 후 "정산 계산 중"이 길게 걸리던 시간이 크게 줄어요. (각자 자기 데이터만 기록해 서로 충돌 없음 — 결과·순서 동일)' },
@@ -13552,7 +13556,9 @@ function applySessionData(data) {
       try { updateMemberModeDisplay(); } catch (_) {}
     } else {
     // 팀 멤버가 바뀐 경우에만 결과 DOM 재생성 (MVP·매너 투표로 인한 불필요한 재렌더 방지)
-    if (teamsChanged) {
+    // + 팀은 같아도(재대결) 결과 화면이 닫혀 있으면 다시 열기 — 정산 확인 후 팀원은 메인으로 복귀시키므로(v2.45.546) 재개 필요
+    const _resultHidden = document.getElementById('result-section')?.style.display !== 'block';
+    if (teamsChanged || _resultHidden) {
       renderResult();
       // 팀 구성 완료 시 팀구성 탭이 아닌 화면에 있으면 자동 이동 + 결과 카드로 스크롤
       const teamTabEl  = document.getElementById('tab-team');
@@ -16952,6 +16958,7 @@ function playTaEntrance(el, duration) {
 function renderResult() {
   const section=document.getElementById('result-section');
   section.style.display='block';
+  try { updateMemberModeDisplay(); } catch(_) {}   // 팀원 대기 대시보드 즉시 숨김 — 결과 화면과 겹침 방지 (v2.45.546)
   section.scrollIntoView({behavior:'smooth',block:'start'});
   // 새 결과 렌더 시 승리 버튼·저장 버튼 복원
   document.querySelector('.winner-btns').style.display='';
@@ -17081,14 +17088,24 @@ function renderQuickItemBar() {
     _mipbRenderFx('mipb-fx');
   }
 }
+// ⚡ 재렌더 헬퍼 — 같은 HTML이면 skip(gold 동기화 폭주 시 불필요 재생성 방지) + 열려있던 아코디언(.qib-acc.open) 복원 (v2.45.546)
+//   (타이머 중 팀원들 구매 → gold onValue마다 renderShop→renderQuickItemBar가 통째 재생성 → 열어둔 아코디언이 저절로 닫히던 문제)
+function _setHtmlKeepAcc(el, html){
+  if (!el) return;
+  if (el._lastHtml === html) return;   // 내용 동일 → 재렌더 자체를 생략(열림 상태·스크롤 그대로)
+  const open = new Set([...el.querySelectorAll('.qib-acc.open')].map(a => a.dataset.acc || ''));
+  el._lastHtml = html;
+  el.innerHTML = html;
+  if (open.size) el.querySelectorAll('.qib-acc').forEach(a => { if (open.has(a.dataset.acc || '')) a.classList.add('open'); });
+}
 // ⚙️ 팀원 배너 — 시작 전 시너지/강철심장 변경(아코디언 재사용)
 function _mipbRenderFx(elId){
   const el=document.getElementById(elId); if(!el) return;
   const key=getMyGoldKey(); const data=key?goldData[key]:null;
-  if(!data || CURRENT_SEASON<1){ el.innerHTML=''; return; }
-  el.innerHTML = `<div class="mipb-fx-lbl">⚙️ 시작 전 효과 변경</div>`
+  if(!data || CURRENT_SEASON<1){ el.innerHTML=''; el._lastHtml=''; return; }
+  _setHtmlKeepAcc(el, `<div class="mipb-fx-lbl">⚙️ 시작 전 효과 변경</div>`
     + _qibSynAccordion(data)
-    + (CURRENT_SEASON===2 ? _qibEmAccordion(data) : '');
+    + (CURRENT_SEASON===2 ? _qibEmAccordion(data) : ''));
 }
 
 // 칩만 렌더 (배너 내부용 — 외부 컨테이너는 startItemCountdown이 생성)
@@ -17138,7 +17155,7 @@ function _qibSynAccordion(data){
     const on = act && act.sid===grp.sid && act.tier===tier;
     return `<div class="qib-opt ${on?'on':''}" onclick="window.qibEquipSyn('${grp.sid}',${tier})"><span class="qib-opt-ic">${grp.icon}</span><span class="qib-opt-tx"><b style="color:${grp.color}">${escHtml(grp.name)} ${tier}성</b><i>${_synEffTxt(grp,tier)}</i></span><span class="qib-opt-st">${on?'✓':''}</span></div>`;
   }).join('')+(actGrp?`<div class="qib-opt off" onclick="window.qibEquipSyn(null,0)"><span class="qib-opt-ic">🚫</span><span class="qib-opt-tx"><b>시너지 해제</b></span></div>`:'') : '<div class="qib-opt-empty">보유한 시너지가 없어요 · 가챠 컬렉션에서 모으세요</div>';
-  return `<div class="qib-acc${actGrp?' has':''}"><div class="qib-acc-hd" onclick="this.parentNode.classList.toggle('open')">🃏 시너지 ${head}<span class="qib-acc-chev">▾</span></div><div class="qib-acc-body">${opts}</div></div>`;
+  return `<div class="qib-acc${actGrp?' has':''}" data-acc="syn"><div class="qib-acc-hd" onclick="this.parentNode.classList.toggle('open')">🃏 시너지 ${head}<span class="qib-acc-chev">▾</span></div><div class="qib-acc-body">${opts}</div></div>`;
 }
 // 🔨 강철심장(걸작) 변경 아코디언
 // 🔨 강철심장(걸작) 효과 요약 텍스트 — 퀵 상점 선택부에서 "어떤 능력인지" 표시용
@@ -17165,7 +17182,7 @@ function _qibEmAccordion(data){
     const on = em.id===eqId, pw=emblemPower(em);
     return `<div class="qib-opt ${on?'on':''}" onclick="window.qibEquipEm(${em.id})"><span class="qib-opt-ic">🔨</span><span class="qib-opt-tx"><b style="color:#ffd24a">${_nkh(em)||'강철심장 '}+${emblemLevel(em)} · ${_gr(pw)} · 성능 ${pw}${on?' · 장착중':''}</b><i class="qib-opt-eff">${_qibEmEffTxt(em)}</i></span><span class="qib-opt-st">${on?'✓':''}</span></div>`;
   }).join('')+(eq?`<div class="qib-opt off" onclick="window.qibEquipEm(${eqId})"><span class="qib-opt-ic">🚫</span><span class="qib-opt-tx"><b>장착 해제</b></span></div>`:'') : '<div class="qib-opt-empty">보유한 강철심장이 없어요 · 대장간에서 만드세요</div>';
-  return `<div class="qib-acc${eq?' has':''}"><div class="qib-acc-hd" onclick="this.parentNode.classList.toggle('open')">🔨 강철심장 ${head}<span class="qib-acc-chev">▾</span></div><div class="qib-acc-body">${opts}</div></div>`;
+  return `<div class="qib-acc${eq?' has':''}" data-acc="em"><div class="qib-acc-hd" onclick="this.parentNode.classList.toggle('open')">🔨 강철심장 ${head}<span class="qib-acc-chev">▾</span></div><div class="qib-acc-body">${opts}</div></div>`;
 }
 // ⚔️ 전투 준비 패널 (퀵 구매바 prep) — 아이템 + 시너지 + 강철심장 한 곳에서
 function _qibRenderPrep(elId){
@@ -17197,7 +17214,7 @@ function _mipbRenderPills(elId, allowBuy) {
     ? ['s1_promo_shield', 's1_promo_win', 's1_gamble']
     : ['score2x', 'insurance', 'gamble'];
   const defs = relevantIds.map(id => allDefs.find(s => s.id === id)).filter(Boolean);
-  el.innerHTML = defs.map(def => {
+  const _pillsHtml = defs.map(def => {
     const owned    = myItems.filter(it => it.id === def.id);
     const hasOwned = owned.length > 0;
     const isActive = owned.some(it => it.active);
@@ -17223,6 +17240,7 @@ function _mipbRenderPills(elId, allowBuy) {
     const shortName = escHtml(def.name).replace('승급전 ', '');
     return `<button class="mipb-pill ${cls}" ${attrs}><span class="mipb-pill-icon">${def.icon}</span><span class="mipb-pill-name">${shortName}</span>${countHtml}${tagHtml}</button>`;
   }).join('');
+  if (el._lastHtml !== _pillsHtml) { el._lastHtml = _pillsHtml; el.innerHTML = _pillsHtml; }   // ⚡ 동일 내용이면 재렌더 skip (v2.45.546)
 }
 
 function _qibRender(elId, allowBuy) {
@@ -18254,8 +18272,17 @@ window.closeMatchSummary = function() {
   const finish = () => {
     _suppressS1SuccessBanners = false;
     _showPendingPromoNotif();
-    // 팀 결과 카드 LP/티어 최신화
-    if (currentTeamA.length || currentTeamB.length) {
+    if (!liveMode) {
+      // 🏠 팀원: 정산 확인 = 그 판 완전히 끝 — 이전 팀 결과 화면 대신 메인(내 대시보드)으로 (v2.45.546)
+      //   (기존엔 지난 판 팀 카드가 그대로 남아 "아직 진행 중인가?" 헷갈리고 정보도 적었음.
+      //    result-section을 닫으면 updateMemberModeDisplay가 대기 대시보드(LP·전적·패스)를 띄움.
+      //    호스트가 재대결/새 팀을 만들면 session onValue → applySessionData가 다시 결과 화면을 엶.)
+      const _sec = document.getElementById('result-section');
+      if (_sec) _sec.style.display = 'none';
+      try { updateMemberModeDisplay(); } catch(_) {}
+      try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch(_) {}
+    } else if (currentTeamA.length || currentTeamB.length) {
+      // 라이브 호스트: 저장 완료 패널·재대결 버튼이 결과 화면에 있으므로 유지 + LP/티어만 최신화
       document.getElementById('teams-grid').innerHTML =
         teamCard('⚡ 1팀','team-a',currentTeamA) +
         teamCard('🔥 2팀','team-b',currentTeamB);
@@ -25712,6 +25739,8 @@ async function renderS1WaitingCard(el) {
   }
 
   const _buddySection = (function(){try{return _buddySectionHtml();}catch(e){console.warn('단짝섹션', e); return '';}})();   // 🧸 단짝 인라인 섹션(선정·공간·배너 — 모달 X)
+  // ⚡ 재렌더 시 열려있던 전투준비 아코디언(시너지/강철심장) 기억 → 아래에서 복원 (타이머 중 재렌더로 저절로 닫히던 문제, v2.45.546)
+  const _wmOpenAcc = { syn: !!el.querySelector('.wm-syn-body.open'), em: !!el.querySelector('.wm-em-body.open') };
   el.innerHTML = `
 <div class="wm-root" style="display:flex;flex-direction:column;gap:8px;position:relative;z-index:1;">
     <div class="wm-home-right">
@@ -25767,6 +25796,11 @@ async function renderS1WaitingCard(el) {
 </div>`;
   ensureWaitingHexBg(el); // 🌌 S2 헥스 회로 골드 펄스 배경 (대시보드 뒤)
   try{ _buddyHomeAttach(); }catch(_){}   // 🏠 단짝 3D를 홈 카드 마운트에 부착(있으면)
+  // ⚡ 열려있던 전투준비 아코디언 복원 — 애니 없이 조용히(재렌더마다 촤르락 재생 방지) (v2.45.546)
+  const _wmReopen = (sel) => { const b = el.querySelector(sel); if (!b) return;
+    b.style.animation = 'none'; b.querySelectorAll(':scope>*').forEach(c => c.style.animation = 'none'); b.classList.add('open'); };
+  if (_wmOpenAcc.syn) _wmReopen('.wm-syn-body');
+  if (_wmOpenAcc.em)  _wmReopen('.wm-em-body');
 
   // 링 티어 컬러 적용
   const ringEl = el.querySelector('#wm-ring-el');
