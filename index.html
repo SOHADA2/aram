@@ -7024,7 +7024,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.554';
+const APP_VERSION = 'v2.45.555';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7033,6 +7033,9 @@ const APP_VERSION = 'v2.45.554';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.555', date: '2026-07-03', changes: [
+    { tag: 'improve', text: '🗡️ [투기장 전투] 타격 이펙트 추가 — 공격할 때 검광 스윙, 맞을 때 섬광+충격파 링+스파크가 캐릭터 위치에 터져요. 결정타는 더 크게. (그동안 체력바 깜빡임·화면 흔들림만 있었어요)' },
+  ]},
   { ver: 'v2.45.554', date: '2026-07-03', changes: [
     { tag: 'fix', text: '🗡️ [투기장 전투] 경합 연출 정리 — 그동안 양쪽 다 자기 스킬 공격 모션이 나왔는데, 이제 이긴 쪽만 스킬로 공격하고 진 쪽은 맞는 모션이 나와요(예: 내 Q가 상대 W를 이기면 상대는 W가 아니라 피격 모션). 막히면(비김) 양쪽이 부딪혀요.' },
   ]},
@@ -34735,6 +34738,20 @@ function _injectArenaCss(){
   .arena3d-stage.shake{animation:arena3dShake .26s;}
   @keyframes arena3dShake{0%,100%{transform:translateX(0);}22%{transform:translateX(-4px);}48%{transform:translateX(4px);}74%{transform:translateX(-2px);}}
   .arena3d-stage .a3d-spark{position:absolute;width:8px;height:8px;border-radius:50%;pointer-events:none;z-index:6;opacity:0;}
+  /* 🥊 피격 임팩트(섬광+충격파 링+스파크) — 맞은 캐릭터 위치 */
+  .arena3d-stage .a3d-impact{position:absolute;z-index:7;pointer-events:none;width:0;height:0;transform:translate(-50%,-50%);}
+  .arena3d-stage .a3d-impact .imp-flash{position:absolute;left:0;top:0;width:52px;height:52px;margin:-26px;border-radius:50%;background:radial-gradient(circle,rgba(255,246,205,.95),rgba(255,201,92,.55) 42%,transparent 72%);animation:impFlash .40s ease-out forwards;}
+  .arena3d-stage .a3d-impact.strong .imp-flash{width:78px;height:78px;margin:-39px;}
+  .arena3d-stage .a3d-impact .imp-ring{position:absolute;left:0;top:0;width:22px;height:22px;margin:-11px;border-radius:50%;border:3px solid rgba(255,228,146,.92);animation:impRing .48s cubic-bezier(.2,.7,.3,1) forwards;}
+  .arena3d-stage .a3d-impact.strong .imp-ring{border-width:4px;animation-duration:.6s;}
+  .arena3d-stage .a3d-impact .imp-spk{position:absolute;left:0;top:0;width:3px;height:20px;margin:-10px -1.5px;background:linear-gradient(rgba(255,242,196,1),rgba(255,200,90,.1));border-radius:2px;transform-origin:50% 50%;animation:impSpk .38s ease-out forwards;}
+  @keyframes impFlash{0%{transform:scale(.35);opacity:1;}100%{transform:scale(1.55);opacity:0;}}
+  @keyframes impRing{0%{transform:scale(.3);opacity:.95;}100%{transform:scale(3.5);opacity:0;}}
+  @keyframes impSpk{0%{transform:rotate(var(--a)) translateY(0) scaleY(.35);opacity:1;}100%{transform:rotate(var(--a)) translateY(-13px) scaleY(1.5);opacity:0;}}
+  /* ⚔️ 공격 스윙(검광 아크) — 공격하는 캐릭터 */
+  .arena3d-stage .a3d-swing{position:absolute;z-index:5;pointer-events:none;width:64px;height:64px;margin:-32px;transform:translate(-50%,-50%);}
+  .arena3d-stage .a3d-swing::before{content:'';position:absolute;inset:0;border-radius:50%;border:4px solid transparent;border-top-color:rgba(214,238,255,.92);border-right-color:rgba(150,205,255,.45);filter:drop-shadow(0 0 4px rgba(180,220,255,.6));animation:swingArc .32s ease-out forwards;}
+  @keyframes swingArc{0%{transform:rotate(-62deg) scale(.55);opacity:0;}28%{opacity:1;}100%{transform:rotate(74deg) scale(1.18);opacity:0;}}
   .arena3d-loading{position:absolute;left:0;right:0;bottom:8px;text-align:center;font-size:11px;color:#cbb27a;letter-spacing:.5px;animation:arena3dLoadPulse 1.1s ease-in-out infinite;}
   @keyframes arena3dLoadPulse{0%,100%{opacity:.45;}50%{opacity:1;}}
   .arena3d-stage .arena-bt-vs{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:14px;margin:0;z-index:2;}
@@ -35662,6 +35679,7 @@ function _arena3dLunge(atkSide, skill){   // 공격: 스킬(Q/W/E)별 실제 시
   const ctx=_arena3dCtx; if(!ctx||!ctx.alive) return;
   const atk=ctx.units[atkSide<0?0:1]; if(!atk) return;
   _arena3dPlay(ctx,atk, _arenaSkillClip(atk.clipKey, skill) || _clipFor(atk.clipKey,'attack'), false);
+  try{ _arenaSwing(atkSide); }catch(_){}   // ⚔️ 공격 스윙 이펙트
   if(atk._finL){ atk.mixer.removeEventListener('finished',atk._finL); }   // 🎬 공격 끝나면 기본으로 복귀(끝 포즈 정지 방지)
   atk._finL=(e)=>{ atk.mixer.removeEventListener('finished',atk._finL); atk._finL=null; if(_arena3dCtx&&_arena3dCtx.alive&&atk.group.parent) _arena3dPlay(_arena3dCtx,atk,_clipFor(atk.clipKey,'idle'),true); };
   atk.mixer.addEventListener('finished',atk._finL);
@@ -35687,6 +35705,18 @@ function _arena3dFinish(winnerSide){   // 마지막: 승자=승리 포즈(루프
   if(win){ if(win._finL){ win.mixer.removeEventListener('finished',win._finL); win._finL=null; } _arena3dPlay(ctx,win,_clipFor(win.clipKey,'idle'),true); }   // 승자=기본(생존)
   if(lose){ if(lose._finL){ lose.mixer.removeEventListener('finished',lose._finL); lose._finL=null; } _arena3dPlay(ctx,lose,_clipFor(lose.clipKey,'death'),false); }   // 패자=죽음
 }
+// 🥊 피격 임팩트(섬광+충격파+스파크·맞은 캐릭터 위치) — 전역: hitFx서 호출. 3D 실패해도 동작(HTML 오버레이)
+function _arenaImpact(side, strong){ const st=document.getElementById('arena3d-stage'); if(!st) return;
+  const p = side<0 ? {l:28,t:60} : side>0 ? {l:72,t:36} : {l:50,t:46};   // 내캐(좌하)·상대(우상)·중앙
+  const c=document.createElement('div'); c.className='a3d-impact'+(strong?' strong':''); c.style.left=p.l+'%'; c.style.top=p.t+'%';
+  let h='<div class="imp-flash"></div><div class="imp-ring"></div>'; const N=strong?8:6;
+  for(let i=0;i<N;i++) h+=`<div class="imp-spk" style="--a:${Math.round(i*360/N+(i%2?20:0))}deg"></div>`;
+  c.innerHTML=h; st.appendChild(c); setTimeout(()=>{ try{c.remove();}catch(_){} }, strong?700:560); }
+// ⚔️ 공격 스윙(검광 아크·공격 캐릭터 위치) — 전역: _arena3dLunge서 호출
+function _arenaSwing(side){ const st=document.getElementById('arena3d-stage'); if(!st) return;
+  const p = side<0 ? {l:33,t:57} : {l:67,t:39};
+  const c=document.createElement('div'); c.className='a3d-swing'; c.style.left=p.l+'%'; c.style.top=p.t+'%'; c.style.setProperty('transform', `translate(-50%,-50%) rotate(${side<0?'-12deg':'12deg'})`);
+  st.appendChild(c); setTimeout(()=>{ try{c.remove();}catch(_){} }, 360); }
 // 🎉 승리 스파크 분출(HTML 오버레이 — 3D 실패해도 동작·스테이지 안에서 클립됨)
 function _arenaWinSparks(stage){ if(!stage) return; const colors=['#ffd24a','#7CFC9A','#fff3c4','#ffb24a'];
   for(let i=0;i<14;i++){ const sp=document.createElement('span'); sp.className='a3d-spark';
@@ -35744,8 +35774,9 @@ window.openArenaBattle=function(sandbox, opts){
   const setHp=(side, pct)=>{ const stage=_stage(); if(!stage) return; const el=stage.querySelector((side<0?'#pk-me':'#pk-opp')+' .pk-hpf'); if(!el) return;
     const p=Math.max(0,Math.min(100,pct)); el.style.width=p+'%'; el.classList.remove('mid','low'); if(p<=20)el.classList.add('low'); else if(p<=50)el.classList.add('mid');
     const box=el.closest('.arena-pkbox'); if(box){ const gh=box.querySelector('.pk-hpghost'); if(gh) gh.style.width=p+'%'; } };
-  const hitFx=(side)=>{ const stage=_stage(); if(!stage) return; const box=stage.querySelector(side<0?'#pk-me':'#pk-opp');
+  const hitFx=(side, strong)=>{ const stage=_stage(); if(!stage) return; const box=stage.querySelector(side<0?'#pk-me':'#pk-opp');
     if(box){ box.classList.remove('hit'); void box.offsetWidth; box.classList.add('hit'); setTimeout(()=>{ try{box.classList.remove('hit');}catch(_){} },320); }
+    _arenaImpact(side, strong);   // 🥊 맞은 캐릭터 위치에 임팩트(섬광+충격파+스파크)
     stage.classList.remove('shake'); void stage.offsetWidth; stage.classList.add('shake'); setTimeout(()=>{ try{stage.classList.remove('shake');}catch(_){} },300); };
   const render=(result)=>{
     _arenaBattle3DStop();   // 화면 전환 시 이전 전투 3D 정지
@@ -35923,8 +35954,8 @@ window.openArenaBattle=function(sandbox, opts){
     const winnerSide=r.won?-1:1, loserSide=-winnerSide;
     const _t=[]; const T=(ms,fn)=>_t.push(setTimeout(()=>{ try{fn();}catch(_){} }, ms));
     // 경합으로 깎인 HP에서 이어짐 — 끝나면 바로 결판: 결정타 1회 → 패자 즉시 쓰러짐(죽는 모션) → 결과
-    T(120, ()=>{ _arena3dLunge(winnerSide); });
-    T(430, ()=>{ _arena3dHurt(loserSide); setHp(loserSide, 0); hitFx(loserSide); floatAt(loserSide, '결정타', 'hit'); });
+    T(120, ()=>{ _arena3dLunge(winnerSide); });   // 승자 공격(_arena3dLunge가 스윙 이펙트도 재생)
+    T(430, ()=>{ _arena3dHurt(loserSide); setHp(loserSide, 0); hitFx(loserSide, true); floatAt(loserSide, '결정타', 'hit'); });   // 강한 임팩트
     T(780, ()=>{ _arena3dFinish(winnerSide); });   // 승자 승리포즈 · 패자 죽는 모션(Death)
     const reveal=()=>{ const st=_stage(); if(st){ st.classList.add(r.won?'win-glow':'lose-glow'); if(r.won){ try{ _arenaWinSparks(st); }catch(_){} } }
       const el=ov.querySelector('#arena-bt-reveal'); if(el) el.classList.add('show'); };
