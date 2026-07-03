@@ -161,7 +161,7 @@
   <span class="pill">수집 <b id="coll">0/7</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 160 · claw</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 161 · claw</span>
   <div id="bgm-ctrl" style="display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0;background:rgba(10,10,18,.55);padding:4px 9px;border-radius:16px;border:1px solid #3a3a4a;">
     <button id="bgm-spk" onclick="_bgmMute()" title="음악 켜기/끄기" style="background:none;border:none;font-size:16px;cursor:pointer;padding:0;line-height:1;">🔊</button>
     <input id="bgm-vol" type="range" min="0" max="100" value="45" oninput="_bgmSetVol(this.value)" title="음량" style="width:62px;accent-color:#ffd24a;cursor:pointer;">
@@ -808,25 +808,62 @@ function resetPrizes(){
 const STAFF_CD_MS = 25000;
 let _staff=null, _staffAnim=null, _staffLastAt=0;
 const _staffEase=k=>k<0.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+// 🧑‍🔧 보행 포즈: 다리·팔 번갈아 스윙(walk=false면 차렷). armR은 뒤적일 때 별도 제어라 walk 시에만 관여.
+function _staffPose(walk, t){ if(!_staff) return; const u=_staff.userData; if(!u.legL) return;
+  if(walk){ const s=Math.sin(t*11); u.legL.rotation.x=s*0.55; u.legR.rotation.x=-s*0.55; u.armL.rotation.x=-s*0.5; u.armR.rotation.x=s*0.5; }
+  else { u.legL.rotation.x=0; u.legR.rotation.x=0; u.armL.rotation.x=0; } }
 function _buildStaff(){
   if(_staff) return _staff;
   const g=new THREE.Group();
-  const suit=new THREE.MeshStandardMaterial({color:0x2a3040,roughness:0.8});
-  const skin=new THREE.MeshStandardMaterial({color:0xe8b98a,roughness:0.7});
-  const goldm=new THREE.MeshStandardMaterial({color:0xd9a726,roughness:0.4,metalness:0.6});
-  const M=(geo,mat,x,y,z)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);g.add(m);return m;};
-  M(new THREE.BoxGeometry(0.62,1.7,0.44),suit,0,3.15,0);                            // 몸통(작업복)
-  M(new THREE.BoxGeometry(0.66,0.16,0.48),goldm,0,3.55,0);                          // 허리 벨트(골드)
-  M(new THREE.SphereGeometry(0.4,18,14),skin,0,4.55,0);                             // 머리
-  M(new THREE.CylinderGeometry(0.44,0.44,0.24,16),goldm,0,4.94,0);                  // 모자(가게 골드톤)
-  M(new THREE.BoxGeometry(0.56,0.06,0.5),goldm,0,4.86,-0.32);                       // 챙(기계 쪽=-z)
-  M(new THREE.BoxGeometry(0.26,1.6,0.26),suit,-0.2,1.5,0);                          // 다리
-  M(new THREE.BoxGeometry(0.26,1.6,0.26),suit, 0.2,1.5,0);
-  { const al=new THREE.Mesh(new THREE.BoxGeometry(0.2,1.4,0.2),suit); al.position.set(-0.51,3.3,0); g.add(al); }   // 왼팔(내림)
-  const armR=new THREE.Group(); armR.position.set(0.51,3.95,0); g.add(armR);        // 오른팔 = 뒤적이는 팔(어깨 피벗)
-  { const ar=new THREE.Mesh(new THREE.BoxGeometry(0.2,1.5,0.2),suit); ar.position.y=-0.68; armR.add(ar);
-    const hand=new THREE.Mesh(new THREE.SphereGeometry(0.17,10,8),skin); hand.position.y=-1.5; armR.add(hand); }
-  g.userData={armR};
+  const suit  = new THREE.MeshStandardMaterial({color:0x35405c, roughness:0.72, metalness:0.05});   // 남색 유니폼
+  const pants = new THREE.MeshStandardMaterial({color:0x272f45, roughness:0.8});                     // 바지(짙은 남색)
+  const skin  = new THREE.MeshStandardMaterial({color:0xf0c19a, roughness:0.65});
+  const gold  = new THREE.MeshStandardMaterial({color:0xe6b73a, roughness:0.34, metalness:0.7});
+  const glove = new THREE.MeshStandardMaterial({color:0xf3f1ea, roughness:0.6});                     // 흰 장갑
+  const shirt = new THREE.MeshStandardMaterial({color:0xdfe4ee, roughness:0.72});                    // 셔츠 앞판
+  const shoe  = new THREE.MeshStandardMaterial({color:0x1b2030, roughness:0.5, metalness:0.2});
+  const eyeM  = new THREE.MeshStandardMaterial({color:0x241a12, roughness:0.5});
+  const A=(geo,mat,x,y,z,parent)=>{const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);(parent||g).add(m);return m;};
+
+  // ── 다리(엉덩이 피벗서 스윙) ──
+  const mkLeg=(x)=>{ const grp=new THREE.Group(); grp.position.set(x,2.35,0); g.add(grp);
+    A(new THREE.CapsuleGeometry(0.17,1.15,6,12), pants, 0,-0.72,0, grp);      // 허벅지+정강이
+    A(new THREE.BoxGeometry(0.26,0.16,0.52), shoe, 0,-1.6,-0.08, grp);        // 신발(앞으로 살짝)
+    return grp; };
+  const legL=mkLeg(-0.19), legR=mkLeg(0.19);
+
+  // ── 몸통 ──
+  A(new THREE.CapsuleGeometry(0.36,0.9,8,16), suit, 0,3.18,0);               // 몸통(유니폼)
+  A(new THREE.BoxGeometry(0.46,1.0,0.06), shirt, 0,3.2,-0.33);              // 앞판 셔츠(기계쪽=-z, 앞)
+  A(new THREE.CylinderGeometry(0.375,0.4,0.15,20), gold, 0,2.74,0);         // 벨트(골드)
+  // 뒤 X 멜빵(카메라쪽 +z) + 별 이름표 — 뒤태 포인트
+  A(new THREE.BoxGeometry(0.08,1.02,0.05), gold, 0,3.2,0.35).rotation.z= 0.34;
+  A(new THREE.BoxGeometry(0.08,1.02,0.05), gold, 0,3.2,0.35).rotation.z=-0.34;
+  A(new THREE.CircleGeometry(0.1,5), gold, 0,3.52,0.375);                    // 별 배지(뒤·기본 +z 정면)
+
+  // ── 목/머리 ──
+  A(new THREE.CylinderGeometry(0.13,0.15,0.22,12), skin, 0,4.02,0);         // 목
+  const head=A(new THREE.SphereGeometry(0.4,20,16), skin, 0,4.5,0);         // 머리
+  A(new THREE.SphereGeometry(0.085,10,8), skin, -0.39,4.5,0);               // 귀
+  A(new THREE.SphereGeometry(0.085,10,8), skin,  0.39,4.5,0);
+  A(new THREE.SphereGeometry(0.05,8,8), eyeM, -0.14,4.54,-0.36);            // 눈(앞·-z)
+  A(new THREE.SphereGeometry(0.05,8,8), eyeM,  0.14,4.54,-0.36);
+  A(new THREE.SphereGeometry(0.415,16,12,0,Math.PI*2,Math.PI*0.5,Math.PI*0.5), eyeM, 0,4.52,0.03);  // 뒤통수 머리카락(하단 돔)
+
+  // ── 모자(둥근 크라운 + 챙) ──
+  A(new THREE.SphereGeometry(0.44,20,14,0,Math.PI*2,0,Math.PI*0.55), gold, 0,4.74,0);   // 돔 크라운
+  A(new THREE.CylinderGeometry(0.445,0.445,0.07,20), gold, 0,4.72,0);                    // 크라운 밑테
+  A(new THREE.BoxGeometry(0.66,0.05,0.34), gold, 0,4.7,-0.34);                           // 챙(앞·-z)
+  A(new THREE.SphereGeometry(0.06,10,8), skin, 0,5.06,0);                                // 꼭지 단추
+
+  // ── 팔(어깨 피벗) ──
+  const mkArm=(x)=>{ const grp=new THREE.Group(); grp.position.set(x,3.82,0); g.add(grp);
+    A(new THREE.CapsuleGeometry(0.13,0.9,6,12), suit, 0,-0.58,0, grp);      // 팔
+    A(new THREE.SphereGeometry(0.16,12,10), glove, 0,-1.18,0, grp);         // 장갑 손
+    return grp; };
+  const armL=mkArm(-0.5), armR=mkArm(0.5);   // armR = 뒤적이는 팔
+
+  g.userData={armR, armL, legL, legR, head};
   g.visible=false; scene.add(g);
   _staff=g; return g;
 }
@@ -852,15 +889,18 @@ function _staffUpdate(dt){
   const armR=_staff.userData.armR;
   const inX=ud.CW*0.42, inZ=ud.CD+1.3, offX=ud.CW+6;   // 등장 위치(문 오른쪽 앞)·화면 밖
   if(A.phase==='in'){ const k=Math.min(1,A.t/0.9);
-    _staff.position.set(offX-(offX-inX)*_staffEase(k), Math.abs(Math.sin(A.t*11))*0.09, inZ);   // 걸어옴(콩콩)
+    _staff.position.set(offX-(offX-inX)*_staffEase(k), Math.abs(Math.sin(A.t*11))*0.09, inZ);   // 걸어옴
     _staff.rotation.y=Math.PI;   // 기계 쪽(-z)을 봄 = 카메라엔 등
-    if(k>=1){ A.phase='open'; A.t=0; Sfx.staffDoor(true); }
+    _staffPose(true, A.t);       // 🚶 다리·팔 스윙 보행
+    if(k>=1){ A.phase='open'; A.t=0; _staffPose(false); Sfx.staffDoor(true); }
   } else if(A.phase==='open'){ const k=Math.min(1,A.t/0.7);
     if(_glassDoor) _glassDoor.rotation.y=-1.25*_staffEase(k);   // 🚪 바깥쪽으로 스윙
     if(k>=1){ A.phase='rummage'; A.t=0; }
   } else if(A.phase==='rummage'){
     const sw=Math.sin(A.t*9);
     _staff.rotation.x=-0.16;                                    // 앞으로 숙임
+    if(_staff.userData.head) _staff.userData.head.rotation.x=0.32;   // 고개 숙여 통 안 들여다봄
+    if(_staff.userData.armL) _staff.userData.armL.rotation.x=-0.55;  // 왼팔로 기계 짚기
     armR.rotation.x=-1.75+Math.cos(A.t*7)*0.35;                 // 팔 통 안으로 뻗어 휘휘
     armR.rotation.z=sw*0.3;
     _staff.rotation.y=Math.PI+sw*0.05;
@@ -872,13 +912,17 @@ function _staffUpdate(dt){
     if(A.t>=2.5){ A.phase='withdraw'; A.t=0; }
   } else if(A.phase==='withdraw'){ const k=Math.min(1,A.t/0.45);
     armR.rotation.x=-1.75*(1-k); armR.rotation.z*=(1-k); _staff.rotation.x=-0.16*(1-k); _staff.rotation.y=Math.PI;
+    if(_staff.userData.head) _staff.userData.head.rotation.x=0.32*(1-k);   // 고개 원위치
+    if(_staff.userData.armL) _staff.userData.armL.rotation.x=-0.55*(1-k);  // 왼팔 원위치
     if(k>=1){ A.phase='close'; A.t=0; Sfx.staffDoor(false); }
   } else if(A.phase==='close'){ const k=Math.min(1,A.t/0.6);
     if(_glassDoor) _glassDoor.rotation.y=-1.25*(1-_staffEase(k));
     if(k>=1){ A.phase='out'; A.t=0; }
   } else if(A.phase==='out'){ const k=Math.min(1,A.t/0.9);
     _staff.position.set(inX+(offX-inX)*_staffEase(k), Math.abs(Math.sin(A.t*11))*0.09, inZ);
+    _staffPose(true, A.t);       // 🚶 퇴장도 보행 스윙
     if(k>=1){ _staff.visible=false; _staffAnim=null;
+      _staffPose(false); if(_staff.userData.head) _staff.userData.head.rotation.x=0; _staff.rotation.x=0;   // 다음 호출 위해 포즈 리셋
       if(_glassDoor) _glassDoor.rotation.y=0;
       const sb=document.getElementById('staff-btn'); if(sb) sb.disabled=false;
       _updStartBtn(); if(typeof updDailyHud==='function') updDailyHud();
