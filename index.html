@@ -7024,7 +7024,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.542';
+const APP_VERSION = 'v2.45.543';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7033,6 +7033,9 @@ const APP_VERSION = 'v2.45.542';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new'(신규) | 'improve'(개선) | 'fix'(수정)
+  { ver: 'v2.45.543', date: '2026-07-03', changes: [
+    { tag: 'improve', text: '🗡️ [투기장 강화] 강화창 인형 선택줄에 아직 안 뽑은 챔피언도 회색+🔒로 보여요. 어떤 챔피언을 모을 수 있는지 한눈에 보이고, 탭하면 3D로 미리볼 수 있어요(미보유는 전투 인형으로는 선택 안 되고 미리보기만).' },
+  ] },
   { ver: 'v2.45.542', date: '2026-07-03', changes: [
     { tag: 'improve', text: '🗡️ [투기장 경제] 코인 병목 완화 — ①강화 비용 곡선 하향(+10 130→112·+15 250→210·+19 375→310) ②배틀 보상 상향(승 38→45·패 15→18) ③출석 코인 상향(하루 100→130) ④훈련봇 보상 상향(승 20→28·패 8→10·자격자 적어 봇이 주 수급) ⑤인형 판매 환급률 상향(0.6→0.72·상한 2.5→2.8배). 판매가는 강화 비용 곡선에서 자동 도출돼 함께 낮아지고, 환급률↑로 상쇄해 「키워서 팔기」 수급은 보전. 환급률 여전히 <1이라 평균 손해=무한증식 방지 유지.' },
   ] },
@@ -34504,6 +34507,10 @@ function _injectArenaCss(){
   .arena-pick .ap img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:7px;display:block;}
   .arena-pick .ap .ap-p{font-size:9px;color:#ffd24a;font-weight:800;margin-top:1px;}
   .arena-pick .ap .ap-q{position:absolute;top:-3px;right:-3px;background:#1a1206;color:#7CFC9A;font-size:9px;font-weight:800;border-radius:6px;padding:0 3px;border:1px solid rgba(124,252,154,.5);}
+  .arena-pick .ap.empty{opacity:.5;}
+  .arena-pick .ap.empty img{filter:grayscale(1) brightness(.6);}
+  .arena-pick .ap.empty .ap-p{color:#9aa0b4;font-weight:700;}
+  .arena-pick .ap .ap-q.lock{background:#141018;color:#c9cfdb;border-color:rgba(255,255,255,.28);}
   .arena-pick-lbl{font-size:10.5px;color:#9aa0b4;margin-top:8px;}
   .arena-close{margin-top:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#aeb2c0;border-radius:10px;padding:8px 18px;cursor:pointer;font-size:12.5px;}
   @keyframes arenaShake{0%,100%{transform:translateX(0);}20%,60%{transform:translateX(-7px);}40%,80%{transform:translateX(7px);}}
@@ -35336,7 +35343,9 @@ window.openArenaForge=function(sandbox){
     const hasSkin=!SB && !!_equippedSkinId(active, getMyGoldData());   // 🎨 스킨 장착 시 성공률 +1%p
     const odds=hasSkin?_arenaForgeOddsEff(power, active, getMyGoldData()):arenaForgeOdds(power), cost=arenaForgeCost(power), coins=getCoins();
     const canForge=!maxed && stock>0 && coins>=cost && !busy;
-    const stockMap=getStockMap(), owned=Object.keys(stockMap).filter(c=>stockMap[c]>0).sort();
+    const stockMap=getStockMap();
+    const _allRk=ARENA_CHAMPS.map(_arenaRk);   // 미보유 챔피언도 노출(회색+자물쇠) — 보유분 먼저
+    const picks=[..._allRk.filter(c=>stockMap[c]>0).sort(), ..._allRk.filter(c=>!(stockMap[c]>0)).sort()];
     const grade=_arenaGrade(power), nextG=_arenaNextGrade(power);   // 🏅 등급(검키우기식 단계)
     ov.innerHTML=`<div class="arena-sheet" onclick="event.stopPropagation()">
       ${_arenaHd('인형 강화','forge',SB)}
@@ -35355,12 +35364,12 @@ window.openArenaForge=function(sandbox){
       ${hasSkin?`<div class="arena-next" style="color:#7CFC9A;margin:-7px 0 9px;">🎨 스킨 효과 — 성공률 +${ARENA_SKIN_FORGE_BONUS}%p 적용 중</div>`:''}
       <button class="arena-forge-btn" id="arena-go" ${canForge?'':'disabled'}>${stock<1?'보유 인형 없음 — 인형뽑기로':coins<cost?`🗡️${cost} 필요 <span class="fb-cost">· ${cost-coins} 부족(배틀로)</span>`:`강화 시도 <span class="fb-cost">· 🗡️${cost}</span>`}</button>`}
       <button class="arena-sell-btn" id="arena-sell" ${stock<1?'disabled':''}>팔기 <span style="opacity:.82">· 🗡️${_arenaSellValue(power)}${power>0?` (+${power}→리셋)`:''}</span></button>
-      <div class="arena-pick">${owned.map(c=>`<div class="ap ${_arenaRk(active)===c?'on':''}" data-c="${c}.glb"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${_clawDdKey(c)}_0.jpg" onerror="this.style.visibility='hidden'"><div class="ap-p">+${getPower(c+'.glb')}</div><span class="ap-q">${stockMap[c]}</span></div>`).join('')}</div>
+      <div class="arena-pick">${picks.map(c=>{const _has=stockMap[c]>0;return `<div class="ap ${_arenaRk(active)===c?'on':''}${_has?'':' empty'}" data-c="${c}.glb"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${_clawDdKey(c)}_0.jpg" onerror="this.style.visibility='hidden'">${_has?`<div class="ap-p">+${getPower(c+'.glb')}</div><span class="ap-q">${stockMap[c]}</span>`:`<div class="ap-p">미보유</div><span class="ap-q lock">🔒</span>`}</div>`;}).join('')}</div>
       ${_arenaTabs('forge',SB)}
     </div>`;
     ov.querySelector('#arena-x').onclick=()=>{ _forge3dDispose(); ov.remove(); };
     { const _fm=ov.querySelector('#arena-fighter-3d'); if(_fm){ try{ _forge3dShow(_fm, _appGlb(active, getMyGoldData()||{}), grade.c, grade.prism); }catch(_){} } }   // 🔨 활성 인형 3D(등급색·자체 크기)
-    ov.querySelectorAll('.ap').forEach(b=>b.onclick=()=>{ if(busy) return; active=b.dataset.c; setFighter(active); render(); });
+    ov.querySelectorAll('.ap').forEach(b=>b.onclick=()=>{ if(busy) return; active=b.dataset.c; if(getStock(active)>0) setFighter(active); render(); });   // 미보유는 미리보기만(전투 인형은 보유분 유지)
     { const sl=ov.querySelector('#arena-sell'); if(sl) sl.onclick=()=>{
       if(busy) return;
       const pw=getPower(active), stk=getStock(active), val=_arenaSellValue(pw); if(stk<1) return;
