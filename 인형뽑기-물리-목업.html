@@ -113,6 +113,7 @@
     background:linear-gradient(135deg,#ffd24a,#e0a52e);box-shadow:0 4px 14px rgba(240,180,40,0.35);}
   button.ghost{background:#23232f;color:#eee;box-shadow:none;border:1px solid rgba(255,255,255,0.15);}
   button.vbtn{font-size:13px;padding:9px 13px;background:#23232f;color:#eee;box-shadow:none;border:1px solid rgba(255,255,255,0.18);}
+  button.vbtn.on{background:linear-gradient(180deg,#ffd76a,#e8a93a);color:#241a05;border-color:rgba(255,220,120,0.8);}   /* 🔍 들이대기 활성 */
   button:disabled{opacity:0.4;}
   #stick{position:relative;width:112px;height:112px;border-radius:50%;touch-action:none;
     background:radial-gradient(circle at 50% 38%,#33333f,#16161e);border:2px solid rgba(255,255,255,0.16);}
@@ -135,7 +136,7 @@
   <span class="pill">수집 <b id="coll">0/7</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 155</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 156</span>
   <div id="bgm-ctrl" style="display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0;background:rgba(10,10,18,.55);padding:4px 9px;border-radius:16px;border:1px solid #3a3a4a;">
     <button id="bgm-spk" onclick="_bgmMute()" title="음악 켜기/끄기" style="background:none;border:none;font-size:16px;cursor:pointer;padding:0;line-height:1;">🔊</button>
     <input id="bgm-vol" type="range" min="0" max="100" value="45" oninput="_bgmSetVol(this.value)" title="음량" style="width:62px;accent-color:#ffd24a;cursor:pointer;">
@@ -148,12 +149,13 @@
   <button id="start-btn" onclick="startGame()">🪙 START<span class="sb-sub">코인 1개 · 1게임</span></button>
   <div id="stick-base"><div id="stick"><div id="knob"></div></div></div>
   <div class="hint">
-    🖥️ 이동 <b>WASD</b>·방향키 · 집기 <b>Space</b> · 리셋 <b>R</b> · 시점 <b>Q</b>/<b>E</b><br>
+    🖥️ 이동 <b>WASD</b>·방향키 · 집기 <b>Space</b> · 리셋 <b>R</b> · 시점 <b>Q</b>/<b>E</b> · 들이대기 <b>F</b><br>
     📱 조이스틱으로 이동 · 아래 버튼으로 조작
   </div>
   <div class="btns">
     <div class="view-row">
       <button class="vbtn" onclick="rotateView(-1)">◀ 시점<span class="kh">Q</span></button>
+      <button class="vbtn" id="closeup-btn" onclick="toggleCloseUp()">🔍 들이대기<span class="kh">F</span></button>
       <button class="vbtn" onclick="rotateView(1)">시점 ▶<span class="kh">E</span></button>
     </div>
     <div class="main-row">
@@ -295,6 +297,7 @@ const camera = new THREE.PerspectiveCamera(46, innerWidth/innerHeight, 0.1, 240)
 const _camTarget = new THREE.Vector3(0, 2.2, 0);   // 정면쪽 시점(하단 컨트롤은 솔리드 단이라 안 겹침)
 const _camElev = 0.33;                 // 위에서 내려보는 정도(수평성분 대비)
 let camYaw = 0, camYawTarget = 0;      // 시점 회전각(0=정면, +면 좌측, -면 우측)
+let camClose = 0, camCloseTarget = 0;  // 🔍 들이대기(클로즈업) 0=기본 · 1=유리에 딱 붙어 인형 크게 (BUILD156)
 function placeCamera(){
   const aspect = innerWidth/innerHeight;
   camera.aspect = aspect;
@@ -304,12 +307,18 @@ function placeCamera(){
   const topI = (document.getElementById('collection-bar')?.offsetHeight || 0) + (document.getElementById('hud')?.offsetHeight || 0);   // 🧸 콜렉션바 + BUILD pill 만큼 위 인셋(간판 안 가리게)
   const botI = document.getElementById('controls')?.offsetHeight || 0;
   const availH = Math.max(innerHeight * 0.45, innerHeight - topI - botI);   // 너무 작아지지 않게 하한
-  const fitW = 10.3, baseFitH = 17.8;                       // 담을 가로/세로(↑=줌아웃, 기계 작게·여백) — 줄여서 더 가까이
+  const _lp = (a,b)=>a+(b-a)*camClose;   // 🔍 기본↔들이대기 보간
+  const fitW0 = _lp(10.3, 4.9), baseFitH = _lp(17.8, 8.6);  // 담을 가로/세로(↑=줌아웃) — 들이대기=인형 더미 클로즈업
+  // 🔄 좌우 시점에서도 거리감 동일(BUILD156): 기계가 정사각(W≈D)이라 대각(yaw≠0)에서 투영폭이
+  //    |cos|+|sin|배로 넓어지는데 dist가 고정이라 옆으로 돌리면 더 가깝게/꽉 차 보였음 → 그만큼 뒤로 보정
+  const spread = Math.abs(Math.cos(camYaw)) + Math.abs(Math.sin(camYaw));
+  const fitW = fitW0 * spread;
   const fitH = baseFitH * innerHeight / availH;             // 밴드 높이에 맞게 줌아웃 → 위아래 바에 안 가림
   const dist = Math.max((fitW/2)/Math.tan(hFov/2), (fitH/2)/Math.tan(vFov/2));
-  const dir = new THREE.Vector3(Math.sin(camYaw), _camElev, Math.cos(camYaw)).normalize();  // yaw로 수평 회전
-  camera.position.copy(_camTarget).addScaledVector(dir, dist);
-  camera.lookAt(_camTarget);
+  const tgt = new THREE.Vector3(_camTarget.x, _lp(_camTarget.y, 1.75), _camTarget.z);   // 들이대기=인형 더미 높이로
+  const dir = new THREE.Vector3(Math.sin(camYaw), _lp(_camElev, 0.15), Math.cos(camYaw)).normalize();  // yaw로 수평 회전(들이대기=낮은 앵글)
+  camera.position.copy(tgt).addScaledVector(dir, dist);
+  camera.lookAt(tgt);
   // 밴드 중심으로 수직 이동(하단 컨트롤바가 더 크니 콘텐츠를 위로) — 픽셀 단위 frustum 시프트
   const shift = (botI - topI) / 2;
   camera.clearViewOffset();
@@ -321,6 +330,13 @@ placeCamera();
 let camViewIdx = 0;                 // -2(완전좌) ~ +2(완전우)
 const VIEW_STEP = 0.5;             // 스텝당 회전각(라디안, ±2=±1.0rad≈57°)
 window.rotateView = function(dir){ const p=camViewIdx; camViewIdx = Math.max(-2, Math.min(2, camViewIdx + dir)); camYawTarget = camViewIdx * VIEW_STEP; if(camViewIdx!==p){ Sfx.unlock(); Sfx.rotate(); } };
+// 🔍 들이대기 토글(BUILD156) — 유리에 얼굴 대고 인형 구경하듯 클로즈업(어느 시점에서든·조작은 그대로)
+window.toggleCloseUp = function(){
+  camCloseTarget = camCloseTarget > 0.5 ? 0 : 1;
+  const b = document.getElementById('closeup-btn');
+  if (b) { b.classList.toggle('on', camCloseTarget > 0.5); b.innerHTML = camCloseTarget > 0.5 ? '🔭 물러서기<span class="kh">F</span>' : '🔍 들이대기<span class="kh">F</span>'; }
+  Sfx.unlock(); Sfx.rotate();
+};
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference:'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));   // 2→1.5: 고해상도 화면 픽셀 부담 ↓ (렉 완화)
 renderer.setSize(innerWidth, innerHeight);
@@ -1015,6 +1031,7 @@ addEventListener('keydown', e=>{
   if(k==='r'){ if(!ENF && (state==='READY'||held===null)) resetPrizes(); return; }   // 리셋(실게임 ENF에선 비활성)
   if(k==='q'){ rotateView(-1); return; }                                   // 시점 ◀
   if(k==='e'){ rotateView(1); return; }                                    // 시점 ▶
+  if(k==='f'){ toggleCloseUp(); return; }                                  // 🔍 들이대기 토글
   keys[k]=true;
 });
 addEventListener('keyup', e=>{ keys[e.key.toLowerCase()]=false; });
@@ -1046,10 +1063,12 @@ function loop(now){
   Sfx.motor(state==='LOWERING'||state==='RAISING'||state==='RETURN_X'||state==='RETURN_Z');
   if(state!=='READY') Sfx.trolley(false);   // READY 밖에선 이동음 끔(READY 안에선 아래에서 입력따라 토글)
 
-  // 🔄 시점 부드럽게 회전
-  if(Math.abs(camYaw-camYawTarget) > 0.001){
+  // 🔄 시점 부드럽게 회전 + 🔍 들이대기 줌 보간(BUILD156)
+  if(Math.abs(camYaw-camYawTarget) > 0.001 || Math.abs(camClose-camCloseTarget) > 0.001){
     camYaw += (camYawTarget-camYaw)*Math.min(1, dt*8);
     if(Math.abs(camYaw-camYawTarget) < 0.001) camYaw=camYawTarget;
+    camClose += (camCloseTarget-camClose)*Math.min(1, dt*6);
+    if(Math.abs(camClose-camCloseTarget) < 0.001) camClose=camCloseTarget;
     placeCamera();
   }
 
