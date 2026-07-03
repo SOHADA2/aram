@@ -105,7 +105,12 @@
   /* 📱 터치 기기: PC 안내문·키 힌트 숨기고 조작바 슬림하게 → 화면(시야) 더 확보 (body.is-touch는 JS로 부여) */
   body.is-touch .hint{display:none;}
   body.is-touch .kh{display:none;}
-  body.is-touch #controls{padding:10px 14px calc(10px + env(safe-area-inset-bottom));gap:10px;}
+  /* 📱 조작판 투명화(BUILD157) — 불투명 판이 기계 하단을 다 가리던 것 → 위는 완전 투명·아래로 갈수록 살짝 어둡게(버튼 가독).
+     기계가 판 뒤로 비쳐 보이고, placeCamera도 터치에선 판 높이의 일부만 피함(아래 botI 보정) */
+  body.is-touch #controls{padding:10px 14px calc(10px + env(safe-area-inset-bottom));gap:10px;
+    background:linear-gradient(180deg,rgba(10,10,18,0) 0%,rgba(8,8,15,0.42) 34%,rgba(8,8,15,0.78) 100%);
+    border-top:1px solid rgba(240,200,90,0.15);box-shadow:none;}
+  body.is-touch #controls .vbtn,body.is-touch #controls #reset{background:rgba(28,28,42,0.88);}   /* 투명 판 위 버튼 가독 보강 */
   .btns{display:flex;flex-direction:column;gap:8px;align-items:flex-end;}
   .view-row,.main-row{display:flex;gap:8px;}
   button{font-family:inherit;font-weight:800;font-size:15px;border:none;border-radius:14px;padding:14px 20px;color:#1a1305;cursor:pointer;
@@ -136,7 +141,7 @@
   <span class="pill">수집 <b id="coll">0/7</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 156</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 157</span>
   <div id="bgm-ctrl" style="display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0;background:rgba(10,10,18,.55);padding:4px 9px;border-radius:16px;border:1px solid #3a3a4a;">
     <button id="bgm-spk" onclick="_bgmMute()" title="음악 켜기/끄기" style="background:none;border:none;font-size:16px;cursor:pointer;padding:0;line-height:1;">🔊</button>
     <input id="bgm-vol" type="range" min="0" max="100" value="45" oninput="_bgmSetVol(this.value)" title="음량" style="width:62px;accent-color:#ffd24a;cursor:pointer;">
@@ -305,7 +310,9 @@ function placeCamera(){
   const hFov = 2*Math.atan(Math.tan(vFov/2)*aspect);
   // 🖥️ 상단 HUD·하단 컨트롤바가 가리는 만큼 빼고, '보이는 밴드'에 기계를 맞춤 (PC에서 글자가 기계 가리던 문제)
   const topI = (document.getElementById('collection-bar')?.offsetHeight || 0) + (document.getElementById('hud')?.offsetHeight || 0);   // 🧸 콜렉션바 + BUILD pill 만큼 위 인셋(간판 안 가리게)
-  const botI = document.getElementById('controls')?.offsetHeight || 0;
+  // 📱 터치(BUILD157): 조작판이 투명이라 기계가 판 뒤로 비쳐 보임 → 판 높이의 30%만 피해서 화면을 크게 씀
+  const _botRaw = document.getElementById('controls')?.offsetHeight || 0;
+  const botI = document.body.classList.contains('is-touch') ? Math.round(_botRaw * 0.3) : _botRaw;
   const availH = Math.max(innerHeight * 0.45, innerHeight - topI - botI);   // 너무 작아지지 않게 하한
   const _lp = (a,b)=>a+(b-a)*camClose;   // 🔍 기본↔들이대기 보간
   const fitW0 = _lp(10.3, 4.9), baseFitH = _lp(17.8, 8.6);  // 담을 가로/세로(↑=줌아웃) — 들이대기=인형 더미 클로즈업
