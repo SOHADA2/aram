@@ -7024,7 +7024,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.556';
+const APP_VERSION = 'v2.45.557';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7033,6 +7033,9 @@ const APP_VERSION = 'v2.45.556';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.557', date: '2026-07-03', changes: [
+    { tag: 'fix', text: '⏱️ 팀 구성 아이템 타이머가 이번 경기에 참여하지 않는 사람에게도 뜨던 문제 수정 — 이제 팀에 뽑힌 참가자(와 진행자)에게만 카운트다운이 보여요.' },
+  ]},
   { ver: 'v2.45.556', date: '2026-07-03', changes: [
     { tag: 'fix', text: '👑 「마스터를 뵙습니다」 등 첫 달성 축하 팝업이 확인을 눌러도 새로고침/재접속하면 계속 다시 뜨던 문제 수정 — 확인을 누르면 그 팝업은 다시 안 떠요.' },
   ]},
@@ -13683,7 +13686,7 @@ onValue(ref(db, 'session'), (snapshot) => {
   // 아이템 사용 단계: 모든 기기에 카운트다운 표시 + 아이템 잠금 해제
   if (data?.phase === 'item' && data.itemPhaseEnd) {
     if (itemsLocked) { itemsLocked = false; renderShop(); }
-    startItemCountdown(data.itemPhaseEnd);
+    startItemCountdown(data.itemPhaseEnd, data.players);
     return;
   }
 
@@ -16038,8 +16041,8 @@ window.startItemPhase = function(_bridgeOk) {
 
   document.getElementById('make-teams-btn').disabled = true;
   try{ _lobbyClear(); }catch(_){}   // 🛠️ 팀 결성 시작 → 로비 "준비 중" 배너 제거(이제 카운트다운 배너가 담당)
-  // Firebase에 아이템 사용 단계 기록 → 모든 기기에 동기화
-  set(ref(db, 'session'), { phase: 'item', itemPhaseEnd: Date.now() + 15000 }).catch(console.error);
+  // Firebase에 아이템 사용 단계 기록 → 참가자 명단(players) 실어 보내 참가자에게만 타이머 노출
+  set(ref(db, 'session'), { phase: 'item', itemPhaseEnd: Date.now() + 15000, players: sessionPlayers.map(p => normName(p.name)) }).catch(console.error);
 };
 
 // 🔌 브릿지 미연결 경고 팝업 (팀 구성 진입 시)
@@ -16140,7 +16143,17 @@ function playCompleteSound() {
 }
 
 const ITEM_PHASE_MS = 15000;
-function startItemCountdown(endTime) {
+function startItemCountdown(endTime, players) {
+  // 🎯 참가자에게만 타이머 노출: 라이브(호스트)는 항상 · 그 외엔 참가자 명단(players)에 있어야 · 명단 없으면(구버전 세션) 기존처럼 전원
+  const _me = normName(myName || '');
+  const _amPart = liveMode || !Array.isArray(players) || (!!_me && players.includes(_me));
+  if (!_amPart) {
+    const c=document.getElementById('item-phase-card'); if(c) c.style.display='none';
+    const m=document.getElementById('member-item-phase-bar'); if(m) m.style.display='none';
+    if (itemPhaseTimer) { clearInterval(itemPhaseTimer); itemPhaseTimer=null; }
+    _itemPhaseActiveEnd = null;
+    return;
+  }
   // 동일 단계 재실행 가드: 같은 itemPhaseEnd로 이미 카운트 중이면 무시
   // (세션 자식 쓰기/리스너 재발화로 startItemCountdown이 반복 호출돼도 타이머가 리셋되지 않게)
   if (_itemPhaseActiveEnd === endTime && itemPhaseTimer) return;
@@ -31246,7 +31259,7 @@ window.confirmFixedTeams = function() {
   closeFixedTeamBuilder();
   document.getElementById('make-teams-btn').disabled = true;
   try{ _lobbyClear(); }catch(_){}   // 🛠️ 팀 결성 시작 → 로비 배너 제거
-  set(ref(db, 'session'), { phase: 'item', itemPhaseEnd: Date.now() + 15000 }).catch(console.error);
+  set(ref(db, 'session'), { phase: 'item', itemPhaseEnd: Date.now() + 15000, players: [...teamA, ...teamB].map(p => normName(p.name)) }).catch(console.error);
 };
 
 function showConfirm(msg, onOk) {
