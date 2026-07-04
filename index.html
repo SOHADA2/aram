@@ -7024,7 +7024,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.558';
+const APP_VERSION = 'v2.45.559';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7033,6 +7033,9 @@ const APP_VERSION = 'v2.45.558';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.559', date: '2026-07-03', changes: [
+    { tag: 'improve', text: '⚒️ 메인 대기화면 「전투 준비 효과」에서 강철심장·시너지를 고르면 이제 펼침 목록이 자동으로 닫혀요(선택 후에도 계속 열려 있던 것 수정).' },
+  ]},
   { ver: 'v2.45.558', date: '2026-07-03', changes: [
     { tag: 'fix', text: '🔮 관전자 예측(배팅) 안내창이 이번 경기와 무관한 사람에게도 뜨던 문제 수정 — 이제 참가 선수와 관전자에게만 보여요.' },
   ]},
@@ -25848,6 +25851,10 @@ async function renderS1WaitingCard(el) {
   ensureWaitingHexBg(el); // 🌌 S2 헥스 회로 골드 펄스 배경 (대시보드 뒤)
   try{ _buddyHomeAttach(); }catch(_){}   // 🏠 단짝 3D를 홈 카드 마운트에 부착(있으면)
   // ⚡ 열려있던 전투준비 아코디언 복원 — 애니 없이 조용히(재렌더마다 촤르락 재생 방지) (v2.45.546)
+  // 단, 방금 선택(장착/해제)한 아코디언은 복원하지 않고 닫음 (사장님 요청 v2.45.559)
+  if (_wmCloseAcc === 'syn') _wmOpenAcc.syn = false;
+  if (_wmCloseAcc === 'em')  _wmOpenAcc.em  = false;
+  _wmCloseAcc = null;   // 소비
   const _wmReopen = (sel) => { const b = el.querySelector(sel); if (!b) return;
     b.style.animation = 'none'; b.querySelectorAll(':scope>*').forEach(c => c.style.animation = 'none'); b.classList.add('open'); };
   if (_wmOpenAcc.syn) _wmReopen('.wm-syn-body');
@@ -37449,8 +37456,10 @@ function _ownedSynergyList(cards){
   return out;
 }
 // 대기화면 아코디언에서 시너지 장착/해제 → 메인 재렌더 (같은 거 재선택=해제)
+let _wmCloseAcc = null;   // 🔽 대기화면 전투준비 아코디언 — 선택 직후 닫을 대상('syn'|'em') · renderS1WaitingCard서 소비
 window.equipSynFromMain = async function(sid, tier){
   if (!myName) { showGoldToast('먼저 내 이름을 선택해주세요'); return; }
+  _wmCloseAcc = 'syn'; try{ document.querySelectorAll('.wm-syn-body.open').forEach(b=>b.classList.remove('open')); }catch(_){}   // 선택 시 아코디언 닫기(즉시+재렌더 복원 방지)
   const key = getMyGoldKey(), data = getMyGoldData();
   if (!key || !data) return;
   let newVal = null;
@@ -37471,6 +37480,7 @@ window.equipSynFromMain = async function(sid, tier){
 // 🔨 대기화면 아코디언에서 강철심장 장착/해제 → 메인 재렌더 (id=null=해제)
 window.equipEmblemFromMain = async function(id){
   if (!myName) { showGoldToast('먼저 내 이름을 선택해주세요'); return; }
+  _wmCloseAcc = 'em'; try{ document.querySelectorAll('.wm-em-body.open').forEach(b=>b.classList.remove('open')); }catch(_){}   // 선택 시 아코디언 닫기(즉시+재렌더 복원 방지)
   const ok = await emblemEquip(id);  // arr 검증·Firebase 반영·renderShop 포함
   if (ok === false) return;
   showGoldToast(id == null ? '🔨 강철심장 장착 해제' : '🔨 강철심장 장착');
