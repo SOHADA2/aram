@@ -7024,7 +7024,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.555';
+const APP_VERSION = 'v2.45.556';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7033,6 +7033,9 @@ const APP_VERSION = 'v2.45.555';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.556', date: '2026-07-03', changes: [
+    { tag: 'fix', text: '👑 「마스터를 뵙습니다」 등 첫 달성 축하 팝업이 확인을 눌러도 새로고침/재접속하면 계속 다시 뜨던 문제 수정 — 확인을 누르면 그 팝업은 다시 안 떠요.' },
+  ]},
   { ver: 'v2.45.555', date: '2026-07-03', changes: [
     { tag: 'improve', text: '🗡️ [투기장 전투] 타격 이펙트 추가 — 공격할 때 검광 스윙, 맞을 때 섬광+충격파 링+스파크가 캐릭터 위치에 터져요. 결정타는 더 크게. (그동안 체력바 깜빡임·화면 흔들림만 있었어요)' },
   ]},
@@ -32032,6 +32035,9 @@ async function s1TriggerMilestone(tier, participants, achieverName) {
 }
 
 const _milestoneShownAt = { master:0, grandmaster:0, challenger:0 };
+let _milestoneCurrent = null;   // 현재 표시 중인 {tier, at} — 확인 시 localStorage에 '봤음' 기록용
+const _msSeenKey = (tier, at) => 'msSeen_'+tier+'_'+(at||0);
+function _msSeen(tier, at){ try{ return !!localStorage.getItem(_msSeenKey(tier, at)); }catch(_){ return false; } }
 
 const _milestoneUnsubs = {};
 let _milestoneSubSeason = null;
@@ -32042,6 +32048,7 @@ function registerMilestoneListener(tier) {
     const data = snapshot.val();
     if (!data) return;
     if (_milestoneShownAt[tier] === data.at) return;
+    if (_msSeen(tier, data.at)) { _milestoneShownAt[tier] = data.at; return; }   // 🔒 이미 확인함 → 새로고침/재접속해도 재표시 안 함
     if (Date.now() - (data.at || 0) < 600000) {
       _milestoneShownAt[tier] = data.at;
       setTimeout(() => showMilestonePopup(data, tier), 900);
@@ -32126,6 +32133,7 @@ function showMilestonePopup(data, tier) {
   document.getElementById('master-popup-witness').innerHTML = `🏅 역사의 증인 · 참가자 전원 <strong>+${cfg.gold}G</strong>`;
   document.getElementById('master-popup-btn').className = `master-popup-btn${tierCls}`;
   document.getElementById('master-popup-participants').innerHTML = `역사의 증인<br>${parts}`;
+  _milestoneCurrent = { tier, at: data.at };   // 확인 시 이 항목을 '봤음'으로 기록
   el.style.display = 'flex';
   launchMilestoneConfetti(tier, cfg.confetti);
 }
@@ -32133,6 +32141,8 @@ window.closeMasterPopup = function() {
   const el = document.getElementById('master-popup');
   if (el) el.style.display = 'none';
   stopMilestoneConfetti();
+  try{ if(_milestoneCurrent) localStorage.setItem(_msSeenKey(_milestoneCurrent.tier, _milestoneCurrent.at), '1'); }catch(_){}   // 🔒 확인 → 영구 기록(새로고침 후 재표시 방지)
+  _milestoneCurrent = null;
 };
 
 // ── 막고라 인트로 팝업 (v2.41.1~) ──
