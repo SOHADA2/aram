@@ -7024,7 +7024,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.557';
+const APP_VERSION = 'v2.45.558';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7033,6 +7033,9 @@ const APP_VERSION = 'v2.45.557';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.558', date: '2026-07-03', changes: [
+    { tag: 'fix', text: '🔮 관전자 예측(배팅) 안내창이 이번 경기와 무관한 사람에게도 뜨던 문제 수정 — 이제 참가 선수와 관전자에게만 보여요.' },
+  ]},
   { ver: 'v2.45.557', date: '2026-07-03', changes: [
     { tag: 'fix', text: '⏱️ 팀 구성 아이템 타이머가 이번 경기에 참여하지 않는 사람에게도 뜨던 문제 수정 — 이제 팀에 뽑힌 참가자(와 진행자)에게만 카운트다운이 보여요.' },
   ]},
@@ -13533,6 +13536,8 @@ function applySessionData(data) {
     const pickStartAt = data.spectatorPickStartAt; // 팀 발표 종료 시점
     const myNorm = normName(myName || '');
     const amSpectator = !!(myNorm && currentSpectators.some(s => normName(s.name) === myNorm));
+    const _teamNames = [...(data.teamA||[]), ...(data.teamB||[])].map(n => normName(n));
+    const amPlayer = !!(myNorm && _teamNames.includes(myNorm));   // 🎯 이 경기 참가 선수
     if (amSpectator) {
       // 관전자 본인: 팀 발표 오버레이와 겹쳐도 하단 배너라 OK → 즉시 표시
       if (!document.getElementById('sp-overlay') && !spectatorPickTimer) {
@@ -13542,24 +13547,27 @@ function applySessionData(data) {
           if (!document.getElementById('sp-overlay') && !spectatorPickTimer) showSpectatorPickModal(remaining);
         }, 500);
       }
-    } else if (now < pickStartAt) {
-      // 팀 발표 진행 중 → 중앙 오버레이 충돌 방지 위해 발표 종료 후 표시
-      const delayMs = pickStartAt - now;
-      if (!document.getElementById('sp-overlay') && !spectatorPickTimer) {
-        setTimeout(() => {
-          if (!document.getElementById('sp-overlay') && !spectatorPickTimer) showSpectatorPickModal(25);
-        }, delayMs);
-      }
-    } else {
-      // 이미 팀 발표 종료 → 남은 시간으로 즉시 표시
-      const elapsed = Math.floor((now - pickStartAt) / 1000);
-      const remaining = Math.max(0, 25 - elapsed);
-      if (remaining > 0 && !document.getElementById('sp-overlay') && !spectatorPickTimer) {
-        setTimeout(() => {
-          if (!document.getElementById('sp-overlay') && !spectatorPickTimer) showSpectatorPickModal(remaining);
-        }, 300);
+    } else if (amPlayer) {   // 🎯 참가 선수만 중앙 오버레이(관전자 예측 진행 안내) — 이 경기와 무관한 사람(비참가·비관전)에겐 안 뜸
+      if (now < pickStartAt) {
+        // 팀 발표 진행 중 → 중앙 오버레이 충돌 방지 위해 발표 종료 후 표시
+        const delayMs = pickStartAt - now;
+        if (!document.getElementById('sp-overlay') && !spectatorPickTimer) {
+          setTimeout(() => {
+            if (!document.getElementById('sp-overlay') && !spectatorPickTimer) showSpectatorPickModal(25);
+          }, delayMs);
+        }
+      } else {
+        // 이미 팀 발표 종료 → 남은 시간으로 즉시 표시
+        const elapsed = Math.floor((now - pickStartAt) / 1000);
+        const remaining = Math.max(0, 25 - elapsed);
+        if (remaining > 0 && !document.getElementById('sp-overlay') && !spectatorPickTimer) {
+          setTimeout(() => {
+            if (!document.getElementById('sp-overlay') && !spectatorPickTimer) showSpectatorPickModal(remaining);
+          }, 300);
+        }
       }
     }
+    // else: 이 경기와 무관(선수·관전자 아님) → 아무것도 안 뜸
   } else if (!currentSpectators.length) {
     spectatorPick = null;
     _spectatorPickAnnounced = false;
