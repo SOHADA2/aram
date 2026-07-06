@@ -817,7 +817,15 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### v2.45.554~562 (2026-07-03~05·원격web 같은 세션 계속) — 🗡️경합 인과 수정·타격FX + 🍀복권 불운스택(+🚑핫픽스) + 참가자 게이팅·iOS줌·팝업/아코디언 버그 ← 최신
+### v2.45.564 (2026-07-06·이 PC) — 🎮 최하단 다운로드 = 브릿지→내전 오버레이 교체 + 🔖 버전 실시간 동기화 ← 최신
+
+> 사장님 지시: ①오버레이 안에 홈페이지와 **동일한 버전 표시**(실시간 동기화) ②최하단 브릿지 다운로드 링크를 **오버레이로 교체**(단, "브릿지가 하던 작업 전부 오버레이가 해야 함"). → **오버레이에 aram-bridge를 완전 이식**(별도 리포 `aram-overlay`)하고 홈은 링크·버전만 손봄.
+- **홈페이지(index.html) 변경 3건**: ①`BRIDGE_STATUS` IIFE(~L13794) — 다운로드 링크를 `SOHADA2/aram-bridge` → **`SOHADA2/aram-overlay` releases/latest**(setup.exe 에셋 자동 감지·`/setup.*\.exe$/i`)·라벨 「🎮 내전 오버레이 다운로드」·푸터 앵커(~L6771) 텍스트도 교체 ②그 아래 `set(ref(db,'config/appVersion'), APP_VERSION).catch(()=>{})` 추가 → **오버레이가 읽어 자기 화면에 홈과 동일 버전 표시** ③`_bridgeOutdated(o)`(~L13814)에 `o.app!=='overlay'` 스킵 → 오버레이 operator는 브릿지 exe 아니라 "구버전 경고" 제외. **RTDB 오픈룰이라 config 쓰기 무인증(홈 전체가 auth 미사용 확인)**. `config/appVersion` 초기값은 배포 후 curl PUT로 시드(`"v2.45.564"`).
+- **오버레이 쪽(별도 리포 aram-overlay·v0.1.2)**: `bridge.js` 신규 = aram-bridge index.js 1:1 이식. 오버레이가 LCU(lockfile)에 붙어 게임페이즈·**EOG 통계(KDA·딜량·골드·증강·멀티킬)** 캡처 → 홈이 읽는 **동일 경로**(`bridge/eogStats·voteStarted·champSelect·gamePhase·inGame·operators·heartbeat·connected·normal_matches/{gid}`)에 그대로 기록 → **홈 코드 무변경으로 오버레이=브릿지**. operators에 `app:'overlay'`. 참가자 중 누구든 오버레이 켜면 EOG 캡처(ETag CAS 중복차단). ⚠️**EOG 캡처 실기기 미검증**(개발환경에 LCU 없음)—실내전 1판 확인 필요. **기존 aram-bridge exe도 계속 동작(폴백·직접 다운로드 가능)**.
+- **⚠️ 배포 사고+복구(교훈)**: 오버레이 첫 릴리즈 v0.1.1이 **electron-builder `files` 배열에 `bridge.js` 누락** → 패키지서 빠져 `require('./bridge')` 런타임 크래시. 빌드는 success로 **깨진 릴리즈가 publish됨**. 즉시 `gh release edit v0.1.1 --draft`(latest/자동업뎃 피드서 제외)→v0.1.0으로 복귀→`files`에 bridge.js 추가+v0.1.2 재릴리즈(정상). **교훈: electron-builder `files` 화이트리스트라 새 파일 추가 시 반드시 등록**. 노출 창 짧음(빌드 완료~draft 수 분).
+- 배포: 홈 `main`+작업브랜치 둘 다(Pages success·라이브 v2.45.564 확인). 오버레이 master + tag v0.1.2(Actions 빌드 success·releases/latest=v0.1.2 `aram-overlay-setup-0.1.2.exe`). **현재 APP_VERSION=v2.45.564**.
+
+### v2.45.554~562 (2026-07-03~05·원격web 같은 세션 계속) — 🗡️경합 인과 수정·타격FX + 🍀복권 불운스택(+🚑핫픽스) + 참가자 게이팅·iOS줌·팝업/아코디언 버그
 
 > v552~553 세션의 연속(같은 원격web·작업브랜치 `claude/resume-work-in-progress-bdxxwh`). 배포=`main`+작업브랜치 둘 다·매 변경 7블록 `node --check`. 배포검증=GitHub MCP `actions_list`/`actions_get`(⚠️결과가 토큰초과로 파일 저장됨→python json 파싱·run_id 뽑아 `get_workflow_run`).
 
