@@ -6768,7 +6768,7 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
 <footer>
   ARAM CUSTOM TEAM BUILDER · 칼바람 아수라장
   <div style="margin-top:8px;">
-    <a id="bridge-dl-link" class="bridge-dl-link" href="#" download>LCU 브릿지 다운로드</a>
+    <a id="bridge-dl-link" class="bridge-dl-link" href="#" download>🎮 내전 오버레이 다운로드</a>
   </div>
   <div id="season-admin-wrap" style="display:none;margin-top:14px;"></div>
 </footer>
@@ -7026,7 +7026,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.563';
+const APP_VERSION = 'v2.45.564';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7035,6 +7035,10 @@ const APP_VERSION = 'v2.45.563';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.564', date: '2026-07-06', changes: [
+    { tag: 'new', text: '🎮 최하단 다운로드 링크를 「내전 오버레이」로 교체했어요 — 오버레이가 브릿지가 하던 일(경기 KDA·딜량·증강 자동 기록, 진행자 표시, 일반게임 기록, 진행 중 배너)까지 전부 하도록 내장 브릿지를 붙였습니다. 오버레이 하나만 켜면 팀짜기·투표·정산·오버레이 + 브릿지 역할까지 됩니다. (오버레이는 한 번 설치하면 자동 업데이트) ※ 기존 브릿지 exe도 계속 동작하니 급하면 그대로 쓰셔도 돼요.' },
+    { tag: 'improve', text: '🔖 내전 오버레이 화면에 홈페이지와 동일한 버전이 실시간으로 표시돼요(config/appVersion 동기화).' },
+  ] },
   { ver: 'v2.45.563', date: '2026-07-05', changes: [
     { tag: 'fix', text: '🔌 브릿지 v1.1.38 — 게임 진행 중 「참가자 명단을 받지 못했어요」가 뜨던 문제를 근본 수정했어요. 롤 클라이언트가 진행 중엔 이름을 안 주던 걸, 게임 자체의 인게임 데이터로 전원 이름을 가져오게 바꿨습니다(브릿지를 게임 도중 켜도·상대팀이 가려져도 채워짐). 진행자분들은 브릿지를 최신 v1.1.38로 업데이트해주세요.' },
   ] },
@@ -13791,27 +13795,31 @@ onValue(ref(db, 'session/manner'), (snapshot) => {
 
 
 // ── BRIDGE STATUS ─────────────────────────────────────────────
-const BRIDGE_DOWNLOAD_URL = 'https://github.com/SOHADA2/aram-bridge/releases/latest';
+// 🎮 다운로드 링크 = 내전 오버레이(브릿지 대체). 오버레이가 LCU EOG 캡처·진행자 표시·일반게임 기록까지 전부 하므로 브릿지 exe 대신 오버레이 설치본을 배포.
+const OVERLAY_DOWNLOAD_URL = 'https://github.com/SOHADA2/aram-overlay/releases/latest';
 (function() {
   const el = document.getElementById('bridge-dl-link');
-  if (el) el.href = BRIDGE_DOWNLOAD_URL;
-  fetch('https://api.github.com/repos/SOHADA2/aram-bridge/releases/latest')
+  if (el) el.href = OVERLAY_DOWNLOAD_URL;
+  fetch('https://api.github.com/repos/SOHADA2/aram-overlay/releases/latest')
     .then(r => r.json())
     .then(d => {
       if (!el) return;
-      if (d.tag_name) el.textContent = `LCU 브릿지 다운로드 ${d.tag_name}`;
-      const asset = d.assets?.find(a => a.name.endsWith('.zip')) || d.assets?.find(a => a.name.endsWith('.exe'));
+      if (d.tag_name) el.textContent = `🎮 내전 오버레이 다운로드 ${d.tag_name}`;
+      const asset = (d.assets || []).find(a => /setup.*\.exe$/i.test(a.name)) || (d.assets || []).find(a => a.name.endsWith('.exe'));
       if (asset?.browser_download_url) el.href = asset.browser_download_url;
     })
     .catch(() => {});
 })();
+
+// 🔖 현재 앱 버전을 Firebase에 기록 → 내전 오버레이가 읽어 자기 화면에 "홈페이지와 동일한 버전"을 표시(실시간 동기화)
+try { set(ref(db, 'config/appVersion'), APP_VERSION).catch(() => {}); } catch (_) {}
 
 let _bridgeHeartbeat = null;
 let _bridgeOperators = null;   // { id: {name, at, ver} } — 다중 진행자 (aram-bridge v1.1.32~, ver=v1.1.37~)
 const LATEST_BRIDGE_VER = '1.1.38';   // 🔌 최신 브릿지 버전(릴리즈 때 같이 올릴 것) — 이보다 낮거나 ver 없으면 구버전
 let _bridgeUpdateNagged = false;
 function _bridgeVerLt(a, b){ const pa=String(a||'0').split('.').map(n=>+n||0), pb=String(b).split('.').map(n=>+n||0); for(let i=0;i<3;i++){ if((pa[i]||0)<(pb[i]||0)) return true; if((pa[i]||0)>(pb[i]||0)) return false; } return false; }
-function _bridgeOutdated(o){ return !!o && (!o.ver || _bridgeVerLt(o.ver, LATEST_BRIDGE_VER)); }   // ver 없음=v1.1.36이하(구버전)
+function _bridgeOutdated(o){ return !!o && o.app !== 'overlay' && (!o.ver || _bridgeVerLt(o.ver, LATEST_BRIDGE_VER)); }   // ver 없음=v1.1.36이하(구버전) · 오버레이(app:'overlay')는 브릿지 exe가 아니므로 구버전 경고 제외
 
 function _updateBridgeDot() {
   const dot = document.getElementById('bridge-dot');
