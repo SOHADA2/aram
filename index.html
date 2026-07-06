@@ -7026,7 +7026,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.564';
+const APP_VERSION = 'v2.45.565';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7035,6 +7035,10 @@ const APP_VERSION = 'v2.45.564';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.565', date: '2026-07-06', changes: [
+    { tag: 'improve', text: '🛡️ 경기 이중 저장 원천 차단 — 게임 고유 ID(gameId)로 "이 게임 이미 저장됨" 원자적 마커를 추가했어요. 여러 기기가 동시에 저장을 시도해도 딱 한 대만 저장되고 LP·골드가 두 번 적용되는 일이 없습니다(되돌릴 일 방지). 기존 saveLock에 더해 게임 단위로 확실히 막아요.' },
+    { tag: 'new', text: '🔴 내전 오버레이만으로 경기 저장·정산까지 — 방장이 오버레이에서 「방장」을 켜면, 오버레이가 백그라운드로 라이브 계정 역할을 자동으로 맡아 경기 저장·정산을 처리합니다(홈페이지 라이브 계정을 아무도 안 켜도 진행). 저장은 홈페이지의 검증된 코드를 그대로 쓰고, 위 gameId 잠금으로 이중 저장은 불가능해요.' },
+  ] },
   { ver: 'v2.45.564', date: '2026-07-06', changes: [
     { tag: 'new', text: '🎮 최하단 다운로드 링크를 「내전 오버레이」로 교체했어요 — 오버레이가 브릿지가 하던 일(경기 KDA·딜량·증강 자동 기록, 진행자 표시, 일반게임 기록, 진행 중 배너)까지 전부 하도록 내장 브릿지를 붙였습니다. 오버레이 하나만 켜면 팀짜기·투표·정산·오버레이 + 브릿지 역할까지 됩니다. (오버레이는 한 번 설치하면 자동 업데이트) ※ 기존 브릿지 exe도 계속 동작하니 급하면 그대로 쓰셔도 돼요.' },
     { tag: 'improve', text: '🔖 내전 오버레이 화면에 홈페이지와 동일한 버전이 실시간으로 표시돼요(config/appVersion 동기화).' },
@@ -13717,7 +13721,7 @@ onValue(ref(db, 'session'), (snapshot) => {
   // 아이템 사용 단계: 모든 기기에 카운트다운 표시 + 아이템 잠금 해제
   if (data?.phase === 'item' && data.itemPhaseEnd) {
     if (itemsLocked) { itemsLocked = false; renderShop(); }
-    startItemCountdown(data.itemPhaseEnd, data.players);
+    startItemCountdown(data.itemPhaseEnd, data.players, data.extBuild);
     return;
   }
 
@@ -13970,6 +13974,7 @@ function _tryAutoSave() {
 
 // ── BRIDGE: EOG 자동 결과 입력 ────────────────────────────────────
 let _currentEogSavedAt = 0; // 현재 처리 중인 eogStats의 savedAt
+let _currentEogGameId = null; // 현재 처리 중인 게임의 고유 gameId(브릿지/오버레이가 캡처) — 저장 원자적 중복방지 키 (v2.45.565~)
 
 async function applyEogData(data) {
   if (!data?.players) return;
@@ -13988,6 +13993,7 @@ async function applyEogData(data) {
     return;
   }
   _currentEogSavedAt = data.savedAt || 0;
+  _currentEogGameId = data.gameId || null;   // 게임 고유 ID(원자적 중복방지용) — 브릿지/오버레이 eogStats에 담김
 
   await loadChampNamesKR();
 
@@ -16178,7 +16184,9 @@ function playCompleteSound() {
 }
 
 const ITEM_PHASE_MS = 15000;
-function startItemCountdown(endTime, players) {
+// extBuild=true 이면 이 아이템 페이즈는 외부(오버레이)가 팀 구성을 담당 → 라이브 기기(숨은 웹뷰)는 makeTeams 하지 않음(이중 팀구성 방지)
+let _itemPhaseExtBuild = false;
+function startItemCountdown(endTime, players, extBuild) {
   // 🎯 참가자에게만 타이머 노출: 라이브(호스트)는 항상 · 그 외엔 참가자 명단(players)에 있어야 · 명단 없으면(구버전 세션) 기존처럼 전원
   const _me = normName(myName || '');
   const _amPart = liveMode || !Array.isArray(players) || (!!_me && players.includes(_me));
@@ -16193,6 +16201,7 @@ function startItemCountdown(endTime, players) {
   // (세션 자식 쓰기/리스너 재발화로 startItemCountdown이 반복 호출돼도 타이머가 리셋되지 않게)
   if (_itemPhaseActiveEnd === endTime && itemPhaseTimer) return;
   _itemPhaseActiveEnd = endTime;
+  _itemPhaseExtBuild = !!extBuild;   // 오버레이가 짠 아이템 페이즈면 라이브 웹뷰는 팀 구성 스킵
 
   const card = document.getElementById('item-phase-card');
   const timerEl = document.getElementById('item-phase-timer');
@@ -16271,7 +16280,7 @@ function startItemCountdown(endTime, players) {
       if (prepEl) prepEl.innerHTML = '';
       if (mipbEl) { mipbEl.style.display = 'none'; mipbEl.innerHTML = ''; }
       playCompleteSound(); // 모든 기기에서 완료 사운드
-      if (liveMode) makeTeams(); // 호스트만 팀 구성 실행
+      if (liveMode && !_itemPhaseExtBuild) makeTeams(); // 호스트만 팀 구성 실행 (오버레이가 짠 페이즈면 오버레이가 finishTeamBuild 하므로 스킵)
       lastTickSec = -1;
     }
   }
@@ -17047,6 +17056,7 @@ function renderResult() {
   document.getElementById('tier-changes-row').innerHTML = '';
   matchSaved = false;
   _saveInProgress = false;
+  _currentEogGameId = null;   // 새 팀 → gameId 초기화(이전 게임 마커 오적용 방지)
 
   // 상단 헤더("1팀 N:N 2팀") 숨김
   document.getElementById('result-header').style.display='none';
@@ -18464,9 +18474,28 @@ window.saveMatch = async function() {
   if (!selectedWinner) return;
   if (matchSaved || savedMatchKey || _saveInProgress) return;
   _saveInProgress = true; // 동기 잠금 — async push 완료 전 중복 진입 차단
+  let _gidOwned = null;   // gameId 원자적 마커 소유 시 저장 실패하면 해제(재시도 허용)
   const btn=document.getElementById('save-btn');
   btn.disabled=true; btn.textContent='저장 중...';
   try {
+    // ── gameId 원자적 중복방지 (v2.45.565~) ─────────────────────────────
+    // 브릿지/오버레이가 잡은 게임 고유 gameId로 "이 게임 이미 저장됨" 원자적 마커(runTransaction).
+    // 여러 라이브 기기(오버레이 숨은 라이브 웹뷰 포함)가 동시에 저장해도 딱 한 대만 마커를 얻어 이중 저장을 원천 차단.
+    // gameId 없으면(수동 저장 등) 기존 saveLock 흐름으로 진행.
+    if (_currentEogGameId) {
+      // 10분 staleness: 정상 저장은 수 초 내 끝나고 eogStats도 저장 후 정리·aram_eogSavedAt로 재처리 차단되므로
+      //   10분 내 마커=진짜 저장중/완료 → 차단. 10분 초과=하드 크래시로 고아된 마커 → 재점유 허용(복구).
+      const _mk = await runTransaction(ref(db, 'config/savedGames/' + _currentEogGameId),
+        (cur) => (cur && cur.at && (Date.now() - cur.at) < 600000) ? undefined : { at: Date.now(), by: (typeof getDeviceId === 'function' ? getDeviceId() : 'x') });
+      if (!_mk.committed) {
+        console.warn('[saveMatch] gameId 이미 저장됨 — 이중 저장 방지, 저장 건너뜀');
+        matchSaved = true; _saveInProgress = false;
+        if (_currentEogSavedAt) localStorage.setItem('aram_eogSavedAt', String(_currentEogSavedAt));
+        btn.textContent = '✅ 저장 완료 (다른 기기)'; btn.disabled = true;
+        return;   // 저장은 마커를 얻은 기기가 함 → 이 기기는 lastSettlement로 정산 표시
+      }
+      _gidOwned = _currentEogGameId;
+    }
     const winners = selectedWinner==='blue' ? currentTeamA.map(p=>p.name) : currentTeamB.map(p=>p.name);
     const losers  = selectedWinner==='blue' ? currentTeamB.map(p=>p.name) : currentTeamA.map(p=>p.name);
 
@@ -18991,6 +19020,7 @@ window.saveMatch = async function() {
     selectedWinner = null;
   } catch(e) {
     _saveInProgress = false; // 실패 시 잠금 해제 (재시도 가능하도록)
+    if (_gidOwned) set(ref(db, 'config/savedGames/' + _gidOwned), null).catch(() => {});   // 마커 해제 → 재시도 허용(고아 마커 방지)
     btn.textContent='❌ 저장 실패'; btn.disabled=false;
     setTimeout(()=>{btn.textContent='💾 결과 저장하기';},2000);
   }
@@ -31377,6 +31407,7 @@ window.resetSession = function() {
   savedWinner = null;
   matchSaved = false;
   _saveInProgress = false;
+  _currentEogGameId = null;   // 새 팀 → gameId 초기화(이전 게임 마커 오적용 방지)
   mvpConfirmed = null;
   mannerConfirmed = null;
   _currentTeamsFormedAt = 0;
