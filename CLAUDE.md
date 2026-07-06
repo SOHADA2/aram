@@ -817,7 +817,14 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### v2.45.564 (2026-07-06·이 PC) — 🎮 최하단 다운로드 = 브릿지→내전 오버레이 교체 + 🔖 버전 실시간 동기화 ← 최신
+### v2.45.565 (2026-07-06·이 PC) — 🛡️ 경기 이중저장 gameId 원자 차단 + 🔴 오버레이 라이브계정(숨은 웹뷰) 지원 ← 최신
+
+> 사장님 의도: 홈페이지 라이브 계정 없이도 **오버레이만으로 경기 저장·정산 완결**. **최우선=이중 기록 절대 방지**(LP/골드 이중적용→수동 되돌림). 서브에이전트로 saveMatch 이중저장 방지 정밀 분석 후 구현. 저장은 재작성 안 하고 **홈페이지 코드+락 재사용**(오버레이가 숨은 홈페이지 웹뷰를 liveMode로 띄움·상세=aram-overlay CLAUDE.md).
+- **🛡️ gameId 원자적 이중저장 차단(핵심)**: 기존 방지는 `session/saveLock`(runTransaction·30초창)+휴리스틱(2분 같은팀/승자 창·push키 lex canonical)뿐이고 **경기 기록에 gameId가 없어** "라이브 1대만 저장"에 의존했음. → 브릿지/오버레이가 잡은 게임 고유 `gameId`를 eogStats에 실어(`applyEogData`가 `_currentEogGameId` 캡처·L13991)→`saveMatch` 최상단(L18469대)에서 `config/savedGames/{gameId}`에 **runTransaction 마커**. 딱 한 대만 획득→저장·나머지 즉시 return. 실패 시 catch서 `set(…,null)` 마커 해제(고아 방지)·**10분 staleness**(하드크래시 복구·정상저장은 수초+eogStats 정리/aram_eogSavedAt로 재처리 차단이라 10분내 재저장 없음). 새 팀 시 `_currentEogGameId=null` 리셋(수동저장 오적용 방지). gameId 없으면(수동) 기존 흐름. **여러 라이브 기기 동시 저장해도 이중 불가**.
+- **🔴 오버레이 라이브계정 연동(extBuild)**: 오버레이 방장이 숨은 홈페이지 웹뷰를 liveMode로 띄워 저장 담당. 문제=아이템페이즈 만료 시 `if(liveMode)makeTeams()`(L16276)가 오버레이 finishTeamBuild와 겹침 → 오버레이 item-phase 세션에 `extBuild:true` 마킹 → `startItemCountdown(endTime,players,extBuild)`가 `_itemPhaseExtBuild` 세팅 → 만료 시 `if(liveMode && !_itemPhaseExtBuild)makeTeams()`로 **웹뷰는 팀구성 스킵**. 나머지 liveMode 자동행동(관전자 랜덤픽 L15316 등)은 무해·유익. 웹뷰는 이미 다른 라이브 계정 있으면 `handleLiveKicked`로 자동 물러남.
+- 배포: 홈 `main`+작업브랜치(APP_VERSION=**v2.45.565**). 오버레이 v0.1.4(라이브 웹뷰). 홈 변경은 전부 additive/guarded라 기존 흐름 무영향(gameId 없으면 스킵·extBuild 없으면 기존대로). ⚠️**실기 미검증**: 오버레이만으로 저장/정산/이중저장 안 됨 실내전 확인 필수.
+
+### v2.45.564 (2026-07-06·이 PC) — 🎮 최하단 다운로드 = 브릿지→내전 오버레이 교체 + 🔖 버전 실시간 동기화
 
 > 사장님 지시: ①오버레이 안에 홈페이지와 **동일한 버전 표시**(실시간 동기화) ②최하단 브릿지 다운로드 링크를 **오버레이로 교체**(단, "브릿지가 하던 작업 전부 오버레이가 해야 함"). → **오버레이에 aram-bridge를 완전 이식**(별도 리포 `aram-overlay`)하고 홈은 링크·버전만 손봄.
 - **홈페이지(index.html) 변경 3건**: ①`BRIDGE_STATUS` IIFE(~L13794) — 다운로드 링크를 `SOHADA2/aram-bridge` → **`SOHADA2/aram-overlay` releases/latest**(setup.exe 에셋 자동 감지·`/setup.*\.exe$/i`)·라벨 「🎮 내전 오버레이 다운로드」·푸터 앵커(~L6771) 텍스트도 교체 ②그 아래 `set(ref(db,'config/appVersion'), APP_VERSION).catch(()=>{})` 추가 → **오버레이가 읽어 자기 화면에 홈과 동일 버전 표시** ③`_bridgeOutdated(o)`(~L13814)에 `o.app!=='overlay'` 스킵 → 오버레이 operator는 브릿지 exe 아니라 "구버전 경고" 제외. **RTDB 오픈룰이라 config 쓰기 무인증(홈 전체가 auth 미사용 확인)**. `config/appVersion` 초기값은 배포 후 curl PUT로 시드(`"v2.45.564"`).
