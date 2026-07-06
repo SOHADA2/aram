@@ -7026,7 +7026,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.565';
+const APP_VERSION = 'v2.45.566';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7035,6 +7035,9 @@ const APP_VERSION = 'v2.45.565';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.566', date: '2026-07-06', changes: [
+    { tag: 'improve', text: '🎮 내전 오버레이 다운로드를 누르면 설치 안내창이 떠요 — 서명 안 된 내부 도구라 실행 시 Windows가 파란 「PC를 보호했습니다」 경고를 띄우는데, 「추가 정보 → 실행」으로 켜면 된다는 안내(정상 경고·바이러스 아님)를 보여준 뒤 다운로드해요. 이제 받아서 바로 실행할 수 있어요.' },
+  ] },
   { ver: 'v2.45.565', date: '2026-07-06', changes: [
     { tag: 'improve', text: '🛡️ 경기 이중 저장 원천 차단 — 게임 고유 ID(gameId)로 "이 게임 이미 저장됨" 원자적 마커를 추가했어요. 여러 기기가 동시에 저장을 시도해도 딱 한 대만 저장되고 LP·골드가 두 번 적용되는 일이 없습니다(되돌릴 일 방지). 기존 saveLock에 더해 게임 단위로 확실히 막아요.' },
     { tag: 'new', text: '🔴 내전 오버레이만으로 경기 저장·정산까지 — 방장이 오버레이에서 「방장」을 켜면, 오버레이가 백그라운드로 라이브 계정 역할을 자동으로 맡아 경기 저장·정산을 처리합니다(홈페이지 라이브 계정을 아무도 안 켜도 진행). 저장은 홈페이지의 검증된 코드를 그대로 쓰고, 위 gameId 잠금으로 이중 저장은 불가능해요.' },
@@ -13801,19 +13804,71 @@ onValue(ref(db, 'session/manner'), (snapshot) => {
 // ── BRIDGE STATUS ─────────────────────────────────────────────
 // 🎮 다운로드 링크 = 내전 오버레이(브릿지 대체). 오버레이가 LCU EOG 캡처·진행자 표시·일반게임 기록까지 전부 하므로 브릿지 exe 대신 오버레이 설치본을 배포.
 const OVERLAY_DOWNLOAD_URL = 'https://github.com/SOHADA2/aram-overlay/releases/latest';
+let _overlayDlUrl = OVERLAY_DOWNLOAD_URL, _overlayTag = '';
 (function() {
   const el = document.getElementById('bridge-dl-link');
-  if (el) el.href = OVERLAY_DOWNLOAD_URL;
+  if (!el) return;
+  el.href = OVERLAY_DOWNLOAD_URL;
+  el.removeAttribute('download');
+  el.addEventListener('click', (e) => { e.preventDefault(); showOverlayInstallGuide(); });   // 클릭 → 설치 안내(윈도우 PC 보호 경고 설명) → 다운로드
   fetch('https://api.github.com/repos/SOHADA2/aram-overlay/releases/latest')
     .then(r => r.json())
     .then(d => {
-      if (!el) return;
-      if (d.tag_name) el.textContent = `🎮 내전 오버레이 다운로드 ${d.tag_name}`;
+      if (d.tag_name) { _overlayTag = d.tag_name; el.textContent = `🎮 내전 오버레이 다운로드 ${d.tag_name}`; }
       const asset = (d.assets || []).find(a => /setup.*\.exe$/i.test(a.name)) || (d.assets || []).find(a => a.name.endsWith('.exe'));
-      if (asset?.browser_download_url) el.href = asset.browser_download_url;
+      if (asset?.browser_download_url) _overlayDlUrl = asset.browser_download_url;
     })
     .catch(() => {});
 })();
+
+// 🎮 내전 오버레이 설치 안내 — 서명 안 된 exe라 뜨는 Windows "PC 보호" 경고(추가 정보→실행) 설명 후 다운로드
+function _injectOverlayGuideCss() {
+  if (document.getElementById('ovlg-css')) return;
+  const s = document.createElement('style'); s.id = 'ovlg-css';
+  s.textContent = `
+  .ovlg-ov{position:fixed;inset:0;z-index:4200;background:rgba(6,5,12,0.82);display:flex;align-items:center;justify-content:center;padding:20px;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);}
+  .ovlg{position:relative;background:linear-gradient(180deg,#1b1827,#110f1a);border:1px solid rgba(240,200,90,0.45);border-radius:16px;max-width:400px;width:100%;padding:20px 20px 18px;box-shadow:0 20px 60px rgba(0,0,0,0.6);color:#e8ecf6;max-height:90vh;overflow-y:auto;}
+  .ovlg-x{position:absolute;top:12px;right:12px;width:28px;height:28px;border:none;border-radius:8px;background:rgba(255,255,255,0.08);color:#cfd4e6;font-size:13px;font-weight:800;cursor:pointer;}
+  .ovlg-h{font-family:'Black Han Sans','Noto Sans KR',sans-serif;font-size:19px;color:#ffd24a;text-align:center;letter-spacing:0.5px;}
+  .ovlg-sub{font-size:11px;color:#9aa0b4;text-align:center;margin:4px 0 15px;}
+  .ovlg-steps{list-style:none;counter-reset:s;padding:0;margin:0;display:flex;flex-direction:column;gap:12px;}
+  .ovlg-steps li{counter-increment:s;position:relative;padding-left:31px;font-size:13px;line-height:1.6;color:#cdd3e6;}
+  .ovlg-steps li::before{content:counter(s);position:absolute;left:0;top:1px;width:21px;height:21px;border-radius:50%;background:rgba(240,200,90,0.16);border:1px solid rgba(240,200,90,0.5);color:#ffd24a;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+  .ovlg-steps b{color:#ffe39a;}
+  .ovlg-warn{margin:9px 0 7px;background:linear-gradient(180deg,#0f66cc,#0a4f9e);border-radius:9px;padding:11px 13px;box-shadow:0 3px 12px rgba(0,0,0,0.35);}
+  .ovlg-warn-t{font-size:12.5px;font-weight:800;color:#fff;margin-bottom:6px;display:flex;align-items:center;gap:6px;}
+  .ovlg-warn-s{font-size:12px;color:#e6eeff;line-height:1.8;}
+  .ovlg-k{display:inline-block;background:#fff;color:#1a3a6b;font-weight:800;border-radius:5px;padding:2px 8px;margin:0 1px;font-size:11.5px;}
+  .ovlg-note{font-size:11px;color:#9aa0b4;line-height:1.55;margin-top:5px;}.ovlg-note b{color:#ffe39a;}
+  .ovlg-dl{display:block;text-align:center;margin-top:17px;padding:14px;border-radius:12px;background:linear-gradient(135deg,#e0a82e,#f0c860);color:#1a1206;font-size:15px;font-weight:800;text-decoration:none;box-shadow:0 6px 18px rgba(240,190,70,0.3);}
+  .ovlg-dl:active{transform:translateY(1px);}`;
+  document.head.appendChild(s);
+}
+window.showOverlayInstallGuide = function() {
+  _injectOverlayGuideCss();
+  if (document.getElementById('ovlg-modal')) return;
+  const ov = document.createElement('div'); ov.id = 'ovlg-modal'; ov.className = 'ovlg-ov';
+  ov.innerHTML = `<div class="ovlg" onclick="event.stopPropagation()">
+    <button class="ovlg-x" title="닫기">✕</button>
+    <div class="ovlg-h">🎮 내전 오버레이 설치</div>
+    <div class="ovlg-sub">Windows PC 전용 · 한 번 설치하면 자동 업데이트${_overlayTag ? ' · ' + escHtml(_overlayTag) : ''}</div>
+    <ol class="ovlg-steps">
+      <li><b>다운로드</b> — 맨 아래 버튼으로 설치 파일(Setup.exe)을 받으세요.</li>
+      <li><b>실행하면 파란 경고창</b>이 떠요. 놀라지 마세요!
+        <div class="ovlg-warn">
+          <div class="ovlg-warn-t">🛡️ Windows의 PC를 보호했습니다</div>
+          <div class="ovlg-warn-s"><span class="ovlg-k">추가 정보</span> 클릭 → <span class="ovlg-k">실행</span> 버튼 누르기</div>
+        </div>
+        <div class="ovlg-note">서명 안 된 <b>내부 제작 도구</b>라서 뜨는 <b>정상 경고</b>예요. 바이러스 아니고, 우리가 만든 앱이에요. (추가 정보 안 누르면 실행 버튼이 안 보여요)</div>
+      </li>
+      <li><b>설치 끝!</b> — 이후엔 자동 업데이트라 다시 받을 필요 없어요.</li>
+    </ol>
+    <a class="ovlg-dl" href="${escHtml(_overlayDlUrl)}" download>⬇️ 지금 다운로드${_overlayTag ? ' (' + escHtml(_overlayTag) + ')' : ''}</a>
+  </div>`;
+  ov.onclick = () => ov.remove();
+  ov.querySelector('.ovlg-x').onclick = () => ov.remove();
+  document.body.appendChild(ov);
+};
 
 // 🔖 현재 앱 버전을 Firebase에 기록 → 내전 오버레이가 읽어 자기 화면에 "홈페이지와 동일한 버전"을 표시(실시간 동기화)
 try { set(ref(db, 'config/appVersion'), APP_VERSION).catch(() => {}); } catch (_) {}
