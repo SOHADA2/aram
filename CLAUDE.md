@@ -817,7 +817,13 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### v2.45.565 (2026-07-06·이 PC) — 🛡️ 경기 이중저장 gameId 원자 차단 + 🔴 오버레이 라이브계정(숨은 웹뷰) 지원 ← 최신
+### v2.45.567~568 (2026-07-07·이 PC) — 🛡️ 마지막 경기 되돌리기(스냅샷) + ⚔️ 투기장 강화창 장착 표시 ← 최신
+> 이 세션 주 작업은 **오버레이(별도 리포 aram-overlay)** 디자인/인게임뷰였고(그쪽 CLAUDE.md 참조), 홈페이지는 2건.
+- **🛡️ v2.45.567 마지막 경기 되돌리기(라이브 전용)** — 중복/오류 경기를 **역산 없이** 되돌리는 안전망(사장님: 중복이 실제 발생 전력 있음). 기존엔 경기 직전 LP 스냅샷이 매치에 없어 전체 역산 필요했음. **①스냅샷 박제**(saveMatch): `s1LpBefore` 계산 시점에 `_goldBefore`(goldBonusLegacy_s2·items_s2 per참가자)도 캡처 → `update(matches/{key}, {lpBefore, goldBefore})`(순수 기록·지급방식/금액 불변). **②`undoLastMatch()`**(deleteMatch 옆): 현재시즌 최신 경기를 스냅샷 **verbatim 복원**(`set(seasonNode('players')/{normName}, lpBefore[k])` + gold노드 `goldBonusLegacy_s2`/`items_s2` 복원) + `config/savedGames/{gameId}` 마커 해제 + `remove(matches/{key})`(기본골드·전적·MVP는 파생이라 자동 재계산). 미리보기(각자 LP 현재→복원) confirm 필수·라이브 전용·최신 1경기 한정. 기록탭 `.rc-undo-btn`(`.live-mode`만). ⚠️골드=goldBonusLegacy(강철심장/시너지 골드)만 상태값이라 복원(기본골드/MVP는 매치삭제로 자동)·경기 이후 활동(아이템구매·단짝보상)은 되돌아갈 수 있음(경기 직후 사용)·**스냅샷 도입 전 경기는 lpBefore 없어 수동**·실기 미검증.
+- **⚔️ v2.45.568 투기장 강화창 장착 표시** — 사장님: 강화창서 인형 선택=`setFighter`로 `arenaFighter_s2`(전투·방어 인형) 교체인데 표시가 없어 "선택만 했는데 배틀 방어 QWE가 그 인형됨" 혼동. `openArenaForge` render에 `equippedRk`/`viewingEquipped` 계산 → ①이름 옆 「⚔️ 전투 인형」/「👁 미리보기」 배지 ②인형 목록 장착분에 ⚔️(`.ap-eq`)+금테(`.ap.equipped`) ③"탭하면 전투·방어에 쓰는 ⚔️ 전투 인형이 돼요(=장착)" 안내문(`.arena-picknote`). 배틀 방어는 원래 "내 인형 {이름} +{전투력}" 표시라 맞물려 해소.
+- 배포: main 직접(이 PC)·Pages success. 현재 **APP_VERSION=v2.45.568**.
+
+### v2.45.565 (2026-07-06·이 PC) — 🛡️ 경기 이중저장 gameId 원자 차단 + 🔴 오버레이 라이브계정(숨은 웹뷰) 지원
 
 > 사장님 의도: 홈페이지 라이브 계정 없이도 **오버레이만으로 경기 저장·정산 완결**. **최우선=이중 기록 절대 방지**(LP/골드 이중적용→수동 되돌림). 서브에이전트로 saveMatch 이중저장 방지 정밀 분석 후 구현. 저장은 재작성 안 하고 **홈페이지 코드+락 재사용**(오버레이가 숨은 홈페이지 웹뷰를 liveMode로 띄움·상세=aram-overlay CLAUDE.md).
 - **🛡️ gameId 원자적 이중저장 차단(핵심)**: 기존 방지는 `session/saveLock`(runTransaction·30초창)+휴리스틱(2분 같은팀/승자 창·push키 lex canonical)뿐이고 **경기 기록에 gameId가 없어** "라이브 1대만 저장"에 의존했음. → 브릿지/오버레이가 잡은 게임 고유 `gameId`를 eogStats에 실어(`applyEogData`가 `_currentEogGameId` 캡처·L13991)→`saveMatch` 최상단(L18469대)에서 `config/savedGames/{gameId}`에 **runTransaction 마커**. 딱 한 대만 획득→저장·나머지 즉시 return. 실패 시 catch서 `set(…,null)` 마커 해제(고아 방지)·**10분 staleness**(하드크래시 복구·정상저장은 수초+eogStats 정리/aram_eogSavedAt로 재처리 차단이라 10분내 재저장 없음). 새 팀 시 `_currentEogGameId=null` 리셋(수동저장 오적용 방지). gameId 없으면(수동) 기존 흐름. **여러 라이브 기기 동시 저장해도 이중 불가**.
