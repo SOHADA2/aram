@@ -7031,7 +7031,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.567';
+const APP_VERSION = 'v2.45.568';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7040,6 +7040,9 @@ const APP_VERSION = 'v2.45.567';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.568', date: '2026-07-07', changes: [
+    { tag: 'improve', text: '⚔️ 투기장 강화창에서 "지금 장착(전투)한 인형"이 명확해졌어요 — 강화창에서 보유 인형을 탭하면 그 인형이 곧 전투·방어에 쓰는 인형으로 장착되는데, 표시가 없어 "선택만 한 건데 왜 배틀 방어 QWE가 이 인형이 되지?" 하고 헷갈렸어요. 이제 ① 인형 이름 옆에 「⚔️ 전투 인형」(미보유 미리보기 중이면 「👁 미리보기」) 배지, ② 인형 목록에서 장착 중인 인형에 ⚔️ 표시와 금색 테두리, ③ "보유 인형을 탭하면 전투·방어에 쓰는 ⚔️ 전투 인형이 돼요(=장착)" 안내문을 넣어 지금 뭘 장착 중인지·탭하면 장착된다는 걸 바로 알 수 있어요.' },
+  ] },
   { ver: 'v2.45.567', date: '2026-07-07', changes: [
     { tag: 'new', text: '🛡️ 마지막 경기 되돌리기(라이브 계정 전용) — 중복·오류 경기가 저장됐을 때 역산 없이 한 번에 되돌려요. 이제 매 경기 저장 시 「경기 직전 LP·강철심장/시너지 골드·소모 아이템」 스냅샷을 매치에 박제하고(순수 기록·지급 방식 불변), 기록 탭 「↩️ 되돌리기」로 현재 시즌 최신 경기를 그 스냅샷 그대로 복원 + 매치 삭제(기본 골드·전적·MVP는 자동 재계산)합니다. 누른 뒤 각자 LP 복원 내역을 미리 보고 확인해야 실행돼요. ※경기 직후 사용 권장(경기 이후 산 아이템·단짝 보상 등은 되돌아갈 수 있음). 스냅샷 도입 전 경기는 스냅샷이 없어 수동 정정 필요.' },
   ] },
@@ -34875,6 +34878,12 @@ function _injectArenaCss(){
   .arena-pick .ap.empty{opacity:.5;}
   .arena-pick .ap.empty img{filter:grayscale(1) brightness(.6);}
   .arena-pick .ap.empty .ap-p{color:#9aa0b4;font-weight:700;}
+  .arena-pick .ap.equipped{border-color:#ffd24a;box-shadow:0 0 0 1px #ffd24a inset,0 0 9px rgba(240,200,90,.35);}
+  .arena-pick .ap .ap-eq{position:absolute;top:-7px;left:-5px;font-size:12px;z-index:2;filter:drop-shadow(0 1px 2px rgba(0,0,0,.85));}
+  .arena-eqbadge{font-size:10px;font-weight:800;padding:2px 7px;border-radius:7px;background:rgba(240,200,90,.16);color:#ffe39a;border:1px solid rgba(240,200,90,.42);white-space:nowrap;}
+  .arena-eqbadge.preview{background:rgba(255,255,255,.06);color:#9aa0b4;border-color:rgba(255,255,255,.14);}
+  .arena-picknote{font-size:10.5px;color:#9aa0b4;text-align:center;line-height:1.5;margin:3px 4px 0;word-break:keep-all;}
+  .arena-picknote b{color:#ffe39a;}
   .arena-pick .ap .ap-q.lock{background:#141018;color:#c9cfdb;border-color:rgba(255,255,255,.28);}
   .arena-pick-lbl{font-size:10.5px;color:#9aa0b4;margin-top:8px;}
   .arena-close{margin-top:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#aeb2c0;border-radius:10px;padding:8px 18px;cursor:pointer;font-size:12.5px;}
@@ -35718,6 +35727,8 @@ window.openArenaForge=function(sandbox){
   let busy=false;
   const render=(fx, msg)=>{
     const k=_clawDdKey(active);
+    const equippedRk=_arenaRk(SB? SB.fighter : _arenaActiveFighter(getMyGoldData()));   // ⚔️ 현재 장착(전투·방어) 인형
+    const viewingEquipped=_arenaRk(active)===equippedRk;
     const power=getPower(active), stock=getStock(active), maxed=power>=ARENA_MAX_POWER;
     const hasSkin=!SB && !!_equippedSkinId(active, getMyGoldData());   // 🎨 스킨 장착 시 성공률 +1%p
     const odds=hasSkin?_arenaForgeOddsEff(power, active, getMyGoldData()):arenaForgeOdds(power), cost=arenaForgeCost(power), coins=getCoins();
@@ -35730,7 +35741,7 @@ window.openArenaForge=function(sandbox){
       ${_arenaHd('인형 강화','forge',SB)}
       <div class="arena-topinfo"><span class="ti-pill">인형 <b>${stock}</b></span><span class="ti-pill">보유 🗡️ <b style="${coins<cost&&!maxed?'color:#ff6b6b':''}">${coins}</b></span>${maxed?'':`<span class="ti-pill">강화 <b>🗡️${cost}</b></span>`}</div>
       <div class="arena-fighter ${fx?('fx-'+fx):''}${grade.prism?' myth':''}" id="arena-fighter-3d" style="--ag:${grade.c}"></div>
-      <div class="arena-grade-row">${_arenaGradeHtml(power)}<span style="font-size:15px;font-weight:700;color:#e6ebf2;">${escHtml(_buddyChampName(active))}</span></div>
+      <div class="arena-grade-row">${_arenaGradeHtml(power)}<span style="font-size:15px;font-weight:700;color:#e6ebf2;">${escHtml(_buddyChampName(active))}</span>${viewingEquipped?'<span class="arena-eqbadge">⚔️ 전투 인형</span>':'<span class="arena-eqbadge preview">👁 미리보기</span>'}</div>
       <div class="arena-power">+${power}<small> / ${ARENA_MAX_POWER}</small></div>
       ${stock<=1&&!maxed?'<div class="arena-next" style="color:#ffb24a">⚠️ 마지막 1개 — 파괴 시 소진</div>':''}
       <div class="arena-result">${msg||''}</div>
@@ -35743,7 +35754,8 @@ window.openArenaForge=function(sandbox){
       ${hasSkin?`<div class="arena-next" style="color:#7CFC9A;margin:-7px 0 9px;">🎨 스킨 효과 — 성공률 +${ARENA_SKIN_FORGE_BONUS}%p 적용 중</div>`:''}
       <button class="arena-forge-btn" id="arena-go" ${canForge?'':'disabled'}>${stock<1?'보유 인형 없음 — 인형뽑기로':coins<cost?`🗡️${cost} 필요 <span class="fb-cost">· ${cost-coins} 부족(배틀로)</span>`:`강화 시도 <span class="fb-cost">· 🗡️${cost}</span>`}</button>`}
       <button class="arena-sell-btn" id="arena-sell" ${stock<1?'disabled':''}>팔기 <span style="opacity:.82">· 🗡️${_arenaSellValue(power)}${power>0?` (+${power}→리셋)`:''}</span></button>
-      <div class="arena-pick">${picks.map(c=>{const _has=stockMap[c]>0;return `<div class="ap ${_arenaRk(active)===c?'on':''}${_has?'':' empty'}" data-c="${c}.glb"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${_clawDdKey(c)}_0.jpg" onerror="this.style.visibility='hidden'">${_has?`<div class="ap-p">+${getPower(c+'.glb')}</div><span class="ap-q">${stockMap[c]}</span>`:`<div class="ap-p">미보유</div><span class="ap-q lock">🔒</span>`}</div>`;}).join('')}</div>
+      <div class="arena-pick">${picks.map(c=>{const _has=stockMap[c]>0;return `<div class="ap ${_arenaRk(active)===c?'on':''}${_has?'':' empty'}${c===equippedRk?' equipped':''}" data-c="${c}.glb">${c===equippedRk?'<span class="ap-eq">⚔️</span>':''}<img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${_clawDdKey(c)}_0.jpg" onerror="this.style.visibility='hidden'">${_has?`<div class="ap-p">+${getPower(c+'.glb')}</div><span class="ap-q">${stockMap[c]}</span>`:`<div class="ap-p">미보유</div><span class="ap-q lock">🔒</span>`}</div>`;}).join('')}</div>
+      <div class="arena-picknote">보유 인형을 탭하면 그 인형이 <b>전투·방어에 쓰는 ⚔️ 전투 인형</b>이 돼요 (=장착) · 미보유는 미리보기만</div>
       ${_arenaTabs('forge',SB)}
     </div>`;
     ov.querySelector('#arena-x').onclick=()=>{ _forge3dDispose(); ov.remove(); };
