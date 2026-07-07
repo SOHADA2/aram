@@ -1125,6 +1125,10 @@ select option{background:var(--surface2);}
 .rc-mine-btn{padding:4px 9px;border-radius:10px;background:rgba(255,255,255,0.05);color:var(--rk-text-dim,#9aa0b4);border:1px solid rgba(255,255,255,0.12);font-size:10.5px;font-weight:700;cursor:pointer;white-space:nowrap;transition:all .15s;line-height:1;}
 .rc-mine-btn:hover{background:rgba(255,255,255,0.09);}
 .rc-mine-btn.on{background:rgba(56,217,192,0.14);border-color:rgba(56,217,192,0.5);color:#5ee0cf;box-shadow:0 0 8px rgba(56,217,192,0.25);}
+/* 🛡️ 마지막 경기 되돌리기 — 라이브 계정에서만 노출 */
+.rc-undo-btn{display:none;padding:4px 9px;border-radius:10px;background:rgba(224,85,85,0.1);color:#e88;border:1px solid rgba(224,85,85,0.4);font-size:10.5px;font-weight:700;cursor:pointer;white-space:nowrap;line-height:1;transition:all .15s;}
+.live-mode .rc-undo-btn{display:inline-flex;align-items:center;gap:3px;}
+.rc-undo-btn:hover{background:rgba(224,85,85,0.18);}
 .rk-season-btn .caret{font-size:8px;transition:transform .12s;}
 .rk-season-btn.open .caret{transform:rotate(180deg);}
 .rk-season-dd{position:absolute;top:calc(100% + 4px);right:16px;z-index:30;background:var(--rk-card);border:1px solid var(--rk-border-strong);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.5);min-width:124px;overflow:hidden;display:none;}
@@ -6579,6 +6583,7 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
     <div class="rc-header-row">
       <div class="rc-title">경기<span class="rc-title-dot">·</span>기록</div>
       <div class="rc-header-actions">
+        <button class="rc-undo-btn" onclick="undoLastMatch()" title="마지막 경기를 경기 직전 상태로 되돌리기">↩️ 되돌리기</button>
         <button class="rc-mine-btn" id="rc-mine-btn" onclick="toggleMineOnly()">👤 내 경기</button>
         <div class="rk-season-wrap">
           <button class="rk-season-btn" id="season-selector-btn" onclick="toggleSeasonDropdown()">
@@ -7026,7 +7031,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.566';
+const APP_VERSION = 'v2.45.567';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7035,6 +7040,9 @@ const APP_VERSION = 'v2.45.566';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.567', date: '2026-07-07', changes: [
+    { tag: 'new', text: '🛡️ 마지막 경기 되돌리기(라이브 계정 전용) — 중복·오류 경기가 저장됐을 때 역산 없이 한 번에 되돌려요. 이제 매 경기 저장 시 「경기 직전 LP·강철심장/시너지 골드·소모 아이템」 스냅샷을 매치에 박제하고(순수 기록·지급 방식 불변), 기록 탭 「↩️ 되돌리기」로 현재 시즌 최신 경기를 그 스냅샷 그대로 복원 + 매치 삭제(기본 골드·전적·MVP는 자동 재계산)합니다. 누른 뒤 각자 LP 복원 내역을 미리 보고 확인해야 실행돼요. ※경기 직후 사용 권장(경기 이후 산 아이템·단짝 보상 등은 되돌아갈 수 있음). 스냅샷 도입 전 경기는 스냅샷이 없어 수동 정정 필요.' },
+  ] },
   { ver: 'v2.45.566', date: '2026-07-06', changes: [
     { tag: 'improve', text: '🎮 내전 오버레이 다운로드를 누르면 설치 안내창이 떠요 — 서명 안 된 내부 도구라 실행 시 Windows가 파란 「PC를 보호했습니다」 경고를 띄우는데, 「추가 정보 → 실행」으로 켜면 된다는 안내(정상 경고·바이러스 아님)를 보여준 뒤 다운로드해요. 이제 받아서 바로 실행할 수 있어요.' },
   ] },
@@ -18950,10 +18958,13 @@ window.saveMatch = async function() {
     // 소모·비활성화시켜 버려서, 먼저 처리해야 함 (v2.31.4 수정)
     // S1 LP 스냅샷 — 결과 화면 LP 변동 표시용
     const s1LpBefore = {};
+    const _goldBefore = {};   // 🛡️ 되돌리기용 — giveMatchGold(강철심장/시너지 골드·아이템 소모) 직전 값 박제
     if (CURRENT_SEASON >= 1) {
       allMatchPlayers.forEach(p => {
         const _k = normName(p.name);
         s1LpBefore[_k] = season1Data[_k] ? { ...season1Data[_k] } : s1DefaultPlayer();
+        const _ent = Object.entries(goldData).find(([, g]) => normName(g.name) === _k);
+        if (_ent) _goldBefore[_k] = { goldBonus: _ent[1][sField('goldBonusLegacy')] || 0, items: JSON.parse(JSON.stringify(_ent[1][sField('items')] || [])) };
       });
       _s1LpSnapshot = s1LpBefore; // 글로벌 저장
       _suppressS1SuccessBanners = true; // 정산창이 티어업 카드로 표시하므로 배너 억제
@@ -18969,6 +18980,12 @@ window.saveMatch = async function() {
     } finally {
       // 청소 — 다음 saveMatch 호출 누수 방지 (에러 케이스에서도 항상 실행)
       window._preservedSqPlayersForThisMatch = null;
+    }
+
+    // 🛡️ 되돌리기용 스냅샷 박제 — 순수 기록(지급/적용 방식·금액 불변). 경기 직전 LP·골드·아이템을 매치에 남겨
+    //   중복/오류 경기를 역산 없이 그대로 복원 가능하게. (emblemEffects/synergyEffects=골드 발동 내역과 함께 완전 복원)
+    if (savedMatchKey && CURRENT_SEASON >= 1 && Object.keys(s1LpBefore).length) {
+      update(ref(db, 'matches/' + savedMatchKey), { lpBefore: s1LpBefore, goldBefore: _goldBefore }).catch(() => {});
     }
 
     // 관전자 결과, questEvent 보관 (finalizeVotes에서 결과 요약 시 사용)
@@ -19983,6 +20000,49 @@ window.deleteMatch = async function(key) {
   if(!liveMode) return;
   if(!confirm('이 경기 기록을 삭제할까요?')) return;
   await remove(ref(db, 'matches/'+key));
+};
+
+// 🛡️ 마지막 경기 되돌리기 — 경기 직전 스냅샷(lpBefore/goldBefore)으로 LP·골드·아이템을 그대로 복원 + 매치 삭제.
+//   역산 불필요·결정적. 라이브 계정·현재 시즌 최신 경기 한정(중복/오류 경기 안전망).
+window.undoLastMatch = async function() {
+  if (!liveMode) { showGoldToast('라이브 계정에서만 가능해요'); return; }
+  const _tl = t => (S1_TIER_META[t] && S1_TIER_META[t].label) || t || '?';
+  const entries = Object.entries(matches).filter(([k, m]) => m && (m.season ?? 0) === CURRENT_SEASON && !String(k).startsWith('__'));
+  if (!entries.length) { showGoldToast('되돌릴 경기가 없어요'); return; }
+  entries.sort((a, b) => (b[1].timestamp || 0) - (a[1].timestamp || 0));
+  const [key, m] = entries[0];
+  if (!m.lpBefore || !Object.keys(m.lpBefore).length) {
+    alert('이 경기는 되돌리기 스냅샷이 없어요(스냅샷 도입 전 경기).\n수동 정정이 필요합니다.');
+    return;
+  }
+  const names = [...(m.teamA || []), ...(m.teamB || [])];
+  const lines = names.map(nm => {
+    const k = normName(nm), bef = m.lpBefore[k], now = season1Data[k];
+    if (!bef) return `· ${nm}: (스냅샷 없음 — 변동 없음)`;
+    const nowLp = now ? `${_tl(now.tier)} ${now.lp}LP` : '?';
+    return `· ${nm}: ${nowLp} → ${_tl(bef.tier)} ${bef.lp}LP`;
+  });
+  const msg = `⚠️ 마지막 경기를 되돌립니다\n\n${m.date || ''} · ${m.winner === 'blue' ? '1팀' : '2팀'} 승\n\n[LP 복원]\n${lines.join('\n')}\n\n· 강철심장/시너지 골드·소모 아이템도 경기 직전으로 복원\n· 경기 기록 삭제(기본 골드·전적·MVP는 자동 재계산)\n\n※ 경기 이후의 활동(아이템 구매·단짝 보상 등)은 되돌아갈 수 있어요. 경기 직후 사용하세요.\n\n정말 되돌릴까요?`;
+  if (!confirm(msg)) return;
+  try {
+    for (const nm of names) {   // 1) LP 복원
+      const k = normName(nm), bef = m.lpBefore[k];
+      if (bef) await set(ref(db, seasonNode('players') + '/' + k), bef);
+    }
+    if (m.goldBefore) {   // 2) 강철심장/시너지 골드·아이템 복원
+      for (const nm of names) {
+        const k = normName(nm), gb = m.goldBefore[k];
+        if (!gb) continue;
+        const ent = Object.entries(goldData).find(([, g]) => normName(g.name) === k);
+        if (ent) await update(ref(db, 'gold/' + ent[0]), { [sField('goldBonusLegacy')]: gb.goldBonus || 0, [sField('items')]: gb.items || [] });
+      }
+    }
+    if (m.gameId) set(ref(db, 'config/savedGames/' + m.gameId), null).catch(() => {});   // 3) 중복방지 마커 해제(재저장 허용)
+    await remove(ref(db, 'matches/' + key));   // 4) 매치 삭제 → 기본 골드/전적/MVP 자동 재계산
+    showGoldToast('↩️ 마지막 경기를 되돌렸어요');
+  } catch (e) {
+    alert('되돌리기 중 오류: ' + (e && e.message || e));
+  }
 };
 
 window.deletePlayer = async function(key, name) {
