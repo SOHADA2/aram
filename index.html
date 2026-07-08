@@ -7032,7 +7032,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.574';
+const APP_VERSION = 'v2.45.575';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7041,6 +7041,9 @@ const APP_VERSION = 'v2.45.574';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.575', date: '2026-07-08', changes: [
+    { tag: 'fix', text: '🖥️ 내전 오버레이 정산창이 안 뜨던 문제 지원 — 전원이 투표해야만 자동으로 정산이 발행되는데, 한 명이라도 투표를 안 하면 정산창이 영영 안 뜨던 상황(오버레이만으로 진행 시 "건너뛰기"가 숨은 라이브 계정에만 있어 누를 수 없었음). 이제 방장 오버레이의 투표 화면에 "정산 마감" 버튼이 생겨, 지금까지의 표로 즉시 정산을 발행할 수 있어요. (홈페이지에 overlayForceSettle 헬퍼 추가 — 오버레이 전용)' },
+  ] },
   { ver: 'v2.45.574', date: '2026-07-08', changes: [
     { tag: 'new', text: '🔒 계정 조작 잠금 — 같은 계정을 웹(폰·PC)과 내전 오버레이 등 여러 곳에서 쓸 때, "같은 순간 양쪽에서 동시에 구매·뽑기"하면 한쪽이 증발하던 사고를 막아요. 이제 조작 권한은 한 기기만 갖고(구매·뽑기·강화·복권·패스 수령 등), 다른 기기에서 조작하려 하면 "권한을 가져올까요?" 확인 후 인계됩니다. 보는 것(랭킹·기록·프로필)은 어디서나 자유! 기기를 옮기면 확인 한 번만 눌러주세요. (탭을 닫으면 권한 자동 반납·75초 무응답 시 자동 해제)' },
   ] },
@@ -17932,6 +17935,21 @@ function autoConfirmMvp() {
 window.skipAll = function() {
   set(ref(db, 'session/mvp/confirmed'),    { teamAMvp: '', teamBMvp: '' }).catch(console.error);
   set(ref(db, 'session/manner/confirmed'), { teamAManner: '', teamBManner: '' }).catch(console.error);
+};
+
+// 🖥️ 오버레이 방장이 숨은 라이브 계정(liveWin)에 정산 마감을 지시할 때 실행(executeJavaScript).
+//   전원 투표해야만 autoConfirm이 도는데 미투표자가 있으면 정산이 영영 안 뜸(건너뛰기 버튼은 숨은 라이브 계정에만 있어 클릭 불가).
+//   → 지금까지의 표로 확정(autoConfirmMvp, 표 없는 팀은 수상 없음) → onValue→_tryAutoSave→saveMatch→finalizeVotes→lastSettlement 발행.
+//   이미 확정됐는데 정산이 안 뜬 케이스(발행 누락)도 재발행 시도.
+window.overlayForceSettle = function() {
+  try {
+    if (mvpConfirmed !== null && mannerConfirmed !== null) {
+      if (savedMatchKey) { finalizeVotes(); return 'refinalize'; }
+      _tryAutoSave(); return 'retrysave';
+    }
+    autoConfirmMvp();   // autoConfirmManner 포함 — 현재까지의 표 집계로 확정
+    return 'confirmed';
+  } catch (e) { return 'err:' + ((e && e.message) || e); }
 };
 
 window.resetMvpAndManner = function() {
