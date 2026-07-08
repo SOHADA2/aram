@@ -7032,7 +7032,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.573';
+const APP_VERSION = 'v2.45.574';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7041,6 +7041,9 @@ const APP_VERSION = 'v2.45.573';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.574', date: '2026-07-08', changes: [
+    { tag: 'new', text: '🔒 계정 조작 잠금 — 같은 계정을 웹(폰·PC)과 내전 오버레이 등 여러 곳에서 쓸 때, "같은 순간 양쪽에서 동시에 구매·뽑기"하면 한쪽이 증발하던 사고를 막아요. 이제 조작 권한은 한 기기만 갖고(구매·뽑기·강화·복권·패스 수령 등), 다른 기기에서 조작하려 하면 "권한을 가져올까요?" 확인 후 인계됩니다. 보는 것(랭킹·기록·프로필)은 어디서나 자유! 기기를 옮기면 확인 한 번만 눌러주세요. (탭을 닫으면 권한 자동 반납·75초 무응답 시 자동 해제)' },
+  ] },
   { ver: 'v2.45.573', date: '2026-07-08', changes: [
     { tag: 'fix', text: '🌌 「마법공학 시즌 오픈」 안내 팝업이 세로가 짧은 화면(오버레이 홈 창·작은 창)에서 위아래가 잘려 버튼을 못 누르던 문제 — 잘리는 대신 스크롤로 전부 볼 수 있게 고쳤어요.' },
   ] },
@@ -10729,6 +10732,7 @@ function _applySpendLocal(key, upd){
   try { updateMyInfoBar(); } catch(_){}
 }
 async function emblemBuyBase(){
+  if (!_ctrlGuard()) return;   // 🔒 계정 조작 잠금(다른 기기 조작 중이면 확인 후 인계)
   const key = getMyGoldKey();
   if (!key) { showGoldToast('닉네임을 먼저 선택해주세요!'); return false; }
   const data = goldData[key]; if (!data) return false;
@@ -10755,6 +10759,7 @@ async function emblemBuyBase(){
 }
 // 장착 교체 (대장간에서 뺐다/꼈다). id=null이면 해제
 async function emblemEquip(id){
+  if (!_ctrlGuard()) return;   // 🔒 계정 조작 잠금(다른 기기 조작 중이면 확인 후 인계)
   const key = getMyGoldKey(); if (!key) return false;
   const data = goldData[key]; if (!data) return false;
   const arr = getEmblems(data);
@@ -10772,6 +10777,7 @@ window.emblemEquip = emblemEquip;
 
 // 🏆 걸작 만들기 — 장착된 강철심장의 3줄 전체 리롤 (걸작의 정수 1개 소모)
 async function emblemMasterReroll(){
+  if (!_ctrlGuard()) return;   // 🔒 계정 조작 잠금(다른 기기 조작 중이면 확인 후 인계)
   const key = getMyGoldKey(); if (!key) { showGoldToast('닉네임을 먼저 선택해주세요!'); return false; }
   const data = goldData[key]; if (!data) return false;
   const arr = getEmblems(data); const eqId = getEquippedId(data);
@@ -10793,6 +10799,7 @@ async function emblemMasterReroll(){
 window.emblemMasterReroll = emblemMasterReroll;
 // 🔶 걸작의 정수 구매 (골드 → 정수)
 async function emblemBuyEssence(qty){
+  if (!_ctrlGuard()) return;   // 🔒 계정 조작 잠금(다른 기기 조작 중이면 확인 후 인계)
   // 시즌2: 정수 구매는 내전 만렙(LV50) 달성 시 해금. 그 전엔 레벨업 보상으로만.
   if (CURRENT_SEASON === 2 && !_plvMaxReached()) { showS1Toast(`정수 구매는 내전 만렙(LV${PLV_MAX_LEVEL}) 달성 시 해금돼요`); return false; }
   qty = qty || 1;
@@ -10816,6 +10823,7 @@ window.emblemBuyEssence = emblemBuyEssence;
 
 // 강화권 구매
 async function emblemBuyTicket(type, qty){
+  if (!_ctrlGuard()) return;   // 🔒 계정 조작 잠금(다른 기기 조작 중이면 확인 후 인계)
   qty = qty || 1;
   const def = EMBLEM_TICKETS[type]; if (!def) return false;
   const key = getMyGoldKey();
@@ -10843,6 +10851,7 @@ async function emblemBuyTicket(type, qty){
 // 엠블럼 강화 1회 — 결과 반환 { ok, type, def, level, power, slotsUsed, locked }
 let _emblemEnhanceInProgress = false;
 async function emblemEnhance(type){
+  if (!_ctrlGuard()) return;   // 🔒 계정 조작 잠금(다른 기기 조작 중이면 확인 후 인계)
   const def = EMBLEM_TICKETS[type]; if (!def) return null;
   if (_emblemEnhanceInProgress) { showS1Toast?.('잠시만요…'); return null; }
   _emblemEnhanceInProgress = true;
@@ -10895,6 +10904,7 @@ window.emblemEnhance   = emblemEnhance;
 
 // ── 강철심장 판매 (id 지정 / 미지정 시 장착된 것). 환급은 emblemSellG_s2 별도 누적 ──
 async function emblemSell(id){
+  if (!_ctrlGuard()) return;   // 🔒 계정 조작 잠금(다른 기기 조작 중이면 확인 후 인계)
   const key = getMyGoldKey(); if (!key) return false;
   const data = goldData[key];
   const arr = getEmblems(data);
@@ -13265,6 +13275,7 @@ function subscribeSeasonPlayers() {
   });
 }
 subscribeSeasonPlayers();
+setTimeout(() => { try { _acctSubscribe(); } catch (_) {} }, 2500);   // 🔒 계정 조작 잠금 — 구독 예열(첫 클릭 전 세션 상태 확보)
 
 // Riot API 호출 헬퍼 — Worker 설정 시 프록시 경유, 없으면 직접 호출(CORS 실패 가능)
 function riotFetch(region, path) {
@@ -17525,6 +17536,7 @@ function _qibRender(elId, allowBuy) {
 }
 
 window.quickToggleItem = async function(idx) {
+  if (!_ctrlGuard()) return;   // 🔒 계정 조작 잠금(다른 기기 조작 중이면 확인 후 인계)
   const key = getMyGoldKey();
   if (!key) return;
   const data = goldData[key];
@@ -17572,6 +17584,7 @@ window.quickToggleItem = async function(idx) {
 };
 
 window.quickBuyItem = async function(itemId) {
+  if (!_ctrlGuard()) return;   // 🔒 계정 조작 잠금(다른 기기 조작 중이면 확인 후 인계)
   const key = getMyGoldKey();
   if (!key) { showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
   const data = goldData[key];
@@ -21468,6 +21481,7 @@ function s2PassAfterTs(claimed, level){ if(level<=1) return S2_PASS_START_TS; co
 function calcS2PassCurrentLevel(claimed){ if(!claimed) return 0; let lv=0; for(let i=1;i<=S2_PASS_MAX_LEVEL;i++){ if(claimed[i]) lv=i; else break; } return lv; }
 // 클레임 — 순차 + 퀘스트 완료 시 보상 지급
 async function claimS2PassLevel(level){
+  if (!_ctrlGuard()) return;   // 🔒 계정 조작 잠금(다른 기기 조작 중이면 확인 후 인계)
   const key=getMyGoldKey(); if(!key){ showGoldToast('닉네임을 먼저 선택해주세요!'); return null; }
   const data=goldData[key]; if(!data) return null;
   const cf=s2PassClaimedField();
@@ -26223,6 +26237,45 @@ function getDeviceId() {
   }
   return id;
 }
+
+// ── 🔒 계정 조작 잠금(v2.45.574) — 같은 계정을 여러 기기(웹·오버레이)에서 "동시 조작"할 때 생기는
+//    last-write-wins 사고(한쪽 구매/뽑기 증발) 방지. 보기는 어디서나 자유, "조작 권한"만 한 기기.
+//    accountSession/{fbKey} = { deviceId, app:'web'|'overlay', label, at, hb }. 하트비트 25s·75s stale.
+//    라이브 계정(liveMode)은 제외(진행 자동화가 막히면 안 됨). 강제력 없는 사고방지용 신사협정.
+const ACCT_SESSION_STALE = 75000;
+let _acctSession = null, _acctSubKey = null, _acctUnsub = null, _acctHbTimer = null;
+function _acctKey() { return myName ? normName(myName).replace(/\s+/g, '_') : null; }
+function _acctSubscribe() {
+  if (liveMode) return;
+  const k = _acctKey(); if (!k || k === _acctSubKey) return;
+  if (_acctUnsub) { try { _acctUnsub(); } catch (_) {} }
+  _acctSubKey = k; _acctSession = null;
+  _acctUnsub = onValue(ref(db, 'accountSession/' + k), s => { _acctSession = s.val() || null; });
+}
+function _acctClaim() {
+  const k = _acctKey(); if (!k || liveMode) return;
+  const rec = { deviceId: getDeviceId(), app: 'web', label: /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? '모바일 웹' : 'PC 웹', at: Date.now(), hb: Date.now() };
+  _acctSession = rec;   // 낙관적 즉시 반영
+  const r = ref(db, 'accountSession/' + k);
+  set(r, rec).catch(() => {});
+  try { onDisconnect(r).remove(); } catch (_) {}   // 탭 닫으면 자동 반납 → 다른 기기가 조용히 인계
+  if (!_acctHbTimer) _acctHbTimer = setInterval(() => {
+    const s = _acctSession, kk = _acctKey();
+    if (kk && s && s.deviceId === getDeviceId()) update(ref(db, 'accountSession/' + kk), { hb: Date.now() }).catch(() => {});
+  }, 25000);
+}
+// 조작 가드 — 비어있음/stale/내 기기면 자동 클레임 후 통과. 다른 기기가 조작 중이면 확인 후 가져오기(takeover).
+function _ctrlGuard() {
+  if (liveMode || !myName) return true;
+  _acctSubscribe();
+  const s = _acctSession;
+  const fresh = s && s.hb && (Date.now() - s.hb) < ACCT_SESSION_STALE;
+  if (!fresh || s.deviceId === getDeviceId()) { _acctClaim(); return true; }
+  const who = s.app === 'overlay' ? '내전 오버레이(PC 앱)' : (s.label || '다른 기기');
+  if (confirm(`🔒 지금 ${who}에서 이 계정을 조작 중이에요.\n이 기기에서 조작 권한을 가져올까요?\n(같은 순간 양쪽에서 구매·뽑기 시 한쪽이 증발하는 사고 방지용 — 보는 건 자유예요)`)) { _acctClaim(); return true; }
+  return false;
+}
+window._ctrlGuard = _ctrlGuard;
 function getDeviceLabel() {
   const ua = navigator.userAgent || '';
   let browser = '브라우저';
@@ -26464,6 +26517,7 @@ window.selectMyName = async function(name) {
   }
   myName = name;
   localStorage.setItem('myName', name);
+  try { _acctSubscribe(); } catch (_) {}   // 🔒 계정 조작 잠금 — 새 계정 세션 구독
   // 계정 전환 시 본인(나) 태그 갱신을 위해 중복 표시 가드만 유지 — 스냅샷은 그대로 두면 됨
   // (전체 사람 변화 감지 시스템이라 본인 변경은 별도 처리 불필요)
   const existEntry = Object.entries(goldData).find(([,g])=>normName(g.name)===normName(name));
@@ -30620,6 +30674,7 @@ window.autoBotLog = function(name){
 // 특히 scratch_tool 같은 영구 소유 아이템이 중복 구매되던 케이스 차단
 let _buyItemInProgress = false;
 window.buyItem = async function(itemId, qty) {
+  if (!_ctrlGuard()) return;   // 🔒 계정 조작 잠금(다른 기기 조작 중이면 확인 후 인계)
   if (_buyItemInProgress) { showGoldToast('잠시만요…'); return; }
   _buyItemInProgress = true;
   try {
@@ -30942,6 +30997,7 @@ async function _buyItemImpl(itemId, qty) {
 
 // 아이템 활성화/해제 토글 (경기 전 미리 ON/OFF)
 window.toggleItemActive = async function(idx) {
+  if (!_ctrlGuard()) return;   // 🔒 계정 조작 잠금(다른 기기 조작 중이면 확인 후 인계)
   if (isItemsEffectivelyLocked()) { showGoldToast('🔒 팀 구성 후에는 변경할 수 없어요!'); return; }
   const key = getMyGoldKey();
   if (!key) return;
@@ -37713,6 +37769,7 @@ async function _pruneInvalidSynergy() {
 }
 
 window.toggleGachaSynergy = async function(sid, tier) {
+  if (!_ctrlGuard()) return;   // 🔒 계정 조작 잠금(다른 기기 조작 중이면 확인 후 인계)
   if (!myName) { showGoldToast('먼저 내 이름을 선택해주세요'); return; }
   const key = getMyGoldKey(), data = getMyGoldData();
   if (!key || !data) return;
@@ -37841,6 +37898,7 @@ function startGachaPreview() {
 function stopGachaPreview() { clearInterval(_gachaPreviewTimer); _gachaPreviewTimer = null; }
 
 window.doGachaPull = async function(times) {
+  if (!_ctrlGuard()) return;   // 🔒 계정 조작 잠금(다른 기기 조작 중이면 확인 후 인계)
   if (!myName) { showGoldToast('먼저 내 이름을 선택해주세요'); return; }
   const key = getMyGoldKey(), data = getMyGoldData();
   if (!key || !data) return;
@@ -37905,6 +37963,7 @@ window.doGachaPull = async function(times) {
 };
 
 window.doGachaMerge = async function(slug, fromStar) {
+  if (!_ctrlGuard()) return;   // 🔒 계정 조작 잠금(다른 기기 조작 중이면 확인 후 인계)
   if (!myName) return;
   const key = getMyGoldKey(), data = getMyGoldData();
   if (!key || !data) return;
