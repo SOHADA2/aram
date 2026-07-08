@@ -7031,7 +7031,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.571';
+const APP_VERSION = 'v2.45.572';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7040,6 +7040,9 @@ const APP_VERSION = 'v2.45.571';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.572', date: '2026-07-08', changes: [
+    { tag: 'improve', text: '🛡️ 투기장 「내 방어 순서」를 강화창(🔨)에서도 보고 바꿀 수 있어요. 그동안 방어 순서는 배틀 화면에만 있었는데, 이제 강화창 하단(인형 목록 아래)에도 3칸으로 떠서 탭으로 Q→W→E 순환 변경이 가능해요. 방어 순서는 전투(장착)에 쓰는 인형 기준이라 그 인형 이름과 스킬명이 함께 표시돼요. (강화하러 들어온 김에 방어 순서도 바로 손볼 수 있게)' },
+  ] },
   { ver: 'v2.45.571', date: '2026-07-08', changes: [
     { tag: 'improve', text: '🗡️ 투기장 배틀에서 결과를 안 보고 중간에 나가면 「패배」로 처리돼요. 「대결!」을 누른 순간 이미 배틀이 소비되는데(정찰 어뷰즈 방지), 경합 연출이 끝나기 전에 X로 나가려 하면 이제 「지금 나가면 이 배틀은 패배로 처리돼요 — 결과를 끝까지 볼까요?」 확인창이 떠요. [계속 보기]를 누르면 그대로 결과를 보고, [나가기(패배)]를 누르면 그 배틀이 패배로 기록됩니다(승리였어도 하향). 상대 전투를 안 보고 그냥 배틀만 돌리고 빠지는 행동에 확실한 페널티가 생겼어요.' },
   ] },
@@ -35763,6 +35766,8 @@ window.openArenaForge=function(sandbox){
     const _allRk=ARENA_CHAMPS.map(_arenaRk);   // 미보유 챔피언도 노출(회색+자물쇠) — 보유분 먼저
     const picks=[..._allRk.filter(c=>stockMap[c]>0).sort(), ..._allRk.filter(c=>!(stockMap[c]>0)).sort()];
     const grade=_arenaGrade(power), nextG=_arenaNextGrade(power);   // 🏅 등급(검키우기식 단계)
+    const eqF = SB? active : _arenaActiveFighter(getMyGoldData());   // ⚔️ 전투(장착) 인형 = 방어 순서의 주인
+    const defOrder = SB? null : _arenaDefOrder(getMyGoldData()||{}, key);   // 🛡️ 내 방어 순서(미설정 시 키 기반 기본값)
     ov.innerHTML=`<div class="arena-sheet" onclick="event.stopPropagation()">
       ${_arenaHd('인형 강화','forge',SB)}
       <div class="arena-topinfo"><span class="ti-pill">인형 <b>${stock}</b></span><span class="ti-pill">보유 🗡️ <b style="${coins<cost&&!maxed?'color:#ff6b6b':''}">${coins}</b></span>${maxed?'':`<span class="ti-pill">강화 <b>🗡️${cost}</b></span>`}</div>
@@ -35782,11 +35787,17 @@ window.openArenaForge=function(sandbox){
       <button class="arena-sell-btn" id="arena-sell" ${stock<1?'disabled':''}>팔기 <span style="opacity:.82">· 🗡️${_arenaSellValue(power)}${power>0?` (+${power}→리셋)`:''}</span></button>
       <div class="arena-pick">${picks.map(c=>{const _has=stockMap[c]>0;return `<div class="ap ${_arenaRk(active)===c?'on':''}${_has?'':' empty'}${c===equippedRk?' equipped':''}" data-c="${c}.glb">${c===equippedRk?'<span class="ap-eq">⚔️</span>':''}<img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${_clawDdKey(c)}_0.jpg" onerror="this.style.visibility='hidden'">${_has?`<div class="ap-p">+${getPower(c+'.glb')}</div><span class="ap-q">${stockMap[c]}</span>`:`<div class="ap-p">미보유</div><span class="ap-q lock">🔒</span>`}</div>`;}).join('')}</div>
       <div class="arena-picknote">보유 인형을 탭하면 그 인형이 <b>전투·방어에 쓰는 ⚔️ 전투 인형</b>이 돼요 (=장착) · 미보유는 미리보기만</div>
+      ${SB?'':`<div class="arena-defset">
+        <div class="ads-lbl">🛡️ 내 방어 순서 <span>공격받을 때 <b>${escHtml(_buddyChampName(eqF))}</b>가 이 순서로 막아요 · 탭해서 변경 (정찰당하면 카운터!)</span></div>
+        <div class="ads-slots">${defOrder.map((s,i)=>`<button class="ads-slot" data-i="${i}"><b>${s}</b><span>${escHtml(_champSkills(eqF)[s]||'')}</span></button>`).join('')}</div></div>`}
       ${_arenaTabs('forge',SB)}
     </div>`;
     ov.querySelector('#arena-x').onclick=()=>{ _forge3dDispose(); ov.remove(); };
     { const _fm=ov.querySelector('#arena-fighter-3d'); if(_fm){ try{ _forge3dShow(_fm, _appGlb(active, getMyGoldData()||{}), grade.c, grade.prism); }catch(_){} } }   // 🔨 활성 인형 3D(등급색·자체 크기)
     ov.querySelectorAll('.ap').forEach(b=>b.onclick=()=>{ if(busy) return; active=b.dataset.c; if(getStock(active)>0) setFighter(active); render(); });   // 미보유는 미리보기만(전투 인형은 보유분 유지)
+    if(!SB){ const _nxt={Q:'W',W:'E',E:'Q'};   // 🛡️ 방어 순서 슬롯 탭 = Q→W→E 순환 (전체 재렌더 없이 제자리 갱신 → 3D 안 깜빡임)
+      ov.querySelectorAll('.ads-slot').forEach(b=>b.onclick=()=>{ const cur=_arenaDefOrder(getMyGoldData()||{}, key); const i=+b.dataset.i; cur[i]=_nxt[cur[i]]||'Q'; _arenaSetDefOrder(cur);
+        const bb=b.querySelector('b'); if(bb) bb.textContent=cur[i]; const sp=b.querySelector('span'); if(sp) sp.textContent=_champSkills(eqF)[cur[i]]||''; }); }
     { const sl=ov.querySelector('#arena-sell'); if(sl) sl.onclick=()=>{
       if(busy) return;
       const pw=getPower(active), stk=getStock(active), val=_arenaSellValue(pw); if(stk<1) return;
