@@ -7031,7 +7031,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.569';
+const APP_VERSION = 'v2.45.570';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7040,6 +7040,9 @@ const APP_VERSION = 'v2.45.569';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.570', date: '2026-07-07', changes: [
+    { tag: 'fix', text: '🗡️ 투기장 배틀 어뷰즈를 막았어요. 그동안 「대결!」 후 QWE 경합 연출(약 5초)이 나오는 도중 상대의 방어 스킬 순서가 화면에 공개되는데, 결과가 확정되기 전에 X로 나가면 그 배틀이 소비되지 않아서 → 상대 방어 순서만 몰래 확인하고 빠져나와 그 스킬을 카운터로 다시 도전하는 게 가능했어요. 이제 결과·오늘 배틀 횟수·같은 상대 쿨다운·정찰 기록을 「대결 시작(=상대 스킬이 공개되는 그 시점)」에 즉시 확정하도록 바꿔서, 연출 도중 나가도 이미 배틀이 소비되고 쿨다운이 걸립니다. 정찰(다음 전투에서 상대 순서를 기억)은 그대로 유지되지만, 공짜로 무한 정찰하는 어뷰즈는 불가능해졌어요.' },
+  ] },
   { ver: 'v2.45.569', date: '2026-07-07', changes: [
     { tag: 'improve', text: '🗡️ 인형 투기장 강화 확률이 정상적으로 "강화할수록 어려워지게" 정리됐어요. 그동안 +12(성공 26%)보다 +13(성공 28%)이 오히려 더 쉬운 역전이 있었는데(파괴율도 +13이 더 낮았어요), 이제 전투력이 오를수록 성공률은 반드시 낮아지고 파괴율은 반드시 높아지도록 단계적으로 정리했어요. 동시에 전반 난이도를 낮춰서 특히 초반 강화(성공률 대폭↑·파괴율↓)가 수월해졌어요 — 인형을 키워서 파는 게 더 쉬워집니다. 파괴율은 최대 6%로 캡을 둬 고강 도달성은 유지하고, 판매가는 이 확률에서 자동으로 다시 계산돼 무한증식 없이 균형을 유지해요(손익분기 +7 그대로).' },
   ] },
@@ -36142,24 +36145,28 @@ window.openArenaBattle=function(sandbox, opts){
     try{ _arenaBattle3D(stage, myFighter(), opp.fighter, _od).then(()=>{ const ld=stage.querySelector('.arena3d-loading'); if(ld) ld.remove(); }).catch(()=>{ const ld=stage.querySelector('.arena3d-loading'); if(ld) ld.remove(); }); }catch(_){}
     let picks=[], pickBtns=[], battling=false, finished=false;
     const skillBtns=()=>[...ov.querySelectorAll('.arena-skill')];
-    const finishBattle=(bonus, clashRes)=>{
-      if(finished || !document.body.contains(ov)) return;   // 중복/닫힘 가드(대결 중 닫으면 배틀 소비 안 함)
-      finished=true;
-      const res=doBattle(opp, bonus, clashRes);
-      if(res.r!=='ok'){ busy=false; battling=false; showS1Toast(res.r==='nolimit'?'오늘 배틀을 다 했어요 (내일 다시)':res.r==='cooldown'?`⏳ 같은 상대는 ${_arenaCdMin(res.wait||0)}분 뒤에 다시 도전할 수 있어요`:'배틀을 진행할 수 없어요'); render(); return; }
-      res._oppName=opp.name; res._oppFighter=opp.fighter; res._oppKey=opp.key; res._bot=!!opp.bot; res._bonus=Math.max(-15,Math.min(15,bonus));
+    // 결과·소비는 startClashes(대결 시작)에서 이미 커밋됨 → 여기선 연출 종료 후 결과 화면만 노출(닫혔으면 스킵·이미 소비돼 어뷰즈 불가)
+    const finishBattle=(res)=>{
+      if(!res || !document.body.contains(ov)) return;
       showFinish(opp, res);
     };
     const startClashes=()=>{
-      if(battling || picks.length<3) return;
+      if(battling || finished || picks.length<3) return;
       if(left()<=0){ showS1Toast('오늘 배틀을 다 했어요 (내일 다시)'); return; }
-      battling=true; busy=true;
+      const oppSkills = (SB||opp.bot) ? [_randSkill(),_randSkill(),_randSkill()] : _arenaDefOrderOf(opp.key);   // 🛡️ 실유저=방어자가 미리 정한 순서(고정 X·정찰/카운터 대상) · 샌드박스/🤖봇=랜덤
+      const clashRes=picks.map((my,i)=>({my, op:oppSkills[i]||_randSkill(), a:_skillAdv(my,oppSkills[i])}));
+      const totalBonus=clashRes.reduce((s,c)=>s+c.a*ARENA_CLASH_ADV, 0);
+      // ⚔️ 결과·일일소비·쿨다운·정찰기록을 「대결 시작(=상대 방어 스킬이 화면에 공개되는 시점)」에 즉시 커밋한다.
+      //   → 애니메이션(≈5초) 도중 X로 나가도 이미 배틀이 소비되고 쿨다운이 걸려, 상대 방어 순서만 정찰 후 재도전하는 어뷰즈가 불가능(구: finishBattle이 애니 종료 후 커밋 → 닫으면 소비 안 돼 무한 정찰).
+      const res=doBattle(opp, totalBonus, clashRes);
+      if(res.r!=='ok'){ showS1Toast(res.r==='nolimit'?'오늘 배틀을 다 했어요 (내일 다시)':res.r==='cooldown'?`⏳ 같은 상대는 ${_arenaCdMin(res.wait||0)}분 뒤에 다시 도전할 수 있어요`:'배틀을 진행할 수 없어요'); render(); return; }
+      res._oppName=opp.name; res._oppFighter=opp.fighter; res._oppKey=opp.key; res._bot=!!opp.bot; res._bonus=Math.max(-15,Math.min(15,totalBonus));
+      finished=true; battling=true; busy=true;
+      if(!SB){ try{ updateMyInfoBar(); }catch(_){} }   // 코인/남은횟수 즉시 반영
       skillBtns().forEach(b=>{ if(!b.classList.contains('picked')) b.style.opacity='.22'; b.disabled=true; b.style.pointerEvents='none'; });
       const act=ov.querySelector('#abt-actions'); if(act) act.innerHTML='';
       const lbl=ov.querySelector('#abt-lbl'); if(lbl) lbl.innerHTML='대결 중…';
-      const oppSkills = (SB||opp.bot) ? [_randSkill(),_randSkill(),_randSkill()] : _arenaDefOrderOf(opp.key);   // 🛡️ 실유저=방어자가 미리 정한 순서(고정 X·정찰/카운터 대상) · 샌드박스/🤖봇=랜덤
-      const clashRes=picks.map((my,i)=>({my, op:oppSkills[i]||_randSkill(), a:_skillAdv(my,oppSkills[i])}));
-      let bonus=0, myHp=100, oppHp=100; const CLASH_DMG=26, CLASH_TIE=8;   // ❤️ 경합 패자 체력 감소(결판은 이 HP에서 이어짐)
+      let myHp=100, oppHp=100; const CLASH_DMG=26, CLASH_TIE=8;   // ❤️ 경합 패자 체력 감소(연출만·결과는 위에서 확정)
       setHp(-1,100); setHp(1,100);
       const _t=[]; const T=(ms,fn)=>_t.push(setTimeout(()=>{try{fn();}catch(_){}},ms));
       const CLASH=1700, sMy=_champSkills(myFighter()), sOp=_champSkills(opp.fighter);
@@ -36167,14 +36174,14 @@ window.openArenaBattle=function(sandbox, opts){
         T(b, ()=>{ if(btn){ btn.classList.remove('won','lost','tied'); btn.classList.add('active'); } floatAt(-1, `<b>${c.my}</b> ${escHtml(sMy[c.my]||'')}`, 'me'); });   // ① 내 스킬 라벨(정보)
         T(b+420, ()=>{ const h=btn&&btn.querySelector('.ask-hint'); if(h) h.innerHTML=`vs <b>${c.op}</b> ${escHtml(sOp[c.op]||'')}`; floatAt(1, `<b>${c.op}</b> ${escHtml(sOp[c.op]||'')}`, 'opp'); });   // ② 상대 스킬 라벨(정보)
         T(b+840, ()=>{ if(winSide===0){ _arena3dLunge(-1,c.my); _arena3dLunge(1,c.op); } else _arena3dLunge(winSide, winSide<0?c.my:c.op); });   // ③ 격돌: 이긴 쪽만 스킬 공격(막힘=양쪽 시전) — 진 쪽은 공격 안 함
-        T(b+1180, ()=>{ bonus+=c.a*ARENA_CLASH_ADV;   // ④ 판정: 진 쪽 피격 모션 + 체력 감소
+        T(b+1180, ()=>{   // ④ 판정: 진 쪽 피격 모션 + 체력 감소 (연출만·결과는 대결 시작 시 확정)
           if(btn){ btn.classList.remove('active'); btn.classList.add(c.a>0?'won':c.a<0?'lost':'tied'); const h=btn.querySelector('.ask-hint'); if(h) h.innerHTML=c.a>0?'적중 성공 +5%':c.a<0?'적중 실패 −5%':'막힘'; }
           if(winSide!==0){ _arena3dHurt(-winSide); hitFx(-winSide);   // 진 쪽 = 맞는 모션(자기 스킬 모션 아님)
             if(winSide<0){ oppHp=Math.max(8, oppHp-CLASH_DMG); setHp(1, oppHp); } else { myHp=Math.max(8, myHp-CLASH_DMG); setHp(-1, myHp); } }
           else { myHp=Math.max(8,myHp-CLASH_TIE); oppHp=Math.max(8,oppHp-CLASH_TIE); setHp(-1,myHp); setHp(1,oppHp); hitFx(-1); hitFx(1); _arena3dHurt(-1,0.45); _arena3dHurt(1,0.45); }   // 막힘=양쪽 소량+가벼운 브레이스
           floatAt(0, c.a>0?'적중 성공 +5%':c.a<0?'적중 실패 −5%':'막힘', c.a>0?'good':c.a<0?'bad':''); });
       });
-      T(3*CLASH+200, ()=>{ finishBattle(bonus, clashRes); });
+      T(3*CLASH+200, ()=>{ finishBattle(res); });
     };
     const resetPicks=()=>{ picks=[]; pickBtns=[]; skillBtns().forEach(b=>{ b._ords=null; b.classList.remove('picked','active','won','lost','tied','pop'); b.style.opacity=''; b.disabled=false; b.style.pointerEvents='';
       const o=b.querySelector('.ask-ord'); if(o) o.textContent=''; const h=b.querySelector('.ask-hint'); if(h) h.innerHTML='▶ '+SKILL_BEATS[b.dataset.s]+' 이김'; }); refreshSel(); };
