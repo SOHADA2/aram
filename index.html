@@ -1998,6 +1998,9 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 .season-2 .my-info-name{font-size:15px;letter-spacing:.3px;}
 .season-2 .mib-lv-bar{height:7px;}
 .mib-lp-big{font-size:13.5px;font-weight:800;font-family:'JetBrains Mono',monospace;letter-spacing:.2px;white-space:nowrap;}   /* 🏆 만렙 LP 강조 (v2.45.537) */
+/* ⚔️ 승급전 뱃지 — 확실히 눈에 띄게(펄스) */
+.mib-promo{display:inline-flex;align-items:center;gap:3px;margin-left:5px;font-size:10px;font-weight:800;color:#1a1206;background:linear-gradient(180deg,#ffd968,#f0a63c);border-radius:5px;padding:1px 7px;white-space:nowrap;box-shadow:0 0 10px rgba(240,166,60,.5);animation:mibPromoPulse 1.4s ease-in-out infinite;}
+@keyframes mibPromoPulse{0%,100%{box-shadow:0 0 7px rgba(240,166,60,.35);}50%{box-shadow:0 0 16px rgba(240,166,60,.85);}}
 /* 👑 만렙 왕관 — 2D 아바타 우상단 (텍스트 "MAX" 대신). 출석 알림 점은 만렙이면 우하단으로 이동해 안 겹침 (v2.45.538) */
 .mib-max-crown{position:absolute;top:-9px;right:-7px;font-size:15px;z-index:6;transform:rotate(22deg);filter:drop-shadow(0 1px 3px rgba(0,0,0,.8));pointer-events:none;}
 .my-info-avatar.is-max .mib-attend-dot{top:auto;bottom:-3px;}
@@ -7045,7 +7048,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.577';
+const APP_VERSION = 'v2.45.578';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7054,6 +7057,9 @@ const APP_VERSION = 'v2.45.577';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.578', date: '2026-07-09', changes: [
+    { tag: 'fix', text: '⚔️ 승급전 표시 명확화 — 승급전에 도달하면 「승급전 0-0」처럼 애매하게 뜨던 걸, 내 정보 바에 「⚔️ 승급전 N승 N패」 금빛 펄스 배지로 확실하게 표시해요. (오버레이 프로그램도 동일 적용)' },
+  ] },
   { ver: 'v2.45.577', date: '2026-07-09', changes: [
     { tag: 'new', text: '🎮 내전 오버레이 안내 팝업 — 아이디마다 한 번, 「내전 오버레이」가 뭔지 알려드려요. 롤 클라이언트 위에 붙어 팀 배정·명단·투표·정산을 게임 화면 옆에 띄우는 데스크톱 프로그램이고, 이 홈페이지와 완벽하게 연동돼요. 예전 「라이브 계정」 역할은 프로그램에선 「방장」 체크 하나로 대신 — 방장 1명이 팀짜기를 진행하면 됩니다. 홈페이지 가장 아래에서 다운로드. (확인 누르면 계정당 다시 안 뜸)' },
   ] },
@@ -25417,8 +25423,10 @@ function updateMyInfoBar() {
         }
       }
       // 🔧 메인 프로필 바 연승/연패 칩 제거(사장님 요청) — 티어 배지만 표시 (+LP 병기 v2.45.535 · 만렙은 레벨 영역이 LP를 크게 보여주므로 칩엔 생략)
-      const _lpTxt = (!_maxS2 && d.placementDone && d.tier !== 'unranked') ? ` · ${d.lp} LP` : '';
-      pillsEl.innerHTML = `<span style="font-size:11px;color:${meta.color};background:${meta.color}1a;border:1px solid ${meta.color}4d;border-radius:4px;padding:1px 6px;">${meta.label}${_lpTxt}</span>`;
+      const _promo = !!d.promoActive;
+      const _lpTxt = (!_maxS2 && d.placementDone && d.tier !== 'unranked' && !_promo) ? ` · ${d.lp} LP` : '';   // 승급전이면 LP 대신 승급전 뱃지
+      const _promoBadge = (_promo && !_maxS2) ? `<span class="mib-promo" title="승급전 진행 중 · 3판 2선승">⚔️ 승급전 ${d.promoWins||0}승 ${d.promoLosses||0}패</span>` : '';
+      pillsEl.innerHTML = `<span style="font-size:11px;color:${meta.color};background:${meta.color}1a;border:1px solid ${meta.color}4d;border-radius:4px;padding:1px 6px;">${meta.label}${_lpTxt}</span>${_promoBadge}`;
     } else {
       avatarEl.style.setProperty('--mib-ring-color', '#4fc3f7');
       if (faceEl) faceEl.textContent = fallback;
@@ -25447,7 +25455,7 @@ function updateMyInfoBar() {
         const isCh = d2.tier === 'challenger';
         let mainTxt, lpPct, segCls;
         if (!d2.placementDone)      { mainTxt = `배치 ${d2.placementGames||0}/5`; lpPct = Math.round((d2.placementGames||0)/5*100); segCls = 'mib-lp-5'; }
-        else if (d2.promoActive)    { mainTxt = `승급전 ${d2.promoWins||0}–${d2.promoLosses||0}`; lpPct = Math.round(Math.min(2, d2.promoWins||0)/2*100); segCls = 'mib-lp-2'; }
+        else if (d2.promoActive)    { mainTxt = `⚔️ 승급전 ${d2.promoWins||0}승 ${d2.promoLosses||0}패`; lpPct = Math.round(Math.min(2, d2.promoWins||0)/2*100); segCls = 'mib-lp-2'; }
         else if (isCh)              { mainTxt = `${(d2.lp||0).toLocaleString()} LP`; lpPct = 100; segCls = ''; }
         else                        { mainTxt = `${(d2.lp||0).toLocaleString()} LP`; lpPct = Math.max(0, Math.min(100, d2.lp||0)); segCls = 'mib-lp-100'; }
         lvEl.innerHTML = `
