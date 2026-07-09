@@ -5183,6 +5183,19 @@ img.emoji{
 /* 시즌2 신규 콘텐츠 튜토리얼 (페이지형, 헥스텍) */
 .hs-season-badge.clickable{cursor:pointer;}
 .hs-season-badge.clickable:hover{color:#ffe39a;text-shadow:0 0 8px rgba(240,192,96,.5);}
+/* 🎮 오버레이 출시 안내(계정당 1회) */
+.ovn-overlay{position:fixed;inset:0;z-index:9850;background:rgba(0,0,0,.82);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:22px;overflow-y:auto;animation:s2tutFade .25s ease;}
+.ovn-modal{margin:auto;position:relative;width:100%;max-width:410px;background:linear-gradient(165deg,#15130d,#0b0a07);border:1px solid #c89230;clip-path:polygon(16px 0,100% 0,100% calc(100% - 16px),calc(100% - 16px) 100%,0 100%,0 16px);padding:26px 24px 22px;box-shadow:0 0 44px rgba(240,192,96,.18);text-align:center;}
+.ovn-badge{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:1px;color:#ffe39a;background:rgba(240,200,90,.12);border:1px solid rgba(240,200,90,.42);border-radius:20px;padding:4px 13px;}
+.ovn-ic{font-size:42px;line-height:1;margin:14px 0 6px;filter:drop-shadow(0 3px 12px rgba(240,200,90,.4));}
+.ovn-title{font-family:'Black Han Sans',sans-serif;font-size:24px;letter-spacing:.5px;color:#ffe39a;text-shadow:0 0 22px rgba(230,180,70,.4);}
+.ovn-body{margin-top:14px;text-align:left;}
+.ovn-body p{font-size:13px;line-height:1.72;color:#cdbe91;margin:0 0 11px;word-break:keep-all;}
+.ovn-body p b{color:#ffe8b8;font-weight:700;}
+.ovn-body .ovn-dl{margin-top:14px;padding:11px 13px;border-radius:10px;background:rgba(240,200,90,.08);border:1px solid rgba(240,200,90,.3);color:#ffe39a;font-size:12.5px;}
+.ovn-body .ovn-dl b{color:#fff2c8;}
+.ovn-ok{display:block;width:100%;margin-top:18px;padding:13px;border:none;border-radius:11px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-weight:900;font-size:15px;letter-spacing:.5px;color:#1a1206;background:linear-gradient(135deg,#e8c84a,#c89b3c);box-shadow:0 6px 18px rgba(230,180,70,.28);}
+.ovn-ok:active{transform:translateY(1px);}
 .s2tut-overlay{position:fixed;inset:0;z-index:9800;background:rgba(0,0,0,.82);backdrop-filter:blur(10px);display:flex;align-items:center;justify-content:center;padding:24px;animation:s2tutFade .25s ease;overflow-y:auto;}
 .s2tut-overlay .s2tut-modal{margin:auto;}   /* 뷰포트가 모달보다 작아도(좁은 창·오버레이 홈창) 위아래 안 잘리고 스크롤로 전부 접근 */
 @keyframes s2tutFade{from{opacity:0}to{opacity:1}}
@@ -7032,7 +7045,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.576';
+const APP_VERSION = 'v2.45.577';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7041,6 +7054,9 @@ const APP_VERSION = 'v2.45.576';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.577', date: '2026-07-09', changes: [
+    { tag: 'new', text: '🎮 내전 오버레이 안내 팝업 — 아이디마다 한 번, 「내전 오버레이」가 뭔지 알려드려요. 롤 클라이언트 위에 붙어 팀 배정·명단·투표·정산을 게임 화면 옆에 띄우는 데스크톱 프로그램이고, 이 홈페이지와 완벽하게 연동돼요. 예전 「라이브 계정」 역할은 프로그램에선 「방장」 체크 하나로 대신 — 방장 1명이 팀짜기를 진행하면 됩니다. 홈페이지 가장 아래에서 다운로드. (확인 누르면 계정당 다시 안 뜸)' },
+  ] },
   { ver: 'v2.45.576', date: '2026-07-09', changes: [
     { tag: 'new', text: '🥊 내전 오버레이에서도 막고라 시작 지원 — 방장이 오버레이 팀짜기에서 🥊 막고라를 고르면 파이터 2명을 LP 비슷하게 자동 선정해 매치를 만들고, 팀원들에겐 지금처럼 배팅 모달이 떠요. 배팅 마감 후 방장(라이브 계정 권한)이 결과 3가지(승자·승리요건·첫 증강)를 확정하면 맞춘 배팅에 정산 지급 — 홈페이지와 동일. (홈에 overlayMagollaResult 헬퍼 추가 — 오버레이 전용)' },
   ] },
@@ -13320,6 +13336,7 @@ onValue(ref(db, 'gold'), (snapshot) => {
 });
 function _goldUiRefresh(){
   _goldUiTimer = null;
+  try { maybeShowOverlayNotice(); } catch(_) {}   // 🎮 오버레이 출시 안내(계정당 1회)
   // migrateRelayBase()/revertRelaySogeup() 호출 제거 — 빈 함수 정리(v2.45.526). _RELAY_ROLLBACK 재적용은 출석 손실 사고 원인이었음(v2.43.266)
   fixRelayBaseOnly();
   autoFixRelayShrink();    // v2.43.266~ 출석 이력보다 진행도가 작으면 자동 복구 (손실 방지)
@@ -24365,6 +24382,45 @@ window.dontShowS2Tutorial = function(){
 };
 window.showS2Tutorial = showS2Tutorial;
 
+// ── 🎮 내전 오버레이 출시 안내 (계정당 1회 · 확인 누르면 영구 종료) ──────────
+function maybeShowOverlayNotice(){
+  try {
+    if (!goldLoaded || !myName) return;
+    const key = getMyGoldKey(); if (!key) return;
+    const gd = goldData[key] || {};
+    if (gd.overlayNoticeSeen) return;                                        // 계정당 1회(Firebase·영구)
+    if (localStorage.getItem('overlayNoticeSeen_'+key) === '1') return;      // Firebase 왕복 전 중복 방지
+    if (document.getElementById('ovn-overlay')) return;
+    showOverlayNotice();
+  } catch(_) {}
+}
+function showOverlayNotice(){
+  const ov = document.createElement('div');
+  ov.id = 'ovn-overlay'; ov.className = 'ovn-overlay';
+  ov.innerHTML = `<div class="ovn-modal">
+    <div class="ovn-badge">🆕 NEW · 데스크톱 프로그램</div>
+    <div class="ovn-ic">🎮</div>
+    <div class="ovn-title">내전 오버레이 출시</div>
+    <div class="ovn-body">
+      <p><b>롤 클라이언트 위에 딱 붙는</b> 데스크톱 프로그램이에요. 팀 배정·참가자 명단·MVP/매너 투표·정산을 <b>게임 화면 옆에</b> 띄워줘요.</p>
+      <p>이 <b>홈페이지와 완벽하게 연동</b>돼요 — 오버레이에서 한 일이 홈페이지에, 홈페이지에서 한 일이 오버레이에 그대로 반영돼요.</p>
+      <p>예전에 경기를 진행하던 <b>「라이브 계정」</b> 역할은 프로그램에선 <b>「방장」 체크 하나로</b> 대신해요. <b>방장 1명이 팀짜기</b>를 진행하면 나머지는 그냥 켜두기만 하면 돼요.</p>
+      <p class="ovn-dl">👇 <b>홈페이지 가장 아래</b>의 「🎮 내전 오버레이 다운로드」를 받아 실행하면 시작돼요.</p>
+    </div>
+    <button class="ovn-ok" onclick="window.closeOverlayNotice()">확인</button>
+  </div>`;
+  ov.onclick = (e) => { if (e.target === ov) window.closeOverlayNotice(); };   // 바깥 클릭도 확인과 동일(1회 표시)
+  document.body.appendChild(ov);
+}
+window.closeOverlayNotice = function(){
+  const ov = document.getElementById('ovn-overlay'); if (ov) ov.remove();
+  const key = getMyGoldKey();
+  if (key) {
+    try { localStorage.setItem('overlayNoticeSeen_'+key, '1'); } catch(_) {}   // 즉시 재표시 방지(Firebase 왕복 전)
+    try { update(ref(db,'gold/'+key), { overlayNoticeSeen: true }).catch(()=>{}); } catch(_) {}   // 계정당 1회(영구)
+  }
+};
+
 function showS1WelcomePopup() {
   // v2.36.17~ 시즌 1 정착됨 → 웰컴 팝업 영구 비활성 (호출은 유지하되 즉시 return)
   return;
@@ -26582,6 +26638,7 @@ window.selectMyName = async function(name) {
   renderShop();
   updateMemberModeDisplay();
   checkLotteryRefund();
+  setTimeout(() => { try { maybeShowOverlayNotice(); } catch(_) {} }, 500);   // 🎮 이름 선택 직후 오버레이 안내(계정당 1회)
 };
 
 // 로컬 날짜 키 (YYYY-MM-DD, 한국 로컬 시간 기준)
