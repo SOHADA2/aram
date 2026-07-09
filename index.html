@@ -7032,7 +7032,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.575';
+const APP_VERSION = 'v2.45.576';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7041,6 +7041,9 @@ const APP_VERSION = 'v2.45.575';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.576', date: '2026-07-09', changes: [
+    { tag: 'new', text: '🥊 내전 오버레이에서도 막고라 시작 지원 — 방장이 오버레이 팀짜기에서 🥊 막고라를 고르면 파이터 2명을 LP 비슷하게 자동 선정해 매치를 만들고, 팀원들에겐 지금처럼 배팅 모달이 떠요. 배팅 마감 후 방장(라이브 계정 권한)이 결과 3가지(승자·승리요건·첫 증강)를 확정하면 맞춘 배팅에 정산 지급 — 홈페이지와 동일. (홈에 overlayMagollaResult 헬퍼 추가 — 오버레이 전용)' },
+  ] },
   { ver: 'v2.45.575', date: '2026-07-08', changes: [
     { tag: 'fix', text: '🖥️ 내전 오버레이 정산창이 안 뜨던 문제 지원 — 전원이 투표해야만 자동으로 정산이 발행되는데, 한 명이라도 투표를 안 하면 정산창이 영영 안 뜨던 상황(오버레이만으로 진행 시 "건너뛰기"가 숨은 라이브 계정에만 있어 누를 수 없었음). 이제 방장 오버레이의 투표 화면에 "정산 마감" 버튼이 생겨, 지금까지의 표로 즉시 정산을 발행할 수 있어요. (홈페이지에 overlayForceSettle 헬퍼 추가 — 오버레이 전용)' },
   ] },
@@ -17949,6 +17952,23 @@ window.overlayForceSettle = function() {
     }
     autoConfirmMvp();   // autoConfirmManner 포함 — 현재까지의 표 집계로 확정
     return 'confirmed';
+  } catch (e) { return 'err:' + ((e && e.message) || e); }
+};
+
+// 🥊 오버레이 방장이 라이브 계정 권한으로 막고라 결과 확정 — 숨은 liveWin에서 실행. 홈 mgConfirmResult와 동일 정산(맞춘 배팅에 지급).
+window.overlayMagollaResult = async function(matchId, winner, cond, aug) {
+  try {
+    if (!liveMode) return 'err:라이브 계정이 아니에요';
+    if (!matchId || !winner || !cond || !aug) return 'err:승자·요건·증강을 모두 선택하세요';
+    const snap = await get(ref(db, 'magolla_matches/' + matchId));
+    const d = snap.val();
+    if (!d) return 'err:매치를 찾을 수 없어요';
+    if (winner !== d.fighter1 && winner !== d.fighter2) return 'err:승자가 파이터와 안 맞아요';
+    if (d.status === 'settled') return 'ok';                       // 이미 정산됨(멱등)
+    if (d.status !== 'closed') return 'err:배팅 마감 후 입력하세요';   // 배팅 진행 중이면 대기
+    currentMagollaId = matchId;
+    await mgSettleMatch(matchId, winner, cond, aug, d);
+    return 'ok';
   } catch (e) { return 'err:' + ((e && e.message) || e); }
 };
 
