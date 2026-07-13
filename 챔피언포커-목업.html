@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>🃏 챔피언 배틀 포커 — 목업</title>
+<style>
+:root{ --gold:#f0c060; --gold-lite:#ffe39a; --ink:#e8ecf6; --dim:#8c86a0; --bg:#0a0a12;
+  --sil:#c0c8d8; --prz:#e879f9; }
+*{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+body{ font-family:'Noto Sans KR','Segoe UI',system-ui,sans-serif; background:
+  radial-gradient(120% 80% at 50% -10%, #1a1626 0%, #0a0a12 60%), var(--bg);
+  color:var(--ink); min-height:100vh; display:flex; justify-content:center; padding:14px; }
+.wrap{ width:100%; max-width:520px; display:flex; flex-direction:column; gap:12px; }
+/* 헤더 */
+.top{ display:flex; align-items:center; gap:10px; }
+.title{ font-weight:900; font-size:17px; color:var(--gold-lite); letter-spacing:.5px; flex:1; }
+.gold{ font-family:'JetBrains Mono',monospace; font-weight:800; font-size:16px; color:var(--gold-lite);
+  display:inline-flex; align-items:center; gap:5px; }
+.help{ width:24px; height:24px; border-radius:6px; border:1px solid rgba(240,200,90,.35); background:rgba(240,200,90,.06);
+  color:var(--gold-lite); font-weight:800; cursor:pointer; }
+/* 주의사항 배너 */
+.warn{ font-size:11px; color:#ffcf8f; background:linear-gradient(180deg,rgba(240,166,60,.14),rgba(240,166,60,.05));
+  border:1px solid rgba(240,166,60,.3); border-radius:9px; padding:7px 11px; line-height:1.45; }
+.warn b{ color:var(--gold-lite); }
+/* 딜러 */
+.dealer{ display:flex; align-items:center; gap:12px; background:linear-gradient(180deg,rgba(232,121,249,.06),rgba(0,0,0,.2));
+  border:1px solid rgba(232,121,249,.22); border-radius:13px; padding:11px 13px; position:relative; }
+.tf{ width:58px; height:58px; border-radius:12px; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+  font-size:30px; background:radial-gradient(circle at 50% 35%, #3a2450, #140a20);
+  border:1px solid rgba(232,121,249,.4); box-shadow:0 0 18px rgba(232,121,249,.25); }
+.dealer-info{ flex:1; min-width:0; }
+.dealer-name{ font-weight:800; font-size:13px; color:#f0b8ff; }
+.dealer-sub{ font-size:10.5px; color:var(--dim); margin-top:1px; }
+.dealer-hand{ font-size:12px; font-weight:800; margin-top:3px; min-height:16px; }
+/* 카드 행 */
+.cards{ display:flex; gap:6px; justify-content:center; }
+.card{ position:relative; flex:1; max-width:92px; aspect-ratio:5/7; border-radius:9px; overflow:hidden; cursor:pointer;
+  background:#14121c; border:2px solid #2a2636; transition:transform .12s, border-color .12s, box-shadow .12s; }
+.card.sm{ max-width:58px; }
+.card img{ width:100%; height:100%; object-fit:cover; object-position:top center; display:block; }
+.card .q{ position:absolute; top:0; left:0; right:0; text-align:center; font-size:8.5px; font-weight:800; padding:2px 0;
+  letter-spacing:.5px; text-shadow:0 1px 3px #000; }
+.card .nm{ position:absolute; bottom:0; left:0; right:0; text-align:center; font-size:9.5px; font-weight:800;
+  padding:3px 2px 4px; background:linear-gradient(180deg,transparent,rgba(0,0,0,.85)); }
+.card.q1{ border-color:var(--sil); } .card.q1 .q{ color:#1a1a22; background:var(--sil); }
+.card.q2{ border-color:var(--gold); } .card.q2 .q{ color:#1a1206; background:var(--gold); }
+.card.q3{ border-color:var(--prz); box-shadow:0 0 12px rgba(232,121,249,.45); }
+.card.q3 .q{ color:#2a0a2e; background:linear-gradient(90deg,#f0abff,#e879f9,#a0d8ff); }
+.card.held{ border-color:var(--gold-lite); box-shadow:0 0 0 2px var(--gold-lite), 0 0 16px rgba(240,200,90,.5); transform:translateY(-7px); }
+.card .holdtag{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:11px; font-weight:900;
+  color:#1a1206; background:var(--gold-lite); padding:2px 8px; border-radius:6px; opacity:0; transition:.12s; }
+.card.held .holdtag{ opacity:1; }
+.card.back{ background:repeating-linear-gradient(45deg,#241a34,#241a34 6px,#1a1226 6px,#1a1226 12px); border-color:#3a2a50; cursor:default; }
+.card.back::after{ content:'🂠'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:26px; color:#6a5a8a; }
+.card.win-hi{ animation:winpulse 1s ease infinite; }
+@keyframes winpulse{ 0%,100%{ box-shadow:0 0 0 2px var(--gold-lite),0 0 10px rgba(240,200,90,.4);} 50%{ box-shadow:0 0 0 2px var(--gold-lite),0 0 22px rgba(240,200,90,.9);} }
+.vs{ text-align:center; font-size:10px; font-weight:800; color:var(--dim); letter-spacing:3px; margin:-3px 0; }
+.hint{ text-align:center; font-size:11px; color:var(--dim); min-height:15px; }
+/* 베팅 */
+.betrow{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:center; }
+.betrow .lbl{ font-size:11px; color:var(--dim); }
+.bet-btn{ font-family:'JetBrains Mono',monospace; font-weight:800; font-size:13px; padding:6px 11px; border-radius:8px; cursor:pointer;
+  border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.04); color:var(--ink); }
+.bet-btn.on{ background:var(--gold); color:#1a1206; border-color:var(--gold); }
+/* 액션 버튼 */
+.act{ display:block; width:100%; padding:13px; border-radius:11px; font-weight:900; font-size:15px; cursor:pointer; border:none;
+  background:linear-gradient(180deg,#e8c84a,#c89b3c); color:#1a1206; box-shadow:0 4px 16px rgba(200,155,60,.3); }
+.act:disabled{ background:rgba(255,255,255,.07); color:var(--dim); box-shadow:none; cursor:default; }
+.act.ghost{ background:rgba(255,255,255,.05); color:var(--ink); border:1px solid rgba(255,255,255,.14); box-shadow:none; }
+/* 결과 */
+.result{ text-align:center; border-radius:12px; padding:12px; font-weight:800; }
+.result.win{ background:linear-gradient(180deg,rgba(240,200,90,.16),rgba(240,200,90,.04)); border:1px solid rgba(240,200,90,.4); color:var(--gold-lite); }
+.result.lose{ background:rgba(224,72,58,.1); border:1px solid rgba(224,72,58,.35); color:#ff9a8a; }
+.result.push{ background:rgba(120,160,220,.1); border:1px solid rgba(120,160,220,.3); color:#a8c8f0; }
+.result.tie{ background:rgba(180,120,255,.1); border:1px solid rgba(180,120,255,.3); color:#d0b0ff; }
+.result .big{ font-size:19px; }
+.result .delta{ font-family:'JetBrains Mono',monospace; font-size:15px; margin-top:3px; }
+/* 배당표 모달 */
+.modal-bg{ position:fixed; inset:0; background:rgba(0,0,0,.7); display:none; align-items:center; justify-content:center; padding:16px; z-index:50; }
+.modal-bg.show{ display:flex; }
+.modal{ width:100%; max-width:400px; max-height:88vh; overflow-y:auto; background:linear-gradient(160deg,#1a1626,#0d0b13);
+  border:1px solid rgba(240,200,90,.35); border-radius:16px; padding:18px; }
+.modal h3{ color:var(--gold-lite); font-size:15px; margin-bottom:10px; }
+.pt{ width:100%; border-collapse:collapse; font-size:12px; }
+.pt td{ padding:6px 4px; border-bottom:1px solid rgba(255,255,255,.07); }
+.pt td:last-child{ text-align:right; font-family:'JetBrains Mono',monospace; font-weight:800; color:var(--gold-lite); }
+.pt .mut td{ color:var(--dim); }
+.modal .rule{ font-size:11.5px; color:#cfd4e6; line-height:1.6; margin-top:12px; background:rgba(255,255,255,.03); border-radius:9px; padding:10px 12px; }
+.modal .rule b{ color:var(--gold-lite); }
+.close{ display:block; width:100%; margin-top:14px; padding:10px; border-radius:9px; border:1px solid rgba(240,200,90,.35);
+  background:rgba(240,200,90,.06); color:var(--gold-lite); font-weight:800; cursor:pointer; }
+.mocktag{ text-align:center; font-size:10px; color:#5a5470; margin-top:2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <span class="title">🃏 챔피언 배틀 포커</span>
+    <span class="gold">🪙 <span id="gold">11,104</span></span>
+    <button class="help" id="help">?</button>
+  </div>
+  <div class="warn">⚠️ <b>무승부는 딜러가 이겨요</b> — 같은 족보끼리 붙으면 딜러 승, 베팅의 <b>30%</b>만 돌려드려요. (카지노처럼 집이 유리)</div>
+
+  <!-- 딜러 -->
+  <div class="dealer">
+    <div class="tf">🎴</div>
+    <div class="dealer-info">
+      <div class="dealer-name">딜러 · 하트의 잭</div>
+      <div class="dealer-sub">트위스티드 페이트 (3D 예정)</div>
+      <div class="dealer-hand" id="dealer-hand"></div>
+    </div>
+  </div>
+  <div class="cards" id="dealer-cards"></div>
+
+  <div class="vs">V S</div>
+
+  <!-- 플레이어 -->
+  <div class="cards" id="player-cards"></div>
+  <div class="hint" id="hint">베팅을 정하고 딜을 눌러요</div>
+
+  <!-- 결과 -->
+  <div id="result-box"></div>
+
+  <!-- 베팅 -->
+  <div class="betrow" id="betrow">
+    <span class="lbl">베팅</span>
+    <button class="bet-btn" data-bet="20">20</button>
+    <button class="bet-btn on" data-bet="50">50</button>
+    <button class="bet-btn" data-bet="100">100</button>
+    <button class="bet-btn" data-bet="200">200</button>
+  </div>
+
+  <!-- 액션 -->
+  <button class="act" id="action">딜 (–50G)</button>
+  <div class="mocktag">목업 · 확률/배당은 시뮬(RTP~77%) 기준 · 골드는 가짜</div>
+</div>
+
+<!-- 배당표 모달 -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <h3>🃏 족보 & 배당 (베팅 ×배수)</h3>
+    <table class="pt">
+      <tr><td>🃏 파이브 카드 <span style="color:#8c86a0;font-size:10px">같은 챔피언 5장</span></td><td>×100</td></tr>
+      <tr><td>4️⃣ 포 카드 <span style="color:#8c86a0;font-size:10px">같은 챔피언 4장</span></td><td>×12</td></tr>
+      <tr><td>🏠 풀하우스 <span style="color:#8c86a0;font-size:10px">트리플+페어</span></td><td>×6</td></tr>
+      <tr><td>💎 프리즘 페어 <span style="color:#8c86a0;font-size:10px">둘 다 프리즘</span></td><td>×2</td></tr>
+      <tr><td>3️⃣ 트리플 <span style="color:#8c86a0;font-size:10px">같은 챔피언 3장</span></td><td>×1.8</td></tr>
+      <tr><td>✌️ 투페어</td><td>×1.3</td></tr>
+      <tr><td>💑 골드+ 페어 <span style="color:#8c86a0;font-size:10px">골드 이상 페어</span></td><td>×1.2</td></tr>
+      <tr class="mut"><td>🥈 실버페어·하이카드</td><td>본전 반환</td></tr>
+    </table>
+    <div class="rule">
+      <b>규칙</b><br>
+      · 카드 5장 받고 → 남길 카드 <b>홀드</b> → 나머지 <b>다시 뽑기</b> → 딜러와 족보 대결<br>
+      · <b>딜러보다 높은 족보</b>면 배당 · 딜러가 높으면 베팅 잃음<br>
+      · 🥈 약한 손(실버페어·하이카드)으로 이기면 <b>본전만</b> 돌려받아요<br>
+      · <b>무승부 = 딜러 승 (30%만 환불)</b><br>
+      · 같은 족보끼리는 <b>성급(프리즘＞골드＞실버)</b> 높은 쪽이 이겨요<br>
+      · 딜러도 규칙대로 다시 뽑아요 (페어↑ 홀드)
+    </div>
+    <button class="close" id="close">닫기</button>
+  </div>
+</div>
+
+<script>
+const CHAMPS=[
+ ['Akshan','아크샨'],['Amumu','아무무'],['Brand','브랜드'],['DrMundo','문도'],['Fizz','피즈'],
+ ['Gangplank','갱플랭크'],['Jhin','진'],['Khazix','카직스'],['Lulu','룰루'],['Malphite','말파이트'],
+ ['Malzahar','말자하'],['Mel','멜'],['Morgana','모르가나'],['Naafiri','나피리'],['Poppy','뽀삐'],
+ ['Rammus','람머스'],['Vayne','베인'],['Yasuo','야스오']
+];
+const QDIR=['','silver','gold','prism'];
+const QLBL=['','실버','골드','프리즘'];
+const RW=[0.58,0.30,0.12];
+function rollQ(){ const r=Math.random(); return r<RW[0]?1 : r<RW[0]+RW[1]?2 : 3; }
+function drawCard(){ return { ci:(Math.random()*18)|0, q:rollQ() }; }
+function cardImg(c){ return `assets/pets/${CHAMPS[c.ci][0]}/${QDIR[c.q]}/default.png`; }
+
+// 족보 판정
+const HANDS={
+ five:{n:'파이브 카드',mult:100}, four:{n:'포 카드',mult:12}, full:{n:'풀하우스',mult:6},
+ prismPair:{n:'프리즘 페어',mult:2}, trip:{n:'트리플',mult:1.8}, twoPair:{n:'투페어',mult:1.3},
+ goldPair:{n:'골드+ 페어',mult:1.2}, silverPair:{n:'실버 페어',mult:0,push:true}, high:{n:'하이카드',mult:0,push:true}
+};
+function evalHand(cs){
+  const cc={}; cs.forEach(c=>cc[c.ci]=(cc[c.ci]||0)+1);
+  const counts=Object.values(cc); const maxSame=Math.max(...counts);
+  const pairs=counts.filter(n=>n>=2).length; const hasTrip=counts.includes(3);
+  let bestPairMinQ=0, bestPairCi=-1;
+  for(const k in cc){ if(cc[k]>=2){ const qs=cs.filter(c=>c.ci==k).map(c=>c.q).sort((a,b)=>b-a); const m=Math.min(qs[0],qs[1]); if(m>bestPairMinQ){bestPairMinQ=m; bestPairCi=+k;} } }
+  let key;
+  if(maxSame===5) key='five'; else if(maxSame===4) key='four';
+  else if(hasTrip&&pairs>=2) key='full'; else if(maxSame===3) key='trip';
+  else if(pairs>=2) key='twoPair';
+  else if(maxSame===2) key=(bestPairMinQ===3?'prismPair':bestPairMinQ===2?'goldPair':'silverPair');
+  else key='high';
+  const rankOrder={five:9,four:8,full:7,trip:6,twoPair:5,prismPair:4.3,goldPair:4.2,silverPair:4.1,high:1};
+  return { key, rank:rankOrder[key], qsum:cs.reduce((s,c)=>s+c.q,0) };
+}
+function cmpVal(cs){ const e=evalHand(cs); return e.rank*100 + e.qsum; }
+// 딜러/플레이어 공용 홀드 휴리스틱
+function autoHold(cs){
+  const cc={}; cs.forEach(c=>cc[c.ci]=(cc[c.ci]||0)+1);
+  const maxSame=Math.max(...Object.values(cc));
+  const hold=[false,false,false,false,false];
+  if(maxSame>=2){ cs.forEach((c,i)=>{ if(cc[c.ci]>=2) hold[i]=true; }); return hold; }
+  cs.forEach((c,i)=>{ if(c.q===3) hold[i]=true; });  // 아무것도 없으면 프리즘만
+  return hold;
+}
+
+// 상태
+let gold=11104, bet=50, phase='bet';
+let player=[], dealer=[], held=[false,false,false,false,false], dealerShown=false;
+
+const $=id=>document.getElementById(id);
+function fmt(n){ return n.toLocaleString(); }
+function renderGold(){ $('gold').textContent=fmt(gold); }
+
+function renderCards(){
+  // 플레이어
+  $('player-cards').innerHTML = player.map((c,i)=>{
+    if(!c) return `<div class="card back"></div>`;
+    const cls = phase==='hold' ? (held[i]?'held':'') : '';
+    return `<div class="card q${c.q} ${cls}" data-i="${i}">
+      <div class="q">${QLBL[c.q]}</div>
+      <img src="${cardImg(c)}" alt="" onerror="this.style.opacity=.15">
+      <div class="nm">${CHAMPS[c.ci][1]}</div>
+      <div class="holdtag">HOLD</div></div>`;
+  }).join('');
+  // 딜러
+  $('dealer-cards').innerHTML = dealer.map((c)=>{
+    if(!dealerShown || !c) return `<div class="card sm back"></div>`;
+    return `<div class="card sm q${c.q}">
+      <div class="q">${QLBL[c.q]}</div>
+      <img src="${cardImg(c)}" alt="" onerror="this.style.opacity=.15">
+      <div class="nm">${CHAMPS[c.ci][1]}</div></div>`;
+  }).join('');
+  // 홀드 탭 바인딩
+  if(phase==='hold'){
+    document.querySelectorAll('#player-cards .card').forEach(el=>{
+      el.onclick=()=>{ const i=+el.dataset.i; held[i]=!held[i]; renderCards(); };
+    });
+  }
+}
+
+function startDeal(){
+  if(gold<bet){ $('hint').textContent='골드가 부족해요!'; return; }
+  gold-=bet; renderGold();
+  player=[drawCard(),drawCard(),drawCard(),drawCard(),drawCard()];
+  dealer=[drawCard(),drawCard(),drawCard(),drawCard(),drawCard()];
+  held=[false,false,false,false,false]; dealerShown=false; phase='hold';
+  $('result-box').innerHTML='';
+  $('hint').textContent='남길 카드를 탭해서 홀드하고 → 다시 뽑기';
+  $('betrow').style.display='none';
+  $('action').textContent='🎴 다시 뽑기';
+  renderCards();
+}
+
+function doRedraw(){
+  // 플레이어 리드로우
+  for(let i=0;i<5;i++) if(!held[i]) player[i]=drawCard();
+  // 딜러 리드로우(규칙)
+  const dh=autoHold(dealer);
+  for(let i=0;i<5;i++) if(!dh[i]) dealer[i]=drawCard();
+  dealerShown=true; phase='result';
+  renderCards();
+  judge();
+}
+
+function judge(){
+  const pv=cmpVal(player), dv=cmpVal(dealer);
+  const pe=evalHand(player), de=evalHand(dealer);
+  $('dealer-hand').textContent = '딜러: '+HANDS[de.key].n;
+  let outcome, ret, cls, big, delta;
+  if(pv>dv){
+    const h=HANDS[pe.key];
+    if(h.push){ outcome='push'; ret=bet; cls='push'; big='🥈 '+h.n+' — 본전!'; delta='±0G (본전 반환)'; }
+    else { outcome='win'; ret=Math.min(Math.round(bet*h.mult),30000); cls='win'; big='🎉 '+h.n+' 승리! ×'+h.mult; delta='+'+fmt(ret-bet)+'G'; }
+  } else if(pv<dv){ outcome='lose'; ret=0; cls='lose'; big='😢 패배 — 딜러 '+HANDS[de.key].n; delta='−'+fmt(bet)+'G'; }
+  else { outcome='tie'; ret=Math.round(bet*0.3); cls='tie'; big='🃏 무승부 → 딜러 승'; delta='−'+fmt(bet-ret)+'G (30% 환불)'; }
+  gold+=ret; renderGold();
+  // 이긴/본전 시 내 족보 카드 하이라이트
+  if(outcome==='win'||outcome==='push'){
+    const cc={}; player.forEach(c=>cc[c.ci]=(cc[c.ci]||0)+1);
+    document.querySelectorAll('#player-cards .card').forEach((el,i)=>{ if(cc[player[i].ci]>=2) el.classList.add('win-hi'); });
+  }
+  $('result-box').innerHTML=`<div class="result ${cls}"><div class="big">${big}</div><div class="delta">${delta}</div></div>`;
+  $('hint').textContent='';
+  $('action').textContent='다시 하기';
+}
+
+function reset(){
+  phase='bet'; player=[]; dealer=[]; dealerShown=false;
+  $('result-box').innerHTML=''; $('dealer-hand').textContent='';
+  $('dealer-cards').innerHTML=''; $('player-cards').innerHTML='';
+  $('betrow').style.display='flex';
+  $('hint').textContent='베팅을 정하고 딜을 눌러요';
+  $('action').textContent='딜 (–'+bet+'G)';
+}
+
+$('action').onclick=()=>{
+  if(phase==='bet') startDeal();
+  else if(phase==='hold') doRedraw();
+  else reset();
+};
+document.querySelectorAll('.bet-btn').forEach(b=>{
+  b.onclick=()=>{ if(phase!=='bet') return; bet=+b.dataset.bet;
+    document.querySelectorAll('.bet-btn').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+    $('action').textContent='딜 (–'+bet+'G)'; };
+});
+$('help').onclick=()=>$('modal-bg').classList.add('show');
+$('close').onclick=()=>$('modal-bg').classList.remove('show');
+$('modal-bg').onclick=e=>{ if(e.target===$('modal-bg')) $('modal-bg').classList.remove('show'); };
+
+renderGold();
+</script>
+</body>
+</html>
