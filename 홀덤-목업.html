@@ -27,6 +27,7 @@ body{ font-family:'Noto Sans KR','Segoe UI',system-ui,sans-serif; background:rad
 .pinfo{ display:flex; align-items:center; justify-content:center; gap:4px; font-size:11px; font-weight:800; }
 .pav{ font-size:15px; }
 .pname{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.phint{ font-size:8.5px; font-weight:800; color:#c9b8ff; letter-spacing:.3px; margin-top:1px; }
 .pcards{ display:flex; justify-content:center; gap:2px; margin:3px 0; }
 .pstack{ font-family:'JetBrains Mono',monospace; font-size:11px; font-weight:800; color:var(--gold-lite); }
 .pbet{ position:absolute; bottom:-9px; left:50%; transform:translateX(-50%); font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:800; color:#1a1206; background:var(--gold); padding:1px 7px; border-radius:8px; white-space:nowrap; }
@@ -118,7 +119,7 @@ body{ font-family:'Noto Sans KR','Segoe UI',system-ui,sans-serif; background:rad
   <div class="msg" id="msg"></div>
   <div class="actionbar" id="actionbar"></div>
   <button class="startbtn" id="startbtn">🃏 새 판 (참가비 200G)</button>
-  <div class="mocktag">목업 · 단판 텍사스 홀덤 · 나 vs 봇3 · 팟 레이크 5% · 골드는 가짜 · 봇 성격은 2단계</div>
+  <div class="mocktag">목업 · 단판 텍사스 홀덤 · 나 vs 봇3(성격 5종 랜덤) · 팟 레이크 5% · 골드는 가짜 · 참가비/RTP는 3단계</div>
 </div>
 
 <div class="modal-bg" id="intro-bg">
@@ -141,6 +142,15 @@ body{ font-family:'Noto Sans KR','Segoe UI',system-ui,sans-serif; background:rad
     </div>
     <div class="note" style="margin-top:12px">
       <b>용어</b><br>· <b>콜</b> = 남이 건 만큼 내고 계속 · <b>레이즈</b> = 더 올려 걸기<br>· <b>체크</b> = 낼 게 없을 때 공짜로 넘김 · <b>폴드</b> = 이 판 포기(건 돈 잃음)<br>· <b>올인</b> = 가진 칩 전부 · <b>팟</b> = 판돈(이기면 가져감)<br>· <b>블라인드</b> = 시작 강제 베팅(SB/BB)
+    </div>
+    <h3 style="margin-top:16px">🎭 상대 봇 성격 (읽으면 이겨요)</h3>
+    <div style="font-size:12px;line-height:1.7;color:#dfe3ee">
+      <div style="margin-bottom:6px">🪨 <b>바위</b>(신중) — 좋은 패만 들어와요. 크게 걸면 진짜니까 웬만하면 접어요.</div>
+      <div style="margin-bottom:6px">🐗 <b>불도저</b>(저돌) — 막 밀어붙이고 뻥카도 잦아요. 좋은 패면 받아쳐요.</div>
+      <div style="margin-bottom:6px">🎭 <b>허풍쟁이</b>(뻥카) — 약한 패로도 세게 걸어요. 의심되면 콜/레이즈.</div>
+      <div style="margin-bottom:6px">🐟 <b>호구</b>(콜쟁이) — 웬만하면 다 따라와요. 좋은 패로 가치 베팅!</div>
+      <div>🎯 <b>프로</b>(균형) — 탄탄해서 읽기 어려워요.</div>
+      <div class="note" style="margin-top:8px">이름 밑 <b>작은 태그</b>로 성격이 보여요. 매 판 3명이 랜덤으로 앉아요.</div>
     </div>
     <div class="mbtns"><button class="go" id="help-close">닫기</button></div>
   </div>
@@ -176,7 +186,11 @@ function rankHand(cs){
   return [0, ...ranks];
 }
 const cmp=(a,b)=>{ for(let i=0;i<Math.max(a.length,b.length);i++){ const x=a[i]||0,y=b[i]||0; if(x!==y) return x-y; } return 0; };
-function best7(cards){ let best=null; for(let a=0;a<cards.length;a++) for(let b=a+1;b<cards.length;b++){ const five=cards.filter((_,i)=>i!==a&&i!==b); if(five.length===5){ const r=rankHand(five); if(!best||cmp(r,best)>0) best=r; } } return best; }
+function best7(cards){ // 임의 N(≥5)장에서 최고 5장 조합 (플롭 5장·턴 6장·리버 7장 모두 처리)
+  if(cards.length<5) return null; let best=null;
+  const rec=(start,cur)=>{ if(cur.length===5){ const r=rankHand(cur); if(!best||cmp(r,best)>0) best=r; return; }
+    for(let i=start;i<cards.length;i++){ cur.push(cards[i]); rec(i+1,cur); cur.pop(); } };
+  rec(0,[]); return best; }
 
 // 카드 렌더
 function cardFace(c,size){ const su=SUITS[c.s]; const cor=`<span class="rk">${rkLabel(c.r)}</span><span class="st">${su.sym}</span>`;
@@ -186,7 +200,14 @@ const cardBack=size=>`<div class="card ${size} back"></div>`;
 // 상태
 let gold=11104;
 const BUYIN=200, START=200, SB=5, BB=10, RAKE=0.05;
-const AV=['🧑','🪨','🔥','🎯']; const NM=['나','바위','불도저','프로'];
+// 봇 성격 5종 (매 판 랜덤 3명) — tight=폴드 문턱 / aggro=공격성 / bluff=블러핑 빈도 / sticky=안 접는 끈기 / size=베팅 크기
+const PERSONAS=[
+  {key:'rock',  name:'바위',    av:'🪨', hint:'신중', tight:0.42, aggro:0.30, bluff:0.04, sticky:0.02, size:0.55, desc:'좋은 패만 들어와요. 크게 베팅하면 진짜일 확률↑'},
+  {key:'bull',  name:'불도저',  av:'🐗', hint:'저돌', tight:0.24, aggro:0.80, bluff:0.30, sticky:0.12, size:0.90, desc:'막 밀어붙여요. 뻥카도 잦으니 좋은 패면 받아쳐요'},
+  {key:'bluff', name:'허풍쟁이',av:'🎭', hint:'뻥카', tight:0.30, aggro:0.55, bluff:0.45, sticky:0.08, size:0.70, desc:'약한 패로도 세게 걸어요. 의심되면 콜/레이즈'},
+  {key:'fish',  name:'호구',    av:'🐟', hint:'콜쟁이', tight:0.14, aggro:0.12, bluff:0.02, sticky:0.80, size:0.50, desc:'웬만하면 다 따라와요(콜). 좋은 패로 가치 베팅!'},
+  {key:'pro',   name:'프로',    av:'🎯', hint:'균형', tight:0.32, aggro:0.48, bluff:0.15, sticky:0.10, size:0.65, desc:'교과서적으로 탄탄해요. 읽기 어려워요'},
+];
 let players=[], community=[], deck=[], pot=0, currentBet=0, turn=0, dealer=0, round='', reveal=false, over=true;
 let showCoach=true, narr='';
 
@@ -202,7 +223,9 @@ function startHand(){
   gold-=BUYIN; $('gold').textContent=gold.toLocaleString();
   newDeck(); pot=0; community=[]; reveal=false; over=false; round='preflop';
   dealer=(Math.random()*4)|0;
-  players=[0,1,2,3].map(i=>({name:NM[i], av:AV[i], isBot:i!==0, stack:START, hole:[draw(),draw()], committed:0, folded:false, allIn:false, acted:false}));
+  const pool=[...PERSONAS]; for(let i=pool.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[pool[i],pool[j]]=[pool[j],pool[i]];}
+  const seats=[{name:'나',av:'🧑',isBot:false,persona:null}, ...pool.slice(0,3).map(P=>({name:P.name,av:P.av,isBot:true,persona:P}))];
+  players=seats.map(seat=>({...seat, stack:START, hole:[draw(),draw()], committed:0, folded:false, allIn:false, acted:false}));
   const sb=(dealer+1)%4, bb=(dealer+2)%4;
   putIn(players[sb],SB); putIn(players[bb],BB); currentBet=BB;
   $('startbtn').style.display='none'; $('msg').textContent=''; $('msg').className='msg';
@@ -254,13 +277,26 @@ function strength(p){
   const r=best7([...p.hole,...community]); return Math.min(1, r[0]/8 + (r[0]===0?(r[1]-2)/12*0.12:0.06));
 }
 function botDecide(p){
-  const toCall=currentBet-p.committed; const s=strength(p); const rnd=Math.random();
-  const betAmt=()=>Math.min(p.stack+p.committed, currentBet + Math.max(BB, Math.round(pot*0.6)));
-  if(toCall<=0){ if(s>0.62 && rnd<0.55) return {a:'raise',amt:betAmt()}; if(s<0.3&&rnd<0.12) return {a:'raise',amt:betAmt()}; return {a:'check'}; }
+  const P=p.persona;
+  const toCall=currentBet-p.committed;
+  let s=strength(p); s=Math.max(0,Math.min(1, s+(Math.random()-0.5)*0.08)); // 판단 노이즈
+  const rnd=Math.random();
+  const betAmt=()=>Math.min(p.stack+p.committed, currentBet+Math.max(BB, Math.round(pot*P.size)));
+  // 낼 게 없음 → 체크 or 베팅
+  if(toCall<=0){
+    if(s>0.60 && rnd<P.aggro+0.15) return {a:'raise',amt:betAmt()};  // 가치 베팅
+    if(s<0.35 && rnd<P.bluff)      return {a:'raise',amt:betAmt()};  // 블러핑
+    if(s>0.45 && rnd<P.aggro*0.5)  return {a:'raise',amt:betAmt()};  // 중간 패 압박
+    return {a:'check'};
+  }
+  // 베팅 받는 중 (내 레이즈에 반응하는 구간)
   const potOdds=toCall/(pot+toCall+1);
-  if(s<0.34 && s<potOdds*1.1 && rnd<0.85){ if(rnd<0.06) return {a:'raise',amt:betAmt()}; return {a:'fold'}; }
-  if(s>0.78 && rnd<0.5) return {a:'raise',amt:betAmt()};
-  if(toCall>=p.stack) return s>0.5?{a:'allin'}:{a:'fold'};
+  const big=toCall>pot*0.6;                                          // 큰 압박?
+  if(s>0.75 && rnd<P.aggro+0.10)          return {a:'raise',amt:betAmt()}; // 강패 레이즈
+  if(s<0.30 && !big && rnd<P.bluff*0.5)   return {a:'raise',amt:betAmt()}; // 블러프-레이즈
+  const foldThresh=P.tight*(big?1.15:1.0) - P.sticky*0.25;           // 성격별 폴드 문턱(큰 베팅=더 접음, 끈기=덜 접음)
+  if(s<foldThresh && s<potOdds*1.25 && rnd<0.92) return {a:'fold'};
+  if(toCall>=p.stack){ const need=0.5 - P.sticky*0.4; return s>need?{a:'allin'}:{a:'fold'}; } // 콜=올인 상황
   return {a:'call'};
 }
 
@@ -318,6 +354,7 @@ function renderTable(){
     el.className='seat'+(p.folded?' folded':'')+(turn===i&&!over?' active':'')+(p.win?' win':'');
     el.innerHTML=`${dealer===i?'<div class="dbtn">D</div>':''}
       <div class="pinfo"><span class="pav">${p.av}</span><span class="pname">${p.name}</span></div>
+      ${p.persona?`<div class="phint">${p.persona.hint}</div>`:''}
       <div class="pcards">${seatCards(p,'mini')}</div>
       <div class="pstack">🪙${p.stack}</div>
       ${p.folded?'<div class="ptag">폴드</div>':''}
