@@ -27,9 +27,9 @@ body{ font-family:'Noto Sans KR','Segoe UI',system-ui,sans-serif; background:
   background: radial-gradient(120% 90% at 50% 22%, rgba(255,215,120,.10), transparent 55%),
     radial-gradient(100% 120% at 50% 42%, #14503c 0%, #0d3a2b 55%, #0a2a20 100%);
   border:3px solid #c9a44a; box-shadow: inset 0 0 50px rgba(0,0,0,.55), inset 0 3px 0 rgba(255,255,255,.06), 0 12px 32px rgba(0,0,0,.6);
-  padding:0 12px 12px; display:flex; flex-direction:column; align-items:center; gap:4px; overflow:hidden; }
+  padding:114px 12px 14px; margin-top:52px; display:flex; flex-direction:column; align-items:center; gap:5px; }
 .table::before{ content:''; position:absolute; inset:8px; border-radius:42% 42% 42% 42%/17% 17% 24% 24%; border:1px solid rgba(255,215,120,.16); pointer-events:none; }
-.dealer-zone{ display:flex; flex-direction:column; align-items:center; gap:1px; z-index:2; margin-top:-2px; }
+.dealer-zone{ position:absolute; top:-52px; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:1px; z-index:3; }
 #mount{ width:196px; height:150px; position:relative; }
 #mount canvas{ display:block; }
 .mount-fallback{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:46px; color:#6a5a8a; }
@@ -157,6 +157,7 @@ body{ font-family:'Noto Sans KR','Segoe UI',system-ui,sans-serif; background:
     <div class="tp-row"><span>크기</span><button data-t="size-">작게 −</button><button data-t="size+">크게 ＋</button></div>
     <div class="tp-row"><span>높이</span><button data-t="y-">위 ▲</button><button data-t="y+">아래 ▼</button></div>
     <div class="tp-row"><span>좌우</span><button data-t="x-">◀ 왼쪽</button><button data-t="x+">오른쪽 ▶</button></div>
+    <div class="tp-row"><span>각도</span><button data-t="e-">정면 −</button><button data-t="e+">위에서 ▼</button></div>
     <div id="t-out" class="tp-out"></div>
   </div>
 </div>
@@ -256,10 +257,10 @@ function renderCards(){
   const rec = showHold&&showHints?options(player)[0]:null;
   const ph=$('player-cards'); const n=5;
   ph.innerHTML = player.map((c,i)=>{
-    const t=(i-(n-1)/2); const rot=t*13; const dy=Math.abs(t)*5; const lift=(showHold&&held[i])?-20:0;
+    const t=(i-(n-1)/2); const rot=t*5; const dy=Math.abs(t)*1.6; const lift=(showHold&&held[i])?-18:0;
     const cls = (showHold&&held[i]?'held ':'') + (rec&&rec.mask[i]&&!held[i]?'rec':'');
     const inner = cardInner(c,i,pAnim[i]);
-    return `<div class="slot" data-i="${i}" style="transform:translateX(-50%) rotate(${rot}deg) translateY(${dy+lift}px) translateX(${t*38}px)">${inner.replace('class="card', 'class="card '+cls)}</div>`;
+    return `<div class="slot" data-i="${i}" style="transform:translateX(-50%) rotate(${rot}deg) translateY(${dy+lift}px) translateX(${t*52}px)">${inner.replace('class="card', 'class="card '+cls)}</div>`;
   }).join('');
   if(showHold) ph.querySelectorAll('.slot').forEach(el=>{ el.onclick=()=>{ const i=+el.dataset.i; held[i]=!held[i]; renderCards(); updHint(); }; });
   $('dealer-cards').innerHTML = dealer.map((c,i)=>{
@@ -351,14 +352,15 @@ renderGold(); setPhaseUI();
 
 /* 🎴 TF 3D 딜러 — 상반신(bust)·⚙️로 크기/위치 직접 조정 */
 const MOUNT_W=196, MOUNT_H=150;
-let LOOKY=0.34, DIST=1.9, XOFF=0, modelH=0, tfCam=null;   // 처음 작게(DIST 큼)
-function frameCam(){ if(!modelH||!tfCam) return; const ly=modelH*LOOKY, d=modelH*DIST, x=modelH*XOFF; tfCam.position.set(x,ly,d); tfCam.lookAt(x,ly,0); }
-function tuneOut(){ const el=$('t-out'); if(el) el.textContent=`크기 ${DIST.toFixed(2)} · 높이 ${LOOKY.toFixed(2)} · 좌우 ${XOFF.toFixed(2)}`; }
+let LOOKY=0.34, DIST=1.9, XOFF=0, ELEV=0.42, modelH=0, tfCam=null;   // ELEV=위에서 내려다보는 각도
+function frameCam(){ if(!modelH||!tfCam) return; const ly=modelH*LOOKY, d=modelH*DIST, x=modelH*XOFF; tfCam.position.set(x, ly+modelH*ELEV, d); tfCam.lookAt(x,ly,0); }
+function tuneOut(){ const el=$('t-out'); if(el) el.textContent=`크기 ${DIST.toFixed(2)} · 높이 ${LOOKY.toFixed(2)} · 좌우 ${XOFF.toFixed(2)} · 각도 ${ELEV.toFixed(2)}`; }
 $('tune-btn').onclick=()=>{ const p=$('tune-panel'); p.style.display=p.style.display==='none'?'block':'none'; tuneOut(); };
 document.querySelectorAll('#tune-panel button').forEach(b=>{ b.onclick=()=>{ const t=b.dataset.t;
   if(t==='size-') DIST+=0.13; else if(t==='size+') DIST=Math.max(0.4,DIST-0.13);
   else if(t==='y-') LOOKY-=0.04; else if(t==='y+') LOOKY+=0.04;
   else if(t==='x-') XOFF-=0.04; else if(t==='x+') XOFF+=0.04;
+  else if(t==='e-') ELEV=Math.max(0,ELEV-0.08); else if(t==='e+') ELEV+=0.08;
   frameCam(); tuneOut(); }; });
 const CLIP={ idle:'twistedfate_2012_idle1.anm', deal:'Spell2', taunt:'twistedfate_2012_laugh.anm', lose:'Death', jack:'Dance_Loop' };
 let mixer=null, clips={}, curAction=null, ready=false;
