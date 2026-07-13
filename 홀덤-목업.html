@@ -69,13 +69,34 @@ body{ font-family:'Noto Sans KR','Segoe UI',system-ui,sans-serif; background:rad
 .msg{ text-align:center; font-size:13px; font-weight:800; min-height:20px; }
 .msg.win{ color:var(--gold-lite); } .msg.lose{ color:#ff9a8a; }
 .log{ font-size:10.5px; color:var(--dim); text-align:center; min-height:14px; }
+.pill{ font-size:11px; font-weight:800; padding:5px 11px; border-radius:9px; cursor:pointer; color:var(--dim); background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.14); }
+.pill.on{ color:#1a1206; background:var(--gold); border-color:var(--gold); }
+.help{ width:24px; height:24px; border-radius:6px; border:1px solid rgba(240,200,90,.35); background:rgba(240,200,90,.06); color:var(--gold-lite); font-weight:800; cursor:pointer; }
+.coach-wrap{ min-height:22px; }
+.coach{ display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; font-size:12px; font-weight:700; background:rgba(240,200,90,.06); border:1px solid rgba(240,200,90,.22); border-radius:10px; padding:6px 10px; }
+.coach .rec{ color:var(--gold-lite); font-weight:800; }
+.actionbar button small{ display:block; font-size:8.5px; font-weight:600; opacity:.75; margin-top:1px; }
+.modal-bg{ position:fixed; inset:0; background:rgba(0,0,0,.72); display:none; align-items:center; justify-content:center; padding:16px; z-index:50; }
+.modal-bg.show{ display:flex; }
+.modal{ width:100%; max-width:400px; max-height:88vh; overflow-y:auto; background:linear-gradient(160deg,#1a1626,#0d0b13); border:1px solid rgba(240,200,90,.35); border-radius:16px; padding:18px; }
+.modal h3{ color:var(--gold-lite); font-size:16px; margin-bottom:12px; }
+.modal .step{ display:flex; gap:9px; margin-bottom:10px; font-size:12.5px; line-height:1.5; color:#dfe3ee; }
+.modal .step b{ color:var(--gold-lite); }
+.modal .num{ flex-shrink:0; width:22px; height:22px; border-radius:50%; background:var(--gold); color:#1a1206; font-weight:900; font-size:12px; display:flex; align-items:center; justify-content:center; }
+.modal .note{ font-size:11.5px; color:#bfe8cf; background:rgba(255,255,255,.03); border-radius:9px; padding:9px 11px; margin-top:6px; }
+.modal .mbtns{ display:flex; gap:8px; margin-top:14px; }
+.modal .mbtns button{ flex:1; padding:11px; border-radius:10px; font-weight:800; font-size:13px; cursor:pointer; border:none; }
+.modal .mbtns .go{ background:linear-gradient(180deg,#e8c84a,#c89b3c); color:#1a1206; }
+.modal .mbtns .never{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.16); color:var(--dim); }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="top">
-    <span class="title">🃏 챔피언 홀덤 <span style="font-size:10px;color:#8c86a0">1단계 목업</span></span>
+    <span class="title">🃏 챔피언 홀덤</span>
+    <button class="pill on" id="coach-btn">🔰 도움 ON</button>
     <span class="gold">🪙 <span id="gold">11,104</span></span>
+    <button class="help" id="help">?</button>
   </div>
 
   <div class="felt">
@@ -93,10 +114,36 @@ body{ font-family:'Noto Sans KR','Segoe UI',system-ui,sans-serif; background:rad
   </div>
 
   <div class="log" id="log"></div>
+  <div class="coach-wrap" id="coach-wrap"></div>
   <div class="msg" id="msg"></div>
   <div class="actionbar" id="actionbar"></div>
   <button class="startbtn" id="startbtn">🃏 새 판 (참가비 200G)</button>
   <div class="mocktag">목업 · 단판 텍사스 홀덤 · 나 vs 봇3 · 팟 레이크 5% · 골드는 가짜 · 봇 성격은 2단계</div>
+</div>
+
+<div class="modal-bg" id="intro-bg">
+  <div class="modal">
+    <h3>🃏 홀덤 30초 설명</h3>
+    <div class="step"><span class="num">1</span><span>내 카드 <b>2장</b> + 가운데 공용 카드 <b>5장</b> → 다 합쳐서 <b>제일 센 5장 조합</b>이 내 패예요.</span></div>
+    <div class="step"><span class="num">2</span><span>카드가 한 장씩 공개될 때마다 베팅해요:<br><b>콜</b>=따라가기 · <b>레이즈</b>=더 걸기 · <b>폴드</b>=접기(포기) · <b>체크</b>=공짜로 넘기기</span></div>
+    <div class="step"><span class="num">3</span><span>끝까지 안 접고 남으면 카드 까서 <b>제일 센 사람이 팟(판돈)</b>을 먹어요.</span></div>
+    <div class="step"><span class="num">4</span><span>핵심: <b>패 좋으면 크게 걸고, 나쁘면 접어서 아끼기.</b> 매 판 다 이길 필욘 없어요!</span></div>
+    <div class="note">🔰 <b>「도움 ON」</b>이면 내 패가 센지/약한지 + <b>추천 액션</b>을 매번 알려줘요. 익숙해지면 끄세요!</div>
+    <div class="mbtns"><button class="never" id="intro-never">다시 안 보기</button><button class="go" id="intro-go">시작!</button></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="help-bg">
+  <div class="modal">
+    <h3>🃏 족보 순위 (센 순)</h3>
+    <div style="font-size:12.5px;line-height:1.9;color:#dfe3ee">
+      👑 로열/스트레이트 플러시 &gt; 4️⃣ 포카드 &gt; 🏠 풀하우스 &gt; 🎴 플러시(같은 무늬 5) &gt; ➡️ 스트레이트(연속 5) &gt; 3️⃣ 트리플 &gt; ✌️ 투페어 &gt; 💑 원페어 &gt; 🃏 하이카드
+    </div>
+    <div class="note" style="margin-top:12px">
+      <b>용어</b><br>· <b>콜</b> = 남이 건 만큼 내고 계속 · <b>레이즈</b> = 더 올려 걸기<br>· <b>체크</b> = 낼 게 없을 때 공짜로 넘김 · <b>폴드</b> = 이 판 포기(건 돈 잃음)<br>· <b>올인</b> = 가진 칩 전부 · <b>팟</b> = 판돈(이기면 가져감)<br>· <b>블라인드</b> = 시작 강제 베팅(SB/BB)
+    </div>
+    <div class="mbtns"><button class="go" id="help-close">닫기</button></div>
+  </div>
 </div>
 
 <script>
@@ -141,6 +188,7 @@ let gold=11104;
 const BUYIN=200, START=200, SB=5, BB=10, RAKE=0.05;
 const AV=['🧑','🪨','🔥','🎯']; const NM=['나','바위','불도저','프로'];
 let players=[], community=[], deck=[], pot=0, currentBet=0, turn=0, dealer=0, round='', reveal=false, over=true;
+let showCoach=true, narr='';
 
 function newDeck(){ deck=[]; for(let s=0;s<4;s++) for(let r=2;r<=14;r++) deck.push({s,r}); for(let i=deck.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[deck[i],deck[j]]=[deck[j],deck[i]];} }
 const draw=()=>deck.pop();
@@ -158,6 +206,7 @@ function startHand(){
   const sb=(dealer+1)%4, bb=(dealer+2)%4;
   putIn(players[sb],SB); putIn(players[bb],BB); currentBet=BB;
   $('startbtn').style.display='none'; $('msg').textContent=''; $('msg').className='msg';
+  narr='내 카드 2장 받았어요 · 좋으면 콜/레이즈, 별로면 폴드!';
   log(`${players[dealer].name} 딜러 · 블라인드 ${SB}/${BB}`);
   turn=nextIdx(bb); renderTable(); setTimeout(step,700);
 }
@@ -193,6 +242,7 @@ function nextStreet(){
   else if(round==='turn'){ round='river'; community.push(draw()); }
   else return showdown();
   players.forEach(p=>{ p.committed=0; p.acted=false; }); currentBet=0;
+  narr={flop:'커뮤니티 3장 공개! 내 2장 + 이 카드로 최고 5장을 만들어요',turn:'4번째 카드 공개!',river:'마지막 5번째 카드! 최종 승부'}[round];
   log('── '+({flop:'플롭',turn:'턴',river:'리버'}[round])+' ──');
   turn=nextIdx(dealer); renderTable(); setTimeout(step, 650);
 }
@@ -218,12 +268,25 @@ function botDecide(p){
 function showMyActions(){ const me=players[0]; const toCall=currentBet-me.committed;
   const raiseTo=Math.min(me.stack+me.committed, currentBet+Math.max(BB,Math.round(pot*0.6)));
   let h='';
-  if(toCall<=0){ h=`<button class="sub" onclick="MY('check')">체크</button><button onclick="MY('raise',${raiseTo})">베팅 ${raiseTo-me.committed}</button><button onclick="MY('allin')">올인 ${me.stack}</button>`; }
+  if(toCall<=0){ h=`<button class="sub" onclick="MY('check')">체크<small>공짜로 넘김</small></button><button onclick="MY('raise',${raiseTo})">베팅 ${raiseTo-me.committed}<small>돈 걸기</small></button><button onclick="MY('allin')">올인 ${me.stack}<small>전부</small></button>`; }
   else { const call=Math.min(toCall,me.stack);
-    h=`<button class="fold" onclick="MY('fold')">폴드</button><button class="sub" onclick="MY('call')">콜 ${call}</button>`;
-    if(raiseTo>currentBet && me.stack>toCall) h+=`<button onclick="MY('raise',${raiseTo})">레이즈 →${raiseTo}</button>`;
-    h+=`<button onclick="MY('allin')">올인 ${me.stack}</button>`; }
-  $('actionbar').innerHTML=h;
+    h=`<button class="fold" onclick="MY('fold')">폴드<small>접기·포기</small></button><button class="sub" onclick="MY('call')">콜 ${call}<small>따라가기</small></button>`;
+    if(raiseTo>currentBet && me.stack>toCall) h+=`<button onclick="MY('raise',${raiseTo})">레이즈 →${raiseTo}<small>더 걸기</small></button>`;
+    h+=`<button onclick="MY('allin')">올인 ${me.stack}<small>전부</small></button>`; }
+  $('actionbar').innerHTML=h; renderCoach();
+}
+function coachHtml(){
+  const me=players[0]; const toCall=currentBet-me.committed; const s=strength(me);
+  const lvl = s>0.66?['매우 강함 🔥','#ffd968'] : s>0.5?['강함 💪','#bfe8cf'] : s>0.34?['보통 🤔','#cfd4e6'] : ['약함 ⚠️','#ff9a8a'];
+  let rec;
+  if(toCall<=0) rec = s>0.55?'💡 레이즈로 키워봐요 (좋은 패)':'💡 체크 — 공짜로 다음 카드 봐요';
+  else rec = s>0.6?'💡 콜/레이즈 추천 (좋은 패)': s>0.4?(toCall<=BB*3?'💡 싸니까 콜 해볼 만해요':'💡 비싸면 폴드도 좋아요'):'💡 폴드 추천 — 약하니 아끼세요';
+  return `<div class="coach"><span>내 패 힘: <b style="color:${lvl[1]}">${lvl[0]}</b></span><span class="rec">${rec}</span></div>`;
+}
+function renderCoach(){ const cw=$('coach-wrap'); if(over){ cw.innerHTML=''; return; }
+  if(!showCoach){ cw.innerHTML = narr?`<div class="coach"><span class="rec">${narr}</span></div>`:''; return; }
+  const me=players[0];
+  cw.innerHTML = (turn===0 && me.hole.length && !me.folded) ? coachHtml() : (narr?`<div class="coach"><span class="rec">${narr}</span></div>`:'');
 }
 window.MY=(a,amt)=>{ $('actionbar').innerHTML=''; apply(players[0],a,amt); };
 
@@ -269,9 +332,18 @@ function renderTable(){
   if(me.hole.length && !me.folded){ const r=community.length?best7([...me.hole,...community]):null;
     $('myhand').textContent = r?('내 패: '+CAT[r[0]]):('내 패: '+rkLabel(me.hole[0].r)+'·'+rkLabel(me.hole[1].r)+(me.hole[0].r===me.hole[1].r?' 포켓페어!':'')); }
   else $('myhand').textContent='';
+  renderCoach();
 }
-$('startbtn').onclick=startHand;
+let introDone=localStorage.getItem('holdemIntro')==='1';
+$('startbtn').onclick=()=>{ if(!introDone){ $('intro-bg').classList.add('show'); } else startHand(); };
+$('intro-go').onclick=()=>{ introDone=true; $('intro-bg').classList.remove('show'); startHand(); };
+$('intro-never').onclick=()=>{ introDone=true; localStorage.setItem('holdemIntro','1'); $('intro-bg').classList.remove('show'); startHand(); };
+$('help').onclick=()=>$('help-bg').classList.add('show');
+$('help-close').onclick=()=>$('help-bg').classList.remove('show');
+$('help-bg').onclick=e=>{ if(e.target===$('help-bg')) $('help-bg').classList.remove('show'); };
+$('coach-btn').onclick=()=>{ showCoach=!showCoach; const b=$('coach-btn'); b.textContent='🔰 도움 '+(showCoach?'ON':'OFF'); b.classList.toggle('on',showCoach); renderCoach(); };
 $('gold').textContent=gold.toLocaleString();
+if(!introDone) $('intro-bg').classList.add('show');
 </script>
 </body>
 </html>
