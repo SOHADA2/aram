@@ -111,6 +111,8 @@ body{ font-family:'Noto Sans KR','Segoe UI',system-ui,sans-serif; background:
 .tp-row span{ font-size:11px; color:var(--dim); width:34px; }
 .tp-row input{ flex:1; min-width:0; font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:800; padding:7px 9px; border-radius:7px; color:var(--gold-lite); background:rgba(0,0,0,.35); border:1px solid rgba(240,200,90,.3); text-align:center; }
 .tp-hint{ font-size:9px !important; color:#7a748e !important; width:auto !important; white-space:nowrap; }
+.tp-row select{ flex:1; min-width:0; font-size:12px; font-weight:700; padding:7px; border-radius:7px; color:var(--ink); background:rgba(0,0,0,.4); border:1px solid rgba(255,255,255,.16); }
+.clip-play{ font-size:12px; font-weight:800; padding:7px 12px; border-radius:7px; cursor:pointer; color:#1a1206; background:var(--gold); border:none; }
 .tp-out{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--gold-lite); text-align:center; margin-top:4px; }
 </style>
 </head>
@@ -159,6 +161,9 @@ body{ font-family:'Noto Sans KR','Segoe UI',system-ui,sans-serif; background:
     <div class="tp-row"><span>좌우</span><input id="tv-xoff" type="number" step="0.02"><span class="tp-hint">＋오른쪽</span></div>
     <div class="tp-row"><span>각도</span><input id="tv-elev" type="number" step="0.1"><span class="tp-hint">↑위에서</span></div>
     <div class="tp-out">숫자 바꾸면 즉시 적용돼요</div>
+    <div class="tp-ttl" style="margin-top:10px;">🎬 모션 테스트 <span style="color:#8c86a0;font-weight:600">— 골라서 재생, 좋은 거 알려주세요</span></div>
+    <div class="tp-row"><select id="clip-sel"></select><button id="clip-play" class="clip-play">▶ 재생</button></div>
+    <div class="tp-out" id="clip-out">딜러 로드되면 목록이 떠요</div>
   </div>
 </div>
 
@@ -360,6 +365,7 @@ $('tv-dist').oninput=e=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ DIS
 $('tv-looky').oninput=e=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ LOOKY=v; frameCam(); } };
 $('tv-xoff').oninput=e=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ XOFF=v; frameCam(); } };
 $('tv-elev').oninput=e=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ ELEV=v; frameCam(); } };
+$('clip-play').onclick=()=>{ const n=$('clip-sel').value; if(n&&clips[n]){ playClip(n,false); $('clip-out').textContent='재생: '+n; } };
 const CLIP={ idle:'twistedfate_2012_idle1.anm', deal:'Spell2', taunt:'twistedfate_2012_laugh.anm', lose:'Death', jack:'Dance_Loop' };
 let mixer=null, clips={}, curAction=null, ready=false;
 function dealerAnim(state){ if(!ready) return; playClip(CLIP[state]||CLIP.idle, state==='idle'||state==='jack'); }
@@ -388,6 +394,8 @@ function playClip(name, loop){ const clip=clips[name]; if(!clip||!mixer) return;
     mixer=new THREE.AnimationMixer(model);
     (g.animations||[]).forEach(a=>clips[a.name]=a);
     ready=true; $('mfb').style.display='none'; playClip(CLIP.idle,true);
+    // 🎬 모션 테스터 목록 채우기
+    const sel=$('clip-sel'); if(sel){ sel.innerHTML=Object.keys(clips).map(n=>`<option value="${n}">${n} (${clips[n].duration.toFixed(1)}s)</option>`).join(''); $('clip-out').textContent=Object.keys(clips).length+'개 클립'; }
   }, undefined, e=>console.warn('TF 로드 실패', e));
   let last=0;
   (function loop(){ requestAnimationFrame(loop);
