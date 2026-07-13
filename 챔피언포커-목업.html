@@ -109,8 +109,8 @@ body{ font-family:'Noto Sans KR','Segoe UI',system-ui,sans-serif; background:
 .tp-ttl{ font-size:11.5px; font-weight:800; color:var(--gold-lite); margin-bottom:7px; }
 .tp-row{ display:flex; align-items:center; gap:7px; margin-bottom:6px; }
 .tp-row span{ font-size:11px; color:var(--dim); width:34px; }
-.tp-row button{ flex:1; font-size:12px; font-weight:800; padding:7px; border-radius:7px; cursor:pointer; color:var(--ink); background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.14); }
-.tp-row button:active{ background:var(--gold-soft,rgba(240,200,90,.15)); }
+.tp-row input{ flex:1; min-width:0; font-family:'JetBrains Mono',monospace; font-size:15px; font-weight:800; padding:7px 9px; border-radius:7px; color:var(--gold-lite); background:rgba(0,0,0,.35); border:1px solid rgba(240,200,90,.3); text-align:center; }
+.tp-hint{ font-size:9px !important; color:#7a748e !important; width:auto !important; white-space:nowrap; }
 .tp-out{ font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--gold-lite); text-align:center; margin-top:4px; }
 </style>
 </head>
@@ -153,12 +153,12 @@ body{ font-family:'Noto Sans KR','Segoe UI',system-ui,sans-serif; background:
   <div class="mocktag">목업 · 진짜 5카드 드로우 포커(레이즈/폴드) · 골드는 가짜 · RTP 시뮬 재튠 예정</div>
 
   <div id="tune-panel" style="display:none;">
-    <div class="tp-ttl">⚙️ 딜러(트페) 조정 <span style="color:#8c86a0;font-weight:600">— 맞춰지면 값 알려주세요</span></div>
-    <div class="tp-row"><span>크기</span><button data-t="size-">작게 −</button><button data-t="size+">크게 ＋</button></div>
-    <div class="tp-row"><span>높이</span><button data-t="y-">위 ▲</button><button data-t="y+">아래 ▼</button></div>
-    <div class="tp-row"><span>좌우</span><button data-t="x-">◀ 왼쪽</button><button data-t="x+">오른쪽 ▶</button></div>
-    <div class="tp-row"><span>각도</span><button data-t="e-">정면 −</button><button data-t="e+">위에서 ▼</button></div>
-    <div id="t-out" class="tp-out"></div>
+    <div class="tp-ttl">⚙️ 딜러(트페) 조정 <span style="color:#8c86a0;font-weight:600">— 숫자 직접 입력</span></div>
+    <div class="tp-row"><span>크기</span><input id="tv-dist" type="number" step="0.1"><span class="tp-hint">↑클수록 작아짐</span></div>
+    <div class="tp-row"><span>높이</span><input id="tv-looky" type="number" step="0.02"><span class="tp-hint">↑올라감</span></div>
+    <div class="tp-row"><span>좌우</span><input id="tv-xoff" type="number" step="0.02"><span class="tp-hint">＋오른쪽</span></div>
+    <div class="tp-row"><span>각도</span><input id="tv-elev" type="number" step="0.1"><span class="tp-hint">↑위에서</span></div>
+    <div class="tp-out">숫자 바꾸면 즉시 적용돼요</div>
   </div>
 </div>
 
@@ -352,16 +352,14 @@ renderGold(); setPhaseUI();
 
 /* 🎴 TF 3D 딜러 — 상반신(bust)·⚙️로 크기/위치 직접 조정 */
 const MOUNT_W=196, MOUNT_H=150;
-let LOOKY=0.34, DIST=1.9, XOFF=0, ELEV=0.42, modelH=0, tfCam=null;   // ELEV=위에서 내려다보는 각도
+let LOOKY=0.34, DIST=7.75, XOFF=0.16, ELEV=3.46, modelH=0, tfCam=null;   // 사장님 튜닝값 기본
 function frameCam(){ if(!modelH||!tfCam) return; const ly=modelH*LOOKY, d=modelH*DIST, x=modelH*XOFF; tfCam.position.set(x, ly+modelH*ELEV, d); tfCam.lookAt(x,ly,0); }
-function tuneOut(){ const el=$('t-out'); if(el) el.textContent=`크기 ${DIST.toFixed(2)} · 높이 ${LOOKY.toFixed(2)} · 좌우 ${XOFF.toFixed(2)} · 각도 ${ELEV.toFixed(2)}`; }
-$('tune-btn').onclick=()=>{ const p=$('tune-panel'); p.style.display=p.style.display==='none'?'block':'none'; tuneOut(); };
-document.querySelectorAll('#tune-panel button').forEach(b=>{ b.onclick=()=>{ const t=b.dataset.t;
-  if(t==='size-') DIST+=0.13; else if(t==='size+') DIST=Math.max(0.4,DIST-0.13);
-  else if(t==='y-') LOOKY-=0.04; else if(t==='y+') LOOKY+=0.04;
-  else if(t==='x-') XOFF-=0.04; else if(t==='x+') XOFF+=0.04;
-  else if(t==='e-') ELEV=Math.max(0,ELEV-0.08); else if(t==='e+') ELEV+=0.08;
-  frameCam(); tuneOut(); }; });
+function fillTune(){ $('tv-dist').value=DIST.toFixed(2); $('tv-looky').value=LOOKY.toFixed(2); $('tv-xoff').value=XOFF.toFixed(2); $('tv-elev').value=ELEV.toFixed(2); }
+$('tune-btn').onclick=()=>{ const p=$('tune-panel'); const show=p.style.display==='none'; p.style.display=show?'block':'none'; if(show) fillTune(); };
+$('tv-dist').oninput=e=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ DIST=Math.max(0.4,v); frameCam(); } };
+$('tv-looky').oninput=e=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ LOOKY=v; frameCam(); } };
+$('tv-xoff').oninput=e=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ XOFF=v; frameCam(); } };
+$('tv-elev').oninput=e=>{ const v=parseFloat(e.target.value); if(!isNaN(v)){ ELEV=v; frameCam(); } };
 const CLIP={ idle:'twistedfate_2012_idle1.anm', deal:'Spell2', taunt:'twistedfate_2012_laugh.anm', lose:'Death', jack:'Dance_Loop' };
 let mixer=null, clips={}, curAction=null, ready=false;
 function dealerAnim(state){ if(!ready) return; playClip(CLIP[state]||CLIP.idle, state==='idle'||state==='jack'); }
