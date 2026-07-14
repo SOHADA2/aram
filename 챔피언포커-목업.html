@@ -128,14 +128,14 @@ body{ font-family:'Noto Sans KR','Segoe UI',system-ui,sans-serif; background:
     <button class="help" id="tune-btn" title="딜러 크기/위치 조정">⚙️</button>
     <button class="help" id="help">?</button>
   </div>
-  <div class="warn">⚠️ <b>앤티</b> 걸고 카드 받기 → 홀드/교체 → <b>레이즈</b> or <b>폴드</b> → 딜러와 대결. 무승부=딜러 승(30%환불).</div>
+  <div class="warn">🎴 참가비 내고 카드 5장 → <b>딜러 패를 보고</b> 이기게 카드 바꾸기 → <b>딜러보다 높은 족보면 승!</b> (지면 참가비 잃음·비기면 본전)</div>
 
   <div class="felt-wrap">
     <div id="mount"><div class="mount-fallback" id="mfb">🎴</div></div>
     <div class="table">
       <div class="dealer-plate">딜러 · 하트의 잭 <span class="dh" id="dealer-hand"></span></div>
       <div class="cards dealer-cards" id="dealer-cards"></div>
-      <div class="center-msg" id="center-msg">앤티를 정하고 딜을 눌러요</div>
+      <div class="center-msg" id="center-msg">참가비를 정하고 딜을 눌러요</div>
       <div class="cards player-hand" id="player-cards"></div>
     </div>
   </div>
@@ -145,7 +145,7 @@ body{ font-family:'Noto Sans KR','Segoe UI',system-ui,sans-serif; background:
   <div id="result-box"></div>
 
   <div class="betrow" id="betrow">
-    <span class="lbl">앤티</span>
+    <span class="lbl">참가비</span>
     <button class="bet-btn" data-bet="20">20</button>
     <button class="bet-btn on" data-bet="50">50</button>
     <button class="bet-btn" data-bet="100">100</button>
@@ -156,7 +156,7 @@ body{ font-family:'Noto Sans KR','Segoe UI',system-ui,sans-serif; background:
     <button class="fold" id="fold">🏳️ 폴드<br><small style="font-weight:600;opacity:.8">앤티만 잃음</small></button>
     <button class="raise" id="raise">🔥 레이즈<br><small style="font-weight:600;opacity:.8">+앤티 걸고 대결</small></button>
   </div>
-  <div class="mocktag">목업 · 진짜 5카드 드로우 포커(레이즈/폴드) · 골드는 가짜 · RTP 시뮬 재튠 예정</div>
+  <div class="mocktag">목업 · vs 딜러 카드 배틀(베팅 없음) · 딜러 패 공개 → 이기게 리드로우 · 골드 가짜 · RTP 시뮬 재튠 예정</div>
 
   <div id="tune-panel" style="display:none;">
     <div class="tp-ttl">⚙️ 딜러(트페) 조정 <span style="color:#8c86a0;font-weight:600">— 숫자 직접 입력</span></div>
@@ -186,10 +186,11 @@ body{ font-family:'Noto Sans KR','Segoe UI',system-ui,sans-serif; background:
       <tr class="mut"><td>💑 원페어 · 하이카드</td><td>본전 반환</td></tr>
     </table>
     <div class="rule">
-      · <b>앤티</b> 걸고 5장 받기(딜러 1장 오픈) → 홀드 → 다시 뽑기<br>
-      · <b>레이즈</b>(앤티만큼 더) or <b>폴드</b>(앤티만 잃음) → 딜러와 대결<br>
-      · 딜러보다 높은 족보면 총 베팅×배당 · 투페어부터 진짜 배당<br>
-      · <b>「족보 힌트」</b> 켜면 "이 카드 남기면 → 이 족보 노림" 경우의 수가 떠요. 익숙해지면 끄고 하세요!
+      · <b>참가비</b> 내고 카드 5장 받기 · <b>딜러 패가 공개</b>돼요<br>
+      · 딜러를 이기게 남길 카드 <b>홀드</b> → 나머지 <b>다시 뽑기</b> (1회)<br>
+      · 내 족보가 <b>딜러보다 높으면 승!</b> → 내 족보 등급만큼 <b>참가비 ×배당</b> (투페어부터 진짜 배당)<br>
+      · 지면 참가비 잃음 · 비기면 본전 · 베팅/올인 <b>없어요</b> (간단!)<br>
+      · <b>「족보 힌트」</b> 켜면 "이 카드 남기면 → 이 족보" 경우의 수가 떠요. 익숙해지면 끄세요!
     </div>
     <button class="close" id="close">닫기</button>
   </div>
@@ -284,75 +285,56 @@ function renderCards(){
 function updHint(){
   const hb=$('hint-bar');
   if(phase==='hold'){
-    const cat=rankHand(player)[0]; let html=`<div class="cur">현재 내 패: <b>${CAT[cat]}</b></div>`;
+    const pr=rankHand(player), dr=rankHand(dealer); const winning=cmp(pr,dr)>0;
+    let html=`<div class="cur">딜러: <b style="color:#f0b8ff">${CAT[dr[0]]}</b> · 내 패: <b>${CAT[pr[0]]}</b> — ${winning?'<span style="color:#bfe8cf">지금 이기는 중! 🎉</span>':'<span style="color:#ff9a8a">아직 짐 · 바꿔서 이겨봐요</span>'}</div>`;
     if(showHints){ const opts=options(player);
-      html+=`<div class="opts-title">🎯 지금 노릴 수 있는 것 (탭하면 그 카드만 홀드)</div>`;
+      html+=`<div class="opts-title">🎯 딜러를 이기려면 (탭하면 그 카드만 홀드)</div>`;
       html+=opts.map((o,idx)=>`<div class="opt" data-o="${idx}"><span class="ot">${o.tip}</span><span class="og">${o.tgt}</span></div>`).join('');
     }
     hb.innerHTML=html;
     if(showHints){ const opts=options(player); hb.querySelectorAll('.opt').forEach(el=>{ el.onclick=()=>{ held=opts[+el.dataset.o].mask.map(Boolean); renderCards(); updHint(); }; }); }
-  } else if(phase==='decide'){
-    const cat=rankHand(player)[0]; let html=`<div class="cur">최종 내 패: <b>${CAT[cat]}</b></div>`;
-    if(showHints) html+=`<div class="opts-title">${cat>=2?'💪 강한 패 — 레이즈가 유리해요':cat===1?'🤔 원페어 — 딜러 오픈카드 보고 판단':'⚠️ 약한 패 — 폴드도 좋아요'}</div>`;
-    hb.innerHTML=html;
   } else hb.innerHTML='';
 }
 function setPhaseUI(){
   $('betrow').style.display = phase==='bet'?'flex':'none';
-  $('action').style.display = (phase==='bet'||phase==='hold'||phase==='result')?'block':'none';
-  $('decide').style.display = phase==='decide'?'flex':'none';
-  $('action').textContent = phase==='bet'?('딜 (–'+ante+'G)') : phase==='hold'?'🎴 다시 뽑기' : '다시 하기';
+  $('action').style.display='block'; const dec=$('decide'); if(dec) dec.style.display='none';
+  $('action').textContent = phase==='bet'?('딜 (–'+ante+'G)') : phase==='hold'?'🎴 다시 뽑아 승부!' : '다시 하기';
 }
-
 function startDeal(){
   if(gold<ante){ $('center-msg').textContent='골드가 부족해요!'; return; }
-  gold-=ante; totalBet=ante; renderGold(); newDeck();
+  gold-=ante; renderGold(); newDeck();
   player=[pop(),pop(),pop(),pop(),pop()]; dealer=[pop(),pop(),pop(),pop(),pop()];
-  const dh=options(dealer)[0].mask; for(let i=0;i<5;i++) if(!dh[i]) dealer[i]=pop();
-  held=[false,false,false,false,false]; dealerShown=false; upShown=true; phase='hold';
-  pAnim=['deal','deal','deal','deal','deal']; dAnim=['flip',null,null,null,null];
-  $('result-box').innerHTML=''; $('dealer-hand').textContent='(오픈 1장)';
-  $('center-msg').textContent='내 패 — 남길 카드를 탭';
+  const dh=options(dealer)[0].mask; for(let i=0;i<5;i++) if(!dh[i]) dealer[i]=pop();   // 딜러 완성(공개)
+  held=[false,false,false,false,false]; dealerShown=true; upShown=true; phase='hold';
+  pAnim=['deal','deal','deal','deal','deal']; dAnim=['flip','flip','flip','flip','flip'];
+  $('result-box').innerHTML=''; $('dealer-hand').textContent='· '+CAT[rankHand(dealer)[0]];
+  $('center-msg').textContent='딜러 패를 보고 이기게 카드를 바꿔요!';
   dealerAnim('deal'); setPhaseUI(); renderCards(); updHint();
 }
 function doRedraw(){
   for(let i=0;i<5;i++){ if(!held[i]){ player[i]=pop(); pAnim[i]='flip'; } }
-  phase='decide'; $('center-msg').textContent='레이즈? 폴드?'; dealerAnim('deal');
-  setPhaseUI(); renderCards(); updHint();
-}
-function doFold(){
-  phase='result'; dealerShown=true; dAnim=[null,'flip','flip','flip','flip']; $('dealer-hand').textContent='· '+CAT[rankHand(dealer)[0]];
-  $('hint-bar').innerHTML=''; dealerAnim('taunt'); renderCards();
-  $('result-box').innerHTML=`<div class="result lose"><div class="big">🏳️ 폴드 — 앤티 포기</div><div class="delta">−${fmt(ante)}G</div></div>`;
-  $('center-msg').textContent=''; setPhaseUI();
-}
-function doRaise(){
-  if(gold<ante){ $('center-msg').textContent='레이즈할 골드 부족 — 폴드하세요'; return; }
-  gold-=ante; totalBet=ante*2; renderGold();
-  phase='result'; dealerShown=true; dAnim=[null,'flip','flip','flip','flip']; $('hint-bar').innerHTML=''; renderCards(); setPhaseUI();
-  setTimeout(judge, 420);
+  phase='result'; $('hint-bar').innerHTML=''; renderCards(); setPhaseUI();
+  setTimeout(judge, 380);
 }
 function judge(){
-  const pr=rankHand(player), dr=rankHand(dealer); const pe=pr[0], de=dr[0];
-  $('dealer-hand').textContent='· '+CAT[de]; const c=cmp(pr,dr);
+  const pr=rankHand(player), dr=rankHand(dealer); const pe=pr[0], de=dr[0]; const c=cmp(pr,dr);
   let ret,cls,big,delta,anim;
   if(c>0){ const h=HANDS[pe];
-    if(h.push){ ret=totalBet; cls='push'; big='🥈 '+h.n+' — 본전!'; delta='±0G'; anim='taunt'; }
-    else { ret=Math.min(Math.round(totalBet*h.mult),60000); cls='win'; big='🎉 '+h.n+' 승리! ×'+h.mult; delta='+'+fmt(ret-totalBet)+'G'; anim= pe>=6?'jack':'lose'; } }
-  else if(c<0){ ret=0; cls='lose'; big='😢 패배 — 딜러 '+CAT[de]; delta='−'+fmt(totalBet)+'G'; anim='taunt'; }
-  else { ret=Math.round(totalBet*0.3); cls='tie'; big='🃏 무승부 → 딜러 승'; delta='−'+fmt(totalBet-ret)+'G'; anim='taunt'; }
+    if(h.push){ ret=ante; cls='push'; big='🥈 '+h.n+'으로 승 — 본전'; delta='±0G'; anim='lose'; }
+    else { ret=Math.round(ante*h.mult); cls='win'; big='🎉 '+h.n+' 승리! ×'+h.mult; delta='+'+fmt(ret-ante)+'G'; anim= pe>=6?'jack':'lose'; } }
+  else if(c<0){ ret=0; cls='lose'; big='😢 패배 — 딜러 '+CAT[de]; delta='−'+fmt(ante)+'G'; anim='taunt'; }
+  else { ret=ante; cls='push'; big='🤝 무승부 — 본전 반환'; delta='±0G'; anim='taunt'; }
   gold+=ret; renderGold(); dealerAnim(anim);
-  if(cls==='win'||cls==='push'){ const rc={}; player.forEach(c=>rc[c.r]=(rc[c.r]||0)+1);
+  if(cls==='win'){ const rc={}; player.forEach(cc=>rc[cc.r]=(rc[cc.r]||0)+1);
     $('player-cards').querySelectorAll('.card').forEach((el,i)=>{ if(rc[player[i].r]>=2) el.classList.add('win-hi'); }); }
   $('result-box').innerHTML=`<div class="result ${cls}"><div class="big">${big}</div><div class="delta">${delta}</div></div>`;
-  $('center-msg').textContent='';
+  $('center-msg').textContent=''; $('dealer-hand').textContent='· '+CAT[de];
 }
-function reset(){ phase='bet'; player=[]; dealer=[]; dealerShown=false; upShown=false; totalBet=0;
+function reset(){ phase='bet'; player=[]; dealer=[]; dealerShown=false; upShown=false;
   $('result-box').innerHTML=''; $('dealer-hand').textContent=''; $('dealer-cards').innerHTML=''; $('player-cards').innerHTML=''; $('hint-bar').innerHTML='';
-  $('center-msg').textContent='앤티를 정하고 딜을 눌러요'; dealerAnim('idle'); setPhaseUI(); }
+  $('center-msg').textContent='참가비를 정하고 딜을 눌러요'; dealerAnim('idle'); setPhaseUI(); }
 
 $('action').onclick=()=>{ if(phase==='bet') startDeal(); else if(phase==='hold') doRedraw(); else if(phase==='result') reset(); };
-$('fold').onclick=doFold; $('raise').onclick=doRaise;
 $('hint-toggle').onclick=()=>{ showHints=!showHints; const b=$('hint-toggle'); b.textContent='📖 족보 힌트: '+(showHints?'켜짐':'꺼짐'); b.classList.toggle('off',!showHints); renderCards(); updHint(); };
 document.querySelectorAll('.bet-btn').forEach(b=>{ b.onclick=()=>{ if(phase!=='bet') return; ante=+b.dataset.bet;
   document.querySelectorAll('.bet-btn').forEach(x=>x.classList.remove('on')); b.classList.add('on'); $('action').textContent='딜 (–'+ante+'G)'; }; });
