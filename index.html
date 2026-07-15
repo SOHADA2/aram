@@ -7048,7 +7048,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.578';
+const APP_VERSION = 'v2.45.579';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7057,6 +7057,9 @@ const APP_VERSION = 'v2.45.578';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.579', date: '2026-07-15', changes: [
+    { tag: 'new', text: '🧠 오늘의 롤 퀴즈 — 출석(오전/오후)하면 롤 상식·챔피언·세계관 퀴즈가 한 문제씩 열려요! 4지선다로 풀고 정답이면 🎟🎫💎 복권 3종(일반·고급·프미)을 드립니다. 총 30문제(하루 2문제 · 약 15일 분량)이고, 보기 순서는 매번 무작위예요. 빙고판의 「🧠 오늘의 퀴즈」 버튼에서 진행도도 확인!' },
+  ] },
   { ver: 'v2.45.578', date: '2026-07-09', changes: [
     { tag: 'fix', text: '⚔️ 승급전 표시 명확화 — 승급전에 도달하면 「승급전 0-0」처럼 애매하게 뜨던 걸, 내 정보 바에 「⚔️ 승급전 N승 N패」 금빛 펄스 배지로 확실하게 표시해요. (오버레이 프로그램도 동일 적용)' },
   ] },
@@ -10346,6 +10349,8 @@ function _getToday() {
 //   새 큰 기능을 배포할 때만 최신순 맨 위에 1줄 추가. 다른 컴퓨터에서도 동일 적용.
 const CHANGELOG_MAJOR = [
   // 시크릿 챔피언(유미) 관련 항목은 스포일러 방지로 여기에 넣지 않음
+  { ver:'v2.45.579', date:'2026-07-15', emoji:'🧠', title:'오늘의 롤 퀴즈 — 출석하고 상식 풀면 복권 3종!',
+    desc:'출석(오전/오후)을 하면 롤 상식·챔피언·세계관 퀴즈가 한 문제씩 열려요! 4지선다로 풀어서 정답이면 🎟🎫💎 복권 3종(일반·고급·프미)을 한 장씩 드려요. 정답을 맞히면 "아 그래서 그렇구나" 하는 짧은 해설도 나오고요. 총 30문제(하루 2문제 · 약 15일치)이고, 보기 순서는 매번 무작위라 찍기 어려워요. 빙고판의 「🧠 오늘의 퀴즈」 버튼에서 진행도(N/30)도 확인할 수 있어요!' },
   { ver:'v2.45.561', date:'2026-07-05', emoji:'🍀', title:'복권 불운 스택 — 꽝일수록 다음 당첨이 가까워져요',
     desc:'골드·프리즘 복권에서 꽝이 나오면 불운 스택이 +1%p, 해골이 나올 때마다 +0.5%p씩 쌓여요. 쌓인 만큼 다음 그 복권의 당첨 확률이 올라가고, 당첨되면 초기화돼요(최대 +20%p). 골드와 프리즘 스택은 서로 따로 쌓이고, 실버 복권에는 없어요. 복권 창에서 🍀 불운 +N% 배지로 확인!' },
   { ver:'v2.45.542', date:'2026-07-03', emoji:'🗡️', title:'투기장 코인 벌기가 수월해졌어요',
@@ -22015,22 +22020,158 @@ function _fortuneHtml(f){
 }
 // 빙고 출석 — 슬롯 출석 + 칸 픽(트랜잭션)
 // 🎁 출석/빙고 보상 팝업 — 아이콘 + 받은 항목 표시, 확인 버튼으로 닫기(자동 안 사라짐)
-function showBingoReward(title, sub, items, fortune){
+function showBingoReward(title, sub, items, fortune, onClose){
   const old=document.getElementById('bingo-reward-overlay'); if(old) old.remove();
-  if(!items || !items.length) return;
+  if(!items || !items.length){ if(onClose) onClose(); return; }
   const ov=document.createElement('div'); ov.id='bingo-reward-overlay'; ov.className='brw-overlay season-2';
-  ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+  let _cb=onClose||null; const _close=()=>{ ov.remove(); if(_cb){ const f=_cb; _cb=null; try{ f(); }catch(_){} } };
+  ov.onclick=e=>{ if(e.target===ov) _close(); };
   const rows=items.map(it=>`<div class="brw-row"><span class="brw-ic">${it.iconHtml}</span><span class="brw-nm">${it.name}</span><span class="brw-qty" style="${it.color?`color:${it.color};`:''}">${it.qty}</span></div>`).join('');
   ov.innerHTML=`<div class="brw-card">
     <div class="brw-title"><span class="bg-dia"></span>${title}</div>
     ${sub?`<div class="brw-sub">${sub}</div>`:''}
     ${_fortuneHtml(fortune)}
     <div class="brw-list">${rows}</div>
-    <button class="brw-ok" onclick="document.getElementById('bingo-reward-overlay')?.remove()">확인</button>
+    <button class="brw-ok">확인</button>
   </div>`;
+  ov.querySelector('.brw-ok').onclick=_close;
   document.body.appendChild(ov);
 }
 function _scratchTierName(t){ return (['일반','고급','프리미엄'][t]||'') + ' 복권권'; }
+
+// ═══════════════════════ 🧠 롤 상식 퀴즈 (출석 연동) ═══════════════════════
+// 출석(오전/오후) 완료 시 슬롯당 1문제가 열림 → 정답 시 복권 3종(일반·고급·프미) 각 1장.
+// 상태: quizIndex(=푼 개수 0~N) · quizAvail(=열렸지만 아직 안 푼 문제 수). 하루 최대 2문제(2슬롯).
+// 문제는 로어·역사 등 밸런스 패치와 무관한 불변 사실만 → 오답 위험 없음.
+const QUIZ_REWARD = { scratch:{ 0:1, 1:1, 2:1 } };   // 정답 보상 = 복권 3종 각 1장
+const QUIZ_Q = [
+  // Ⓐ 챔피언 상식
+  { q:'데마시아 왕국의 정예 부대 “무적군단”을 이끌며, 대검과 판금 갑옷으로 정의로운 일격(Q)을 날리는 “데마시아의 힘”이라 불리는 챔피언은?', o:['가렌','다리우스','자르반 4세','아트록스'], a:0, ex:'가렌 — “데마시아의 힘”. 무적군단의 대장이자 럭스의 오빠입니다.' },
+  { q:'거대한 도끼를 휘두르며 처형(R)으로 적을 참수하는, “녹서스의 손”이라 불리는 녹서스의 장군은?', o:['다리우스','드레이븐','스웨인','카타리나'], a:0, ex:'다리우스 — “녹서스의 손”. 동생 드레이븐과 함께 녹서스를 대표합니다.' },
+  { q:'작은 몸집으로 은신하고 맵 곳곳에 맹독 버섯 함정을 심는, “날쌘 정찰병”이라 불리는 요들은?', o:['티모','트리스타나','켄넨','베이가'], a:0, ex:'티모 — “날쌘 정찰병”. 반들 시티 출신 요들이며 독 버섯으로 악명 높습니다.' },
+  { q:'앞이 보이지 않지만 기의 흐름으로 싸우며 발차기로 적을 날려버리는 “눈 먼 수도승”은?', o:['리 신','제드','야스오','마스터 이'], a:0, ex:'리 신 — “눈 먼 수도승”. 아이오니아 출신의 무도가입니다.' },
+  { q:'바람을 다루는 검술로 날아오는 투사체를 막아내는(바람 장막), 아이오니아 출신 “용서받지 못한 자”는?', o:['야스오','요네','제드','마스터 이'], a:0, ex:'야스오 — “용서받지 못한 자”. 형 요네와 얽힌 비극적 사연이 있습니다.' },
+  { q:'빛의 마법으로 적을 속박하고 거대한 광선을 쏘는, 가렌의 여동생이기도 한 “빛의 소녀”는?', o:['럭스','모르가나','애니','자이라'], a:0, ex:'럭스 — “빛의 소녀”. 데마시아 크라운가드 가문 출신으로 가렌의 동생입니다.' },
+  { q:'“우주류” 검술의 마지막 계승자로, 알파 스트라이크로 순식간에 적진을 누비는 “무한의 검객”은?', o:['마스터 이','야스오','제드','피오라'], a:0, ex:'마스터 이 — “무한의 검객”. 우주류 검술의 마지막 계승자입니다.' },
+  { q:'애쉬가 시전하면 화면을 가로질러 날아가 처음 맞은 적을 기절시키는, “지도 반대편 저격”으로도 유명한 궁극기는?', o:['마법의 수정 화살','서리 감옥','독수리의 습격','얼음 화살'], a:0, ex:'마법의 수정 화살 — 멀리 날아갈수록 기절 시간이 길어집니다.' },
+  { q:'카타리나가 제자리에서 회전하며 주변 모든 적에게 단검을 난사하는 궁극기의 이름은?', o:['죽음의 연꽃','칼날 폭풍','처형','그림자 칼'], a:0, ex:'죽음의 연꽃 — 카타리나의 대표 광역 궁극기입니다.' },
+  { q:'아무무가 궁극기 “비통한 미라”를 쓰면 주변 적들에게 무슨 일이 일어날까요?', o:['주변 적이 묶여(속박) 못 움직인다','주변 아군이 부활한다','자신에게 보호막이 생긴다','무작위 위치로 순간이동한다'], a:0, ex:'“비통한 미라”는 주변 적을 묶는 광역 속박(스네어) 궁극기입니다.' },
+  { q:'거대한 강철 골렘이 한쪽 손을 로켓처럼 발사해, 맞은 적을 자기 앞으로 끌어오는 대표 스킬은?', o:['로켓 손','마법의 수정 화살','죽음의 연꽃','비통한 미라'], a:0, ex:'로켓 손 — 블리츠크랭크의 상징적인 그랩(끌어오기) 스킬입니다.' },
+  { q:'회전하는 도끼를 던졌다 받아내는 화려한 쇼맨십의 소유자로, “영광의 처형자”라 불리는 다리우스의 동생은?', o:['드레이븐','다리우스','가렌','제드'], a:0, ex:'드레이븐 — “영광의 처형자”. 형 다리우스와 함께 녹서스 출신입니다.' },
+  // Ⓑ 세계관 · 스토리
+  { q:'리그 오브 레전드의 모든 챔피언이 살아가는 세계(월드)의 이름은?', o:['룬테라','아제로스','테이바트','발로란'], a:0, ex:'룬테라(Runeterra) — 데마시아·녹서스 등이 속한 세계. 발로란은 그 안의 한 대륙입니다.' },
+  { q:'아이오니아 출신 두 형제 검사입니다. 동생은 바람의 검을 쓰는 “용서받지 못한 자”, 형은 죽어 영혼을 베는 가면 검사가 되었습니다. 이 형제는?', o:['야스오와 요네','다리우스와 드레이븐','카타리나와 카시오페아','가렌과 럭스'], a:0, ex:'야스오(동생)와 요네(형) — 아이오니아의 비극적인 형제입니다.' },
+  { q:'징크스와 바이 자매가 자라난, 필트오버 도시 아래의 매캐한 지하 공업 도시는?', o:['자운','녹서스','빌지워터','데마시아'], a:0, ex:'자운(Zaun) — 필트오버 아래의 지하도시. 애니메이션 “아케인”의 주요 배경입니다.' },
+  { q:'넷플릭스 애니메이션 “아케인(Arcane)”의 중심이 되는 두 주인공 자매는?', o:['바이와 징크스','럭스와 가렌','애쉬와 세주아니','카이사와 카시오페아'], a:0, ex:'바이(언니)와 징크스(동생) — “아케인”의 핵심 자매입니다.' },
+  { q:'마법을 두려워하고 금기시하여, 마법사인 럭스가 힘을 숨겨야 했던 가렌·럭스의 고향 왕국은?', o:['데마시아','녹서스','아이오니아','프렐요드'], a:0, ex:'데마시아 — 질서와 정의를 내세우지만 마법을 억압하는 왕국입니다.' },
+  { q:'한때 사막에 번성했던 고대 제국 슈리마를, 승천하여 불멸의 존재가 된 뒤 되살리려는 황제 챔피언은?', o:['아지르','나서스','레넥톤','아무무'], a:0, ex:'아지르 — 승천한 슈리마의 황제로, 제국의 부활을 꿈꿉니다.' },
+  { q:'슈리마의 두 승천자, 지혜로운 자칼 “나서스”와 분노한 악어 “레넥톤”은 서로 어떤 관계일까요?', o:['형제','스승과 제자','원래 남남인 라이벌','부모와 자식'], a:0, ex:'둘은 형제입니다. 레넥톤은 오랜 봉인 끝에 광기에 사로잡혔습니다.' },
+  { q:'“아케인”에도 등장하는 필트오버의 두 발명가로, 함께 마법공학(헥스텍)을 열었던 두 과학자는?', o:['제이스와 빅토르','가렌과 다리우스','야스오와 요네','나서스와 레넥톤'], a:0, ex:'제이스와 빅토르 — 헥스텍을 함께 열었지만 서로 다른 길을 걷게 됩니다.' },
+  { q:'갱플랭크·미스 포츈·파이크가 활동하는, 바다 괴물 사냥과 무법이 넘치는 항구 도시는?', o:['빌지워터','필트오버','타곤','이쉬탈'], a:0, ex:'빌지워터 — 해적과 밀수가 들끓는 무법의 항구 도시입니다.' },
+  { q:'다음 챔피언 중 미지의 심연 “공허(Void)”에서 온 존재가 아닌 것은?', o:['가렌','초가스','카직스','벨코즈'], a:0, ex:'가렌은 데마시아 출신입니다. 초가스·카직스·벨코즈는 공허의 존재입니다.' },
+  { q:'죽은 자의 영혼이 떠도는 저주받은 “그림자 군도” 출신으로, 사슬과 갈고리로 영혼을 사냥하는 간수는?', o:['쓰레쉬','가렌','티모','럭스'], a:0, ex:'쓰레쉬 — 그림자 군도에서 영혼을 수집하는 사슬 간수입니다.' },
+  { q:'겉모습은 어린 소녀지만 강력한 불 마법을 쓰며, 곰 인형 “티버”를 거대한 수호자로 소환하는 “어둠의 아이”는?', o:['애니','럭스','조이','니코'], a:0, ex:'애니 — “어둠의 아이”. 곰 인형 티버를 소환합니다.' },
+  // Ⓒ 롤 역사 · 게임 상식
+  { q:'리그 오브 레전드를 개발하고 서비스하는 게임 회사는?', o:['라이엇 게임즈','블리자드','밸브','넥슨'], a:0, ex:'라이엇 게임즈(Riot Games)가 개발·운영합니다.' },
+  { q:'리그 오브 레전드가 북미에서 정식 출시된 해는?', o:['2009년','2005년','2013년','2016년'], a:0, ex:'2009년 10월 27일 정식 출시되었습니다.' },
+  { q:'두 팀이 진영을 두고 싸워 상대 본진을 파괴하는, 리그 오브 레전드가 속한 게임 장르는?', o:['AOS (MOBA)','FPS','MMORPG','리듬 게임'], a:0, ex:'AOS(MOBA) — “도타”의 계보를 잇는 진영 대전 장르입니다.' },
+  { q:'매년 연말에 열리는, 롤 세계 최강팀을 가리는 국제 대회를 흔히 뭐라고 부를까요?', o:['월드 챔피언십(롤드컵)','MSI','LCK','올스타전'], a:0, ex:'월드 챔피언십 — 흔히 “롤드컵”이라 부르는 최대 국제 대회입니다.' },
+  { q:'2021년 넷플릭스에서 방영돼 큰 인기를 끈, 징크스·바이 자매의 이야기를 담은 롤 원작 애니메이션은?', o:['아케인','룬테라','발로란','와일드 리프트'], a:0, ex:'아케인(Arcane) — 자운과 필트오버를 배경으로 한 애니메이션입니다.' },
+  { q:'소환사의 협곡에서 승리하려면 상대 진영 심장부의 이것을 파괴해야 합니다. 각 팀의 최종 목표물은?', o:['넥서스','억제기','바론','포탑'], a:0, ex:'넥서스(Nexus) — 먼저 파괴하는 팀이 게임에서 승리합니다.' },
+];
+function _quizState(data){
+  data = data || (goldData[getMyGoldKey()]||{});
+  return { qi: data[sField('quizIndex')]||0, qa: data[sField('quizAvail')]||0 };
+}
+// 출석 완료 시 호출 — 아직 안 푼 문제가 남아있으면 열람권(quizAvail) +1 (updates에 병합·원자 저장)
+function _quizUnlockOnAttend(data, updates){
+  const qi = (updates[sField('quizIndex')] ?? data[sField('quizIndex')] ?? 0);
+  const qa = (updates[sField('quizAvail')] ?? data[sField('quizAvail')] ?? 0);
+  if(qi + qa < QUIZ_Q.length) updates[sField('quizAvail')] = qa + 1;
+}
+function _quizInjectCss(){
+  if(document.getElementById('quiz-css')) return;
+  const s=document.createElement('style'); s.id='quiz-css';
+  s.textContent=`.quiz-ov .quiz-card{max-width:430px;}
+  .quiz-hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+  .quiz-badge{font-weight:800;color:#ffe39a;font-size:14px;}
+  .quiz-prog{font-size:12px;color:#8b8b97;font-weight:700;}
+  .quiz-q{font-size:15px;line-height:1.6;color:#eaeaf0;font-weight:600;margin-bottom:16px;word-break:keep-all;}
+  .quiz-opts{display:flex;flex-direction:column;gap:8px;}
+  .quiz-opt{text-align:left;padding:12px 14px;border-radius:10px;border:1px solid #3a3a46;background:#22222c;color:#e6e6ee;font-size:14px;font-weight:600;cursor:pointer;transition:.15s;line-height:1.45;word-break:keep-all;}
+  .quiz-opt:hover:not(:disabled){border-color:#7fd0ff;background:#282833;}
+  .quiz-opt:disabled{cursor:default;}
+  .quiz-opt.correct{border-color:#4ade80;background:#1e3a2a;color:#a7f3c8;}
+  .quiz-opt.wrong{border-color:#ff6b6b;background:#3a1e22;color:#ffb3b3;}
+  .quiz-foot{margin-top:14px;text-align:center;font-size:11.5px;color:#8b8b97;}
+  .bg-quiz{background:linear-gradient(135deg,#5b4b8a,#7a5cc0)!important;color:#fff!important;}
+  .bg-quiz-hint{margin-top:6px;text-align:center;font-size:11px;color:#9a9aa6;}
+  .bg-quiz-hint b{color:#c9b6ff;}`;
+  document.head.appendChild(s);
+}
+// 오늘의 퀴즈 열기 (출석 후 자동 + '오늘의 퀴즈' 버튼)
+window.openDailyQuiz = function(){
+  const key=getMyGoldKey(); if(!key){ showGoldToast('닉네임을 먼저 선택해주세요'); return; }
+  const { qi, qa } = _quizState(goldData[key]||{});
+  if(qi >= QUIZ_Q.length){ _quizResult('🧠 퀴즈 올클리어!', '준비된 '+QUIZ_Q.length+'문제를 모두 풀었어요. 함께해 주셔서 고맙습니다! 🎉', []); return; }
+  if(qa <= 0){ showGoldToast('출석하면 오늘의 퀴즈가 열려요 (하루 2문제)'); return; }
+  _quizRenderQuestion(qi);
+};
+function _quizRenderQuestion(qi){
+  const item=QUIZ_Q[qi]; if(!item) return;
+  _quizInjectCss();
+  const old=document.getElementById('quiz-overlay'); if(old) old.remove();
+  const ov=document.createElement('div'); ov.id='quiz-overlay'; ov.className='brw-overlay season-2 quiz-ov';
+  ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+  // 보기 순서 무작위 (정답이 항상 같은 위치에 오지 않도록) — data-i는 원본 인덱스 유지
+  const ord=_bingoShuffle(item.o.map((_,i)=>i));
+  const opts=ord.map((oi,disp)=>`<button class="quiz-opt" data-i="${oi}" onclick="_quizAnswer(${oi})">${String.fromCharCode(9312+disp)} ${escHtml(item.o[oi])}</button>`).join('');
+  ov.innerHTML=`<div class="brw-card quiz-card">
+    <div class="quiz-hd"><span class="quiz-badge">🧠 오늘의 롤 퀴즈</span><span class="quiz-prog">${qi+1} / ${QUIZ_Q.length}</span></div>
+    <div class="quiz-q">${escHtml(item.q)}</div>
+    <div class="quiz-opts">${opts}</div>
+    <div class="quiz-foot">정답 시 🎟🎫💎 복권 3종을 드려요</div>
+  </div>`;
+  document.body.appendChild(ov);
+}
+window._quizAnswer = async function(choice){
+  const key=getMyGoldKey(); if(!key) return;
+  const data=goldData[key]||{};
+  const { qi, qa } = _quizState(data);
+  if(qa<=0 || qi>=QUIZ_Q.length) return;   // 이미 처리됨/소진 가드
+  const item=QUIZ_Q[qi]; if(!item) return;
+  const correct=(choice===item.a);
+  // 선택 잠금 + 정답/오답 색 피드백
+  const ov=document.getElementById('quiz-overlay');
+  if(ov) ov.querySelectorAll('.quiz-opt').forEach(b=>{ b.disabled=true; const bi=+b.dataset.i;
+    if(bi===item.a) b.classList.add('correct'); else if(bi===choice) b.classList.add('wrong'); });
+  // 상태 갱신(+정답이면 보상) — 낙관적 반영 후 저장
+  const updates={ [sField('quizIndex')]: qi+1, [sField('quizAvail')]: Math.max(0, qa-1) };
+  if(correct) _bingoApplyRw(data, updates, QUIZ_REWARD);
+  if(goldData[key]) Object.assign(goldData[key], updates);
+  try{ await update(ref(db,'gold/'+key), updates); }catch(e){ showGoldToast('❌ 퀴즈 저장 실패'); }
+  setTimeout(()=>{
+    const ansTxt='정답: '+item.o[item.a];
+    const sub=(correct?'':`<b>${escHtml(ansTxt)}</b><br>`)+'💡 '+escHtml(item.ex);
+    _quizResult(correct?'🎉 정답입니다!':'아쉬워요!', sub, correct?_bingoRwItems(QUIZ_REWARD,'정답 보상'):[]);
+    try{ _bingoRerender(); updateAttendQuickBtn(); }catch(_){}
+  }, 750);
+};
+function _quizResult(title, sub, items){
+  _quizInjectCss();
+  const old=document.getElementById('quiz-overlay'); if(old) old.remove();
+  const ov=document.createElement('div'); ov.id='quiz-overlay'; ov.className='brw-overlay season-2 quiz-ov';
+  ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+  const rows=(items||[]).map(it=>`<div class="brw-row"><span class="brw-ic">${it.iconHtml}</span><span class="brw-nm">${it.name}</span><span class="brw-qty" style="${it.color?`color:${it.color};`:''}">${it.qty}</span></div>`).join('');
+  ov.innerHTML=`<div class="brw-card quiz-card">
+    <div class="brw-title"><span class="bg-dia"></span>${title}</div>
+    <div class="brw-sub">${sub}</div>
+    ${rows?`<div class="brw-list">${rows}</div>`:''}
+    <button class="brw-ok">확인</button>
+  </div>`;
+  ov.querySelector('.brw-ok').onclick=()=>ov.remove();
+  document.body.appendChild(ov);
+}
 
 async function doBingoAttendance(){
   const key=getMyGoldKey(); if(!key) return;
@@ -22095,6 +22236,7 @@ async function doBingoAttendance(){
   const scl={...(data[sField('attendStreakClaimed')]||{})}; const streakGot=[];
   ATTEND_STREAK_MILES.forEach(ms=>{ if(streak>=ms && !scl[ms]){ scl[ms]=true; const rw=ATTEND_STREAK_REWARDS[ms]; _bingoApplyRw(data,updates,rw); streakGot.push({ms,rw}); bonusItems.push(..._bingoRwItems(rw,`🔥 ${ms}일 연속`)); } });
   if(streakGot.length) updates[sField('attendStreakClaimed')]=scl;
+  _quizUnlockOnAttend(data, updates);   // 🧠 이 슬롯 출석 → 오늘의 퀴즈 1문제 열림
   if(goldData[key]) Object.assign(goldData[key],updates);   // 낙관적 반영(onValue 전파 전 즉시 갱신)
   try{ await update(ref(db,'gold/'+key),updates); }catch(e){ showGoldToast('❌ 출석 저장 실패'); return; }
   _bingoSel=null;
@@ -22114,7 +22256,9 @@ async function doBingoAttendance(){
     items.push({ iconHtml:'🎯', name:`협력 빙고 ${top.n}줄 보상`, qty:'🎁 수령 대기', color:'#f0c060' });
     setTimeout(()=>{ const f=document.getElementById('bingo-flash'); if(f){ f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); } }, 60);
   }
-  showBingoReward(`${sName} 출석 완료`, sub, items, _dailyFortune(todayKey+'|'+me));
+  const _qd=goldData[key]||data;
+  const _quizReady=((_qd[sField('quizAvail')]||0)>0)&&((_qd[sField('quizIndex')]||0)<QUIZ_Q.length);
+  showBingoReward(`${sName} 출석 완료`, sub, items, _dailyFortune(todayKey+'|'+me), _quizReady?(()=>setTimeout(openDailyQuiz,220)):null);
 }
 // 빙고 줄 보상 수령 (미수령 log 전부)
 window.bingoClaim=async function(){
@@ -22201,6 +22345,7 @@ window.__bingoReset=async function(){ await set(ref(db,'season2_bingo'),{round:1
 
 // 빙고 보드 HTML (릴레이 모달 자리 재사용)
 function renderBingoBoardHtml(){
+  try{ _quizInjectCss(); }catch(_){}
   if(!myName) return '<div class="empty-state"><div class="icon">🎯</div>닉네임을 먼저 선택해주세요</div>';
   if(!bingoStarted()) return `<div class="bingo-soon"><div class="bs-dia"></div><div class="bs-t">협력 빙고 출석 이벤트</div><div class="bs-d"><b>${BINGO_START}</b> 시작 예정<br>팀이 함께 칸을 채워 줄을 맞추는 협력 빙고예요</div></div>`;
   const d=bingoEnsure(JSON.parse(JSON.stringify(_bingoData||{})));
@@ -22208,6 +22353,9 @@ function renderBingoBoardHtml(){
   const key=getMyGoldKey(), mydata=key?goldData[key]:{};
   const todayKey=getLocalDateKey(), slot=getAttendSlot(), sName=slot===1?'오전':'오후';
   const canAttend=!isAttendSlotDone(mydata,slot,todayKey);
+  // 🧠 오늘의 롤 퀴즈 진행 상태
+  const _qIdx=mydata[sField('quizIndex')]||0, _qAvail=mydata[sField('quizAvail')]||0;
+  const _quizReady=_qAvail>0 && _qIdx<QUIZ_Q.length, _quizAllDone=_qIdx>=QUIZ_Q.length;
   const inDone=i=>{ for(const li in d.lines){ if(BINGO_LINES[li] && BINGO_LINES[li].includes(i)) return true; } return false; };
   // 셀
   const cells=d.cells.map((c,i)=>{
@@ -22290,7 +22438,9 @@ function renderBingoBoardHtml(){
       <button class="bg-attend" ${canAttend?'':'disabled'} onclick="window.doAttendance()">${canAttend?`${sName} 출석하기`:`${sName} 출석 완료`}</button>
       ${claimable>0?`<button class="bg-claim" onclick="window.bingoClaim()">보상 받기 ${claimable}</button>`:''}
       ${rcCount>0?`<button class="bg-claim bg-clear" onclick="window.bingoClaimClears()">🤝 완성 보너스 ${rcCount}</button>`:''}
+      ${_quizReady?`<button class="bg-claim bg-quiz" onclick="window.openDailyQuiz()">🧠 오늘의 퀴즈 ${_qAvail}</button>`:''}
     </div>
+    <div class="bg-quiz-hint">🧠 롤 상식 퀴즈 <b>${Math.min(_qIdx,QUIZ_Q.length)}/${QUIZ_Q.length}</b> ${_quizAllDone?'· 올클리어! 🎉':_quizReady?`· 풀 문제 ${_qAvail}개 있어요!`:'· 출석하면 열려요 (정답=복권 3종)'}</div>
     <div class="bg-daycnt">내 표시 <b>${mineCnt}</b>칸 · 칸 고르고 출석하기를 눌러요</div>
     <div class="bg-contrib">
       <div class="bg-cb-hd">🏅 빙고 명예 <span class="bg-cb-me">내 기여 ${myCells}칸 · ${myLines}줄</span></div>
