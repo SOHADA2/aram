@@ -7048,7 +7048,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.579';
+const APP_VERSION = 'v2.45.580';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7057,6 +7057,9 @@ const APP_VERSION = 'v2.45.579';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.580', date: '2026-07-15', changes: [
+    { tag: 'improve', text: '🧠 오늘의 퀴즈 — 오늘 이미 출석을 마친 분들도 바로 풀 수 있게 바꿨어요! 이제 “새로 출석할 때”가 아니라 “오늘 출석한 슬롯 수(오전·오후)”만큼 열려서, 오전·오후를 이미 출석했다면 출석 파트에서 2문제를 지금 바로 풀 수 있어요. (하루 최대 2문제는 그대로)' },
+  ] },
   { ver: 'v2.45.579', date: '2026-07-15', changes: [
     { tag: 'new', text: '🧠 오늘의 롤 퀴즈 — 출석(오전/오후)하면 롤 상식·챔피언·세계관 퀴즈가 한 문제씩 열려요! 4지선다로 풀고 정답이면 🎟🎫💎 복권 3종(일반·고급·프미)을 드립니다. 총 30문제(하루 2문제 · 약 15일 분량)이고, 보기 순서는 매번 무작위예요. 빙고판의 「🧠 오늘의 퀴즈」 버튼에서 진행도도 확인!' },
   ] },
@@ -22041,7 +22044,8 @@ function _scratchTierName(t){ return (['일반','고급','프리미엄'][t]||'')
 
 // ═══════════════════════ 🧠 롤 상식 퀴즈 (출석 연동) ═══════════════════════
 // 출석(오전/오후) 완료 시 슬롯당 1문제가 열림 → 정답 시 복권 3종(일반·고급·프미) 각 1장.
-// 상태: quizIndex(=푼 개수 0~N) · quizAvail(=열렸지만 아직 안 푼 문제 수). 하루 최대 2문제(2슬롯).
+// 상태: quizIndex(=푼 개수 0~N·진행/상한) · quizDate+quizAnsweredToday(=오늘 푼 수·일일 리셋).
+// 오늘 풀 수 있는 수 = (오늘 출석한 슬롯 수) − (오늘 푼 수) → 이미 출석한 사람도 즉시 풀 수 있음. 하루 최대 2(2슬롯).
 // 문제는 로어·역사 등 밸런스 패치와 무관한 불변 사실만 → 오답 위험 없음.
 const QUIZ_REWARD = { scratch:{ 0:1, 1:1, 2:1 } };   // 정답 보상 = 복권 3종 각 1장
 const QUIZ_Q = [
@@ -22079,15 +22083,20 @@ const QUIZ_Q = [
   { q:'2021년 넷플릭스에서 방영돼 큰 인기를 끈, 징크스·바이 자매의 이야기를 담은 롤 원작 애니메이션은?', o:['아케인','룬테라','발로란','와일드 리프트'], a:0, ex:'아케인(Arcane) — 자운과 필트오버를 배경으로 한 애니메이션입니다.' },
   { q:'소환사의 협곡에서 승리하려면 상대 진영 심장부의 이것을 파괴해야 합니다. 각 팀의 최종 목표물은?', o:['넥서스','억제기','바론','포탑'], a:0, ex:'넥서스(Nexus) — 먼저 파괴하는 팀이 게임에서 승리합니다.' },
 ];
+// 오늘 풀 수 있는 퀴즈 수 = (오늘 출석한 슬롯 수) − (오늘 이미 푼 수). 하루 최대 2문제.
+// ⚠️ 출석 시각(lastAttendance/lastAttendance2)에서 파생 → 오늘 이미 출석한 사람도 즉시 열림(신규 출석 불필요).
+function _quizAvailToday(data){
+  data = data || (goldData[getMyGoldKey()]||{});
+  const qi = data[sField('quizIndex')]||0;
+  if(qi >= QUIZ_Q.length) return 0;
+  const today = getLocalDateKey();
+  const attended = (data[sField('lastAttendance')]===today?1:0) + (data[sField('lastAttendance2')]===today?1:0);
+  const answeredToday = (data[sField('quizDate')]===today) ? (data[sField('quizAnsweredToday')]||0) : 0;
+  return Math.max(0, Math.min(attended - answeredToday, QUIZ_Q.length - qi));
+}
 function _quizState(data){
   data = data || (goldData[getMyGoldKey()]||{});
-  return { qi: data[sField('quizIndex')]||0, qa: data[sField('quizAvail')]||0 };
-}
-// 출석 완료 시 호출 — 아직 안 푼 문제가 남아있으면 열람권(quizAvail) +1 (updates에 병합·원자 저장)
-function _quizUnlockOnAttend(data, updates){
-  const qi = (updates[sField('quizIndex')] ?? data[sField('quizIndex')] ?? 0);
-  const qa = (updates[sField('quizAvail')] ?? data[sField('quizAvail')] ?? 0);
-  if(qi + qa < QUIZ_Q.length) updates[sField('quizAvail')] = qa + 1;
+  return { qi: data[sField('quizIndex')]||0, avail: _quizAvailToday(data) };
 }
 function _quizInjectCss(){
   if(document.getElementById('quiz-css')) return;
@@ -22112,9 +22121,9 @@ function _quizInjectCss(){
 // 오늘의 퀴즈 열기 (출석 후 자동 + '오늘의 퀴즈' 버튼)
 window.openDailyQuiz = function(){
   const key=getMyGoldKey(); if(!key){ showGoldToast('닉네임을 먼저 선택해주세요'); return; }
-  const { qi, qa } = _quizState(goldData[key]||{});
+  const { qi, avail } = _quizState(goldData[key]||{});
   if(qi >= QUIZ_Q.length){ _quizResult('🧠 퀴즈 올클리어!', '준비된 '+QUIZ_Q.length+'문제를 모두 풀었어요. 함께해 주셔서 고맙습니다! 🎉', []); return; }
-  if(qa <= 0){ showGoldToast('출석하면 오늘의 퀴즈가 열려요 (하루 2문제)'); return; }
+  if(avail <= 0){ showGoldToast('출석하면 오늘의 퀴즈가 열려요 (하루 2문제)'); return; }
   _quizRenderQuestion(qi);
 };
 function _quizRenderQuestion(qi){
@@ -22137,16 +22146,18 @@ function _quizRenderQuestion(qi){
 window._quizAnswer = async function(choice){
   const key=getMyGoldKey(); if(!key) return;
   const data=goldData[key]||{};
-  const { qi, qa } = _quizState(data);
-  if(qa<=0 || qi>=QUIZ_Q.length) return;   // 이미 처리됨/소진 가드
+  const qi=data[sField('quizIndex')]||0;
+  if(_quizAvailToday(data)<=0 || qi>=QUIZ_Q.length) return;   // 이미 처리됨/소진 가드
   const item=QUIZ_Q[qi]; if(!item) return;
   const correct=(choice===item.a);
   // 선택 잠금 + 정답/오답 색 피드백
   const ov=document.getElementById('quiz-overlay');
   if(ov) ov.querySelectorAll('.quiz-opt').forEach(b=>{ b.disabled=true; const bi=+b.dataset.i;
     if(bi===item.a) b.classList.add('correct'); else if(bi===choice) b.classList.add('wrong'); });
-  // 상태 갱신(+정답이면 보상) — 낙관적 반영 후 저장
-  const updates={ [sField('quizIndex')]: qi+1, [sField('quizAvail')]: Math.max(0, qa-1) };
+  // 상태 갱신(+정답이면 보상) — 낙관적 반영 후 저장. 오늘 푼 수(quizAnsweredToday) 증가(날짜 바뀌면 리셋)
+  const today=getLocalDateKey();
+  const answeredToday=((data[sField('quizDate')]===today)?(data[sField('quizAnsweredToday')]||0):0)+1;
+  const updates={ [sField('quizIndex')]: qi+1, [sField('quizDate')]: today, [sField('quizAnsweredToday')]: answeredToday };
   if(correct) _bingoApplyRw(data, updates, QUIZ_REWARD);
   if(goldData[key]) Object.assign(goldData[key], updates);
   try{ await update(ref(db,'gold/'+key), updates); }catch(e){ showGoldToast('❌ 퀴즈 저장 실패'); }
@@ -22236,7 +22247,6 @@ async function doBingoAttendance(){
   const scl={...(data[sField('attendStreakClaimed')]||{})}; const streakGot=[];
   ATTEND_STREAK_MILES.forEach(ms=>{ if(streak>=ms && !scl[ms]){ scl[ms]=true; const rw=ATTEND_STREAK_REWARDS[ms]; _bingoApplyRw(data,updates,rw); streakGot.push({ms,rw}); bonusItems.push(..._bingoRwItems(rw,`🔥 ${ms}일 연속`)); } });
   if(streakGot.length) updates[sField('attendStreakClaimed')]=scl;
-  _quizUnlockOnAttend(data, updates);   // 🧠 이 슬롯 출석 → 오늘의 퀴즈 1문제 열림
   if(goldData[key]) Object.assign(goldData[key],updates);   // 낙관적 반영(onValue 전파 전 즉시 갱신)
   try{ await update(ref(db,'gold/'+key),updates); }catch(e){ showGoldToast('❌ 출석 저장 실패'); return; }
   _bingoSel=null;
@@ -22256,8 +22266,7 @@ async function doBingoAttendance(){
     items.push({ iconHtml:'🎯', name:`협력 빙고 ${top.n}줄 보상`, qty:'🎁 수령 대기', color:'#f0c060' });
     setTimeout(()=>{ const f=document.getElementById('bingo-flash'); if(f){ f.classList.remove('go'); void f.offsetWidth; f.classList.add('go'); } }, 60);
   }
-  const _qd=goldData[key]||data;
-  const _quizReady=((_qd[sField('quizAvail')]||0)>0)&&((_qd[sField('quizIndex')]||0)<QUIZ_Q.length);
+  const _quizReady=_quizAvailToday(goldData[key]||data)>0;
   showBingoReward(`${sName} 출석 완료`, sub, items, _dailyFortune(todayKey+'|'+me), _quizReady?(()=>setTimeout(openDailyQuiz,220)):null);
 }
 // 빙고 줄 보상 수령 (미수령 log 전부)
@@ -22353,8 +22362,8 @@ function renderBingoBoardHtml(){
   const key=getMyGoldKey(), mydata=key?goldData[key]:{};
   const todayKey=getLocalDateKey(), slot=getAttendSlot(), sName=slot===1?'오전':'오후';
   const canAttend=!isAttendSlotDone(mydata,slot,todayKey);
-  // 🧠 오늘의 롤 퀴즈 진행 상태
-  const _qIdx=mydata[sField('quizIndex')]||0, _qAvail=mydata[sField('quizAvail')]||0;
+  // 🧠 오늘의 롤 퀴즈 진행 상태 (오늘 출석한 슬롯 수 기준 — 이미 출석한 사람도 바로 풀 수 있음)
+  const _qIdx=mydata[sField('quizIndex')]||0, _qAvail=_quizAvailToday(mydata);
   const _quizReady=_qAvail>0 && _qIdx<QUIZ_Q.length, _quizAllDone=_qIdx>=QUIZ_Q.length;
   const inDone=i=>{ for(const li in d.lines){ if(BINGO_LINES[li] && BINGO_LINES[li].includes(i)) return true; } return false; };
   // 셀
