@@ -7048,7 +7048,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.580';
+const APP_VERSION = 'v2.45.581';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7057,6 +7057,9 @@ const APP_VERSION = 'v2.45.580';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.581', date: '2026-07-15', changes: [
+    { tag: 'improve', text: '🤖 복권 자동 로봇 — 보유한 무료 복권(🎟 실버)이 있으면 로봇이 그걸 먼저 써요! 예약할 때 무료 복권부터 소모하고, 모자란 만큼만 골드로 결제해요. 예약 화면에 “무료 복권 N장이 먼저 사용돼요(골드 안 듦)”라고 표시되고, 예약 완료 시 무료 몇 장·골드 몇 장을 썼는지 알려드려요.' },
+  ] },
   { ver: 'v2.45.580', date: '2026-07-15', changes: [
     { tag: 'improve', text: '🧠 오늘의 퀴즈 — 오늘 이미 출석을 마친 분들도 바로 풀 수 있게 바꿨어요! 이제 “새로 출석할 때”가 아니라 “오늘 출석한 슬롯 수(오전·오후)”만큼 열려서, 오전·오후를 이미 출석했다면 출석 파트에서 2문제를 지금 바로 풀 수 있어요. (하루 최대 2문제는 그대로)' },
   ] },
@@ -28480,21 +28483,27 @@ function _autoBotRefresh(){
   } else {
     // 보유 + 예약 대기 — 수량 선택
     _autoBotSelN=Math.max(1, Math.min(def.cap, _autoBotSelN||1));
-    const cost=_autoBotSelN*AUTOBOT_LOTTERY_PRICE;
+    const freeSilver=(data[sField('freeScratch')]||{})[0]||0;   // 🎟 보유 무료 실버 복권 — 먼저 소모
+    const useFree=Math.min(_autoBotSelN, freeSilver);
+    const payN=_autoBotSelN-useFree;
+    const cost=payN*AUTOBOT_LOTTERY_PRICE;
     const totalMin=_autoBotSelN*def.perMin;
     const canReserve=myGold>=cost;
     const nextDef=_autoBotDef(tier+1);
+    const costLabel=useFree>0
+      ? `🎟 무료 복권 <b style="color:#7fd0ff;">${useFree}장</b> 사용${payN>0?` + 🪙 <b style="color:#ffd24a;">${cost}G</b>`:` · 골드 <b style="color:#7fe0d0;">0G</b>`}`
+      : `비용 <b style="color:#ffd24a;">${cost}G</b>`;
     body=`<div class="abot-center">
       ${_autoBotRobotHtml(def,{screen:'READY'})}
       <div class="abot-badge" style="background:${def.color}22;color:${def.color};border:1px solid ${def.color}66;">${def.emoji} ${def.name}</div>
     </div>
-    <div class="abot-spec">실버 복권을 넣을 만큼 골라서 예약하세요.<br>한 번에 <b>최대 ${def.cap}장</b> · 장당 <b>${def.perMin}분</b> · 🤖 긁기 보너스 <b style="color:#7fe0d0;">장당 +${def.bonus}G</b></div>
+    <div class="abot-spec">실버 복권을 넣을 만큼 골라서 예약하세요.<br>한 번에 <b>최대 ${def.cap}장</b> · 장당 <b>${def.perMin}분</b> · 🤖 긁기 보너스 <b style="color:#7fe0d0;">장당 +${def.bonus}G</b>${freeSilver>0?`<br>🎟 <b style="color:#7fd0ff;">보유한 무료 복권 ${freeSilver}장</b>이 먼저 사용돼요 (골드 안 듦)`:''}</div>
     <div class="abot-qty">
       <button class="abot-qbtn" ${_autoBotSelN<=1?'disabled':''} onclick="window.autoBotAdj(-1)">−</button>
       <span class="abot-qnum">${_autoBotSelN}</span>
       <button class="abot-qbtn" ${_autoBotSelN>=def.cap?'disabled':''} onclick="window.autoBotAdj(1)">+</button>
     </div>
-    <div class="abot-qsub">비용 <b style="color:#ffd24a;">${cost}G</b> · 전부 긁는 데 약 <b>${totalMin}분</b> · 🤖 보너스 <b style="color:#7fe0d0;">+${_autoBotSelN*def.bonus}G</b></div>
+    <div class="abot-qsub">${costLabel} · 전부 긁는 데 약 <b>${totalMin}분</b> · 🤖 보너스 <b style="color:#7fe0d0;">+${_autoBotSelN*def.bonus}G</b></div>
     <button class="abot-reserve" ${canReserve?'':'disabled'} onclick="window.autoBotReserve(${_autoBotSelN})">${canReserve?`🤖 ${_autoBotSelN}장 예약 시작`:`🪙 골드 부족 (필요 ${cost}G)`}</button>
     ${nextDef?`<button class="abot-up" ${myGold>=nextDef.price?'':'disabled'} onclick="window.autoBotBuy()">⬆️ ${nextDef.name}으로 업그레이드 · ${nextDef.price}G <span style="opacity:.7;font-weight:600">(${nextDef.cap}장·장당 ${nextDef.perMin}분·보너스 +${nextDef.bonus}G/장)</span></button>`:`<div class="abot-note">🌈 최고 등급(프리즘)이에요!</div>`}`;
   }
@@ -28527,18 +28536,26 @@ window.autoBotReserve = async function(n){
   if(!def){ showS1Toast('먼저 복권 자동 로봇을 구매하세요'); return; }
   if(_autoBotQueue(data)){ showS1Toast('이미 로봇이 복권을 긁고 있어요'); return; }
   n=Math.max(1,Math.min(def.cap,Math.floor(n)||1));
-  const cost=n*AUTOBOT_LOTTERY_PRICE;
+  // 🎟 보유한 무료 실버 복권(freeScratch[0]) 먼저 소모 → 나머지 장수만 골드로 결제
+  const ft={...(data[sField('freeScratch')]||{})};
+  const freeSilver=ft[0]||0;
+  const useFree=Math.min(n, freeSilver);
+  const payN=n-useFree;
+  const cost=payN*AUTOBOT_LOTTERY_PRICE;
   if(getMyGold()<cost){ showGoldToast(`🪙 골드 부족 (필요 ${cost}G)`); return; }
   const tickets=[];
   for(let i=0;i<n;i++){ const r=rollScratch(0); tickets.push({ w:r.win?r.win.id:null, g:r.win?r.win.gold:0, e:r.win?r.win.emoji:null, nm:r.win?r.win.name:null }); }
   const q={ startAt:Date.now(), perMin:def.perMin, count:n, tier:def.tier, claimedCount:0, tickets };
   const spentKey=sField('goldSpent');
-  const upd={ [spentKey]:(data[spentKey]??0)+cost, [sField('autoBotQueue')]:q, ..._spendLogUpd(data,'autobot',`자동로봇 실버 ×${n}`,cost) };
+  const upd={ [sField('autoBotQueue')]:q };
+  if(useFree>0){ ft[0]=freeSilver-useFree; upd[sField('freeScratch')]=ft; }   // 무료 복권 차감
+  if(cost>0){ upd[spentKey]=(data[spentKey]??0)+cost; Object.assign(upd,_spendLogUpd(data,'autobot',`자동로봇 실버 ×${payN}`,cost)); }
   _applySpendLocal(key,upd);
   await update(ref(db,'gold/'+key),upd);
   _autoBotLastDone=-1;
   _autoBotReserveFx(n, ()=>{
-    showS1Toast(`🤖 실버 복권 ${n}장 예약! 로봇이 긁기 시작해요`);
+    const parts=[]; if(useFree>0) parts.push(`🎟 무료 복권 ${useFree}장`); if(payN>0) parts.push(`🪙 골드 ${payN}장·${cost}G`);
+    showS1Toast(`🤖 실버 복권 ${n}장 예약! (${parts.join(' + ')}) 로봇이 긁기 시작해요`);
     _autoBotRefresh();
   });
 };
