@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.589';
+const APP_VERSION = 'v2.45.590';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.589';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.590', date: '2026-07-16', changes: [
+    { tag: 'fix', text: '🖤 블랙 복권 창(아이폰 사파리)에서 블랙 팟 숫자와 게임판 사이에 큰 빈 공간이 생기던 문제를 고쳤어요 — 팟 금액을 자릿수 롤링 방식에서 단순 텍스트+카운트업으로 바꿔 어떤 기기에서도 한 줄로 깔끔하게 나와요.' },
+  ] },
   { ver: 'v2.45.589', date: '2026-07-16', changes: [
     { tag: 'fix', text: '🖤 블랙 복권 허브 카드가 좁은 화면에서 가격이 밀리고 빈 공간이 생기던 문제를 고쳤어요 — 카드 레이아웃을 블록 구조로 재작성해 [이름·불운·가격]이 항상 한 줄로 정렬돼요. (TIER4 칩·동기화 빨간 점 제거)' },
     { tag: 'new', text: '🏆 <b>블랙 팟 최고 획득 순위</b>를 블랙 복권 카드 하단에 추가했어요 — 누가 블랙 팟을 얼마나 크게 가져갔는지 TOP3로 보여줘요.' },
@@ -29741,8 +29744,7 @@ function _blackPotEnsureSub(){
     onValue(ref(db, seasonNode('blackPot')), snap => {
       const v = Math.max(0, +((snap.val()||{}).amount) || 0);
       _blackPotAmt = v;
-      document.querySelectorAll('.blk-pot-live').forEach(el => { _blkCountUp(el, v); });   // 팀원 구매 시 실시간으로 스르륵 올라감
-      if (_blkPotOdo && !_blkPotDraining) _blkPotOdo.set(v);
+      document.querySelectorAll('.blk-pot-live').forEach(el => { if (_blkPotDraining && el.id === 'blk-pot-big') return; _blkCountUp(el, v); });   // 팀원 구매 시 실시간으로 스르륵 오름(드레인 중인 모달 숫자는 제외)
     });
   } catch(_) { _blackPotSubbed = false; }
 }
@@ -29824,6 +29826,25 @@ function _blkOdometer(el){
       if (!cur){ done && done(); return; }
       roll(cur.replace(/\d/g,'0'), true);
       setTimeout(()=>{ el.classList.remove('drain'); build('0'); done && done(); }, 2300);
+    },
+  };
+}
+// 🖤 팟 표시(모달) — 단순 텍스트+카운트업(iOS 사파리서 오도미터 <br>+overflow 클리핑 깨짐 → 견고 버전으로 교체)
+function _blkPotSimple(el){
+  return {
+    set(v){ if (el) el.textContent = Math.max(0, Math.round(v)).toLocaleString('en-US'); },
+    drain(done){   // 💸 지급 연출 — 숫자가 0으로 줄어듦
+      if (!el){ done && done(); return; }
+      const from = parseInt((el.textContent||'0').replace(/[^0-9]/g,''), 10) || 0;
+      if (from <= 0){ el.textContent = '0'; done && done(); return; }
+      const dur = 1500, t0 = performance.now();
+      el.classList.add('blk-pot-drainfx');
+      (function tick(t){
+        const p = Math.min(1, (t - t0) / dur);
+        el.textContent = Math.round(from * (1 - p)).toLocaleString('en-US');
+        if (p < 1) requestAnimationFrame(tick);
+        else { el.textContent = '0'; el.classList.remove('blk-pot-drainfx'); done && done(); }
+      })(t0);
     },
   };
 }
@@ -30038,6 +30059,9 @@ function _injectBlackScratchCss(){
   .blk-od.noanim .blk-od-strip{transition:none!important;}
   .blk-od-sep{width:.34em;text-align:center;}
   .blk-od-unit{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:13px;color:#b9932e;margin-left:4px;}
+  .blk-od>b{font-weight:800;line-height:1;}
+  .blk-pot-drainfx{animation:blkPotDrain 1.5s ease;}
+  @keyframes blkPotDrain{0%{color:#ff5d63;}100%{color:#ffe58a;}}
   .blk-body{padding:12px 12px 0;}
   .blk-fx{display:flex;align-items:center;gap:7px;font-size:10.5px;color:#c9c6d6;background:rgba(190,190,215,.05);border:1px solid rgba(190,190,215,.14);border-radius:9px;padding:6px 9px;margin-bottom:9px;}
   .blk-happy-strip{display:none;align-items:center;gap:7px;font-size:11px;font-weight:700;color:#2a1c10;background:linear-gradient(120deg,#ffe58a,#ff9ad5 70%,#8ad5ff);border-radius:9px;padding:7px 9px;margin-bottom:9px;box-shadow:0 4px 14px rgba(255,154,213,.25);}
@@ -30197,7 +30221,7 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
         <div class="blk-pb-row">
           <span class="blk-pb-lbl">🖤 블랙 팟 <span>구매금 10% 실시간 적립</span></span>
         </div>
-        <span class="blk-od" id="blk-pot-od"></span><span class="blk-od-unit">G</span>
+        <span class="blk-od"><b class="blk-pot-live" id="blk-pot-big">${_blackPotAmt.toLocaleString('en-US')}</b><span class="blk-od-unit">G</span></span>
       </div>
       <div class="blk-body">
         ${fxHtml}
@@ -30233,7 +30257,7 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
   });
   _mo.observe(document.body, { childList: true });
   // 팟 오도미터
-  _blkPotOdo = _blkOdometer(overlay.querySelector('#blk-pot-od'));
+  _blkPotOdo = _blkPotSimple(overlay.querySelector('#blk-pot-big'));
   _blkPotOdo.set(_blackPotAmt);
   _blkPotDraining = false;
   // ── 사운드(소프트) ──
