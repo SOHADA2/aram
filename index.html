@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.586';
+const APP_VERSION = 'v2.45.587';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.586';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.587', date: '2026-07-16', changes: [
+    { tag: 'fix', text: '🖤 블랙 복권에서 🖌️ 광역 긁개 장착 시 가장 왼쪽 「행운 문양」 칸이 안 긁히던 문제를 고쳤어요 — 행운 문양은 그리드 밖에 있어서 광역 긁기 대상에서 빠져 있었어요. 이제 행운 문양도 광역 드래그로 함께 긁혀요.' },
+  ] },
   { ver: 'v2.45.586', date: '2026-07-16', changes: [
     { tag: 'fix', text: '🖤 블랙 복권에서도 🖌️ 광역 긁개가 제대로 작동해요 — 예전엔 칸(문양) 부분만 긁혔는데, 이제 다른 복권처럼 칸 사이 배경까지 하나의 은박으로 덮여서 한 번 쭉 그으면 여러 칸이 함께 긁혀요. (배경 은박 캔버스 이식 · 광역 긁개 장착/해제 시 실시간 적용)' },
   ] },
@@ -30313,6 +30316,7 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
   function _bkCrossAt(e){
     hasScratched = true;
     if (_bkBg){ const r=_bkBg.canvas.getBoundingClientRect(); if(e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom) _bkBgStroke((e.clientX-r.left)*(_bkBg.canvas.width/r.width),(e.clientY-r.top)*(_bkBg.canvas.height/r.height)); }
+    if (targetScr && targetScr.cross) targetScr.cross(e);   // 🖌️ 행운문양(가장 좌측·그리드 밖)도 광역 긁기
     scr.forEach(s => s.cross && s.cross(e));
   }
   const _winMove = e => {
@@ -30325,17 +30329,18 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
     }
   };
   const _winUp = () => {
-    if (_bkCrossDrag){ _bkCrossDrag=false; if(_bkBg) _bkBg.px=_bkBg.py=null; scr.forEach(s=>s.crossEnd&&s.crossEnd()); }
+    if (_bkCrossDrag){ _bkCrossDrag=false; if(_bkBg) _bkBg.px=_bkBg.py=null; if(targetScr&&targetScr.crossEnd) targetScr.crossEnd(); scr.forEach(s=>s.crossEnd&&s.crossEnd()); }
     if (_activeBlk){ _activeBlk.check(); _activeBlk = null; }
   };
   window.addEventListener('pointermove', _winMove);
   window.addEventListener('pointerup', _winUp);
   window.addEventListener('pointercancel', _winUp);
-  // 🖌️ 광역: 그리드 어디서든(칸 사이 여백 포함) 눌러 드래그 시작
-  overlay.querySelector('#blk-grid')?.addEventListener('pointerdown', e => {
+  // 🖌️ 광역: 플레이 영역 어디서든(행운문양·칸 사이 여백 포함) 눌러 드래그 시작
+  const _blkPlay = overlay.querySelector('.blk-play');
+  _blkPlay?.addEventListener('pointerdown', e => {
     if (!_bkCrossOn) return;
     _bkCrossDrag = true; _activeBlk = null; if(_bkBg) _bkBg.px=_bkBg.py=null;
-    try { overlay.querySelector('#blk-grid').setPointerCapture(e.pointerId); } catch(_){}
+    try { _blkPlay.setPointerCapture(e.pointerId); } catch(_){}
     _bkCrossAt(e); e.preventDefault();
   });
   // 🪙 동전 커서(기존 복권 동일) — PC 커서 / 모바일·펜은 터치 지점에 동전 팔로워
