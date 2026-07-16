@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.587';
+const APP_VERSION = 'v2.45.588';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.587';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.588', date: '2026-07-16', changes: [
+    { tag: 'improve', text: '🖤 블랙 복권 허브 카드를 다른 복권(실버/골드/프리즘)과 동일한 형태로 정리했어요 — 카드에 길게 적혀 있던 게임 방법 설명은 이름 옆 <b>?</b> 버튼(도움말)으로 옮기고, [이름 (?) · 배지 · 가격] 한 줄 + 통계(내가/팀/최다) 줄 형태로 통일. 블랙 팟(공유 잭팟) 표시는 그대로 유지.' },
+  ] },
   { ver: 'v2.45.587', date: '2026-07-16', changes: [
     { tag: 'fix', text: '🖤 블랙 복권에서 🖌️ 광역 긁개 장착 시 가장 왼쪽 「행운 문양」 칸이 안 긁히던 문제를 고쳤어요 — 행운 문양은 그리드 밖에 있어서 광역 긁기 대상에서 빠져 있었어요. 이제 행운 문양도 광역 드래그로 함께 긁혀요.' },
   ] },
@@ -29362,7 +29365,7 @@ function _lhTierAttemptStats(){
   // 종류별 긁은 횟수 — lotteryHistory(tierIdx 기록)에서 집계. 팀 총계·최다·본인(mine) 모두 동일 필터(시즌+재오픈 이후)
   const _scratchCnt = (d, idx) => (d?.lotteryHistory || []).filter(h => h.scratch && h.tierIdx === idx && (h.season ?? 1) === CURRENT_SEASON && (h.ts || 0) >= SCRATCH_REOPEN_TS).length;
   const myData = getMyGoldData();
-  return [0,1,2].map(idx => {
+  return [0,1,2,3].map(idx => {   // 3=블랙 복권 포함
     let total = 0, topName = null, topCount = 0;
     Object.values(goldData).forEach(d => {
       if (!d.name) return;
@@ -29381,7 +29384,7 @@ function _lhAttemptInner(s){
 function _lhSyncAttempts(){
   if (!document.getElementById('lottery-hub-overlay')) return;
   const st = _lhTierAttemptStats();
-  [0,1,2].forEach(idx => { const el = document.getElementById('lh-attempts-' + idx); if (el) el.innerHTML = _lhAttemptInner(st[idx]); });
+  [0,1,2,3].forEach(idx => { const el = document.getElementById('lh-attempts-' + idx); if (el) el.innerHTML = _lhAttemptInner(st[idx]); });   // 3=블랙
 }
 window.openLotteryHub = function() {
   if (SCRATCH_LOTTERY_LOCKED) { showS1Toast('⚖️ 스크래치 복권 밸런스 패치 중입니다!'); return; }
@@ -29795,25 +29798,29 @@ function _lhBlackCardHtml(data, myGold){
   const priceHtml = freeCnt > 0 ? `<span style="color:#4ade80;font-weight:800;">🎟 무료</span>`
     : canBuy ? `🪙 ${BLACK_TIER.price}G`
     : `<span style="color:#888">🪙 ${BLACK_TIER.price}G<span class="lh-price-sub">(부족)</span></span>`;
-  return `<div class="lh-black-card${canBuy ? '' : ' disabled'}" onclick="${canBuy ? 'window._lhBuyBlack()' : ''}">
-    <div class="lh-black-top">
-      <span class="lh-black-name">🖤 블랙 복권</span>
+  const _bstats = _lhTierAttemptStats()[3];
+  const attemptHtml = `<div class="lh-tier-attempts" id="lh-attempts-3">${_lhAttemptInner(_bstats)}</div>`;
+  return `<div class="lh-tier-card lh-black-card${canBuy ? '' : ' disabled'}" style="--accent:#e8c84a;" onclick="${canBuy ? 'window._lhBuyBlack()' : ''}">
+    <div class="lh-tier-badges">
       <span class="lh-black-tierchip">TIER 4</span>
-      ${freeCnt > 0 ? `<span class="lh-free-badge" style="position:static;">🎟 무료권 ${freeCnt}장</span>` : ''}
-      ${pityPct > 0 ? `<span class="lh-pity-badge" style="position:static;">🍀 불운 +${pityPct}%</span>` : ''}
-      <span class="lh-black-price">${priceHtml}</span>
-      <span class="lh-tier-info" onclick="var h=this.closest('.lh-black-card').querySelector('.lh-tier-help');h.classList.toggle('show');this.classList.toggle('active');event.stopPropagation();">?</span>
+      ${freeCnt > 0 ? `<div class="lh-free-badge">🎟 무료권 ${freeCnt}장</div>` : ''}
+      ${pityPct > 0 ? `<div class="lh-pity-badge">🍀 불운 +${pityPct}%</div>` : ''}
     </div>
+    <div class="lh-tier-nameline">
+      <span class="lh-tier-name lh-black-name">블랙 복권</span>
+      <span class="lh-tier-info" onclick="var h=this.closest('.lh-tier-card').querySelector('.lh-tier-help');document.querySelectorAll('.lh-tier-help.show').forEach(function(x){if(x!==h)x.classList.remove('show');});document.querySelectorAll('.lh-tier-info.active').forEach(function(b){if(b!==this)b.classList.remove('active');}.bind(this));h.classList.toggle('show');this.classList.toggle('active');event.stopPropagation();">?</span>
+    </div>
+    <div class="lh-tier-price">${priceHtml}</div>
     <div class="lh-black-potrow">
       <span class="lh-black-potlbl">🖤 블랙 팟 <i class="blk-live-dot"></i></span>
       <span class="lh-black-potamt"><b class="blk-pot-live">${_blackPotAmt.toLocaleString('en-US')}</b> G</span>
-      <span class="lh-black-potsub">모든 구매금의 10% 실시간 적립</span>
+      <span class="lh-black-potsub">구매금 10% 실시간 적립</span>
     </div>
-    <div class="lh-black-desc">행운 문양과 같은 그림 1개면 그 칸 당첨금! 8칸 전부 다른 문양 · 💀 2칸 · 최고 <b>50,000G</b></div>
+    ${attemptHtml}
     <div class="lh-tier-help">
-      <div class="lh-tier-help-desc">스피또식 · 행운문양 1 + 나의문양 8칸(4×2) · 가격 700G</div>
+      <div class="lh-tier-help-desc">스피또식 · 행운문양 1 + 나의문양 8칸(4×2) · 8칸 전부 다른 문양 · 💀 2칸 · 최고 <b>50,000G</b></div>
       <div class="scard-help-row"><span class="scard-help-icon">🎯</span><span>왼쪽 <b>행운 문양</b>을 긁고, 나의 문양 8칸에서 <b>같은 그림 1개</b>를 찾으면 그 칸의 당첨금!</span></div>
-      <div class="scard-help-row"><span class="scard-help-icon">🍀</span><span>낮은 확률(1.5%)로 <b style="color:#ff9ad5;">해피 블랙</b>으로 변신 — 당첨 시 <b>칸 당첨금 + 블랙 팟 전액</b>!</span></div>
+      <div class="scard-help-row"><span class="scard-help-icon">🍀</span><span>낮은 확률로 <b style="color:#ff9ad5;">해피 블랙</b>으로 변신 — 당첨 시 <b>칸 당첨금 + 블랙 팟 전액</b>!</span></div>
       <div class="scard-help-row"><span class="scard-help-icon">💀</span><span>해골 2칸 — 노출당 <b>-${BLACK_TIER.skullPenalty}G</b>. 당첨을 찾았으면 <b>그만 긁는 게 이득!</b></span></div>
       <div class="scard-help-row"><span class="scard-help-icon">🖤</span><span>블랙 팟은 <b>전 팀원 공유</b> — 누군가 해피 블랙에 당첨되면 전액 지급되고 0부터 다시 적립돼요.</span></div>
       <div class="scard-help-row"><span class="scard-help-icon">🍀</span><span><b>불운 스택</b> — 꽝 +1%p·해골 +0.5%p씩 다음 당첨 확률↑, 당첨 시 초기화(최대 +${LOTTERY_PITY_CAP}%p).</span></div>
@@ -30041,21 +30048,25 @@ function _injectBlackScratchCss(){
   .blk-cft{position:fixed;top:-12px;width:9px;height:14px;z-index:2710;pointer-events:none;border-radius:2px;}
   @keyframes blkFall{to{transform:translateY(104vh) rotate(720deg);opacity:.2;}}
   /* ── 허브 블랙 쇼케이스 카드 ── */
-  .lh-black-card{position:relative;margin-bottom:14px;padding:12px 14px;border-radius:12px;cursor:pointer;background:linear-gradient(165deg,#101014 0%,#050506 100%);border:1px solid #2e2e38;box-shadow:inset 0 1px 0 rgba(255,255,255,.04);transition:transform .15s,box-shadow .15s;}
-  .lh-black-card:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.5),0 0 0 1px rgba(232,200,74,.25);}
+  /* 블랙 복권 카드 = 다른 티어 카드(.lh-tier-card)와 동일한 가로 행 형태. 다크 테마·블랙팟만 고유 */
+  .lh-black-card{position:relative;margin-bottom:14px;padding:12px 15px;border-radius:12px;cursor:pointer;background:linear-gradient(165deg,#101014 0%,#050506 100%);border:1px solid #2e2e38;box-shadow:inset 0 1px 0 rgba(255,255,255,.04);transition:transform .15s,box-shadow .15s;display:flex;flex-flow:row wrap;align-items:center;text-align:left;gap:4px 7px;}
+  .lh-black-card:hover:not(.disabled){transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.5),0 0 0 1px rgba(232,200,74,.25);background:linear-gradient(165deg,#141419 0%,#070709 100%);}
   .lh-black-card.disabled{opacity:.55;cursor:default;}
   .lh-black-card::before{content:"";position:absolute;left:12px;right:12px;top:0;height:2px;border-radius:2px;background:linear-gradient(90deg,transparent,#8f8f9e,transparent);opacity:.5;}
-  .lh-black-top{display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
-  .lh-black-name{font-family:'Black Han Sans',sans-serif;font-size:17px;background:linear-gradient(180deg,#fff 0%,#dcdce6 40%,#8f8f9e 58%,#ececf4 72%,#b4b4c4 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
-  .lh-black-tierchip{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:8px;letter-spacing:1.5px;color:#83838f;border:1px solid #34343e;border-radius:20px;padding:2px 6px;}
-  .lh-black-price{margin-left:auto;font-size:15px;font-weight:800;color:#ffe58a;}
-  .lh-black-potrow{display:flex;align-items:baseline;gap:8px;margin-top:8px;padding:7px 10px;border-radius:9px;background:rgba(232,200,74,.05);border:1px solid rgba(232,200,74,.16);flex-wrap:wrap;}
+  .lh-black-card .lh-tier-badges{display:contents;}
+  .lh-black-card .lh-tier-nameline{order:1;flex:0 1 auto;justify-content:flex-start;min-width:0;}
+  .lh-black-name{font-family:'Black Han Sans',sans-serif;font-size:15px;background:linear-gradient(180deg,#fff 0%,#dcdce6 40%,#8f8f9e 58%,#ececf4 72%,#b4b4c4 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;}
+  .lh-black-tierchip{order:2;align-self:center;font-family:'JetBrains Mono',monospace;font-weight:800;font-size:7.5px;letter-spacing:1px;color:#83838f;border:1px solid #34343e;border-radius:20px;padding:2px 5px;}
+  .lh-black-card .lh-free-badge{order:2;font-size:8px;padding:2px 5px;}
+  .lh-black-card .lh-pity-badge{order:2;font-size:8px;padding:2px 5px;letter-spacing:0;}
+  .lh-black-card .lh-tier-price{order:2;margin:0 0 0 auto;padding:0;font-size:21px;font-weight:800;line-height:1;color:#ffe58a;}
+  .lh-black-card .lh-black-potrow{order:3;flex-basis:100%;margin-top:5px;}
+  .lh-black-card .lh-tier-attempts{order:4;flex-basis:100%;text-align:left;}
+  .lh-black-card .lh-tier-help{order:5;flex-basis:100%;margin-top:6px;}
+  .lh-black-potrow{display:flex;align-items:baseline;gap:8px;padding:7px 10px;border-radius:9px;background:rgba(232,200,74,.05);border:1px solid rgba(232,200,74,.16);flex-wrap:wrap;}
   .lh-black-potlbl{font-size:11px;font-weight:800;color:#cfccdc;}
-  .lh-black-potamt{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:17px;color:#ffe58a;text-shadow:0 0 12px rgba(232,200,74,.3);}
+  .lh-black-potamt{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:16px;color:#ffe58a;text-shadow:0 0 12px rgba(232,200,74,.3);}
   .lh-black-potsub{font-size:9.5px;color:#767284;margin-left:auto;}
-  .lh-black-desc{margin-top:7px;font-size:10.5px;line-height:1.5;color:#9a96a8;}
-  .lh-black-desc b{color:#ffe58a;}
-  .lh-black-card .lh-tier-help{margin-top:8px;}
   /* ── 모바일 ── */
   @media (max-width:480px){
     .blk-modal{max-width:100%;}
