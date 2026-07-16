@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>블랙 복권 · 스피또 목업</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;700;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --gold:#e8c84a;
+    --gold-lt:#ffe58a;
+    --gold-dim:#b9932e;
+    --bg0:#050506;
+    --bg1:#0b0b0f;
+    --card:#111116;
+    --line:#2a2a33;
+    --win:#ffd84a;
+    --lose:#6b6b76;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Noto Sans KR',sans-serif;
+    background:
+      radial-gradient(120% 80% at 50% -10%, #17131f 0%, transparent 55%),
+      radial-gradient(90% 60% at 50% 110%, #1a1508 0%, transparent 55%),
+      var(--bg0);
+    color:#f3f0e8;
+    min-height:100vh;
+    display:flex;flex-direction:column;align-items:center;
+    padding:18px 12px 40px;
+    overflow-x:hidden;
+  }
+  /* faint hex texture */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;opacity:.05;z-index:0;
+    background-image:
+      linear-gradient(60deg, transparent 47%, var(--gold) 49%, transparent 51%),
+      linear-gradient(-60deg, transparent 47%, var(--gold) 49%, transparent 51%);
+    background-size:34px 60px;
+  }
+  .wrap{width:100%;max-width:480px;position:relative;z-index:1;}
+
+  /* ---- header ---- */
+  .head{text-align:center;margin-bottom:14px;}
+  .kicker{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:11px;letter-spacing:3px;color:var(--gold-dim);}
+  .title{
+    font-family:'Black Han Sans',sans-serif;font-size:40px;line-height:1;margin:4px 0 2px;
+    background:linear-gradient(180deg,#fff 0%, var(--gold-lt) 45%, var(--gold) 70%, var(--gold-dim) 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+    filter:drop-shadow(0 2px 6px rgba(232,200,74,.25));
+    letter-spacing:1px;
+  }
+  .sub{font-size:12px;color:#a9a49a;}
+  .sub b{color:var(--gold-lt);}
+
+  /* ---- ticket ---- */
+  .ticket{
+    background:linear-gradient(160deg,#15141b 0%, #0c0b10 100%);
+    border:1px solid #34302a;
+    border-radius:18px;
+    padding:16px 14px 18px;
+    box-shadow:0 18px 40px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.04);
+    position:relative;
+  }
+  .ticket::after{ /* gold hairline top */
+    content:"";position:absolute;left:14px;right:14px;top:0;height:2px;border-radius:2px;
+    background:linear-gradient(90deg,transparent, var(--gold), transparent);opacity:.55;
+  }
+  .rule{
+    font-size:12px;line-height:1.5;color:#c7c2b8;background:rgba(232,200,74,.06);
+    border:1px solid rgba(232,200,74,.18);border-radius:10px;padding:8px 10px;margin-bottom:14px;
+  }
+  .rule b{color:var(--gold-lt);}
+
+  /* play area */
+  .play{display:flex;gap:12px;align-items:stretch;}
+
+  /* target column */
+  .target-col{display:flex;flex-direction:column;align-items:center;flex:0 0 auto;}
+  .target-lbl{
+    font-family:'Black Han Sans',sans-serif;font-size:12px;color:var(--gold-lt);
+    letter-spacing:1px;margin-bottom:6px;text-align:center;line-height:1.15;
+  }
+  .target-cell{width:94px;flex:1;min-height:150px;}
+
+  /* grid */
+  .grid{
+    flex:1;min-width:0;display:grid;
+    grid-template-columns:repeat(4,1fr);
+    grid-template-rows:repeat(2,1fr);
+    gap:8px;
+  }
+
+  /* generic scratch cell */
+  .cell{
+    position:relative;border-radius:12px;overflow:hidden;
+    background:linear-gradient(160deg,#1c1b22 0%, #101015 100%);
+    border:1px solid var(--line);
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.4);
+    aspect-ratio:1/1;
+    user-select:none;
+  }
+  .cell.target-cell{aspect-ratio:auto;border-color:rgba(232,200,74,.5);box-shadow:0 0 0 1px rgba(232,200,74,.25),inset 0 0 24px rgba(232,200,74,.06);}
+
+  .face{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2px;padding:4px;text-align:center;
+  }
+  .face .sym{font-size:30px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));}
+  .target-cell .face .sym{font-size:44px;}
+  .face .prize{
+    font-family:'JetBrains Mono',monospace;font-weight:800;font-size:11px;
+    color:var(--gold-lt);letter-spacing:-.3px;
+  }
+  .cell.hit .face{background:radial-gradient(circle at 50% 45%, rgba(255,216,74,.22), transparent 70%);}
+  .cell.hit{border-color:var(--win);box-shadow:0 0 14px rgba(255,216,74,.55),0 0 0 1px var(--win);animation:hitPulse 1.3s ease-in-out infinite;}
+  @keyframes hitPulse{0%,100%{box-shadow:0 0 10px rgba(255,216,74,.4),0 0 0 1px var(--win);}50%{box-shadow:0 0 20px rgba(255,216,74,.75),0 0 0 1px var(--win);}}
+
+  canvas.cover{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:pointer;transition:opacity .35s ease;touch-action:none;}
+  canvas.cover.gone{opacity:0;pointer-events:none;}
+
+  /* result + controls */
+  .result{
+    margin-top:16px;min-height:26px;text-align:center;font-weight:900;font-size:20px;
+    letter-spacing:.5px;transition:.2s;
+  }
+  .result.win{color:var(--win);text-shadow:0 0 18px rgba(255,216,74,.5);}
+  .result.lose{color:var(--lose);}
+  .result .amt{font-family:'JetBrains Mono',monospace;}
+
+  .actions{display:flex;gap:8px;margin-top:14px;}
+  .btn{
+    flex:1;padding:12px;border-radius:12px;border:1px solid var(--line);
+    background:#17171d;color:#e9e5db;font-family:'Noto Sans KR',sans-serif;font-weight:700;font-size:14px;
+    cursor:pointer;transition:.15s;
+  }
+  .btn:active{transform:translateY(1px);}
+  .btn.primary{background:linear-gradient(180deg,var(--gold-lt),var(--gold));color:#241c05;border-color:var(--gold);box-shadow:0 6px 16px rgba(232,200,74,.25);}
+  .btn.ghost{background:transparent;}
+
+  /* dev bar */
+  .dev{
+    margin-top:20px;display:flex;flex-wrap:wrap;gap:6px;justify-content:center;
+    padding-top:14px;border-top:1px dashed #2c2c34;
+  }
+  .dev-lbl{width:100%;text-align:center;font-size:10px;letter-spacing:1px;color:#6c6c76;margin-bottom:2px;font-family:'JetBrains Mono',monospace;}
+  .chip{
+    padding:7px 12px;border-radius:20px;border:1px solid #33333c;background:#141419;color:#b9b5ab;
+    font-size:12px;font-weight:700;cursor:pointer;transition:.15s;
+  }
+  .chip:active{transform:scale(.96);}
+  .chip.on{background:rgba(232,200,74,.14);border-color:var(--gold);color:var(--gold-lt);}
+
+  .note{margin-top:16px;font-size:11px;line-height:1.55;color:#7d7970;text-align:center;}
+  .note code{background:#1a1a20;padding:1px 5px;border-radius:4px;color:#c9c4ba;font-family:'JetBrains Mono',monospace;}
+
+  /* confetti */
+  .cft{position:fixed;top:-12px;width:9px;height:14px;z-index:50;pointer-events:none;border-radius:2px;}
+  @keyframes fall{to{transform:translateY(104vh) rotate(720deg);opacity:.2;}}
+
+  @media (max-width:390px){
+    .target-cell{width:80px;}
+    .face .sym{font-size:26px;}
+    .target-cell .face .sym{font-size:38px;}
+    .title{font-size:34px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="kicker">SCRATCH · TIER 4</div>
+    <div class="title">블랙 복권</div>
+    <div class="sub">프리즘 다음 등급 · <b>스피또(즉석) 방식</b></div>
+  </div>
+
+  <div class="ticket">
+    <div class="rule">
+      왼쪽 <b>「당첨 문양」</b>을 긁고, 오른쪽 <b>8칸</b>을 하나씩 긁어요.<br>
+      당첨 문양과 <b>같은 그림이 1개라도</b> 나오면 그 칸의 <b>당첨금</b>을 받습니다!
+    </div>
+
+    <div class="play">
+      <div class="target-col">
+        <div class="target-lbl">당첨<br>문양</div>
+        <div class="cell target-cell" id="target"></div>
+      </div>
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <div class="result" id="result"></div>
+
+    <div class="actions">
+      <button class="btn ghost" id="reveal">👆 전체 긁기</button>
+      <button class="btn primary" id="again">🔄 새 복권</button>
+    </div>
+  </div>
+
+  <div class="dev">
+    <div class="dev-lbl">— 목업 데모 컨트롤 —</div>
+    <button class="chip on" data-force="rand">🎲 랜덤</button>
+    <button class="chip" data-force="win">✅ 당첨 강제</button>
+    <button class="chip" data-force="lose">❌ 꽝 강제</button>
+    <button class="chip" id="mute">🔊 소리</button>
+  </div>
+
+  <div class="note">
+    구조: 당첨문양 1칸 + 긁기 8칸(4×2) · 각 칸 = 문양 + 당첨금<br>
+    ⚠️ 당첨금·확률은 <b>플레이스홀더</b>입니다(EV 밸런싱은 통합 단계에서).<br>
+    예시 이미지 주시면 레이아웃·문양·색감 맞춰 다듬을게요.
+  </div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  // ---- 문양 세트 (블랙 = 프리미엄 톤) ----
+  const SYMBOLS = [
+    {id:'clover',  e:'🍀', c:'#5fe3a1'},
+    {id:'sword',   e:'⚔️', c:'#cbd5e1'},
+    {id:'moon',    e:'🌙', c:'#b48aff'},
+    {id:'shield',  e:'🛡️', c:'#7cc4ff'},
+    {id:'star',    e:'⭐', c:'#ffe040'},
+    {id:'flame',   e:'🔥', c:'#ff7a3c'},
+    {id:'diamond', e:'💎', c:'#5ad1ff'},
+    {id:'crown',   e:'👑', c:'#ffcf3f'},
+  ];
+  // 당첨금 풀 (플레이스홀더 · 블랙 = 프리즘 위 등급)
+  const PRIZE_POOL = [
+    {v:500,   w:30},
+    {v:800,   w:22},
+    {v:1200,  w:15},
+    {v:2000,  w:11},
+    {v:3500,  w:8},
+    {v:5000,  w:6},
+    {v:8000,  w:4},
+    {v:15000, w:2.5},
+    {v:50000, w:1.5}, // 잭팟
+  ];
+
+  let forceMode = 'rand';
+  let muted = true;
+  let ticket = null;
+  let revealedCount = 0;
+  const TOTAL_CELLS = 9; // 타깃 1 + 8
+
+  // ---- helpers ----
+  const $ = s => document.querySelector(s);
+  const rand = arr => arr[Math.floor(Math.random()*arr.length)];
+  const fmt = n => n.toLocaleString('en-US') + 'G';
+  function pickPrize(){
+    const tot = PRIZE_POOL.reduce((a,p)=>a+p.w,0);
+    let r = Math.random()*tot;
+    for(const p of PRIZE_POOL){ if((r-=p.w)<=0) return p.v; }
+    return PRIZE_POOL[0].v;
+  }
+
+  // ---- 티켓 굴리기 ----
+  function rollTicket(force){
+    const target = rand(SYMBOLS);
+    const others = SYMBOLS.filter(s=>s.id!==target.id);
+    let win;
+    if(force==='win') win = true;
+    else if(force==='lose') win = false;
+    else win = Math.random() < 0.42;
+
+    const cells = [];
+    for(let i=0;i<8;i++){
+      cells.push({ sym: rand(others), prize: pickPrize() });
+    }
+    let winCell = -1;
+    if(win){
+      winCell = Math.floor(Math.random()*8);
+      cells[winCell].sym = target;
+    }
+    return { target, cells, win, winCell };
+  }
+
+  // ---- 은박 커버 그리기 ----
+  function drawCover(ctx, w, h){
+    const g = ctx.createLinearGradient(0,0,w,h);
+    g.addColorStop(0,'#2a2a31'); g.addColorStop(.5,'#16161c'); g.addColorStop(1,'#0c0c11');
+    ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+    // 대각 골드 광택
+    const s = ctx.createLinearGradient(0,0,w,h);
+    s.addColorStop(.34,'rgba(232,200,74,0)');
+    s.addColorStop(.5,'rgba(232,200,74,.12)');
+    s.addColorStop(.66,'rgba(232,200,74,0)');
+    ctx.fillStyle = s; ctx.fillRect(0,0,w,h);
+    // 미세 반짝임
+    const dots = Math.max(10, (w*h)/720|0);
+    for(let i=0;i<dots;i++){
+      ctx.fillStyle = Math.random()<.5 ? 'rgba(255,255,255,.05)' : 'rgba(232,200,74,.09)';
+      ctx.fillRect(Math.random()*w, Math.random()*h, 1, 1);
+    }
+    // 흐린 ? 각인
+    ctx.fillStyle = 'rgba(232,200,74,.16)';
+    ctx.font = `700 ${Math.min(w,h)*0.42}px 'Black Han Sans', sans-serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('?', w/2, h/2+1);
+  }
+
+  // ---- 스크래치 부착 ----
+  function attachScratch(canvas, onReveal){
+    const ctx = canvas.getContext('2d', { willReadFrequently:true });
+    let dpr = Math.min(window.devicePixelRatio||1, 2);
+    let cw=0, ch=0, revealed=false, drawing=false, lastCheck=0;
+
+    function setup(){
+      const r = canvas.getBoundingClientRect();
+      cw = r.width; ch = r.height;
+      canvas.width = Math.round(cw*dpr);
+      canvas.height = Math.round(ch*dpr);
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      drawCover(ctx, cw, ch);
+    }
+
+    function erase(x,y){
+      const rad = Math.max(9, Math.min(cw,ch)*0.20);
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.beginPath(); ctx.arc(x,y,rad,0,Math.PI*2); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    function pos(e){
+      const r = canvas.getBoundingClientRect();
+      return { x:(e.clientX-r.left), y:(e.clientY-r.top) };
+    }
+    function checkReveal(){
+      const now = performance.now();
+      if(now-lastCheck < 90) return; lastCheck = now;
+      const img = ctx.getImageData(0,0,canvas.width,canvas.height).data;
+      let clear=0, tot=0;
+      for(let i=3;i<img.length;i+=40){ tot++; if(img[i]<40) clear++; }
+      if(tot && clear/tot > 0.5) reveal();
+    }
+    function reveal(){
+      if(revealed) return; revealed=true;
+      canvas.classList.add('gone');
+      onReveal && onReveal();
+      tick();
+    }
+
+    canvas.addEventListener('pointerdown', e=>{
+      if(revealed) return;
+      drawing=true; canvas.setPointerCapture(e.pointerId);
+      const p=pos(e); erase(p.x,p.y); scratchSound();
+    });
+    canvas.addEventListener('pointermove', e=>{
+      if(!drawing||revealed) return;
+      const p=pos(e); erase(p.x,p.y); checkReveal(); scratchSound();
+    });
+    const stop = ()=>{ drawing=false; };
+    canvas.addEventListener('pointerup', stop);
+    canvas.addEventListener('pointercancel', stop);
+    canvas.addEventListener('pointerleave', ()=>{ if(drawing) checkReveal(); });
+
+    requestAnimationFrame(setup);
+    return { reveal, isRevealed:()=>revealed };
+  }
+
+  // ---- 사운드 (가벼운 긁는 소리) ----
+  let actx=null, lastSnd=0;
+  function scratchSound(){
+    if(muted) return;
+    const now = performance.now();
+    if(now-lastSnd < 45) return; lastSnd = now;
+    try{
+      actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+      const dur=0.04, sr=actx.sampleRate, buf=actx.createBuffer(1,sr*dur,sr), d=buf.getChannelData(0);
+      for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*0.25*(1-i/d.length);
+      const src=actx.createBufferSource(); src.buffer=buf;
+      const g=actx.createGain(); g.gain.value=0.5;
+      src.connect(g); g.connect(actx.destination); src.start();
+    }catch(e){}
+  }
+  function winSound(){
+    if(muted) return;
+    try{
+      actx = actx || new (window.AudioContext||window.webkitAudioContext)();
+      [523,659,784,1047].forEach((f,i)=>{
+        const o=actx.createOscillator(), g=actx.createGain();
+        o.type='triangle'; o.frequency.value=f;
+        const t=actx.currentTime+i*0.09;
+        g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.18,t+0.02); g.gain.exponentialRampToValueAtTime(0.001,t+0.3);
+        o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t+0.32);
+      });
+    }catch(e){}
+  }
+
+  // ---- 렌더 ----
+  const cells = []; // {el, face, scr, data}
+  let targetScr = null;
+
+  function buildBoard(){
+    revealedCount = 0;
+    cells.length = 0;
+    const grid = $('#grid'); grid.innerHTML='';
+    const tEl = $('#target'); tEl.innerHTML='';
+    $('#result').className='result'; $('#result').textContent='';
+
+    // target
+    tEl.innerHTML = `<div class="face"><div class="sym">${ticket.target.e}</div></div><canvas class="cover"></canvas>`;
+    targetScr = attachScratch(tEl.querySelector('canvas'), tick);
+
+    // 8 cells
+    ticket.cells.forEach((c,i)=>{
+      const el = document.createElement('div');
+      el.className='cell'; el.dataset.i=i;
+      el.innerHTML = `<div class="face"><div class="sym">${c.sym.e}</div><div class="prize">${fmt(c.prize)}</div></div><canvas class="cover"></canvas>`;
+      grid.appendChild(el);
+      const scr = attachScratch(el.querySelector('canvas'), tick);
+      cells.push({ el, scr, data:c, idx:i });
+    });
+  }
+
+  function tick(){
+    // count revealed
+    let cnt = (targetScr && targetScr.isRevealed()) ? 1 : 0;
+    cells.forEach(c=>{ if(c.scr.isRevealed()) cnt++; });
+    revealedCount = cnt;
+    if(cnt >= TOTAL_CELLS) setTimeout(showResult, 350);
+  }
+
+  function showResult(){
+    const rEl = $('#result');
+    if(rEl.dataset.done==='1') return;
+    rEl.dataset.done='1';
+    if(ticket.win){
+      const c = cells[ticket.winCell];
+      c.el.classList.add('hit');
+      $('#target').classList.add('hit');
+      rEl.className='result win';
+      rEl.innerHTML = `🎉 당첨! <span class="amt">${fmt(c.data.prize)}</span>`;
+      winSound(); confetti();
+    }else{
+      rEl.className='result lose';
+      rEl.textContent = '아쉽네요… 다음 기회에!';
+    }
+  }
+
+  function revealAll(){
+    if(targetScr) targetScr.reveal();
+    cells.forEach(c=>c.scr.reveal());
+  }
+
+  function confetti(){
+    const cols=['#ffd84a','#ffe58a','#fff','#e8c84a','#b48aff'];
+    for(let i=0;i<70;i++){
+      const d=document.createElement('div');
+      d.className='cft';
+      d.style.left=Math.random()*100+'vw';
+      d.style.background=cols[i%cols.length];
+      d.style.animation=`fall ${1.6+Math.random()*1.6}s linear ${Math.random()*0.4}s forwards`;
+      document.body.appendChild(d);
+      setTimeout(()=>d.remove(),3600);
+    }
+  }
+
+  function newTicket(){
+    ticket = rollTicket(forceMode);
+    $('#result').dataset.done='0';
+    buildBoard();
+  }
+
+  // ---- events ----
+  $('#again').addEventListener('click', newTicket);
+  $('#reveal').addEventListener('click', revealAll);
+  document.querySelectorAll('.chip[data-force]').forEach(ch=>{
+    ch.addEventListener('click', ()=>{
+      document.querySelectorAll('.chip[data-force]').forEach(c=>c.classList.remove('on'));
+      ch.classList.add('on');
+      forceMode = ch.dataset.force;
+      newTicket();
+    });
+  });
+  $('#mute').addEventListener('click', function(){
+    muted = !muted;
+    this.textContent = muted ? '🔇 음소거' : '🔊 소리';
+    this.classList.toggle('on', !muted);
+  });
+
+  // init
+  newTicket();
+})();
+</script>
+</body>
+</html>
