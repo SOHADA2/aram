@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.584';
+const APP_VERSION = 'v2.45.585';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.584';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.585', date: '2026-07-16', changes: [
+    { tag: 'fix', text: '🖤 블랙 복권 「이만 확인」 버튼 제거 — 「버리기」와 역할이 겹치고 오히려 더 손해라(꽝 시 이미 노출된 해골 감점) 헷갈렸어요. 블랙 복권은 매치가 나오는 순간 자동으로 당첨 확정되고 남은 칸(해골)은 안 긁히니 별도 확인 버튼이 필요 없어요. 이제 긁는 중엔 「🗑 버리기」만 있어요.' },
+  ] },
   { ver: 'v2.45.584', date: '2026-07-16', changes: [
     { tag: 'improve', text: '🖤 블랙 복권 다듬기 — ① 블랙팟 변신 확률 1.5%→10%로 상향(구매 10%가 블랙팟 복권으로 변신), 변신 후 당첨 확률은 1%(=팟 전액). ② 블랙팟 복권은 각 칸에 개별 당첨금 대신 「적립금(팟)」이 표시돼요. ③ 변신 시 확실히 느껴지도록 화면 플래시 + 방사 파티클 + 「🍀 블랙팟!」 스탬프 + 상승 효과음 연출 추가.' },
     { tag: 'improve', text: '🖤 블랙 복권 긁는 느낌을 다른 복권과 완전히 똑같이 — 실제 은박 벗겨지는 긁기(가루 파티클·긁는 효과음·햅틱·반짝임·동전 커서/터치 팔로워·가운데 문양 공개 판정)로 통일. 🖌️ 긁개 도구(만능·광역)도 블랙 복권에서 동일하게 적용되고, 복권 창 안에서 바로 장착/해제/구매할 수 있어요.' },
@@ -30144,15 +30147,14 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
         <div class="blk-seek" id="blk-seek"></div>
         <div class="blk-method">
           ${result.happy
-            ? `<b>🍀 블랙팟 복권!</b> · 행운 문양과 같은 나의 문양이 <b>1개라도</b> 나오면 <b style="color:#ff9ad5;">블랙 팟 전액</b> 획득! <span class="warn">💀 -${BLACK_TIER.skullPenalty}G</span>`
-            : `<b>게임방법</b> · 행운 문양과 같은 나의 문양이 <b>1개라도</b> 나오면 그 칸의 당첨금! <span class="warn">💀 노출 시 -${BLACK_TIER.skullPenalty}G</span> — 당첨을 찾았으면 <b>그만 긁는 게 이득</b>`}
+            ? `<b>🍀 블랙팟 복권!</b> · 행운 문양과 같은 나의 문양이 <b>1개라도</b> 나오면 <b style="color:#ff9ad5;">블랙 팟 전액</b> 획득! 나오는 순간 자동 확정돼요. <span class="warn">💀 -${BLACK_TIER.skullPenalty}G</span>`
+            : `<b>게임방법</b> · 행운 문양과 같은 나의 문양이 <b>1개라도</b> 나오면 그 칸의 당첨금! <b>나오는 순간 자동 확정</b>돼서 남은 칸(해골)은 안 긁혀요. <span class="warn">💀 노출 시 -${BLACK_TIER.skullPenalty}G</span>`}
         </div>
         <div class="blk-result" id="blk-result"></div>
         ${_bkEquipHtml}
       </div>
       <div class="blk-actions" id="blk-actions">
         <button class="blk-btn danger" id="blk-discard">🗑 버리기</button>
-        <button class="blk-btn" id="blk-early" disabled>🖐 이만 확인</button>
       </div>
     </div>`;
   const _prevOverflow = document.body.style.overflow;
@@ -30327,7 +30329,6 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
     const c = result.slots[i];
     if (c.skull){ cellEls[i].classList.add('skull-hit'); if(!silent){ _sndBuzz(); try{ navigator.vibrate?.(60); }catch(_){} } }
     else if (state.targetRevealed && c.sym.id===result.target.id){ cellEls[i].classList.add('hit'); if(!silent) _tone([784]); }
-    overlay.querySelector('#blk-early')?.removeAttribute('disabled');
     saveAside(); checkAuto();
   }
   function revealedSkulls(){ let n=0; result.slots.forEach((c,i)=>{ if(c.skull && scr[i]?.isRevealed()) n++; }); return n; }
@@ -30429,10 +30430,6 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
       showS1Toast?.('🗑 복권을 버렸어요');
       window.openLotteryHub?.();
     };
-  };
-  overlay.querySelector('#blk-early').onclick = () => {   // 🖐 남은 칸 포기하고 종료(해골 회피 전략)
-    if (finished) return;
-    finalize(result.slots.findIndex((c,i)=>!c.skull && state.targetRevealed && c.sym.id===result.target.id && scr[i]?.isRevealed()));
   };
   const _closeOrAside = () => {
     if (finished){ _cleanup(); overlay.remove(); return; }
