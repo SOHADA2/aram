@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.585';
+const APP_VERSION = 'v2.45.586';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.585';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.586', date: '2026-07-16', changes: [
+    { tag: 'fix', text: '🖤 블랙 복권에서도 🖌️ 광역 긁개가 제대로 작동해요 — 예전엔 칸(문양) 부분만 긁혔는데, 이제 다른 복권처럼 칸 사이 배경까지 하나의 은박으로 덮여서 한 번 쭉 그으면 여러 칸이 함께 긁혀요. (배경 은박 캔버스 이식 · 광역 긁개 장착/해제 시 실시간 적용)' },
+  ] },
   { ver: 'v2.45.585', date: '2026-07-16', changes: [
     { tag: 'fix', text: '🖤 블랙 복권 「이만 확인」 버튼 제거 — 「버리기」와 역할이 겹치고 오히려 더 손해라(꽝 시 이미 노출된 해골 감점) 헷갈렸어요. 블랙 복권은 매치가 나오는 순간 자동으로 당첨 확정되고 남은 칸(해골)은 안 긁히니 별도 확인 버튼이 필요 없어요. 이제 긁는 중엔 「🗑 버리기」만 있어요.' },
   ] },
@@ -29995,8 +29998,9 @@ function _injectBlackScratchCss(){
   .blk-col-lbl.lucky{color:#ffe58a;} .blk-col-lbl.mine{color:#a9c4e8;}
   .blk-target{width:86px;flex:1;min-height:150px;}
   .blk-gridwrap{flex:1;min-width:0;display:flex;flex-direction:column;}
-  .blk-grid{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);gap:7px;flex:1;}
-  .blk-cell{position:relative;border-radius:11px;overflow:hidden;background:linear-gradient(160deg,#17171c 0%,#0b0b0f 100%);border:1px solid #232329;box-shadow:inset 0 0 0 1px rgba(0,0,0,.4);aspect-ratio:1/1;user-select:none;min-width:0;}
+  .blk-grid{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(2,1fr);gap:7px;flex:1;position:relative;}
+  .blk-bg-canvas{position:absolute;inset:0;width:100%;height:100%;z-index:1;border-radius:11px;display:none;pointer-events:none;touch-action:none;}
+  .blk-cell{position:relative;z-index:2;border-radius:11px;overflow:hidden;background:linear-gradient(160deg,#17171c 0%,#0b0b0f 100%);border:1px solid #232329;box-shadow:inset 0 0 0 1px rgba(0,0,0,.4);aspect-ratio:1/1;user-select:none;min-width:0;}
   .blk-cell.blk-target{aspect-ratio:auto;border-color:rgba(232,200,74,.5);box-shadow:0 0 0 1px rgba(232,200,74,.22),inset 0 0 26px rgba(232,200,74,.06);}
   .blk-face{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:3px;text-align:center;}
   .blk-face .blk-sym{font-size:26px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));}
@@ -30070,11 +30074,11 @@ window.blackScratchPreview = function(o = {}){
   const data = getMyGoldData();
   const r = rollBlackScratch(data, { happy: !!o.happy, ...(o.win != null ? { win: !!o.win } : {}) });
   r.emblemBonus = (r.win && !r.happy) ? _myLottoPrizeBonus(data, 3) : 0;
-  showBlackScratchModal(r, getMyGold?.() || 0, { onComplete: async () => {}, preview: true });
+  showBlackScratchModal(r, getMyGold?.() || 0, { onComplete: async () => {}, preview: true, forceCross: !!o.cross, toolParams: o.cross ? SCRATCH_TOOLS.scratch_cross : null });
 };
 function showBlackScratchModal(result, remainingGold, opts = {}){
   const { toolParams = null, onComplete, onCancel = null, onSetAside = null, onDiscard = null,
-          isResume = false, resumeRevealed = null, resumeTargetRevealed = false, freeTicket = false, preview = false } = opts;
+          isResume = false, resumeRevealed = null, resumeTargetRevealed = false, freeTicket = false, preview = false, forceCross = false } = opts;
   _injectBlackScratchCss();
   _blackPotEnsureSub();
   document.getElementById('black-scratch-overlay')?.remove();
@@ -30086,7 +30090,7 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
   const _bkKeyItem   = !preview ? (getMyGoldData()?.[sField('items')]||[]).find(it=>it.id==='scratch_key')   : null;
   const _bkCrossItem = !preview ? (getMyGoldData()?.[sField('items')]||[]).find(it=>it.id==='scratch_cross') : null;
   const _bkOwnsKey = !!_bkKeyItem;   let _bkKeyOn   = !!(_bkKeyItem   && _bkKeyItem.active);
-  const _bkOwnsCross = !!_bkCrossItem; let _bkCrossOn = !!(_bkCrossItem && _bkCrossItem.active);
+  const _bkOwnsCross = !!_bkCrossItem; let _bkCrossOn = forceCross || !!(_bkCrossItem && _bkCrossItem.active);
   const _bkKeyPrice   = (S1_SHOP_ITEMS.find(s=>s.id==='scratch_key')?.price)   ?? 500;
   const _bkCrossPrice = (S1_SHOP_ITEMS.find(s=>s.id==='scratch_cross')?.price) ?? 500;
   const _bkEquipHtml = preview ? '' : `
@@ -30260,25 +30264,80 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
       if (tot && clr/tot > threshold) reveal();   // 가운데 문양(52%)이 threshold만큼 벗겨지면 공개 (맨손 0.83·만능 0.70)
     }
     function reveal(){ if(revealed) return; revealed=true; canvas.classList.add('gone'); px=py=null; onReveal && onReveal(); }
+    let _xOver=false;
     canvas.addEventListener('pointerdown', e => {
-      if (revealed) return;
+      if (revealed || _bkCrossOn) return;   // 🖌️ 광역 장착 시엔 그리드 드래그가 처리(칸별 스킵)
       _activeBlk = { canvas, stroke, check }; px=py=null;
       const p=pos(e); stroke(p.x,p.y);
     });
+    function cross(e){   // 광역: 드래그가 이 칸 위를 지날 때 긁기
+      if (revealed) return;
+      const r=canvas.getBoundingClientRect();
+      const inside = e.clientX>=r.left && e.clientX<=r.right && e.clientY>=r.top && e.clientY<=r.bottom;
+      if (!inside){ _xOver=false; return; }
+      if (!_xOver){ _xOver=true; px=py=null; }
+      stroke((e.clientX-r.left)*(canvas.width/r.width), (e.clientY-r.top)*(canvas.height/r.height));
+    }
+    function crossEnd(){ _xOver=false; if(!revealed) check(); }
     requestAnimationFrame(setup);
-    return { reveal, isRevealed: () => revealed };
+    return { reveal, isRevealed: () => revealed, canvas, cross, crossEnd };
+  }
+  // 🖌️ 광역 긁개: 배경 은박(칸 사이) + 지나가는 칸이 "한 번에" 긁힘 (기존 복권 scard-bg-canvas 이식)
+  let _bkBg = null, _bkCrossDrag = false;
+  function _bkSetupBg(){
+    const g = overlay.querySelector('#blk-grid'), bc = overlay.querySelector('#blk-bg-canvas');
+    if (!g || !bc) return;
+    if (!_bkBg){
+      const gr = g.getBoundingClientRect();
+      bc.width = Math.max(1, Math.round(gr.width*dpr)); bc.height = Math.max(1, Math.round(gr.height*dpr));
+      const bctx = bc.getContext('2d',{ willReadFrequently:true });
+      drawCover(bctx, bc.width, bc.height);
+      _bkBg = { canvas: bc, ctx: bctx, px:null, py:null };
+    }
+    bc.style.display='block';
+  }
+  function _bkHideBg(){ const bc=overlay.querySelector('#blk-bg-canvas'); if(bc) bc.style.display='none'; }
+  function _bkBgStroke(x,y){
+    if (!_bkBg) return;
+    const base = (scr[0] ? scr[0].canvas.width : _bkBg.canvas.width*0.2);
+    const r = base * SCRATCH_BASE_R * brushMult;
+    const x1=(_bkBg.px==null?x:_bkBg.px), y1=(_bkBg.py==null?y:_bkBg.py), c=_bkBg.ctx;
+    c.globalCompositeOperation='destination-out'; c.lineCap='round'; c.lineJoin='round';
+    c.globalAlpha=1; c.strokeStyle='rgba(0,0,0,1)'; c.fillStyle='rgba(0,0,0,1)'; c.lineWidth=r*2;
+    c.beginPath(); c.moveTo(x1,y1); c.lineTo(x,y); c.stroke();
+    c.globalCompositeOperation='source-over';
+    _bkBg.px=x; _bkBg.py=y;
+    if (Math.random()<.4) _bkDust(_bkBg.canvas, x, y, brushMult);
+    const now=performance.now(); if (now-_bkSndAt>80){ _bkSndAt=now; _lscPlaySound('scratch'); _lotVib(4); }
+  }
+  function _bkCrossAt(e){
+    hasScratched = true;
+    if (_bkBg){ const r=_bkBg.canvas.getBoundingClientRect(); if(e.clientX>=r.left&&e.clientX<=r.right&&e.clientY>=r.top&&e.clientY<=r.bottom) _bkBgStroke((e.clientX-r.left)*(_bkBg.canvas.width/r.width),(e.clientY-r.top)*(_bkBg.canvas.height/r.height)); }
+    scr.forEach(s => s.cross && s.cross(e));
   }
   const _winMove = e => {
-    if (!_activeBlk || !document.body.contains(overlay)) return;
+    if (!document.body.contains(overlay)) return;
+    if (_bkCrossOn && _bkCrossDrag){ _bkCrossAt(e); return; }
+    if (!_activeBlk) return;
     const cv=_activeBlk.canvas, r=cv.getBoundingClientRect();
     if (e.clientX>=r.left-8 && e.clientY>=r.top-8 && e.clientX<=r.right+8 && e.clientY<=r.bottom+8){
       _activeBlk.stroke((e.clientX-r.left)*(cv.width/r.width), (e.clientY-r.top)*(cv.height/r.height));
     }
   };
-  const _winUp = () => { if (_activeBlk){ _activeBlk.check(); _activeBlk = null; } };
+  const _winUp = () => {
+    if (_bkCrossDrag){ _bkCrossDrag=false; if(_bkBg) _bkBg.px=_bkBg.py=null; scr.forEach(s=>s.crossEnd&&s.crossEnd()); }
+    if (_activeBlk){ _activeBlk.check(); _activeBlk = null; }
+  };
   window.addEventListener('pointermove', _winMove);
   window.addEventListener('pointerup', _winUp);
   window.addEventListener('pointercancel', _winUp);
+  // 🖌️ 광역: 그리드 어디서든(칸 사이 여백 포함) 눌러 드래그 시작
+  overlay.querySelector('#blk-grid')?.addEventListener('pointerdown', e => {
+    if (!_bkCrossOn) return;
+    _bkCrossDrag = true; _activeBlk = null; if(_bkBg) _bkBg.px=_bkBg.py=null;
+    try { overlay.querySelector('#blk-grid').setPointerCapture(e.pointerId); } catch(_){}
+    _bkCrossAt(e); e.preventDefault();
+  });
   // 🪙 동전 커서(기존 복권 동일) — PC 커서 / 모바일·펜은 터치 지점에 동전 팔로워
   _injectScardCoinCss();
   const _coinEl = document.createElement('div'); _coinEl.className='scard-coin'; overlay.appendChild(_coinEl);
@@ -30317,6 +30376,9 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
     scr.push(attachScratch(el.querySelector('canvas'), () => onCellReveal(i), pre));
     if (pre) setTimeout(() => onCellReveal(i, true), 80);
   });
+  // 🖌️ 광역 긁개용 배경 은박 캔버스(칸 사이 여백 덮음) — 장착 시 표시
+  const _bgc = document.createElement('canvas'); _bgc.className='blk-bg-canvas'; _bgc.id='blk-bg-canvas'; grid.appendChild(_bgc);
+  if (_bkCrossOn) requestAnimationFrame(() => _bkSetupBg());
   function onTargetReveal(){
     state.targetRevealed = true;
     const seek = overlay.querySelector('#blk-seek');
@@ -30461,6 +30523,7 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
       update(ref(db,'gold/'+k), { [sField('items')]: items }).catch(()=>{});
       if (tid==='scratch_key') _bkKeyOn=on; else _bkCrossOn=on;
       _bkApplyBrush();
+      if (tid==='scratch_cross'){ if (_bkCrossOn) _bkSetupBg(); else _bkHideBg(); }   // 🖌️ 광역 배경 은박 on/off
       btn.textContent = on?'장착 해제':'장착'; btn.classList.toggle('on', on);
       const stt = btn.closest('.scard-equip-row')?.querySelector('.scard-equip-state'); if (stt) stt.textContent = on?'· 장착됨':'· 미장착';
       try { showGoldToast(on ? (tid==='scratch_key'?'🔑 만능 긁개 장착 — 더 쉽게 긁혀요':'🖌️ 광역 긁개 장착 — 브러시가 더 커져요') : (tid==='scratch_key'?'🔑 만능 긁개 해제':'🖌️ 광역 긁개 해제')); } catch(_){}
@@ -30479,6 +30542,7 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
       await update(ref(db,'gold/'+k), upd).catch(()=>{});
       if (tid==='scratch_key') _bkKeyOn=true; else _bkCrossOn=true;
       _bkApplyBrush();
+      if (tid==='scratch_cross') _bkSetupBg();   // 🖌️ 광역 구매·장착 → 배경 은박 표시
       const row = btn.closest('.scard-equip-row'); const nm = tid==='scratch_key'?'🔑 만능 긁개':'🖌️ 광역 긁개';
       if (row) row.innerHTML = `<span class="scard-equip-name">${nm}<span class="scard-equip-state">· 장착됨</span></span><button class="scard-equip-btn on" id="blk-equip-btn-${tid==='scratch_key'?'key':'cross'}">장착 해제</button>`;
       try { showGoldToast(`${tid==='scratch_key'?'🔑 만능':'🖌️ 광역'} 긁개 구매·장착! (-${price}G)`); } catch(_){}
