@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.583';
+const APP_VERSION = 'v2.45.584';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,11 @@ const APP_VERSION = 'v2.45.583';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.584', date: '2026-07-16', changes: [
+    { tag: 'improve', text: '🖤 블랙 복권 다듬기 — ① 블랙팟 변신 확률 1.5%→10%로 상향(구매 10%가 블랙팟 복권으로 변신), 변신 후 당첨 확률은 1%(=팟 전액). ② 블랙팟 복권은 각 칸에 개별 당첨금 대신 「적립금(팟)」이 표시돼요. ③ 변신 시 확실히 느껴지도록 화면 플래시 + 방사 파티클 + 「🍀 블랙팟!」 스탬프 + 상승 효과음 연출 추가.' },
+    { tag: 'improve', text: '🖤 블랙 복권 긁는 느낌을 다른 복권과 완전히 똑같이 — 실제 은박 벗겨지는 긁기(가루 파티클·긁는 효과음·햅틱·반짝임·동전 커서/터치 팔로워·가운데 문양 공개 판정)로 통일. 🖌️ 긁개 도구(만능·광역)도 블랙 복권에서 동일하게 적용되고, 복권 창 안에서 바로 장착/해제/구매할 수 있어요.' },
+    { tag: 'fix', text: '🖤 블랙팟 변신 티켓은 불운 스택과 별개(잭팟 별도 트랙)로 처리 — 팟 지급 빈도는 약 1/1,000장, 평균 팟 규모는 훨씬 커졌어요(회수율은 여전히 <100%로 인플레 없음, 시뮬 3백만장 검증).' },
+  ] },
   { ver: 'v2.45.583', date: '2026-07-16', changes: [
     { tag: 'new', text: '🖤 블랙 복권 신설(TIER 4·700G) — 프리즘 위 등급의 스피또식 복권! 왼쪽 행운 문양을 긁고, 나의 문양 8칸(전부 다른 그림)에서 같은 그림 1개를 찾으면 그 칸의 당첨금(최고 50,000G). 💀 해골 2칸(노출당 -20G)이라 당첨 찾으면 그만 긁는 게 이득. 복권 Hub 3티어 아래 전용 카드로 진입(PC·모바일 최적화).' },
     { tag: 'new', text: '🖤 블랙 팟 — 블랙 복권 구매금의 10%(70G)가 전 팀원 공유 팟에 실시간 적립(자릿수 롤링 표시). 낮은 확률(1.5%)로 복권이 🍀 해피 블랙으로 변신하고, 해피 블랙에서 당첨되면 칸 당첨금 + 팟 전액! 지급 순간 팟 숫자가 쭈르륵 0으로 내려가는 연출과 함께 다시 0부터 적립돼요.' },
@@ -29643,9 +29648,10 @@ window._lhResumeScratch = function(){
 const BLACK_TIER = {
   idx: 3, id: 'scratch_black', price: 700,
   skulls: 2, skullPenalty: 20,
-  winChance: 0.32,      // 당첨(행운문양 매치 존재) 확률 — 팟 +10%p 흡수 위해 33→32%
-  happyChance: 0.015,   // 🍀 해피 블랙 변신(1/67)
-  potRate: 70,          // 🖤 팟 적립(구매금 10%)
+  winChance: 0.32,      // 정상 티켓 당첨(행운문양 매치 존재) 확률
+  happyChance: 0.10,    // 🍀 블랙팟(해피) 변신 = 구매 10% (사장님 요청·1.5%→10%)
+  happyWinChance: 0.01, // 블랙팟 티켓 안에서 당첨(=팟 전액 획득) 확률 = 1% → 팟 실지급 10%×1%=0.1%(1/1000장)
+  potRate: 70,          // 🖤 팟 적립(구매금 10%·회수율 +10%p·팟률↑시 winChance↓로 총<100% 유지)
   symbols: [            // 문양 풀 11종(8칸 유니크 배치·타깃 제외 10 데코이라 항상 충분)
     { id:'clover',  emoji:'🍀', name:'클로버' }, { id:'sword',   emoji:'⚔️', name:'검' },
     { id:'moon',    emoji:'🌙', name:'달' },     { id:'shield',  emoji:'🛡️', name:'방패' },
@@ -29664,10 +29670,13 @@ function _blackPickPrize(){
 }
 function _blackShuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 // 티켓 굴리기 — 결과는 구매 시점 확정(긁기=연출). 강철심장 「해골 감소」 = 해골 칸을 확률로 데코이 문양으로 치환.
-function rollBlackScratch(data){
+//   opts.happy/opts.win 지정 시 강제(불운 재추첨·프리뷰용). 🖤 happy(블랙팟) 티켓은 당첨확률=happyWinChance(1%)·당첨 시 팟 전액.
+function rollBlackScratch(data, opts = {}){
   const d = data || getMyGoldData();
   const target = BLACK_TIER.symbols[Math.floor(Math.random()*BLACK_TIER.symbols.length)];
-  const win = Math.random() < BLACK_TIER.winChance;
+  const happy = (opts.happy != null) ? !!opts.happy : (Math.random() < BLACK_TIER.happyChance);
+  const winChance = happy ? BLACK_TIER.happyWinChance : BLACK_TIER.winChance;
+  const win = (opts.win != null) ? !!opts.win : (Math.random() < winChance);
   // 🛡️ 해골 감소(걸작 줄수 기반·다른 티어와 동일 감소율)
   let skullReduce = 0;
   if (CURRENT_SEASON === 2){
@@ -29687,16 +29696,18 @@ function rollBlackScratch(data){
     else slots[p] = { sym: picked[ci++], prize: _blackPickPrize() };
   }
   const winCell = win ? slots.findIndex(s=>!s.skull && s.sym.id===target.id) : -1;
-  return { black:true, target, slots, win, winCell };
+  return { black:true, target, slots, win, winCell, happy };
 }
-// 🍀 불운 스택(_rollScratchPity와 동일 시맨틱·키='black') — 꽝을 스택% 확률로 당첨 재추첨(상금분포=자연당첨)
+// 🍀 불운 스택(_rollScratchPity와 동일 시맨틱·키='black') — 꽝을 스택% 확률로 당첨 재추첨(상금분포=자연당첨).
+//   ※ 블랙팟(해피) 티켓은 잭팟 별도 트랙이라 불운 스택 미적용(재추첨·스택 변화 없음).
 function _rollBlackPity(data){
   let result = rollBlackScratch(data);
+  if (result.happy) return { result };   // 🖤 블랙팟 티켓 = 불운 스택 무관
   const k = 'black';
   const pityAll = { ...((data||{})[sField('lotteryPity')] || {}) };
   const prev = Math.min(LOTTERY_PITY_CAP, +pityAll[k] || 0);
   if (!result.win && prev > 0 && Math.random()*100 < prev){
-    for (let i=0;i<60;i++){ const rr = rollBlackScratch(data); if (rr.win){ result = rr; result.pityConv = true; break; } }
+    for (let i=0;i<60;i++){ const rr = rollBlackScratch(data, { happy:false }); if (rr.win){ result = rr; result.pityConv = true; break; } }
   }
   const skulls = result.slots.reduce((n,s)=>n+(s&&s.skull?1:0),0);
   pityAll[k] = result.win ? 0 : Math.min(LOTTERY_PITY_CAP, prev + 1 + skulls*0.5);
@@ -29847,16 +29858,14 @@ window._buyBlackScratch = async function(){
   if (SCRATCH_LOTTERY_TESTMODE && _scratchTestTool) activeTool = { id: _scratchTestTool };
   const toolParams = activeTool ? SCRATCH_TOOLS[activeTool.id] : null;
   if (SCRATCH_LOTTERY_TESTMODE) {   // 🧪 테스트 — 차감·저장·팟 전부 skip
-    const result = rollBlackScratch(data);
-    result.happy = Math.random() < BLACK_TIER.happyChance;
-    result.emblemBonus = result.win ? _myLottoPrizeBonus(data, 3) : 0;
+    const result = rollBlackScratch(data);   // happy는 롤에서 결정(10%)
+    result.emblemBonus = (result.win && !result.happy) ? _myLottoPrizeBonus(data, 3) : 0;
     showBlackScratchModal(result, currentGold, { toolParams, onComplete: async () => {} });
     return;
   }
   const _pt = _rollBlackPity(data);
-  const result = _pt.result;
-  result.happy = Math.random() < BLACK_TIER.happyChance;
-  result.emblemBonus = result.win ? _myLottoPrizeBonus(data, 3) : 0;
+  const result = _pt.result;   // happy는 롤에서 결정 · 블랙팟(해피)은 emblemBonus 미적용(팟 전액이라)
+  result.emblemBonus = (result.win && !result.happy) ? _myLottoPrizeBonus(data, 3) : 0;
   if (useFree) {
     const ft = { ...(data[sField('freeScratch')] || {}) };
     ft[3] = Math.max(0, (ft[3] || 0) - 1);
@@ -29991,6 +30000,9 @@ function _injectBlackScratchCss(){
   .blk-target .blk-face .blk-sym{font-size:42px;}
   .blk-face .blk-prize{font-family:'JetBrains Mono',monospace;font-weight:800;font-size:10px;color:#ffe58a;letter-spacing:-.3px;}
   .blk-face.skull .blk-sym{filter:none;} .blk-face.skull .blk-prize{color:#ff5d63;}
+  .blk-face.potcell .blk-prize{font-size:8.5px;color:#ff9ad5;text-shadow:0 0 6px rgba(255,154,213,.45);}
+  .blk-stamp{position:fixed;left:50%;top:34%;transform:translate(-50%,-50%);z-index:2706;font-family:'Black Han Sans',sans-serif;font-size:40px;color:#fff;pointer-events:none;text-shadow:0 2px 14px rgba(255,154,213,.75),0 0 34px rgba(255,229,138,.6);animation:blkStamp 1.4s cubic-bezier(.2,1.35,.4,1) forwards;}
+  @keyframes blkStamp{0%{transform:translate(-50%,-50%) scale(.3) rotate(-8deg);opacity:0;}18%{transform:translate(-50%,-50%) scale(1.18) rotate(3deg);opacity:1;}70%{opacity:1;}100%{transform:translate(-50%,-50%) scale(1) rotate(0);opacity:0;}}
   .blk-cell.hit{border-color:#ffd84a;box-shadow:0 0 15px rgba(255,216,74,.6),0 0 0 1px #ffd84a;animation:blkHit 1.3s ease-in-out infinite;}
   .blk-cell.hit .blk-face{background:radial-gradient(circle at 50% 45%,rgba(255,216,74,.22),transparent 70%);}
   @keyframes blkHit{0%,100%{box-shadow:0 0 10px rgba(255,216,74,.4),0 0 0 1px #ffd84a;}50%{box-shadow:0 0 22px rgba(255,216,74,.8),0 0 0 1px #ffd84a;}}
@@ -30013,9 +30025,9 @@ function _injectBlackScratchCss(){
   .blk-btn.primary{background:linear-gradient(180deg,#ffe58a,#e8c84a);color:#241c05;border-color:#e8c84a;}
   .blk-btn.danger{color:#ff8a90;border-color:#4a2328;}
   .blk-btn[disabled]{opacity:.4;pointer-events:none;}
-  #blk-flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:2700;}
-  #blk-flash.go{animation:blkFlash .6s ease-out;}
-  @keyframes blkFlash{0%{opacity:.85;}100%{opacity:0;}}
+  #blk-flash{position:fixed;inset:0;background:radial-gradient(circle at 50% 38%,#fff 0%,#ffe9c0 40%,#ffd0ec 100%);opacity:0;pointer-events:none;z-index:2700;}
+  #blk-flash.go{animation:blkFlash .7s ease-out;}
+  @keyframes blkFlash{0%{opacity:.92;}45%{opacity:.5;}100%{opacity:0;}}
   .blk-cft{position:fixed;top:-12px;width:9px;height:14px;z-index:2710;pointer-events:none;border-radius:2px;}
   @keyframes blkFall{to{transform:translateY(104vh) rotate(720deg);opacity:.2;}}
   /* ── 허브 블랙 쇼케이스 카드 ── */
@@ -30053,10 +30065,8 @@ function _injectBlackScratchCss(){
 // 🧪 프리뷰(실데이터·팟 무수정 — Firebase 쓰기 0): 콘솔 blackScratchPreview({happy:true, win:true})
 window.blackScratchPreview = function(o = {}){
   const data = getMyGoldData();
-  let r = rollBlackScratch(data);
-  for (let i = 0; i < 120 && ((o.win === true && r.winCell < 0) || (o.win === false && r.winCell >= 0)); i++) r = rollBlackScratch(data);
-  r.happy = !!o.happy;
-  r.emblemBonus = 0;
+  const r = rollBlackScratch(data, { happy: !!o.happy, ...(o.win != null ? { win: !!o.win } : {}) });
+  r.emblemBonus = (r.win && !r.happy) ? _myLottoPrizeBonus(data, 3) : 0;
   showBlackScratchModal(r, getMyGold?.() || 0, { onComplete: async () => {}, preview: true });
 };
 function showBlackScratchModal(result, remainingGold, opts = {}){
@@ -30065,8 +30075,29 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
   _injectBlackScratchCss();
   _blackPotEnsureSub();
   document.getElementById('black-scratch-overlay')?.remove();
-  const brushMult = toolParams?.brushMult || 1.0;
-  const threshold = toolParams?.threshold ?? 0.83;
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  const SCRATCH_BASE_R = 0.062;   // 기존 복권과 동일 — 브러시 반지름 = 캔버스폭 × 0.062 × 배율
+  let brushMult = toolParams?.brushMult || 1.0;        // 장착 토글로 라이브 변경(let)
+  let threshold = toolParams?.threshold ?? 0.83;
+  // 🖌️ 긁개 장착/해제 (기존 복권 동일) — 보유 시 모달 안에서 직접 장착·해제
+  const _bkKeyItem   = !preview ? (getMyGoldData()?.[sField('items')]||[]).find(it=>it.id==='scratch_key')   : null;
+  const _bkCrossItem = !preview ? (getMyGoldData()?.[sField('items')]||[]).find(it=>it.id==='scratch_cross') : null;
+  const _bkOwnsKey = !!_bkKeyItem;   let _bkKeyOn   = !!(_bkKeyItem   && _bkKeyItem.active);
+  const _bkOwnsCross = !!_bkCrossItem; let _bkCrossOn = !!(_bkCrossItem && _bkCrossItem.active);
+  const _bkKeyPrice   = (S1_SHOP_ITEMS.find(s=>s.id==='scratch_key')?.price)   ?? 500;
+  const _bkCrossPrice = (S1_SHOP_ITEMS.find(s=>s.id==='scratch_cross')?.price) ?? 500;
+  const _bkEquipHtml = preview ? '' : `
+    <div class="scard-equip-acc" id="blk-equip-acc" style="margin-top:11px;">
+      <button type="button" class="scard-equip-acc-head" id="blk-equip-head"><span class="scard-equip-acc-title">🖌️ 긁개 장착 · 구매</span><span class="scard-equip-acc-chev">▾</span></button>
+      <div class="scard-equip-acc-body">
+        <div class="scard-equip-row" id="blk-equip-row-key">${_bkOwnsKey
+          ? `<span class="scard-equip-name">🔑 만능 긁개<span class="scard-equip-state">${_bkKeyOn?'· 장착됨':'· 미장착'}</span></span><button class="scard-equip-btn${_bkKeyOn?' on':''}" id="blk-equip-btn-key">${_bkKeyOn?'장착 해제':'장착'}</button>`
+          : `<span class="scard-equip-name">🔑 만능 긁개<span class="scard-equip-state">· 미보유</span></span><button class="scard-equip-btn scard-equip-buy" id="blk-equip-buy-key">구매 ${_bkKeyPrice}G</button>`}</div>
+        <div class="scard-equip-row" id="blk-equip-row-cross">${_bkOwnsCross
+          ? `<span class="scard-equip-name">🖌️ 광역 긁개<span class="scard-equip-state">${_bkCrossOn?'· 장착됨':'· 미장착'}</span></span><button class="scard-equip-btn${_bkCrossOn?' on':''}" id="blk-equip-btn-cross">${_bkCrossOn?'장착 해제':'장착'}</button>`
+          : `<span class="scard-equip-name">🖌️ 광역 긁개<span class="scard-equip-state">· 미보유</span></span><button class="scard-equip-btn scard-equip-buy" id="blk-equip-buy-cross">구매 ${_bkCrossPrice}G</button>`}</div>
+      </div>
+    </div>`;
   // 강철심장 배너(장착·해골감소 줄 보유 시)
   let fxHtml = '';
   if (CURRENT_SEASON === 2) {
@@ -30112,10 +30143,12 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
         </div>
         <div class="blk-seek" id="blk-seek"></div>
         <div class="blk-method">
-          <b>게임방법</b> · 행운 문양과 같은 나의 문양이 <b>1개라도</b> 나오면 그 칸의 당첨금!
-          <span class="warn">💀 노출 시 -${BLACK_TIER.skullPenalty}G</span> — 당첨을 찾았으면 <b>그만 긁는 게 이득</b>
+          ${result.happy
+            ? `<b>🍀 블랙팟 복권!</b> · 행운 문양과 같은 나의 문양이 <b>1개라도</b> 나오면 <b style="color:#ff9ad5;">블랙 팟 전액</b> 획득! <span class="warn">💀 -${BLACK_TIER.skullPenalty}G</span>`
+            : `<b>게임방법</b> · 행운 문양과 같은 나의 문양이 <b>1개라도</b> 나오면 그 칸의 당첨금! <span class="warn">💀 노출 시 -${BLACK_TIER.skullPenalty}G</span> — 당첨을 찾았으면 <b>그만 긁는 게 이득</b>`}
         </div>
         <div class="blk-result" id="blk-result"></div>
+        ${_bkEquipHtml}
       </div>
       <div class="blk-actions" id="blk-actions">
         <button class="blk-btn danger" id="blk-discard">🗑 버리기</button>
@@ -30133,12 +30166,6 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
   _blkPotOdo = _blkOdometer(overlay.querySelector('#blk-pot-od'));
   _blkPotOdo.set(_blackPotAmt);
   _blkPotDraining = false;
-  // 해피 변신 플래시(신규 구매 시)
-  if (result.happy && !isResume) {
-    let fl = document.getElementById('blk-flash');
-    if (!fl) { fl = document.createElement('div'); fl.id = 'blk-flash'; document.body.appendChild(fl); }
-    fl.classList.remove('go'); void fl.offsetHeight; fl.classList.add('go');
-  }
   // ── 사운드(소프트) ──
   let _actx = null;
   const _ac = () => { try { _actx = _actx || new (window.AudioContext||window.webkitAudioContext)(); return _actx; } catch(_) { return null; } };
@@ -30155,7 +30182,7 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
     try { const o=a.createOscillator(),g=a.createGain();o.type='sawtooth';o.frequency.value=110;
       g.gain.setValueAtTime(.16,a.currentTime);g.gain.exponentialRampToValueAtTime(.001,a.currentTime+.25);
       o.connect(g);g.connect(a.destination);o.start();o.stop(a.currentTime+.26); } catch(_){} };
-  // ── 커버(기본=블랙 포일·해피=골드 포일) ──
+  // ── 커버(기본=블랙 포일·해피=골드 포일) — 기존 복권처럼 디바이스px로 직접 그림(setTransform 없음) ──
   function drawCover(ctx,w,h){
     const happy = !!result.happy;
     const g = ctx.createLinearGradient(0,0,w,h);
@@ -30166,73 +30193,123 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
     const sc = happy?'rgba(255,215,120,':'rgba(205,205,230,';
     s.addColorStop(.34,sc+'0)');s.addColorStop(.5,sc+(happy?'.16)':'.09)'));s.addColorStop(.66,sc+'0)');
     ctx.fillStyle=s;ctx.fillRect(0,0,w,h);
-    const dots=Math.max(8,(w*h)/700|0);
+    const dots=Math.max(8,(w*h)/2200|0);
     for(let i=0;i<dots;i++){ ctx.fillStyle = happy?(Math.random()<.5?'rgba(255,229,138,.12)':'rgba(255,255,255,.06)')
       :(Math.random()<.5?'rgba(255,255,255,.05)':'rgba(200,200,225,.07)');
-      ctx.fillRect(Math.random()*w,Math.random()*h,1,1); }
+      ctx.fillRect(Math.random()*w,Math.random()*h,dpr,dpr); }
     ctx.fillStyle = happy?'rgba(255,229,138,.2)':'rgba(255,255,255,.07)';
     ctx.font=`700 ${Math.min(w,h)*0.42}px 'Black Han Sans',sans-serif`;
     ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('?',w/2,h/2+1);
   }
-  // ── 셀 스크래치(윈도우 레벨 move — 원 밖 드래그 끊김 방지 v123 패턴) ──
+  // ── 가루/글린트 (기존 복권 spawnDust와 동일 느낌 · 블랙/골드 팔레트) ──
+  const _bkDustPal = () => result.happy ? ['#fff3c8','#f0d98a','#d4a843','#ffffff'] : ['#eef3f7','#cfd9e0','#aab6bf','#ffffff'];
+  function _bkDust(canvas, x, y, mult){
+    const r = canvas.getBoundingClientRect();
+    const sx = r.left + (x/canvas.width)*r.width, sy = r.top + (y/canvas.height)*r.height;
+    const cols = _bkDustPal(); const n = (3 + (Math.random()*2|0)) * (mult>=2?2:1);
+    for(let i=0;i<n;i++){ const d=document.createElement('div'); const sz=(2.5+Math.random()*3)*(mult>=2?1.3:1);
+      d.style.cssText=`position:fixed;left:${sx}px;top:${sy}px;width:${sz}px;height:${sz*.8}px;background:${cols[Math.random()*cols.length|0]};opacity:.92;border-radius:1.5px;pointer-events:none;z-index:3110;will-change:transform,opacity;`;
+      document.body.appendChild(d);
+      const ang=-Math.PI/2+(Math.random()-.5)*1.7, spd=22+Math.random()*40, vx=Math.cos(ang)*spd, vy=Math.sin(ang)*spd-6, rot=(Math.random()-.5)*480;
+      d.animate([{transform:'translate(-50%,-50%) rotate(0deg)',opacity:.92},{transform:`translate(calc(-50% + ${vx}px),calc(-50% + ${vy+56}px)) rotate(${rot}deg)`,opacity:0}],{duration:420+Math.random()*300,easing:'cubic-bezier(.3,.6,.5,1)',fill:'forwards'}).onfinish=()=>d.remove(); }
+  }
+  function _bkGlint(canvas, x, y){
+    const rr=canvas.getBoundingClientRect(); const sx=rr.left+(x/canvas.width)*rr.width, sy=rr.top+(y/canvas.height)*rr.height;
+    const sp=document.createElement('div'); sp.style.cssText=`position:fixed;width:5px;height:5px;left:${sx}px;top:${sy}px;background:#fff;box-shadow:0 0 9px #fff;border-radius:50%;pointer-events:none;z-index:3111;`;
+    document.body.appendChild(sp);
+    sp.animate([{transform:'translate(-50%,-50%) scale(1.2)',opacity:1},{transform:'translate(-50%,-50%) scale(0)',opacity:0}],{duration:300,fill:'forwards'}).onfinish=()=>sp.remove();
+  }
+  let _bkSndAt = 0;
+  // ── 셀 스크래치 (기존 복권과 동일 — scratchLine 완전 불투명 + 끝점 청크 + 가운데 52% 공개판정 · 윈도우 레벨 move로 원 밖 드래그 끊김 방지) ──
   const scr = [], cellEls = [];
   let targetScr = null, hasScratched = isResume, finished = false, _activeBlk = null;
   const state = { targetRevealed: false };
   function attachScratch(canvas, onReveal, preRevealed){
     const ctx = canvas.getContext('2d',{ willReadFrequently:true });
-    const dpr = Math.min(window.devicePixelRatio||1, 2);
-    let cw=0, ch=0, revealed=false, lastCheck=0;
+    let revealed=false, tick=0, px=null, py=null;
     function setup(){
-      const r = canvas.getBoundingClientRect(); cw=r.width; ch=r.height;
-      canvas.width=Math.round(cw*dpr); canvas.height=Math.round(ch*dpr);
-      ctx.setTransform(dpr,0,0,dpr,0,0);
+      const r = canvas.getBoundingClientRect();
+      canvas.width=Math.round(r.width*dpr); canvas.height=Math.round(r.height*dpr);
       if (preRevealed){ revealed=true; canvas.classList.add('gone'); return; }
-      drawCover(ctx,cw,ch);
+      drawCover(ctx, canvas.width, canvas.height);
     }
-    function erase(x,y){
-      const rad = Math.max(6, cw*0.11*brushMult);
-      ctx.globalCompositeOperation='destination-out';
-      ctx.beginPath(); ctx.arc(x,y,rad,0,Math.PI*2); ctx.fill();
+    function pos(e){ const r=canvas.getBoundingClientRect(); return { x:(e.clientX-r.left)*(canvas.width/r.width), y:(e.clientY-r.top)*(canvas.height/r.height) }; }
+    function stroke(x,y){
+      if (revealed) return;
+      const r = canvas.width * SCRATCH_BASE_R * brushMult;
+      const x1 = (px==null?x:px), y1 = (py==null?y:py);
+      ctx.globalCompositeOperation='destination-out'; ctx.lineCap='round'; ctx.lineJoin='round';
+      ctx.globalAlpha=1; ctx.strokeStyle='rgba(0,0,0,1)'; ctx.fillStyle='rgba(0,0,0,1)'; ctx.lineWidth=r*2;
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x,y); ctx.stroke();
+      for(let i=0;i<3;i++){ const ox=(Math.random()-.5)*r*1.6, oy=(Math.random()-.5)*r*1.6; ctx.beginPath(); ctx.arc(x+ox,y+oy,r*(.3+Math.random()*.4),0,Math.PI*2); ctx.fill(); }
       ctx.globalCompositeOperation='source-over';
+      px=x; py=y; hasScratched=true;
+      if (Math.random()<.5) _bkDust(canvas, x, y, brushMult);
+      const now=performance.now();
+      if (now-_bkSndAt>80){ _bkSndAt=now; _lscPlaySound('scratch'); _lotVib(4); if(Math.random()<.28) _bkGlint(canvas,x,y); }
+      if (++tick%3===0) check();
     }
     function check(){
-      const now=performance.now(); if(now-lastCheck<90) return; lastCheck=now;
-      const img=ctx.getImageData(0,0,canvas.width,canvas.height).data;
-      let c=0,t=0; for(let i=3;i<img.length;i+=40){ t++; if(img[i]<40)c++; }
-      if(t && c/t > threshold) reveal();   // 기존 티어와 동일 시맨틱 — 임계값 낮을수록(만능 0.70) 빨리 공개, 맨손 0.83
+      if (revealed) return;
+      const w=canvas.width, h=canvas.height;
+      const x0=Math.floor(w*0.24), y0=Math.floor(h*0.24), cw2=Math.floor(w*0.52), ch2=Math.floor(h*0.52);
+      let clr=0, tot=0;
+      try { const img=ctx.getImageData(x0,y0,cw2,ch2).data; for(let i=3;i<img.length;i+=40){ tot++; if(img[i]<40)clr++; } } catch(_){ return; }
+      if (tot && clr/tot > threshold) reveal();   // 가운데 문양(52%)이 threshold만큼 벗겨지면 공개 (맨손 0.83·만능 0.70)
     }
-    function reveal(){ if(revealed) return; revealed=true; canvas.classList.add('gone'); onReveal && onReveal(); }
+    function reveal(){ if(revealed) return; revealed=true; canvas.classList.add('gone'); px=py=null; onReveal && onReveal(); }
     canvas.addEventListener('pointerdown', e => {
       if (revealed) return;
-      _activeBlk = { canvas, erase, check };
-      hasScratched = true;
-      const r=canvas.getBoundingClientRect(); erase(e.clientX-r.left, e.clientY-r.top); _sndScratch();
+      _activeBlk = { canvas, stroke, check }; px=py=null;
+      const p=pos(e); stroke(p.x,p.y);
     });
     requestAnimationFrame(setup);
     return { reveal, isRevealed: () => revealed };
   }
   const _winMove = e => {
     if (!_activeBlk || !document.body.contains(overlay)) return;
-    const r = _activeBlk.canvas.getBoundingClientRect();
-    const x = e.clientX - r.left, y = e.clientY - r.top;
-    if (x>=-6 && y>=-6 && x<=r.width+6 && y<=r.height+6){ _activeBlk.erase(x,y); _activeBlk.check(); _sndScratch(); }
+    const cv=_activeBlk.canvas, r=cv.getBoundingClientRect();
+    if (e.clientX>=r.left-8 && e.clientY>=r.top-8 && e.clientX<=r.right+8 && e.clientY<=r.bottom+8){
+      _activeBlk.stroke((e.clientX-r.left)*(cv.width/r.width), (e.clientY-r.top)*(cv.height/r.height));
+    }
   };
   const _winUp = () => { if (_activeBlk){ _activeBlk.check(); _activeBlk = null; } };
   window.addEventListener('pointermove', _winMove);
   window.addEventListener('pointerup', _winUp);
   window.addEventListener('pointercancel', _winUp);
-  const _cleanup = () => { window.removeEventListener('pointermove',_winMove); window.removeEventListener('pointerup',_winUp); window.removeEventListener('pointercancel',_winUp); _blkPotOdo = null; };
+  // 🪙 동전 커서(기존 복권 동일) — PC 커서 / 모바일·펜은 터치 지점에 동전 팔로워
+  _injectScardCoinCss();
+  const _coinEl = document.createElement('div'); _coinEl.className='scard-coin'; overlay.appendChild(_coinEl);
+  let _coinOn=false;
+  const _coinShow = e => { if(e.pointerType!=='touch'&&e.pointerType!=='pen') return; _coinOn=true; _coinEl.style.display='block'; _coinEl.style.left=e.clientX+'px'; _coinEl.style.top=e.clientY+'px'; };
+  const _coinMove = e => { if(!_coinOn) return; _coinEl.style.left=e.clientX+'px'; _coinEl.style.top=e.clientY+'px'; };
+  const _coinHide = () => { _coinOn=false; _coinEl.style.display='none'; };
+  overlay.addEventListener('pointerdown', _coinShow);
+  window.addEventListener('pointermove', _coinMove);
+  window.addEventListener('pointerup', _coinHide);
+  window.addEventListener('pointercancel', _coinHide);
+  const _cleanup = () => {
+    window.removeEventListener('pointermove',_winMove); window.removeEventListener('pointerup',_winUp); window.removeEventListener('pointercancel',_winUp);
+    window.removeEventListener('pointermove',_coinMove); window.removeEventListener('pointerup',_coinHide); window.removeEventListener('pointercancel',_coinHide);
+    _blkPotOdo = null;
+  };
+  // 🍀 블랙팟 변신 연출 (신규 구매 시·화려하게) — 플래시 + 골드/핑크 파티클 버스트 + "블랙팟!" 스탬프 + 상승 차임
+  if (result.happy && !isResume) _blkTransformFx(overlay);
   // ── 보드 렌더 ──
   const tEl = overlay.querySelector('#blk-target');
   tEl.innerHTML = `<div class="blk-face"><div class="blk-sym">${result.target.emoji}</div></div><canvas class="blk-cover"></canvas>`;
   targetScr = attachScratch(tEl.querySelector('canvas'), onTargetReveal, isResume && resumeTargetRevealed);
   if (isResume && resumeTargetRevealed) setTimeout(onTargetReveal, 60);
   const grid = overlay.querySelector('#blk-grid');
+  // 🖤 블랙팟 티켓 = 각 칸에 개별 당첨금 대신 "적립금(팟)"만 표시 (매치하면 팟 전액)
+  const _potLabel = '🖤 ' + (_blackPotAmt||0).toLocaleString('en-US') + 'G';
   result.slots.forEach((c,i) => {
     const el = document.createElement('div'); el.className='blk-cell'; el.dataset.i=i;
     el.innerHTML = c.skull
       ? `<div class="blk-face skull"><div class="blk-sym">💀</div><div class="blk-prize">해골</div></div><canvas class="blk-cover"></canvas>`
-      : `<div class="blk-face"><div class="blk-sym">${c.sym.emoji}</div><div class="blk-prize">${(c.prize||0).toLocaleString('en-US')} G</div></div><canvas class="blk-cover"></canvas>`;
+      : (result.happy
+        ? `<div class="blk-face potcell"><div class="blk-sym">${c.sym.emoji}</div><div class="blk-prize">${_potLabel}</div></div><canvas class="blk-cover"></canvas>`
+        : `<div class="blk-face"><div class="blk-sym">${c.sym.emoji}</div><div class="blk-prize">${(c.prize||0).toLocaleString('en-US')} G</div></div><canvas class="blk-cover"></canvas>`);
     grid.appendChild(el); cellEls.push(el);
     const pre = isResume && Array.isArray(resumeRevealed) && resumeRevealed[i];
     scr.push(attachScratch(el.querySelector('canvas'), () => onCellReveal(i), pre));
@@ -30367,6 +30444,68 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
   };
   overlay.querySelector('#blk-x').onclick = _closeOrAside;
   overlay.addEventListener('click', e => { if (e.target === overlay) _closeOrAside(); });
+
+  // ── 🖌️ 긁개 아코디언 + 장착/해제/구매 (기존 복권 동일 · item.active 플립 → 라이브 brushMult/threshold) ──
+  function _bkApplyBrush(){
+    if (_bkCrossOn){ brushMult=SCRATCH_TOOLS.scratch_cross.brushMult; threshold=SCRATCH_TOOLS.scratch_cross.threshold; }
+    else if (_bkKeyOn){ brushMult=SCRATCH_TOOLS.scratch_key.brushMult; threshold=SCRATCH_TOOLS.scratch_key.threshold; }
+    else { brushMult=1.0; threshold=0.83; }
+  }
+  overlay.querySelector('#blk-equip-head')?.addEventListener('click', () => overlay.querySelector('#blk-equip-acc')?.classList.toggle('open'));
+  overlay.querySelector('#blk-equip-acc .scard-equip-acc-body')?.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('button'); if (!btn) return;
+    const id = btn.id;
+    const k = getMyGoldKey(); const d = k ? goldData[k] : null; if (!d) return;
+    if (id==='blk-equip-btn-key' || id==='blk-equip-btn-cross') {   // 장착/해제 토글
+      const tid = id.endsWith('key') ? 'scratch_key' : 'scratch_cross';
+      const items = (d[sField('items')]||[]).map(it => it.id===tid ? { ...it, active: !it.active } : it);
+      const on = items.some(it => it.id===tid && it.active);
+      d[sField('items')] = items;
+      update(ref(db,'gold/'+k), { [sField('items')]: items }).catch(()=>{});
+      if (tid==='scratch_key') _bkKeyOn=on; else _bkCrossOn=on;
+      _bkApplyBrush();
+      btn.textContent = on?'장착 해제':'장착'; btn.classList.toggle('on', on);
+      const stt = btn.closest('.scard-equip-row')?.querySelector('.scard-equip-state'); if (stt) stt.textContent = on?'· 장착됨':'· 미장착';
+      try { showGoldToast(on ? (tid==='scratch_key'?'🔑 만능 긁개 장착 — 더 쉽게 긁혀요':'🖌️ 광역 긁개 장착 — 브러시가 더 커져요') : (tid==='scratch_key'?'🔑 만능 긁개 해제':'🖌️ 광역 긁개 해제')); } catch(_){}
+    } else if (id==='blk-equip-buy-key' || id==='blk-equip-buy-cross') {   // 미보유 → 구매(=즉시 장착)
+      const tid = id.endsWith('key') ? 'scratch_key' : 'scratch_cross';
+      if (btn.dataset.busy) return;
+      const def = S1_SHOP_ITEMS.find(s => s.id===tid); const price = def?.price ?? 500;
+      const items0 = d[sField('items')]||[]; if (items0.some(it => it.id===tid)) return;
+      if (getMyGold() < price) { try { showGoldToast(`🪙 골드가 부족해요! (보유 ${getMyGold()} / 필요 ${price})`); } catch(_){} return; }
+      btn.dataset.busy='1'; btn.textContent='구매 중…';
+      const newItems = [...items0, { id: tid, ts: Date.now(), active: true }];
+      const newSpent = (d[sField('goldSpent')]??0) + price;
+      const upd = { [sField('items')]: newItems, [sField('goldSpent')]: newSpent };
+      if (def) upd[sField('purchaseLog')] = _appendPurchaseLog(d, def);
+      d[sField('items')] = newItems; d[sField('goldSpent')] = newSpent;
+      await update(ref(db,'gold/'+k), upd).catch(()=>{});
+      if (tid==='scratch_key') _bkKeyOn=true; else _bkCrossOn=true;
+      _bkApplyBrush();
+      const row = btn.closest('.scard-equip-row'); const nm = tid==='scratch_key'?'🔑 만능 긁개':'🖌️ 광역 긁개';
+      if (row) row.innerHTML = `<span class="scard-equip-name">${nm}<span class="scard-equip-state">· 장착됨</span></span><button class="scard-equip-btn on" id="blk-equip-btn-${tid==='scratch_key'?'key':'cross'}">장착 해제</button>`;
+      try { showGoldToast(`${tid==='scratch_key'?'🔑 만능':'🖌️ 광역'} 긁개 구매·장착! (-${price}G)`); } catch(_){}
+      try { renderShop?.(); } catch(_){}
+    }
+  });
+
+  // ── 🍀 블랙팟 변신 연출 (화려하게) — 플래시 + 방사 파티클 + "블랙팟!" 스탬프 + 상승 차임 ──
+  function _blkTransformFx(ov){
+    let fl = document.getElementById('blk-flash'); if (!fl){ fl=document.createElement('div'); fl.id='blk-flash'; document.body.appendChild(fl); }
+    fl.classList.remove('go'); void fl.offsetHeight; fl.classList.add('go');
+    const md = ov.querySelector('.blk-modal'); const r = md ? md.getBoundingClientRect() : { left:innerWidth/2, top:innerHeight/2, width:0, height:0 };
+    const cx = r.left + r.width/2, cy = r.top + r.height*0.32;
+    const cols = ['#ffe58a','#ff9ad5','#8ad5ff','#ffd84a','#ffffff'];
+    for (let i=0;i<46;i++){ const p=document.createElement('div'); const sz=5+Math.random()*7;
+      p.style.cssText=`position:fixed;left:${cx}px;top:${cy}px;width:${sz}px;height:${sz}px;border-radius:50%;background:${cols[i%cols.length]};z-index:2705;pointer-events:none;will-change:transform,opacity;`;
+      document.body.appendChild(p);
+      const ang=Math.random()*Math.PI*2, dist=90+Math.random()*230;
+      p.animate([{transform:'translate(-50%,-50%) scale(1)',opacity:1},{transform:`translate(calc(-50% + ${Math.cos(ang)*dist}px),calc(-50% + ${Math.sin(ang)*dist}px)) scale(0)`,opacity:0}],{duration:800+Math.random()*520,easing:'cubic-bezier(.15,.7,.4,1)',fill:'forwards'}).onfinish=()=>p.remove(); }
+    const stamp=document.createElement('div'); stamp.className='blk-stamp'; stamp.textContent='🍀 블랙팟!';
+    document.body.appendChild(stamp); setTimeout(()=>stamp.remove(),1400);
+    try { _tone([523,659,880,1174,1568],.2); setTimeout(()=>_tone([1568,1976],.16),320); } catch(_){}
+    try { _lotVib([40,40,90]); } catch(_){}
+  }
 }
 
 /* ── 스크래치 복권 모달 (v2.43.91~ 3티어+해골기믹+긁기도구) ── */
