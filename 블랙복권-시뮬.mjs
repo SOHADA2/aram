@@ -1,10 +1,10 @@
 // 🖤 블랙 복권 EV 시뮬 (리포 레퍼런스 · 2026-07-16)
-//  - index.html BLACK_TIER 파라미터와 일치: price700·winChance0.32·happyChance0.10·happyWinChance0.01·potRate70·skulls2×-20.
+//  - index.html BLACK_TIER 파라미터와 일치: price700·winChance0.24·happyChance0.10·happyWinChance0.01·potRate210(30%)·skulls2×-20.
 //  - 다른 컴퓨터에서 팟 비율/변신·당첨 확률/상금풀을 바꿔 재조정할 때: 아래 상수만 고치고 `node 블랙복권-시뮬.mjs`.
 //  - 원칙: 팟 적립률은 회수율에 그대로 +로 더해짐(구매=소각·지급=발행) → 총(일반당첨+팟+불운+강철심장) < 100% 유지 필수.
-//  - 현재 검증: 기본75.4%·불운81.9%·강철심장81.2%·최악86.0% <100% (N=3백만).
-const PRICE=700, POT_RATE=70, TRANSFORM=0.10, POT_WIN=0.01;
-const NORM_WIN=0.32, SKULLS=2, PEN=20, PITY_CAP=20;
+//  - 현재 검증(팟30%·일반당첨24%): 기본77.9%·불운86.6%·강철심장82.5%·최악90.1% <100% (N=3백만). 팟률 올리면 NORM_WIN도 함께 낮춰야 함.
+const PRICE=700, POT_RATE=210, TRANSFORM=0.10, POT_WIN=0.01;
+const NORM_WIN=0.24, SKULLS=2, PEN=20, PITY_CAP=20;
 const POOL=[[700,45],[1000,25],[1500,15],[2500,8],[5000,4],[10000,2],[25000,0.7],[50000,0.3]];
 const TOT=POOL.reduce((a,p)=>a+p[1],0);
 const pick=()=>{let r=Math.random()*TOT;for(const[v,w]of POOL){if((r-=w)<=0)return v;}return 700;};
