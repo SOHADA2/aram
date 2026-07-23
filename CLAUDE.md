@@ -817,7 +817,17 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### v2.45.593 (2026-07-23·이 PC·`main` 직접) — 🤖 복권 자동 로봇 골드·프리즘 확장(해골+불운 스택+무료권) ← 최신
+### v2.45.594 (2026-07-23·이 PC·`main` 직접) — 🤖 자동 로봇 혼합 예약(실버+골드+프리즘 한 바구니) ← 최신
+> v593 직후 사장님: "서로 다른 종류를 동시/조합해서 못 돌리는데 되게?" → AskUserQuestion 2개: **①혼합 예약(한 큐에 섞기·순서대로 하나씩)** ②**한도 전체 합산**(총 장수 ≤ 로봇 cap). "동시 병렬 큐"는 미채택(단일 큐 유지).
+- **데이터 모델 변경**: 큐가 단일 `lidx`/`pen` → **티켓별 `li`(복권 idx)** + `q.mix`(=[n0,n1,n2] 종류별 장수). 페널티는 티켓별 `_ticketPen(q,t)=_autoBotLotDef(_ticketLot(q,t)).skullPenalty`로 계산. 헬퍼 `_ticketLot`/`_ticketPen`(28225~)·`AUTOBOT_LOT_EMOJI`. **구버전 큐 폴백**: `t.li ?? q.lidx ?? 0`(v593 단일티어 큐도 정상 정산).
+- **상태**: `_autoBotSelN`/`_autoBotLotIdx` 제거 → **`_autoBotSelCnt=[n0,n1,n2]`**. 핸들러 `autoBotAdj`/`autoBotSelLot` 제거 → **`autoBotAdjLot(idx,d)`**(총합 cap 가드). `autoBotReserve()` 무인자화(내부서 sel 읽음).
+- **예약 UI**: 단일 세그먼트 → **종류별 스테퍼 리스트**(`.abot-lotlist`/`.abot-lotrow`/`.abot-lotstep`·잠긴 티어 🔒·행별 가격/💀/🎟무료/🍀스택 표시). 배지=총 N/cap.
+- **reserve 로직**: 티어 오름차순으로 각 종류 cnt장 굴림(티어별 pity 독립 threading·`pityAll`에 각 키 갱신). 무료권 티어별 소모(`useFreeBy[]`). 비용=Σ(pay×티어가격). spendLog 라벨 `실버×2+골드×3`. 토스트=믹스 요약(🥈2 🥇3).
+- **claim/영수증**: 페널티 티켓별 합산(`pen+=sk*_ticketPen`). 영수증 행에 티어 이모지 prefix. 예약 미리보기 `claimTotal` === 실제 `total` 재확인(일관). 로그 `mix`·tk에 `li` 추가.
+- **검증**: `aram-check` 7/7 · 제거 식별자 grep 0건 · 머니 math 일관성 · 구버전 큐 호환 확인. ⚠️**실기 상호작용 미검증**(v593과 동일 사유).
+- ⏭️ **미해결(이월)**: 자동 로봇 실기 검증(혼합 예약·종류별 pity·해골 net) · 기존 미결 그대로.
+
+### v2.45.593 (2026-07-23·이 PC·`main` 직접) — 🤖 복권 자동 로봇 골드·프리즘 확장(해골+불운 스택+무료권)
 > 사장님 요청: "자동 로봇이 실버만 되던 걸 골드도 되게. 해골 나오면 나오는 대로 패널티 감수, 행운스택도 자동에 녹아들게, 무료권 있으면 먼저 소모, 나머진 실버처럼." → **v522 신설 때부터 이월돼 있던 "골드/프리즘 복권 자동화(해골 처리)" 항목**. AskUserQuestion으로 2개 결정: **①실버+골드+프리즘 전부** ②**로봇 등급 ≥ 복권 등급 게이팅**(실버로봇→실버 / 골드로봇→골드 / 프리즘로봇→프리즘).
 - **핵심 개념(반드시 이해)**: "티어" 2종 분리 — **로봇 등급**(`AUTOBOT_TIERS` 1/2/3=속도·수량·보너스) ↔ **복권 티어**(`SCRATCH_TIERS` 0실버/1골드/2프리즘=실제 긁는 복권). 기존엔 로봇이 무조건 `rollScratch(0)`(실버) 하드코딩.
 - **수정 위치(index.html)**: `_autoBotLotIdx` 상태(28456) · 헬퍼 `AUTOBOT_LOT_NAMES`/`_autoBotMaxLot(로봇등급 t→최대 복권idx t-1)`/`_autoBotLotDef`/`_autoBotLotPrice`(28218~) · `autoBotReserve`(선택 복권idx로 롤+가격+무료권 티어화·**불운 스택 순차 적용**·해골 카운트 `sk` 저장·큐에 `lidx`/`pen` 추가) · `autoBotClaim`(net=Σg−Σsk×pen+bonus·로그에 lidx/pen/skulls) · `_autoBotRefresh` 진행/예약 화면(영수증 해골줄·복권종류 세그먼트 `.abot-lotseg`·불운스택 표시) · `autoBotSelLot` 핸들러 · CSS `.abot-lotbtn` · 구매/진입 문구.
