@@ -817,7 +817,15 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### v2.45.598 (2026-07-24·이 PC·`main` 직접) — 🗡️ 강화창 인형 선택 카드 재설계(수량배지 잘림 수정+시인성) ← 최신
+### v2.45.599 (2026-07-24·이 PC·`main` 직접) — 🗡️ 투기장 3모달 통일(탭 상단·배틀부터·헤더 일치) ← 최신
+> 사장님: "투기장 → 강화부터 뜸. 강화/배틀/스킨 탭이 맨 위에 있어야 이동 쉬움. 투기장 누르면 배틀부터. 3개 카테고리 디자인 안 맞음 → 맞추고 빈공간 없이."
+- **구조**: 3모달 = `_arenaHd`(✕제목?) → **`_arenaTabs` 상단** → 본문 으로 통일. 탭은 원래 forge/battle 맨 아래·skin은 헤더도 달랐음(plain title+닫기버튼).
+- **수정(index.html)**: ①`.arena-tabs` CSS `margin-top:14px`→`margin:0 0 14px`(상단용) ②forge(L37304)·battle목록(L37687): `_arenaTabs`를 헤더 바로 아래로 이동(맨 아래 것 제거) ③skin(L38002): plain `<div class="arena-h">`+`#sk-x` 닫기버튼 제거 → `_arenaHd('🎨 스킨 상점','skin',0)`+상단탭, 닫기는 헤더 ✕(`#arena-x`)에 배선 ④`_ARENA_HELP.skin` 항목 신설(스킨 ?도움말·전엔 forge로 폴백됐음) ⑤아케이드 「인형 투기장」 진입=`openArenaForge`→**`openArenaBattle`**(배틀부터)·부제 '배틀·키우기·스킨'.
+- **주의**: battle 하위화면(전투준비/전투결과)은 탭 없이 유지(전환 플로우). result/prep는 `_arenaHd`만.
+- **검증**: `aram-check` 7/7 + **✅ Edge 헤드리스 목업 실측**(3모달 헤더+상단탭 일관·활성탭 하이라이트 확인). Edge 스샷=Temp출력+file:/// (see [[reference_edge_headless_screenshot]]).
+- ⏭️ **미해결(이월)**: 투기장 실기 확인(탭이동·배틀진입·빈공간) · 자동로봇 실기(v593~594) · 기존.
+
+### v2.45.598 (2026-07-24·이 PC·`main` 직접) — 🗡️ 강화창 인형 선택 카드 재설계(수량배지 잘림 수정+시인성)
 > 사장님: "강화창(투기장) 인형 카드에서 보유 개수 부분이 잘려있음. 고치고, 비주얼/디자인 시인성 좋고 직관적으로."
 - **잘림 원인**: 모바일 CSS `.arena-pick .ap{overflow:hidden}` + 수량배지 `.ap-q{top:-4px;right:-4px}`(카드 밖 음수위치) → 클립. `.arena-pick{overflow-x:auto}`도 세로 클립 유발.
 - **수정(index.html)**: 카드 HTML을 `.ap>.ap-thumb(img+배지)+.ap-p` 구조로(L37313 근처). 배지 전부 **thumb 안쪽 인셋**(`.ap-q top:2px right:2px`·`.ap-eq top:2px left:2px`·`.ap-lock inset:0`) → 음수위치 제거로 안 잘림. 수량 표기 `N`→`×N`. CSS 재설계(L36409~·데스크탑 wrap / 모바일 L36631~ `flex:0 0 auto;width:50px` 고정폭 스크롤·`overflow:hidden` 제거·`padding:8px 2px 4px`로 글로우 여유). `.ap-q.lock`→`.ap-lock`(중앙 자물쇠 오버레이).
