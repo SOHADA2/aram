@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.604';
+const APP_VERSION = 'v2.45.605';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.604';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.605', date: '2026-07-24', changes: [
+    { tag: 'new', text: '🕹️⚡ 인형뽑기 <b>치명타 시스템 + 「치명타 집게」 장비</b> 신설! 인형을 <b>잘 집으면(품질 50% 이상)</b> 💥<b>치명타!</b>가 터져요 — 번개가 파박 치는 연출 + 전기음 + 진동으로 짜릿하게. 상점 장비 탭의 <b>⚡ 치명타 집게(600G)</b>를 장착하면, 치명타가 터질 때 <b>랜덤 위치에서 보너스 집게가 한 번 더</b> (기존보다 빠르게!) 자동으로 내려가요. 그 보너스 집게에서 <b>또 치명타면 연달아</b> 발동 — <b>최대 5연쇄</b>! 보너스 집게도 인형을 얻을 수도, 못 얻을 수도 있어요.' },
+  ] },
   { ver: 'v2.45.604', date: '2026-07-24', changes: [
     { tag: 'improve', text: '🖤 블랙 팟이 이제 <b>다른 복권 구매로도 쌓여요</b> — 블랙 복권을 잘 안 해서 팟이 잘 안 불어나던 걸 보완했어요! 실버·골드·프리즘 복권을 <b>유료로 살 때마다 구매금의 5%</b>가 블랙 팟에 함께 적립돼요(실버 +4G·골드 +10G·프리즘 +20G, 자동 로봇 구매도 포함). 이미 쓴 골드의 일부를 팟(=미래 해피 블랙 당첨자)으로 재분배하는 방식이라 <b>돈이 새로 생기진 않아요</b>(인플레 없음). 블랙 복권 자체 구매금 20% 적립은 그대로예요. (무료권으로 산 복권은 골드를 안 써서 제외)' },
   ] },
@@ -10652,6 +10655,8 @@ const S1_SHOP_ITEMS = [
     desc:'스크래치 복권 긁기 시 브러시 3배 + 레이어 공개 임계값 완화 · 영구 적용' },
   { id:'scratch_cross',  icon:'<span style="font-size:18px;line-height:1">🖌️</span>', name:'광역 긁개',  color:'#a78bfa', price:500, type:'scratch_tool',
     desc:'스크래치 복권 긁기 시 동그라미 밖도 긁혀 · 한 줄로 쭉 그으면 여러 칸이 함께 긁혀요 · 영구 적용' },
+  { id:'claw_crit',  icon:'<span style="font-size:18px;line-height:1">⚡</span>', name:'치명타 집게',  color:'#ffe36b', price:600, type:'claw_tool',
+    desc:'🕹️ 인형뽑기에서 잘 집으면(품질 50%+) 💥치명타! 발동 · 치명타가 터지면 랜덤 위치에서 보너스 집게가 한 번 더 빠르게 내려가요 · 연달아 터지면 최대 5연쇄 · 영구 적용' },
   { id:'s1_promo_shield', icon:ITEM_SVG_ICONS.s1_promo_shield, name:'승급전 방어권', color:'#7dd3fc', price:100, type:'oneshot',
     desc:'승급전 중 패배 시 해당 판 기록 제외 · 승리 시 정상 기록' },
   { id:'s1_promo_win',    icon:ITEM_SVG_ICONS.s1_promo_win,    name:'승급전 승리권', color:'#ffd700', price:100, type:'oneshot',
@@ -27480,6 +27485,7 @@ function _renderShopImmediate() {
                            || (item.type === 'secret_quest' && todaySqCount >= SECRET_QUEST_DAILY_LIMIT);
     const isSqAlreadyActive = item.type === 'secret_quest' && sqAlreadyActive;
     const isScratchToolOwned = item.type === 'scratch_tool' && myOwnedItems.some(it => it.id === item.id);
+    const isClawToolOwned = item.type === 'claw_tool' && myOwnedItems.some(it => it.id === item.id);   // 🎯 인형뽑기 장비 보유
     const isScratchCoinRedundant = item.id === 'scratch_coin' && myOwnedItems.some(it => it.id === 'scratch_key');
     const isPassType  = item.type === 'pass';
     const isThisPassOwned = item.id === 'battle_pass' ? !!(myShopData && myShopData[sField('hasBattlePass')])
@@ -27490,7 +27496,7 @@ function _renderShopImmediate() {
     const isSupportLocked = item.id === 'support_pass' && !isThisPassOwned && battlePassLv < 25;
     const isPassOwned = isThisPassOwned;
     const canBuy   = myGold >= item.price && !isLotteryLocked && !isLotteryLimitHit && !isSqAlreadyActive && !isPassOwned && !isSupportLocked
-                   && !isScratchToolOwned && !isScratchCoinRedundant
+                   && !isScratchToolOwned && !isClawToolOwned && !isScratchCoinRedundant
                    && (isLotteryType(item.type) || item.type === 'scratch_tool' || isPassType || !isItemsEffectivelyLocked());
     const nameColor = item.color || 'var(--text)';
     let btnText, btnClass, btnClick;
@@ -27504,7 +27510,7 @@ function _renderShopImmediate() {
       btnText = sqOwnedActive?.active ? '다음 판 발동' : '보유 중'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
     } else if (isLotteryLimitHit) {
       btnText = `한도 소진 (${item.type === 'secret_quest' ? todaySqCount + '/' + SECRET_QUEST_DAILY_LIMIT : '3/3'})`; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
-    } else if (isScratchToolOwned) {
+    } else if (isScratchToolOwned || isClawToolOwned) {
       btnText = '✅ 보유 중'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
     } else if (isScratchCoinRedundant) {
       btnText = '🔑 긁개로 충분'; btnClass = 'sli-price sli-limit-hit'; btnClick = '';
@@ -32203,6 +32209,19 @@ async function _buyItemImpl(itemId, qty) {
     return;
   }
 
+  // 🎯 인형뽑기 장비 (claw_tool) — 영구 소유. 치명타 집게 등. iframe init으로 전달돼 적용
+  if (item.type === 'claw_tool') {
+    const myItems3 = data[itemsKey] || [];
+    if (myItems3.some(it => it.id === item.id)) { showS1Toast('이미 보유 중이에요!'); return; }
+    const updates = { [itemsKey]: [...myItems3, { id: item.id, ts: Date.now() }] };
+    updates[spentKey] = (data[spentKey] ?? 0) + item.price;
+    updates[sField('purchaseLog')] = _appendPurchaseLog(data, item);   // 📒 구매 기록
+    await update(ref(db,'gold/'+key), updates);
+    showS1Toast(`${item.name} 구매 완료! 인형뽑기에 자동 적용돼요 🎯`);
+    renderShop();
+    return;
+  }
+
   // 스크래치 복권 3티어 — 가격은 SCRATCH_TIERS 단일 출처 사용 (S1_SHOP_ITEMS.price 무시)
   if (item.type === 'scratch_tier') {
     if (SCRATCH_LOTTERY_LOCKED) { showS1Toast('⚖️ 스크래치 복권 밸런스 패치 중입니다!'); return; }
@@ -36115,7 +36134,8 @@ function _claw3dInit(){    // 현재 상태 반환 — iframe init 메시지로 
   const plays = (data[sField('clawPlayDate')] === today) ? (data[sField('clawPlays')]||0) : 0;   // 새 날이면 1단계 일일횟수 리셋
   const buddy = _buddyData()?.champion || null;   // 🧸 2단계 강화 대상 단짝
   const dollStock = _arenaStock(data);   // 🗡️ 인형 보유 수량 {key:개수} — 인형뽑기 결과창에 "보유 N개" 표시용(시드)
-  return { collected, coins, plays, eligible, buddy, dollStock, poroCoin: ARENA_PORO_COIN };
+  const critClaw = (data[sField('items')]||[]).some(it => it && it.id==='claw_crit');   // 🎯 치명타 집게 장착 여부
+  return { collected, coins, plays, eligible, buddy, dollStock, poroCoin: ARENA_PORO_COIN, critClaw };
 }
 function _claw3dSave(d){   // iframe이 보낸 상태 스냅샷 → Firebase
   const key = getMyGoldKey(); if (!key) return;
