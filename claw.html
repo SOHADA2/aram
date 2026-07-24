@@ -225,7 +225,7 @@
   </div>
 </div>
 <!-- 🏷️ 버전 표시 — 작고 흐릿하게 좌상단(항상 보임·3탭=직원 튜너) -->
-<span id="build-pill">BUILD 170 · claw</span>
+<span id="build-pill">BUILD 171 · claw</span>
 <div id="hud">
   <span class="pill">상태 <b id="st">READY</b></span>
   <span class="pill">집기품질 <b id="gq">—</b></span>
@@ -1435,7 +1435,7 @@ function _onGrabResolved(){
   if(held && grabQ>=CRIT_Q){
     _critBurst('치명타!', false);
     _postParent('log',{ev:'crit', q:Math.round(grabQ*100), bonus:_bonusUsed});
-    if(_critClaw && _bonusUsed<CRIT_MAX_CHAIN) _bonusPending=true;   // 치명타 집게 있으면 연쇄 예약(최대 5)
+    if(_critClaw && _bonusUsed<CRIT_MAX_CHAIN){ _bonusPending=true; _SPDX=BONUS_SPDX; _clawBonusGlow=true; }   // 치명타 집게 연쇄 예약 → 이 판 복귀도 즉시 빠르게 + 발광 시작(보너스 예고)
   }
 }
 // ⚡ 보너스 집게 출동 — 랜덤 위치로 순간이동 후 빠르게 자동 하강(코인 무소모)
@@ -1571,18 +1571,18 @@ function loop(now){
     setFingerOpen(Math.max(CLOSE_MIN, 1-closeTimer*_SPDX/0.45));
     if(closeTimer>=0.45/_SPDX){ tryGrab(); _onGrabResolved(); state='RAISING'; }   // 🎯 집기 확정 → 치명타 판정
   } else if(state==='RAISING'){
-    clawPos.y += RAISE_SPD*_SPDX*dt;
+    clawPos.y += RAISE_SPD*(held?1:1.8)*_SPDX*dt;   // 빈손(실패)이면 더 빠르게 올림
     if(held){ const slipPerSec = (1-grabQ)*MAX_SLIP_RATE; if(Math.random() < slipPerSec*dt){ Sfx.slip(); releaseHeld(); } }   // 미끄러짐
     // (놓침 연출 제거 — 디테일 이전 상태. 집게는 닫힌 채 유지)
     if(clawPos.y>=CLAW_TOP_Y){ clawPos.y=CLAW_TOP_Y; state='RETURN_X'; }
   } else if(state==='RETURN_X'){            // 출구로 직선 복귀 ① X축만 이동 (대각선 금지)
-    const rspd = (held ? RETURN_SPD : RETURN_SPD*2.2)*_SPDX;   // 빈손(완전 실패)이면 빠르게 복귀
+    const rspd = (held ? RETURN_SPD : RETURN_SPD*3.2)*_SPDX;   // 빈손(완전 실패)이면 더 빠르게 복귀
     const d = HOME.x - clawPos.x; clawPos.x += Math.sign(d)*Math.min(Math.abs(d), rspd*dt);
     if(held && Math.random() < (1-grabQ)*MAX_SLIP_RATE*0.5*dt){ Sfx.slip(); releaseHeld(); }   // 복귀 중 미끄러짐
     // (놓침 연출 제거 — 디테일 이전 상태. 집게는 닫힌 채 유지)
     if(Math.abs(HOME.x-clawPos.x) < 0.03) state='RETURN_Z';
   } else if(state==='RETURN_Z'){            // ② Z축만 이동 → 출구(구멍) 위 도착
-    const rspd = (held ? RETURN_SPD : RETURN_SPD*2.2)*_SPDX;   // 빈손이면 빠르게
+    const rspd = (held ? RETURN_SPD : RETURN_SPD*3.2)*_SPDX;   // 빈손이면 더 빠르게
     const d = HOME.z - clawPos.z; clawPos.z += Math.sign(d)*Math.min(Math.abs(d), rspd*dt);
     if(held && Math.random() < (1-grabQ)*MAX_SLIP_RATE*0.5*dt){ Sfx.slip(); releaseHeld(); }   // 복귀 중 미끄러짐
     // (놓침 연출 제거 — 디테일 이전 상태. 집게는 닫힌 채 유지)
