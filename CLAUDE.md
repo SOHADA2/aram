@@ -817,7 +817,12 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### v2.45.605 (2026-07-24·이 PC·`main` 직접) — 🕹️⚡ 인형뽑기 치명타 시스템 + 치명타 집게 장비(A안) ← 최신
+### v2.45.606 (2026-07-24·이 PC·`main` 직접) — 🎯 치명타 밸런스 튜닝(CRIT_Q 0.5→0.7·연쇄 5→4) ← 최신
+> 사장님 "치명타 효율 비율?" → 분석: grabQ 공식상 실제 집기 최저 0.57>0.5라 **성공 집기=100% 치명타**(집으면 다 발동). 사장님 "0.7로·최대 4회로." 반영.
+- claw.html `CRIT_Q 0.5→0.7`(집게발 2개+ 단단히 집을 때만)·`CRIT_MAX_CHAIN 5→4`. index.html 상점 desc·v605 changelog 문구 "품질 70%+·집게발 2개+·최대 4연쇄"로 갱신.
+- 검증: index 7/7·claw.html 1/1. ⚠️미러 `인형뽑기-물리-목업.html` 여전히 미동기(v605+606 편집 전부 반영 필요).
+
+### v2.45.605 (2026-07-24·이 PC·`main` 직접) — 🕹️⚡ 인형뽑기 치명타 시스템 + 치명타 집게 장비(A안)
 > 사장님: "인형뽑기 장비 추가. 품질 50%+ = 치명타 전제. '치명타 집게'=치명타 시 랜덤위치 추가 집게 하강(기존처럼 작동·얻을수도/못얻을수도)·연쇄 발동 최대 5. 골드 상점." AskUserQuestion: 방식=**A안(안전한 시퀀셜 보너스-드롭·같은 집게 재사용)** [원래 병렬 골랐으나 물리 2중화 위험 커서 A안 재합의]·구매처=골드 상점. 추가 지시: **보너스 드롭은 기존보다 빠르게**(답답 방지)·**번개 파박 연출**.
 - **⚠️ 구조 핵심**: 실제 게임=**`claw.html`(iframe·three.js+cannon-es)**. 미러 dev소스=`인형뽑기-물리-목업.html`. 라이브는 claw.html 로드 → **claw.html 수정으로 동작**. index.html=래퍼+브릿지.
 - **claw.html 구현**: `grabQ`(0~1·기존) 재사용. 상수 `CRIT_Q=0.5`·`CRIT_MAX_CHAIN=5`·`BONUS_SPDX=1.95`·상태 `_critClaw/_bonusUsed/_bonusPending/_SPDX`(L~314). init서 `_critClaw=!!d.critClaw`. `_onGrabResolved()`(tryGrab 뒤·CLOSING→RAISING서 호출)=`grabQ>=0.5`면 `_critBurst('치명타!')`+log(crit)+장비시 `_bonusPending`(≤5). RELEASE 종료 시 `_bonusPending`이면 `_startBonusDrop()`(랜덤 BIN 위치 순간이동·`_SPDX=1.95`·state=LOWERING·코인무소모)·아니면 IDLE(`_bonusUsed=0,_SPDX=1`). 상태머신 속도 전부 `*_SPDX`(LOWER/RAISE/RETURN·CLOSING/RELEASE 타이머는 `/_SPDX`). startGame서 연쇄 초기화. Sfx.crit()(전기 파박). `_critBurst`=번개 6줄+흰섬광+큰「치명타!」 DOM오버레이(#critfx·CSS 1회주입)+진동.
