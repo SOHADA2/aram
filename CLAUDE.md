@@ -817,7 +817,16 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### v2.45.601 (2026-07-24·이 PC·`main` 직접) — 🗡️ 강화서 방어순서 제거·스킨샵 컴팩트 2단 ← 최신
+### v2.45.602 (2026-07-24·이 PC·`main` 직접) — 🔨 강화 시도 연출 대폭 강화(충전→폭발·사운드·햅틱·도파민) ← 최신
+> 사장님: "강화 시도 모션 부족. 시도 애니 + 성공/실패 확실히 + 도파민 터지게."
+- **기존**: doForge 즉시 → `fx-success`(arenaPop)/`fx-destroy`(arenaShake)+`_forge3dPulse`+메시지. 즉발·임팩트 약함.
+- **신규 흐름(go.onclick)**: 클릭→버튼 '🔨 강화 중…'+`_forgeCharge`(망치질 연출 620ms: `.forge-hammer` 내려침 애니 + 2회 `.forge-strike-flash`+`thud`사운드+진동) → 620ms 후 `render(fx,msg)` + 결과 FX → 950ms 후 재활성. busy로 재클릭 차단.
+- **FX 헬퍼(신규·`_forge3dPulse` L36975 뒤)**: `_forgeCharge`/`_afxSparks`(⚠️기존 대장간 `_forgeSparks(anvil...)` L12184와 충돌→`_afx`로 개명)/`_forgeFlash`(gold/red/gray 오버레이)/`_forgeShake`(sheet 흔들·hard)/`_forgePowerPop`(.arena-power 확대반짝)/`_forgeRevealSuccess`(금빛플래시+스파크위로+파워팝+shake+coin사운드·승급시 무지개스파크+`.forge-gradeup`배너+epic+강한진동)/`_forgeRevealDestroy`(붉은플래시+파편낙하+hard shake+thud→lose)/`_forgeRevealHold`(gray+wobble+deflate). 파티클=`.afm-left`(position:relative·비클립)에 부착, 플래시=`#arena-fighter-3d`(overflow:hidden 내부). 사운드=`_lscPlaySound`(thud/coin/epic/deflate/lose 재사용)·햅틱 `_lotVib`.
+- **CSS(arenaPop 뒤 L36445~)**: forgeCharge/forgeHammer/forgeStrike/forgeFlashG·R/forgeGradeUp/forgePowerPop/forgeShakeS·H/forgeWobble 키프레임 + `.afm-left{position:relative}`.
+- **검증**: `aram-check` 7/7(개명 후)·`_lotVib`/`_lscPlaySound` 존재 확인 + **✅ Edge 목업 성공피크프레임 실측**(금빛폭발+무지개스파크+등극배너+파워팝 레이어링 양호). 로직(doForge/확률) 무변경·FX만 추가(try/catch 래핑).
+- ⏭️ **미해결(이월)**: 강화 연출 실기(사운드·햅틱·3D재마운트 깜빡임) · 자동로봇 실기 · 기존.
+
+### v2.45.601 (2026-07-24·이 PC·`main` 직접) — 🗡️ 강화서 방어순서 제거·스킨샵 컴팩트 2단
 > 사장님: "강화엔 방어스킬 지정 불필요(배틀에만). 스킨도 빈공간/구성 별로 → 방금 강화처럼 세로축소 2단으로."
 - **강화**: `.arena-defset.compact` 블록 제거(forge render L37308 근처). 방어순서는 배틀 목록(L37690 `defSetHtml`)에만 유지. 남은 `eqF`/`defOrder`·`.ads-slot` 핸들러는 forge서 무해 잔존(dead).
 - **스킨샵 2단(openSkinShop)**: ⚠️핵심=`#skin-preview-mount`(3D)는 재렌더서 유지돼야 함(mount 참조 캐시) → `#sk-body` **밖**. 구조 = `.sk-main`(flex){ 좌 `.sk-preview#skin-preview-mount` 168×230 · 우 `.sk-ctrls#sk-body`(코인·이름·변형버튼·구매/장착·perk·result) } + 하단 `.sk-strip#sk-strip`(챔피언 스트립) + `#sk-tune`(dev). render()가 sk-body/sk-strip/sk-tune 3개 innerHTML 각각 세팅(전엔 strip·tune이 sk-body 안에 있었음). CSS `.sk-main`/`.sk-ctrls`+프리뷰 고정폭 override+`@media(max-width:400px)` 프리뷰 138×196.
