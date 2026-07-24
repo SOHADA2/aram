@@ -161,7 +161,7 @@
   <span class="pill">수집 <b id="coll">0/7</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 163 · claw</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 164 · claw</span>
   <div id="bgm-ctrl" style="display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0;background:rgba(10,10,18,.55);padding:4px 9px;border-radius:16px;border:1px solid #3a3a4a;">
     <button id="bgm-spk" onclick="_bgmMute()" title="음악 켜기/끄기" style="background:none;border:none;font-size:16px;cursor:pointer;padding:0;line-height:1;">🔊</button>
     <input id="bgm-vol" type="range" min="0" max="100" value="45" oninput="_bgmSetVol(this.value)" title="음량" style="width:62px;accent-color:#ffd24a;cursor:pointer;">
@@ -1363,7 +1363,17 @@ function _onGrabResolved(){
 function _startBonusDrop(){
   _bonusUsed++; _SPDX=BONUS_SPDX; _playResolved=false;
   try{ _prongTouch.clear(); }catch(_){} _grabbing=null; _collectTouch=false; _lowerContactY=null;
-  clawPos.x=(Math.random()*2-1)*BIN.x*0.88; clawPos.z=(Math.random()*2-1)*BIN.z*0.88; clawPos.y=CLAW_TOP_Y; clawSpin=0; setFingerOpen(1);
+  // 🎯 보너스 집게 = 랜덤이되 남은 인형 쪽을 겨냥 — 출구 구멍 영역엔 인형이 없어 헛집게 되던 것 방지
+  const _pool = prizes.filter(p=>!p.won);
+  if(_pool.length){
+    const _tp = _pool[Math.floor(Math.random()*_pool.length)];   // 남은 인형 중 랜덤 1
+    const _J = 0.55;   // 약간의 흔들림(랜덤성 유지·백발백중 방지)
+    clawPos.x = Math.max(-BIN.x*0.88, Math.min(BIN.x*0.88, _tp.body.position.x + (Math.random()*2-1)*_J));
+    clawPos.z = Math.max(-BIN.z*0.88, Math.min(BIN.z*0.88, _tp.body.position.z + (Math.random()*2-1)*_J));
+  }else{
+    clawPos.x=(Math.random()*2-1)*BIN.x*0.88; clawPos.z=(Math.random()*2-1)*BIN.z*0.88;   // 폴백: 남은 인형 없으면 기존 랜덤
+  }
+  clawPos.y=CLAW_TOP_Y; clawSpin=0; setFingerOpen(1);
   _critBurst('⚡ 보너스 집게! ('+_bonusUsed+'/'+CRIT_MAX_CHAIN+')', true);
   _postParent('log',{ev:'drop', bonus:true});
   state='LOWERING';
