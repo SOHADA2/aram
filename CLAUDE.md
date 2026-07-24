@@ -817,7 +817,14 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### v2.45.600 (2026-07-24·이 PC·`main` 직접) — 🗡️ 강화창 컴팩트 2단 재설계(방어순서 상단·3D 좌/정보 우·세로축소) ← 최신
+### v2.45.601 (2026-07-24·이 PC·`main` 직접) — 🗡️ 강화서 방어순서 제거·스킨샵 컴팩트 2단 ← 최신
+> 사장님: "강화엔 방어스킬 지정 불필요(배틀에만). 스킨도 빈공간/구성 별로 → 방금 강화처럼 세로축소 2단으로."
+- **강화**: `.arena-defset.compact` 블록 제거(forge render L37308 근처). 방어순서는 배틀 목록(L37690 `defSetHtml`)에만 유지. 남은 `eqF`/`defOrder`·`.ads-slot` 핸들러는 forge서 무해 잔존(dead).
+- **스킨샵 2단(openSkinShop)**: ⚠️핵심=`#skin-preview-mount`(3D)는 재렌더서 유지돼야 함(mount 참조 캐시) → `#sk-body` **밖**. 구조 = `.sk-main`(flex){ 좌 `.sk-preview#skin-preview-mount` 168×230 · 우 `.sk-ctrls#sk-body`(코인·이름·변형버튼·구매/장착·perk·result) } + 하단 `.sk-strip#sk-strip`(챔피언 스트립) + `#sk-tune`(dev). render()가 sk-body/sk-strip/sk-tune 3개 innerHTML 각각 세팅(전엔 strip·tune이 sk-body 안에 있었음). CSS `.sk-main`/`.sk-ctrls`+프리뷰 고정폭 override+`@media(max-width:400px)` 프리뷰 138×196.
+- **검증**: `aram-check` 7/7 + **✅ Edge 목업 실측**(강화=방어없음·스킨=좌프리뷰/우컨트롤/하단스트립 빈공간 없이 한 화면). 3모달(강화 v600·배틀 v599·스킨 v601) 이제 톤·2단 일관.
+- ⏭️ **미해결(이월)**: 투기장 실기(2단 모바일·3D 마운트) · 자동로봇 실기(v593~594) · 기존.
+
+### v2.45.600 (2026-07-24·이 PC·`main` 직접) — 🗡️ 강화창 컴팩트 2단 재설계(방어순서 상단·3D 좌/정보 우·세로축소)
 > 사장님: "강화창 방어 스킬을 위로. 3D 프로필이 가운데라 양옆 비어보임 → 왼쪽으로 밀고 우측 남는 공간에 재화/정보. 창이 세로로 길어 별로 → 한 화면에서 한 번에."
 - **재설계(openArenaForge render, index.html L37307~)**: 세로 스택(topinfo→3D→등급→power→odds→버튼→picker→방어) → **① 방어순서(`.arena-defset.compact`) 탭 바로 아래 상단** ② **2단 `.arena-forge-main`**: 좌 `.afm-left`(3D `#arena-fighter-3d` 132px+등급/챔프명) · 우 `.afm-right`(⚔️배지·`.arena-power`·재화 pill[보유×N·🗡️코인·강화비용]·`.arena-odds3` 성공/보류/파괴·result) ③ 강화버튼 전체폭 ④ picker ⑤ `.arena-forge-foot`(팔기+picknote).
 - **CSS 추가(L36638 앞)**: `.arena-forge-main`(flex)·`.afm-left/afm-right/afm-name/afm-res`·컴팩트 override(odds3/result margin·result font 14)·`@media(max-width:400px)` 3D 112px. 기존 `.arena-topinfo`(구 상단 3pill)는 미사용됐으나 잔존(무해).
