@@ -28,6 +28,18 @@
   .cb-slot.got{border-color:rgba(240,200,90,0.75);box-shadow:0 0 9px rgba(240,200,90,0.35);}
   .cb-slot.got img{width:100%;height:100%;object-fit:cover;object-position:center top;}
   .cb-slot.locked{color:rgba(255,255,255,0.22);font-weight:900;font-size:16px;}
+  /* 🎵 컬렉션 바 우측 음악 아이콘 + 팝오버(평소 숨김 → 화면 안 가림) */
+  #bgm-toggle{flex:0 0 auto;width:32px;height:32px;border-radius:9px;border:1px solid rgba(255,255,255,0.14);
+    background:rgba(255,255,255,0.06);font-size:16px;line-height:1;cursor:pointer;padding:0;color:#fff;}
+  #bgm-toggle:active{transform:scale(.92);}
+  #bgm-pop{position:fixed;top:44px;right:10px;z-index:9;display:none;flex-direction:column;gap:6px;align-items:center;
+    background:rgba(12,12,20,0.96);border:1px solid rgba(240,200,90,0.35);border-radius:12px;padding:9px 11px;
+    box-shadow:0 8px 24px rgba(0,0,0,0.5);backdrop-filter:blur(6px);}
+  #bgm-pop.open{display:flex;}
+  .bgm-pop-row{display:flex;align-items:center;gap:8px;}
+  #bgm-spk{background:none;border:none;font-size:18px;cursor:pointer;padding:0;line-height:1;}
+  #bgm-vol{width:96px;accent-color:#ffd24a;cursor:pointer;}
+  #build-pill{font-family:'JetBrains Mono',monospace;font-size:9px;opacity:.4;color:#9aa0b4;cursor:pointer;letter-spacing:.3px;}
   .cb-info{order:-1;width:100%;text-align:center;font-size:13px;font-weight:800;color:#ffe39a;font-family:'JetBrains Mono',monospace;margin-bottom:2px;}   /* 컨트롤 첫 줄(START 위) 가운데 — 코인 표시 */
   .cb-info b{color:#ffd24a;}
   /* ▶ START 버튼 + 동전 투입 모션 */
@@ -39,10 +51,10 @@
   @keyframes startPulse{0%,100%{transform:scale(1);box-shadow:0 6px 22px rgba(240,200,90,.5);}50%{transform:scale(1.04);box-shadow:0 9px 30px rgba(240,200,90,.75);}}
   #controls.idle #start-btn{display:flex;}
   #controls.idle #stick-base,#controls.idle .hint,#controls.idle .btns{display:none;}
-  #controls.idle{flex-direction:column;align-items:center;}   /* IDLE = 코인줄/START/직원버튼 세로 스택(넓은 화면서 START 옆에 붙는 것 방지) */
+  #controls.idle{flex-direction:column;align-items:center;gap:8px;}   /* IDLE = 코인줄/START/직원버튼 세로 스택(정갈하게·같은 폭 정렬) */
   #controls.idle #start-btn{width:100%;}
   /* 🧑‍🔧 직원 부르기 — IDLE(START 대기)에서만 노출. 게임 껐다켜기 리셋을 정식 기능으로 */
-  #staff-btn{display:none;flex:0 0 auto;margin:0 auto;padding:8px 16px;border:1px solid rgba(255,255,255,0.16);border-radius:12px;
+  #staff-btn{display:none;flex:0 0 auto;width:100%;max-width:300px;margin:0 auto;padding:9px 16px;border:1px solid rgba(255,255,255,0.16);border-radius:12px;
     background:#23232f;color:#dfe3ee;font-family:inherit;font-size:12.5px;font-weight:800;cursor:pointer;box-shadow:none;
     flex-direction:column;align-items:center;gap:1px;}
   #staff-btn .sbf{font-size:9.5px;font-weight:600;opacity:.55;letter-spacing:0;}
@@ -89,10 +101,8 @@
   .upg-ov.fail .upg-flash{animation:upgFlashG .45s ease-out;}
   @keyframes upgFlash{0%{opacity:0;}12%{opacity:.92;}100%{opacity:0;}}
   @keyframes upgFlashG{0%{opacity:0;}22%{opacity:.42;background:#7a7a86;}100%{opacity:0;}}
-  #hud{position:fixed;top:48px;left:0;right:0;padding:10px 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;
-    background:linear-gradient(180deg,rgba(0,0,0,0.55),transparent);font-size:12px;pointer-events:none;}
+  #hud{display:none;}   /* 상단 디버그 정보줄 — 완전 숨김(화면 안 가림). 값은 updHud가 여전히 갱신(무해) */
   #hud .pill{background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:4px 10px;font-family:'JetBrains Mono',monospace;}
-  #hud .pill:not(#build-pill){display:none;}   /* 상단 정보 숨김(깔끔) — BUILD만 유지 */
   #hud .pill b{color:#ffd24a;}
   #hud .pill.urgent{background:rgba(255,80,80,0.22);border-color:rgba(255,90,90,0.7);animation:pillPulse 1s infinite;}
   #hud .pill.urgent b{color:#ff7a7a;}
@@ -153,6 +163,15 @@
 <div id="collection-bar">
   <div class="cb-title">🧸 컬렉션 <b id="cb-count">0/7</b></div>
   <div class="cb-slots" id="cb-slots"></div>
+  <button id="bgm-toggle" onclick="_bgmPopToggle()" title="음악 설정" aria-label="음악 설정">🔊</button>
+</div>
+<!-- 🎵 음악 설정 팝오버 — 평소 숨김, 스피커 아이콘 탭 시 표시(화면 안 가림) -->
+<div id="bgm-pop">
+  <div class="bgm-pop-row">
+    <button id="bgm-spk" onclick="_bgmMute()" title="음악 켜기/끄기">🔊</button>
+    <input id="bgm-vol" type="range" min="0" max="100" value="45" oninput="_bgmSetVol(this.value)" title="음량">
+  </div>
+  <span id="build-pill">BUILD 166 · claw</span>
 </div>
 <div id="hud">
   <span class="pill">상태 <b id="st">READY</b></span>
@@ -161,11 +180,6 @@
   <span class="pill">수집 <b id="coll">0/7</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 165 · claw</span>
-  <div id="bgm-ctrl" style="display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0;background:rgba(10,10,18,.55);padding:4px 9px;border-radius:16px;border:1px solid #3a3a4a;">
-    <button id="bgm-spk" onclick="_bgmMute()" title="음악 켜기/끄기" style="background:none;border:none;font-size:16px;cursor:pointer;padding:0;line-height:1;">🔊</button>
-    <input id="bgm-vol" type="range" min="0" max="100" value="45" oninput="_bgmSetVol(this.value)" title="음량" style="width:62px;accent-color:#ffd24a;cursor:pointer;">
-  </div>
 </div>
 <div id="result"></div>
 <div id="coin-fx"></div>
@@ -276,7 +290,17 @@ const BGM_TRACKS = ['bgm-claw.mp3','bgm-aram.mp3','bgm-lotto.mp3','bgm-loss.mp3'
 let _bgmAudio=null, _bgmIdx=Math.floor(Math.random()*BGM_TRACKS.length), _bgmOn=false;   // 매번 다른 곡으로 시작(랜덤)
 let _bgmVol=(function(){ const v=parseFloat(localStorage.getItem('clawBgmVol')); return isNaN(v)?0.45:v; })();
 let _bgmMuted=localStorage.getItem('clawBgmMuted')==='1';
-function _bgmUi(){ const sp=document.getElementById('bgm-spk'); if(sp) sp.textContent=(_bgmMuted||_bgmVol<=0)?'🔇':(_bgmVol<0.45?'🔉':'🔊'); const sl=document.getElementById('bgm-vol'); if(sl&&document.activeElement!==sl) sl.value=Math.round(_bgmVol*100); }
+function _bgmUi(){ const ic=(_bgmMuted||_bgmVol<=0)?'🔇':(_bgmVol<0.45?'🔉':'🔊');
+  const sp=document.getElementById('bgm-spk'); if(sp) sp.textContent=ic;
+  const tg=document.getElementById('bgm-toggle'); if(tg) tg.textContent=ic;   // 컬렉션 바 아이콘도 동기화
+  const sl=document.getElementById('bgm-vol'); if(sl&&document.activeElement!==sl) sl.value=Math.round(_bgmVol*100); }
+// 🎵 음악 설정 팝오버 토글(바깥 탭 시 닫힘)
+window._bgmPopToggle=function(e){ if(e) e.stopPropagation(); const p=document.getElementById('bgm-pop'); if(!p) return;
+  const open=!p.classList.contains('open'); p.classList.toggle('open', open);
+  if(open){ try{ _bgmStart(); }catch(_){} setTimeout(()=>document.addEventListener('pointerdown', _bgmPopOutside, {once:false}), 0); }
+  else document.removeEventListener('pointerdown', _bgmPopOutside); };
+function _bgmPopOutside(ev){ const p=document.getElementById('bgm-pop'), tg=document.getElementById('bgm-toggle');
+  if(p && !p.contains(ev.target) && ev.target!==tg){ p.classList.remove('open'); document.removeEventListener('pointerdown', _bgmPopOutside); } }
 function _bgmApply(){ if(_bgmAudio){ _bgmAudio.volume=_bgmVol; _bgmAudio.muted=_bgmMuted; } _bgmUi(); }
 function _bgmStart(){ if(!BGM_TRACKS.length||_bgmMuted){ _bgmUi(); return; }   // 첫 상호작용/START 때 호출(브라우저 autoplay 정책 대응)
   if(!_bgmAudio){ _bgmAudio=new Audio(BGM_TRACKS[_bgmIdx]); _bgmAudio.loop=(BGM_TRACKS.length===1);
