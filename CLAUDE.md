@@ -817,7 +817,16 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### v2.45.603 (2026-07-24·이 PC·`main` 직접) — 🏆 투기장 배틀에 랭킹 보러가기 버튼 ← 최신
+### v2.45.604 (2026-07-24·이 PC·`main` 직접) — 🖤 블랙 팟 교차 적립(실버/골드/프리즘 유료 구매금 5%) ← 최신
+> 사장님: "블랙 복권 참여 저조로 팟이 안 쌓임. 다른 복권 구매금으로도 블랙 팟 적립되게, 적절한 수치로."
+- **경제 안전성(핵심)**: 이미 지출된 골드(sink)의 일부를 팟(미래 해피 당첨자에게)으로 **재분배** → 돈 신규 생성 0. 각 티어 sink 여유(실버 21%·골드 26%·프리즘 24%p) 내 5% 이전이라 **여전히 순 sink**(<100% 유지). 무료권=골드 0이라 제외.
+- **상수/헬퍼(L29883, `_blackPotAdd` 뒤)**: `BLACK_POT_CROSS_RATE=0.05` · `_blackPotCross(price)=round(price*0.05)` → 실버4·골드10·프리즘20G.
+- **적립 지점**: ①**수동 유료 스크래치**(buyItem `scratch_tier` 유료 경로 L32284 근처): 골드 차감 직후 `_blackPotAdd(_potCross)` · **onCancel(환불)=`_blackPotAdd(-_potCross)` 원복** · onComplete/onDiscard 기록에 `potAdd` 필드(역추적). ②**자동 로봇**(autoBotReserve L28676·L28703): 비용 루프서 `potCrossTot` 누적 → 예약 확정 후 `_blackPotAdd(potCrossTot)`(로봇 예약=확정이라 원복 없음). 블랙 자체 20%(`_blackPotAdd(BLACK_TIER.potRate)`)는 그대로.
+- **UI 문구**: 블랙 도움말 row + 허브 subtitle(`.lh-black-potsub`) + 모달 팟바(`.blk-pb-lbl`)를 "모든 복권 구매금 적립(블랙 20%·그 외 5%)"로 갱신. 과거 CHANGELOG의 20% 표기는 이력이라 유지.
+- **검증**: `aram-check` 7/7 · 경제 검산(재분배·sink 여유 내) · `_blackPotAdd/_blackPotCross`(hoisted, 호출 시 const 초기화 완료) 스코프 확인. 시뮬 불요(팟≤적립≤지출로 인플레 불가·자명).
+- ⏭️ **미해결(이월)**: 실기서 팟 실제 증가 확인 · 투기장 엔드게임 · 기존.
+
+### v2.45.603 (2026-07-24·이 PC·`main` 직접) — 🏆 투기장 배틀에 랭킹 보러가기 버튼
 > 사장님: "투기장에 랭킹 보러가기 버튼." → 랭킹 화면·정렬·데이터 **이미 전부 존재**(랭킹 탭의 「🗡️ 투기장 랭킹」 세그먼트=`setRankBoard('arena')`·`renderArenaRanking`·`_arenaRankRows`[최고전투력›스킨수›순승]). 배틀 모달에 **점프 버튼만** 추가.
 - **수정**: 배틀 목록 모달(L37807 근처)에 `${SB?'':`<button class="arena-rankbtn" onclick="window._arenaGoRanking()">🏆 투기장 랭킹 보러가기</button>`}` + 신규 `window._arenaGoRanking`(L36965·`_arenaGoTab` 옆): 투기장 모달 3종 제거 → `window.showTab('tab-rank', 네비버튼)` → `window.setRankBoard('arena')`. CSS `.arena-rankbtn`(금색 세컨더리·`.arena-bt-reroll` 옆).
 - **검증**: `aram-check` 7/7 · `window.showTab`(L14947)·`setRankBoard`(L38286) 존재 확인. 기존 랭킹 재사용이라 저위험.

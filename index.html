@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.603';
+const APP_VERSION = 'v2.45.604';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.603';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.604', date: '2026-07-24', changes: [
+    { tag: 'improve', text: '🖤 블랙 팟이 이제 <b>다른 복권 구매로도 쌓여요</b> — 블랙 복권을 잘 안 해서 팟이 잘 안 불어나던 걸 보완했어요! 실버·골드·프리즘 복권을 <b>유료로 살 때마다 구매금의 5%</b>가 블랙 팟에 함께 적립돼요(실버 +4G·골드 +10G·프리즘 +20G, 자동 로봇 구매도 포함). 이미 쓴 골드의 일부를 팟(=미래 해피 블랙 당첨자)으로 재분배하는 방식이라 <b>돈이 새로 생기진 않아요</b>(인플레 없음). 블랙 복권 자체 구매금 20% 적립은 그대로예요. (무료권으로 산 복권은 골드를 안 써서 제외)' },
+  ] },
   { ver: 'v2.45.603', date: '2026-07-24', changes: [
     { tag: 'new', text: '🏆 인형 투기장 <b>배틀 화면에 「투기장 랭킹 보러가기」 버튼</b>을 넣었어요 — 누르면 랭킹 탭의 「🗡️ 투기장 랭킹」으로 바로 이동해요(순위 기준 = 최고 전투력 › 스킨 수 › 순승).' },
   ] },
@@ -28672,8 +28675,8 @@ window.autoBotReserve = async function(){
   if(n>def.cap){ n=def.cap; }   // 안전망(UI가 이미 막지만)
   // 🎟 무료 복권 먼저 소모(티어별) → 나머지만 골드. 비용 집계.
   const ft={...(data[sField('freeScratch')]||{})};
-  let cost=0, useFreeTot=0; const useFreeBy=[0,0,0]; const spendLabels=[];
-  for(let i=0;i<3;i++){ const cnt=sel[i]; if(cnt<=0) continue; const uf=Math.min(cnt, ft[i]||0); useFreeBy[i]=uf; useFreeTot+=uf; const pay=cnt-uf; if(pay>0){ cost+=pay*_autoBotLotPrice(i); spendLabels.push(`${AUTOBOT_LOT_NAMES[i]}×${pay}`); } }
+  let cost=0, useFreeTot=0, potCrossTot=0; const useFreeBy=[0,0,0]; const spendLabels=[];
+  for(let i=0;i<3;i++){ const cnt=sel[i]; if(cnt<=0) continue; const uf=Math.min(cnt, ft[i]||0); useFreeBy[i]=uf; useFreeTot+=uf; const pay=cnt-uf; if(pay>0){ cost+=pay*_autoBotLotPrice(i); potCrossTot+=pay*_blackPotCross(_autoBotLotPrice(i)); spendLabels.push(`${AUTOBOT_LOT_NAMES[i]}×${pay}`); } }
   if(getMyGold()<cost){ showGoldToast(`🪙 골드 부족 (필요 ${cost}G)`); return; }
   // 🍀 불운(천장) 스택을 티어별로 순차 적용(수동 lotteryPity 공유·실버는 스택 없음). 로봇은 전 칸 공개 → 해골 전부 카운트.
   //    티켓은 티어 오름차순(실버→골드→프리즘)으로 이어붙임. 각 티켓에 li(복권 idx)·sk(해골 수) 저장.
@@ -28701,6 +28704,7 @@ window.autoBotReserve = async function(){
   if(cost>0){ upd[spentKey]=(data[spentKey]??0)+cost; Object.assign(upd,_spendLogUpd(data,'autobot',`자동로봇 ${spendLabels.join('+')}`,cost)); }
   _applySpendLocal(key,upd);
   await update(ref(db,'gold/'+key),upd);
+  if(potCrossTot>0){ try{ _blackPotAdd(potCrossTot); }catch(_){} }   // 🖤 로봇 유료 구매금도 블랙 팟 교차 적립
   _autoBotLastDone=-1;
   _autoBotReserveFx(n, ()=>{
     const mixTxt=sel.map((c,i)=>c>0?`${AUTOBOT_LOT_EMOJI[i]}${c}`:'').filter(Boolean).join(' ');
@@ -29880,6 +29884,10 @@ function _blackPotMigrate20(){
   } catch(_){}
 }
 function _blackPotAdd(n){ try { runTransaction(_blackPotRef(), v => Math.max(0, (+v||0) + n)).catch(()=>{}); } catch(_){} }
+// 🖤 교차 적립(v2.45.604) — 실버/골드/프리즘 유료 구매금의 일부도 블랙 팟에 적립(블랙 참여 저조 보완).
+//   이미 지출된 골드의 일부를 팟(미래 해피 당첨자에게)으로 '재분배'라 인플레 없음(각 티어 sink 여유 21~26%p 내). 무료권=골드 0이라 제외.
+const BLACK_POT_CROSS_RATE = 0.05;   // 구매가의 5% (실버 70→4G · 골드 200→10G · 프리즘 400→20G)
+function _blackPotCross(tierPrice){ return Math.round((tierPrice||0) * BLACK_POT_CROSS_RATE); }
 async function _blackPotClaim(){   // 🍀 해피 당첨 지급 — 원자적(둘이 동시 당첨해도 한 명만·이중수령 불가)
   let claimed = 0;
   try { await runTransaction(_blackPotRef(), v => { claimed = Math.max(0, +v||0); return 0; }); } catch(_){ claimed = 0; }
@@ -30006,7 +30014,7 @@ function _lhBlackCardHtml(data, myGold){
     <div class="lh-black-potrow">
       <span class="lh-black-potlbl">🖤 블랙 팟</span>
       <span class="lh-black-potamt"><b class="blk-pot-live">${_blackPotAmt.toLocaleString('en-US')}</b> G</span>
-      <span class="lh-black-potsub">모두의 구매금 20% 실시간 적립</span>
+      <span class="lh-black-potsub">모든 복권 구매금 실시간 적립 (블랙 20%·그 외 5%)</span>
     </div>
     ${attemptHtml}
     <div class="lh-black-winners" id="blk-pot-winners"></div>
@@ -30014,7 +30022,7 @@ function _lhBlackCardHtml(data, myGold){
       <div class="lh-tier-help-desc">행운 문양 1칸 + 나의 문양 8칸 · 💀 2칸 · 최고 <b>50,000G</b></div>
       <div class="scard-help-row"><span class="scard-help-icon">🎯</span><span>왼쪽 <b>행운 문양</b>과 같은 그림이 나의 문양 8칸 중 <b>1개라도</b> 있으면 그 칸의 당첨금을 받아요.</span></div>
       <div class="scard-help-row"><span class="scard-help-icon">💀</span><span>해골 2칸 — 노출당 <b>-${BLACK_TIER.skullPenalty}G</b>. 당첨을 찾았으면 <b>그만 긁는 게 이득!</b></span></div>
-      <div class="scard-help-row"><span class="scard-help-icon">🖤</span><span><b>블랙 팟</b> — 모두의 구매금 <b>20%</b>가 실시간으로 쌓이는 공유 잭팟이에요.</span></div>
+      <div class="scard-help-row"><span class="scard-help-icon">🖤</span><span><b>블랙 팟</b> — 블랙 복권 구매금의 <b>20%</b> + <b>실버·골드·프리즘 복권 구매금의 5%</b>도 실시간으로 쌓이는 공유 잭팟이에요.</span></div>
       <div class="scard-help-row"><span class="scard-help-icon">🍀</span><span>가끔 <b style="color:#ff9ad5;">블랙 팟 복권</b>으로 변신 — 당첨되면 쌓인 <b>블랙 팟 전액</b>을 가져가고 팟은 0부터 다시 시작해요.</span></div>
       <div class="scard-help-row"><span class="scard-help-icon">🍀</span><span><b>불운 스택</b> — 꽝이 나올수록 다음 당첨 확률이 조금씩 올라가고, 당첨되면 초기화돼요.</span></div>
     </div>
@@ -30350,7 +30358,7 @@ function showBlackScratchModal(result, remainingGold, opts = {}){
       </div>
       <div class="blk-potband">
         <div class="blk-pb-row">
-          <span class="blk-pb-lbl">🖤 블랙 팟 <span>구매금 20% 실시간 적립</span></span>
+          <span class="blk-pb-lbl">🖤 블랙 팟 <span>모든 복권 구매금 적립 (블랙 20%·그 외 5%)</span></span>
         </div>
         <span class="blk-od"><b class="blk-pot-live" id="blk-pot-big">${_blackPotAmt.toLocaleString('en-US')}</b><span class="blk-od-unit">G</span></span>
       </div>
@@ -32278,6 +32286,7 @@ async function _buyItemImpl(itemId, qty) {
     const _pt = _rollScratchPity(tierDef.idx, data);   // 🍀 불운 스택 적용+갱신(골드·프리즘)
     const result = _pt.result;
     await update(ref(db,'gold/'+key), { [spentKey]: newGoldSpent, ...(_pt.pityPatch ? { [sField('lotteryPity')]: _pt.pityPatch } : {}) });
+    const _potCross = _blackPotCross(tierPrice); if (_potCross > 0) _blackPotAdd(_potCross);   // 🖤 교차 적립 — 유료 구매금 일부를 블랙 팟에(취소 시 원복)
     result.emblemBonus = result.win ? _myLottoPrizeBonus(data, tierDef.idx) : 0;  // 🪙 강화(성능) 당첨금 보너스 — 당첨 시에만 (실버 제외)
     const _mkAside = (revealed) => savePendingScratch({ tierIdx: tierDef.idx, slots: result.slots, win: result.win || null, free: false, emblemBonus: result.emblemBonus || 0, toolId: activeTool?.id || null, revealed, at: Date.now() });
     await _mkAside([]);   // 🎟 구매 즉시 보류 저장 (밖에 나가도 유지)
@@ -32291,6 +32300,7 @@ async function _buyItemImpl(itemId, qty) {
         ...(result.emblemRefund ? { emblemRefund: result.emblemRefund } : {}),
         ...(result.emblemBonus ? { emblemBonus: result.emblemBonus } : {}),
         ...(result.pity ? { pity: result.pity } : {}), ...(result.pityConv ? { pityConv: true } : {}),
+        ...(_potCross > 0 ? { potAdd: _potCross } : {}),   // 🖤 블랙 팟 교차 적립분(역추적용)
       }];
       await update(ref(db,'gold/'+key), { lotteryHistory });
     };
@@ -32300,6 +32310,7 @@ async function _buyItemImpl(itemId, qty) {
       const _u = { [spentKey]: Math.max(0, (latestData[spentKey] ?? 0) - tierPrice) };
       if (_pt.pityKey) { const p2 = { ...(latestData?.[sField('lotteryPity')] || {}) }; p2[_pt.pityKey] = _pt.pityPrev; _u[sField('lotteryPity')] = p2; }   // 🍀 취소=불운 스택 원복
       await update(ref(db,'gold/'+key), _u);
+      if (_potCross > 0) _blackPotAdd(-_potCross);   // 🖤 취소(환불) = 교차 적립분 원복
       await clearPendingScratch();
       showS1Toast?.(`↩️ ${tierPrice}G 환불됐어요`);
     };
@@ -32309,6 +32320,7 @@ async function _buyItemImpl(itemId, qty) {
       const lotteryHistory = [...(latestData?.lotteryHistory || []), {
         ts: Date.now(), date: getLocalDateKey(), scratch: true,
         tierIdx: tierDef.idx, win: null, gold: 0, discarded: true, season: CURRENT_SEASON,
+        ...(_potCross > 0 ? { potAdd: _potCross } : {}),   // 🖤 버려도 구매금은 이미 차감 — 팟 적립분 유지(역추적용)
       }];
       await update(ref(db,'gold/'+key), { lotteryHistory });
     };
