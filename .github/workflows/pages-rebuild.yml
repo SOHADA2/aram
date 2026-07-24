@@ -1,0 +1,22 @@
+name: Pages Rebuild
+# 클래식(브랜치) GitHub Pages 재빌드를 강제 요청 — 자동 배포 트리거가 멈췄을 때 수동 실행.
+# 배포 방식(Deploy from branch)은 그대로 두고, Settings에서 재저장하는 것과 동일한 "빌드 요청"만 함.
+on:
+  workflow_dispatch:
+permissions:
+  pages: write
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Request GitHub Pages build
+        run: |
+          echo "Requesting Pages build for ${{ github.repository }} ..."
+          code=$(curl -sS -o /tmp/resp.json -w "%{http_code}" -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ github.token }}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/repos/${{ github.repository }}/pages/builds")
+          echo "HTTP $code"; cat /tmp/resp.json
+          if [ "$code" != "201" ]; then echo "::error::Pages build request failed ($code)"; exit 1; fi
+          echo "✅ Pages build requested."
