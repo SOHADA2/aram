@@ -817,7 +817,12 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### v2.45.606 (2026-07-24·이 PC·`main` 직접) — 🎯 치명타 밸런스 튜닝(CRIT_Q 0.5→0.7·연쇄 5→4) ← 최신
+### v2.45.607 (2026-07-24·이 PC·`main` 직접) — 🕹️ 인형뽑기 창에 치명타 집게 상태칩(장착/구매) ← 최신
+> 사장님: "치명타 집게를 인형뽑기 쪽에서도 확인·장착/구매." → 인형뽑기 모달 주소창 아래 스트립.
+- index.html: `_clawHasCrit()`/`_clawCritChipHtml()`(장착됨 칩 / 미보유=「구매하러 가기 600G」버튼·인라인스타일)·모달에 `.claw-crit-strip`+`#claw-crit-slot`·`_clawRefreshCritChip`·click `data-a='buycrit'`(→`buyItem('claw_crit')`→보유확인→iframe에 `{type:'critclaw',on:true}` 전송→칩갱신). buyItem `claw_tool` 분기에 낙관적 로컬반영(`Object.assign(goldData[key],updates)`) 추가(구매 즉시 `_clawHasCrit` true). claw.html 메시지리스너에 `critclaw` 처리(게임중단 없이 `_critClaw` 갱신).
+- 검증: index 7/7·claw.html 1/1·Edge 목업(칩 2상태). ⚠️미러 목업 미동기 여전.
+
+### v2.45.606 (2026-07-24·이 PC·`main` 직접) — 🎯 치명타 밸런스 튜닝(CRIT_Q 0.5→0.7·연쇄 5→4)
 > 사장님 "치명타 효율 비율?" → 분석: grabQ 공식상 실제 집기 최저 0.57>0.5라 **성공 집기=100% 치명타**(집으면 다 발동). 사장님 "0.7로·최대 4회로." 반영.
 - claw.html `CRIT_Q 0.5→0.7`(집게발 2개+ 단단히 집을 때만)·`CRIT_MAX_CHAIN 5→4`. index.html 상점 desc·v605 changelog 문구 "품질 70%+·집게발 2개+·최대 4연쇄"로 갱신.
 - 검증: index 7/7·claw.html 1/1. ⚠️미러 `인형뽑기-물리-목업.html` 여전히 미동기(v605+606 편집 전부 반영 필요).
