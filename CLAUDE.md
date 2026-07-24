@@ -817,7 +817,15 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### v2.45.597 (2026-07-23·이 PC·`main` 직접) — 🕹️ 아케이드서 단짝 카드 제거(관리는 단짝 창으로 이전·교체 버튼 추가) ← 최신
+### v2.45.598 (2026-07-24·이 PC·`main` 직접) — 🗡️ 강화창 인형 선택 카드 재설계(수량배지 잘림 수정+시인성) ← 최신
+> 사장님: "강화창(투기장) 인형 카드에서 보유 개수 부분이 잘려있음. 고치고, 비주얼/디자인 시인성 좋고 직관적으로."
+- **잘림 원인**: 모바일 CSS `.arena-pick .ap{overflow:hidden}` + 수량배지 `.ap-q{top:-4px;right:-4px}`(카드 밖 음수위치) → 클립. `.arena-pick{overflow-x:auto}`도 세로 클립 유발.
+- **수정(index.html)**: 카드 HTML을 `.ap>.ap-thumb(img+배지)+.ap-p` 구조로(L37313 근처). 배지 전부 **thumb 안쪽 인셋**(`.ap-q top:2px right:2px`·`.ap-eq top:2px left:2px`·`.ap-lock inset:0`) → 음수위치 제거로 안 잘림. 수량 표기 `N`→`×N`. CSS 재설계(L36409~·데스크탑 wrap / 모바일 L36631~ `flex:0 0 auto;width:50px` 고정폭 스크롤·`overflow:hidden` 제거·`padding:8px 2px 4px`로 글로우 여유). `.ap-q.lock`→`.ap-lock`(중앙 자물쇠 오버레이).
+- **검증**: `aram-check` 7/7 + **✅ Edge 헤드리스 목업 스샷 실측**(수량배지 안 잘림·전투력/⚔️/🔒 또렷 확인). 
+- **🖥️ Edge 헤드리스 스샷 복구법(메모리 갱신)**: 그동안 안 되던 원인=**출력 png 경로 권한**(스크래치패드에 쓰기 거부 0x5) + HTML을 URL로 오인. **해결: `--screenshot`는 `C:/Users/sbs_n/AppData/Local/Temp/...png`(쓰기가능 Temp)로, HTML은 `file:///<절대경로>`로.** 커맨드: `msedge --headless=new --disable-gpu --no-sandbox --user-data-dir=<임시> --screenshot="<Temp>/x.png" --window-size=W,H "file:///<abs>/x.html"` → Read로 png 확인.
+- ⏭️ **미해결(이월)**: 강화창 실기 확인 · 자동로봇 실기(v593~594) · 기존 미결.
+
+### v2.45.597 (2026-07-23·이 PC·`main` 직접) — 🕹️ 아케이드서 단짝 카드 제거(관리는 단짝 창으로 이전·교체 버튼 추가)
 > 사장님: "아케이드 '내 단짝' 카드가 프로필 느낌 안 남·없애고 버튼 3개만. 어차피 클릭하면 들어가서 볼 수 있잖아."
 - **함정(반드시 확인함)**: 아케이드 카드(`_buddySpaceHtml`)에만 **교체(`_buddyChangeBuddy`)**가 있었고, 프로필 단짝 섹션은 "관리는 아케이드 탭으로 옮겼어요"라고 아케이드를 가리킴 → 카드만 빼면 교체 고아+프로필 안내 깨짐. 그래서 **관리 허브를 `_buddyOpenPanel`(3D·스택·수령·보상표·설명 있는 모달)로 이전**.
 - **수정**: ①`_buddyArcadeHtml`(L35987)=단짝 보유 시 `''` 반환(카드 없이 버튼 3개만)·미보유 시 선정/수집 안내는 유지 ②`_buddyMiniHtml`(홈 대시보드 미니) onclick=`openMyProfile`→**`_buddyOpenPanel`**(홈 단짝 클릭=단짝 창 직행) ③`_buddyOpenPanel`(L38843)에 **🔄교체 버튼** 추가(id=`buddy-panel-change`·핸들러서 `_buddy3dClose`+ov.remove+`window._buddyChangeBuddy()`·⚠️window스코프라 접두 필수) ④`_buddyProfileHtml` isMe 안내(L38791)=아케이드 지칭→"단짝 창에서 관리"+[🧸 단짝 창 열기]/[선정하기] 버튼.
