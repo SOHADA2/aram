@@ -817,7 +817,15 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### v2.45.594 (2026-07-23·이 PC·`main` 직접) — 🤖 자동 로봇 혼합 예약(실버+골드+프리즘 한 바구니) ← 최신
+### v2.45.595 (2026-07-23·이 PC·`main` 직접) — 🕹️ 아케이드 탭 UX 정리(투기장 3버튼→1진입점·진입 3개 나란히) ← 최신
+> 사장님: "아케이드(가챠 컬렉션 🕹️탭)가 직관적이지 않다·강화/배틀/스킨 3개로 나눌 필요 없다(어차피 팝업 안 탭으로 다 오감)·시인성 좋게." → AskUserQuestion으로 레이아웃 확정: **「진입 3개 나란히(뽑기·투기장·광장)」**(vs 단짝카드에 1버튼). 투기장 3버튼은 어느 쪽이든 1진입점 통합.
+- **구조 파악**: 이 섹션=홈 아니고 **가챠 컬렉션 `gachaStar===4` 아케이드 탭**(`_prismClawHtml` L35975). 강화/배틀/스킨 모달은 하단 공유 탭바 `_arenaTabs`(L36862)+`_arenaGoTab`(현 모달 remove 후 대상 open)으로 이미 연결 → 진입점 1개로 충분. ⚠️단 **스킨샵만 탭바 없어**(닫기만) 비대칭이었음.
+- **수정**: ①`_buddyArcadeHtml`(L35966)=단짝 프로필 쇼케이스만(arenaHtml='' 전달·투기장 버튼 제거) ②신규 `_arcadeEntriesHtml(data)`=진입 3개(🎪뽑기 `openClawTest3D` / 🗡️투기장 `openArenaForge`·자격+라이브 분기·전투력/배틀수 부제 / 🏘️광장 `openPlaza`) ③`_prismClawHtml`=버디카드+엔트리 2블록으로 단순화 ④`_arenaTabs`에 스킨 `on` 하이라이트 추가 ⑤`openSkinShop`(L37955) innerHTML에 `${_arenaTabs('skin',0)}` 추가(스킨→강화/배틀 왕복 복원). CSS `.arcade-entry`(아이콘+제목+부제+›·종류별 색: 금=뽑기/주황=투기장/초록=광장) `_injectPrismDeckCss` 끝에 추가.
+- **죽은코드**: `_arenaActionsHtml`(L35952·구 3버튼)은 이제 미사용이나 위험 없어 유지. `.bsp-arena*` CSS도 잔존(무해).
+- **검증**: `aram-check` 7/7. ⚠️**Edge 헤드리스 스크린샷이 이 환경서 미작동**(png 미생성·메모리 기록과 상이) → 목업 시각검증 못 함. 레이아웃=표준 flex 리스트라 저위험. **라이브서 아케이드 탭 눈으로 확인 권장**.
+- ⏭️ **미해결(이월)**: 아케이드 탭 실제 시각 확인 · 자동로봇 실기(v593~594) · 기존 미결.
+
+### v2.45.594 (2026-07-23·이 PC·`main` 직접) — 🤖 자동 로봇 혼합 예약(실버+골드+프리즘 한 바구니)
 > v593 직후 사장님: "서로 다른 종류를 동시/조합해서 못 돌리는데 되게?" → AskUserQuestion 2개: **①혼합 예약(한 큐에 섞기·순서대로 하나씩)** ②**한도 전체 합산**(총 장수 ≤ 로봇 cap). "동시 병렬 큐"는 미채택(단일 큐 유지).
 - **데이터 모델 변경**: 큐가 단일 `lidx`/`pen` → **티켓별 `li`(복권 idx)** + `q.mix`(=[n0,n1,n2] 종류별 장수). 페널티는 티켓별 `_ticketPen(q,t)=_autoBotLotDef(_ticketLot(q,t)).skullPenalty`로 계산. 헬퍼 `_ticketLot`/`_ticketPen`(28225~)·`AUTOBOT_LOT_EMOJI`. **구버전 큐 폴백**: `t.li ?? q.lidx ?? 0`(v593 단일티어 큐도 정상 정산).
 - **상태**: `_autoBotSelN`/`_autoBotLotIdx` 제거 → **`_autoBotSelCnt=[n0,n1,n2]`**. 핸들러 `autoBotAdj`/`autoBotSelLot` 제거 → **`autoBotAdjLot(idx,d)`**(총합 cap 가드). `autoBotReserve()` 무인자화(내부서 sel 읽음).
