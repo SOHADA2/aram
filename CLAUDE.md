@@ -817,7 +817,15 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### v2.45.599 (2026-07-24·이 PC·`main` 직접) — 🗡️ 투기장 3모달 통일(탭 상단·배틀부터·헤더 일치) ← 최신
+### v2.45.600 (2026-07-24·이 PC·`main` 직접) — 🗡️ 강화창 컴팩트 2단 재설계(방어순서 상단·3D 좌/정보 우·세로축소) ← 최신
+> 사장님: "강화창 방어 스킬을 위로. 3D 프로필이 가운데라 양옆 비어보임 → 왼쪽으로 밀고 우측 남는 공간에 재화/정보. 창이 세로로 길어 별로 → 한 화면에서 한 번에."
+- **재설계(openArenaForge render, index.html L37307~)**: 세로 스택(topinfo→3D→등급→power→odds→버튼→picker→방어) → **① 방어순서(`.arena-defset.compact`) 탭 바로 아래 상단** ② **2단 `.arena-forge-main`**: 좌 `.afm-left`(3D `#arena-fighter-3d` 132px+등급/챔프명) · 우 `.afm-right`(⚔️배지·`.arena-power`·재화 pill[보유×N·🗡️코인·강화비용]·`.arena-odds3` 성공/보류/파괴·result) ③ 강화버튼 전체폭 ④ picker ⑤ `.arena-forge-foot`(팔기+picknote).
+- **CSS 추가(L36638 앞)**: `.arena-forge-main`(flex)·`.afm-left/afm-right/afm-name/afm-res`·컴팩트 override(odds3/result margin·result font 14)·`@media(max-width:400px)` 3D 112px. 기존 `.arena-topinfo`(구 상단 3pill)는 미사용됐으나 잔존(무해).
+- **JS 무변**: `#arena-x/#arena-fighter-3d/#arena-go(maxed시 없음·if(go)가드)/#arena-sell/.ads-slot/.ap` ID·클래스 유지 → 핸들러 그대로. 방어슬롯 탭=제자리 갱신(3D 안 깜빡).
+- **검증**: `aram-check` 7/7 + **✅ Edge 헤드리스 목업 실측**(방어 상단·3D 좌/정보 우 꽉참·세로 확 짧아짐 확인). 배틀/스킨 모달은 이번 변경 안 함(구조만 통일된 v599 상태).
+- ⏭️ **미해결(이월)**: 강화창 실기(3D 좌측 마운트 크기·모바일 2단) · 자동로봇 실기(v593~594) · 기존.
+
+### v2.45.599 (2026-07-24·이 PC·`main` 직접) — 🗡️ 투기장 3모달 통일(탭 상단·배틀부터·헤더 일치)
 > 사장님: "투기장 → 강화부터 뜸. 강화/배틀/스킨 탭이 맨 위에 있어야 이동 쉬움. 투기장 누르면 배틀부터. 3개 카테고리 디자인 안 맞음 → 맞추고 빈공간 없이."
 - **구조**: 3모달 = `_arenaHd`(✕제목?) → **`_arenaTabs` 상단** → 본문 으로 통일. 탭은 원래 forge/battle 맨 아래·skin은 헤더도 달랐음(plain title+닫기버튼).
 - **수정(index.html)**: ①`.arena-tabs` CSS `margin-top:14px`→`margin:0 0 14px`(상단용) ②forge(L37304)·battle목록(L37687): `_arenaTabs`를 헤더 바로 아래로 이동(맨 아래 것 제거) ③skin(L38002): plain `<div class="arena-h">`+`#sk-x` 닫기버튼 제거 → `_arenaHd('🎨 스킨 상점','skin',0)`+상단탭, 닫기는 헤더 ✕(`#arena-x`)에 배선 ④`_ARENA_HELP.skin` 항목 신설(스킨 ?도움말·전엔 forge로 폴백됐음) ⑤아케이드 「인형 투기장」 진입=`openArenaForge`→**`openArenaBattle`**(배틀부터)·부제 '배틀·키우기·스킨'.

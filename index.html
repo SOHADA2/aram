@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.599';
+const APP_VERSION = 'v2.45.600';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.599';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.600', date: '2026-07-24', changes: [
+    { tag: 'improve', text: '🗡️ 인형 강화창을 <b>한 화면에 쏙 들어오게</b> 재설계했어요. ① 3D 인형을 <b>왼쪽</b>으로 보내고, 그 옆 <b>오른쪽에 전투력·보유 개수·코인·강화 비용·성공/보류/파괴 확률</b>을 모아 양옆이 비지 않고 꽉 차게 했어요. ② <b>내 방어 순서(Q·W·E)를 맨 위</b>로 올려서 바로 만질 수 있어요. ③ 세로로 길던 걸 확 줄여서 <b>스크롤 없이</b> 강화·팔기·인형 선택을 한 번에 처리할 수 있어요.' },
+  ] },
   { ver: 'v2.45.599', date: '2026-07-24', changes: [
     { tag: 'improve', text: '🗡️ 인형 투기장 세 화면(강화·배틀·스킨)을 정리했어요. ① <b>강화·배틀·스킨 탭을 화면 맨 위로</b> 올려서 카테고리 이동이 훨씬 쉬워요(전엔 맨 아래였어요). ② 아케이드에서 <b>「인형 투기장」을 누르면 이제 배틀부터</b> 떠요(전엔 강화). ③ 세 화면의 <b>헤더·탭 디자인을 똑같이 통일</b>했어요 — 스킨 상점도 다른 화면과 같은 헤더(? 제목 ✕)+상단 탭으로 맞췄어요.' },
   ] },
@@ -36635,6 +36638,22 @@ function _injectArenaCss(){
   .arena-topinfo{display:flex;justify-content:center;gap:8px;margin:-4px 0 10px;}
   .ti-pill{font-size:11.5px;color:#cbd3e6;background:rgba(255,255,255,.05);border:1px solid rgba(240,200,90,.22);border-radius:20px;padding:3px 12px;} .ti-pill b{color:#ffd24a;font-weight:800;}
   .arena-forge-btn .fb-cost{font-weight:600;opacity:.82;font-size:13px;}
+  /* 🔨 강화창 컴팩트 2단(v600) — 좌 3D+등급/이름 · 우 배지·전투력·재화·확률 · 방어순서 상단 (세로길이 축소·양옆 여백 제거) */
+  .arena-forge-main{display:flex;gap:12px;align-items:center;margin:2px 0 11px;}
+  .afm-left{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .afm-left .arena-fighter{margin:0;width:132px;height:132px;}
+  .afm-name{display:flex;align-items:center;gap:5px;font-size:13.5px;font-weight:700;color:#e6ebf2;}
+  .afm-right{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px;text-align:center;justify-content:center;}
+  .afm-right .arena-power{margin:0;}
+  .afm-right .arena-odds3{margin:0;}
+  .afm-right .arena-result{margin:0;min-height:0;font-size:14px;}
+  .afm-res{display:flex;flex-wrap:wrap;gap:5px;justify-content:center;}
+  .arena-defset.compact{margin:0 0 11px;}
+  .arena-defset.compact .ads-lbl{margin-bottom:6px;}
+  .arena-defset.compact .ads-slot{padding:6px 3px;}
+  .arena-forge-foot{margin-top:9px;}
+  .arena-forge-foot .arena-picknote{margin-top:7px;}
+  @media (max-width:400px){ .afm-left .arena-fighter{width:112px;height:112px;} .arena-forge-main{gap:9px;} }
   /* 인형 선택줄 한 줄 균등 — ⚠️모바일(iOS 등)서 img intrinsic 폭이 카드 축소를 막아 잘리던 문제 방탄 (v2.45.530):
      ①이미지 min 크기 차단 ②그래도 넘치면 가로 스와이프(overflow-x) ③시트 min-width:0(플렉스 min-content 전파 차단) */
   .arena-sheet{min-width:0;}
@@ -37304,29 +37323,37 @@ window.openArenaForge=function(sandbox){
     const grade=_arenaGrade(power), nextG=_arenaNextGrade(power);   // 🏅 등급(검키우기식 단계)
     const eqF = SB? active : _arenaActiveFighter(getMyGoldData());   // ⚔️ 전투(장착) 인형 = 방어 순서의 주인
     const defOrder = SB? null : _arenaDefOrder(getMyGoldData()||{}, key);   // 🛡️ 내 방어 순서(미설정 시 키 기반 기본값)
-    ov.innerHTML=`<div class="arena-sheet" onclick="event.stopPropagation()">
+    ov.innerHTML=`<div class="arena-sheet arena-forge-sheet" onclick="event.stopPropagation()">
       ${_arenaHd('인형 강화','forge',SB)}
       ${_arenaTabs('forge',SB)}
-      <div class="arena-topinfo"><span class="ti-pill">인형 <b>${stock}</b></span><span class="ti-pill">보유 🗡️ <b style="${coins<cost&&!maxed?'color:#ff6b6b':''}">${coins}</b></span>${maxed?'':`<span class="ti-pill">강화 <b>🗡️${cost}</b></span>`}</div>
-      <div class="arena-fighter ${fx?('fx-'+fx):''}${grade.prism?' myth':''}" id="arena-fighter-3d" style="--ag:${grade.c}"></div>
-      <div class="arena-grade-row">${_arenaGradeHtml(power)}<span style="font-size:15px;font-weight:700;color:#e6ebf2;">${escHtml(_buddyChampName(active))}</span>${viewingEquipped?'<span class="arena-eqbadge">⚔️ 전투 인형</span>':'<span class="arena-eqbadge preview">👁 미리보기</span>'}</div>
-      <div class="arena-power">+${power}<small> / ${ARENA_MAX_POWER}</small></div>
-      ${stock<=1&&!maxed?'<div class="arena-next" style="color:#ffb24a">⚠️ 마지막 1개 — 파괴 시 소진</div>':''}
-      <div class="arena-result">${msg||''}</div>
-      ${maxed?'<div class="arena-cost">👑 최대 강화 달성!</div>':`
-      <div class="arena-odds3">
-        <div class="od-c"><div class="od-l">성공</div><div class="od-v s">${odds.success}%</div></div>
-        <div class="od-c"><div class="od-l">보류</div><div class="od-v h">${odds.hold}%</div></div>
-        <div class="od-c"><div class="od-l">파괴</div><div class="od-v d">${odds.destroy}%</div></div>
-      </div>
-      ${hasSkin?`<div class="arena-next" style="color:#7CFC9A;margin:-7px 0 9px;">🎨 스킨 효과 — 성공률 +${ARENA_SKIN_FORGE_BONUS}%p 적용 중</div>`:''}
-      <button class="arena-forge-btn" id="arena-go" ${canForge?'':'disabled'}>${stock<1?'보유 인형 없음 — 인형뽑기로':coins<cost?`🗡️${cost} 필요 <span class="fb-cost">· ${cost-coins} 부족(배틀로)</span>`:`강화 시도 <span class="fb-cost">· 🗡️${cost}</span>`}</button>`}
-      <button class="arena-sell-btn" id="arena-sell" ${stock<1?'disabled':''}>팔기 <span style="opacity:.82">· 🗡️${_arenaSellValue(power)}${power>0?` (+${power}→리셋)`:''}</span></button>
-      <div class="arena-pick">${picks.map(c=>{const _has=stockMap[c]>0;return `<div class="ap ${_arenaRk(active)===c?'on':''}${_has?'':' empty'}${c===equippedRk?' equipped':''}" data-c="${c}.glb"><div class="ap-thumb"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${_clawDdKey(c)}_0.jpg" onerror="this.style.visibility='hidden'">${c===equippedRk?'<span class="ap-eq">⚔️</span>':''}${_has?`<span class="ap-q">×${stockMap[c]}</span>`:'<span class="ap-lock">🔒</span>'}</div><div class="ap-p">${_has?`+${getPower(c+'.glb')}`:'미보유'}</div></div>`;}).join('')}</div>
-      <div class="arena-picknote">보유 인형을 탭하면 그 인형이 <b>전투·방어에 쓰는 ⚔️ 전투 인형</b>이 돼요 (=장착) · 미보유는 미리보기만</div>
-      ${SB?'':`<div class="arena-defset">
-        <div class="ads-lbl">🛡️ 내 방어 순서 <span>공격받을 때 <b>${escHtml(_buddyChampName(eqF))}</b>가 이 순서로 막아요 · 탭해서 변경 (정찰당하면 카운터!)</span></div>
+      ${SB?'':`<div class="arena-defset compact">
+        <div class="ads-lbl">🛡️ 내 방어 순서 <span><b>${escHtml(_buddyChampName(eqF))}</b>가 공격받을 때 이 순서로 막아요 · 탭해서 변경</span></div>
         <div class="ads-slots">${defOrder.map((s,i)=>`<button class="ads-slot" data-i="${i}"><b>${s}</b><span>${escHtml(_champSkills(eqF)[s]||'')}</span></button>`).join('')}</div></div>`}
+      <div class="arena-forge-main">
+        <div class="afm-left">
+          <div class="arena-fighter ${fx?('fx-'+fx):''}${grade.prism?' myth':''}" id="arena-fighter-3d" style="--ag:${grade.c}"></div>
+          <div class="afm-name">${_arenaGradeHtml(power)}<b>${escHtml(_buddyChampName(active))}</b></div>
+        </div>
+        <div class="afm-right">
+          <div class="afm-badge">${viewingEquipped?'<span class="arena-eqbadge">⚔️ 전투 인형</span>':'<span class="arena-eqbadge preview">👁 미리보기</span>'}</div>
+          <div class="arena-power">+${power}<small> / ${ARENA_MAX_POWER}</small></div>
+          <div class="afm-res"><span class="ti-pill">보유 <b>×${stock}</b></span><span class="ti-pill">🗡️ <b style="${coins<cost&&!maxed?'color:#ff6b6b':''}">${coins}</b></span>${maxed?'':`<span class="ti-pill">강화 <b>🗡️${cost}</b></span>`}</div>
+          ${maxed?'<div class="arena-cost">👑 최대 강화 달성!</div>':`<div class="arena-odds3">
+            <div class="od-c"><div class="od-l">성공</div><div class="od-v s">${odds.success}%</div></div>
+            <div class="od-c"><div class="od-l">보류</div><div class="od-v h">${odds.hold}%</div></div>
+            <div class="od-c"><div class="od-l">파괴</div><div class="od-v d">${odds.destroy}%</div></div>
+          </div>`}
+          ${hasSkin?`<div class="arena-next" style="color:#7CFC9A;">🎨 스킨 성공률 +${ARENA_SKIN_FORGE_BONUS}%p</div>`:''}
+          <div class="arena-result">${msg||''}</div>
+          ${stock<=1&&!maxed?'<div class="arena-next" style="color:#ffb24a">⚠️ 마지막 1개 — 파괴 시 소진</div>':''}
+        </div>
+      </div>
+      ${maxed?'':`<button class="arena-forge-btn" id="arena-go" ${canForge?'':'disabled'}>${stock<1?'보유 인형 없음 — 인형뽑기로':coins<cost?`🗡️${cost} 필요 <span class="fb-cost">· ${cost-coins} 부족(배틀로)</span>`:`강화 시도 <span class="fb-cost">· 🗡️${cost}</span>`}</button>`}
+      <div class="arena-pick">${picks.map(c=>{const _has=stockMap[c]>0;return `<div class="ap ${_arenaRk(active)===c?'on':''}${_has?'':' empty'}${c===equippedRk?' equipped':''}" data-c="${c}.glb"><div class="ap-thumb"><img src="https://ddragon.leagueoflegends.com/cdn/img/champion/loading/${_clawDdKey(c)}_0.jpg" onerror="this.style.visibility='hidden'">${c===equippedRk?'<span class="ap-eq">⚔️</span>':''}${_has?`<span class="ap-q">×${stockMap[c]}</span>`:'<span class="ap-lock">🔒</span>'}</div><div class="ap-p">${_has?`+${getPower(c+'.glb')}`:'미보유'}</div></div>`;}).join('')}</div>
+      <div class="arena-forge-foot">
+        <button class="arena-sell-btn" id="arena-sell" ${stock<1?'disabled':''}>팔기 <span style="opacity:.82">· 🗡️${_arenaSellValue(power)}${power>0?` (+${power}→리셋)`:''}</span></button>
+        <div class="arena-picknote">보유 인형을 탭하면 그 인형이 <b>⚔️ 전투 인형</b>이 돼요 (=장착) · 미보유는 미리보기만</div>
+      </div>
     </div>`;
     ov.querySelector('#arena-x').onclick=()=>{ _forge3dDispose(); ov.remove(); };
     { const _fm=ov.querySelector('#arena-fighter-3d'); if(_fm){ try{ _forge3dShow(_fm, _appGlb(active, getMyGoldData()||{}), grade.c, grade.prism); }catch(_){} } }   // 🔨 활성 인형 3D(등급색·자체 크기)
