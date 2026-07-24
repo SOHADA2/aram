@@ -161,7 +161,7 @@
   <span class="pill">수집 <b id="coll">0/7</b></span>
   <span class="pill">오늘 <b id="plays">0/10</b></span>
   <span class="pill" id="timer-pill">⏱ <b id="timer">—</b></span>
-  <span class="pill" id="build-pill" style="opacity:.5">BUILD 164 · claw</span>
+  <span class="pill" id="build-pill" style="opacity:.5">BUILD 165 · claw</span>
   <div id="bgm-ctrl" style="display:flex;align-items:center;gap:6px;margin-left:auto;flex-shrink:0;background:rgba(10,10,18,.55);padding:4px 9px;border-radius:16px;border:1px solid #3a3a4a;">
     <button id="bgm-spk" onclick="_bgmMute()" title="음악 켜기/끄기" style="background:none;border:none;font-size:16px;cursor:pointer;padding:0;line-height:1;">🔊</button>
     <input id="bgm-vol" type="range" min="0" max="100" value="45" oninput="_bgmSetVol(this.value)" title="음량" style="width:62px;accent-color:#ffd24a;cursor:pointer;">
@@ -314,9 +314,11 @@ const SPIN_SPD      = 1.9;    // 내려갈 때 집게 회전 속도(rad/s)
 // 🎯 치명타(grabQ≥0.5) + 치명타 집게(장비) 연쇄 보너스 드롭 (v2.45.605)
 const CRIT_Q        = 0.7;    // 이 이상 품질로 집으면 치명타! (v605=0.5는 집으면 거의 다 발동이라 0.7로↑ — 집게발 2개+ 단단히)
 const CRIT_MAX_CHAIN= 4;      // 치명타 연쇄 최대 보너스 드롭 수
-const BONUS_SPDX    = 1.95;   // 보너스 드롭 속도 배율(기존보다 빠르게 — 답답함 방지)
+const BONUS_SPDX    = 2.6;    // 보너스 드롭 속도 배율(하강·복귀·닫기 전부 빠르게 — 답답함 방지)
+const BONUS_WAIT_MS = 650;    // 인형 놓은 뒤 보너스 출동 전 한 박자(집게 빛나며 「보너스 집게!」 예고 → 즉발 아님)
 let _critClaw=false;          // 치명타 집게 장착 여부(앱 init에서 주입)
 let _bonusUsed=0, _bonusPending=false, _SPDX=1;   // 연쇄 카운트·예약·속도배율
+let _clawBonusGlow=false, _bonusWaitT=0;          // 🌈 보너스 집게 발광 상태·대기 타이머
 const BIN = { x: 3.2, z: 3.2 };          // 통 절반 크기(이동 가능 범위)
 const WALL = 0.4;                         // 통 경계 여유 (바닥/벽은 BIN+WALL=3.6)
 const HOLE_RX = 0.95;                     // 골인 구멍 가로(화면 좌우) 절반
@@ -1064,6 +1066,7 @@ clawBody.collisionFilterMask = -3;   // 인형(그룹2)과 물리충돌 안 함 
 clawBody.position.set(0, CLAW_TOP_Y, 0); world.addBody(clawBody);
 
 const steel = new THREE.MeshStandardMaterial({color:0xcfd6e0, roughness:0.28, metalness:0.85});
+const _steelBaseColor = steel.color.clone();   // 🌈 보너스 발광 종료 시 복귀할 은색 원본
 // 🦾 손목 관절(clawPivot) = 트롤리 바로 아래 고정점. 집게(clawGroup)는 이 관절 아래 매달려 진자 운동(관절은 안 흔들림)
 const JOINT_H = 0.48;   // 관절~집게 거리(짧게 — 관절 볼이 집게 손목 가까이로 내려옴)
 const clawPivot = new THREE.Group(); scene.add(clawPivot);
@@ -1299,7 +1302,7 @@ function startGame(){
   if(!canPlay()){ Sfx.error(); showResult(coins<=0 ? '코인이 없어요 (출석으로 충전)' : '오늘 5회 소진! (코인은 모임)','#ffb86b'); return; }
   if(ENF){ coins--; playsUsed++; _saveCoins(); }
   _playResolved=false;            // 📋 이번 판 결과 미확정 — 집기 끝까지 결과 없으면 'miss'로 기록
-  _bonusUsed=0; _bonusPending=false; _SPDX=1;   // 🎯 치명타 연쇄 초기화(새 유료 판)
+  _bonusUsed=0; _bonusPending=false; _SPDX=1; _clawBonusGlow=false;   // 🎯 치명타 연쇄 초기화(새 유료 판)·발광 해제
   state='READY'; updControls();   // ⚠️ updDailyHud보다 먼저 — HUD가 READY를 반영해야 집기 버튼이 안 잠김(마지막 코인이어도 진행 중 게임은 집기 가능)
   updDailyHud(); _coinDropFx(); Sfx.coin(); _bgmStart();
   _postParent('gamestate', {inProgress:true});   // 🔗 앱에 "코인 쓴 진행 중" 통지 → 닫기/리로드 시 확인창
@@ -1361,7 +1364,7 @@ function _onGrabResolved(){
 }
 // ⚡ 보너스 집게 출동 — 랜덤 위치로 순간이동 후 빠르게 자동 하강(코인 무소모)
 function _startBonusDrop(){
-  _bonusUsed++; _SPDX=BONUS_SPDX; _playResolved=false;
+  _bonusUsed++; _SPDX=BONUS_SPDX; _playResolved=false; _clawBonusGlow=true;   // 🌈 발광 유지
   try{ _prongTouch.clear(); }catch(_){} _grabbing=null; _collectTouch=false; _lowerContactY=null;
   // 🎯 보너스 집게 = 랜덤이되 남은 인형 쪽을 겨냥 — 출구 구멍 영역엔 인형이 없어 헛집게 되던 것 방지
   const _pool = prizes.filter(p=>!p.won);
@@ -1374,7 +1377,6 @@ function _startBonusDrop(){
     clawPos.x=(Math.random()*2-1)*BIN.x*0.88; clawPos.z=(Math.random()*2-1)*BIN.z*0.88;   // 폴백: 남은 인형 없으면 기존 랜덤
   }
   clawPos.y=CLAW_TOP_Y; clawSpin=0; setFingerOpen(1);
-  _critBurst('⚡ 보너스 집게! ('+_bonusUsed+'/'+CRIT_MAX_CHAIN+')', true);
   _postParent('log',{ev:'drop', bonus:true});
   state='LOWERING';
 }
@@ -1391,6 +1393,18 @@ function loop(now){
   requestAnimationFrame(loop);
   const dt = Math.min(0.033,(now-last)/1000); last=now;
   _staffUpdate(dt);   // 🧑‍🔧 직원 부르기 연출(입장→문→뒤적뒤적→퇴장)
+
+  // 🌈 치명타 보너스 집게 발광 — 일반 집게(은색)와 확연히 구분(무지개 펄스). steel 재질은 집게 전용이라 안전
+  if(_clawBonusGlow){
+    const hue=(now*0.00035)%1;                       // 무지개 순환
+    steel.emissive.setHSL(hue,1,0.5);
+    steel.emissiveIntensity=0.85+0.45*Math.sin(now*0.011);   // 두근두근 펄스
+    steel.color.setHSL(hue,0.55,0.82);
+  } else if(steel.emissiveIntensity>0.001){          // 종료 시 은색으로 서서히 복귀
+    steel.emissiveIntensity*=0.85;
+    steel.color.lerp(_steelBaseColor,0.25);
+    if(steel.emissiveIntensity<0.02){ steel.emissiveIntensity=0; steel.emissive.setHex(0x000000); steel.color.copy(_steelBaseColor); }
+  }
 
   // 🔊 상태 전이 효과음 + ⏱️ 자동 집기 타이머 재무장
   if(_lastState !== state){
@@ -1505,9 +1519,14 @@ function loop(now){
         dropped.body.velocity.set(0,-1.5,0); dropped.body.angularVelocity.set(0,0,0); dropped.body.wakeUp();  // 똑바로 낙하 → 확실히 골인
       }
       if(!_playResolved){ _playResolved=true; _postParent('log',{ev:'result',outcome:'miss'}); }   // 📋 역추적: 집기했는데 아무것도 안 들어옴 = 헛집음
-      if(_bonusPending){ _bonusPending=false; _startBonusDrop(); }   // ⚡ 치명타 연쇄 — 보너스 집게 출동(빠르게), 게임 계속
-      else { state='IDLE'; grabQ=0; _bonusUsed=0; _SPDX=1; updControls(); _postParent('gamestate',{inProgress:false}); }   // 종료 → 정지
+      if(_bonusPending){ _bonusPending=false; _clawBonusGlow=true; _bonusWaitT=0; state='BONUS_WAIT';   // ⚡ 인형 놓자마자 즉발 X → 한 박자 예고
+        _critBurst('⚡ 보너스 집게! ('+(_bonusUsed+1)+'/'+CRIT_MAX_CHAIN+')', true); }
+      else { state='IDLE'; grabQ=0; _bonusUsed=0; _SPDX=1; _clawBonusGlow=false; updControls(); _postParent('gamestate',{inProgress:false}); }   // 종료 → 정지·발광 해제
     }
+  } else if(state==='BONUS_WAIT'){                    // ⏸️ 보너스 출동 전 한 박자 — 집게 빛나며 예고, 살짝 위로 들썩
+    _bonusWaitT += dt;
+    clawPos.y = CLAW_TOP_Y + Math.sin(_bonusWaitT*11)*0.08;   // 두근 호버
+    if(_bonusWaitT >= BONUS_WAIT_MS/1000){ clawPos.y=CLAW_TOP_Y; _startBonusDrop(); }
   }
 
   // 🕹️ 장식 조이스틱 — HTML 조이스틱/WASD 입력에 맞춰 부드럽게 기울임(안 누르면 다시 똑바로)
