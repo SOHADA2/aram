@@ -817,7 +817,14 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### v2.45.602 (2026-07-24·이 PC·`main` 직접) — 🔨 강화 시도 연출 대폭 강화(충전→폭발·사운드·햅틱·도파민) ← 최신
+### v2.45.603 (2026-07-24·이 PC·`main` 직접) — 🏆 투기장 배틀에 랭킹 보러가기 버튼 ← 최신
+> 사장님: "투기장에 랭킹 보러가기 버튼." → 랭킹 화면·정렬·데이터 **이미 전부 존재**(랭킹 탭의 「🗡️ 투기장 랭킹」 세그먼트=`setRankBoard('arena')`·`renderArenaRanking`·`_arenaRankRows`[최고전투력›스킨수›순승]). 배틀 모달에 **점프 버튼만** 추가.
+- **수정**: 배틀 목록 모달(L37807 근처)에 `${SB?'':`<button class="arena-rankbtn" onclick="window._arenaGoRanking()">🏆 투기장 랭킹 보러가기</button>`}` + 신규 `window._arenaGoRanking`(L36965·`_arenaGoTab` 옆): 투기장 모달 3종 제거 → `window.showTab('tab-rank', 네비버튼)` → `window.setRankBoard('arena')`. CSS `.arena-rankbtn`(금색 세컨더리·`.arena-bt-reroll` 옆).
+- **검증**: `aram-check` 7/7 · `window.showTab`(L14947)·`setRankBoard`(L38286) 존재 확인. 기존 랭킹 재사용이라 저위험.
+- 💡 앞서 **엔드게임(+20 이후 게임성 소멸) 아이디어** 브레인스토밍 완료(초월/환생·코인싱크 보호권·3인 팀전·주간 리그·각성). 추천=초월+보호권. 사장님 결정 대기.
+- ⏭️ **미해결(이월)**: 투기장 엔드게임(초월 등) 설계·구현 · 강화연출 실기 · 자동로봇 실기 · 기존.
+
+### v2.45.602 (2026-07-24·이 PC·`main` 직접) — 🔨 강화 시도 연출 대폭 강화(충전→폭발·사운드·햅틱·도파민)
 > 사장님: "강화 시도 모션 부족. 시도 애니 + 성공/실패 확실히 + 도파민 터지게."
 - **기존**: doForge 즉시 → `fx-success`(arenaPop)/`fx-destroy`(arenaShake)+`_forge3dPulse`+메시지. 즉발·임팩트 약함.
 - **신규 흐름(go.onclick)**: 클릭→버튼 '🔨 강화 중…'+`_forgeCharge`(망치질 연출 620ms: `.forge-hammer` 내려침 애니 + 2회 `.forge-strike-flash`+`thud`사운드+진동) → 620ms 후 `render(fx,msg)` + 결과 FX → 950ms 후 재활성. busy로 재클릭 차단.
