@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.611';
+const APP_VERSION = 'v2.45.612';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.611';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.612', date: '2026-07-24', changes: [
+    { tag: 'fix', text: '🛡️ <b>복권 자동 로봇</b>도 이제 강철심장 <b>당첨금 보너스</b>를 제대로 받아요! 그동안 해골 감소는 됐지만 당첨금 보너스(강화 성능→+G)가 로봇 정산에서 빠져 있었어요. <b>예약 시점에 장착한 강철심장 기준</b>으로 박아둬서, 수령할 때 다시 장착할 필요 없이 당첨 티켓마다 보너스가 붙고 영수증에 「강철심장 당첨 보너스」로 표시돼요.' },
+  ] },
   { ver: 'v2.45.611', date: '2026-07-24', changes: [
     { tag: 'improve', text: '🐾 인형뽑기에서 <b>포로(꽝)를 잡아도 투기장 코인을 5배</b>로 줘요(10→<b>50</b>). 헛집은 게 아니라 든든한 위로 보상! (하루 플레이 횟수는 그대로라 무한 파밍은 없어요)' },
   ] },
@@ -28588,14 +28591,15 @@ function _autoBotRefresh(){
     const per=q.perMin*60000;
     const claimable=Math.max(0,done-from);
     const perBonus=_autoBotBonus(q);
-    let claimGross=0,claimSkulls=0,claimPen=0; for(let i=from;i<done;i++){ const t=q.tickets[i]; claimGross+=t.g||0; const sk=t.sk||0; claimSkulls+=sk; claimPen+=sk*_ticketPen(q,t); }
-    const claimTotal=claimGross-claimPen+perBonus*claimable;
+    let claimGross=0,claimSkulls=0,claimPen=0,claimEmb=0; for(let i=from;i<done;i++){ const t=q.tickets[i]; claimGross+=t.g||0; const sk=t.sk||0; claimSkulls+=sk; claimPen+=sk*_ticketPen(q,t); claimEmb+=(t.eb||0); }
+    const claimTotal=claimGross-claimPen+perBonus*claimable+claimEmb;   // 🛡️ 강철심장 당첨 보너스 포함(실제 정산과 일치)
     const hasSkullMix=(q.tickets||[]).some(t=>_ticketPen(q,t)>0);
     const rows=[]; for(let i=from;i<done;i++){ const t=q.tickets[i]; const win=(t.g||0)>0; const skPen=(t.sk||0)*_ticketPen(q,t); const em=AUTOBOT_LOT_EMOJI[_ticketLot(q,t)]||'';
       const gLabel = win ? (skPen>0?`+${t.g}G <span style="color:#ef4444;">💀-${skPen}</span>`:`+${t.g}G`) : (skPen>0?`<span style="color:#ef4444;">💀 -${skPen}G</span>`:'-');
       rows.push(`<div class="abot-rc-row${i===done-1?' new':''}"><span class="abot-rc-idx">${em}#${i+1}</span><span class="abot-rc-res ${win?'win':'lose'}">${win?`${t.e||'🎉'} ${escHtml(t.nm||'당첨')}`:'꽝'}</span><span class="abot-rc-g ${win?'win':''}">${gLabel}</span></div>`); }
     if(claimPen>0) rows.push(`<div class="abot-rc-row"><span class="abot-rc-idx">💀</span><span class="abot-rc-res" style="color:#ef4444;">해골 패널티 (${claimSkulls}개)</span><span class="abot-rc-g" style="color:#ef4444;">-${claimPen}G</span></div>`);
     if(perBonus>0 && claimable>0) rows.push(`<div class="abot-rc-row abot-rc-bonus"><span class="abot-rc-idx">🤖</span><span class="abot-rc-res">로봇 보너스 (장당 +${perBonus}G)</span><span class="abot-rc-g win">+${perBonus*claimable}G</span></div>`);
+    if(claimEmb>0) rows.push(`<div class="abot-rc-row abot-rc-bonus"><span class="abot-rc-idx">🛡️</span><span class="abot-rc-res">강철심장 당첨 보너스</span><span class="abot-rc-g win">+${claimEmb}G</span></div>`);
     const allDone=done>=q.count;
     const nextAt=q.startAt+(done+1)*per;
     const pct=Math.round(done/q.count*100);
@@ -28706,6 +28710,7 @@ window.autoBotReserve = async function(){
   for(let i=0;i<3;i++){
     const cnt=sel[i]; if(cnt<=0) continue;
     const pityKey=LOTTERY_PITY_KEY[i];
+    const tierBonus=_myLottoPrizeBonus(data, i);   // 🛡️ 강철심장 당첨금 보너스(예약 시점 장착 기준·당첨 티켓에만·실버=0). 수동 긁기와 동일 — 수령 때 재장착 불필요
     let stack=_lotteryPityOf(data, i);
     for(let j=0;j<cnt;j++){
       let r=rollScratch(i);
@@ -28714,7 +28719,7 @@ window.autoBotReserve = async function(){
       }
       const skulls=(r.slots||[]).reduce((s,c)=>s+(c&&c.id==='skull'?1:0),0);
       if(pityKey) stack = r.win ? 0 : Math.min(LOTTERY_PITY_CAP, stack + 1 + skulls*0.5);   // 당첨=리셋 / 꽝=+1+해골*0.5
-      tickets.push({ w:r.win?r.win.id:null, g:r.win?r.win.gold:0, e:r.win?r.win.emoji:null, nm:r.win?r.win.name:null, sk:skulls, li:i });
+      tickets.push({ w:r.win?r.win.id:null, g:r.win?r.win.gold:0, e:r.win?r.win.emoji:null, nm:r.win?r.win.name:null, sk:skulls, li:i, eb:r.win?tierBonus:0 });
     }
     if(pityKey) pityAll[pityKey]=stack;   // 갱신된 티어 스택
   }
@@ -28739,17 +28744,17 @@ window.autoBotClaim = async function(){
   const data=goldData[key]; const q=_autoBotQueue(data); if(!q) return;
   const done=_autoBotDone(q,Date.now()); const from=q.claimedCount||0;
   if(done<=from){ showS1Toast('아직 완성된 복권이 없어요'); return; }
-  let gross=0,wins=0,skulls=0,pen=0; for(let i=from;i<done;i++){ const t=q.tickets[i]; const g=t.g||0; gross+=g; if(g>0)wins++; const sk=t.sk||0; skulls+=sk; pen+=sk*_ticketPen(q,t); }
+  let gross=0,wins=0,skulls=0,pen=0,emBonus=0; for(let i=from;i<done;i++){ const t=q.tickets[i]; const g=t.g||0; gross+=g; if(g>0)wins++; const sk=t.sk||0; skulls+=sk; pen+=sk*_ticketPen(q,t); emBonus+=(t.eb||0); }   // 🛡️ 강철심장 당첨금 보너스 합산(예약 시 박아둠·구버전 큐는 eb 없어 0)
   const claimedN=done-from;                                        // 💀 해골 패널티 — 티켓별 복권 종류로 계산(혼합 예약)
   const perBonus=_autoBotBonus(q); const bonus=perBonus*claimedN;   // 🤖 로봇 긁기 보너스(장당)
-  const total=gross-pen+bonus;                                      // 실수령 = 당첨 − 해골 + 보너스
+  const total=gross-pen+bonus+emBonus;                             // 실수령 = 당첨 − 해골 + 로봇보너스 + 강철심장보너스
   const gk=sField('autoBotGold');   // 전용 카운터(passGold 혼합 방지·역산용, v2.45.526)
   const cleared=done>=q.count;
   const nq=cleared?null:{ ...q, claimedCount:done };
   // 🔍 역산 로그 — 수령 결과 스냅샷(큐가 지워져도 티켓별 당첨/꽝/해골/종류 복원 가능). 최근 60건.
   const lk=sField('autoBotLog');
   const logCur=Array.isArray(data[lk])?data[lk]:[];
-  const logEntry={ at:Date.now(), tier:q.tier, mix:q.mix||null, n:claimedN, wins, gold:gross, pen, skulls, bonus, tk:q.tickets.slice(from,done).map(t=>({g:t.g||0,w:t.w||null,sk:t.sk||0,li:_ticketLot(q,t)})) };
+  const logEntry={ at:Date.now(), tier:q.tier, mix:q.mix||null, n:claimedN, wins, gold:gross, pen, skulls, bonus, emBonus, tk:q.tickets.slice(from,done).map(t=>({g:t.g||0,w:t.w||null,sk:t.sk||0,li:_ticketLot(q,t),eb:t.eb||0})) };
   const upd={ [gk]:(data[gk]??0)+total, [sField('autoBotQueue')]:nq, [lk]:[...logCur.slice(-59), logEntry] };
   if(goldData[key]) Object.assign(goldData[key],upd);
   await update(ref(db,'gold/'+key),upd);
@@ -28757,6 +28762,7 @@ window.autoBotClaim = async function(){
   _autoBotSfx.coin();
   const rewards=[{iconHtml:'🪙',name:'당첨 골드',qty:`+${gross}G`,color:'#ffd24a'}];
   if(bonus>0) rewards.push({iconHtml:'🤖',name:`로봇 보너스 (장당 +${perBonus}G)`,qty:`+${bonus}G`,color:'#7fe0d0'});
+  if(emBonus>0) rewards.push({iconHtml:'🛡️',name:'강철심장 당첨 보너스',qty:`+${emBonus}G`,color:'#7dd3fc'});
   if(pen>0) rewards.push({iconHtml:'💀',name:`해골 패널티 (${skulls}개)`,qty:`-${pen}G`,color:'#ef4444'});
   const netLabel=`실수령 ${total>=0?'+':''}${total}G`;
   showBingoReward('🤖 자동 로봇 정산', `${claimedN}장 개봉 · 당첨 ${wins}장 / 꽝 ${claimedN-wins}장${pen>0?` · 💀 ${skulls}개`:''} · ${netLabel}`, rewards);
