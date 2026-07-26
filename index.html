@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.612';
+const APP_VERSION = 'v2.45.613';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.612';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.613', date: '2026-07-25', changes: [
+    { tag: 'improve', text: '🧾 복권 자동 로봇 <b>영수증·정산창에 내가 투여한 금액을 복권 종류별로</b> 보여줘요. 영수증에 「💸 투여 금액(실버 ×2 -140G · 골드 ×3 -600G …)」 + 「🎟 개봉 결과」로 나뉘어 표시되고, 전량 수령 시 정산 팝업에도 투여 항목이 함께 떠서 <b>넣은 만큼 vs 받은 만큼</b>을 한눈에 볼 수 있어요.' },
+  ] },
   { ver: 'v2.45.612', date: '2026-07-24', changes: [
     { tag: 'fix', text: '🛡️ <b>복권 자동 로봇</b>도 이제 강철심장 <b>당첨금 보너스</b>를 제대로 받아요! 그동안 해골 감소는 됐지만 당첨금 보너스(강화 성능→+G)가 로봇 정산에서 빠져 있었어요. <b>예약 시점에 장착한 강철심장 기준</b>으로 박아둬서, 수령할 때 다시 장착할 필요 없이 당첨 티켓마다 보너스가 붙고 영수증에 「강철심장 당첨 보너스」로 표시돼요.' },
   ] },
@@ -28600,6 +28603,14 @@ function _autoBotRefresh(){
     if(claimPen>0) rows.push(`<div class="abot-rc-row"><span class="abot-rc-idx">💀</span><span class="abot-rc-res" style="color:#ef4444;">해골 패널티 (${claimSkulls}개)</span><span class="abot-rc-g" style="color:#ef4444;">-${claimPen}G</span></div>`);
     if(perBonus>0 && claimable>0) rows.push(`<div class="abot-rc-row abot-rc-bonus"><span class="abot-rc-idx">🤖</span><span class="abot-rc-res">로봇 보너스 (장당 +${perBonus}G)</span><span class="abot-rc-g win">+${perBonus*claimable}G</span></div>`);
     if(claimEmb>0) rows.push(`<div class="abot-rc-row abot-rc-bonus"><span class="abot-rc-idx">🛡️</span><span class="abot-rc-res">강철심장 당첨 보너스</span><span class="abot-rc-g win">+${claimEmb}G</span></div>`);
+    // 💸 내가 투여한 금액(항목별) — 이 배치 예약 시 지불(골드/무료권). 구버전 큐(spent 없음)는 mix×가격으로 폴백
+    const invRows=[]; let invTotal=0, invFreeTot=0;
+    (Array.isArray(q.mix)?q.mix:[]).forEach((c,i)=>{ if(c<=0) return;
+      const fr=(q.free&&q.free[i])||0;
+      const sp=(q.spent&&typeof q.spent[i]==='number')?q.spent[i]:((c-fr)*_autoBotLotPrice(i));
+      invTotal+=sp; invFreeTot+=fr;
+      invRows.push(`<div class="abot-rc-row abot-rc-inv"><span class="abot-rc-idx">💸</span><span class="abot-rc-res">${AUTOBOT_LOT_NAMES[i]} ×${c}${fr>0?` <span style="opacity:.6;font-size:10px;">무료 ${fr}장</span>`:''}</span><span class="abot-rc-g" style="color:#f2a3b8;">${sp>0?`-${sp}G`:'무료'}</span></div>`);
+    });
     const allDone=done>=q.count;
     const nextAt=q.startAt+(done+1)*per;
     const pct=Math.round(done/q.count*100);
@@ -28613,7 +28624,7 @@ function _autoBotRefresh(){
       ${allDone?`<div class="abot-prog-sub">전부 다 긁었어요! 수령하세요 🎉</div>`:`<div class="abot-prog-sub">다음 장까지 <span id="abot-countdown">${_autoBotFmt(nextAt-now)}</span></div>`}
     </div>
     <div class="abot-bar"><div class="abot-bar-fill" style="width:${pct}%"></div></div>
-    ${rows.length?`<div class="abot-receipt"><div class="abot-rc-head">🤖 AUTO SCRATCH · 영수증</div>${rows.join('')}</div>`:`<div class="abot-spec">로봇이 첫 복권을 긁고 있어요…</div>`}
+    ${(rows.length||invRows.length)?`<div class="abot-receipt"><div class="abot-rc-head">🤖 AUTO SCRATCH · 영수증</div>${invRows.length?`<div style="font-size:10px;font-weight:800;color:#e6a3ba;padding:4px 2px 2px;letter-spacing:.3px;">💸 투여 금액 (총 -${invTotal}G${invFreeTot>0?` · 무료 ${invFreeTot}장`:''})</div>${invRows.join('')}`:''}${rows.length?`<div style="font-size:10px;font-weight:800;color:#8fd0c4;padding:6px 2px 2px;letter-spacing:.3px;">🎟 개봉 결과</div>${rows.join('')}`:''}</div>`:`<div class="abot-spec">로봇이 첫 복권을 긁고 있어요…</div>`}
     <button class="abot-claim" ${claimable>0?'':'disabled'} style="${claimable>0?'':'opacity:.4;animation:none;cursor:not-allowed;'}" onclick="window.autoBotClaim()">🧾 ${claimable>0?`수령 (${claimable}장 · ${claimTotal>=0?'+':''}${claimTotal}G)`:'완성 대기 중'}</button>
     <div class="abot-note">넣은 복권값은 예약 시 이미 지불됐어요. 수령은 완성된 만큼 언제든 가능.${hasSkullMix?' 💀 해골은 로봇이 다 긁어 패널티가 붙어요.':''}</div>`;
   } else {
@@ -28700,8 +28711,8 @@ window.autoBotReserve = async function(){
   if(n>def.cap){ n=def.cap; }   // 안전망(UI가 이미 막지만)
   // 🎟 무료 복권 먼저 소모(티어별) → 나머지만 골드. 비용 집계.
   const ft={...(data[sField('freeScratch')]||{})};
-  let cost=0, useFreeTot=0, potCrossTot=0; const useFreeBy=[0,0,0]; const spendLabels=[];
-  for(let i=0;i<3;i++){ const cnt=sel[i]; if(cnt<=0) continue; const uf=Math.min(cnt, ft[i]||0); useFreeBy[i]=uf; useFreeTot+=uf; const pay=cnt-uf; if(pay>0){ cost+=pay*_autoBotLotPrice(i); potCrossTot+=pay*_blackPotCross(_autoBotLotPrice(i)); spendLabels.push(`${AUTOBOT_LOT_NAMES[i]}×${pay}`); } }
+  let cost=0, useFreeTot=0, potCrossTot=0; const useFreeBy=[0,0,0], spentBy=[0,0,0]; const spendLabels=[];   // spentBy=종류별 지불 골드(영수증 투여 항목용)
+  for(let i=0;i<3;i++){ const cnt=sel[i]; if(cnt<=0) continue; const uf=Math.min(cnt, ft[i]||0); useFreeBy[i]=uf; useFreeTot+=uf; const pay=cnt-uf; if(pay>0){ const c=pay*_autoBotLotPrice(i); spentBy[i]=c; cost+=c; potCrossTot+=pay*_blackPotCross(_autoBotLotPrice(i)); spendLabels.push(`${AUTOBOT_LOT_NAMES[i]}×${pay}`); } }
   if(getMyGold()<cost){ showGoldToast(`🪙 골드 부족 (필요 ${cost}G)`); return; }
   // 🍀 불운(천장) 스택을 티어별로 순차 적용(수동 lotteryPity 공유·실버는 스택 없음). 로봇은 전 칸 공개 → 해골 전부 카운트.
   //    티켓은 티어 오름차순(실버→골드→프리즘)으로 이어붙임. 각 티켓에 li(복권 idx)·sk(해골 수) 저장.
@@ -28723,7 +28734,7 @@ window.autoBotReserve = async function(){
     }
     if(pityKey) pityAll[pityKey]=stack;   // 갱신된 티어 스택
   }
-  const q={ startAt:Date.now(), perMin:def.perMin, count:n, tier:def.tier, mix:sel.slice(), claimedCount:0, tickets };
+  const q={ startAt:Date.now(), perMin:def.perMin, count:n, tier:def.tier, mix:sel.slice(), claimedCount:0, tickets, spent:spentBy.slice(), free:useFreeBy.slice() };   // spent/free=영수증 투여 항목별 표시용
   const spentKey=sField('goldSpent');
   const upd={ [sField('autoBotQueue')]:q, [sField('lotteryPity')]:pityAll };   // 🍀 스택 즉시 반영
   if(useFreeTot>0){ for(let i=0;i<3;i++){ if(useFreeBy[i]>0) ft[i]=(ft[i]||0)-useFreeBy[i]; } upd[sField('freeScratch')]=ft; }   // 무료 복권 차감
@@ -28760,7 +28771,10 @@ window.autoBotClaim = async function(){
   await update(ref(db,'gold/'+key),upd);
   try{updateMyInfoBar();}catch(_){}
   _autoBotSfx.coin();
-  const rewards=[{iconHtml:'🪙',name:'당첨 골드',qty:`+${gross}G`,color:'#ffd24a'}];
+  const rewards=[];
+  // 💸 투여 금액(항목별) — 이 배치 전량 수령(완료) 시 최종 정산으로 표시(부분 수령 땐 영수증 패널에만)
+  if(cleared){ (Array.isArray(q.mix)?q.mix:[]).forEach((c,i)=>{ if(c<=0) return; const fr=(q.free&&q.free[i])||0; const sp=(q.spent&&typeof q.spent[i]==='number')?q.spent[i]:((c-fr)*_autoBotLotPrice(i)); rewards.push({iconHtml:'💸',name:`투여 · ${AUTOBOT_LOT_NAMES[i]} ×${c}${fr>0?` (무료 ${fr}장)`:''}`,qty:sp>0?`-${sp}G`:'무료',color:'#e6a3ba'}); }); }
+  rewards.push({iconHtml:'🪙',name:'당첨 골드',qty:`+${gross}G`,color:'#ffd24a'});
   if(bonus>0) rewards.push({iconHtml:'🤖',name:`로봇 보너스 (장당 +${perBonus}G)`,qty:`+${bonus}G`,color:'#7fe0d0'});
   if(emBonus>0) rewards.push({iconHtml:'🛡️',name:'강철심장 당첨 보너스',qty:`+${emBonus}G`,color:'#7dd3fc'});
   if(pen>0) rewards.push({iconHtml:'💀',name:`해골 패널티 (${skulls}개)`,qty:`-${pen}G`,color:'#ef4444'});
