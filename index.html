@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.613';
+const APP_VERSION = 'v2.45.614';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.613';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.614', date: '2026-07-26', changes: [
+    { tag: 'improve', text: '🤖 복권 자동 로봇을 켤 때 <b>실버 복권 1개가 자동 선택돼 있던 걸 전부 0으로</b> 바꿨어요. 이제 원하는 복권을 직접 골라서 예약할 수 있어요.' },
+  ] },
   { ver: 'v2.45.613', date: '2026-07-25', changes: [
     { tag: 'improve', text: '🧾 복권 자동 로봇 <b>영수증·정산창에 내가 투여한 금액을 복권 종류별로</b> 보여줘요. 영수증에 「💸 투여 금액(실버 ×2 -140G · 골드 ×3 -600G …)」 + 「🎟 개봉 결과」로 나뉘어 표시되고, 전량 수령 시 정산 팝업에도 투여 항목이 함께 떠서 <b>넣은 만큼 vs 받은 만큼</b>을 한눈에 볼 수 있어요.' },
   ] },
@@ -28539,9 +28542,10 @@ function _autoBotRobotHtml(def, opts={}){
     <div class="abot-feet"><i></i><i></i></div>
   </div>`;
 }
-let _autoBotTimer=null, _autoBotLastDone=-1, _autoBotSelCnt=[1,0,0];   // 🎟 혼합 예약 — 복권 idx별 예약 장수
+let _autoBotTimer=null, _autoBotLastDone=-1, _autoBotSelCnt=[0,0,0];   // 🎟 혼합 예약 — 복권 idx별 예약 장수
 window.openAutoBotModal = function(){
   if (!myName) { showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
+  _autoBotSelCnt=[0,0,0];   // 🎟 기계 열 때 선택 전부 0으로(실버 자동장착 제거) — 원하는 복권 직접 선택
   _injectAutoBotCss();
   let el=document.getElementById('autobot-overlay');
   if(!el){ el=document.createElement('div'); el.id='autobot-overlay'; el.className='abot-overlay';
@@ -28630,7 +28634,7 @@ function _autoBotRefresh(){
   } else {
     // 보유 + 예약 대기 — 혼합 예약(복권 종류별 장수). 로봇이 순서대로 하나씩 긁음. 총합 ≤ def.cap.
     const maxLot=_autoBotMaxLot(tier);
-    if(!Array.isArray(_autoBotSelCnt)) _autoBotSelCnt=[1,0,0];
+    if(!Array.isArray(_autoBotSelCnt)) _autoBotSelCnt=[0,0,0];
     for(let i=0;i<3;i++){ if(i>maxLot||_autoBotSelCnt[i]<0) _autoBotSelCnt[i]=0; }   // 잠긴 티어·음수 정리
     const selTotal=_autoBotSelCnt.reduce((s,v)=>s+(v||0),0);
     const freeMap=(data[sField('freeScratch')]||{});
@@ -28674,7 +28678,7 @@ function _autoBotRefresh(){
 }
 window.autoBotAdjLot = function(idx,d){   // 🎟 혼합 예약 — 복권 idx별 장수 ± (총합 ≤ 로봇 cap)
   const data=getMyGoldData(); const def=_autoBotDef(_autoBotTier(data)); if(!def) return;
-  if(!Array.isArray(_autoBotSelCnt)) _autoBotSelCnt=[1,0,0];
+  if(!Array.isArray(_autoBotSelCnt)) _autoBotSelCnt=[0,0,0];
   const maxLot=_autoBotMaxLot(def.tier); if(idx<0||idx>maxLot) return;
   const total=_autoBotSelCnt.reduce((s,v)=>s+(v||0),0);
   if(d>0 && total>=def.cap) return;              // 총 cap 초과 방지(한 번에 ±1)
