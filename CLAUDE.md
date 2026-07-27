@@ -817,7 +817,10 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### v2.45.617 (2026-07-27·이 PC·`main` 직접) — 🎯 치명타 집게 인벤토리서 숨김(토글 무의미) ← 최신
+### v2.45.618 (2026-07-27·이 PC·`main` 직접) — 🤖 자동로봇 캐릭터 CSS아트 고퀄 리디자인 ← 최신
+> 사장님: "복권 긁어주는 로봇이 못생김. 퀄 올려줘(컨셉·애니메이션·기능은 유지)." → `_autoBotRobotHtml` 구조·클래스·애니메이션 훅 전부 유지, `.abot-*` **비주얼 속성만** 업그레이드(CSS L28313~). 변경=aura(소프트블러)·ant/i(발광벌브)·head3(둥근19px+메탈 그라디언트+top gloss/bottom AO)·ears·visor(유리+`::before` gloss·eyes z2)·eye(12px 발광)·neck·torso(17px 베벨+`::before` 인셋패널)·slot-in(+flash 키프레임 base 동기화)·screen(LCD 베젤 강화)·arm/arm i(메탈 하이라이트)·feet. **위치·크기·`animation`·`.busy/.t3/.flash/.printing/#abot-screen`·keyframes(abotBlink/VisorSweep/SlotFlash/Scan/PaperOut/ScratchArm/AntBlink/AuraSpin) 전부 불변** → 애니메이션/JS훅 무영향. Edge 목업 3상태(대기/busy/t3) 실측. index 7/7.
+
+### v2.45.617 (2026-07-27·이 PC·`main` 직접) — 🎯 치명타 집게 인벤토리서 숨김(토글 무의미)
 > 사장님: "장비 인벤토리의 치명타 집게 사용/해제 토글 무의미(실제 장착/해제는 인형뽑기 안). 구매완료로만·인벤 안 넣기." 원인=claw_crit는 소유기반(`_clawHasCrit`=items에 id 존재)인데 인벤토리는 일반장비처럼 active 토글 렌더. → 인벤토리 필터(L27578)에 `|| def.type==='claw_tool'` 추가해 scratch_tool처럼 숨김. 구매완료=상점 "✅보유중"(claw_tool은 _shopList엔 남아 장비탭 노출)·게임 "장착됨"칩. index 7/7.
 
 ### v2.45.616 (2026-07-27·이 PC·`main` 직접) — 🧾 자동로봇 영수증 다크 톤 맞춤
