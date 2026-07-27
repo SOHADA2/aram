@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.622';
+const APP_VERSION = 'v2.45.623';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.622';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.623', date: '2026-07-27', changes: [
+    { tag: 'improve', text: '🌃 「뒷골목으로 나가기」 <b>게임성 대개편</b> — ①진짜 <b>뒷골목 배경</b>(벽돌담·아스팔트 바닥·가로등 불빛·달·쓰레기통) ②쓰레기가 바닥에 깔려있지 않고 <b>위에서 떨어져 통통 튀고 굴러다녀요</b> ③쓰레기 종류를 <b>스테이지 기준으로 제한</b>(빈 캔·유리병·지폐 — 잡다하지 않게) ④<b>드래그가 손가락에 딱 붙어</b> 반응성 있게 따라와요 ⑤교장 유미 <b>머리 잘리던 것 수정</b>. <span style="opacity:.7">※앞으로 아이템/스킬로 더 다양한 쓰레기·효율을 여는 방향으로 확장돼요.</span>' },
+  ] },
   { ver: 'v2.45.622', date: '2026-07-27', changes: [
     { tag: 'improve', text: '🌃 [개발] 「뒷골목으로 나가기」 미리보기 — 교장 유미가 없어도 주소에 <b>?alleypreview</b>를 붙이거나 콘솔 <b>alleyPreview()</b>로 미니게임을 직접 돌려볼 수 있어요(드래그 이동·쓰레기 흡입·3D 유미 확인용). <b>골드·쿨다운·일일캡·저장 전부 미반영</b>이라 실데이터에 0 영향이에요.' },
   ] },
@@ -29226,7 +29229,18 @@ window.yuumiTransform = async function(){
 const ALLEY_COOLDOWN_MS = 90 * 60 * 1000;   // 90분 쿨다운(판 사이)
 const ALLEY_DAILY_CAP   = 2500;             // 하루 뒷골목 획득 상한(무한파밍 방지)
 const ALLEY_RUN_TARGET  = 1000;             // 한 판 목표 골드(대략)
-const ALLEY_SPEED = 335, ALLEY_VAC_R = 72, ALLEY_COLLECT_SPD = 620, ALLEY_TIME_MS = 60000;
+const ALLEY_FOLLOW = 15, ALLEY_VAC_R = 74, ALLEY_COLLECT_SPD = 720, ALLEY_TIME_MS = 55000;   // FOLLOW=드래그 추적 반응성(클수록 손가락에 딱 붙음)
+const ALLEY_SPAWN_MS = 380, ALLEY_MAX_CONCUR = 20, ALLEY_GRAV = 1500;                        // 스폰 간격 / 동시 최대 / 중력
+// 🌃 스테이지 정의 — 쓰레기 종류는 스테이지(나중엔 보유 아이템)에 따라 제한. 지금처럼 잡다하지 않게.
+const ALLEY_STAGES = [
+  { id:1, name:'뒷골목 초입', trash:[
+      { ic:'🥫', v:10, w:60, nm:'빈 캔' },
+      { ic:'🍾', v:20, w:28, nm:'유리병' },
+      { ic:'💵', v:55, w:12, nm:'구겨진 지폐', big:true },
+  ] },
+];
+function _alleyStageFor(data){ return ALLEY_STAGES[0]; }              // ⏭️ 나중에 data 기반 스테이지 진행/선택
+function _alleyValMult(type, data){ return 1; }                       // ⏭️ 나중에 아이템/스킬로 특정 쓰레기 효율↑
 function _alleyTodayGold(data){ data=data||getMyGoldData()||{}; return (data[sField('alleyGoldDate')]===getLocalDateKey()) ? (data[sField('alleyGoldDay')]||0) : 0; }
 function _alleyDailyRemaining(data){ return Math.max(0, ALLEY_DAILY_CAP - _alleyTodayGold(data)); }
 function _alleyCooldownLeft(data){ data=data||getMyGoldData()||{}; const t=data[sField('alleyLastAt')]||0; return Math.max(0, t + ALLEY_COOLDOWN_MS - Date.now()); }
@@ -29254,25 +29268,33 @@ function _injectAlleyCss(){
   .alley-chip.time .v{color:#7fe0d0;} .alley-chip.time.urgent .v{color:#ff8a8a;}
   .alley-bar{height:6px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;margin-bottom:8px;}
   .alley-bar>div{height:100%;width:0;background:linear-gradient(90deg,#d4a843,#f0c84a);transition:width .18s;}
-  .alley-stage{position:relative;width:100%;height:min(56vh,440px);border-radius:12px;overflow:hidden;touch-action:none;cursor:grab;
-    background:radial-gradient(120% 80% at 50% 0%,#20222f,#0c0d15 70%),linear-gradient(180deg,#15161f,#0a0b11);
-    box-shadow:inset 0 0 60px rgba(0,0,0,.6),inset 0 2px 0 rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);}
+  .alley-stage{position:relative;width:100%;height:min(58vh,460px);border-radius:12px;overflow:hidden;touch-action:none;cursor:grab;
+    background:linear-gradient(180deg,#0b0c14 0%,#12131e 52%,#191a26 100%);
+    box-shadow:inset 0 0 60px rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.06);}
   .alley-stage:active{cursor:grabbing;}
-  .alley-stage::before{content:'';position:absolute;inset:0;background:
-     linear-gradient(90deg,rgba(0,0,0,.5),transparent 18%,transparent 82%,rgba(0,0,0,.5)),
-     repeating-linear-gradient(0deg,transparent,transparent 46px,rgba(255,255,255,.02) 46px,rgba(255,255,255,.02) 48px);
-     pointer-events:none;}
-  .alley-stage::after{content:'🌃';position:absolute;top:6px;left:8px;font-size:15px;opacity:.5;pointer-events:none;}
-  .alley-deco{position:absolute;font-size:26px;opacity:.5;filter:grayscale(.3);pointer-events:none;}
-  .alley-junk{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;pointer-events:none;will-change:transform;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
-  .alley-junk .aj-ic{font-size:23px;line-height:1;}
-  .alley-junk .aj-v{font-size:9px;font-weight:800;color:#ffd76a;background:rgba(0,0,0,.5);border-radius:6px;padding:0 4px;margin-top:1px;}
-  .alley-junk.big .aj-ic{font-size:29px;} .alley-junk.big .aj-v{color:#ffe39a;}
-  .alley-junk.vac .aj-ic{animation:alleyVac .3s linear infinite;}
-  @keyframes alleyVac{50%{transform:scale(.78);}}
-  #alley-yuumi3d-mount{position:absolute;left:0;top:0;width:94px;height:118px;pointer-events:none;z-index:40;will-change:transform;filter:drop-shadow(0 6px 8px rgba(0,0,0,.5));}
+  /* 뒷골목 배경: 위=벽돌담, 아래=아스팔트 바닥 */
+  .alley-bg-wall{position:absolute;left:0;right:0;top:0;bottom:26%;pointer-events:none;
+    background:repeating-linear-gradient(90deg,rgba(255,255,255,.028) 0 2px,transparent 2px 40px),
+              repeating-linear-gradient(0deg,rgba(0,0,0,.22) 0 1px,transparent 1px 19px),
+              linear-gradient(180deg,#191320,#211a2b);
+    box-shadow:inset 0 -22px 30px rgba(0,0,0,.55);}
+  .alley-bg-ground{position:absolute;left:0;right:0;bottom:0;height:26%;pointer-events:none;
+    background:linear-gradient(180deg,#23232f,#13141b);box-shadow:inset 0 16px 26px rgba(0,0,0,.55);}
+  .alley-bg-ground::before{content:'';position:absolute;inset:0;background:radial-gradient(55% 45% at 32% 65%,rgba(130,160,190,.09),transparent 72%);}
+  .alley-stage::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:5;
+     background:linear-gradient(90deg,rgba(0,0,0,.55),transparent 16%,transparent 84%,rgba(0,0,0,.55));}
+  .alley-deco{position:absolute;pointer-events:none;z-index:6;}
+  .alley-deco.lamp{top:-3px;right:20px;font-size:22px;filter:drop-shadow(0 0 13px rgba(255,214,120,.75));}
+  .alley-deco.moon{top:8px;left:14px;font-size:17px;opacity:.65;}
+  .alley-deco.dumpster{right:5px;bottom:19%;font-size:30px;opacity:.9;filter:drop-shadow(0 3px 4px rgba(0,0,0,.5));}
+  .alley-deco.box{left:5px;bottom:19%;font-size:21px;opacity:.72;}
+  .alley-junk{position:absolute;left:0;top:0;transform:translate(-50%,-50%);pointer-events:none;will-change:transform;z-index:20;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));font-size:23px;line-height:1;}
+  .alley-junk.big{font-size:28px;}
+  .alley-junk.vac{animation:alleyVac .28s linear infinite;}
+  @keyframes alleyVac{50%{filter:drop-shadow(0 0 6px rgba(255,227,106,.9)) brightness(1.3);}}
+  #alley-yuumi3d-mount{position:absolute;left:0;top:0;width:104px;height:138px;pointer-events:none;z-index:40;will-change:transform;filter:drop-shadow(0 6px 8px rgba(0,0,0,.5));}
   #alley-yuumi3d-mount canvas{width:100%;height:100%;display:block;}
-  .alley-shadow{position:absolute;left:0;top:0;width:52px;height:15px;margin:-8px 0 0 -26px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,.5),transparent 70%);z-index:38;pointer-events:none;}
+  .alley-shadow{position:absolute;left:0;top:0;width:52px;height:15px;margin:-7px 0 0 -26px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,.55),transparent 70%);z-index:38;pointer-events:none;}
   .alley-float{position:absolute;left:0;top:0;font-size:13px;font-weight:900;color:#ffe36a;text-shadow:0 1px 3px #000;pointer-events:none;z-index:60;animation:alleyFloat .8s ease-out forwards;}
   @keyframes alleyFloat{0%{opacity:0;transform:translate(-50%,-50%) scale(.6);}25%{opacity:1;}100%{opacity:0;transform:translate(-50%,-160%) scale(1.05);}}
   .alley-foot{margin-top:10px;display:flex;flex-direction:column;gap:6px;}
@@ -29283,7 +29305,7 @@ function _injectAlleyCss(){
 }
 // 🐱 교장 유미 3D — 뒷골목 미니게임용 위치추적 오버레이 캔버스(Idle01/Run01). ensureYuumi3d와 동일 패턴(캔버스 1개 유지+대피).
 let _alleyY3dInit = false, _alleyMoving = false;
-const _ALLEY_POS = { x: 0, y: -0.12, scale: 1.0, rot: 0 };   // 콘솔 _alleyY3dTune()로 조정
+const _ALLEY_POS = { x: 0, y: -0.06, scale: 0.92, rot: 0 };   // 콘솔 _alleyY3dTune()로 조정 (머리 잘리면 y↓·scale↓)
 window._alleyY3dTune = (x,y,s,r)=>{ if(x!=null)_ALLEY_POS.x=x; if(y!=null)_ALLEY_POS.y=y; if(s!=null)_ALLEY_POS.scale=s; if(r!=null)_ALLEY_POS.rot=r; if(window._alleyY3d)window._alleyY3d.reframe(); };
 async function ensureAlleyYuumi3d(){
   if (_alleyY3dInit) return; _alleyY3dInit = true;
@@ -29309,7 +29331,7 @@ async function ensureAlleyYuumi3d(){
       if (!group) return;
       const fov = camera.fov*Math.PI/180, asp=W/H;
       const vD = baseR/Math.sin(fov/2), hfov=2*Math.atan(Math.tan(fov/2)*asp), hD=baseR/Math.sin(hfov/2);
-      camera.position.set(0,0,Math.max(vD,hD)*1.72); camera.lookAt(0,0,0);
+      camera.position.set(0,0,Math.max(vD,hD)*2.2); camera.lookAt(0,0,0);   // 여유↑ = 머리·발 안 잘리게
       group.position.set(_ALLEY_POS.x*baseR, _ALLEY_POS.y*baseR, 0);
       group.scale.setScalar(_ALLEY_POS.scale); group.rotation.y = _ALLEY_POS.rot*Math.PI/180;
     }
@@ -29349,6 +29371,8 @@ async function ensureAlleyYuumi3d(){
 function _evacuateAlleyYuumi3d(){ const cv=document.getElementById('alley-yuumi3d'), h=document.getElementById('alley-yuumi3d-holder'); if(cv&&h&&cv.parentElement!==h) h.appendChild(cv); }
 // 게임 상태
 let _alleyRAF=null, _alleyRunning=false, _alleyTrash=[], _alleyPos={x:0,y:0}, _alleyTarget={x:0,y:0}, _alleyDrag=false, _alleyFacing=1, _alleyCollected=0, _alleyBudget=0, _alleyEndAt=0, _alleyFrameT=0, _alleyCoinT=0, _alleyCdTimer=null, _alleyPreview=false;
+let _alleySpawnVal=0, _alleySpawnT=0, _alleyStageObj=null, _alleyStageRect={w:0,h:0}, _alleyDoneT=0;
+const _ALLEY_YHEAD=82, _ALLEY_YFOOT=12;   // 유미 이동 클램프(머리 잘림·발 삐져나감 방지)
 function _alleyWpick(pool, wt){ let t=wt.reduce((a,b)=>a+b,0), r=Math.random()*t; for(let i=0;i<pool.length;i++){ r-=wt[i]; if(r<=0) return pool[i]; } return pool[pool.length-1]; }
 window.openAlleyRun = function(){
   const data=getMyGoldData(), key=getMyGoldKey();
@@ -29369,9 +29393,11 @@ window.alleyPreview = function(){
 function _alleyBuild(data){
   _injectAlleyCss();
   document.getElementById('alley-overlay')?.remove();
-  const budget = Math.min(ALLEY_DAILY_REMAINING_FOR(data), ALLEY_RUN_TARGET + Math.round((Math.random()*250)-100));
+  _alleyStageObj = _alleyStageFor(data);
+  const budget = Math.min(_alleyDailyRemaining(data), ALLEY_RUN_TARGET + Math.round((Math.random()*240)-90));
   _alleyBudget = Math.max(200, budget);
   _alleyCollected = 0; _alleyRunning = true; _alleyFacing = 1; _alleyMoving=false; _alleyCoinT=0;
+  _alleySpawnVal = 0; _alleySpawnT = 0; _alleyTrash = []; _alleyDoneT = 0;
   const el=document.createElement('div'); el.id='alley-overlay'; el.className='alley-overlay';
   el.innerHTML = `
     <div class="alley-sheet" onclick="event.stopPropagation();">
@@ -29386,98 +29412,115 @@ function _alleyBuild(data){
       </div>
       <div class="alley-bar"><div id="alley-bar-fill"></div></div>
       <div class="alley-stage" id="alley-stage">
-        <div class="alley-deco" style="right:6px;bottom:4px;">🗑️</div>
-        <div class="alley-deco" style="left:4px;bottom:6px;font-size:20px;">📦</div>
+        <div class="alley-bg-wall"></div>
+        <div class="alley-bg-ground"></div>
+        <div class="alley-deco moon">🌙</div>
+        <div class="alley-deco lamp">💡</div>
+        <div class="alley-deco dumpster">🗑️</div>
+        <div class="alley-deco box">📦</div>
         <div class="alley-shadow" id="alley-shadow"></div>
         <div id="alley-yuumi3d-mount"></div>
       </div>
       <div class="alley-foot">
         <button class="alley-quit" onclick="window.closeAlleyRun(false)">🎁 그만하고 주운 것 수령</button>
-        <div class="alley-hint">🐱 <b>화면을 끌어(드래그)</b> 유미를 움직이세요 · 가까이 가면 쓰레기를 <b>자동으로 주워요</b></div>
+        <div class="alley-hint">🐱 <b>화면을 끌어(드래그)</b> 유미를 움직이세요 · 위에서 떨어지는 쓰레기에 <b>가까이 가면 자동으로 주워요</b> · ${_alleyStageObj.name}</div>
       </div>
     </div>`;
   el.addEventListener('click', ev=>{ if(ev.target===el) window.closeAlleyRun(true); });
   document.body.appendChild(el);
   document.body.style.overflow='hidden';
   ensureAlleyYuumi3d();
-  // 무대 크기 확정 후 배치/시작
   requestAnimationFrame(()=>{
     const stage=document.getElementById('alley-stage'); if(!stage) return;
     const r=stage.getBoundingClientRect(); const W=r.width, H=r.height;
-    _alleyPos={ x:W/2, y:H*0.5 }; _alleyTarget={...__alleyClone(_alleyPos)};
-    // 쓰레기 스폰 — 값 합계 ≈ budget
-    const pool=[6,10,14,20,28,40,60,85], wt=[26,22,18,13,9,6,4,2];
-    const junk=['🥫','🍕','🐟','📄','🦴','🧦','🗞️','🥡','🥤','🧴','📦','🍌'];
-    _alleyTrash=[]; let rem=_alleyBudget, guard=0;
-    const mgn=30, startR=88;
-    while(rem>0 && _alleyTrash.length<60 && guard++<200){
-      let v=_alleyWpick(pool,wt); if(v>rem) v=rem; rem-=v;
-      let x,y,tries=0;
-      do{ x=mgn+Math.random()*(W-mgn*2); y=mgn+Math.random()*(H-mgn*2); tries++; }
-      while(tries<12 && Math.hypot(x-_alleyPos.x,y-_alleyPos.y)<startR);
-      const big=v>=60;
-      const node=document.createElement('div'); node.className='alley-junk'+(big?' big':'');
-      node.innerHTML=`<span class="aj-ic">${big?'💰':junk[Math.floor(Math.random()*junk.length)]}</span><span class="aj-v">+${v}</span>`;
-      node.style.transform=`translate(${x}px,${y}px) translate(-50%,-50%)`;
-      stage.appendChild(node);
-      _alleyTrash.push({ el:node, x, y, v, collecting:false });
-    }
+    _alleyStageRect={ w:W, h:H };
+    _alleyPos={ x:W/2, y:H*0.62 }; _alleyTarget={ x:_alleyPos.x, y:_alleyPos.y };
     document.getElementById('alley-target').textContent = _alleyBudget;
-    // 드래그
-    const setT=(cx,cy)=>{ const rr=stage.getBoundingClientRect(); _alleyTarget.x=Math.max(20,Math.min(rr.width-20,cx-rr.left)); _alleyTarget.y=Math.max(20,Math.min(rr.height-20,cy-rr.top)); };
+    // 드래그 — 손가락에 붙어 따라오게(추적은 tick의 지수 스무딩)
+    const setT=(cx,cy)=>{ const rr=stage.getBoundingClientRect();
+      _alleyTarget.x=Math.max(16,Math.min(rr.width-16, cx-rr.left));
+      _alleyTarget.y=Math.max(_ALLEY_YHEAD,Math.min(rr.height-_ALLEY_YFOOT, cy-rr.top)); };
     stage.onpointerdown=e=>{ e.preventDefault(); try{stage.setPointerCapture(e.pointerId);}catch(_){}; _alleyDrag=true; setT(e.clientX,e.clientY); };
     stage.onpointermove=e=>{ if(_alleyDrag) setT(e.clientX,e.clientY); };
-    stage.onpointerup=stage.onpointercancel=()=>{ _alleyDrag=false; _alleyTarget={...__alleyClone(_alleyPos)}; };
+    stage.onpointerup=stage.onpointercancel=()=>{ _alleyDrag=false; _alleyTarget={ x:_alleyPos.x, y:_alleyPos.y }; };
     _alleyEndAt = performance.now() + ALLEY_TIME_MS;
     _alleyFrameT = performance.now();
     if(window._alleyY3d) window._alleyY3d.setMoving(false);
     _alleyRAF = requestAnimationFrame(_alleyTick);
   });
 }
-function __alleyClone(p){ return { x:p.x, y:p.y }; }
-function ALLEY_DAILY_REMAINING_FOR(data){ return _alleyDailyRemaining(data); }
+// 🌃 쓰레기 1개 스폰 — 위에서 떨어짐(스테이지 종류 제한·굴러다님)
+function _alleySpawnOne(stage, W, H, data){
+  const set=_alleyStageObj.trash;
+  const pick=_alleyWpick(set, set.map(t=>t.w));
+  const val=Math.max(1, Math.round(pick.v * _alleyValMult(pick, data)));
+  const node=document.createElement('div'); node.className='alley-junk'+(pick.big?' big':'');
+  node.textContent=pick.ic;
+  const x=24+Math.random()*(W-48), y=-22;
+  node.style.transform=`translate(${x}px,${y}px) translate(-50%,-50%)`;
+  stage.appendChild(node);
+  _alleyTrash.push({ el:node, x, y, vx:(Math.random()*140-70), vy:(10+Math.random()*55), rot:Math.random()*360, v:val, collecting:false });
+  _alleySpawnVal += val;
+}
 function _alleyTick(now){
   if(!_alleyRunning){ return; }
   _alleyRAF = requestAnimationFrame(_alleyTick);
   const stage=document.getElementById('alley-stage'), mount=document.getElementById('alley-yuumi3d-mount'), shadow=document.getElementById('alley-shadow');
   if(!stage||!mount){ return; }
   const dt = Math.min((now - _alleyFrameT)/1000, 0.05); _alleyFrameT = now;
-  // 이동
-  const dx=_alleyTarget.x-_alleyPos.x, dy=_alleyTarget.y-_alleyPos.y, dist=Math.hypot(dx,dy);
-  let moving=false;
-  if(dist>3){ const step=Math.min(dist, ALLEY_SPEED*dt); _alleyPos.x+=dx/dist*step; _alleyPos.y+=dy/dist*step; moving=true; if(Math.abs(dx)>4) _alleyFacing = dx<0?-1:1; }
-  mount.style.transform=`translate(${_alleyPos.x}px,${_alleyPos.y}px) translate(-50%,-62%) scaleX(${_alleyFacing})`;
+  const W=_alleyStageRect.w, H=_alleyStageRect.h, GROUND=H-16;
+  const data=getMyGoldData()||{};
+  // ─ 스폰(위에서 떨어짐) ─
+  if(_alleySpawnVal < _alleyBudget && (now-_alleySpawnT)>ALLEY_SPAWN_MS){
+    const live=_alleyTrash.reduce((a,t)=>a+(t.el?1:0),0);
+    if(live<ALLEY_MAX_CONCUR){ _alleySpawnT=now; _alleySpawnOne(stage,W,H,data); }
+  }
+  // ─ 유미 이동(지수 스무딩 = 손가락에 딱 붙음) ─
+  const pdx=_alleyTarget.x-_alleyPos.x, pdy=_alleyTarget.y-_alleyPos.y, pd=Math.hypot(pdx,pdy);
+  const k=1-Math.exp(-ALLEY_FOLLOW*dt);
+  _alleyPos.x+=pdx*k; _alleyPos.y+=pdy*k;
+  _alleyPos.x=Math.max(16,Math.min(W-16,_alleyPos.x)); _alleyPos.y=Math.max(_ALLEY_YHEAD,Math.min(H-_ALLEY_YFOOT,_alleyPos.y));
+  const moving=pd>2.5; if(Math.abs(pdx)>3) _alleyFacing = pdx<0?-1:1;
+  mount.style.transform=`translate(${_alleyPos.x}px,${_alleyPos.y}px) translate(-50%,-60%) scaleX(${_alleyFacing})`;
   if(shadow) shadow.style.transform=`translate(${_alleyPos.x}px,${_alleyPos.y}px)`;
   if(window._alleyY3d && moving!==_alleyMoving) window._alleyY3d.setMoving(moving);
-  // 흡입
-  let alive=0;
+  const vacY=_alleyPos.y-6;   // 흡입 기준점(발밑보다 살짝 위=몸통)
+  // ─ 쓰레기 물리 + 흡입 ─
+  let live=0;
   for(const t of _alleyTrash){
     if(!t.el) continue;
-    const tdx=_alleyPos.x-t.x, tdy=_alleyPos.y-t.y, td=Math.hypot(tdx,tdy);
-    if(!t.collecting && td<ALLEY_VAC_R){ t.collecting=true; t.el.classList.add('vac'); }
+    const vdx=_alleyPos.x-t.x, vdy=vacY-t.y, vd=Math.hypot(vdx,vdy);
+    if(!t.collecting && vd<ALLEY_VAC_R){ t.collecting=true; t.el.classList.add('vac'); }
     if(t.collecting){
-      const s2=Math.min(td, ALLEY_COLLECT_SPD*dt);
-      if(td>0){ t.x+=tdx/td*s2; t.y+=tdy/td*s2; }
-      t.el.style.transform=`translate(${t.x}px,${t.y}px) translate(-50%,-50%)`;
-      if(td<15){ _alleyCollectOne(t); continue; }
+      const s2=Math.min(vd, ALLEY_COLLECT_SPD*dt);
+      if(vd>0){ t.x+=vdx/vd*s2; t.y+=vdy/vd*s2; }
+      if(vd<15){ _alleyCollectOne(t); continue; }
+    } else {
+      t.vy += ALLEY_GRAV*dt; t.x += t.vx*dt; t.y += t.vy*dt;
+      if(t.x<14){ t.x=14; t.vx=-t.vx*0.5; } else if(t.x>W-14){ t.x=W-14; t.vx=-t.vx*0.5; }
+      if(t.y>=GROUND){ t.y=GROUND; if(t.vy>60){ t.vy=-t.vy*0.4; } else { t.vy=0; } t.vx*=Math.exp(-3*dt); if(Math.abs(t.vx)<4) t.vx=0; }
+      t.rot += t.vx*dt*1.4;
     }
-    alive++;
+    t.el.style.transform=`translate(${t.x}px,${t.y}px) translate(-50%,-50%) rotate(${t.rot}deg)`;
+    live++;
   }
-  // HUD
+  // ─ HUD ─
   const gEl=document.getElementById('alley-gold'); if(gEl) gEl.textContent=_alleyCollected;
   const bf=document.getElementById('alley-bar-fill'); if(bf) bf.style.width=Math.min(100,_alleyCollected/_alleyBudget*100)+'%';
   const left=Math.max(0, _alleyEndAt-now);
   const tEl=document.getElementById('alley-time'); if(tEl) tEl.textContent=Math.ceil(left/1000);
   const tc=document.getElementById('alley-timechip'); if(tc) tc.classList.toggle('urgent', left<10000);
-  if(left<=0 || alive===0){ if(alive===0){ setTimeout(()=>{ if(_alleyRunning) window.closeAlleyRun(false); }, 420); _alleyEndAt=now+9e9; } else window.closeAlleyRun(false); }
+  // ─ 종료: 시간 끝 / (예산 다 뿌렸고 남은 쓰레기 0) ─
+  const done = (_alleySpawnVal>=_alleyBudget && live===0);
+  if(left<=0 || done){ if(_alleyRunning){ _alleyRunning=false; setTimeout(()=>window.closeAlleyRun(false), 350); } }
 }
 function _alleyCollectOne(t){
   if(!t.el) return;
   const stage=document.getElementById('alley-stage');
-  _alleyCollected += t.v;
-  // 흡입 파티클/floating
-  if(stage){ const f=document.createElement('div'); f.className='alley-float'; f.textContent='+'+t.v; f.style.transform=`translate(${_alleyPos.x}px,${_alleyPos.y-20}px)`; stage.appendChild(f); setTimeout(()=>f.remove(),820); }
-  const now=performance.now(); if(now-_alleyCoinT>70){ _alleyCoinT=now; try{ _trashSfx.coin(); }catch(_){} }
+  const gain=Math.min(t.v, Math.max(0, _alleyBudget-_alleyCollected));   // 목표(=상한) 초과 안 함
+  _alleyCollected += gain;
+  if(stage){ const f=document.createElement('div'); f.className='alley-float'; f.textContent='+'+(gain||t.v); f.style.transform=`translate(${_alleyPos.x}px,${_alleyPos.y-22}px)`; stage.appendChild(f); setTimeout(()=>f.remove(),820); }
+  const now=performance.now(); if(now-_alleyCoinT>65){ _alleyCoinT=now; try{ _trashSfx.coin(); }catch(_){} }
   t.el.remove(); t.el=null;
 }
 window.closeAlleyRun = async function(discard){
