@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.623';
+const APP_VERSION = 'v2.45.624';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.623';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.624', date: '2026-07-27', changes: [
+    { tag: 'fix', text: '🌃 「뒷골목으로 나가기」에서 <b>드래그할 때 화면 전체가 스크롤되며 튀던 문제 수정</b> — 게임 오버레이에 스크롤 잠금(touch-action·overscroll-behavior·touchmove 차단)을 걸어 유미를 끌어도 페이지가 밀리지 않아요. 주소창 토글로 무대 크기가 바뀌어도 좌표가 어긋나지 않게 보정했어요.' },
+  ] },
   { ver: 'v2.45.623', date: '2026-07-27', changes: [
     { tag: 'improve', text: '🌃 「뒷골목으로 나가기」 <b>게임성 대개편</b> — ①진짜 <b>뒷골목 배경</b>(벽돌담·아스팔트 바닥·가로등 불빛·달·쓰레기통) ②쓰레기가 바닥에 깔려있지 않고 <b>위에서 떨어져 통통 튀고 굴러다녀요</b> ③쓰레기 종류를 <b>스테이지 기준으로 제한</b>(빈 캔·유리병·지폐 — 잡다하지 않게) ④<b>드래그가 손가락에 딱 붙어</b> 반응성 있게 따라와요 ⑤교장 유미 <b>머리 잘리던 것 수정</b>. <span style="opacity:.7">※앞으로 아이템/스킬로 더 다양한 쓰레기·효율을 여는 방향으로 확장돼요.</span>' },
   ] },
@@ -29256,7 +29259,8 @@ function _injectAlleyCss(){
   if (document.getElementById('alley-css')) return;
   const st = document.createElement('style'); st.id = 'alley-css';
   st.textContent = `
-  .alley-overlay{position:fixed;inset:0;z-index:4200;background:rgba(4,5,10,.82);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:14px;}
+  .alley-overlay{position:fixed;inset:0;z-index:4200;background:rgba(4,5,10,.82);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:14px;touch-action:none;overscroll-behavior:contain;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
+  .alley-overlay *{touch-action:none;}
   .alley-sheet{width:100%;max-width:400px;background:linear-gradient(180deg,#141520,#0a0b12);border:1px solid rgba(200,168,75,.32);border-radius:16px;padding:12px;box-shadow:0 18px 50px rgba(0,0,0,.6);}
   .alley-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
   .alley-title{font-weight:900;font-size:15px;color:#ffe39a;letter-spacing:.3px;}
@@ -29371,7 +29375,7 @@ async function ensureAlleyYuumi3d(){
 function _evacuateAlleyYuumi3d(){ const cv=document.getElementById('alley-yuumi3d'), h=document.getElementById('alley-yuumi3d-holder'); if(cv&&h&&cv.parentElement!==h) h.appendChild(cv); }
 // 게임 상태
 let _alleyRAF=null, _alleyRunning=false, _alleyTrash=[], _alleyPos={x:0,y:0}, _alleyTarget={x:0,y:0}, _alleyDrag=false, _alleyFacing=1, _alleyCollected=0, _alleyBudget=0, _alleyEndAt=0, _alleyFrameT=0, _alleyCoinT=0, _alleyCdTimer=null, _alleyPreview=false;
-let _alleySpawnVal=0, _alleySpawnT=0, _alleyStageObj=null, _alleyStageRect={w:0,h:0}, _alleyDoneT=0;
+let _alleySpawnVal=0, _alleySpawnT=0, _alleyStageObj=null, _alleyStageRect={w:0,h:0}, _alleyDoneT=0, _alleyOnResize=null;
 const _ALLEY_YHEAD=82, _ALLEY_YFOOT=12;   // 유미 이동 클램프(머리 잘림·발 삐져나감 방지)
 function _alleyWpick(pool, wt){ let t=wt.reduce((a,b)=>a+b,0), r=Math.random()*t; for(let i=0;i<pool.length;i++){ r-=wt[i]; if(r<=0) return pool[i]; } return pool[pool.length-1]; }
 window.openAlleyRun = function(){
@@ -29427,6 +29431,8 @@ function _alleyBuild(data){
       </div>
     </div>`;
   el.addEventListener('click', ev=>{ if(ev.target===el) window.closeAlleyRun(true); });
+  // 🛑 페이지 스크롤·러버밴딩 완전 차단(드래그가 화면을 밀지 않게) — 오버레이 내 touchmove 기본동작 막기
+  el.addEventListener('touchmove', e=>{ e.preventDefault(); }, { passive:false });
   document.body.appendChild(el);
   document.body.style.overflow='hidden';
   ensureAlleyYuumi3d();
@@ -29434,6 +29440,11 @@ function _alleyBuild(data){
     const stage=document.getElementById('alley-stage'); if(!stage) return;
     const r=stage.getBoundingClientRect(); const W=r.width, H=r.height;
     _alleyStageRect={ w:W, h:H };
+    // 주소창 토글 등으로 무대 크기 바뀌면 좌표 어긋남 방지 — 리사이즈 시 갱신+클램프
+    const onRz=()=>{ const st2=document.getElementById('alley-stage'); if(!st2){ window.removeEventListener('resize',onRz); return; } const r2=st2.getBoundingClientRect(); _alleyStageRect={ w:r2.width, h:r2.height };
+      _alleyPos.x=Math.max(16,Math.min(r2.width-16,_alleyPos.x)); _alleyPos.y=Math.max(_ALLEY_YHEAD,Math.min(r2.height-_ALLEY_YFOOT,_alleyPos.y)); };
+    window.addEventListener('resize', onRz);
+    _alleyOnResize = onRz;
     _alleyPos={ x:W/2, y:H*0.62 }; _alleyTarget={ x:_alleyPos.x, y:_alleyPos.y };
     document.getElementById('alley-target').textContent = _alleyBudget;
     // 드래그 — 손가락에 붙어 따라오게(추적은 tick의 지수 스무딩)
@@ -29441,7 +29452,7 @@ function _alleyBuild(data){
       _alleyTarget.x=Math.max(16,Math.min(rr.width-16, cx-rr.left));
       _alleyTarget.y=Math.max(_ALLEY_YHEAD,Math.min(rr.height-_ALLEY_YFOOT, cy-rr.top)); };
     stage.onpointerdown=e=>{ e.preventDefault(); try{stage.setPointerCapture(e.pointerId);}catch(_){}; _alleyDrag=true; setT(e.clientX,e.clientY); };
-    stage.onpointermove=e=>{ if(_alleyDrag) setT(e.clientX,e.clientY); };
+    stage.onpointermove=e=>{ if(_alleyDrag){ e.preventDefault(); setT(e.clientX,e.clientY); } };
     stage.onpointerup=stage.onpointercancel=()=>{ _alleyDrag=false; _alleyTarget={ x:_alleyPos.x, y:_alleyPos.y }; };
     _alleyEndAt = performance.now() + ALLEY_TIME_MS;
     _alleyFrameT = performance.now();
@@ -29525,6 +29536,7 @@ function _alleyCollectOne(t){
 }
 window.closeAlleyRun = async function(discard){
   if(_alleyRAF){ cancelAnimationFrame(_alleyRAF); _alleyRAF=null; }
+  if(_alleyOnResize){ window.removeEventListener('resize', _alleyOnResize); _alleyOnResize=null; }
   const wasRunning=_alleyRunning; _alleyRunning=false;
   _evacuateAlleyYuumi3d();
   document.getElementById('alley-overlay')?.remove();
