@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.620';
+const APP_VERSION = 'v2.45.621';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.620';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.621', date: '2026-07-27', changes: [
+    { tag: 'new', text: '🌃 <b>「뒷골목으로 나가기」</b> — 교장 유미 전용 미니게임이 열렸어요! 쓰레기통(유미 패널)에서 진입 → <b>화면을 끌어(드래그) 교장 유미를 움직이면</b> 근처에 흩어진 쓰레기를 <b>자동으로 주워요</b>(가비지 그로스 방식). 한 판에 <b>약 1000G</b>까지 벌 수 있고, 유미가 지치면 <b>90분 쉰 뒤</b> 다시 나갈 수 있어요(하루 최대 2,500G). 3D 교장 유미가 직접 뒷골목을 누벼요! 🐱' },
+  ] },
   { ver: 'v2.45.620', date: '2026-07-27', changes: [
     { tag: 'improve', text: '🌃 교장 유미 변신 후 열리는 콘텐츠 이름을 <b>「뒷골목으로 나가기」</b>로 바꿨어요 — 유미와 함께 뒷골목으로 나가 흩어진 것들을 줍는 컨셉이에요(변신 완료 안내 문구 반영, 곧 열려요).' },
   ] },
@@ -29213,6 +29216,285 @@ window.yuumiTransform = async function(){
   try{ showBingoReward('🎓 교장 유미 변신 완료!', '전투사관학교 유미 교장선생님으로 진화했어요! 🌃 이제 유미와 함께 「뒷골목으로 나가기」가 곧 열려요.', [{iconHtml:'🎓',name:'교장 유미',qty:'유니크',color:'#f0abfc'},{iconHtml:'🌃',name:'뒷골목으로 나가기',qty:'준비 중',color:'#ffd24a'}]); }catch(_){}
   try{ _renderYuumiPanel(); }catch(_){}
 };
+// ═══════════ 🌃 뒷골목으로 나가기 (교장 유미 전용 액티브 미니게임) — v2.45.621~ ═══════════
+// 교장 유미(yuumiUnique)만. 드래그로 유미 이동 → 근처 흩어진 쓰레기 자동 흡입(Garbage Growth식) → 골드. 한 판 ~1000G·쿨다운·일일캡으로 경제 통제.
+const ALLEY_COOLDOWN_MS = 90 * 60 * 1000;   // 90분 쿨다운(판 사이)
+const ALLEY_DAILY_CAP   = 2500;             // 하루 뒷골목 획득 상한(무한파밍 방지)
+const ALLEY_RUN_TARGET  = 1000;             // 한 판 목표 골드(대략)
+const ALLEY_SPEED = 335, ALLEY_VAC_R = 72, ALLEY_COLLECT_SPD = 620, ALLEY_TIME_MS = 60000;
+function _alleyTodayGold(data){ data=data||getMyGoldData()||{}; return (data[sField('alleyGoldDate')]===getLocalDateKey()) ? (data[sField('alleyGoldDay')]||0) : 0; }
+function _alleyDailyRemaining(data){ return Math.max(0, ALLEY_DAILY_CAP - _alleyTodayGold(data)); }
+function _alleyCooldownLeft(data){ data=data||getMyGoldData()||{}; const t=data[sField('alleyLastAt')]||0; return Math.max(0, t + ALLEY_COOLDOWN_MS - Date.now()); }
+function _alleyState(data){
+  data = data || getMyGoldData();
+  if (!_yuumiIsUnique(data)) return { st:'locked' };
+  if (_alleyDailyRemaining(data) <= 0) return { st:'capped' };
+  const cd = _alleyCooldownLeft(data);
+  if (cd > 0) return { st:'cooldown', endAt: Date.now() + cd };
+  return { st:'ready' };
+}
+function _injectAlleyCss(){
+  if (document.getElementById('alley-css')) return;
+  const st = document.createElement('style'); st.id = 'alley-css';
+  st.textContent = `
+  .alley-overlay{position:fixed;inset:0;z-index:4200;background:rgba(4,5,10,.82);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;padding:14px;}
+  .alley-sheet{width:100%;max-width:400px;background:linear-gradient(180deg,#141520,#0a0b12);border:1px solid rgba(200,168,75,.32);border-radius:16px;padding:12px;box-shadow:0 18px 50px rgba(0,0,0,.6);}
+  .alley-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .alley-title{font-weight:900;font-size:15px;color:#ffe39a;letter-spacing:.3px;}
+  .alley-x{width:30px;height:30px;border:none;border-radius:8px;background:rgba(255,255,255,.08);color:#cfd6e4;font-size:14px;cursor:pointer;}
+  .alley-hud{display:flex;gap:6px;margin-bottom:8px;}
+  .alley-chip{flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:5px 4px;text-align:center;}
+  .alley-chip .k{display:block;font-size:9px;color:#8b93a5;letter-spacing:.5px;}
+  .alley-chip .v{display:block;font-size:15px;font-weight:900;color:#ffe39a;font-family:'JetBrains Mono',monospace;}
+  .alley-chip.time .v{color:#7fe0d0;} .alley-chip.time.urgent .v{color:#ff8a8a;}
+  .alley-bar{height:6px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;margin-bottom:8px;}
+  .alley-bar>div{height:100%;width:0;background:linear-gradient(90deg,#d4a843,#f0c84a);transition:width .18s;}
+  .alley-stage{position:relative;width:100%;height:min(56vh,440px);border-radius:12px;overflow:hidden;touch-action:none;cursor:grab;
+    background:radial-gradient(120% 80% at 50% 0%,#20222f,#0c0d15 70%),linear-gradient(180deg,#15161f,#0a0b11);
+    box-shadow:inset 0 0 60px rgba(0,0,0,.6),inset 0 2px 0 rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);}
+  .alley-stage:active{cursor:grabbing;}
+  .alley-stage::before{content:'';position:absolute;inset:0;background:
+     linear-gradient(90deg,rgba(0,0,0,.5),transparent 18%,transparent 82%,rgba(0,0,0,.5)),
+     repeating-linear-gradient(0deg,transparent,transparent 46px,rgba(255,255,255,.02) 46px,rgba(255,255,255,.02) 48px);
+     pointer-events:none;}
+  .alley-stage::after{content:'🌃';position:absolute;top:6px;left:8px;font-size:15px;opacity:.5;pointer-events:none;}
+  .alley-deco{position:absolute;font-size:26px;opacity:.5;filter:grayscale(.3);pointer-events:none;}
+  .alley-junk{position:absolute;left:0;top:0;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;pointer-events:none;will-change:transform;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
+  .alley-junk .aj-ic{font-size:23px;line-height:1;}
+  .alley-junk .aj-v{font-size:9px;font-weight:800;color:#ffd76a;background:rgba(0,0,0,.5);border-radius:6px;padding:0 4px;margin-top:1px;}
+  .alley-junk.big .aj-ic{font-size:29px;} .alley-junk.big .aj-v{color:#ffe39a;}
+  .alley-junk.vac .aj-ic{animation:alleyVac .3s linear infinite;}
+  @keyframes alleyVac{50%{transform:scale(.78);}}
+  #alley-yuumi3d-mount{position:absolute;left:0;top:0;width:94px;height:118px;pointer-events:none;z-index:40;will-change:transform;filter:drop-shadow(0 6px 8px rgba(0,0,0,.5));}
+  #alley-yuumi3d-mount canvas{width:100%;height:100%;display:block;}
+  .alley-shadow{position:absolute;left:0;top:0;width:52px;height:15px;margin:-8px 0 0 -26px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,.5),transparent 70%);z-index:38;pointer-events:none;}
+  .alley-float{position:absolute;left:0;top:0;font-size:13px;font-weight:900;color:#ffe36a;text-shadow:0 1px 3px #000;pointer-events:none;z-index:60;animation:alleyFloat .8s ease-out forwards;}
+  @keyframes alleyFloat{0%{opacity:0;transform:translate(-50%,-50%) scale(.6);}25%{opacity:1;}100%{opacity:0;transform:translate(-50%,-160%) scale(1.05);}}
+  .alley-foot{margin-top:10px;display:flex;flex-direction:column;gap:6px;}
+  .alley-quit{width:100%;padding:12px;border:none;border-radius:11px;background:linear-gradient(135deg,#d4a843,#f0c84a,#c8a030);color:#1a1206;font-size:14px;font-weight:800;cursor:pointer;}
+  .alley-hint{font-size:10.5px;color:#8b93a5;text-align:center;line-height:1.5;}
+  `;
+  document.head.appendChild(st);
+}
+// 🐱 교장 유미 3D — 뒷골목 미니게임용 위치추적 오버레이 캔버스(Idle01/Run01). ensureYuumi3d와 동일 패턴(캔버스 1개 유지+대피).
+let _alleyY3dInit = false, _alleyMoving = false;
+const _ALLEY_POS = { x: 0, y: -0.12, scale: 1.0, rot: 0 };   // 콘솔 _alleyY3dTune()로 조정
+window._alleyY3dTune = (x,y,s,r)=>{ if(x!=null)_ALLEY_POS.x=x; if(y!=null)_ALLEY_POS.y=y; if(s!=null)_ALLEY_POS.scale=s; if(r!=null)_ALLEY_POS.rot=r; if(window._alleyY3d)window._alleyY3d.reframe(); };
+async function ensureAlleyYuumi3d(){
+  if (_alleyY3dInit) return; _alleyY3dInit = true;
+  try {
+    const THREE = await import('three');
+    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    const { MeshoptDecoder } = await import('three/addons/libs/meshopt_decoder.module.js');
+    let holder = document.getElementById('alley-yuumi3d-holder');
+    if (!holder){ holder=document.createElement('div'); holder.id='alley-yuumi3d-holder'; holder.style.cssText='position:absolute;left:-9999px;top:0;width:0;height:0;overflow:hidden;'; document.body.appendChild(holder); }
+    let canvas = document.getElementById('alley-yuumi3d');
+    if (!canvas){ canvas=document.createElement('canvas'); canvas.id='alley-yuumi3d'; canvas.style.cssText='width:100%;height:100%;display:block;'; holder.appendChild(canvas); }
+    const W=140, H=180;
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha:true, antialias:false, powerPreference:'low-power' });
+    renderer.setPixelRatio(Math.min(devicePixelRatio||1, 1.5)); renderer.setSize(W,H,false);
+    renderer.setClearAlpha(0); renderer.outputColorSpace = THREE.SRGBColorSpace;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(28, W/H, 0.1, 5000);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.15));
+    const keyL = new THREE.DirectionalLight(0xffffff, .95); keyL.position.set(3,5,4); scene.add(keyL);
+    const clock = new THREE.Clock();
+    let group=null, mixer=null, actIdle=null, actRun=null, cur=null, baseR=1, _last=0;
+    function reframe(){
+      if (!group) return;
+      const fov = camera.fov*Math.PI/180, asp=W/H;
+      const vD = baseR/Math.sin(fov/2), hfov=2*Math.atan(Math.tan(fov/2)*asp), hD=baseR/Math.sin(hfov/2);
+      camera.position.set(0,0,Math.max(vD,hD)*1.72); camera.lookAt(0,0,0);
+      group.position.set(_ALLEY_POS.x*baseR, _ALLEY_POS.y*baseR, 0);
+      group.scale.setScalar(_ALLEY_POS.scale); group.rotation.y = _ALLEY_POS.rot*Math.PI/180;
+    }
+    const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
+    loader.load('assets/pets/Yuumi/3d/yuumi-principal.glb?v=1', g=>{
+      const model = g.scene;
+      model.traverse(o=>{ if(o.isMesh){ o.frustumCulled=false; if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{ m.side=THREE.DoubleSide; m.needsUpdate=true; }); } });
+      const box=new THREE.Box3().setFromObject(model), ctr=box.getCenter(new THREE.Vector3()); model.position.sub(ctr);
+      group=new THREE.Group(); group.add(model); scene.add(group);
+      baseR = box.getBoundingSphere(new THREE.Sphere()).radius; reframe();
+      const clips = g.animations||[];
+      const idleClip = clips.find(c=>c.name==='Idle01') || clips.find(c=>/idle/i.test(c.name)) || clips[0];
+      const runClip  = clips.find(c=>c.name==='Run01')  || clips.find(c=>/run/i.test(c.name)) || idleClip;
+      mixer = new THREE.AnimationMixer(model);
+      if (idleClip){ actIdle=mixer.clipAction(idleClip); actIdle.play(); cur=actIdle; }
+      if (runClip){ actRun=mixer.clipAction(runClip); }
+    }, undefined, err=>console.error('교장유미 3D 로드 실패', err));
+    function setMoving(m){
+      m=!!m; if(m===_alleyMoving && cur) { _alleyMoving=m; return; } _alleyMoving=m;
+      const next = m ? actRun : actIdle;
+      if (!next || next===cur){ if(next && !cur) { next.play(); cur=next; } return; }
+      try { next.reset().setEffectiveWeight(1).fadeIn(.18).play(); if(cur) cur.fadeOut(.18); } catch(_){ if(cur)cur.stop(); next.play(); }
+      cur = next;
+    }
+    window._alleyY3d = { setMoving, reframe };
+    (function loop(){
+      requestAnimationFrame(loop);
+      const mt = document.getElementById('alley-yuumi3d-mount');
+      if (document.hidden || !mt || !document.body.contains(mt)) return;
+      const now = performance.now(); if (now-_last < 30) return; _last = now;
+      if (renderer.domElement.parentElement !== mt) mt.appendChild(renderer.domElement);
+      if (mixer) mixer.update(Math.min(clock.getDelta(), 0.1));
+      renderer.render(scene, camera);
+    })();
+  } catch(e){ console.error('교장유미 3D init 실패:', e); _alleyY3dInit=false; }
+}
+function _evacuateAlleyYuumi3d(){ const cv=document.getElementById('alley-yuumi3d'), h=document.getElementById('alley-yuumi3d-holder'); if(cv&&h&&cv.parentElement!==h) h.appendChild(cv); }
+// 게임 상태
+let _alleyRAF=null, _alleyRunning=false, _alleyTrash=[], _alleyPos={x:0,y:0}, _alleyTarget={x:0,y:0}, _alleyDrag=false, _alleyFacing=1, _alleyCollected=0, _alleyBudget=0, _alleyEndAt=0, _alleyFrameT=0, _alleyCoinT=0, _alleyCdTimer=null;
+function _alleyWpick(pool, wt){ let t=wt.reduce((a,b)=>a+b,0), r=Math.random()*t; for(let i=0;i<pool.length;i++){ r-=wt[i]; if(r<=0) return pool[i]; } return pool[pool.length-1]; }
+window.openAlleyRun = function(){
+  const data=getMyGoldData(), key=getMyGoldKey();
+  if(!key){ showGoldToast('닉네임을 먼저 선택해주세요'); return; }
+  const s=_alleyState(data);
+  if(s.st==='locked'){ showGoldToast('교장 유미로 변신해야 열려요 🎓'); return; }
+  if(s.st==='cooldown'){ showGoldToast('유미가 아직 지쳐있어요 · 잠시 후 다시!'); return; }
+  if(s.st==='capped'){ showGoldToast('오늘 뒷골목은 이미 다 털었어요 · 내일 또!'); return; }
+  _alleyBuild(data);
+};
+function _alleyBuild(data){
+  _injectAlleyCss();
+  document.getElementById('alley-overlay')?.remove();
+  const budget = Math.min(ALLEY_DAILY_REMAINING_FOR(data), ALLEY_RUN_TARGET + Math.round((Math.random()*250)-100));
+  _alleyBudget = Math.max(200, budget);
+  _alleyCollected = 0; _alleyRunning = true; _alleyFacing = 1; _alleyMoving=false; _alleyCoinT=0;
+  const el=document.createElement('div'); el.id='alley-overlay'; el.className='alley-overlay';
+  el.innerHTML = `
+    <div class="alley-sheet" onclick="event.stopPropagation();">
+      <div class="alley-head">
+        <span class="alley-title">🌃 뒷골목으로 나가기</span>
+        <button class="alley-x" onclick="window.closeAlleyRun(true)">✕</button>
+      </div>
+      <div class="alley-hud">
+        <div class="alley-chip"><span class="k">주운 골드</span><span class="v" id="alley-gold">0</span></div>
+        <div class="alley-chip"><span class="k">목표</span><span class="v" id="alley-target">${_alleyBudget}</span></div>
+        <div class="alley-chip time" id="alley-timechip"><span class="k">남은 시간</span><span class="v" id="alley-time">${Math.ceil(ALLEY_TIME_MS/1000)}</span></div>
+      </div>
+      <div class="alley-bar"><div id="alley-bar-fill"></div></div>
+      <div class="alley-stage" id="alley-stage">
+        <div class="alley-deco" style="right:6px;bottom:4px;">🗑️</div>
+        <div class="alley-deco" style="left:4px;bottom:6px;font-size:20px;">📦</div>
+        <div class="alley-shadow" id="alley-shadow"></div>
+        <div id="alley-yuumi3d-mount"></div>
+      </div>
+      <div class="alley-foot">
+        <button class="alley-quit" onclick="window.closeAlleyRun(false)">🎁 그만하고 주운 것 수령</button>
+        <div class="alley-hint">🐱 <b>화면을 끌어(드래그)</b> 유미를 움직이세요 · 가까이 가면 쓰레기를 <b>자동으로 주워요</b></div>
+      </div>
+    </div>`;
+  el.addEventListener('click', ev=>{ if(ev.target===el) window.closeAlleyRun(true); });
+  document.body.appendChild(el);
+  document.body.style.overflow='hidden';
+  ensureAlleyYuumi3d();
+  // 무대 크기 확정 후 배치/시작
+  requestAnimationFrame(()=>{
+    const stage=document.getElementById('alley-stage'); if(!stage) return;
+    const r=stage.getBoundingClientRect(); const W=r.width, H=r.height;
+    _alleyPos={ x:W/2, y:H*0.5 }; _alleyTarget={...__alleyClone(_alleyPos)};
+    // 쓰레기 스폰 — 값 합계 ≈ budget
+    const pool=[6,10,14,20,28,40,60,85], wt=[26,22,18,13,9,6,4,2];
+    const junk=['🥫','🍕','🐟','📄','🦴','🧦','🗞️','🥡','🥤','🧴','📦','🍌'];
+    _alleyTrash=[]; let rem=_alleyBudget, guard=0;
+    const mgn=30, startR=88;
+    while(rem>0 && _alleyTrash.length<60 && guard++<200){
+      let v=_alleyWpick(pool,wt); if(v>rem) v=rem; rem-=v;
+      let x,y,tries=0;
+      do{ x=mgn+Math.random()*(W-mgn*2); y=mgn+Math.random()*(H-mgn*2); tries++; }
+      while(tries<12 && Math.hypot(x-_alleyPos.x,y-_alleyPos.y)<startR);
+      const big=v>=60;
+      const node=document.createElement('div'); node.className='alley-junk'+(big?' big':'');
+      node.innerHTML=`<span class="aj-ic">${big?'💰':junk[Math.floor(Math.random()*junk.length)]}</span><span class="aj-v">+${v}</span>`;
+      node.style.transform=`translate(${x}px,${y}px) translate(-50%,-50%)`;
+      stage.appendChild(node);
+      _alleyTrash.push({ el:node, x, y, v, collecting:false });
+    }
+    document.getElementById('alley-target').textContent = _alleyBudget;
+    // 드래그
+    const setT=(cx,cy)=>{ const rr=stage.getBoundingClientRect(); _alleyTarget.x=Math.max(20,Math.min(rr.width-20,cx-rr.left)); _alleyTarget.y=Math.max(20,Math.min(rr.height-20,cy-rr.top)); };
+    stage.onpointerdown=e=>{ e.preventDefault(); try{stage.setPointerCapture(e.pointerId);}catch(_){}; _alleyDrag=true; setT(e.clientX,e.clientY); };
+    stage.onpointermove=e=>{ if(_alleyDrag) setT(e.clientX,e.clientY); };
+    stage.onpointerup=stage.onpointercancel=()=>{ _alleyDrag=false; _alleyTarget={...__alleyClone(_alleyPos)}; };
+    _alleyEndAt = performance.now() + ALLEY_TIME_MS;
+    _alleyFrameT = performance.now();
+    if(window._alleyY3d) window._alleyY3d.setMoving(false);
+    _alleyRAF = requestAnimationFrame(_alleyTick);
+  });
+}
+function __alleyClone(p){ return { x:p.x, y:p.y }; }
+function ALLEY_DAILY_REMAINING_FOR(data){ return _alleyDailyRemaining(data); }
+function _alleyTick(now){
+  if(!_alleyRunning){ return; }
+  _alleyRAF = requestAnimationFrame(_alleyTick);
+  const stage=document.getElementById('alley-stage'), mount=document.getElementById('alley-yuumi3d-mount'), shadow=document.getElementById('alley-shadow');
+  if(!stage||!mount){ return; }
+  const dt = Math.min((now - _alleyFrameT)/1000, 0.05); _alleyFrameT = now;
+  // 이동
+  const dx=_alleyTarget.x-_alleyPos.x, dy=_alleyTarget.y-_alleyPos.y, dist=Math.hypot(dx,dy);
+  let moving=false;
+  if(dist>3){ const step=Math.min(dist, ALLEY_SPEED*dt); _alleyPos.x+=dx/dist*step; _alleyPos.y+=dy/dist*step; moving=true; if(Math.abs(dx)>4) _alleyFacing = dx<0?-1:1; }
+  mount.style.transform=`translate(${_alleyPos.x}px,${_alleyPos.y}px) translate(-50%,-62%) scaleX(${_alleyFacing})`;
+  if(shadow) shadow.style.transform=`translate(${_alleyPos.x}px,${_alleyPos.y}px)`;
+  if(window._alleyY3d && moving!==_alleyMoving) window._alleyY3d.setMoving(moving);
+  // 흡입
+  let alive=0;
+  for(const t of _alleyTrash){
+    if(!t.el) continue;
+    const tdx=_alleyPos.x-t.x, tdy=_alleyPos.y-t.y, td=Math.hypot(tdx,tdy);
+    if(!t.collecting && td<ALLEY_VAC_R){ t.collecting=true; t.el.classList.add('vac'); }
+    if(t.collecting){
+      const s2=Math.min(td, ALLEY_COLLECT_SPD*dt);
+      if(td>0){ t.x+=tdx/td*s2; t.y+=tdy/td*s2; }
+      t.el.style.transform=`translate(${t.x}px,${t.y}px) translate(-50%,-50%)`;
+      if(td<15){ _alleyCollectOne(t); continue; }
+    }
+    alive++;
+  }
+  // HUD
+  const gEl=document.getElementById('alley-gold'); if(gEl) gEl.textContent=_alleyCollected;
+  const bf=document.getElementById('alley-bar-fill'); if(bf) bf.style.width=Math.min(100,_alleyCollected/_alleyBudget*100)+'%';
+  const left=Math.max(0, _alleyEndAt-now);
+  const tEl=document.getElementById('alley-time'); if(tEl) tEl.textContent=Math.ceil(left/1000);
+  const tc=document.getElementById('alley-timechip'); if(tc) tc.classList.toggle('urgent', left<10000);
+  if(left<=0 || alive===0){ if(alive===0){ setTimeout(()=>{ if(_alleyRunning) window.closeAlleyRun(false); }, 420); _alleyEndAt=now+9e9; } else window.closeAlleyRun(false); }
+}
+function _alleyCollectOne(t){
+  if(!t.el) return;
+  const stage=document.getElementById('alley-stage');
+  _alleyCollected += t.v;
+  // 흡입 파티클/floating
+  if(stage){ const f=document.createElement('div'); f.className='alley-float'; f.textContent='+'+t.v; f.style.transform=`translate(${_alleyPos.x}px,${_alleyPos.y-20}px)`; stage.appendChild(f); setTimeout(()=>f.remove(),820); }
+  const now=performance.now(); if(now-_alleyCoinT>70){ _alleyCoinT=now; try{ _trashSfx.coin(); }catch(_){} }
+  t.el.remove(); t.el=null;
+}
+window.closeAlleyRun = async function(discard){
+  if(_alleyRAF){ cancelAnimationFrame(_alleyRAF); _alleyRAF=null; }
+  const wasRunning=_alleyRunning; _alleyRunning=false;
+  _evacuateAlleyYuumi3d();
+  document.getElementById('alley-overlay')?.remove();
+  document.body.style.overflow='';
+  // 남은 쓰레기 정리
+  _alleyTrash.forEach(t=>{ if(t.el) t.el.remove(); }); _alleyTrash=[];
+  if(discard || !wasRunning || _alleyCollected<=0){ try{ _renderYuumiPanel(); }catch(_){}; return; }
+  // 정산 — 일일캡 반영 후 trashGold에 지급 + 쿨다운/일일 기록 + 역산 로그
+  const key=getMyGoldKey(), data=getMyGoldData()||{};
+  if(!key){ return; }
+  const gain=Math.min(_alleyCollected, _alleyDailyRemaining(data));
+  const today=getLocalDateKey();
+  const newGold=(data[sField('trashGold')]||0)+gain;
+  const newDay=_alleyTodayGold(data)+gain;
+  const updates={ [sField('trashGold')]:newGold, [sField('alleyGoldDay')]:newDay, [sField('alleyGoldDate')]:today, [sField('alleyLastAt')]:Date.now() };
+  { const lk=sField('trashLog'); const cur=Array.isArray(data[lk])?data[lk]:[]; updates[lk]=[...cur.slice(-39), { at:Date.now(), ev:'alley', gold:gain }]; }
+  try{ await update(ref(db,'gold/'+key), updates); }catch(_){ showGoldToast('❌ 저장 실패 — 잠시 후 다시'); return; }
+  if(goldData[key]){ goldData[key][sField('trashGold')]=newGold; goldData[key][sField('alleyGoldDay')]=newDay; goldData[key][sField('alleyGoldDate')]=today; goldData[key][sField('alleyLastAt')]=updates[sField('alleyLastAt')]; }
+  try{ _trashSfx.coin(); setTimeout(()=>{try{_trashSfx.free();}catch(_){}} ,220); }catch(_){}
+  const capped = gain < _alleyCollected;
+  try{ showBingoReward('🌃 뒷골목 정산', `주운 골드 <b style="color:#ffd76a">+${gain}G</b>${capped?`<br><span style="font-size:10px;color:#ff9ab0;">오늘 상한(${ALLEY_DAILY_CAP}G) 도달 — ${_alleyCollected-gain}G는 다음날로</span>`:''}<br><span style="font-size:10px;color:#a5b4fc;">유미가 지쳐서 잠시 쉬어요 · ${Math.round(ALLEY_COOLDOWN_MS/60000)}분 뒤 다시</span>`, [{iconHtml:'🪙',name:'뒷골목에서 주운 골드',qty:`+${gain}G`,color:'#ffd24a'}]); }
+  catch(_){ showGoldToast(`🌃 뒷골목 +${gain}G`); }
+  try{ _renderYuumiPanel(); }catch(_){}
+  try{ updateMyInfoBar(); }catch(_){}
+};
 function _renderYuumiPanel() {
   const el = document.getElementById('yuumi-panel');
   if (!el) return;
@@ -29220,9 +29502,18 @@ function _renderYuumiPanel() {
   const _tf = _yuumiCanTransform() ? `<button class="yuumi-btn" onclick="window.yuumiTransform()" style="width:100%;margin-bottom:8px;background:linear-gradient(135deg,#c084fc,#f0abfc,#a855f7);color:#2a1040;font-weight:900;border:none;border-radius:11px;padding:11px;cursor:pointer;box-shadow:0 4px 14px rgba(192,132,252,.4);animation:abotPulse 1.5s ease-in-out infinite;">🎓 유미 ${_yuumiCount()}마리 모음 · 교장 유미로 변신!</button>` : '';
   if (_yuumiTimer) { clearInterval(_yuumiTimer); _yuumiTimer = null; }
   if (_yuumiFindTimer) { clearInterval(_yuumiFindTimer); _yuumiFindTimer = null; }
+  if (_alleyCdTimer) { clearInterval(_alleyCdTimer); _alleyCdTimer = null; }
   if (s.st === 'none') { el.style.display = 'none'; el.innerHTML = ''; _setYuumi3d(null); return; }
   el.style.display = 'block';
   const fmt = ms => { const t = Math.max(0, Math.ceil(ms/1000)); return Math.floor(t/60) + '분 ' + String(t%60).padStart(2,'0') + '초'; };
+  // 🌃 교장 유미 전용 「뒷골목으로 나가기」 진입 (yuumiUnique)
+  let _alleyBtn = '', _alleyCdEnd = 0;
+  if (_yuumiIsUnique()) {
+    const as = _alleyState();
+    if (as.st === 'ready') _alleyBtn = `<button class="yuumi-btn" onclick="window.openAlleyRun()" style="width:100%;margin-bottom:8px;background:linear-gradient(135deg,#3b3357,#5b4b86,#8b6fc7);color:#f6f0ff;font-weight:900;border:none;border-radius:11px;padding:12px;cursor:pointer;box-shadow:0 4px 14px rgba(91,75,134,.5);">🌃 뒷골목으로 나가기 · <span style="opacity:.85;font-size:12px;">교장 유미</span></button>`;
+    else if (as.st === 'cooldown') { _alleyCdEnd = as.endAt; _alleyBtn = `<div class="yuumi-slim" style="margin-bottom:8px;"><span class="yuumi-slim-tag">🌃 뒷골목</span><span class="yuumi-slim-action" style="color:#a5b4fc;font-size:12px;">😮‍💨 유미가 쉬는 중 · <b id="alley-cd">${fmt(as.endAt-Date.now())}</b> 뒤</span></div>`; }
+    else if (as.st === 'capped') _alleyBtn = `<div class="yuumi-slim" style="margin-bottom:8px;"><span class="yuumi-slim-tag">🌃 뒷골목</span><span class="yuumi-slim-action" style="color:#9a8a5a;font-size:12px;">오늘은 다 털었어요 · 내일 또!</span></div>`;
+  }
   if (s.st === 'foraging') {
     _setYuumi3d('dig');   // 🐱 폴짝 — 쓰레기통 안으로 들어가는 모션 (Spell1)
     // 저장된 구경 보너스 로드 — 새로고침/재접속 시 이어서 (다운그레이드 방지로 max)
@@ -29250,7 +29541,16 @@ function _renderYuumiPanel() {
     el.innerHTML = `<div class="yuumi-slim"><span class="yuumi-slim-tag">🐱 유미 <span class="yuumi-secret">SECRET</span></span><span class="yuumi-slim-action">${body}</span></div>`;
     _setYuumi3d(s.st === 'ready' ? null : (s.st === 'cooldown' ? 'rest' : 'idle'));   // 🐱 파견 전=숨김 / 쉬는 중=리콜 / 수령 대기(done)=대기
   }
-  if (_tf) el.innerHTML = _tf + el.innerHTML;   // 🎓 3마리 모으면 변신 버튼을 패널 맨 위에
+  if (_alleyBtn || _tf) el.innerHTML = _alleyBtn + _tf + el.innerHTML;   // 🌃 뒷골목 진입 / 🎓 변신 버튼을 패널 맨 위에
+  if (_alleyCdEnd) {   // 🌃 뒷골목 쿨다운 라이브 카운트다운
+    _alleyCdTimer = setInterval(() => {
+      const e = document.getElementById('alley-cd');
+      if (!e) { clearInterval(_alleyCdTimer); _alleyCdTimer = null; return; }
+      const left = _alleyCdEnd - Date.now();
+      if (left <= 0) { clearInterval(_alleyCdTimer); _alleyCdTimer = null; _renderYuumiPanel(); return; }
+      e.textContent = fmt(left);
+    }, 1000);
+  }
   if (s.st === 'foraging' || s.st === 'cooldown') {
     _yuumiTimer = setInterval(() => {
       const ns = _yuumiState();
