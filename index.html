@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.621';
+const APP_VERSION = 'v2.45.622';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.621';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.622', date: '2026-07-27', changes: [
+    { tag: 'improve', text: '🌃 [개발] 「뒷골목으로 나가기」 미리보기 — 교장 유미가 없어도 주소에 <b>?alleypreview</b>를 붙이거나 콘솔 <b>alleyPreview()</b>로 미니게임을 직접 돌려볼 수 있어요(드래그 이동·쓰레기 흡입·3D 유미 확인용). <b>골드·쿨다운·일일캡·저장 전부 미반영</b>이라 실데이터에 0 영향이에요.' },
+  ] },
   { ver: 'v2.45.621', date: '2026-07-27', changes: [
     { tag: 'new', text: '🌃 <b>「뒷골목으로 나가기」</b> — 교장 유미 전용 미니게임이 열렸어요! 쓰레기통(유미 패널)에서 진입 → <b>화면을 끌어(드래그) 교장 유미를 움직이면</b> 근처에 흩어진 쓰레기를 <b>자동으로 주워요</b>(가비지 그로스 방식). 한 판에 <b>약 1000G</b>까지 벌 수 있고, 유미가 지치면 <b>90분 쉰 뒤</b> 다시 나갈 수 있어요(하루 최대 2,500G). 3D 교장 유미가 직접 뒷골목을 누벼요! 🐱' },
   ] },
@@ -25126,6 +25129,8 @@ else if (location.search.includes('arenaforge')) setTimeout(()=>{ try{ window.op
 else if (location.search.includes('arena')) setTimeout(()=>{ try{ window.openArenaBattle(true); }catch(_){} }, 1500);
 // 🎮 진행 중 게임 배너 프리뷰 — ?gamebanner(일반) / ?gamebanner=custom(내전). 가짜 inGame로 배너만 띄움(실데이터 0 영향)
 if (location.search.includes('gamebanner')) setTimeout(()=>{ try{ window.gameBannerPreview(/custom/.test(location.search)?'custom':'normal'); }catch(_){} }, 1500);
+// 🌃 뒷골목으로 나가기 프리뷰 — 교장 유미 없이·저장 무관(실데이터 0 영향). URL ?alleypreview 또는 콘솔 alleyPreview()
+if (location.search.includes('alleypreview')) setTimeout(()=>{ try{ window.alleyPreview(); }catch(_){} }, 1500);
 // 🏠 단짝 공간 프리뷰 링크 — ?buddypreview[=챔피언,무드,스택,레벨] (데이터 무변경). 예: ?buddypreview=gwen,win,4,3
 { const _bp = new URLSearchParams(location.search).get('buddypreview');
   if (_bp !== null) setTimeout(()=>{ try{
@@ -29343,7 +29348,7 @@ async function ensureAlleyYuumi3d(){
 }
 function _evacuateAlleyYuumi3d(){ const cv=document.getElementById('alley-yuumi3d'), h=document.getElementById('alley-yuumi3d-holder'); if(cv&&h&&cv.parentElement!==h) h.appendChild(cv); }
 // 게임 상태
-let _alleyRAF=null, _alleyRunning=false, _alleyTrash=[], _alleyPos={x:0,y:0}, _alleyTarget={x:0,y:0}, _alleyDrag=false, _alleyFacing=1, _alleyCollected=0, _alleyBudget=0, _alleyEndAt=0, _alleyFrameT=0, _alleyCoinT=0, _alleyCdTimer=null;
+let _alleyRAF=null, _alleyRunning=false, _alleyTrash=[], _alleyPos={x:0,y:0}, _alleyTarget={x:0,y:0}, _alleyDrag=false, _alleyFacing=1, _alleyCollected=0, _alleyBudget=0, _alleyEndAt=0, _alleyFrameT=0, _alleyCoinT=0, _alleyCdTimer=null, _alleyPreview=false;
 function _alleyWpick(pool, wt){ let t=wt.reduce((a,b)=>a+b,0), r=Math.random()*t; for(let i=0;i<pool.length;i++){ r-=wt[i]; if(r<=0) return pool[i]; } return pool[pool.length-1]; }
 window.openAlleyRun = function(){
   const data=getMyGoldData(), key=getMyGoldKey();
@@ -29352,7 +29357,14 @@ window.openAlleyRun = function(){
   if(s.st==='locked'){ showGoldToast('교장 유미로 변신해야 열려요 🎓'); return; }
   if(s.st==='cooldown'){ showGoldToast('유미가 아직 지쳐있어요 · 잠시 후 다시!'); return; }
   if(s.st==='capped'){ showGoldToast('오늘 뒷골목은 이미 다 털었어요 · 내일 또!'); return; }
+  _alleyPreview = false;
   _alleyBuild(data);
+};
+// 🌃 프리뷰 — 교장 유미 없어도·게이트 무시하고 실제 플레이해볼 수 있어요. 저장/쿨다운/일일캡·골드 전부 미반영(실데이터 0 영향). URL ?alleypreview 또는 콘솔 alleyPreview()
+window.alleyPreview = function(){
+  _alleyPreview = true;
+  _alleyBuild(getMyGoldData() || {});
+  console.log('🌃 뒷골목 프리뷰 — 저장/골드/쿨다운 미반영(실데이터 0 영향). 드래그로 유미 이동·쓰레기 흡입 확인용.');
 };
 function _alleyBuild(data){
   _injectAlleyCss();
@@ -29364,7 +29376,7 @@ function _alleyBuild(data){
   el.innerHTML = `
     <div class="alley-sheet" onclick="event.stopPropagation();">
       <div class="alley-head">
-        <span class="alley-title">🌃 뒷골목으로 나가기</span>
+        <span class="alley-title">🌃 뒷골목으로 나가기${_alleyPreview?' <span style="font-size:10px;color:#7fe0d0;font-weight:700;">· 미리보기</span>':''}</span>
         <button class="alley-x" onclick="window.closeAlleyRun(true)">✕</button>
       </div>
       <div class="alley-hud">
@@ -29476,6 +29488,8 @@ window.closeAlleyRun = async function(discard){
   document.body.style.overflow='';
   // 남은 쓰레기 정리
   _alleyTrash.forEach(t=>{ if(t.el) t.el.remove(); }); _alleyTrash=[];
+  // 🌃 미리보기 — 저장/골드/쿨다운/일일캡 전부 미반영(실데이터 0 영향)
+  if(_alleyPreview){ const g=_alleyCollected; _alleyPreview=false; if(!discard && wasRunning && g>0) showGoldToast(`🌃 미리보기 · +${g}G (저장 안 됨)`); try{ _renderYuumiPanel(); }catch(_){}; return; }
   if(discard || !wasRunning || _alleyCollected<=0){ try{ _renderYuumiPanel(); }catch(_){}; return; }
   // 정산 — 일일캡 반영 후 trashGold에 지급 + 쿨다운/일일 기록 + 역산 로그
   const key=getMyGoldKey(), data=getMyGoldData()||{};
