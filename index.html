@@ -7052,7 +7052,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.632';
+const APP_VERSION = 'v2.45.633';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7061,6 +7061,10 @@ const APP_VERSION = 'v2.45.632';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.633', date: '2026-07-27', changes: [
+    { tag: 'fix', text: '🐱 쓰레기통 <b>유미 얼굴에 눈이 안 보이던 문제</b>를 고쳤어요 — 눈·표정 데칼이 머리에 가려져 사라지던 3D 렌더 버그(예전 티모 눈 버그와 같은 원인)라, 데칼을 컷아웃 방식으로 바꾸고 살짝 앞으로 당겨 또렷하게 나와요.' },
+    { tag: 'fix', text: '🎓 <b>교장 유미로 변신했는데 쓰레기통은 일반 유미가 뒤지던 것</b>을 고쳤어요 — 이제 교장으로 변신하면 쓰레기통 뒤지기·수령 대기 애니메이션도 <b>교장 유미(전투사관학교)</b> 모델로 나와요.' },
+  ] },
   { ver: 'v2.45.632', date: '2026-07-27', changes: [
     { tag: 'improve', text: '🎟 복권 Hub 카드(실버·골드·프리즘) 상단이 <b>비어 보이던 것 정리</b> — 무료권·불운 스택이 없을 땐 이름부터 바로 시작(빈공간 없음), 있을 땐 <b>얇은 띠지</b>가 카드 위를 두르게 바꿨어요.' },
   ] },
@@ -29112,14 +29116,32 @@ function _yuumiPersistWatch() {
   update(ref(db, 'gold/' + key), { [sField('yuumiForage') + '/watchGold']: _yuumiWatchGold }).catch(() => {});
 }
 // 🐱 3D 유미 (쓰레기통) — lazy init. 대기(idle)/폴짝(dig) 2개 GLB. 오른 3D와 동일 패턴(캔버스 1개 유지+대피).
-let _yuumi3dInit = false;
+let _yuumi3dInit = false, _yuumi3dUnique = null, _yuumi3dGen = 0, _yuumi3dR = null;   // 🎓 교장(unique)↔일반 모델 전환 지원
+// 교장 유미 변신 등으로 모델을 갈아야 할 때: 옛 렌더 루프 정지 + 렌더러/캔버스 폐기 → 다음 ensureYuumi3d가 새로 빌드
+function _teardownYuumi3d() {
+  _yuumi3dGen++;                                  // 옛 렌더 루프 자가 정지(gen 불일치)
+  try { _yuumi3dR && _yuumi3dR.dispose && _yuumi3dR.dispose(); } catch (_) {}
+  try { _yuumi3dR && _yuumi3dR.forceContextLoss && _yuumi3dR.forceContextLoss(); } catch (_) {}
+  _yuumi3dR = null;
+  const cv = document.getElementById('yuumi3d');
+  if (cv) cv.remove();                            // 옛 캔버스 제거(새 빌드가 새로 생성)
+  _yuumi3dInit = false;
+}
 async function ensureYuumi3d() {
-  if (_yuumi3dInit) return;
+  const uniq = _yuumiIsUnique();                  // 🎓 교장 유미면 principal 모델 사용
+  if (_yuumi3dInit) {
+    if (_yuumi3dUnique === uniq) return;           // 같은 모델 → 재사용
+    _teardownYuumi3d();                            // 교장↔일반 전환 → 재빌드
+  }
   _yuumi3dInit = true;
+  _yuumi3dUnique = uniq;
+  const _gen = ++_yuumi3dGen;
   try {
     const THREE = await import('three');
     const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
     const { MeshoptDecoder } = await import('three/addons/libs/meshopt_decoder.module.js');
+    let _skClone = null;
+    if (uniq) { try { const _su = await import('three/addons/utils/SkeletonUtils.js'); _skClone = _su.clone || (_su.SkeletonUtils && _su.SkeletonUtils.clone); } catch (_) {} }
     let holder = document.getElementById('yuumi3d-holder');
     if (!holder) { holder = document.createElement('div'); holder.id = 'yuumi3d-holder'; holder.style.cssText = 'position:absolute;left:-9999px;top:0;width:0;height:0;overflow:hidden;'; document.body.appendChild(holder); }
     let canvas = document.getElementById('yuumi3d');
@@ -29128,6 +29150,7 @@ async function ensureYuumi3d() {
     const YUUMI_POS = { x: 0.18, y: -1.92, scale: 0.68, rot: 0 };   // 테스트 페이지에서 맞춘 위치/크기/방향
     const DIG_DIP = 0, DIG_PERIOD = 1.3, DIG_SCALE = 0.45, DIG_DX = -0.6;   // 🐱 뒤지기(파견중): 크기 0.45 + 왼쪽(DIG_DX, _r 단위) (v2.45.159)
     const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false, powerPreference: 'low-power' });   // 모바일 발열 완화: AA off + 저전력
+    _yuumi3dR = renderer;
     renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5)); renderer.setSize(W, H, false);   // DPR 캡 2→1.5
     renderer.setClearAlpha(0);   // 완전 투명 배경
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -29136,7 +29159,12 @@ async function ensureYuumi3d() {
     scene.add(new THREE.AmbientLight(0xffffff, 1.1));   // 모델이 unlit이라 라이트 영향 적음(안전용)
     const keyL = new THREE.DirectionalLight(0xffffff, 1.0); keyL.position.set(3, 5, 4); scene.add(keyL);
     const clock = new THREE.Clock();
-    const STATES = [
+    // 🎓 교장 유미(principal)=단일 GLB에 전체 클립 → 상태별 클립명으로 / 🐱 일반 유미=상태별 파일(각 1클립)
+    const STATES = uniq ? [
+      { key: 'idle', clip: 'Idle01',     loop: true },
+      { key: 'dig',  clip: 'Dance_Loop', loop: true },
+      { key: 'rest', clip: 'Recall',     loop: false },
+    ] : [
       { key: 'idle', file: 'yuumi-idle.glb', loop: true },
       { key: 'dig',  file: 'yuumi-dig.glb',  loop: true },
       { key: 'rest', file: 'yuumi-rest.glb', loop: false },   // 🐱 휴식 = 마법서로 빨려들어가는 리콜(1회 재생)
@@ -29145,42 +29173,66 @@ async function ensureYuumi3d() {
     const loader = new GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
     function hideAll() { for (const k in M) { M[k].group.visible = false; if (M[k].action) M[k].action.stop(); } }
     function showState(key) { active = key; const m = M[key]; if (!m) return; hideAll(); m.group.visible = true; if (m.action) { m.action.reset(); m.action.play(); } if (key === 'rest') { try { _trashSfx.recall(); } catch (_) {} } }
-    STATES.forEach(st => {
-      loader.load('assets/pets/Yuumi/3d/' + st.file + '?v=5', g => {
-        const model = g.scene;
-        // 게임 모델이 음수 스케일(-1)이라 면 컬링이 뒤집혀 깨져 보이는 것 방지 — 양면 + 컬링 off
-        model.traverse(o => { if (o.isMesh) { o.frustumCulled = false; if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { m.side = THREE.DoubleSide; m.needsUpdate = true; }); } });
-        const box = new THREE.Box3().setFromObject(model);
-        const ctr = box.getCenter(new THREE.Vector3()); model.position.sub(ctr);   // 모델을 그룹 원점에 센터링
-        const group = new THREE.Group(); group.add(model); group.visible = false; scene.add(group);
-        const _r = box.getBoundingSphere(new THREE.Sphere()).radius; baseR = _r;
-        if (!fitted) {
-          fitted = true;   // 테스트 페이지와 동일한 카메라 핏 (여백 1.45, 원점 정면)
-          const fov = camera.fov * Math.PI / 180, _asp = W / H;
-          const vDist = _r / Math.sin(fov / 2);
-          const hfov = 2 * Math.atan(Math.tan(fov / 2) * _asp);
-          const hDist = _r / Math.sin(hfov / 2);
-          const _dist = Math.max(vDist, hDist) * 2.465;   // 1.45×1.7 (캔버스 확대분 보정 → yuumi 크기 동일)
-          camera.position.set(0, 0, _dist); camera.lookAt(0, 0, 0);
-        }
-        // 테스트 페이지에서 맞춘 위치/크기/방향 적용 (그룹 변형)
-        group.position.set((YUUMI_POS.x + (st.key === 'dig' ? DIG_DX : 0)) * _r, YUUMI_POS.y * _r, 0);   // 뒤지기(dig)만 살짝 왼쪽
-        group.scale.setScalar(YUUMI_POS.scale * (st.key === 'dig' ? DIG_SCALE : 1));   // 뒤지기(dig)는 조금 작게
-        group.rotation.y = YUUMI_POS.rot * Math.PI / 180;
-        const mixer = new THREE.AnimationMixer(model), clip = (g.animations || [])[0];
-        let action = null, dur = 0;
-        if (clip) {
-          dur = clip.duration; action = mixer.clipAction(clip);
-          if (st.loop) action.setLoop(THREE.LoopRepeat);
-          else { action.setLoop(THREE.LoopOnce); action.clampWhenFinished = true; }   // 휴식(Death)=1회 후 끝 프레임(책 상태)에서 정지 유지 — 숨기지 않음
-        }
-        M[st.key] = { group, mixer, action, dur };
-        if (st.key === active) showState(active);
-      }, undefined, err => console.error('유미3D 로드 실패 ' + st.file, err));
-    });
+    // 🎨 unlit BLEND 재질 → 컷아웃(alphaTest): 깊이 정상화 → 눈/얼굴 데칼이 머리에 안 가려짐(=티모 눈 사라짐 버그와 동일). 음수 스케일 대비 양면.
+    function _fixMats(model) {
+      model.traverse(o => { if (o.isMesh) { o.frustumCulled = false; if (o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => {
+        if (!m) return;
+        m.side = THREE.DoubleSide;
+        if (m.transparent) { m.transparent = false; m.alphaTest = 0.5; m.depthWrite = true; }
+        if (/eye|mouth|face|brow|smile|surprise|anger|explode|shock/i.test(m.name || '')) { m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2; }   // 눈/표정 데칼 살짝 앞으로(z-fighting 방지)
+        m.needsUpdate = true;
+      }); } });
+    }
+    function _fit(_r) {
+      if (fitted) return; fitted = true;   // 테스트 페이지와 동일한 카메라 핏 (여백 1.45, 원점 정면)
+      const fov = camera.fov * Math.PI / 180, _asp = W / H;
+      const vDist = _r / Math.sin(fov / 2);
+      const hfov = 2 * Math.atan(Math.tan(fov / 2) * _asp);
+      const hDist = _r / Math.sin(hfov / 2);
+      const _dist = Math.max(vDist, hDist) * 2.465;   // 1.45×1.7 (캔버스 확대분 보정 → yuumi 크기 동일)
+      camera.position.set(0, 0, _dist); camera.lookAt(0, 0, 0);
+    }
+    function _buildState(model, clip, st) {
+      _fixMats(model);
+      const box = new THREE.Box3().setFromObject(model);
+      const ctr = box.getCenter(new THREE.Vector3()); model.position.sub(ctr);   // 모델을 그룹 원점에 센터링
+      const group = new THREE.Group(); group.add(model); group.visible = false; scene.add(group);
+      const _r = box.getBoundingSphere(new THREE.Sphere()).radius; baseR = _r;
+      _fit(_r);
+      // 테스트 페이지에서 맞춘 위치/크기/방향 적용 (그룹 변형)
+      group.position.set((YUUMI_POS.x + (st.key === 'dig' ? DIG_DX : 0)) * _r, YUUMI_POS.y * _r, 0);   // 뒤지기(dig)만 살짝 왼쪽
+      group.scale.setScalar(YUUMI_POS.scale * (st.key === 'dig' ? DIG_SCALE : 1));   // 뒤지기(dig)는 조금 작게
+      group.rotation.y = YUUMI_POS.rot * Math.PI / 180;
+      const mixer = new THREE.AnimationMixer(model);
+      let action = null, dur = 0;
+      if (clip) {
+        dur = clip.duration; action = mixer.clipAction(clip);
+        if (st.loop) action.setLoop(THREE.LoopRepeat);
+        else { action.setLoop(THREE.LoopOnce); action.clampWhenFinished = true; }   // 휴식=1회 후 끝 프레임에서 정지 유지
+      }
+      M[st.key] = { group, mixer, action, dur };
+      if (st.key === active) showState(active);
+    }
+    if (uniq) {
+      // 🎓 교장 유미: principal GLB 1회 로드 → SkeletonUtils로 상태별 클론(지오메트리·텍스처 공유=저비용)
+      loader.load('assets/pets/Yuumi/3d/yuumi-principal.glb?v=1', g => {
+        STATES.forEach(st => {
+          const model = _skClone ? _skClone(g.scene) : g.scene.clone(true);
+          const clip = (g.animations || []).find(a => a.name === st.clip) || (g.animations || [])[0];
+          _buildState(model, clip, st);
+        });
+      }, undefined, err => console.error('교장 유미3D 로드 실패', err));
+    } else {
+      STATES.forEach(st => {
+        loader.load('assets/pets/Yuumi/3d/' + st.file + '?v=5', g => {
+          _buildState(g.scene, (g.animations || [])[0], st);
+        }, undefined, err => console.error('유미3D 로드 실패 ' + st.file, err));
+      });
+    }
     window.yuumi3d = { play: (key) => showState(key) };
     // ⚡ 렉 방지 + 자가복구 — 쓰레기통(#yuumi3d-mount)이 열려 보일 때만 렌더, 캔버스가 안 붙어있으면 자동으로 붙임
     (function loop() {
+      if (_gen !== _yuumi3dGen) return;   // 모델 교체(교장↔일반)로 대체됨 → 옛 루프 정지
       requestAnimationFrame(loop);
       const mt = document.getElementById('yuumi3d-mount');
       if (document.hidden || !mt || mt.style.display === 'none' || !document.body.contains(mt)) return;  // 닫힘/숨김 → 스킵
