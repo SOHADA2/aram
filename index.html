@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.628';
+const APP_VERSION = 'v2.45.629';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.628';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.629', date: '2026-07-27', changes: [
+    { tag: 'new', text: '🔀 <b>컬렉션 일괄 합성 버튼</b> — 파편·GOLD 탭에서 <b>합성 가능한 카드(같은 카드 3개↑)를 한 버튼으로 전부 합성</b>할 수 있어요! 카드마다 일일이 누를 필요 없이 「⬆ 합성 가능한 파편 한 번에 합치기 · N종 → GOLD M장」처럼 한 번에. (남는 3성 재조합 버튼과 같은 방식)' },
+  ] },
   { ver: 'v2.45.628', date: '2026-07-27', changes: [
     { tag: 'fix', text: '🎓 교장 유미 업그레이드 안내를 <b>한 줄로 깔끔하게</b> 정리했어요(줄 어긋남 수정) — 「교장 유미 업그레이드 · N/3 🐱」만 보이고, 자세한 설명(효율 5배·700~1100G·휴식 없음)은 <b>「?」 버튼</b>을 누르면 뜨는 안내창으로 옮겼어요.' },
   ] },
@@ -27464,11 +27467,18 @@ function renderGachaTab() {
       ? `<button class="cz-merge-action" style="background:linear-gradient(135deg,#6d3bbf,#a878f0);border-color:rgba(205,165,255,0.65);margin:2px 0 10px;" onclick="window.doGachaRecombine3()">남는 3성 2장 → 랜덤 3성 <span style="opacity:0.82;font-weight:600;font-size:11px;">· 잉여 ${surplus3}장</span></button>`
       : `<div class="czd-merge-hint" style="margin:2px 0 10px;background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.12);border-radius:8px;padding:9px;">중복된 3성 2장이 모이면 랜덤 3성으로 재조합할 수 있어요 (미보유 챔프 우선)</div>`;
   }
+  // 🔀 파편·GOLD 탭 — 합성 가능한 카드(3개↑) 전부 한 번에 합치기(수동 합성 여러 번 = 한 버튼)
+  let mergeAllHtml = '';
+  if (gachaStar === 1 || gachaStar === 2) {
+    let sets = 0, kinds = 0;
+    for (const c of GACHA_CHAMPS) { const n = Math.floor((gachaGp(c.slug)['s'+gachaStar]||0)/3); if (n > 0) { sets += n; kinds++; } }
+    if (sets > 0) mergeAllHtml = `<button class="cz-merge-action" style="background:linear-gradient(135deg,#3f7d46,#7fce7a);border-color:rgba(150,225,150,0.6);margin:2px 0 10px;" onclick="window.doGachaMergeAll(${gachaStar})">⬆ 합성 가능한 ${GACHA_TIER_LABEL[gachaStar]} 한 번에 합치기 <span style="opacity:0.85;font-weight:600;font-size:11px;">· ${kinds}종 → ${GACHA_TIER_LABEL[gachaStar+1]} ${sets}장</span></button>`;
+  }
   // 📖 컬렉션 북 — 등급별 동일 톤(액자+페이지+수집 진행도). 카드는 그대로 펼쳐 보여줌. 3성 컴플리트 시 인형뽑기 테스트 버튼 노출
   const _clawComplete = (gachaStar === 3 && (_allPrismDone(getMyGoldData()) || _prismDeckPreview));
   // 인형뽑기·투기장 진입은 🕹️ 아케이드 탭(gachaStar===4)으로 이동 — 여기선 컴플리트 리본만
   const gridHtml = _gachaBookHtml(gachaStar, cardsHtml, _clawComplete);
-  list.innerHTML = tabHtml + tierTabs + _yuumiDexSection() + recombineHtml + gridHtml + renderGachaDex();
+  list.innerHTML = tabHtml + tierTabs + _yuumiDexSection() + recombineHtml + mergeAllHtml + gridHtml + renderGachaDex();
   _markSynergiesSeen();   // 시너지 섹션을 확인했으니 신규 표시 해제
   updateGachaNavBadge();
 }
@@ -39777,6 +39787,40 @@ window.doGachaMerge = async function(slug, fromStar) {
   if (typeof updateGachaNavBadge === 'function') updateGachaNavBadge();
   const c = GACHA_CHAMPS.find(c => c.slug === slug);
   showGachaMergeAnim(slug, fromStar, fromStar + 1, c.kr);
+};
+
+// 🔀 합성 가능한 카드(같은 카드 3개↑) 전부 한 번에 합성 — 수동 합성 여러 번을 한 버튼으로 (tier: 1=파편→GOLD, 2=GOLD→PRISM)
+window.doGachaMergeAll = async function(tier) {
+  if (!_ctrlGuard()) return;   // 🔒 계정 조작 잠금
+  if (!myName) return;
+  const key = getMyGoldKey(), data = getMyGoldData();
+  if (!key || !data) return;
+  const cards = JSON.parse(JSON.stringify(data[sField('champCards')] || {}));
+  const log   = JSON.parse(JSON.stringify(data[sField('champCardLog')] || {}));
+  const from = 's'+tier, to = 's'+(tier+1);
+  const gachaLog = Array.isArray(data[sField('gachaLog')]) ? data[sField('gachaLog')].slice() : [];
+  let sets = 0, kinds = 0;
+  for (const c of GACHA_CHAMPS) {
+    const cd = cards[c.slug] || {s1:0,s2:0,s3:0};
+    const n = Math.floor((cd[from]||0)/3);
+    if (n <= 0) continue;
+    cd[from] = (cd[from]||0) - n*3;
+    cd[to]   = (cd[to]||0) + n;
+    cards[c.slug] = cd;
+    log[c.slug] = {...(log[c.slug]||{}), ['e'+(tier+1)]: true};
+    for (let i=0;i<n;i++) gachaLog.push({ ts: Date.now(), op:'merge', slug:c.slug, fromStar:tier, toStar:tier+1, bulk:true });
+    sets += n; kinds++;
+  }
+  if (sets <= 0) { showGoldToast('합성할 수 있는 카드가 없어요 (같은 카드 3개 필요)'); return; }
+  const needBase = data[sField('champCardsBaseline')] === undefined;
+  try {
+    await update(ref(db, 'gold/' + key), { [sField('champCards')]: cards, [sField('champCardLog')]: log, [sField('gachaLog')]: gachaLog, ...(needBase ? { [sField('champCardsBaseline')]: data[sField('champCards')] || null } : {}) });
+  } catch(e) { showGoldToast('❌ 합성 실패 — 다시 시도해주세요'); return; }
+  if (goldData[key]) { goldData[key][sField('champCards')] = cards; goldData[key][sField('champCardLog')] = log; }
+  if (typeof updateGachaNavBadge === 'function') updateGachaNavBadge();
+  try { if (typeof _gSfx !== 'undefined' && _gSfx.mergeImpact) _gSfx.mergeImpact(); } catch(_) {}
+  showGoldToast(`⬆ ${GACHA_TIER_LABEL[tier]} ${kinds}종 합성 → ${GACHA_TIER_LABEL[tier+1]} ${sets}장 획득!`);
+  try { renderGachaTab(); } catch(_) {}
 };
 
 // 남는(중복) 3성 2장 → 랜덤 3성 1장 (미보유 챔프 우선). 마지막 1장은 보호 → 시너지 안 깨짐
