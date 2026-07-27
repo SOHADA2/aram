@@ -817,7 +817,10 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### v2.45.616 (2026-07-27·이 PC·`main` 직접) — 🧾 자동로봇 영수증 다크 톤 맞춤 ← 최신
+### v2.45.617 (2026-07-27·이 PC·`main` 직접) — 🎯 치명타 집게 인벤토리서 숨김(토글 무의미) ← 최신
+> 사장님: "장비 인벤토리의 치명타 집게 사용/해제 토글 무의미(실제 장착/해제는 인형뽑기 안). 구매완료로만·인벤 안 넣기." 원인=claw_crit는 소유기반(`_clawHasCrit`=items에 id 존재)인데 인벤토리는 일반장비처럼 active 토글 렌더. → 인벤토리 필터(L27578)에 `|| def.type==='claw_tool'` 추가해 scratch_tool처럼 숨김. 구매완료=상점 "✅보유중"(claw_tool은 _shopList엔 남아 장비탭 노출)·게임 "장착됨"칩. index 7/7.
+
+### v2.45.616 (2026-07-27·이 PC·`main` 직접) — 🧾 자동로봇 영수증 다크 톤 맞춤
 > 사장님: "영수증이 톤앤매너 안 맞음." 원인=`.abot-receipt`가 크림색 종이톤(#faf6ea)+어두운 글씨라 앱 다크 골드-블랙과 충돌. → 다크 톤 전환: `.abot-receipt` 배경 rgba 다크+금색 테두리, 글씨 밝게(head 금색·win `#ffe39a`/`.abot-rc-g.win` 초록 `#7CFC9A`·lose 회색·bonus teal `#7fe0d0`·inv 코랄), 인라인 섹션헤더 투여 `#ff9ab0`·개봉 `#7fe0d0`·투여금액 `-Xg` `#ff9ab0`(CSS L28382~·JS L28637/28652). 내용·로직 무변. Edge 목업 실측. index 7/7. (이 PC=live curl 가능·배포 후 확인)
 > ⚠️ 배포: 다른 컴이 신설한 `pages-rebuild.yml`(push 트리거→Pages 재빌드 API)로 배포됨. 삭제금지.
 
