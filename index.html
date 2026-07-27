@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.618';
+const APP_VERSION = 'v2.45.619';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.618';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.619', date: '2026-07-27', changes: [
+    { tag: 'new', text: '🐱🎓 <b>유미 수집 & 교장 유미 변신</b> (1단계) — 이제 챔피언 뽑기(뽑기·재조합)에서 <b>유미가 여러 번 나와 모을 수 있어요</b>(예전엔 딱 한 번). <b>유미 3마리를 모으면 「전투사관학교 교장 유미」로 변신</b>할 수 있어요(쓰레기통 → 유미 패널의 변신 버튼). 변신하면 곧 열릴 <b>고급 쓰레기통</b>이 준비돼요(다음 업데이트). 기존에 유미가 있던 분은 1마리로 쳐서 2마리만 더 모으면 돼요.' },
+  ] },
   { ver: 'v2.45.618', date: '2026-07-27', changes: [
     { tag: 'improve', text: '🤖 복권 자동 로봇 <b>캐릭터를 더 예쁘게 다듬었어요</b> — 납작하고 밋밋하던 로봇을 입체 메탈 질감(둥근 광택 머리 · 유리 바이저 + 또랑또랑 발광 눈 · 베벨 몸통 · 빛나는 안테나 · 금속 팔/집게)으로 리디자인했어요. 복권 넣는 슬롯 · LCD 화면 · 영수증 출구 · 긁는 동작 등 <b>기능과 연출은 그대로</b>예요.' },
   ] },
@@ -28966,6 +28969,11 @@ function _yuumiCooldownMs(data){
 const YUUMI_PULL_RATE = 0.005;             // 일반 뽑기 0.5% (매우 희귀)
 const YUUMI_RECOMBINE_RATE = 0.08;         // 3성 재조합 8%
 function _ownsYuumi(data) { data = data || getMyGoldData(); return !!(data && data[sField('secretYuumi')]); }
+// 🐱 유미 수집 개수(구버전 보유자=1로 간주) · 🎓 교장 유미 변신(고급 쓰레기통 개방) — v2.45.619~
+const YUUMI_TRANSFORM_NEED = 3;   // 유미 3개 모으면 교장 유미로 변신 가능
+function _yuumiCount(data){ data=data||getMyGoldData()||{}; const c=data[sField('yuumiCount')]; return (typeof c==='number')?c:(data[sField('secretYuumi')]?1:0); }
+function _yuumiIsUnique(data){ data=data||getMyGoldData(); return !!(data&&data[sField('yuumiUnique')]); }
+function _yuumiCanTransform(data){ data=data||getMyGoldData(); return _yuumiCount(data)>=YUUMI_TRANSFORM_NEED && !_yuumiIsUnique(data); }
 // 'none'(미보유)|'ready'(출동 가능)|'foraging'(뒤지는 중)|'done'(수령 가능)|'cooldown'(휴식)
 function _yuumiState(data) {
   data = data || getMyGoldData();
@@ -29189,10 +29197,24 @@ function _setYuumi3d(state) {
     if (window.yuumi3d) window.yuumi3d.play(state);
   });
 }
+// 🎓 유미 3마리 → 교장 유미(전투사관학교) 변신 → 고급 쓰레기통 개방 플래그(yuumiUnique). 3D 교장 유미·고급 통은 다음 단계(Phase 2).
+window.yuumiTransform = async function(){
+  const key=getMyGoldKey(); const data=getMyGoldData();
+  if(!key||!data){ showS1Toast?.('닉네임을 먼저 선택해주세요'); return; }
+  if(_yuumiIsUnique(data)){ showS1Toast?.('이미 교장 유미예요 🎓'); return; }
+  if(_yuumiCount(data)<YUUMI_TRANSFORM_NEED){ showS1Toast?.(`유미 ${YUUMI_TRANSFORM_NEED}마리가 필요해요 (현재 ${_yuumiCount(data)})`); return; }
+  const upd={ [sField('yuumiUnique')]: true };
+  if(goldData[key]) goldData[key][sField('yuumiUnique')]=true;
+  try{ await update(ref(db,'gold/'+key), upd); }catch(e){ showGoldToast?.('❌ 변신 실패 — 다시 시도해주세요'); return; }
+  try{ _trashSfx.free(); }catch(_){}
+  try{ showBingoReward('🎓 교장 유미 변신 완료!', '전투사관학교 유미 교장선생님으로 진화했어요! 🏫 고급 쓰레기통이 곧 열려요.', [{iconHtml:'🎓',name:'교장 유미',qty:'유니크',color:'#f0abfc'},{iconHtml:'🗑️',name:'고급 쓰레기통',qty:'준비 중',color:'#ffd24a'}]); }catch(_){}
+  try{ _renderYuumiPanel(); }catch(_){}
+};
 function _renderYuumiPanel() {
   const el = document.getElementById('yuumi-panel');
   if (!el) return;
   const s = _yuumiState();
+  const _tf = _yuumiCanTransform() ? `<button class="yuumi-btn" onclick="window.yuumiTransform()" style="width:100%;margin-bottom:8px;background:linear-gradient(135deg,#c084fc,#f0abfc,#a855f7);color:#2a1040;font-weight:900;border:none;border-radius:11px;padding:11px;cursor:pointer;box-shadow:0 4px 14px rgba(192,132,252,.4);animation:abotPulse 1.5s ease-in-out infinite;">🎓 유미 ${_yuumiCount()}마리 모음 · 교장 유미로 변신!</button>` : '';
   if (_yuumiTimer) { clearInterval(_yuumiTimer); _yuumiTimer = null; }
   if (_yuumiFindTimer) { clearInterval(_yuumiFindTimer); _yuumiFindTimer = null; }
   if (s.st === 'none') { el.style.display = 'none'; el.innerHTML = ''; _setYuumi3d(null); return; }
@@ -29225,6 +29247,7 @@ function _renderYuumiPanel() {
     el.innerHTML = `<div class="yuumi-slim"><span class="yuumi-slim-tag">🐱 유미 <span class="yuumi-secret">SECRET</span></span><span class="yuumi-slim-action">${body}</span></div>`;
     _setYuumi3d(s.st === 'ready' ? null : (s.st === 'cooldown' ? 'rest' : 'idle'));   // 🐱 파견 전=숨김 / 쉬는 중=리콜 / 수령 대기(done)=대기
   }
+  if (_tf) el.innerHTML = _tf + el.innerHTML;   // 🎓 3마리 모으면 변신 버튼을 패널 맨 위에
   if (s.st === 'foraging' || s.st === 'cooldown') {
     _yuumiTimer = setInterval(() => {
       const ns = _yuumiState();
@@ -39640,10 +39663,10 @@ window.doGachaPull = async function(times) {
   const log   = JSON.parse(JSON.stringify(data[sField('champCardLog')] || {}));
   const results = [];
   let gotYuumi = false;
-  const alreadyYuumi = _ownsYuumi(data);
+  const canYuumi = !_yuumiIsUnique(data);   // 🎓 교장 변신 전까진 유미가 계속 나와 개수 누적(3개→변신)
   for (let i = 0; i < times; i++) {
-    // 🐱 시크릿 유미 — 매우 희귀(0.5%), 미보유 시 1회만. 일반 카드풀과 분리(컬렉션/시너지 미오염)
-    if (!alreadyYuumi && !gotYuumi && Math.random() < YUUMI_PULL_RATE) {
+    // 🐱 시크릿 유미 — 매우 희귀(0.5%), 한 번 뽑기에 최대 1마리. 일반 카드풀과 분리(컬렉션/시너지 미오염)
+    if (canYuumi && !gotYuumi && Math.random() < YUUMI_PULL_RATE) {
       gotYuumi = true;
       results.push({ ...YUUMI, star: 3, secret: true });
       continue;
@@ -39671,9 +39694,9 @@ window.doGachaPull = async function(times) {
       [sField('champCards')]: cards,
       [sField('champCardLog')]: log,
       ...(needBase ? { [sField('champCardsBaseline')]: data[sField('champCards')] || null } : {}),
-      ...(gotYuumi ? { [sField('secretYuumi')]: true } : {}),
+      ...(gotYuumi ? { [sField('secretYuumi')]: true, [sField('yuumiCount')]: _yuumiCount(data)+1 } : {}),
     });
-    if (gotYuumi && goldData[key]) goldData[key][sField('secretYuumi')] = true; // 즉시 반영
+    if (gotYuumi && goldData[key]) { goldData[key][sField('secretYuumi')] = true; goldData[key][sField('yuumiCount')] = _yuumiCount(data)+1; } // 즉시 반영
   } catch(e) {
     showGoldToast('❌ 뽑기 실패 — 다시 시도해주세요');
     renderShop();
@@ -39688,6 +39711,7 @@ window.doGachaPull = async function(times) {
   } else {
     showGachaTenPopup(results);
   }
+  if (gotYuumi) { const _nc=_yuumiCount(getMyGoldData()); setTimeout(()=>{ try{ showS1Toast(_nc>=YUUMI_TRANSFORM_NEED?`🐱 유미 ${_nc}마리! 🎓 이제 교장 유미로 변신할 수 있어요 (쓰레기통 → 유미)`:`🐱 유미 ${_nc}/${YUUMI_TRANSFORM_NEED} — ${YUUMI_TRANSFORM_NEED-_nc}마리 더 모으면 교장 유미 변신!`); }catch(_){} }, 1100); }
 };
 
 window.doGachaMerge = async function(slug, fromStar) {
@@ -39738,15 +39762,17 @@ window.doGachaRecombine3 = async function() {
   const gachaLog = Array.isArray(data[sField('gachaLog')]) ? data[sField('gachaLog')].slice() : [];
   const needBase = data[sField('champCardsBaseline')] === undefined;
   const _baseUpd = needBase ? { [sField('champCardsBaseline')]: data[sField('champCards')] || null } : {};
-  // 🐱 시크릿 유미 — 3성 재조합 시 8%(미보유 시). 소모한 카드는 저장하고 유미로 리빌
-  if (!_ownsYuumi(data) && Math.random() < YUUMI_RECOMBINE_RATE) {
+  // 🐱 시크릿 유미 — 3성 재조합 시 8%(교장 변신 전까진 계속·개수 누적). 소모한 카드는 저장하고 유미로 리빌
+  if (!_yuumiIsUnique(data) && Math.random() < YUUMI_RECOMBINE_RATE) {
+    const _nc = _yuumiCount(data)+1;
     gachaLog.push({ ts: Date.now(), op: 'recombine3', consumed, yuumi: true });
     try {
-      await update(ref(db,'gold/'+key), { [sField('champCards')]: cards, [sField('secretYuumi')]: true, [sField('gachaLog')]: gachaLog, ..._baseUpd });
+      await update(ref(db,'gold/'+key), { [sField('champCards')]: cards, [sField('secretYuumi')]: true, [sField('yuumiCount')]: _nc, [sField('gachaLog')]: gachaLog, ..._baseUpd });
     } catch(e){ showGoldToast('❌ 재조합 실패 — 다시 시도해주세요'); return; }
-    if (goldData[key]) goldData[key][sField('secretYuumi')] = true;
+    if (goldData[key]) { goldData[key][sField('secretYuumi')] = true; goldData[key][sField('yuumiCount')] = _nc; }
     if (typeof updateGachaNavBadge === 'function') updateGachaNavBadge();
     showGachaReveal({ ...YUUMI, star: 3, secret: true }, 3);
+    setTimeout(()=>{ try{ showS1Toast(_nc>=YUUMI_TRANSFORM_NEED?`🐱 유미 ${_nc}마리! 🎓 이제 교장 유미로 변신할 수 있어요 (쓰레기통 → 유미)`:`🐱 유미 ${_nc}/${YUUMI_TRANSFORM_NEED} — ${YUUMI_TRANSFORM_NEED-_nc}마리 더 모으면 교장 유미 변신!`); }catch(_){} }, 900);
     return;
   }
   // 결과 — 아직 3성 없는 챔프 우선, 없으면 전체 18종 랜덤
