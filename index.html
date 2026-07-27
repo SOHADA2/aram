@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.614';
+const APP_VERSION = 'v2.45.615';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.614';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.615', date: '2026-07-26', changes: [
+    { tag: 'improve', text: '🔁 복권 자동 로봇 수량 <b>+/- 버튼을 꾹 누르면 빠르게 증감</b>해요(누르고 있으면 점점 빨라짐). 한 장씩 여러 번 안 눌러도 돼요.' },
+  ] },
   { ver: 'v2.45.614', date: '2026-07-26', changes: [
     { tag: 'improve', text: '🤖 복권 자동 로봇을 켤 때 <b>실버 복권 1개가 자동 선택돼 있던 걸 전부 0으로</b> 바꿨어요. 이제 원하는 복권을 직접 골라서 예약할 수 있어요.' },
   ] },
@@ -28364,7 +28367,8 @@ function _injectAutoBotCss(){
   .abot-lotcnt{min-width:20px;text-align:center;font-size:15px;font-weight:800;color:#fff;}
   .abot-qbtn.sm{width:30px;height:30px;font-size:17px;border-radius:8px;}
   .abot-qty{display:flex;align-items:center;justify-content:center;gap:14px;margin:12px 0 6px;}
-  .abot-qbtn{width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:#fff;font-size:20px;font-weight:800;cursor:pointer;}
+  .abot-qbtn{width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.06);color:#fff;font-size:20px;font-weight:800;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;}
+  .abot-qbtn:active{background:rgba(255,255,255,0.18);}
   .abot-qbtn:disabled{opacity:.35;cursor:not-allowed;}
   .abot-qnum{font-size:30px;font-weight:800;color:#ffe39a;min-width:56px;text-align:center;font-family:'JetBrains Mono',monospace;}
   .abot-qsub{text-align:center;font-size:11.5px;color:#8b93a5;margin-bottom:10px;}
@@ -28543,6 +28547,10 @@ function _autoBotRobotHtml(def, opts={}){
   </div>`;
 }
 let _autoBotTimer=null, _autoBotLastDone=-1, _autoBotSelCnt=[0,0,0];   // 🎟 혼합 예약 — 복권 idx별 예약 장수
+let _abotHold=null;   // 🔁 +/- 꾹 누르기 반복 상태(재렌더에 강하게 window pointerup으로 정지)
+function _abotHoldStop(){ if(_abotHold){ clearTimeout(_abotHold.t); clearTimeout(_abotHold.iv); _abotHold=null; } }
+addEventListener('pointerup', _abotHoldStop);
+addEventListener('pointercancel', _abotHoldStop);
 window.openAutoBotModal = function(){
   if (!myName) { showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
   _autoBotSelCnt=[0,0,0];   // 🎟 기계 열 때 선택 전부 0으로(실버 자동장착 제거) — 원하는 복권 직접 선택
@@ -28550,6 +28558,19 @@ window.openAutoBotModal = function(){
   let el=document.getElementById('autobot-overlay');
   if(!el){ el=document.createElement('div'); el.id='autobot-overlay'; el.className='abot-overlay';
     el.addEventListener('click',ev=>{ if(ev.target===el) window.closeAutoBotModal(); });
+    el.addEventListener('pointerdown',ev=>{   // 🔁 +/- 꾹 누르면 빠르게 증감(첫 탭 즉시 → 0.4초 후 가속 반복 → 릴리즈까지)
+      const b=ev.target.closest&&ev.target.closest('[data-abstep]'); if(!b||b.disabled) return;
+      ev.preventDefault();
+      const idx=+b.dataset.idx, dir=+b.dataset.dir;
+      window.autoBotAdjLot(idx,dir);            // 첫 1회 즉시(탭)
+      _abotHoldStop();
+      _abotHold={ idx, dir, t:null, iv:null };
+      _abotHold.t=setTimeout(()=>{
+        let period=110;
+        const tick=()=>{ if(!_abotHold) return; window.autoBotAdjLot(idx,dir); period=Math.max(45,period-8); _abotHold.iv=setTimeout(tick,period); };   // 반복 + 점점 빠르게
+        tick();
+      }, 400);
+    });
     document.body.appendChild(el); el._prevOv=document.body.style.overflow; document.body.style.overflow='hidden'; }
   _autoBotLastDone=-1;
   _autoBotRefresh();
@@ -28652,9 +28673,9 @@ function _autoBotRefresh(){
       return `<div class="abot-lotrow${locked?' locked':''}">
         <div class="abot-lotinfo"><span class="abot-lotnm">${AUTOBOT_LOT_EMOJI[idx]} ${nm}</span><span class="abot-lotmeta">${meta}</span></div>
         ${locked?`<span class="abot-lotlock">🔒</span>`:`<div class="abot-lotstep">
-          <button class="abot-qbtn sm" ${cnt<=0?'disabled':''} onclick="window.autoBotAdjLot(${idx},-1)">−</button>
+          <button class="abot-qbtn sm" ${cnt<=0?'disabled':''} data-abstep data-idx="${idx}" data-dir="-1">−</button>
           <span class="abot-lotcnt">${cnt}</span>
-          <button class="abot-qbtn sm" ${selTotal>=def.cap?'disabled':''} onclick="window.autoBotAdjLot(${idx},1)">+</button>
+          <button class="abot-qbtn sm" ${selTotal>=def.cap?'disabled':''} data-abstep data-idx="${idx}" data-dir="1">+</button>
         </div>`}
       </div>`;
     }).join('');
@@ -28677,13 +28698,16 @@ function _autoBotRefresh(){
   </div>`;
 }
 window.autoBotAdjLot = function(idx,d){   // 🎟 혼합 예약 — 복권 idx별 장수 ± (총합 ≤ 로봇 cap)
-  const data=getMyGoldData(); const def=_autoBotDef(_autoBotTier(data)); if(!def) return;
+  const data=getMyGoldData(); const def=_autoBotDef(_autoBotTier(data)); if(!def) return false;
   if(!Array.isArray(_autoBotSelCnt)) _autoBotSelCnt=[0,0,0];
-  const maxLot=_autoBotMaxLot(def.tier); if(idx<0||idx>maxLot) return;
+  const maxLot=_autoBotMaxLot(def.tier); if(idx<0||idx>maxLot) return false;
   const total=_autoBotSelCnt.reduce((s,v)=>s+(v||0),0);
-  if(d>0 && total>=def.cap) return;              // 총 cap 초과 방지(한 번에 ±1)
-  _autoBotSelCnt[idx]=Math.max(0,(_autoBotSelCnt[idx]||0)+d);
+  if(d>0 && total>=def.cap) return false;              // 총 cap 초과 방지(한 번에 ±1)
+  const prev=_autoBotSelCnt[idx]||0, nv=Math.max(0,prev+d);
+  if(nv===prev) return false;                          // 변화 없으면 재렌더 안 함(꾹 눌러 한계 도달 시)
+  _autoBotSelCnt[idx]=nv;
   _autoBotRefresh();
+  return true;
 };
 window.autoBotBuy = async function(){
   const key=getMyGoldKey(); if(!key){ showGoldToast('닉네임을 먼저 선택해주세요!'); return; }
