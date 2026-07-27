@@ -2252,9 +2252,10 @@ footer{text-align:center;color:var(--text-dim);font-size:11px;margin-top:36px;le
 /* v2.43.194 무료 복권권 배지 */
 /* 무료권 배지 — 데스크탑(세로 카드)에서도 in-flow 칩(카드 상단 중앙)으로 → 이름 안 가림 (v2.45.540). 모바일은 아래 미디어쿼리서 이름 옆으로 */
 /* 🎟🍀 배지 존 — 배지 개수(0/1/2)와 무관하게 고정 높이 예약 → 세 카드의 제목·가격·통계 줄이 정렬됨. 모바일은 display:contents로 무력화(가로 행 레이아웃 유지) */
-.lh-tier-badges{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:3px;min-height:36px;}
-.lh-free-badge{position:static;line-height:1;font-size:9px;font-weight:800;letter-spacing:0.2px;padding:3px 6px;border-radius:8px;background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;box-shadow:0 0 8px rgba(34,197,94,0.5);}
-.lh-pity-badge{position:static;line-height:1;font-size:9px;font-weight:800;letter-spacing:0.2px;padding:3px 6px;border-radius:8px;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.45);color:#4ade80;}   /* 🍀 불운 스택 — 무료권 배지와 동일 in-flow 칩 */
+/* 🎟🍀 무료권·불운 = 카드 상단을 얇게 두르는 띠지(있을 때만 렌더). 없으면 카드가 이름부터 시작=빈공간 0 (v2.45.632) */
+.lh-tier-badges{display:flex;flex-flow:row wrap;align-items:center;justify-content:center;gap:5px;margin:-12px -10px 9px;padding:4px 8px;border-radius:10px 10px 0 0;background:rgba(255,255,255,0.05);border-bottom:1px solid rgba(255,255,255,0.08);}
+.lh-free-badge{position:static;line-height:1;font-size:9px;font-weight:800;letter-spacing:0.2px;padding:2px 6px;border-radius:7px;background:linear-gradient(135deg,#16a34a,#22c55e);color:#fff;}
+.lh-pity-badge{position:static;line-height:1;font-size:9px;font-weight:800;letter-spacing:0.2px;padding:2px 6px;border-radius:7px;background:rgba(74,222,128,0.12);border:1px solid rgba(74,222,128,0.45);color:#4ade80;}   /* 🍀 불운 스택 */
 /* ── 🗑️ 쓰레기통 뒤지기 (v2.43.225) ── */
 .lh-trash-entry{display:flex;align-items:center;gap:11px;padding:12px;background:linear-gradient(135deg,rgba(120,110,70,0.14),rgba(60,55,40,0.10));border:1px solid rgba(160,140,90,0.32);border-radius:10px;cursor:pointer;transition:transform .15s,background .15s;}
 .lh-trash-entry:hover{transform:translateY(-2px);background:linear-gradient(135deg,rgba(120,110,70,0.22),rgba(60,55,40,0.16));}
@@ -7051,7 +7052,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.631';
+const APP_VERSION = 'v2.45.632';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7061,9 @@ const APP_VERSION = 'v2.45.631';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.632', date: '2026-07-27', changes: [
+    { tag: 'improve', text: '🎟 복권 Hub 카드(실버·골드·프리즘) 상단이 <b>비어 보이던 것 정리</b> — 무료권·불운 스택이 없을 땐 이름부터 바로 시작(빈공간 없음), 있을 땐 <b>얇은 띠지</b>가 카드 위를 두르게 바꿨어요.' },
+  ] },
   { ver: 'v2.45.630', date: '2026-07-27', changes: [
     { tag: 'new', text: '🔥 <b>럼블 챔피언 추가</b> — 인형뽑기에서 뽑을 수 있는 챔피언이 7종→8종(럼블 신규)! 투기장에서 럼블로 강화·배틀할 수 있고, 스킨 상점에 「🌌 슈퍼 갤럭시 럼블」(400코인)도 추가됐어요. ※인형뽑기 컬렉션 풀 완성은 8종으로 늘었지만, <b>투기장 입장은 그대로 7종</b>이에요(기존 완성자 접근 유지).' },
   ] },
@@ -29735,10 +29739,10 @@ window.openLotteryHub = function() {
     const attemptHtml = `<div class="lh-tier-attempts" id="lh-attempts-${t.tierIdx}">${_lhAttemptInner(stats)}</div>`;
     const pityPct = _lotteryPityOf(data, t.tierIdx);   // 🍀 이 티어 불운 스택(실버=0)
     return `<div class="lh-tier-card${canBuy ? '' : ' disabled'}" style="--accent:${t.color};" onclick="${canBuy ? `window._lhBuyTier('${t.id}')` : ''}">
-      <div class="lh-tier-badges">
+      ${(freeCnt > 0 || pityPct > 0) ? `<div class="lh-tier-badges">
         ${freeCnt > 0 ? `<div class="lh-free-badge">🎟 무료권 ${freeCnt}장</div>` : ''}
         ${pityPct > 0 ? `<div class="lh-pity-badge">🍀 불운 +${pityPct}%</div>` : ''}
-      </div>
+      </div>` : ''}
       <div class="lh-tier-nameline">
         <span class="lh-tier-name">${escHtml(t.name)}</span>
         <span class="lh-tier-info" onclick="var h=this.closest('.lh-tier-card').querySelector('.lh-tier-help');document.querySelectorAll('.lh-tier-help.show').forEach(function(x){if(x!==h)x.classList.remove('show');});document.querySelectorAll('.lh-tier-info.active').forEach(function(b){if(b!==this)b.classList.remove('active');}.bind(this));h.classList.toggle('show');this.classList.toggle('active');event.stopPropagation();">?</span>
