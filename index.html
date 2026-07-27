@@ -7051,7 +7051,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.624';
+const APP_VERSION = 'v2.45.625';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7060,6 +7060,9 @@ const APP_VERSION = 'v2.45.624';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.625', date: '2026-07-27', changes: [
+    { tag: 'improve', text: '🌃 「뒷골목으로 나가기」 <b>시점·배경 재조정</b> — 하늘에서 떨어지는 느낌(측면 낙하)을 없애고 <b>위에서 내려다보는 필드</b>로 바꿨어요. 이제 상단의 <b>불 켜진 문에서 누군가 쓰레기를 던지면 필드 곳곳에 떨어져 착지</b>해요(다가올수록 커지는 깊이감). 배경도 진짜 <b>뒷골목</b>답게 다듬었어요 — 담벼락·아스팔트 바닥·가로등 빛무리·웅덩이·맨홀·쓰레기통.' },
+  ] },
   { ver: 'v2.45.624', date: '2026-07-27', changes: [
     { tag: 'fix', text: '🌃 「뒷골목으로 나가기」에서 <b>드래그할 때 화면 전체가 스크롤되며 튀던 문제 수정</b> — 게임 오버레이에 스크롤 잠금(touch-action·overscroll-behavior·touchmove 차단)을 걸어 유미를 끌어도 페이지가 밀리지 않아요. 주소창 토글로 무대 크기가 바뀌어도 좌표가 어긋나지 않게 보정했어요.' },
   ] },
@@ -29233,7 +29236,7 @@ const ALLEY_COOLDOWN_MS = 90 * 60 * 1000;   // 90분 쿨다운(판 사이)
 const ALLEY_DAILY_CAP   = 2500;             // 하루 뒷골목 획득 상한(무한파밍 방지)
 const ALLEY_RUN_TARGET  = 1000;             // 한 판 목표 골드(대략)
 const ALLEY_FOLLOW = 15, ALLEY_VAC_R = 74, ALLEY_COLLECT_SPD = 720, ALLEY_TIME_MS = 55000;   // FOLLOW=드래그 추적 반응성(클수록 손가락에 딱 붙음)
-const ALLEY_SPAWN_MS = 380, ALLEY_MAX_CONCUR = 20, ALLEY_GRAV = 1500;                        // 스폰 간격 / 동시 최대 / 중력
+const ALLEY_SPAWN_MS = 360, ALLEY_MAX_CONCUR = 22, ALLEY_GRAV = 1050;                        // 스폰 간격 / 동시 최대 / 던지는 궤적 중력(완만)
 // 🌃 스테이지 정의 — 쓰레기 종류는 스테이지(나중엔 보유 아이템)에 따라 제한. 지금처럼 잡다하지 않게.
 const ALLEY_STAGES = [
   { id:1, name:'뒷골목 초입', trash:[
@@ -29272,30 +29275,44 @@ function _injectAlleyCss(){
   .alley-chip.time .v{color:#7fe0d0;} .alley-chip.time.urgent .v{color:#ff8a8a;}
   .alley-bar{height:6px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden;margin-bottom:8px;}
   .alley-bar>div{height:100%;width:0;background:linear-gradient(90deg,#d4a843,#f0c84a);transition:width .18s;}
+  /* 탑다운(위에서 내려다본) 뒷골목 바닥 */
   .alley-stage{position:relative;width:100%;height:min(58vh,460px);border-radius:12px;overflow:hidden;touch-action:none;cursor:grab;
-    background:linear-gradient(180deg,#0b0c14 0%,#12131e 52%,#191a26 100%);
-    box-shadow:inset 0 0 60px rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.06);}
+    background:
+      radial-gradient(34% 26% at 70% 30%, rgba(255,206,120,.14), transparent 62%),
+      radial-gradient(80% 55% at 50% 118%, rgba(50,60,80,.12), transparent 62%),
+      repeating-linear-gradient(63deg, rgba(0,0,0,.17) 0 1px, transparent 1px 76px),
+      repeating-linear-gradient(-54deg, rgba(255,255,255,.016) 0 1px, transparent 1px 94px),
+      linear-gradient(180deg,#1b1c24 0%,#15161f 55%,#101019 100%);
+    box-shadow:inset 0 0 78px rgba(0,0,0,.68),inset 0 0 0 1px rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);}
   .alley-stage:active{cursor:grabbing;}
-  /* 뒷골목 배경: 위=벽돌담, 아래=아스팔트 바닥 */
-  .alley-bg-wall{position:absolute;left:0;right:0;top:0;bottom:26%;pointer-events:none;
-    background:repeating-linear-gradient(90deg,rgba(255,255,255,.028) 0 2px,transparent 2px 40px),
-              repeating-linear-gradient(0deg,rgba(0,0,0,.22) 0 1px,transparent 1px 19px),
-              linear-gradient(180deg,#191320,#211a2b);
-    box-shadow:inset 0 -22px 30px rgba(0,0,0,.55);}
-  .alley-bg-ground{position:absolute;left:0;right:0;bottom:0;height:26%;pointer-events:none;
-    background:linear-gradient(180deg,#23232f,#13141b);box-shadow:inset 0 16px 26px rgba(0,0,0,.55);}
-  .alley-bg-ground::before{content:'';position:absolute;inset:0;background:radial-gradient(55% 45% at 32% 65%,rgba(130,160,190,.09),transparent 72%);}
-  .alley-stage::before{content:'';position:absolute;inset:0;pointer-events:none;z-index:5;
-     background:linear-gradient(90deg,rgba(0,0,0,.55),transparent 16%,transparent 84%,rgba(0,0,0,.55));}
+  /* 위쪽 담벼락(탑다운이라 얇게) + 쓰레기 나오는 불 켜진 문 */
+  .alley-topwall{position:absolute;left:0;right:0;top:0;height:14%;pointer-events:none;z-index:2;
+    background:repeating-linear-gradient(90deg,rgba(0,0,0,.3) 0 1px,transparent 1px 32px),
+              repeating-linear-gradient(0deg,rgba(0,0,0,.34) 0 1px,transparent 1px 14px),
+              linear-gradient(180deg,#241a2f,#17131f);
+    box-shadow:inset 0 -12px 18px rgba(0,0,0,.6),0 4px 10px rgba(0,0,0,.55);}
+  .alley-door{position:absolute;top:0;left:50%;transform:translateX(-50%);width:50px;height:15%;z-index:3;pointer-events:none;
+    background:linear-gradient(180deg,#4a3a1e,#120d06);border:2px solid #5a4626;border-top:none;border-radius:0 0 5px 5px;
+    box-shadow:0 0 26px rgba(255,198,104,.55),inset 0 8px 16px rgba(255,208,120,.55);}
+  .alley-door::after{content:'';position:absolute;left:50%;bottom:-8px;transform:translateX(-50%);width:64px;height:20px;
+    background:radial-gradient(ellipse,rgba(255,206,120,.4),transparent 70%);}
+  .alley-puddle{position:absolute;pointer-events:none;z-index:1;border-radius:50%;transform:translate(-50%,-50%);
+    background:radial-gradient(ellipse,rgba(130,165,200,.16),rgba(130,165,200,.05) 58%,transparent 74%);
+    box-shadow:inset 0 2px 7px rgba(255,255,255,.07);}
+  .alley-manhole{position:absolute;width:48px;height:32px;pointer-events:none;z-index:1;transform:translate(-50%,-50%);border-radius:50%;
+    background:radial-gradient(ellipse,#2a2a33,#191920);box-shadow:inset 0 0 0 2px rgba(0,0,0,.5),inset 0 0 9px rgba(0,0,0,.6);}
+  .alley-manhole::before{content:'';position:absolute;inset:5px;border-radius:50%;background:repeating-linear-gradient(0deg,rgba(0,0,0,.4) 0 1px,transparent 1px 5px);}
   .alley-deco{position:absolute;pointer-events:none;z-index:6;}
-  .alley-deco.lamp{top:-3px;right:20px;font-size:22px;filter:drop-shadow(0 0 13px rgba(255,214,120,.75));}
-  .alley-deco.moon{top:8px;left:14px;font-size:17px;opacity:.65;}
-  .alley-deco.dumpster{right:5px;bottom:19%;font-size:30px;opacity:.9;filter:drop-shadow(0 3px 4px rgba(0,0,0,.5));}
-  .alley-deco.box{left:5px;bottom:19%;font-size:21px;opacity:.72;}
-  .alley-junk{position:absolute;left:0;top:0;transform:translate(-50%,-50%);pointer-events:none;will-change:transform;z-index:20;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));font-size:23px;line-height:1;}
+  .alley-deco.lamp{top:1px;right:16px;font-size:20px;filter:drop-shadow(0 0 14px rgba(255,214,120,.85));}
+  .alley-deco.dumpster{font-size:30px;opacity:.9;transform:translate(-50%,-50%);filter:drop-shadow(0 3px 4px rgba(0,0,0,.5));z-index:7;}
+  .alley-deco.box{font-size:20px;opacity:.72;transform:translate(-50%,-50%);z-index:7;}
+  .alley-junk{position:absolute;left:0;top:0;transform:translate(-50%,-50%);pointer-events:none;will-change:transform;z-index:20;filter:drop-shadow(0 3px 3px rgba(0,0,0,.55));font-size:23px;line-height:1;}
   .alley-junk.big{font-size:28px;}
   .alley-junk.vac{animation:alleyVac .28s linear infinite;}
   @keyframes alleyVac{50%{filter:drop-shadow(0 0 6px rgba(255,227,106,.9)) brightness(1.3);}}
+  .alley-puff{position:absolute;left:0;top:0;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;pointer-events:none;z-index:19;
+    background:radial-gradient(circle,rgba(180,180,190,.5),transparent 70%);animation:alleyPuff .4s ease-out forwards;}
+  @keyframes alleyPuff{0%{opacity:.7;transform:scale(.4);}100%{opacity:0;transform:scale(1.7);}}
   #alley-yuumi3d-mount{position:absolute;left:0;top:0;width:104px;height:138px;pointer-events:none;z-index:40;will-change:transform;filter:drop-shadow(0 6px 8px rgba(0,0,0,.5));}
   #alley-yuumi3d-mount canvas{width:100%;height:100%;display:block;}
   .alley-shadow{position:absolute;left:0;top:0;width:52px;height:15px;margin:-7px 0 0 -26px;border-radius:50%;background:radial-gradient(ellipse,rgba(0,0,0,.55),transparent 70%);z-index:38;pointer-events:none;}
@@ -29416,12 +29433,15 @@ function _alleyBuild(data){
       </div>
       <div class="alley-bar"><div id="alley-bar-fill"></div></div>
       <div class="alley-stage" id="alley-stage">
-        <div class="alley-bg-wall"></div>
-        <div class="alley-bg-ground"></div>
-        <div class="alley-deco moon">🌙</div>
+        <div class="alley-topwall"></div>
+        <div class="alley-door"></div>
         <div class="alley-deco lamp">💡</div>
-        <div class="alley-deco dumpster">🗑️</div>
-        <div class="alley-deco box">📦</div>
+        <div class="alley-puddle" style="left:26%;top:66%;width:96px;height:36px;"></div>
+        <div class="alley-puddle" style="left:64%;top:82%;width:72px;height:26px;"></div>
+        <div class="alley-manhole" style="left:74%;top:50%;"></div>
+        <div class="alley-deco dumpster" style="left:11%;top:24%;">🗑️</div>
+        <div class="alley-deco dumpster" style="left:90%;top:86%;">🗑️</div>
+        <div class="alley-deco box" style="left:8%;top:88%;">📦</div>
         <div class="alley-shadow" id="alley-shadow"></div>
         <div id="alley-yuumi3d-mount"></div>
       </div>
@@ -29460,18 +29480,25 @@ function _alleyBuild(data){
     _alleyRAF = requestAnimationFrame(_alleyTick);
   });
 }
-// 🌃 쓰레기 1개 스폰 — 위에서 떨어짐(스테이지 종류 제한·굴러다님)
+// 🌃 쓰레기 1개 스폰 — 상단 문에서 누군가 던짐 → 필드 곳곳에 착지(탑다운). 종류는 스테이지 기준 제한.
 function _alleySpawnOne(stage, W, H, data){
   const set=_alleyStageObj.trash;
   const pick=_alleyWpick(set, set.map(t=>t.w));
   const val=Math.max(1, Math.round(pick.v * _alleyValMult(pick, data)));
   const node=document.createElement('div'); node.className='alley-junk'+(pick.big?' big':'');
   node.textContent=pick.ic;
-  const x=24+Math.random()*(W-48), y=-22;
-  node.style.transform=`translate(${x}px,${y}px) translate(-50%,-50%)`;
+  const doorX = W*0.5;
+  const x = doorX + (Math.random()*70-35);            // 문 근처에서 출발
+  const y = H*0.10;                                     // 담벼락(문) 바로 아래에서
+  const landY = H*(0.30 + Math.random()*0.62);          // 필드 위~아래로 흩어져 착지할 깊이
+  node.style.transform=`translate(${x}px,${y}px) translate(-50%,-50%) scale(.7)`;
   stage.appendChild(node);
-  _alleyTrash.push({ el:node, x, y, vx:(Math.random()*140-70), vy:(10+Math.random()*55), rot:Math.random()*360, v:val, collecting:false });
+  _alleyTrash.push({ el:node, x, y, vx:(Math.random()*360-180), vy:(30+Math.random()*70), landY, landed:false, rot:Math.random()*360, vr:(Math.random()*280-140), v:val, sc:0.7, collecting:false });
   _alleySpawnVal += val;
+}
+function _alleyLandPuff(stage, x, y){
+  if(!stage) return; const p=document.createElement('div'); p.className='alley-puff';
+  p.style.transform=`translate(${x}px,${y+8}px)`; stage.appendChild(p); setTimeout(()=>p.remove(),420);
 }
 function _alleyTick(now){
   if(!_alleyRunning){ return; }
@@ -29479,7 +29506,7 @@ function _alleyTick(now){
   const stage=document.getElementById('alley-stage'), mount=document.getElementById('alley-yuumi3d-mount'), shadow=document.getElementById('alley-shadow');
   if(!stage||!mount){ return; }
   const dt = Math.min((now - _alleyFrameT)/1000, 0.05); _alleyFrameT = now;
-  const W=_alleyStageRect.w, H=_alleyStageRect.h, GROUND=H-16;
+  const W=_alleyStageRect.w, H=_alleyStageRect.h;
   const data=getMyGoldData()||{};
   // ─ 스폰(위에서 떨어짐) ─
   if(_alleySpawnVal < _alleyBudget && (now-_alleySpawnT)>ALLEY_SPAWN_MS){
@@ -29505,14 +29532,23 @@ function _alleyTick(now){
     if(t.collecting){
       const s2=Math.min(vd, ALLEY_COLLECT_SPD*dt);
       if(vd>0){ t.x+=vdx/vd*s2; t.y+=vdy/vd*s2; }
+      t.el.style.transform=`translate(${t.x}px,${t.y}px) translate(-50%,-50%) rotate(${t.rot}deg) scale(${t.sc||1})`;
       if(vd<15){ _alleyCollectOne(t); continue; }
-    } else {
-      t.vy += ALLEY_GRAV*dt; t.x += t.vx*dt; t.y += t.vy*dt;
-      if(t.x<14){ t.x=14; t.vx=-t.vx*0.5; } else if(t.x>W-14){ t.x=W-14; t.vx=-t.vx*0.5; }
-      if(t.y>=GROUND){ t.y=GROUND; if(t.vy>60){ t.vy=-t.vy*0.4; } else { t.vy=0; } t.vx*=Math.exp(-3*dt); if(Math.abs(t.vx)<4) t.vx=0; }
-      t.rot += t.vx*dt*1.4;
+      live++; continue;
     }
-    t.el.style.transform=`translate(${t.x}px,${t.y}px) translate(-50%,-50%) rotate(${t.rot}deg)`;
+    if(!t.landed){
+      // 던져진 궤적: 상단 문 → 필드의 착지 지점(landY)으로. 다가올수록 커짐(탑다운 깊이감)
+      t.vy += ALLEY_GRAV*dt; t.x += t.vx*dt; t.y += t.vy*dt; t.rot += t.vr*dt;
+      if(t.x<14){ t.x=14; t.vx=-t.vx*0.5; } else if(t.x>W-14){ t.x=W-14; t.vx=-t.vx*0.5; }
+      t.sc = 0.68 + 0.32*Math.min(1, Math.max(0, t.y/Math.max(1,t.landY)));
+      if(t.y >= t.landY){ t.y=t.landY; t.landed=true; t.vy=0; t.vx*=0.4; t.sc=1; t.vr=t.vx*0.6; _alleyLandPuff(stage, t.x, t.y); }
+    } else {
+      // 착지 후 남은 힘으로 바닥을 조금 구르다 정지(탑다운이라 y 고정, x만)
+      if(Math.abs(t.vx)>4){ t.x += t.vx*dt; t.vx*=Math.exp(-4*dt); t.rot += t.vx*dt*1.2;
+        if(t.x<14){ t.x=14; t.vx=-t.vx*0.4; } else if(t.x>W-14){ t.x=W-14; t.vx=-t.vx*0.4; } }
+      else t.vx=0;
+    }
+    t.el.style.transform=`translate(${t.x}px,${t.y}px) translate(-50%,-50%) rotate(${t.rot}deg) scale(${t.sc||1})`;
     live++;
   }
   // ─ HUD ─
