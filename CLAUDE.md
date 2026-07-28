@@ -817,7 +817,17 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### v2.45.633 (2026-07-28·원격web·작업브랜치 `claude/continue-work-gq5zvj`·main+브랜치 배포·Pages success) — 🐱 쓰레기통 유미 눈 사라짐 수정 + 🎓 교장 유미 3D 반영 ← 최신
+### 🎮 룬테라 원정 프로토타입 개선 + 🗑️ 뒷골목 쓰레기통 씬 목업 (2026-07-28·이 PC·`main` 직접·APP_VERSION 무변경=프로토타입/목업만) ← 최신
+> ⚠️ **index.html(라이브 앱) 무변경** — 이 세션은 전부 프로토타입/목업 파일 + 에셋. `APP_VERSION`은 v2.45.633 그대로. Edge 헤드리스 스샷으로 시각 검증(see [[reference_edge_headless_screenshot]]).
+- **🗺️ 룬테라 원정 프로토타입(`룬테라원정-프로토타입.html`)**:
+  - **지역 화면(`renderRgn`) 프리미엄 통합**: 아이소 정착지 씬(`buildIso`) + 영웅 정보 카드(`.hero2`·초상화/역할/설명/⚡⚔️❤️/HP바) + 방어 패널(`.def2`) + 건물 목록. `assets/rune/iso` 스프라이트로 건물 배치·빈 터 표식.
+  - **정착지 대형화(부족전쟁식)**: 씬 250→408px, 요새(흙 앞마당+돌 안뜰+성벽 링+둥근 코너 탑 `stoneWallRoundWindow`+정문 `stoneWallGateOpen`), 건물/빈 터 **탭→건설·업글**(인게임 상호작용). `ISO_PLOTS` 3×3 배치도.
+  - **지도 리디자인**: 다크 전황도 — 딥씨 + SVG 청동 대륙(`feTurbulence` 거친 해안선)+발광 금빛 해안선, 아이오니아·빌지워터=개별 섬, 위경도 격자·산맥/사막·공허 균열, RUNETERRA 카투슈+나침반+금빛 프레임, 지역 핀 금빛 마커.
+  - 에셋: 이소 미니어처 던전 킷에서 요새 스프라이트 12종 추가 추출(`assets/rune/iso`).
+- **🗑️ 뒷골목 쓰레기통 씬 목업(`뒷골목-쓰레기통-목업.html`·`*-목업.html`이라 배포됨)**: 사장님 요청("쓰레기통 하나 덜렁 말고, 클릭 시 위쪽 복권방 느낌+하단 쓰레기통 뒤지기"). Kenney 레트로 판타지 텍스처(CC0)로 밤 뒷골목 한 컷 — 상단 불 켜진 「복권방」 문(`door_wood_window_lit`)+간판+랜턴+창문+빨간 기와, 하프팀버 벽/벽돌 굽/자갈 바닥, 하단 자갈 위 쓰레기통에서 유미 뒤적, 비/비네트. 에셋 `assets/alley/`(텍스처 9종·`.gitignore` 화이트리스트 추가). **⏭️ 다음: 사장님 확인 후 실제 `openTrashCan`(index.html)에 씬 이식**(기능=드래그 뒤지기·3D 유미·무료복권·골드·교장 유미 전부 유지, 배경만 교체).
+- ⚠️ **원본 ZIP은 이 PC Downloads에만**(`kenney_*.zip`·`전투사관학교_유미_교장선생님.glb` 등) — 커밋된 **추출 PNG/에셋만** 다른 컴에 전달됨. 현재 작업 이어가는 데는 리포에 다 있음(추가 텍스처 더 뽑으려면 그 ZIP 필요).
+
+### v2.45.633 (2026-07-28·원격web·작업브랜치 `claude/continue-work-gq5zvj`·main+브랜치 배포·Pages success) — 🐱 쓰레기통 유미 눈 사라짐 수정 + 🎓 교장 유미 3D 반영
 > 이 세션 = **원격(web) 환경**(⚠️github.io egress 차단이라 라이브 curl 불가[HTTP 000]·three.js CDN 차단이라 **3D 렌더 헤드리스 검증 불가** → 코드·문법만 검증, 실기 확인은 사장님 폰). 세션 시작 시 브랜치=`origin/main`과 동일(v632, 워킹트리 깨끗·직전 이 PC 세션 전부 푸시됨). 배포=`main`+작업브랜치 둘 다·인라인 `<script>` 7블록 `node --check` 7/7. 배포 확인=MCP `actions_list`(결과 토큰초과→파일 python 파싱)로 `a6495f5` "pages build and deployment" **completed success**(클래식 자동 트리거 정상 작동·`pages-rebuild.yml`도 병행).
 > 사장님 제보 2건(교장 변신했는데 쓰레기통은 일반 유미가 뒤짐 + 일반 유미 얼굴에 눈이 없음=티모 버그와 유사). 둘 다 `ensureYuumi3d`(index.html ~L29115) 재작성으로 해결.
 - **🐱 눈 사라짐(티모 눈버그와 동일 원인)**: 유미 눈/표정 재질(`Face_Eye_Explode`/`Face_Eye_Shock`/`Face_Mouth_Base`)이 **unlit BLEND 데칼**인데, 기존 `ensureYuumi3d`는 `m.side=DoubleSide`만 걸고 claw.html(L1862~1865)에 있던 티모 수정 패턴을 안 써서 데칼이 머리에 가려져 사라짐. → **claw 패턴 이식**: `_fixMats(model)` 헬퍼 신설 — `if(m.transparent){m.transparent=false;m.alphaTest=0.5;m.depthWrite=true;}`(BLEND→컷아웃·깊이 정상화) + `if(/eye|mouth|face|brow|smile|surprise|anger|explode|shock/i.test(m.name)){m.polygonOffset=true;factor=-2;units=-2;}`(표정 데칼 살짝 앞으로·z-fighting 방지). **일반·교장 공통 적용**.
