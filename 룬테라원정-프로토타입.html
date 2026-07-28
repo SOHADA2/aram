@@ -97,6 +97,7 @@ body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system
 <body><div class="app">
   <div class="topbar">
     <span class="tt" id="topttl">🗺️ 룬테라 원정</span>
+    <span class="res-chip" style="cursor:pointer" onclick="openDex()">🎴 도감</span>
     <span class="res-chip g" id="c-gold">🪙 0</span>
   </div>
   <div class="resbar" id="resbar"></div>
@@ -330,26 +331,33 @@ function openHeroPick(id){ const R=REGIONS[id], rg=S.rg[id];
     avail.map(h=>{ const hs=hstat(h); return `<div class="pcard" data-s="${h.slug}"><div class="por" style="background-image:url('${heroImg(h.slug)}')"></div><div><div class="hn">${h.kr}</div><div class="hs">⚡${hs.mv} ⚔️${hs.atk} ❤️${hs.hp}</div><div class="hs" style="color:#8fce8a">${ROLE_TRAIT[h.role]}</div></div></div>`;}).join('')+
     `</div><div style="font-size:10px;color:#8a7a52;margin-top:8px;text-align:center">카드를 탭하면 원정 카드(LoR)로 크게 봐요</div></div>`;
   document.body.appendChild(ov);
-  ov.querySelectorAll('.pcard').forEach(c=>{
-    let tapped=0;
-    c.onclick=()=>{ if(tapped){ showCard(c.dataset.s); return; } tapped=1; setTimeout(()=>tapped=0,700);
-      const h=heroBy(c.dataset.s); const mv=hstat(h).mv; const travel=Math.round((REGIONS[id].threat*30)/(mv/5)); // 이동속도로 도착 시간(초, 프로토타입 축약)
-      rg.heroes.push({slug:h.slug,hp:HP_MAX,dead:false}); save(); ov.remove(); toast(`🦸 ${h.kr} ${REGIONS[id].nm} 투입!`); renderRgn(); renderTop(); };
-  });
+  ov.querySelectorAll('.pcard').forEach(c=>{ c.onclick=()=>{ ov.remove(); showCard(c.dataset.s, id); }; });
   ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
 }
-window.showCard=function(slug){ const h=heroBy(slug), hs=hstat(h), R=REGIONS[h.region];
+window.showCard=function(slug, deployId){ const h=heroBy(slug), hs=hstat(h), R=REGIONS[h.region];
   const ov=document.createElement('div'); ov.className='ov'; ov.onclick=(e)=>{ if(e.target===ov)ov.remove(); };
+  const canDeploy = deployId && !S.rg[deployId].heroes.some(x=>x.slug===slug) && S.rg[deployId].heroes.length<heroSlots(deployId);
+  const deployBtn = deployId ? `<button class="btn ${canDeploy?'btn-gold':'btn-dk'}" style="margin-top:12px;padding:11px 22px;font-size:14px;width:300px" ${canDeploy?`onclick="deployHero('${deployId}','${slug}');this.closest('.ov').remove();"`:'disabled'}>${canDeploy?`🦸 ${REGIONS[deployId].nm}에 투입`:'투입 불가(중복/슬롯 참)'}</button>` : '';
   ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span>
+   <div style="display:flex;flex-direction:column;align-items:center">
     <div class="lor"><div class="cost">★★★<small>PRISM</small></div><div class="rgn">${R.rgnIc}</div>
       <div class="art" style="background-image:url('${heroImg(slug,'splash')}')"></div>
       <div class="nm">${h.kr}</div>
       <div class="kw"><b>${ROLE_TRAIT[h.role]}</b></div>
-      <div class="ds">🏠 <b>${R.nm}</b> 소속 · ${ROLE_DESC[h.role]}</div>
+      <div class="ds">⚡이동 ${hs.mv} · 🏠 <b>${R.nm}</b> · ${ROLE_DESC[h.role]}</div>
       <div class="pw">⚔️<span>${hs.atk}</span><small>전투</small></div>
       <div class="hp">❤️<span>${hs.hp}</span><small>체력</small></div>
-    </div>`;
+    </div>${deployBtn}</div>`;
   document.body.appendChild(ov);
+};
+window.deployHero=function(id,slug){ const rg=S.rg[id]; if(rg.heroes.some(x=>x.slug===slug))return; if(rg.heroes.length>=heroSlots(id)){ toast('영웅 슬롯이 가득 찼어요(소환소 업글)'); return; }
+  rg.heroes.push({slug,hp:HP_MAX,dead:false}); save(); toast(`🦸 ${heroKr(slug)} ${REGIONS[id].nm} 투입!`); renderRgn(); renderTop(); };
+window.openDex=function(){ const ov=document.createElement('div'); ov.className='ov'; ov.onclick=(e)=>{ if(e.target===ov)ov.remove(); };
+  ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker"><h3 class="pick-h">🎴 영웅 카드 도감 (${HEROES.length})</h3><div class="pgrid">`+
+    HEROES.map(h=>{ const hs=hstat(h); return `<div class="pcard" data-s="${h.slug}"><div class="por" style="background-image:url('${heroImg(h.slug)}')"></div><div><div class="hn">${h.kr}</div><div class="hs">${REGIONS[h.region].ic} ${REGIONS[h.region].nm}</div><div class="hs" style="color:#8fce8a">⚔️${hs.atk} ❤️${hs.hp}</div></div></div>`;}).join('')+
+    `</div><div style="font-size:10px;color:#8a7a52;margin-top:8px;text-align:center">카드를 탭하면 원정 카드(LoR)로 크게 봐요</div></div>`;
+  document.body.appendChild(ov);
+  ov.querySelectorAll('.pcard').forEach(c=>c.onclick=()=>showCard(c.dataset.s));
 };
 window.openHeroPick=openHeroPick;
 
