@@ -1,0 +1,361 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>룬테라 원정 — 프로토타입 v0.1</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system-ui,sans-serif;overscroll-behavior:none;}
+.app{max-width:440px;margin:0 auto;min-height:100vh;background:linear-gradient(180deg,#12101a,#0a080f);position:relative;}
+.topbar{position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:6px;padding:8px 10px;background:linear-gradient(180deg,#1a1220,#140e18);border-bottom:1px solid rgba(200,168,75,.25);}
+.topbar .tt{font-weight:900;color:#f0dca0;font-size:14px;flex:1;}
+.res-chip{font-family:monospace;font-weight:800;font-size:11px;background:rgba(0,0,0,.4);border:1px solid rgba(200,168,75,.3);border-radius:14px;padding:3px 8px;white-space:nowrap;}
+.res-chip.g{color:#ffd76a;}
+.resbar{display:flex;gap:4px;padding:6px 10px;overflow-x:auto;background:#0e0b14;border-bottom:1px solid rgba(255,255,255,.05);}
+.btn{border:none;border-radius:9px;font-weight:800;cursor:pointer;font-family:inherit;}
+.btn-gold{background:linear-gradient(135deg,#d4a843,#f0c84a);color:#1a1206;}
+.btn-dk{background:rgba(255,255,255,.07);color:#e8dcc0;border:1px solid rgba(255,255,255,.12);}
+/* 지도 */
+#map-view{position:relative;height:620px;overflow:hidden;background:radial-gradient(70% 50% at 50% 40%,#243642,#101820 70%,#0a0f14);}
+.mnode{position:absolute;transform:translate(-50%,-50%);text-align:center;cursor:pointer;z-index:5;}
+.mnode .pin{display:inline-flex;flex-direction:column;align-items:center;padding:5px 9px 6px;border-radius:11px;background:linear-gradient(180deg,rgba(28,22,12,.95),rgba(14,10,5,.95));border:1px solid #7a5c1e;box-shadow:0 4px 12px rgba(0,0,0,.55);min-width:70px;}
+.mnode .ic{font-size:19px;}
+.mnode .nm{font-size:11px;font-weight:800;color:#f0e2b8;}
+.mnode .meta{font-size:8.5px;color:#c9b98a;font-weight:700;}
+.mnode.locked .pin{filter:grayscale(.8);opacity:.45;}
+.mnode.open .pin{border-color:#7fce7a;}
+.mnode.openable .pin{border-color:#a9d4ff;animation:pulseB 1.6s infinite;}
+@keyframes pulseB{50%{box-shadow:0 0 0 3px rgba(120,180,255,.3),0 4px 12px rgba(0,0,0,.6);}}
+.mnode.home .badge,.mnode.openable .badge{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:8px;font-weight:900;padding:1px 6px;border-radius:7px;white-space:nowrap;}
+.mnode.home .badge{background:linear-gradient(135deg,#f4e3a8,#d8b45a);color:#2a1c06;}
+.mnode.openable .badge{background:linear-gradient(135deg,#5b8fd6,#a9d4ff);color:#08172c;}
+.mnode .raidmk{position:absolute;top:-6px;right:-6px;font-size:12px;}
+.edge{stroke:rgba(200,180,120,.18);stroke-width:2;}
+.map-tip{position:absolute;bottom:8px;left:8px;right:8px;text-align:center;font-size:10px;color:#9a8a6a;z-index:6;}
+/* 지역 화면 */
+#rgn-view{display:none;padding:10px;}
+.sec-h{font-size:11px;font-weight:800;color:#b9a878;letter-spacing:1px;margin:10px 2px 6px;}
+.sec-h span{color:#8a7a52;font-weight:600;}
+.heroes{display:flex;gap:7px;flex-wrap:wrap;}
+.hero{flex:1 1 46%;min-width:150px;display:flex;gap:8px;align-items:center;background:linear-gradient(180deg,rgba(40,30,60,.6),rgba(20,14,28,.6));border:1px solid #7a5c9e;border-radius:11px;padding:7px;}
+.hero .por{width:42px;height:42px;border-radius:8px;background-size:cover;background-position:35% 15%;border:1px solid #a78bfa;flex:none;}
+.hero .hn{font-size:12px;font-weight:900;color:#e8dcf0;}
+.hero .hs{font-size:10px;color:#c4b5fd;font-weight:700;}
+.hero .hi{flex:1;min-width:0;}
+.hpbar{height:5px;border-radius:4px;background:rgba(0,0,0,.45);margin-top:4px;overflow:hidden;}
+.hpbar>div{height:100%;background:linear-gradient(90deg,#ef4444,#f59e0b 55%,#22c55e);}
+.hero.dead{opacity:.75;border-color:#7a3a3a;}
+.hero.dead .por{filter:grayscale(1) brightness(.55);}
+.hero.dead .hs{color:#ff8a8a;}
+.hero-empty{flex:1 1 46%;min-width:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;border:1px dashed rgba(255,255,255,.18);border-radius:11px;padding:12px 7px;color:#9a9aa8;font-size:10px;text-align:center;cursor:pointer;}
+.raid{background:linear-gradient(180deg,rgba(60,20,20,.5),rgba(30,12,12,.5));border:1px solid #7a3a2e;border-radius:11px;padding:9px 11px;}
+.raid-t{display:flex;justify-content:space-between;font-size:12px;font-weight:800;color:#ffb4a0;}
+.raid-t .mon{font-size:10.5px;color:#ff9a6a;}
+.rbar{height:8px;border-radius:6px;background:rgba(0,0,0,.4);margin:7px 0 4px;overflow:hidden;position:relative;}
+.rbar .def{height:100%;background:linear-gradient(90deg,#22c55e,#86efac);}
+.rbar .line{position:absolute;top:-2px;bottom:-2px;width:2px;background:#ff6a6a;}
+.raid-meta{display:flex;justify-content:space-between;font-size:9.5px;color:#c9b98a;}
+.bgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+.bld{background:rgba(0,0,0,.4);border:1px solid rgba(200,168,75,.25);border-radius:10px;padding:8px 9px;}
+.bld-h{display:flex;align-items:center;gap:6px;}
+.bld-ic{font-size:19px;}
+.bld-nm{font-size:11.5px;font-weight:800;color:#f0e2b8;}
+.bld-lv{margin-left:auto;font-size:9px;font-weight:800;color:#1a1206;background:linear-gradient(135deg,#f4e3a8,#d8b45a);padding:1px 6px;border-radius:7px;}
+.bld-eff{font-size:9.5px;color:#9fce9a;margin:4px 0 6px;font-weight:700;min-height:12px;}
+.bld-up{width:100%;padding:5px;border:none;border-radius:7px;background:rgba(120,90,30,.4);border:1px solid #7a5c1e;color:#f0dca0;font-size:9px;font-weight:700;cursor:pointer;}
+.bld-up:disabled{opacity:.45;cursor:default;}
+.bld.tower{border-color:rgba(120,160,255,.35);} .bld.tower .bld-lv{background:linear-gradient(135deg,#a9d4ff,#5b8fd6);color:#0a1a30;}
+.bld.heal{border-color:rgba(255,150,196,.35);} .bld.heal .bld-lv{background:linear-gradient(135deg,#ffc4dd,#e06a9c);color:#3a0a20;}
+/* 오버레이(카드/영웅선택) */
+.ov{position:fixed;inset:0;z-index:60;background:rgba(4,4,10,.85);display:flex;align-items:center;justify-content:center;padding:16px;}
+.ov-x{position:absolute;top:12px;right:14px;font-size:22px;color:#ccc;cursor:pointer;z-index:2;}
+.picker{width:100%;max-width:420px;max-height:82vh;overflow:auto;background:#161019;border:1px solid rgba(200,168,75,.3);border-radius:14px;padding:12px;}
+.pick-h{font-weight:900;color:#f0dca0;margin:0 0 8px;}
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.pcard{display:flex;gap:8px;align-items:center;background:rgba(0,0,0,.35);border:1px solid #4a3a66;border-radius:10px;padding:7px;cursor:pointer;}
+.pcard .por{width:40px;height:40px;border-radius:7px;background-size:cover;background-position:35% 15%;flex:none;border:1px solid #7a5c9e;}
+.pcard .hn{font-size:11.5px;font-weight:800;color:#e8dcf0;}
+.pcard .hs{font-size:9.5px;color:#c4b5fd;}
+.toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:80;background:rgba(20,14,8,.96);border:1px solid #7a5c1e;color:#f0dca0;font-size:12px;font-weight:700;padding:9px 16px;border-radius:20px;opacity:0;transition:opacity .2s;pointer-events:none;}
+.toast.on{opacity:1;}
+.proto-tag{font-size:8.5px;color:#8a7a52;text-align:center;padding:6px;}
+/* LoR 카드(간이) */
+.lor{width:300px;aspect-ratio:2/3;border-radius:16px;overflow:hidden;position:relative;background:#0d0b08;
+  box-shadow:inset 0 0 0 2px #5b4416,inset 0 0 0 5px #a3812f,inset 0 0 0 7px #e9d288,inset 0 0 0 10px #6e5417,0 14px 40px rgba(0,0,0,.7);}
+.lor .art{position:absolute;top:10px;left:10px;right:10px;height:60%;border-radius:8px;background-size:cover;background-position:35% 18%;
+  box-shadow:inset 0 -30px 30px #0a0906;}
+.lor .nm{position:absolute;top:58%;left:14px;right:14px;text-align:center;font-size:22px;font-weight:900;color:#f2e2ad;text-shadow:0 2px 4px #000;font-family:Georgia,serif;}
+.lor .kw{position:absolute;top:66%;left:0;right:0;text-align:center;font-size:12px;font-weight:800;color:#dfe7f5;}
+.lor .kw b{background:#243050;border:1px solid #4a5a86;border-radius:14px;padding:3px 12px;}
+.lor .ds{position:absolute;top:73%;left:18px;right:18px;text-align:center;font-size:11.5px;color:#e8e2d2;line-height:1.5;}
+.lor .cost{position:absolute;top:8px;left:8px;width:44px;height:44px;border-radius:50%;background:radial-gradient(circle at 38% 32%,#a9d4ff,#3b82f6 55%,#1e3a8a);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #f4e3a8;font-size:12px;font-weight:800;color:#fff;flex-direction:column;line-height:1;}
+.lor .cost small{font-size:7px;}
+.lor .rgn{position:absolute;top:10px;right:10px;font-size:22px;filter:drop-shadow(0 0 5px rgba(120,255,180,.5));}
+.lor .pw,.lor .hp{position:absolute;bottom:6px;width:48px;height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;
+  clip-path:polygon(50% 0,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);color:#fff;font-weight:900;font-size:18px;}
+.lor .pw{left:6px;background:radial-gradient(circle at 40% 32%,#ffcf87,#e07a1e 60%,#8a3d08);}
+.lor .hp{right:6px;background:radial-gradient(circle at 40% 32%,#ff9a9a,#d63838 60%,#7a1414);}
+.lor .pw small,.lor .hp small{font-size:8px;}
+</style></head>
+<body><div class="app">
+  <div class="topbar">
+    <span class="tt" id="topttl">🗺️ 룬테라 원정</span>
+    <span class="res-chip g" id="c-gold">🪙 0</span>
+  </div>
+  <div class="resbar" id="resbar"></div>
+
+  <!-- 지도 -->
+  <div id="map-view">
+    <svg id="edges" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;"></svg>
+    <div id="mnodes"></div>
+    <div class="map-tip">🔵 파란 테두리 = 지금 개방 가능 (근접 지역부터 순차 해금)</div>
+  </div>
+
+  <!-- 지역 화면 -->
+  <div id="rgn-view"></div>
+
+  <div class="proto-tag">프로토타입 v0.1 · 골드/자원은 이 브라우저에만 저장(mock) · 실제 사이트 골드와 무관</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════ 데이터 ═══════════
+const RES = { gold:'🪙', stone:'🪨', wood:'🪵', rune:'🔮' };
+const ROLE_STAT = { // ⚡이동 ⚔️전투 ❤️체력 (★★★ 기준)
+  tank:{mv:4,atk:5,hp:9}, fighter:{mv:6,atk:7,hp:7}, assassin:{mv:8,atk:9,hp:3},
+  marksman:{mv:6,atk:8,hp:4}, mage:{mv:5,atk:7,hp:4}, support:{mv:5,atk:3,hp:6}
+};
+const ROLE_TRAIT = { tank:'🛡️ 수호자', fighter:'⚔️ 맹장', assassin:'🗡️ 전격', marksman:'🎯 명사수', mage:'🔮 룬술사', support:'🏗️ 조력자' };
+const ROLE_DESC = {
+  tank:'튼튼하게 버티며 습격을 정면에서 막아냅니다.', fighter:'공격과 생존이 균형 잡힌 만능 영웅.',
+  assassin:'약점을 파고들어 몬스터를 순식간에 처치합니다.', marksman:'먼 거리에서 정확히 위협을 제거합니다.',
+  mage:'룬 마법으로 광역 위협을 쓸어버립니다.', support:'건물·회복을 도와 거점을 굳건히 합니다.'
+};
+// 영웅(가챠 컬렉션 챔피언) — slug=ddragon키, region 배정
+const HEROES = [
+  {slug:'Lulu',kr:'룰루',role:'support',region:'bandle'},
+  {slug:'Vayne',kr:'베인',role:'marksman',region:'demacia'},
+  {slug:'Morgana',kr:'모르가나',role:'support',region:'demacia'},
+  {slug:'Poppy',kr:'뽀삐',role:'tank',region:'demacia'},
+  {slug:'DrMundo',kr:'문도 박사',role:'fighter',region:'zaun'},
+  {slug:'Yasuo',kr:'야스오',role:'fighter',region:'ionia'},
+  {slug:'Jhin',kr:'진',role:'marksman',region:'ionia'},
+  {slug:'Fizz',kr:'피즈',role:'assassin',region:'bilgewater'},
+  {slug:'Gangplank',kr:'갱플랭크',role:'fighter',region:'bilgewater'},
+  {slug:'Brand',kr:'브랜드',role:'mage',region:'freljord'},
+  {slug:'Mel',kr:'멜',role:'mage',region:'noxus'},
+  {slug:'Akshan',kr:'아크샨',role:'marksman',region:'shurima'},
+  {slug:'Amumu',kr:'아무무',role:'tank',region:'shurima'},
+  {slug:'Naafiri',kr:'나피리',role:'assassin',region:'shurima'},
+  {slug:'Rammus',kr:'람머스',role:'tank',region:'shurima'},
+  {slug:'Malphite',kr:'말파이트',role:'tank',region:'ixtal'},
+  {slug:'Khazix',kr:'카직스',role:'assassin',region:'void'},
+  {slug:'Malzahar',kr:'말자하',role:'mage',region:'void'},
+];
+function hstat(h){ return ROLE_STAT[h.role]; }
+function heroImg(slug,type){ return `https://ddragon.leagueoflegends.com/cdn/img/champion/${type==='splash'?'splash':'loading'}/${slug}_0.jpg`; }
+// 지역 — 위치(%), 위협도, 몬스터, 인접(근접 해금)
+const REGIONS = {
+  bandle:  {nm:'밴들 시티', ic:'🍄', rgnIc:'🌱', x:31,y:50, threat:1, mon:{ic:'🍄',nm:'장난꾸러기 정령'}, adj:['demacia','zaun'], home:true},
+  demacia: {nm:'데마시아', ic:'🦅', rgnIc:'⚜️', x:20,y:26, threat:2, mon:{ic:'⚔️',nm:'타락한 기사단'}, adj:['bandle','freljord','noxus']},
+  freljord:{nm:'프렐요드', ic:'❄️', rgnIc:'❄️', x:49,y:9,  threat:3, mon:{ic:'🐺',nm:'서리 늑대 무리'}, adj:['demacia','noxus']},
+  noxus:   {nm:'녹서스', ic:'⚔️', rgnIc:'🗡️', x:57,y:22, threat:3, mon:{ic:'💀',nm:'폭주한 군대'}, adj:['demacia','freljord','zaun','ionia']},
+  zaun:    {nm:'자운', ic:'⚙️', rgnIc:'☣️', x:42,y:41, threat:2, mon:{ic:'🧪',nm:'화학공학 변이체'}, adj:['bandle','noxus','ionia','shurima']},
+  ionia:   {nm:'아이오니아', ic:'🌸', rgnIc:'🌀', x:88,y:33, threat:3, mon:{ic:'🌪️',nm:'폭주한 정령'}, adj:['noxus','zaun','bilgewater']},
+  bilgewater:{nm:'빌지워터', ic:'🌊', rgnIc:'🦈', x:74,y:52, threat:4, mon:{ic:'🐙',nm:'심해 괴수'}, adj:['ionia','shurima','void']},
+  shurima: {nm:'슈리마', ic:'🏜️', rgnIc:'☀️', x:45,y:74, threat:4, mon:{ic:'🪲',nm:'모래 망령·거대 벌레'}, adj:['zaun','bilgewater','ixtal','void']},
+  ixtal:   {nm:'이쉬탈', ic:'🌋', rgnIc:'🍃', x:70,y:80, threat:4, mon:{ic:'🦖',nm:'정글 포식자'}, adj:['shurima']},
+  void:    {nm:'공허', ic:'🔮', rgnIc:'👁️', x:57,y:90, threat:5, mon:{ic:'🕷️',nm:'공허 생물'}, adj:['bilgewater','shurima']},
+};
+// 건물 정의
+const BLD = {
+  gold:  {ic:'💰',nm:'금광',type:'prod',res:'gold', base:6, per:4, maxLv:5, cost:(l)=>({stone:60*l,wood:40*l})},
+  stone: {ic:'🪨',nm:'채석장',type:'prod',res:'stone',base:8, per:5, maxLv:5, cost:(l)=>({wood:50*l,rune:3*l})},
+  wood:  {ic:'🪵',nm:'벌목장',type:'prod',res:'wood', base:8, per:5, maxLv:5, cost:(l)=>({stone:50*l,rune:3*l})},
+  rune:  {ic:'🔮',nm:'룬 제단',type:'prod',res:'rune', base:2, per:2, maxLv:5, cost:(l)=>({stone:80*l,wood:80*l})},
+  tower: {ic:'🗼',nm:'방어 타워',type:'def', base:20,per:18,maxLv:6, cost:(l)=>({stone:70*l,wood:50*l})},
+  heal:  {ic:'🏥',nm:'치료소',type:'heal',base:0, per:0, maxLv:3, cost:(l)=>({stone:100*l,rune:8*l})},
+  summon:{ic:'🏰',nm:'영웅 소환소',type:'slot',base:0,per:0,maxLv:3, cost:(l)=>({stone:150*l,wood:150*l,rune:12*l})},
+};
+const RAID_INTERVAL = 90*1000; // 프로토타입: 90초마다 습격(실서비스는 수 시간)
+const HP_MAX = 100;
+
+// ═══════════ 상태 ═══════════
+let S = load();
+function fresh(){
+  const rg = {};
+  for(const id in REGIONS){ rg[id] = { open:!!REGIONS[id].home, blds:{}, heroes:[], nextRaid:0 }; }
+  return { res:{gold:1000,stone:200,wood:200,rune:20}, rg, t:Date.now() };
+}
+function load(){ try{ const j=JSON.parse(localStorage.getItem('rune_proto')); if(j&&j.rg) return j; }catch(e){} return fresh(); }
+function save(){ S.t=Date.now(); localStorage.setItem('rune_proto', JSON.stringify(S)); }
+
+// ═══════════ 로직 ═══════════
+function prodRates(){ // 전 지역 건물 합산 → 시간당(프로토타입은 분당 체감 위해 ×)
+  const r={gold:0,stone:0,wood:0,rune:0};
+  for(const id in S.rg){ const rg=S.rg[id]; if(!rg.open)continue;
+    for(const b in rg.blds){ const d=BLD[b]; if(d&&d.type==='prod'){ const lv=rg.blds[b]; r[d.res]+=d.base+d.per*(lv-1); } } }
+  return r;
+}
+function tick(){
+  const now=Date.now(); const dt=(now-S.t)/1000; if(dt<=0){ S.t=now; return; }
+  // 자원 생산(프로토타입: 표기 rate = /분, 즉 초당 rate/60)
+  const pr=prodRates();
+  for(const k in pr){ S.res[k]=Math.floor((S.res[k]+pr[k]*dt/60)*100)/100; }
+  // 영웅 회복 + 재생성
+  for(const id in S.rg){ const rg=S.rg[id];
+    const healLv=rg.blds.heal||0; const regen=(HP_MAX/600)*(1+healLv*0.6); // 기본 10분 풀회복, 치료소로 단축
+    rg.heroes.forEach(h=>{
+      if(h.dead){ if(now>=h.respawnAt){ h.dead=false; h.hp=HP_MAX; toast(`💫 ${heroKr(h.slug)} 재생성 완료!`); } }
+      else if(h.hp<HP_MAX){ h.hp=Math.min(HP_MAX, h.hp+regen*dt); }
+    });
+    // 습격
+    if(rg.open){
+      if(!rg.nextRaid) rg.nextRaid=now+RAID_INTERVAL;
+      if(now>=rg.nextRaid){ resolveRaid(id); rg.nextRaid=now+RAID_INTERVAL; }
+    }
+  }
+  S.t=now;
+}
+function defenseOf(id){ const rg=S.rg[id]; let d=0;
+  const tl=rg.blds.tower||0; if(tl) d+=BLD.tower.base+BLD.tower.per*(tl-1);
+  rg.heroes.forEach(h=>{ if(!h.dead){ const hs=hstat(heroBy(h.slug)); d+= hs.atk*4 * (h.hp/HP_MAX); } });
+  return Math.round(d);
+}
+function raidPowerOf(id){ return Math.round(REGIONS[id].threat*22 + REGIONS[id].threat*REGIONS[id].threat*3); }
+function resolveRaid(id){
+  const rg=S.rg[id]; const def=defenseOf(id), pw=raidPowerOf(id); const mon=REGIONS[id].mon;
+  if(def>=pw){ // 격퇴 → 전리품
+    const loot=Math.round(pw*2.2);
+    S.res.gold+=loot; S.res.stone+=Math.round(pw*0.4); S.res.wood+=Math.round(pw*0.4);
+    toast(`✅ ${REGIONS[id].nm}: ${mon.nm} 격퇴! +${loot}🪙`);
+  } else { // 방어 실패 → 영웅 피해 + 건물 손상
+    const over=(pw-def)/Math.max(1,pw);
+    const dmg=Math.round(30+over*70);
+    let downed=0;
+    rg.heroes.forEach(h=>{ if(!h.dead){ h.hp-=dmg; if(h.hp<=0){ h.dead=true; h.hp=0; h.respawnAt=Date.now()+respawnMs(id,h); downed++; } } });
+    // 타워 손상(가끔 레벨 다운)
+    if(rg.blds.tower>1 && Math.random()<0.4) rg.blds.tower--;
+    const plunder=Math.round(pw*1.0); S.res.gold=Math.max(0,S.res.gold-plunder);
+    toast(`💥 ${REGIONS[id].nm} 방어 실패! ${mon.nm} 침입 · -${plunder}🪙${downed?` · 영웅 ${downed}명 전사`:''}`);
+  }
+}
+function respawnMs(id,h){ const rg=S.rg[id]; const healLv=rg.blds.heal||0; const base=180*1000; return Math.round(base*(1-healLv*0.22)); }
+function heroBy(slug){ return HEROES.find(h=>h.slug===slug); }
+function heroKr(slug){ const h=heroBy(slug); return h?h.kr:slug; }
+function heroSlots(id){ return 1 + (S.rg[id].blds.summon||0); }
+function canOpen(id){ if(S.rg[id].open) return false; return REGIONS[id].adj.some(a=>S.rg[a]&&S.rg[a].open); }
+
+// ═══════════ UI ═══════════
+let view='map', curRgn=null;
+function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('on'); clearTimeout(t._); t._=setTimeout(()=>t.classList.remove('on'),2600); }
+function fmtDur(ms){ const s=Math.max(0,Math.ceil(ms/1000)); const m=Math.floor(s/60); return m+':'+String(s%60).padStart(2,'0'); }
+
+function renderTop(){
+  document.getElementById('c-gold').textContent='🪙 '+Math.floor(S.res.gold).toLocaleString();
+  const pr=prodRates();
+  document.getElementById('resbar').innerHTML =
+    ['stone','wood','rune'].map(k=>`<span class="res-chip">${RES[k]} ${Math.floor(S.res[k])} <span style="color:#8fce8a">+${(pr[k]).toFixed(0)}/분</span></span>`).join('')+
+    `<span class="res-chip g">🪙 +${pr.gold.toFixed(0)}/분</span>`;
+  document.getElementById('topttl').textContent = view==='map'?'🗺️ 룬테라 원정':('◀ '+REGIONS[curRgn].ic+' '+REGIONS[curRgn].nm);
+}
+function renderMap(){
+  const mn=document.getElementById('mnodes'); const W=440,H=620;
+  // edges
+  const seen=new Set(); let e='';
+  for(const id in REGIONS){ for(const a of REGIONS[id].adj){ const k=[id,a].sort().join('-'); if(seen.has(k))continue; seen.add(k);
+    const A=REGIONS[id],B=REGIONS[a]; e+=`<line class="edge" x1="${A.x}%" y1="${A.y}%" x2="${B.x}%" y2="${B.y}%"/>`; } }
+  document.getElementById('edges').innerHTML=e;
+  mn.innerHTML = Object.keys(REGIONS).map(id=>{
+    const R=REGIONS[id], rg=S.rg[id]; const open=rg.open, canO=canOpen(id);
+    let cls='mnode '+(open?'open':(canO?'openable':'locked'))+(R.home?' home':'');
+    let badge = R.home?'<span class="badge">🏠 시작</span>':(canO?'<span class="badge">개방 가능</span>':'');
+    let meta = open?`⏱습격 ${fmtDur((rg.nextRaid||0)-Date.now())} · 🦸${rg.heroes.length}/${heroSlots(id)}`:(canO?'열기 →':'🔒 근접 해금 필요');
+    let raidmk = open && (rg.nextRaid-Date.now()<20000) ? '<span class="raidmk">⚔️</span>':'';
+    return `<div class="${cls}" style="left:${R.x}%;top:${R.y}%" data-id="${id}">${badge}<div class="pin">${raidmk}<span class="ic">${R.ic}</span><span class="nm">${R.nm}</span><span class="meta">${'★'.repeat(R.threat)}<br>${meta}</span></div></div>`;
+  }).join('');
+  mn.querySelectorAll('.mnode').forEach(n=>n.onclick=()=>onNode(n.dataset.id));
+}
+function onNode(id){ const rg=S.rg[id];
+  if(rg.open){ curRgn=id; view='rgn'; showView(); }
+  else if(canOpen(id)){ // 개방
+    const cost={stone:REGIONS[id].threat*80, wood:REGIONS[id].threat*60};
+    if(!pay(cost)){ toast('자원 부족 — '+costStr(cost)); return; }
+    rg.open=true; rg.nextRaid=Date.now()+RAID_INTERVAL; save(); toast(`🚩 ${REGIONS[id].nm} 개방! 영웅을 투입하세요`); renderMap(); renderTop();
+  } else toast('근접한 개방 지역이 있어야 열려요');
+}
+function costStr(c){ return Object.keys(c).map(k=>`${RES[k]}${c[k]}`).join(' '); }
+function pay(c){ for(const k in c){ if((S.res[k]||0)<c[k]) return false; } for(const k in c){ S.res[k]-=c[k]; } return true; }
+
+function showView(){ document.getElementById('map-view').style.display = view==='map'?'block':'none';
+  document.getElementById('rgn-view').style.display = view==='rgn'?'block':'none';
+  if(view==='map') renderMap(); else renderRgn(); renderTop(); }
+
+function renderRgn(){
+  const id=curRgn, R=REGIONS[id], rg=S.rg[id]; const slots=heroSlots(id);
+  const def=defenseOf(id), pw=raidPowerOf(id); const pct=Math.min(100,Math.round(def/Math.max(pw,def)*100)); const linePct=Math.min(100,Math.round(pw/Math.max(pw,def)*100));
+  const heroHtml = rg.heroes.map(h=>{ const H=heroBy(h.slug),hs=hstat(H);
+    return `<div class="hero ${h.dead?'dead':''}"><div class="por" style="background-image:url('${heroImg(h.slug)}')"></div><div class="hi"><div class="hn">${H.kr}${h.dead?' 💀':''}</div><div class="hs">${h.dead?('재생성 ⏱ '+fmtDur(h.respawnAt-Date.now())):`⚡${hs.mv} ⚔️${hs.atk} ❤️${hs.hp}`}</div><div class="hpbar"><div style="width:${Math.round(h.hp)}%"></div></div>${h.dead?`<button class="bld-up" style="margin-top:4px" onclick="reviveNow('${id}','${h.slug}')">🔮 룬20 즉시부활</button>`:''}</div></div>`; }).join('');
+  const empties = Array.from({length:Math.max(0,slots-rg.heroes.length)}).map(()=>`<div class="hero-empty" onclick="openHeroPick('${id}')"><b>➕</b>영웅 투입<br><span style="opacity:.6">${R.nm} 영웅</span></div>`).join('');
+  const blds = Object.keys(BLD).map(b=>{ const d=BLD[b]; const lv=rg.blds[b]||0; const nextCost=d.cost(lv+1); const maxed=lv>=d.maxLv;
+    let eff='';
+    if(d.type==='prod') eff=`${RES[d.res]} +${lv?(d.base+d.per*(lv-1)):0}/분`;
+    else if(d.type==='def') eff=`🛡️ 방어력 +${lv?(d.base+d.per*(lv-1)):0}`;
+    else if(d.type==='heal') eff=`❤️ 회복↑·💀 재생성 -${lv*22}%`;
+    else if(d.type==='slot') eff=`🦸 영웅 슬롯 ${1+lv}`;
+    const cls='bld'+(b==='tower'?' tower':'')+(b==='heal'?' heal':'');
+    return `<div class="${cls}"><div class="bld-h"><span class="bld-ic">${d.ic}</span><span class="bld-nm">${d.nm}</span><span class="bld-lv">Lv${lv}</span></div>
+      <div class="bld-eff ${d.type==='def'?'':''}">${eff}</div>
+      <button class="bld-up" ${maxed?'disabled':''} onclick="build('${id}','${b}')">${maxed?'최대':(lv?'업글':'건설')+' · '+costStr(nextCost)}</button></div>`;
+  }).join('');
+  document.getElementById('rgn-view').innerHTML = `
+    <div class="raid">
+      <div class="raid-t"><span>⚔️ 다음 습격 ⏱ ${fmtDur((rg.nextRaid||0)-Date.now())}</span><span class="mon">${R.mon.ic} ${R.mon.nm} · ${'★'.repeat(R.threat)}</span></div>
+      <div class="rbar"><div class="def" style="width:${pct}%"></div><div class="line" style="left:${linePct}%"></div></div>
+      <div class="raid-meta"><span>🛡️ 방어력 <b style="color:#f0e2b8">${def}</b> vs 습격 <b style="color:#ff9a6a">${pw}</b></span><span style="color:${def>=pw?'#86efac':'#ffb86a'};font-weight:800">${def>=pw?'✅ 방어 성공 예상':'⚠️ 방어 부족'}</span></div>
+    </div>
+    <div class="sec-h">🦸 주둔 영웅 <span>${rg.heroes.length}/${slots}</span></div>
+    <div class="heroes">${heroHtml}${empties}</div>
+    <div class="sec-h">🏗️ 건물</div>
+    <div class="bgrid">${blds}</div>
+    <div style="height:20px"></div>`;
+  document.getElementById('topttl').onclick=()=>{ view='map'; showView(); };
+}
+window.build=function(id,b){ const rg=S.rg[id]; const lv=rg.blds[b]||0; const d=BLD[b]; if(lv>=d.maxLv)return;
+  const c=d.cost(lv+1); if(!pay(c)){ toast('자원 부족 — '+costStr(c)); return; } rg.blds[b]=lv+1; save(); toast(`${d.ic} ${d.nm} Lv${lv+1}!`); renderRgn(); renderTop(); };
+window.reviveNow=function(id,slug){ const rg=S.rg[id]; const h=rg.heroes.find(x=>x.slug===slug); if(!h||!h.dead)return;
+  if((S.res.rune||0)<20){ toast('룬 부족(20 필요)'); return; } S.res.rune-=20; h.dead=false; h.hp=HP_MAX; save(); toast(`💫 ${heroKr(slug)} 즉시 부활!`); renderRgn(); renderTop(); };
+function openHeroPick(id){ const R=REGIONS[id], rg=S.rg[id];
+  const avail=HEROES.filter(h=>h.region===id && !rg.heroes.some(x=>x.slug===h.slug));
+  if(!avail.length){ toast('이 지역에 투입할 영웅이 더 없어요'); return; }
+  const ov=document.createElement('div'); ov.className='ov';
+  ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker"><h3 class="pick-h">🦸 ${R.nm}에 투입할 영웅</h3><div class="pgrid">`+
+    avail.map(h=>{ const hs=hstat(h); return `<div class="pcard" data-s="${h.slug}"><div class="por" style="background-image:url('${heroImg(h.slug)}')"></div><div><div class="hn">${h.kr}</div><div class="hs">⚡${hs.mv} ⚔️${hs.atk} ❤️${hs.hp}</div><div class="hs" style="color:#8fce8a">${ROLE_TRAIT[h.role]}</div></div></div>`;}).join('')+
+    `</div><div style="font-size:10px;color:#8a7a52;margin-top:8px;text-align:center">카드를 탭하면 원정 카드(LoR)로 크게 봐요</div></div>`;
+  document.body.appendChild(ov);
+  ov.querySelectorAll('.pcard').forEach(c=>{
+    let tapped=0;
+    c.onclick=()=>{ if(tapped){ showCard(c.dataset.s); return; } tapped=1; setTimeout(()=>tapped=0,700);
+      const h=heroBy(c.dataset.s); const mv=hstat(h).mv; const travel=Math.round((REGIONS[id].threat*30)/(mv/5)); // 이동속도로 도착 시간(초, 프로토타입 축약)
+      rg.heroes.push({slug:h.slug,hp:HP_MAX,dead:false}); save(); ov.remove(); toast(`🦸 ${h.kr} ${REGIONS[id].nm} 투입!`); renderRgn(); renderTop(); };
+  });
+  ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
+}
+window.showCard=function(slug){ const h=heroBy(slug), hs=hstat(h), R=REGIONS[h.region];
+  const ov=document.createElement('div'); ov.className='ov'; ov.onclick=(e)=>{ if(e.target===ov)ov.remove(); };
+  ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span>
+    <div class="lor"><div class="cost">★★★<small>PRISM</small></div><div class="rgn">${R.rgnIc}</div>
+      <div class="art" style="background-image:url('${heroImg(slug,'splash')}')"></div>
+      <div class="nm">${h.kr}</div>
+      <div class="kw"><b>${ROLE_TRAIT[h.role]}</b></div>
+      <div class="ds">🏠 <b>${R.nm}</b> 소속 · ${ROLE_DESC[h.role]}</div>
+      <div class="pw">⚔️<span>${hs.atk}</span><small>전투</small></div>
+      <div class="hp">❤️<span>${hs.hp}</span><small>체력</small></div>
+    </div>`;
+  document.body.appendChild(ov);
+};
+window.openHeroPick=openHeroPick;
+
+// ═══════════ 루프 ═══════════
+function loop(){ tick(); if(view==='map') renderMap(); else if(curRgn) renderRgn(); renderTop(); save(); }
+showView(); loop(); setInterval(loop, 1000);
+window.runeReset=function(){ localStorage.removeItem('rune_proto'); S=fresh(); showView(); toast('프로토타입 초기화'); };
+</script>
+</body></html>
