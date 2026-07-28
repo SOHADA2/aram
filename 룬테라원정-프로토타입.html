@@ -93,6 +93,28 @@ body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system
 .lor .pw{left:6px;background:radial-gradient(circle at 40% 32%,#ffcf87,#e07a1e 60%,#8a3d08);}
 .lor .hp{right:6px;background:radial-gradient(circle at 40% 32%,#ff9a9a,#d63838 60%,#7a1414);}
 .lor .pw small,.lor .hp small{font-size:8px;}
+/* ── 게임풍 폴리시 + 애니메이션(전략게임 톤 참고·오리지널) ── */
+.topbar{background:linear-gradient(180deg,#241a10,#160f0a);border-bottom:2px solid #6b4f24;box-shadow:0 3px 10px rgba(0,0,0,.5);}
+.resbar{background:linear-gradient(180deg,#1a140c,#120d08);border-bottom:1px solid #6b4f24;}
+.res-chip{background:linear-gradient(180deg,rgba(60,44,20,.5),rgba(20,14,8,.6));border:1px solid #6b4f24;box-shadow:inset 0 1px 0 rgba(255,255,255,.06);}
+#map-view.anim{animation:mapIn .55s ease-out;}
+.mnode.pop{animation:nodePop .5s cubic-bezier(.34,1.5,.5,1) backwards;}
+#rgn-view.anim{animation:viewIn .4s ease-out;}
+@keyframes mapIn{from{opacity:0;transform:scale(1.09)}to{opacity:1;transform:scale(1)}}
+@keyframes nodePop{0%{opacity:0;transform:translate(-50%,-50%) scale(.35)}72%{transform:translate(-50%,-50%) scale(1.14)}100%{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+@keyframes viewIn{from{opacity:0;transform:translateY(16px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes bannerZoom{from{transform:scale(1.15)}to{transform:scale(1)}}
+/* 정착지 헤더 배너 */
+.rgn-banner{position:relative;height:98px;border-radius:12px;overflow:hidden;margin-bottom:6px;border:1px solid #6b4f24;box-shadow:0 4px 14px rgba(0,0,0,.5);}
+.rgn-banner .bg{position:absolute;inset:0;background-size:cover;background-position:40% 20%;filter:brightness(.6);animation:bannerZoom .8s ease-out;}
+.rgn-banner .ov2{position:absolute;inset:0;background:linear-gradient(180deg,rgba(10,8,6,.1),rgba(10,8,6,.88));}
+.rgn-banner .tt{position:absolute;left:14px;bottom:9px;font-size:19px;font-weight:900;color:#f0dca0;text-shadow:0 2px 5px #000;}
+.rgn-banner .tt small{font-size:11px;color:#ff9a6a;margin-left:6px;}
+.rgn-banner .bk{position:absolute;top:8px;left:8px;width:32px;height:32px;border:none;border-radius:8px;background:rgba(0,0,0,.55);color:#e8dcc0;font-size:16px;cursor:pointer;}
+.rgn-banner .story2{position:absolute;left:14px;right:12px;bottom:-1px;font-size:9.5px;color:#c9b98a;transform:translateY(-24px);opacity:.9;}
+/* 건물 플롯 느낌 */
+.bld{background:linear-gradient(180deg,rgba(40,30,16,.6),rgba(18,13,8,.62));box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 2px 5px rgba(0,0,0,.35);}
+.bld-ic{filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
 </style></head>
 <body><div class="app">
   <div class="topbar">
@@ -245,7 +267,7 @@ function heroSlots(id){ return 1 + (S.rg[id].blds.summon||0); }
 function canOpen(id){ if(S.rg[id].open) return false; return REGIONS[id].adj.some(a=>S.rg[a]&&S.rg[a].open); }
 
 // ═══════════ UI ═══════════
-let view='map', curRgn=null;
+let view='map', curRgn=null, _mapAnimed=false;
 function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('on'); clearTimeout(t._); t._=setTimeout(()=>t.classList.remove('on'),2600); }
 function fmtDur(ms){ const s=Math.max(0,Math.ceil(ms/1000)); const m=Math.floor(s/60); return m+':'+String(s%60).padStart(2,'0'); }
 
@@ -264,15 +286,16 @@ function renderMap(){
   for(const id in REGIONS){ for(const a of REGIONS[id].adj){ const k=[id,a].sort().join('-'); if(seen.has(k))continue; seen.add(k);
     const A=REGIONS[id],B=REGIONS[a]; e+=`<line class="edge" x1="${A.x}%" y1="${A.y}%" x2="${B.x}%" y2="${B.y}%"/>`; } }
   document.getElementById('edges').innerHTML=e;
-  mn.innerHTML = Object.keys(REGIONS).map(id=>{
+  mn.innerHTML = Object.keys(REGIONS).map((id,ix)=>{
     const R=REGIONS[id], rg=S.rg[id]; const open=rg.open, canO=canOpen(id);
-    let cls='mnode '+(open?'open':(canO?'openable':'locked'))+(R.home?' home':'');
+    let cls='mnode '+(open?'open':(canO?'openable':'locked'))+(R.home?' home':'')+(_mapAnimed?'':' pop');
     let badge = R.home?'<span class="badge">🏠 시작</span>':(canO?'<span class="badge">개방 가능</span>':'');
     let meta = open?`⏱습격 ${fmtDur((rg.nextRaid||0)-Date.now())} · 🦸${rg.heroes.length}/${heroSlots(id)}`:(canO?'열기 →':'🔒 근접 해금 필요');
     let raidmk = open && (rg.nextRaid-Date.now()<20000) ? '<span class="raidmk">⚔️</span>':'';
-    return `<div class="${cls}" style="left:${R.x}%;top:${R.y}%" data-id="${id}">${badge}<div class="pin">${raidmk}<span class="ic">${R.ic}</span><span class="nm">${R.nm}</span><span class="meta">${'★'.repeat(R.threat)}<br>${meta}</span></div></div>`;
+    return `<div class="${cls}" style="left:${R.x}%;top:${R.y}%;animation-delay:${(_mapAnimed?0:ix*40)}ms" data-id="${id}">${badge}<div class="pin">${raidmk}<span class="ic">${R.ic}</span><span class="nm">${R.nm}</span><span class="meta">${'★'.repeat(R.threat)}<br>${meta}</span></div></div>`;
   }).join('');
   mn.querySelectorAll('.mnode').forEach(n=>n.onclick=()=>onNode(n.dataset.id));
+  _mapAnimed=true;
 }
 function onNode(id){ const rg=S.rg[id];
   if(rg.open){ curRgn=id; view='rgn'; showView(); }
@@ -285,9 +308,11 @@ function onNode(id){ const rg=S.rg[id];
 function costStr(c){ return Object.keys(c).map(k=>`${RES[k]}${c[k]}`).join(' '); }
 function pay(c){ for(const k in c){ if((S.res[k]||0)<c[k]) return false; } for(const k in c){ S.res[k]-=c[k]; } return true; }
 
-function showView(){ document.getElementById('map-view').style.display = view==='map'?'block':'none';
-  document.getElementById('rgn-view').style.display = view==='rgn'?'block':'none';
-  if(view==='map') renderMap(); else renderRgn(); renderTop(); }
+function showView(){ const mv=document.getElementById('map-view'), rv=document.getElementById('rgn-view');
+  mv.style.display = view==='map'?'block':'none'; rv.style.display = view==='rgn'?'block':'none';
+  if(view==='map'){ _mapAnimed=false; renderMap(); mv.classList.remove('anim'); void mv.offsetWidth; mv.classList.add('anim'); }
+  else { renderRgn(); rv.classList.remove('anim'); void rv.offsetWidth; rv.classList.add('anim'); }
+  renderTop(); }
 
 function renderRgn(){
   const id=curRgn, R=REGIONS[id], rg=S.rg[id]; const slots=heroSlots(id);
@@ -306,7 +331,14 @@ function renderRgn(){
       <div class="bld-eff ${d.type==='def'?'':''}">${eff}</div>
       <button class="bld-up" ${maxed?'disabled':''} onclick="build('${id}','${b}')">${maxed?'최대':(lv?'업글':'건설')+' · '+costStr(nextCost)}</button></div>`;
   }).join('');
+  const bannerImg = rg.heroes[0] ? heroImg(rg.heroes[0].slug,'splash') : '';
   document.getElementById('rgn-view').innerHTML = `
+    <div class="rgn-banner">
+      <div class="bg" style="background-image:${bannerImg?`url('${bannerImg}')`:'radial-gradient(circle at 40% 30%,#3a2c1a,#140e08)'}"></div><div class="ov2"></div>
+      <button class="bk" onclick="view='map';showView();">←</button>
+      <div class="tt">${R.ic} ${R.nm} <small>${'★'.repeat(R.threat)} 위협</small></div>
+    </div>
+    <div style="font-size:10px;color:#c9b98a;margin:2px 2px 8px;">⚠️ ${R.mon.nm}이(가) 날뛰고 있어요. 영웅과 방어 타워로 지역을 복구하세요.</div>
     <div class="raid">
       <div class="raid-t"><span>⚔️ 다음 습격 ⏱ ${fmtDur((rg.nextRaid||0)-Date.now())}</span><span class="mon">${R.mon.ic} ${R.mon.nm} · ${'★'.repeat(R.threat)}</span></div>
       <div class="rbar"><div class="def" style="width:${pct}%"></div><div class="line" style="left:${linePct}%"></div></div>
