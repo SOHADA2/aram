@@ -14,11 +14,11 @@ body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system
 .btn-dk{background:rgba(255,255,255,.07);color:#e8dcc0;border:1px solid rgba(255,255,255,.12);}
 /* 지도 — 실사 룬테라 맵 배경 + 얇은 상태 마커 */
 #map-view{position:relative;padding:12px 8px 6px;background:radial-gradient(120% 100% at 50% 20%,#0e2632,#081820 60%,#050f14 100%);min-height:300px;}
-.map-wrap{position:relative;width:100%;aspect-ratio:1000/577;border-radius:12px;overflow:hidden;cursor:grab;touch-action:none;
+.map-wrap{position:relative;width:100%;height:min(72vh,660px);border-radius:12px;overflow:hidden;cursor:grab;touch-action:none;
   box-shadow:0 10px 34px rgba(0,0,0,.62),inset 0 0 0 1px rgba(202,162,78,.4);}
 .map-wrap.grabbing{cursor:grabbing;}
-.map-content{position:absolute;inset:0;transform-origin:0 0;will-change:transform;}
-.map-canvas{position:absolute;inset:0;background:url('assets/rune/runeterra_map.jpg') center/cover no-repeat;}
+.map-content{position:absolute;top:0;left:0;width:100%;aspect-ratio:1000/577;transform-origin:0 0;will-change:transform;}
+.map-canvas{position:absolute;inset:0;background:url('assets/rune/runeterra_map.jpg') center/100% 100% no-repeat;}
 /* 팬/줌 공통 컨트롤 */
 .pz-hint{position:absolute;left:50%;bottom:7px;transform:translateX(-50%);z-index:6;font-size:9px;color:#cfe0e8;background:rgba(6,12,16,.6);border:1px solid rgba(200,168,75,.25);border-radius:12px;padding:3px 10px;pointer-events:none;white-space:nowrap;transition:opacity .5s;}
 .pz-hint.gone{opacity:0;}
@@ -27,7 +27,8 @@ body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system
 .map-edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2;}
 .map-vig{position:absolute;inset:0;pointer-events:none;z-index:3;border-radius:12px;box-shadow:inset 0 0 36px 8px rgba(4,10,14,.55);}
 #mnodes{position:absolute;inset:0;z-index:5;}
-.mk{position:absolute;transform:translate(-50%,-50%);width:11%;aspect-ratio:1;min-width:34px;cursor:pointer;}
+.mk{position:absolute;width:0;height:0;z-index:1;}
+.mk-box{position:absolute;left:0;top:0;width:52px;height:52px;transform:translate(-50%,-50%) scale(var(--mkz,1));transform-origin:center;cursor:pointer;}
 .mk-ring{position:absolute;left:50%;top:50%;width:88%;height:88%;transform:translate(-50%,-50%);border-radius:50%;pointer-events:none;transition:box-shadow .2s;}
 .mk.open .mk-ring{box-shadow:0 0 0 2px rgba(127,206,122,.85),0 0 15px rgba(127,206,122,.45);}
 .mk.openable .mk-ring{box-shadow:0 0 0 2px rgba(169,212,255,.95);animation:mkPulse 1.5s infinite;}
@@ -390,15 +391,22 @@ function canOpen(id){ if(S.rg[id].open) return false; return REGIONS[id].adj.som
 let view='map', curRgn=null, _mapAnimed=false, _biomesDrawn=false, _rgnBuilt=null, _painted=false;
 // 시드 RNG(지형을 매번 리셔플하지 않고 고정)
 function mkrng(seed){ return function(){ seed|=0; seed=(seed+0x6D2B79F5)|0; let t=Math.imul(seed^(seed>>>15),1|seed); t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; }
-// 재사용 팬/줌 컨트롤러(지도·지역 공용) — 휠/핀치 확대 + 드래그 이동 + 더블탭
+// 재사용 팬/줌 컨트롤러(지도·지역 공용) — 콘텐츠 실측 기반. 세로 꽉 채우기(fill) + 휠/핀치/드래그/더블탭
 function attachPanZoom(wrap, content, opt){
-  opt=opt||{}; const MIN=opt.min||1, MAX=opt.max||3.6, DBL=opt.dbl||2.4;
-  let sc=1,tx=0,ty=0; const pts=new Map(); let lastDist=0,downXY=null,panned=false,lastTap=0;
+  opt=opt||{}; const MAX=opt.max||3.6, DBL=opt.dbl||2.4;
+  let sc=1,tx=0,ty=0,initSc=1; const pts=new Map(); let lastDist=0,downXY=null,panned=false,lastTap=0;
   const vw=()=>wrap.clientWidth||1, vh=()=>wrap.clientHeight||1;
+  const cw0=()=>content.offsetWidth||vw(), ch0=()=>content.offsetHeight||vh();
   const D=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y), M=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
-  function clamp(){ sc=Math.max(MIN,Math.min(MAX,sc)); tx=Math.min(0,Math.max(vw()*(1-sc),tx)); ty=Math.min(0,Math.max(vh()*(1-sc),ty)); }
-  function apply(){ clamp(); content.style.transform=`translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${sc.toFixed(3)})`; }
-  function zoomAt(cx,cy,ns){ const px=(cx-tx)/sc, py=(cy-ty)/sc; sc=Math.max(MIN,Math.min(MAX,ns)); tx=cx-px*sc; ty=cy-py*sc; apply(); if(opt.onZoom)opt.onZoom(); }
+  function fitScale(){ return Math.min(vw()/cw0(), vh()/ch0()); }   // 전체가 들어오는 배율(letterbox)
+  function coverScale(){ return Math.max(vw()/cw0(), vh()/ch0()); } // 화면을 꽉 채우는 배율(crop)
+  function clamp(){ const MIN=Math.min(fitScale(),1); sc=Math.max(MIN,Math.min(MAX*coverScale(),sc));
+    const cw=cw0()*sc, ch=ch0()*sc;
+    tx = cw<=vw() ? (vw()-cw)/2 : Math.min(0,Math.max(vw()-cw,tx));
+    ty = ch<=vh() ? (vh()-ch)/2 : Math.min(0,Math.max(vh()-ch,ty)); }
+  function apply(){ clamp(); content.style.transform=`translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${sc.toFixed(3)})`; if(opt.onZoom) opt.onZoom(sc); }
+  function zoomAt(cx,cy,ns){ const px=(cx-tx)/sc, py=(cy-ty)/sc; sc=ns; clamp(); tx=cx-px*sc; ty=cy-py*sc; apply(); }
+  function center(){ tx=(vw()-cw0()*sc)/2; ty=(vh()-ch0()*sc)/2; apply(); }
   wrap.addEventListener('wheel',e=>{ e.preventDefault(); const r=wrap.getBoundingClientRect(); zoomAt(e.clientX-r.left,e.clientY-r.top, sc*(e.deltaY<0?1.2:1/1.2)); },{passive:false});
   wrap.addEventListener('pointerdown',e=>{ wrap.setPointerCapture(e.pointerId); pts.set(e.pointerId,{x:e.clientX,y:e.clientY}); panned=false;
     if(pts.size===1) downXY={x:e.clientX,y:e.clientY};
@@ -410,10 +418,13 @@ function attachPanZoom(wrap, content, opt){
   function up(e){ pts.delete(e.pointerId); if(pts.size<2) lastDist=0;
     if(pts.size===0){ wrap.classList.remove('grabbing');
       if(panned){ wrap._panned=true; setTimeout(()=>{wrap._panned=false;},60); }
-      else if(downXY){ const now=Date.now(); if(now-lastTap<300){ const r=wrap.getBoundingClientRect(); zoomAt(downXY.x-r.left,downXY.y-r.top, sc>1.35?1:DBL); lastTap=0; } else lastTap=now; } } }
+      else if(downXY){ const now=Date.now(); if(now-lastTap<300){ const r=wrap.getBoundingClientRect(); zoomAt(downXY.x-r.left,downXY.y-r.top, sc>initSc*1.25?initSc:initSc*DBL); lastTap=0; } else lastTap=now; } } }
   wrap.addEventListener('pointerup',up); wrap.addEventListener('pointercancel',up);
-  wrap._panzoom={ reset:()=>{ sc=1;tx=0;ty=0;apply(); }, apply };
-  apply(); return wrap._panzoom;
+  function init(){ initSc = opt.fill ? coverScale() : Math.min(fitScale(),1); sc=initSc;
+    if(opt.focus){ tx=vw()/2 - opt.focus.fx*cw0()*sc; ty=vh()/2 - opt.focus.fy*ch0()*sc; apply(); } else center(); }
+  window.addEventListener('resize',()=>{ const wasInit=Math.abs(sc-initSc)<0.01; init(); if(!wasInit){ sc=Math.min(sc,MAX*coverScale()); apply(); } });
+  wrap._panzoom={ reset:()=>{ init(); }, apply, init };
+  init(); return wrap._panzoom;
 }
 // 대륙 실루엣(발로란·슈리마·아이오니아 군도·빌지워터 군도·타곤·공허)
 const LANDS=[
@@ -499,7 +510,7 @@ function renderMap(){
     if(R.home) badge='<span class="mk-badge home">🏠 시작</span>';
     else if(open) badge=`<span class="mk-badge timer">⏱ ${fmtDur((rg.nextRaid||0)-Date.now())}</span>`;
     else if(canO) badge='<span class="mk-badge tag">개방 가능</span>';
-    return `<div class="mk ${st}${R.home?' home':''}" style="left:${R.x}%;top:${R.y}%" data-id="${id}">${veil}<div class="mk-ring"></div>${lock}${raidmk}${badge}</div>`;
+    return `<div class="mk ${st}${R.home?' home':''}" style="left:${R.x}%;top:${R.y}%" data-id="${id}"><div class="mk-box">${veil}<div class="mk-ring"></div>${lock}${raidmk}${badge}</div></div>`;
   }).join('');
   mn.querySelectorAll('.mk').forEach(n=>n.onclick=()=>{ const w=document.getElementById('map-wrap'); if(w&&w._panned)return; onNode(n.dataset.id); });
 }
@@ -520,30 +531,30 @@ function showView(){ const mv=document.getElementById('map-view'), rv=document.g
   else { renderRgn(true); rv.classList.remove('anim'); void rv.offsetWidth; rv.classList.add('anim'); }
   renderTop(); }
 
-// 넓은 영토 배치 — 건물을 넓게 펼침(중앙 성채 + 사방 지구). 전체를 작게 보고 줌인으로 세부 확인.
+// 건물 = 기능에 맞는 스프라이트 + 구역별 테마 소품(th). 소환=관문·금고=상자·채석=석재·벌목=통나무·룬=기둥·방어=감시탑·의무=탁자
 const ISO_PLOTS = [
-  {b:'summon',sp:'tableRoundChairs_E',c:2,r:2,ey:0},   // 중앙 성채(영웅 소환소)
-  {b:'heal',  sp:'barrels_E',         c:3,r:2,ey:0},   // 성채 옆 치료소
-  {b:'gold',  sp:'chestClosed_E',     c:1,r:0,ey:-3},  // 북서 금고 지구
-  {b:'stone', sp:'barrelsStacked_E',  c:4,r:1,ey:0},   // 북동 채석 지구
-  {b:'wood',  sp:'woodenPile_E',      c:0,r:3,ey:-2},  // 남서 벌목 지구
-  {b:'rune',  sp:'stoneColumn_E',     c:5,r:4,ey:-6},  // 동 룬 제단
-  {b:'tower', sp:'woodenCrates_E',    c:3,r:5,ey:0},   // 남 방어 전선
-];
-// 장식 소품 산개(비인터랙티브) — 살아있는 영토 느낌
-const ISO_DECO = [
-  ['barrel_E',0,0],['barrel_E',5,1],['woodenCrates_E',4,4],['barrelsStacked_E',1,5],['stoneColumn_E',0,4,-4],
-  ['chair_E',2,1],['barrel_E',3,3],['planks_E',2,4],['woodenPile_E',5,2,-1],['chestOpen_E',4,3],
-  ['barrel_E',1,2],['stoneSteps_E',2,0],['stoneSteps_E',2,3],['stoneSteps_E',1,3],['stoneSteps_E',3,4],
+  {b:'summon',sp:'stoneWallArchway_E',    c:2,r:2,ey:-4, th:['stoneSteps_E','stoneSteps_E']},          // 중앙 소환 관문
+  {b:'gold',  sp:'chestClosed_E',         c:1,r:1,ey:-2, th:['chestOpen_E','barrel_E']},               // 금고
+  {b:'heal',  sp:'tableRoundChairs_E',    c:4,r:1,ey:0,  th:['barrels_E','barrel_E']},                 // 의무소
+  {b:'stone', sp:'stoneSteps_E',          c:4,r:3,ey:0,  th:['stoneColumn_E','stoneSteps_E']},         // 채석장(석재)
+  {b:'wood',  sp:'woodenPile_E',          c:1,r:4,ey:-2, th:['planks_E','woodenCrates_E','barrel_E']}, // 벌목장(목재)
+  {b:'rune',  sp:'stoneColumn_E',         c:5,r:5,ey:-5, th:['stoneColumn_E']},                        // 룬 제단
+  {b:'tower', sp:'stoneWallRoundWindow_E',c:2,r:5,ey:-4, th:['woodenCrates_E']},                       // 감시탑
 ];
 function buildIso(id){
   const scene=document.getElementById('rgn-scene'); const cam=document.getElementById('rgn-cam'); if(!cam) return;
   const rg=S.rg[id]; const B=BIOME[id]; const A='assets/rune/iso/';
-  const TW=62, DX=TW/2, DY=TW/4, AN=0.80, cx=(scene.clientWidth||420)/2, cy=140;
-  const GC0=-1,GC1=6,GR0=-1,GR1=6, IC0=1,IC1=4,IR0=1,IR1=4;
+  const TW=60, DX=TW/2, DY=TW/4, AN=0.80, cx=(scene.clientWidth||420)/2, cy=140;
+  const GC0=-1,GC1=6,GR0=-1,GR1=6, IC0=0,IC1=5,IR0=0,IR1=5;
+  const R=mkrng(1000 + id.length*131 + id.charCodeAt(0)*7);   // 지역별 고정 랜덤(소품 배치)
+  const P=(c,r)=>({x:cx+(c-r)*DX, y:cy+(c+r)*DY});
   function put(src,col,row,o){ o=o||{}; const w=TW*(o.scale||1),h=w*2, x=cx+(col-row)*DX, y=cy+(col+row)*DY;
     const img=new Image(); img.src=A+src+'.png';
     img.style.cssText=`position:absolute;width:${w}px;left:${x-w/2}px;top:${y-h*AN+(o.ey||0)}px;z-index:${Math.round((col+row)*10+(o.dz||0))};filter:${o.filter?o.filter+' ':''}drop-shadow(0 5px 5px rgba(0,0,0,.4));pointer-events:none;`;
+    cam.appendChild(img); }
+  function putPix(src,x,y,o){ o=o||{}; const w=TW*(o.scale||0.5),h=w*2;
+    const img=new Image(); img.src=A+src+'.png';
+    img.style.cssText=`position:absolute;width:${w}px;left:${x-w/2}px;top:${y-h*AN+(o.ey||0)}px;z-index:${Math.round(o.z||0)};filter:${o.filter?o.filter+' ':''}drop-shadow(0 4px 4px rgba(0,0,0,.38));pointer-events:none;`;
     cam.appendChild(img); }
   function tag(col,row,nm,lv,ey,bkey){ const x=cx+(col-row)*DX, y=cy+(col+row)*DY; const d=document.createElement('div');
     d.className='iso-tag'; d.style.left=x+'px'; d.style.top=(y-40+(ey||0))+'px'; d.style.zIndex=Math.round((col+row)*10+6);
@@ -552,24 +563,28 @@ function buildIso(id){
   function emp(col,row,ey,bkey){ const x=cx+(col-row)*DX, y=cy+(col+row)*DY; const d=document.createElement('div');
     d.className='iso-emp'; d.style.left=x+'px'; d.style.top=(y-8+(ey||0))+'px'; d.style.zIndex=Math.round((col+row)*10+6);
     d.innerHTML=`＋ ${BLD[bkey].ic} ${BLD[bkey].nm}`; d.onclick=()=>{ if(scene._panned)return; build(id,bkey); }; cam.appendChild(d); }
-  // 넓은 바닥 — 안뜰(돌) + 바깥 영토(흙), 바이옴 색으로 물들임
+  // 바닥 — 넓은 정착지(안뜰=돌 광장 + 바깥=흙길), 바이옴 색
   for(let r=GR0;r<=GR1;r++)for(let c=GC0;c<=GC1;c++){ const inner=(c>=IC0&&c<=IC1&&r>=IR0&&r<=IR1);
     put(inner?((c+r)%2?'stoneTile_E':'stoneTile_N'):((c+r)%2?'dirt_E':'dirtTiles_E'),c,r,{dz:-9,filter:B.gf}); }
-  // 넓은 성벽(북·서 외곽) + 코너 탑 + 중간 탑 + 정문 — 바이옴 벽 색
-  for(let r=GR0;r<=GR1;r++) put('stoneWall_N',GC0,r,{filter:B.wf});
+  // 가벼운 둘레 — 뒷 성벽(북)만 + 코너/중간 탑 + 남동 성문 (요새 아닌 성곽 도시 느낌)
   for(let c=GC0;c<=GC1;c++) put('stoneWall_E',c,GR0,{filter:B.wf});
   put('stoneWallRoundWindow_E',GC0,GR0,{ey:-5,dz:3,filter:B.wf});
   put('stoneWallRoundWindow_E',GC1,GR0,{ey:-5,dz:3,filter:B.wf});
-  put('stoneWallRoundWindow_E',GC0,GR1,{ey:-5,dz:3,filter:B.wf});
-  put('stoneWallRoundWindow_E',GC0,2,{ey:-5,dz:3,filter:B.wf});   // 서벽 중간 탑
-  put('stoneWallRoundWindow_E',3,GR0,{ey:-5,dz:3,filter:B.wf});   // 북벽 중간 탑
-  put('stoneWallGateOpen_E',GC1,GR1,{ey:-2,dz:4,filter:B.wf});    // 남동 정문
-  // 장식 소품(길·통·기둥 등) — 살아있는 영토
-  ISO_DECO.forEach(d=>{ put(d[0],d[1],d[2],{dz:(d[3]!=null?d[3]:0)}); });
-  // 건물(지어진 것만 스프라이트, 빈 플롯은 건설 버튼) — 건물은 원색 유지(식별성)
-  ISO_PLOTS.forEach(p=>{ const lv=rg.blds[p.b]||0;
+  put('stoneWallRoundWindow_E',3,GR0,{ey:-5,dz:3,filter:B.wf});
+  put('stoneWallGateOpen_E',GC1,GR1,{ey:-2,dz:4,filter:B.wf});
+  // 중앙 대로(돌 포장 십자로) — 거리 느낌
+  for(let c=IC0;c<=IC1;c++){ const p=P(c,2.5); putPix('stoneSteps_E',p.x,p.y,{scale:0.5,z:(c+2.5)*10-6}); }
+  for(let r=IR0;r<=IR1;r++){ const p=P(2.5,r); putPix('stoneSteps_E',p.x,p.y,{scale:0.5,z:(2.5+r)*10-6}); }
+  // 건물 + 구역별 테마 소품(기능 일치) + 건설 버튼
+  ISO_PLOTS.forEach(p=>{ const lv=rg.blds[p.b]||0; const base=P(p.c,p.r); const th=p.th||[];
+    th.forEach((s,i)=>{ const ang=(i/Math.max(1,th.length))*6.28+R()*1.4; const rad=24+R()*10;
+      putPix(s, base.x+Math.cos(ang)*rad, base.y+Math.sin(ang)*rad*0.5+10, {scale:0.4+R()*0.1, z:(p.c+p.r)*10+1}); });
     if(lv>0){ put(p.sp,p.c,p.r,{dz:2}); tag(p.c,p.r,BLD[p.b].nm,lv,p.ey,p.b); }
     else emp(p.c,p.r,p.ey,p.b); });
+  // 마을 소품 산개(빈 곳에 통·상자·기둥 등) — 살아있는 정착지
+  const FILL=['barrel_E','woodenCrates_E','barrelsStacked_E','chair_E','stoneColumn_E','planks_E'];
+  for(let k=0;k<9;k++){ const c=IC0+R()*(IC1-IC0), r=IR0+R()*(IR1-IR0); const p=P(c,r);
+    putPix(FILL[Math.floor(R()*FILL.length)], p.x, p.y+6, {scale:0.32+R()*0.1, z:Math.round((c+r)*10)}); }
 }
 // 분위기 파티클 — 바이옴별(눈·모래·독성·꽃잎·불티·거품·홀씨·잎·성광·공허)
 const FX={
@@ -718,7 +733,8 @@ showView(); loop(); setInterval(loop, 1000);
 // 지도 팬/줌 초기화(휠·핀치 확대, 드래그 이동, 더블탭)
 let _mapPZ=null;
 (function initMapPZ(){ const w=document.getElementById('map-wrap'), c=document.getElementById('map-content'); if(!w||!c) return;
-  _mapPZ=attachPanZoom(w,c,{min:1,max:4.2,dbl:2.6});
+  const home=Object.values(REGIONS).find(r=>r.home); const focus=home?{fx:home.x/100,fy:home.y/100}:null;
+  _mapPZ=attachPanZoom(w,c,{fill:true,max:2.4,dbl:1.7,focus,onZoom:(sc)=>{ const m=document.getElementById('mnodes'); if(m) m.style.setProperty('--mkz',(1/sc).toFixed(3)); }});
   const rb=document.getElementById('map-reset'); if(rb) rb.onclick=()=>_mapPZ.reset();
   setTimeout(()=>{ const h=document.getElementById('map-hint'); if(h) h.classList.add('gone'); },4500);
 })();
