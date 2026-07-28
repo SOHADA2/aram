@@ -14,9 +14,16 @@ body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system
 .btn-dk{background:rgba(255,255,255,.07);color:#e8dcc0;border:1px solid rgba(255,255,255,.12);}
 /* 지도 — 실사 룬테라 맵 배경 + 얇은 상태 마커 */
 #map-view{position:relative;padding:12px 8px 6px;background:radial-gradient(120% 100% at 50% 20%,#0e2632,#081820 60%,#050f14 100%);min-height:300px;}
-.map-wrap{position:relative;width:100%;aspect-ratio:1000/577;border-radius:12px;overflow:hidden;
+.map-wrap{position:relative;width:100%;aspect-ratio:1000/577;border-radius:12px;overflow:hidden;cursor:grab;touch-action:none;
   box-shadow:0 10px 34px rgba(0,0,0,.62),inset 0 0 0 1px rgba(202,162,78,.4);}
+.map-wrap.grabbing{cursor:grabbing;}
+.map-content{position:absolute;inset:0;transform-origin:0 0;will-change:transform;}
 .map-canvas{position:absolute;inset:0;background:url('assets/rune/runeterra_map.jpg') center/cover no-repeat;}
+/* 팬/줌 공통 컨트롤 */
+.pz-hint{position:absolute;left:50%;bottom:7px;transform:translateX(-50%);z-index:6;font-size:9px;color:#cfe0e8;background:rgba(6,12,16,.6);border:1px solid rgba(200,168,75,.25);border-radius:12px;padding:3px 10px;pointer-events:none;white-space:nowrap;transition:opacity .5s;}
+.pz-hint.gone{opacity:0;}
+.pz-reset{position:absolute;right:8px;top:8px;z-index:6;width:30px;height:30px;border:none;border-radius:8px;background:rgba(8,14,18,.7);border:1px solid rgba(200,168,75,.4);color:#f0dca0;font-size:15px;cursor:pointer;backdrop-filter:blur(2px);}
+.pz-reset:active{transform:scale(.94);}
 .map-edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2;}
 .map-vig{position:absolute;inset:0;pointer-events:none;z-index:3;border-radius:12px;box-shadow:inset 0 0 36px 8px rgba(4,10,14,.55);}
 #mnodes{position:absolute;inset:0;z-index:5;}
@@ -148,8 +155,10 @@ body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system
 .bld{background:linear-gradient(180deg,rgba(40,30,16,.6),rgba(18,13,8,.62));box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 2px 5px rgba(0,0,0,.35);}
 .bld-ic{filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
 /* ── 프리미엄 정착지: 아이소 씬 + 영웅 정보 카드 ── */
-.scene{position:relative;height:408px;overflow:hidden;border-radius:14px;margin-bottom:6px;border:1px solid #6b4f24;
+.scene{position:relative;height:408px;overflow:hidden;border-radius:14px;margin-bottom:6px;border:1px solid #6b4f24;cursor:grab;touch-action:none;
   background:radial-gradient(62% 54% at 50% 46%,#40506a,#1c2230 58%,#0b0e15 100%);box-shadow:0 6px 20px rgba(0,0,0,.55),inset 0 0 60px rgba(0,0,0,.45);}
+.scene.grabbing{cursor:grabbing;}
+.scene-cam{position:absolute;inset:0;transform-origin:0 0;will-change:transform;z-index:1;}
 .scene::before{content:'';position:absolute;inset:0;z-index:1;background:radial-gradient(120% 90% at 50% -12%,rgba(255,255,255,.06),transparent 56%);pointer-events:none;}
 .scene::after{content:'';position:absolute;inset:0;background:radial-gradient(76% 64% at 50% 48%,transparent 50%,rgba(0,0,0,.66));pointer-events:none;z-index:50;}
 .scene .bk2{position:absolute;top:9px;left:9px;z-index:56;width:32px;height:32px;border:none;border-radius:9px;background:rgba(8,6,4,.6);border:1px solid rgba(200,168,75,.35);color:#e8dcc0;font-size:16px;cursor:pointer;backdrop-filter:blur(2px);}
@@ -215,11 +224,15 @@ body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system
 
   <!-- 지도 -->
   <div id="map-view">
-    <div class="map-wrap anim">
-      <div class="map-canvas"></div>
-      <svg class="map-edges" id="edges" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
-      <div id="mnodes"></div>
+    <div class="map-wrap" id="map-wrap">
+      <div class="map-content" id="map-content">
+        <div class="map-canvas"></div>
+        <svg class="map-edges" id="edges" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+        <div id="mnodes"></div>
+      </div>
       <div class="map-vig"></div>
+      <div class="pz-hint" id="map-hint">🔍 휠·두 손가락으로 확대 · 끌어서 이동</div>
+      <button class="pz-reset" id="map-reset" title="원래대로">⤢</button>
     </div>
     <div class="map-tip">지역 문장을 탭해 원정을 떠나요 · 근접 지역부터 순차 해금</div>
   </div>
@@ -377,6 +390,31 @@ function canOpen(id){ if(S.rg[id].open) return false; return REGIONS[id].adj.som
 let view='map', curRgn=null, _mapAnimed=false, _biomesDrawn=false, _rgnBuilt=null, _painted=false;
 // 시드 RNG(지형을 매번 리셔플하지 않고 고정)
 function mkrng(seed){ return function(){ seed|=0; seed=(seed+0x6D2B79F5)|0; let t=Math.imul(seed^(seed>>>15),1|seed); t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; }
+// 재사용 팬/줌 컨트롤러(지도·지역 공용) — 휠/핀치 확대 + 드래그 이동 + 더블탭
+function attachPanZoom(wrap, content, opt){
+  opt=opt||{}; const MIN=opt.min||1, MAX=opt.max||3.6, DBL=opt.dbl||2.4;
+  let sc=1,tx=0,ty=0; const pts=new Map(); let lastDist=0,downXY=null,panned=false,lastTap=0;
+  const vw=()=>wrap.clientWidth||1, vh=()=>wrap.clientHeight||1;
+  const D=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y), M=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+  function clamp(){ sc=Math.max(MIN,Math.min(MAX,sc)); tx=Math.min(0,Math.max(vw()*(1-sc),tx)); ty=Math.min(0,Math.max(vh()*(1-sc),ty)); }
+  function apply(){ clamp(); content.style.transform=`translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${sc.toFixed(3)})`; }
+  function zoomAt(cx,cy,ns){ const px=(cx-tx)/sc, py=(cy-ty)/sc; sc=Math.max(MIN,Math.min(MAX,ns)); tx=cx-px*sc; ty=cy-py*sc; apply(); if(opt.onZoom)opt.onZoom(); }
+  wrap.addEventListener('wheel',e=>{ e.preventDefault(); const r=wrap.getBoundingClientRect(); zoomAt(e.clientX-r.left,e.clientY-r.top, sc*(e.deltaY<0?1.2:1/1.2)); },{passive:false});
+  wrap.addEventListener('pointerdown',e=>{ wrap.setPointerCapture(e.pointerId); pts.set(e.pointerId,{x:e.clientX,y:e.clientY}); panned=false;
+    if(pts.size===1) downXY={x:e.clientX,y:e.clientY};
+    else if(pts.size===2){ const a=[...pts.values()]; lastDist=D(a[0],a[1]); }
+    wrap.classList.add('grabbing'); });
+  wrap.addEventListener('pointermove',e=>{ if(!pts.has(e.pointerId))return; const prev=pts.get(e.pointerId); pts.set(e.pointerId,{x:e.clientX,y:e.clientY}); const r=wrap.getBoundingClientRect();
+    if(pts.size>=2){ const a=[...pts.values()]; const d=D(a[0],a[1]),m=M(a[0],a[1]); if(lastDist>0) zoomAt(m.x-r.left,m.y-r.top, sc*(d/lastDist)); lastDist=d; panned=true; }
+    else if(pts.size===1 && downXY){ tx+=e.clientX-prev.x; ty+=e.clientY-prev.y; apply(); if(Math.abs(e.clientX-downXY.x)+Math.abs(e.clientY-downXY.y)>6) panned=true; } });
+  function up(e){ pts.delete(e.pointerId); if(pts.size<2) lastDist=0;
+    if(pts.size===0){ wrap.classList.remove('grabbing');
+      if(panned){ wrap._panned=true; setTimeout(()=>{wrap._panned=false;},60); }
+      else if(downXY){ const now=Date.now(); if(now-lastTap<300){ const r=wrap.getBoundingClientRect(); zoomAt(downXY.x-r.left,downXY.y-r.top, sc>1.35?1:DBL); lastTap=0; } else lastTap=now; } } }
+  wrap.addEventListener('pointerup',up); wrap.addEventListener('pointercancel',up);
+  wrap._panzoom={ reset:()=>{ sc=1;tx=0;ty=0;apply(); }, apply };
+  apply(); return wrap._panzoom;
+}
 // 대륙 실루엣(발로란·슈리마·아이오니아 군도·빌지워터 군도·타곤·공허)
 const LANDS=[
   {id:'val', d:'M150,52 C176,36 210,34 240,44 C266,52 288,44 306,60 C324,76 320,100 308,116 C328,132 330,158 314,176 C332,196 336,230 316,258 C300,282 306,300 288,312 C266,326 240,318 224,308 C206,320 176,322 158,312 C138,326 104,324 88,300 C68,270 66,232 84,206 C64,186 62,150 82,128 C68,108 74,74 108,62 C122,56 136,58 150,52 Z', fill:'url(#lg-val)', coast:'#e6c268'},
@@ -463,7 +501,7 @@ function renderMap(){
     else if(canO) badge='<span class="mk-badge tag">개방 가능</span>';
     return `<div class="mk ${st}${R.home?' home':''}" style="left:${R.x}%;top:${R.y}%" data-id="${id}">${veil}<div class="mk-ring"></div>${lock}${raidmk}${badge}</div>`;
   }).join('');
-  mn.querySelectorAll('.mk').forEach(n=>n.onclick=()=>onNode(n.dataset.id));
+  mn.querySelectorAll('.mk').forEach(n=>n.onclick=()=>{ const w=document.getElementById('map-wrap'); if(w&&w._panned)return; onNode(n.dataset.id); });
 }
 function onNode(id){ const rg=S.rg[id];
   if(rg.open){ curRgn=id; view='rgn'; showView(); }
@@ -482,41 +520,52 @@ function showView(){ const mv=document.getElementById('map-view'), rv=document.g
   else { renderRgn(true); rv.classList.remove('anim'); void rv.offsetWidth; rv.classList.add('anim'); }
   renderTop(); }
 
-// 건물 → 아이소 스프라이트 배치도(3×3 플롯)
+// 넓은 영토 배치 — 건물을 넓게 펼침(중앙 성채 + 사방 지구). 전체를 작게 보고 줌인으로 세부 확인.
 const ISO_PLOTS = [
-  {b:'gold',  sp:'chestClosed_E',     c:0,r:0,ey:-4},
-  {b:'tower', sp:'woodenCrates_E',    c:1,r:0,ey:0},
-  {b:'wood',  sp:'woodenPile_E',      c:2,r:0,ey:-2},
-  {b:'heal',  sp:'barrels_E',         c:0,r:1,ey:0},
-  {b:'summon',sp:'tableRoundChairs_E',c:1,r:1,ey:0},
-  {b:'stone', sp:'barrelsStacked_E',  c:0,r:2,ey:0},
-  {b:'rune',  sp:'stoneColumn_E',     c:2,r:2,ey:-6},
+  {b:'summon',sp:'tableRoundChairs_E',c:2,r:2,ey:0},   // 중앙 성채(영웅 소환소)
+  {b:'heal',  sp:'barrels_E',         c:3,r:2,ey:0},   // 성채 옆 치료소
+  {b:'gold',  sp:'chestClosed_E',     c:1,r:0,ey:-3},  // 북서 금고 지구
+  {b:'stone', sp:'barrelsStacked_E',  c:4,r:1,ey:0},   // 북동 채석 지구
+  {b:'wood',  sp:'woodenPile_E',      c:0,r:3,ey:-2},  // 남서 벌목 지구
+  {b:'rune',  sp:'stoneColumn_E',     c:5,r:4,ey:-6},  // 동 룬 제단
+  {b:'tower', sp:'woodenCrates_E',    c:3,r:5,ey:0},   // 남 방어 전선
+];
+// 장식 소품 산개(비인터랙티브) — 살아있는 영토 느낌
+const ISO_DECO = [
+  ['barrel_E',0,0],['barrel_E',5,1],['woodenCrates_E',4,4],['barrelsStacked_E',1,5],['stoneColumn_E',0,4,-4],
+  ['chair_E',2,1],['barrel_E',3,3],['planks_E',2,4],['woodenPile_E',5,2,-1],['chestOpen_E',4,3],
+  ['barrel_E',1,2],['stoneSteps_E',2,0],['stoneSteps_E',2,3],['stoneSteps_E',1,3],['stoneSteps_E',3,4],
 ];
 function buildIso(id){
-  const scene=document.getElementById('rgn-scene'); if(!scene) return;
+  const scene=document.getElementById('rgn-scene'); const cam=document.getElementById('rgn-cam'); if(!cam) return;
   const rg=S.rg[id]; const B=BIOME[id]; const A='assets/rune/iso/';
-  const TW=138, DX=TW/2, DY=TW/4, AN=0.80, cx=(scene.clientWidth||420)/2, cy=90;
+  const TW=62, DX=TW/2, DY=TW/4, AN=0.80, cx=(scene.clientWidth||420)/2, cy=140;
+  const GC0=-1,GC1=6,GR0=-1,GR1=6, IC0=1,IC1=4,IR0=1,IR1=4;
   function put(src,col,row,o){ o=o||{}; const w=TW*(o.scale||1),h=w*2, x=cx+(col-row)*DX, y=cy+(col+row)*DY;
     const img=new Image(); img.src=A+src+'.png';
-    img.style.cssText=`position:absolute;width:${w}px;left:${x-w/2}px;top:${y-h*AN+(o.ey||0)}px;z-index:${Math.round((col+row)*10+(o.dz||0))};filter:${o.filter?o.filter+' ':''}drop-shadow(0 7px 7px rgba(0,0,0,.45));pointer-events:none;`;
-    scene.appendChild(img); }
+    img.style.cssText=`position:absolute;width:${w}px;left:${x-w/2}px;top:${y-h*AN+(o.ey||0)}px;z-index:${Math.round((col+row)*10+(o.dz||0))};filter:${o.filter?o.filter+' ':''}drop-shadow(0 5px 5px rgba(0,0,0,.4));pointer-events:none;`;
+    cam.appendChild(img); }
   function tag(col,row,nm,lv,ey,bkey){ const x=cx+(col-row)*DX, y=cy+(col+row)*DY; const d=document.createElement('div');
-    d.className='iso-tag'; d.style.left=x+'px'; d.style.top=(y-46+(ey||0))+'px';
+    d.className='iso-tag'; d.style.left=x+'px'; d.style.top=(y-40+(ey||0))+'px'; d.style.zIndex=Math.round((col+row)*10+6);
     d.innerHTML=`<span class="ilv">Lv${lv}</span><span class="inm">${nm}</span>`;
-    if(bkey) d.onclick=()=>build(id,bkey); scene.appendChild(d); }
+    if(bkey) d.onclick=()=>{ if(scene._panned)return; build(id,bkey); }; cam.appendChild(d); }
   function emp(col,row,ey,bkey){ const x=cx+(col-row)*DX, y=cy+(col+row)*DY; const d=document.createElement('div');
-    d.className='iso-emp'; d.style.left=x+'px'; d.style.top=(y-10+(ey||0))+'px';
-    d.innerHTML=`＋ ${BLD[bkey].ic} ${BLD[bkey].nm}`; d.onclick=()=>build(id,bkey); scene.appendChild(d); }
-  // 흙 바닥 앞마당(3×3 밖 한 겹) → 돌 안뜰(3×3) — 바이옴 색으로 물들임
-  for(let r=-1;r<=3;r++)for(let c=-1;c<=3;c++){ const inner=(c>=0&&c<=2&&r>=0&&r<=2);
+    d.className='iso-emp'; d.style.left=x+'px'; d.style.top=(y-8+(ey||0))+'px'; d.style.zIndex=Math.round((col+row)*10+6);
+    d.innerHTML=`＋ ${BLD[bkey].ic} ${BLD[bkey].nm}`; d.onclick=()=>{ if(scene._panned)return; build(id,bkey); }; cam.appendChild(d); }
+  // 넓은 바닥 — 안뜰(돌) + 바깥 영토(흙), 바이옴 색으로 물들임
+  for(let r=GR0;r<=GR1;r++)for(let c=GC0;c<=GC1;c++){ const inner=(c>=IC0&&c<=IC1&&r>=IR0&&r<=IR1);
     put(inner?((c+r)%2?'stoneTile_E':'stoneTile_N'):((c+r)%2?'dirt_E':'dirtTiles_E'),c,r,{dz:-9,filter:B.gf}); }
-  // 성벽 링: 좌측 벽(col=-1) + 뒷벽(row=-1) + 둥근 코너 탑 + 정문 — 바이옴 벽 색
-  put('stoneWall_N',-1,0,{filter:B.wf});put('stoneWall_N',-1,1,{filter:B.wf});put('stoneWall_N',-1,2,{filter:B.wf});
-  put('stoneWall_E',0,-1,{filter:B.wf});put('stoneWall_E',1,-1,{filter:B.wf});put('stoneWall_E',2,-1,{filter:B.wf});
-  put('stoneWallRoundWindow_E',-1,-1,{ey:-6,dz:3,filter:B.wf}); // 뒤 코너 탑
-  put('stoneWallRoundWindow_E',3,-1,{ey:-6,dz:3,filter:B.wf});  // 우 코너 탑
-  put('stoneWallRoundWindow_E',-1,3,{ey:-6,dz:3,filter:B.wf});  // 좌 코너 탑
-  put('stoneWallGateOpen_E',3,3,{ey:-2,dz:4,filter:B.wf});      // 앞 정문
+  // 넓은 성벽(북·서 외곽) + 코너 탑 + 중간 탑 + 정문 — 바이옴 벽 색
+  for(let r=GR0;r<=GR1;r++) put('stoneWall_N',GC0,r,{filter:B.wf});
+  for(let c=GC0;c<=GC1;c++) put('stoneWall_E',c,GR0,{filter:B.wf});
+  put('stoneWallRoundWindow_E',GC0,GR0,{ey:-5,dz:3,filter:B.wf});
+  put('stoneWallRoundWindow_E',GC1,GR0,{ey:-5,dz:3,filter:B.wf});
+  put('stoneWallRoundWindow_E',GC0,GR1,{ey:-5,dz:3,filter:B.wf});
+  put('stoneWallRoundWindow_E',GC0,2,{ey:-5,dz:3,filter:B.wf});   // 서벽 중간 탑
+  put('stoneWallRoundWindow_E',3,GR0,{ey:-5,dz:3,filter:B.wf});   // 북벽 중간 탑
+  put('stoneWallGateOpen_E',GC1,GR1,{ey:-2,dz:4,filter:B.wf});    // 남동 정문
+  // 장식 소품(길·통·기둥 등) — 살아있는 영토
+  ISO_DECO.forEach(d=>{ put(d[0],d[1],d[2],{dz:(d[3]!=null?d[3]:0)}); });
   // 건물(지어진 것만 스프라이트, 빈 플롯은 건설 버튼) — 건물은 원색 유지(식별성)
   ISO_PLOTS.forEach(p=>{ const lv=rg.blds[p.b]||0;
     if(lv>0){ put(p.sp,p.c,p.r,{dz:2}); tag(p.c,p.r,BLD[p.b].nm,lv,p.ey,p.b); }
@@ -552,12 +601,15 @@ function renderRgn(full){
   if(full || _rgnBuilt!==id){
     document.getElementById('rgn-view').innerHTML = `
       <div class="scene" id="rgn-scene" style="background:radial-gradient(64% 56% at 50% 42%, ${B.sky[0]}, ${B.sky[1]} 58%, ${B.sky[2]} 100%)">
+        <div class="scene-cam" id="rgn-cam"></div>
         <div class="scene-amb" style="background:radial-gradient(48% 36% at 50% 40%, ${B.amb}, transparent 72%)"></div>
         <div class="biome-fx" id="biome-fx"></div>
         <button class="bk2" onclick="view='map';showView();">‹</button>
         <div class="stt">${R.ic} ${R.nm} <small>${'★'.repeat(R.threat)} 위협</small></div>
         <div class="schint">${B.label} · 🏗️ 건물·빈 터를 탭하면 건설·업글</div>
         <div class="raidtag" id="rgn-raidtag"></div>
+        <div class="pz-hint" id="rgn-hint">🔍 확대·드래그로 영토를 둘러보세요</div>
+        <button class="pz-reset" id="rgn-reset" title="원래대로">⤢</button>
       </div>
       <div class="rgn-lore" style="--ac:${B.ac}">"${B.lore}"</div>
       <div class="sec2">주둔 영웅 <span id="rgn-hcount"></span></div>
@@ -568,6 +620,9 @@ function renderRgn(full){
       <div class="bgrid" id="rgn-blds"></div>
       <div style="height:20px"></div>`;
     buildIso(id); fillBiomeFx(B.fx);
+    const _sc=document.getElementById('rgn-scene'), _cam=document.getElementById('rgn-cam');
+    if(_sc&&_cam){ const pz=attachPanZoom(_sc,_cam,{min:1,max:3.4,dbl:2}); const rr=document.getElementById('rgn-reset'); if(rr) rr.onclick=()=>pz.reset();
+      setTimeout(()=>{ const h=document.getElementById('rgn-hint'); if(h) h.classList.add('gone'); },4500); }
     document.getElementById('topttl').onclick=()=>{ view='map'; showView(); };
     _rgnBuilt=id;
   }
@@ -660,6 +715,13 @@ window.openHeroPick=openHeroPick;
 // ═══════════ 루프 ═══════════
 function loop(){ tick(); if(view==='map') renderMap(); else if(curRgn) renderRgn(false); renderTop(); save(); }
 showView(); loop(); setInterval(loop, 1000);
+// 지도 팬/줌 초기화(휠·핀치 확대, 드래그 이동, 더블탭)
+let _mapPZ=null;
+(function initMapPZ(){ const w=document.getElementById('map-wrap'), c=document.getElementById('map-content'); if(!w||!c) return;
+  _mapPZ=attachPanZoom(w,c,{min:1,max:4.2,dbl:2.6});
+  const rb=document.getElementById('map-reset'); if(rb) rb.onclick=()=>_mapPZ.reset();
+  setTimeout(()=>{ const h=document.getElementById('map-hint'); if(h) h.classList.add('gone'); },4500);
+})();
 window.runeReset=function(){ localStorage.removeItem('rune_proto'); S=fresh(); showView(); toast('프로토타입 초기화'); };
 </script>
 </body></html>
