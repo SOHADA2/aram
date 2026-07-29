@@ -294,6 +294,11 @@ body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system
 .v3-label.empty{background:rgba(10,8,4,.6);border-style:dashed;border-color:rgba(200,168,75,.5);}
 .v3-label .plus{font-size:9px;font-weight:800;color:#e6d29a;}
 .v3-label:active{transform:translate(-50%,calc(-100% + 1px));}
+.vmk3.me b{color:#ffe6a8;} .vmk3.pl b{color:#bcd3ff;} .vmk3.barb{background:rgba(10,8,4,.7);} .vmk3.barb b{color:#d8c79a;font-size:9px;}
+.mm3{position:absolute;transform:translate(-50%,-50%);z-index:7;text-align:center;pointer-events:none;}
+.mm3 span{font-size:15px;filter:drop-shadow(0 1px 2px #000);display:block;}
+.mm3 b{display:block;font-size:8px;font-weight:800;font-family:monospace;color:#f0dca0;background:rgba(10,7,4,.82);border-radius:5px;padding:0 3px;margin-top:-2px;}
+.mm3.raid b{color:#ffb0a0;background:rgba(50,10,8,.9);}
 </style></head>
 <body><div class="app">
   <div class="topbar">
@@ -394,7 +399,9 @@ const BIOME = {
 const RES = {wood:'🪵', clay:'🧱', iron:'⚙️'};
 const HOME_ID = 'demacia';    // 내 마을 바이옴(정착지 테마)
 const HOME_KEY = 'home';      // 격자 지도상 내 마을 키
-const WORLD=100, FIELD=15, WSPEED=140;  // 격자 100×100 · 칸 15px · 월드 속도(시간 압축, 비용은 원본 그대로)
+const WORLD=100, FIELD=15, WSPEED=140;  // (구 2D 폴백용) 월드 속도(시간 압축)
+const HCOLS=15, HROWS=19, HHZ=1.155*0.75;         // 🗺️ 육각 월드(마을이 앉는 격자·pointy-top)
+function hexPos(c,r){ return { x:(c+((r&1)?0.5:0)), z:r*HHZ }; }   // 헥스 → 타일 단위 좌표(거리=이 좌표 유클리드)
 // 건물 — 실제 부족전쟁 레벨1 비용/증가율/선행조건 (본진·병영·마구간·공방·대장간·대학·시장·자원·농장·창고·성벽·은신처·집결지)
 const BLD = {
   main:    {ic:'🏛️', nm:'본진',        max:30, w:90,  c:80,  i:70,  f:1.26,  p:5,  desc:'건설 속도'},
@@ -446,11 +453,11 @@ function buildTime(b,lv){ return Math.max(3, Math.round((10+lv*8)*(1-((S.v.blds.
 function trainTimeV(v,u){ const lv=v.blds[TROOP[u].from]||1; return Math.max(2, Math.round(TROOP[u].time*(1-(lv-1)*0.02))); }
 function trainTime(u){ return trainTimeV(S.v,u); }
 function researchBonus(u){ return 1 + ((S.research&&S.research[u])||0)*0.12; }   // ⚒️ 대장간 연구 +12%/레벨
-function fieldDist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+function fieldDist(a,b){ const A=hexPos(a.x,a.y),B=hexPos(b.x,b.y); return Math.hypot(A.x-B.x, A.z-B.z); }   // 헥스 실거리(칸)
 function travelMs(dist, slow){ return Math.round(dist*slow*60000/WSPEED); }  // slow=분/칸 · 거리(칸)×속도×월드속도
 
 // ═══════════ 상태 ═══════════
-const SAVE_VER=4;  // 멀티 마을(귀족 정복)·연구·시장 추가 — 이전 세이브 폐기
+const SAVE_VER=5;  // 육각 월드(3D 지도) 전환 — 이전 세이브 폐기
 const PROTECT_MS = 15*24*3600*1000;          // 🛡️ 뉴비 보호 15일(공격 안 받음)
 const SPAWN_MINDIST = 9, SPAWN_RADIUS = 30;  // 플레이어끼리 최소 9칸 · 중앙 반경 30칸에 분배(월드는 100 유지)
 const RIVAL_NAMES = ['소환사 아리','소환사 리븐','소환사 럭스','소환사 진','소환사 세트','소환사 야스오'];
@@ -468,13 +475,13 @@ function isProtected(w){ return protectLeft(w)>0; }
 function fmtProtect(ms){ const d=Math.floor(ms/86400000), h=Math.floor(ms%86400000/3600000), m=Math.floor(ms%3600000/60000);
   return d>0? `${d}일 ${h}시간` : (h>0? `${h}시간 ${m}분` : `${m}분`); }
 // 🎯 시작 지점 분배 — 중앙 반경 내, 다른 플레이어와 최소거리 확보한 빈 칸(겹침 방지). 실제판은 Firebase runTransaction으로 원자적 점유
-function allocSpawn(taken, players, R){ R=R||Math.random; const cx=WORLD/2, cy=WORLD/2;
-  for(let ring=8; ring<=SPAWN_RADIUS; ring+=2){ for(let t=0;t<60;t++){
-    const ang=R()*Math.PI*2, rr=ring-R()*4;
-    const x=Math.round(cx+Math.cos(ang)*rr), y=Math.round(cy+Math.sin(ang)*rr);
-    if(x<2||y<2||x>WORLD-3||y>WORLD-3) continue;
+function allocSpawn(taken, players, R){ R=R||Math.random; const HC=Math.floor(HCOLS/2), HR=Math.floor(HROWS/2);
+  for(let ring=3; ring<=8; ring++){ for(let t=0;t<80;t++){
+    const ang=R()*Math.PI*2;
+    const x=Math.round(HC+Math.cos(ang)*ring), y=Math.round(HR+Math.sin(ang)*ring*1.3);
+    if(x<1||y<1||x>HCOLS-2||y>HROWS-2) continue;
     if(taken.has(x+','+y)) continue;
-    let ok=true; for(const p of players){ if(Math.hypot(x-p.x,y-p.y)<SPAWN_MINDIST){ ok=false; break; } }
+    let ok=true; for(const p of players){ if(fieldDist({x,y},p)<3){ ok=false; break; } }   // 플레이어끼리 최소 3칸
     if(ok) return {x,y};
   } }
   return null;
@@ -482,22 +489,19 @@ function allocSpawn(taken, players, R){ R=R||Math.random; const cx=WORLD/2, cy=W
 // 격자 세계 생성 — 내 마을(50,50) + 야만인 마을 ~170개(뭉치고 흩어짐, 정수 좌표=칸). 부족전쟁식
 function genWorld(now){
   const R=mkrng(778899); const W={}; now = now || Date.now();
-  W[HOME_KEY]={x:50,y:50,name:'내 마을',owner:'me',size:6,loot:{wood:0,clay:0,iron:0},garrison:{},foundedAt:now,protectUntil:now+PROTECT_MS};
-  const taken=new Set(['50,50']); const players=[{x:50,y:50}]; let n=0, guard=0;
-  // 🎯 라이벌 소환사(멀티 예시) — 스폰 분배로 겹치지 않게 배치 · 일부는 뉴비 보호 중
+  const HC=Math.floor(HCOLS/2), HR=Math.floor(HROWS/2), home={x:HC,y:HR};
+  W[HOME_KEY]={x:HC,y:HR,name:'내 마을',owner:'me',size:6,loot:{wood:0,clay:0,iron:0},garrison:{},foundedAt:now,protectUntil:now+PROTECT_MS};
+  const taken=new Set([HC+','+HR]); const players=[home]; let n=0, guard=0;
+  // 🎯 라이벌 소환사 — 스폰 분배(최소 3칸) · 일부 뉴비 보호
   for(let i=0;i<5;i++){ const sp=allocSpawn(taken, players, R); if(!sp) break; taken.add(sp.x+','+sp.y); players.push(sp);
-    const size=3+Math.floor(R()*3); const prot = i<3 ? now + PROTECT_MS*(0.25+R()*0.7) : 0;   // 5명 중 3명 보호중
+    const size=3+Math.floor(R()*3); const prot = i<3 ? now + PROTECT_MS*(0.25+R()*0.7) : 0;
     W['p'+i]={x:sp.x,y:sp.y,name:RIVAL_NAMES[i]||('소환사 '+i),owner:'player',size,loot:barbLoot(size),garrison:barbGarrison(size),foundedAt:now,protectUntil:prot}; }
-  const clusters=[]; for(let i=0;i<14;i++) clusters.push({cx:6+R()*88, cy:6+R()*88});
-  while(n<170 && guard<5000){ guard++;
-    let x,y;
-    if(R()<0.72){ const cl=clusters[Math.floor(R()*clusters.length)]; x=Math.round(cl.cx+(R()-.5)*20); y=Math.round(cl.cy+(R()-.5)*20); }
-    else { x=Math.round(2+R()*96); y=Math.round(2+R()*96); }
-    x=Math.max(1,Math.min(WORLD-2,x)); y=Math.max(1,Math.min(WORLD-2,y));
-    if(Math.abs(x-50)<=3 && Math.abs(y-50)<=3) continue;   // 내 마을 주변은 비워둠(초반 난이도)
-    const key=x+','+y; if(taken.has(key)) continue; taken.add(key);
-    const d=Math.hypot(x-50,y-50);                         // 멀수록 큰 마을(고위험 고수익)
-    let size=1+Math.floor(R()*3)+(d>26?Math.floor(R()*3):0); size=Math.max(1,Math.min(6,size));
+  // 야만인 마을 ~30개(헥스 곳곳·홈 주변 2칸 비움·멀수록 큼)
+  while(n<30 && guard<3000){ guard++;
+    const x=Math.floor(R()*HCOLS), y=Math.floor(R()*HROWS); const key=x+','+y;
+    if(taken.has(key)) continue; const d=fieldDist({x,y},home); if(d<2.2) continue;
+    taken.add(key);
+    let size=1+Math.floor(R()*3)+(d>6?Math.floor(R()*3):0); size=Math.max(1,Math.min(6,size));
     W['v'+(n++)]={x,y,name:'야만인 마을',owner:'barb',size,loot:barbLoot(size),garrison:barbGarrison(size)};
   }
   return W;
@@ -732,6 +736,10 @@ window.openReports=function(){ const rs=S.reports||[]; const ov=document.createE
   document.body.appendChild(ov); S._reportsSeen=(S.reports||[]).length; renderTop();
 };
 function renderMap(){
+  if(window.Map3D){ const wrap=document.getElementById('map-wrap'), mc=document.getElementById('map-content'); if(mc) mc.style.display='none';
+    if(wrap){ window.Map3D.mount(wrap); window.Map3D.build({ world:S.world, cols:HCOLS, rows:HROWS, hex:hexPos, isP:isProtected, onNode:onVillage, HOME:HOME_KEY, fmt:fmtDur, state:()=>({world:S.world,marches:S.marches}) });
+      const rr=document.getElementById('map-reset'); if(rr) rr.onclick=()=>window.Map3D.resetCam(); }
+    return; }
   const mn=document.getElementById('mnodes'); if(!mn) return;
   // 행군 경로선(공격=빨강 / 귀환=초록) — viewBox 0~100 단위 = 격자 칸
   let e=''; const home=S.world[HOME_KEY];
@@ -758,6 +766,7 @@ function renderMap(){
 }
 // 전체 지도 위 실시간 행군 마커 — 출발→목표 사이 진행도로 보간(부족전쟁식 움직이는 명령)
 function updateArmies(){
+  if(window.Map3D) return;   // 3D 지도는 Map3D가 행군 마커 처리
   const host=document.getElementById('armies'); if(!host) return;
   const now=Date.now(); const home=S.world[HOME_KEY]; let h='';
   (S.marches||[]).forEach(m=>{
@@ -1114,7 +1123,8 @@ function loop(){ tick(); if(view==='map') renderMap(); else if(curRgn) renderRgn
 showView(); loop(); setInterval(loop, 1000);
 // 지도 팬/줌 초기화(휠·핀치 확대, 드래그 이동, 더블탭)
 let _mapPZ=null;
-(function initMapPZ(){ const w=document.getElementById('map-wrap'), c=document.getElementById('map-content'); if(!w||!c) return;
+(function initMapPZ(){ if(window.Map3D) return;   // 3D 지도 사용 시 2D 팬/줌·격자 스킵
+  const w=document.getElementById('map-wrap'), c=document.getElementById('map-content'); if(!w||!c) return;
   drawGrid();
   const hk=S.world[HOME_KEY]; const fx=hk?(hk.x+0.5)/WORLD:0.5, fy=hk?(hk.y+0.5)/WORLD:0.5;
   _mapPZ=attachPanZoom(w,c,{maxScale:2.4, minScale:0.3, initScale:1.8, dbl:1.6, focus:{fx,fy},
@@ -1250,5 +1260,77 @@ export function setNight(){ if(!hemi) return night; night=!night;
   return night; }
 window.addEventListener('resize',resize);
 window.Town3D={ mount, build, resetCam, setNight, ok:true };
+</script>
+<script type="module">
+// ══ 3D 육각 지도 — 육각 키트(Kenney CC0) · 마을=헥스 위 건물타일 · 거리=헥스 실좌표 ══
+import * as T from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const HX='assets/hex/'; let R,SC,CAM,CT,GRP,MK,EL,LH,OPT=null,off={x:0,z:0};
+const C={}, GL=new GLTFLoader(), VLAB=[], MLAB=[];
+function ld(n){ return C[n]||(C[n]=GL.loadAsync(HX+n+'.glb').then(g=>g.scene)); }
+function biome(c,r,rows,rnd){ if(r<3) return rnd<.55?'stone-mountain':'stone-hill';
+  if(r>=rows-3) return rnd<.5?'sand-desert':(rnd<.8?'sand':'sand-rocks');
+  if(rnd<.24) return 'grass-forest'; if(rnd<.36) return 'grass-hill'; if(rnd<.44) return 'stone-hill'; return 'grass'; }
+function vTile(w){ if(w.owner==='me') return 'building-castle'; if(w.owner==='player') return 'building-tower';
+  return w.size>=5?'building-village':(w.size>=3?'building-house':'building-cabin'); }
+function initS(){ if(R) return;
+  R=new T.WebGLRenderer({antialias:true,alpha:true}); R.setPixelRatio(Math.min(2,devicePixelRatio));
+  R.outputColorSpace=T.SRGBColorSpace; R.shadowMap.enabled=true; R.shadowMap.type=T.PCFSoftShadowMap;
+  R.domElement.style.cssText='position:absolute;inset:0;width:100%;height:100%;';
+  SC=new T.Scene();
+  CAM=new T.OrthographicCamera(-10,10,10,-10,-80,140); CAM.position.set(16,16,16); CAM.lookAt(0,0,0);
+  CT=new OrbitControls(CAM,R.domElement); CT.enableDamping=true; CT.enableRotate=false; CT.enablePan=true; CT.screenSpacePanning=true; CT.minZoom=0.5; CT.maxZoom=3.2;
+  SC.add(new T.HemisphereLight(0xdcefff,0x55664a,0.98));
+  const sun=new T.DirectionalLight(0xfff3d8,1.35); sun.position.set(12,20,8); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
+  const s=sun.shadow.camera; s.left=-14;s.right=14;s.top=14;s.bottom=-14;s.near=1;s.far=60; sun.shadow.bias=-0.0006; SC.add(sun);
+  const sea=new T.Mesh(new T.PlaneGeometry(80,80),new T.MeshStandardMaterial({color:0x3f7fb0,roughness:.7})); sea.rotation.x=-Math.PI/2; sea.position.y=-0.08; sea.receiveShadow=true; SC.add(sea);
+  GRP=new T.Group(); SC.add(GRP);
+  (function loop(){ requestAnimationFrame(loop); if(!EL||!R||EL.offsetParent===null) return; if(CT)CT.update(); R.render(SC,CAM); proj(); })();
+}
+async function tile(n,x,z,building){ try{ const m=(await ld(n)).clone(true); m.position.set(x,0,z);
+  m.traverse(c=>{ if(c.isMesh){ c.castShadow=!!building; c.receiveShadow=true; } }); GRP.add(m); }catch(e){} }
+function proj(){ if(!EL) return; const rc=EL.getBoundingClientRect();
+  const set=(arr)=>{ for(const L of arr){ const v=L.pos.clone().project(CAM); const x=(v.x*.5+.5)*rc.width, y=(-v.y*.5+.5)*rc.height;
+    L.el.style.left=x+'px'; L.el.style.top=y+'px'; L.el.style.display=v.z<1?'':'none'; } };
+  set(VLAB);
+  // 행군 마커(실시간 보간)
+  const st=OPT&&OPT.state&&OPT.state(); if(st){ const now=Date.now(); const home=st.world[OPT.HOME], ms=st.marches||[];
+    while(MLAB.length<ms.length){ const d=document.createElement('div'); d.className='mm3'; LH.appendChild(d); MLAB.push({el:d}); }
+    for(let i=MLAB.length-1;i>=ms.length;i--){ MLAB[i].el.remove(); MLAB.pop(); }
+    ms.forEach((m,i)=>{ const org=m.mode==='raid'?st.world[m.from]:(m.mode==='attack'?home:st.world[m.to]);
+      const dst=m.mode==='raid'?home:(m.mode==='attack'?st.world[m.to]:home); const L=MLAB[i]; if(!org||!dst){L.el.style.display='none';return;}
+      const sp=m.arriveAt-m.dep, p=sp>0?Math.min(1,Math.max(0,(now-m.dep)/sp)):1;
+      const a=hp(org), b=hp(dst); const wp=new T.Vector3(a.x+(b.x-a.x)*p,0.5,a.z+(b.z-a.z)*p).project(CAM);
+      L.el.style.left=(wp.x*.5+.5)*rc.width+'px'; L.el.style.top=(-wp.y*.5+.5)*rc.height+'px'; L.el.style.display=wp.z<1?'':'none';
+      L.el.innerHTML=`<span>${m.mode==='raid'?'🔥':(m.mode==='attack'?'⚔️':'🎒')}</span><b>${OPT.fmt(m.arriveAt-now)}</b>`; L.el.className='mm3 '+m.mode; }); }
+}
+function hp(w){ const p=OPT.hex(w.x,w.y); return {x:p.x-off.x, z:p.z-off.z}; }   // 중앙 정렬된 3D 좌표
+export function mount(el){ initS(); EL=el; el.appendChild(R.domElement);
+  if(!LH||!el.contains(LH)){ LH=document.createElement('div'); LH.className='v3-labels'; el.appendChild(LH); } resize(); }
+function resize(){ if(!EL) return; const w=EL.clientWidth||420,h=EL.clientHeight||400; R.setSize(w,h);
+  const D=Math.max(8, HGT/1.9), a=w/h; CAM.left=-D*a;CAM.right=D*a;CAM.top=D;CAM.bottom=-D; CAM.updateProjectionMatrix(); }
+let HGT=13;
+export function build(opts){ opts=opts||{}; OPT=opts; initS();
+  const world=opts.world, cols=opts.cols, rows=opts.rows, rng=mkrng2(12345);
+  off=opts.hex((cols-1)/2,(rows-1)/2); HGT=rows*0.866;
+  while(GRP.children.length) GRP.remove(GRP.children[0]);
+  VLAB.forEach(L=>L.el.remove()); VLAB.length=0;
+  // 마을 좌표 인덱스
+  const at={}; for(const id in world){ const w=world[id]; at[w.x+','+w.y]=id; }
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ const p=opts.hex(c,r); const x=p.x-off.x, z=p.z-off.z; const key=c+','+r; const id=at[key];
+    if(id){ const w=world[id]; tile(vTile(w),x,z,true);
+      const el=document.createElement('div'); el.className='v3-label vmk3 '+(w.owner==='me'?'me':(w.owner==='player'?'pl':'barb'));
+      const ic=w.owner==='me'?'🏰':(w.owner==='player'?'🗼':'🏚️'); const prot=opts.isP(w)?' 🛡️':'';
+      el.innerHTML=w.owner==='me'?`<b>${ic} 내 성${prot}</b>`:(w.owner==='player'?`<b>${ic} ${(w.name||'').replace('소환사 ','')}${prot}</b>`:`<b>${ic} ${w.size}★</b>`);
+      el.onclick=()=>{ if(opts.onNode) opts.onNode(id); }; LH.appendChild(el); VLAB.push({el,pos:new T.Vector3(x,0.9,z)});
+    } else { tile(biome(c,r,rows,rng()),x,z,false); }
+  }
+  resize(); if(CT){ CT.target.set(0,0,0); CT.update(); }
+}
+function mkrng2(s){ return ()=>{ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; }; }
+export function resetCam(){ if(!CAM)return; CAM.position.set(16,16,16); CAM.zoom=1; CAM.updateProjectionMatrix(); if(CT){CT.target.set(0,0,0);CT.update();} }
+window.addEventListener('resize',resize);
+window.Map3D={ mount, build, resetCam, ok:true };
 </script>
 </body></html>
