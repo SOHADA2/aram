@@ -1,0 +1,78 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>룬테라 전쟁 — 3D 타운 목업</title>
+<style>
+*{box-sizing:border-box;margin:0;}
+body{background:#0a0a0f;font-family:system-ui,sans-serif;overflow:hidden;}
+#wrap{position:relative;width:100vw;height:100vh;}
+canvas{display:block;}
+#tag{position:fixed;left:10px;top:8px;z-index:5;color:#f0dca0;font-weight:800;font-size:14px;text-shadow:0 2px 4px #000;}
+#hint{position:fixed;left:0;right:0;bottom:10px;text-align:center;color:#c9b98a;font-size:11px;z-index:5;text-shadow:0 1px 2px #000;}
+#err{position:fixed;left:10px;top:34px;color:#ff8a6a;font-size:12px;z-index:9;white-space:pre;}
+</style></head>
+<body><div id="wrap">
+<div id="tag">🏰 룬테라 전쟁 · 3D 타운 목업</div>
+<div id="err"></div>
+<div id="hint">🖱️ 드래그로 회전 · 휠로 확대 · (판타지 타운 키트 · Kenney CC0)</div>
+</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const BASE='assets/town/', err=document.getElementById('err'), tag=document.getElementById('tag'), P2=Math.PI/2;
+const W=innerWidth,H=innerHeight;
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(1.5,devicePixelRatio)); renderer.setSize(W,H);
+renderer.outputColorSpace=THREE.SRGBColorSpace; renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.getElementById('wrap').appendChild(renderer.domElement);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color('#8fbfe0'); scene.fog=new THREE.Fog('#8fbfe0',36,70);
+const D=11, aspect=W/H;
+const cam=new THREE.OrthographicCamera(-D*aspect,D*aspect,D,-D,-50,120);
+cam.position.set(20,18,20); cam.lookAt(0,0,0);
+const ctrl=new OrbitControls(cam,renderer.domElement); ctrl.target.set(0,1,0); ctrl.enableDamping=true; ctrl.maxPolarAngle=Math.PI*0.49;
+scene.add(new THREE.HemisphereLight(0xdcefff,0x4a5a3a,0.9));
+const sun=new THREE.DirectionalLight(0xfff3d8,1.5); sun.position.set(14,22,8); sun.castShadow=true;
+sun.shadow.mapSize.set(1024,1024); const scam=sun.shadow.camera; scam.left=-24;scam.right=24;scam.top=24;scam.bottom=-24;scam.near=1;scam.far=70; sun.shadow.bias=-0.0005;
+scene.add(sun);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(90,90),new THREE.MeshStandardMaterial({color:0x6f9e46,roughness:1}));
+ground.rotation.x=-P2; ground.position.y=-0.02; ground.receiveShadow=true; scene.add(ground);
+const plaza=new THREE.Mesh(new THREE.CircleGeometry(6,44),new THREE.MeshStandardMaterial({color:0xc2ab7a,roughness:1}));
+plaza.rotation.x=-P2; plaza.receiveShadow=true; scene.add(plaza);
+const root=new THREE.Group(); scene.add(root);
+const gl=new GLTFLoader(); const cache={};
+// 배치 명세: 미리 모든 조각을 모아 병렬 로드 → 동기 배치
+const PLACE=[];
+function put(n,x,z,o){ o=o||{}; PLACE.push({n,x,z,o}); }
+function house(cx,cz,o){ o=o||{}; const ry=o.ry||0; const wall=o.wall||'wall', door=o.door||'wall-door', roof=o.roof||'roof-gable';
+  put(door,cx,cz,{ry}); put(o.win||'wall-window-shutters',cx,cz,{ry:ry+P2}); put(wall,cx,cz,{ry:ry-P2}); put(wall,cx,cz,{ry:ry+Math.PI}); put(roof,cx,cz,{y:1,ry}); }
+// ── 마을 배치 ──
+put('fountain-round',0,0);
+house(-4,-3,{roof:'roof-gable'});
+house(-6,1,{roof:'roof-high-gable',wall:'wall-wood',door:'wall-wood-door',ry:P2});
+house(-3,4,{roof:'roof-gable',win:'wall-window-round',ry:Math.PI});
+house(4,-4,{roof:'roof-high-gable',wall:'wall-wood',door:'wall-wood-door',ry:-P2});
+house(5,2,{roof:'roof-gable',ry:-P2});
+house(0,-6,{roof:'roof-high-gable'});
+put('windmill',10,-6,{ry:0.4});
+put('watermill',-10,-5,{ry:-0.3});
+put('stall-red',1,4,{ry:Math.PI}); put('stall-green',3,4,{ry:Math.PI}); put('stall-bench',2,5.2,{});
+put('banner-red',-2,-1,{}); put('banner-green',2,-1,{}); put('cart',7,-1,{ry:0.6}); put('lantern',-1.3,1.3,{}); put('lantern',1.3,-1.3,{});
+const trees=['tree','tree-high','tree-high-round','tree-crooked'];
+[[-11,4],[-12,1],[-11,-2],[11,4],[12,1],[9,6],[-8,7],[8,-9],[-4,-9],[1,9],[-10,3],[6,8]].forEach((p,i)=>put(trees[i%4],p[0],p[1],{s:1+((i*7)%3)*0.12,ry:i}));
+put('rock-large',-9,6,{ry:0.5}); put('rock-small',9,-3,{}); put('rock-wide',-7,-8,{ry:1}); put('rock-small',6,7,{});
+for(let i=-3;i<=3;i++) put(i===0?'fence-gate':'fence',i,8,{});
+put('pillar-stone',-1.6,-1.6,{}); put('pillar-stone',1.6,1.6,{});
+// 병렬 로드 후 동기 배치
+const names=[...new Set(PLACE.map(p=>p.n))];
+Promise.all(names.map(n=>gl.loadAsync(BASE+n+'.glb').then(g=>{cache[n]=g.scene;}).catch(e=>{err.textContent+='\n'+n+':'+e.message;}))).then(()=>{
+  for(const {n,x,z,o} of PLACE){ const src=cache[n]; if(!src) continue; const m=src.clone(true);
+    m.position.set(x,o.y||0,z); m.rotation.y=o.ry||0; if(o.s)m.scale.setScalar(o.s);
+    m.traverse(c=>{ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; } }); root.add(m); }
+  tag.textContent='🏰 룬테라 타운 · '+root.children.length+'개 배치';
+  document.title='TOWN_READY_'+root.children.length;
+  renderer.render(scene,cam);
+});
+addEventListener('resize',()=>{ const w=innerWidth,h=innerHeight,a=w/h; cam.left=-D*a;cam.right=D*a;cam.top=D;cam.bottom=-D;cam.updateProjectionMatrix(); renderer.setSize(w,h); });
+(function loop(){ ctrl.update(); renderer.render(scene,cam); requestAnimationFrame(loop); })();
+</script></body></html>
