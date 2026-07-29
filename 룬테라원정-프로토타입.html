@@ -1,5 +1,5 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>룬테라 전쟁 — 부족전쟁식 프로토타입 v0.2</title>
+<title>룬테라 전쟁 — 칼바람 내전 원정 프로토타입 v0.2</title>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/"}}</script>
 <style>
 /* ═══ 부족전쟁(Tribal Wars) 클래식 양피지 테마 ═══
@@ -109,6 +109,9 @@ body{margin:0;background:#c3ad7c;color:#43310f;font-family:'Noto Sans KR',system
 .v3-label .plus{font-size:9px;font-weight:800;color:#e6d29a;}
 .v3-label:active{transform:translate(-50%,calc(-100% + 1px));}
 .vmk3.me b{color:#ffe6a8;} .vmk3.pl b{color:#bcd3ff;} .vmk3.barb{background:rgba(10,8,4,.7);} .vmk3.barb b{color:#d8c79a;font-size:9px;}
+.v3-label.rgn3{background:none;border:none;box-shadow:none;pointer-events:none;text-align:center;opacity:.75;}
+.v3-label.rgn3 b{font-family:Georgia,serif;font-size:15px;letter-spacing:3px;color:rgba(255,235,180,.6);text-shadow:0 1px 4px #000;}
+.v3-label.rgn3 .rk{display:block;font-size:8px;font-weight:800;font-family:monospace;color:rgba(255,235,180,.4);letter-spacing:1px;}
 .mm3{position:absolute;transform:translate(-50%,-50%);z-index:7;text-align:center;pointer-events:none;}
 .mm3 span{font-size:15px;filter:drop-shadow(0 1px 2px #000);display:block;}
 .mm3 b{display:block;font-size:8px;font-weight:800;font-family:monospace;color:#f0dca0;background:rgba(10,7,4,.82);border-radius:5px;padding:0 3px;margin-top:-2px;}
@@ -317,7 +320,7 @@ body{margin:0;background:#c3ad7c;color:#43310f;font-family:'Noto Sans KR',system
 <body><div class="app">
   <div class="topstrip">
     <span class="logo">🗺️ 룬테라 전쟁</span>
-    <span class="world">부족전쟁식 프로토타입 · 월드 1</span>
+    <span class="world">칼바람 내전 시즌2 · 룬테라 원정 월드</span>
     <button class="top-ic" onclick="openDex()">🎴 도감</button>
   </div>
   <div class="resbar" id="resbar"></div>
@@ -336,7 +339,7 @@ body{margin:0;background:#c3ad7c;color:#43310f;font-family:'Noto Sans KR',system
           <div class="pz-hint" id="map-hint">🔍 휠·두 손가락 확대 · 끌어서 이동 · 마을을 탭해 정보 확인</div>
           <button class="pz-reset" id="map-reset" title="원래대로">⤢</button>
         </div>
-        <div class="map-tip">🏰 마을을 키우고 · 🧭 정찰로 적을 살핀 뒤 · ⚔️ 약탈하고 · 👑 귀족으로 정복하세요</div>
+        <div class="map-tip">💠 넥서스를 키우고 · 🧭 요들 정찰대로 살핀 뒤 · ⚔️ 약탈하고 · 👑 총독으로 룬테라를 정복하세요</div>
       </div>
       <div id="view-village" style="display:none"></div>
       <div id="view-rally" style="display:none"></div>
@@ -345,7 +348,7 @@ body{margin:0;background:#c3ad7c;color:#43310f;font-family:'Noto Sans KR',system
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">프로토타입 v0.2 · 부족전쟁식 전투/정찰/지원/집결지 · 이 브라우저에만 저장(mock) · 실제 사이트 골드와 무관</div>
+  <div class="proto-tag">프로토타입 v0.2 · 부족전쟁식 게임성 × 룬테라 컨셉 · 이 브라우저에만 저장(mock) · 실제 사이트 골드와 무관</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -380,46 +383,50 @@ const REGIONS = {
 const BIOME = {
   demacia:{sky:['#2a3350','#1a2138','#0c1120'], amb:'rgba(200,220,255,.18)', gf:'saturate(.65) brightness(1.22)', wf:'saturate(.55) brightness(1.3)', ac:'#bcd4ff', fx:'holy', label:'백금 성채'},
 };
-const RES = {wood:'🪵', clay:'🧱', iron:'⚙️'};
+const RES = {wood:'🪵', clay:'🔹', iron:'⚙️'};
+const RES_NM = {wood:'목재', clay:'마정석', iron:'철'};
+// 룬테라 대륙(K##) — 지형 배치와 일치(북=프렐요드 설산 · 남=슈리마 사막 · 중앙=데마시아=홈)
+const KMAP = { '00':'프렐요드','01':'프렐요드','02':'녹서스','10':'데마시아','11':'데마시아','12':'아이오니아','20':'빌지워터','21':'슈리마','22':'이쉬탈','30':'슈리마','31':'슈리마','32':'그림자 군도' };
+function regionOf(w){ return KMAP[Math.floor(w.y/10)+''+Math.floor(w.x/10)]||'룬테라'; }
 const HOME_ID = 'demacia'; const HOME_KEY = 'home';
 const WSPEED=140;                              // 월드 속도(시간 압축 — 부족전쟁 speed 서버 개념)
 const HCOLS=25, HROWS=31, HHZ=1.155*0.75;      // 육각 월드 격자(pointy-top)
 function hexPos(c,r){ return { x:(c+((r&1)?0.5:0)), z:r*HHZ }; }
 // ══ 건물 — 실제 부족전쟁 레벨1 비용/증가율/선행조건 ══
-const BLD = {
-  main:    {ic:'🏛️', nm:'본진',        max:30, w:90,  c:80,  i:70,  f:1.26,  p:5,  desc:'건설 속도'},
-  rally:   {ic:'🚩', nm:'집결지',      max:1,  w:10,  c:40,  i:30,  f:1,     p:1,  req:{main:1}, desc:'부대 지휘 — 공격·지원·정찰'},
-  barracks:{ic:'⚔️', nm:'병영',        max:25, w:200, c:170, i:90,  f:1.26,  p:7,  req:{main:3},                     desc:'창병·검사·도끼병·궁병'},
-  stable:  {ic:'🐎', nm:'마구간',      max:20, w:270, c:240, i:260, f:1.26,  p:8,  req:{main:10,barracks:5},         desc:'정찰·경기·궁기·중기병'},
-  workshop:{ic:'🛠️', nm:'공방',        max:15, w:300, c:240, i:260, f:1.26,  p:8,  req:{main:10,barracks:5},         desc:'파성추·투석기'},
-  smithy:  {ic:'⚒️', nm:'대장간',      max:20, w:220, c:180, i:240, f:1.26,  p:20, req:{main:5,barracks:1},          desc:'병력 성능 연구'},
-  academy: {ic:'🎓', nm:'대학',        max:1,  w:15000,c:25000,i:10000, f:1, p:80, req:{main:20,smithy:20,market:10},desc:'귀족 훈련(마을 정복)'},
-  market:  {ic:'⚖️', nm:'시장',        max:25, w:100, c:100, i:100, f:1.26,  p:20, req:{main:3,storage:2},           desc:'자원 거래'},
-  wood:    {ic:'🪵', nm:'목재소',      max:30, res:'wood', w:50, c:60, i:40, f:1.155, p:5,  desc:'목재 생산'},
-  clay:    {ic:'🧱', nm:'점토 채취장', max:30, res:'clay', w:65, c:50, i:40, f:1.155, p:5,  desc:'점토 생산'},
-  iron:    {ic:'⚙️', nm:'철광산',      max:30, res:'iron', w:75, c:65, i:70, f:1.155, p:10, desc:'철 생산'},
-  farm:    {ic:'🌾', nm:'농장',        max:30, w:45,  c:40,  i:30,  f:1.172, desc:'식량 → 인구 상한'},
-  storage: {ic:'📦', nm:'창고',        max:30, w:60,  c:50,  i:40,  f:1.229, desc:'자원 저장 한도'},
-  hide:    {ic:'🕳️', nm:'은신처',      max:10, w:50,  c:60,  i:50,  f:1.333, p:2,  desc:'약탈 방어(자원 은닉)'},
-  wall:    {ic:'🧱', nm:'성벽',        max:20, w:50,  c:100, i:20,  f:1.26,  p:5,  req:{barracks:1}, desc:'방어력 향상'},
+const BLD = {   // 수치=부족전쟁 원본 그대로 · 명칭만 룬테라 컨셉(껍데기)
+  main:    {ic:'💠', nm:'넥서스',        max:30, w:90,  c:80,  i:70,  f:1.26,  p:5,  desc:'마을의 심장 — 건설 속도'},
+  rally:   {ic:'🚩', nm:'지휘소',        max:1,  w:10,  c:40,  i:30,  f:1,     p:1,  req:{main:1}, desc:'부대 지휘 — 공격·지원·정찰'},
+  barracks:{ic:'⚔️', nm:'병영',          max:25, w:200, c:170, i:90,  f:1.26,  p:7,  req:{main:3},                     desc:'보병 훈련'},
+  stable:  {ic:'🐎', nm:'마구간',        max:20, w:270, c:240, i:260, f:1.26,  p:8,  req:{main:10,barracks:5},         desc:'기병·정찰대 훈련'},
+  workshop:{ic:'🛠️', nm:'헥스텍 공방',   max:15, w:300, c:240, i:260, f:1.26,  p:8,  req:{main:10,barracks:5},         desc:'공성 병기 제작'},
+  smithy:  {ic:'⚒️', nm:'오른의 대장간', max:20, w:220, c:180, i:240, f:1.26,  p:20, req:{main:5,barracks:1},          desc:'병력 성능 연구'},
+  academy: {ic:'🎓', nm:'총독부',        max:1,  w:15000,c:25000,i:10000, f:1, p:80, req:{main:20,smithy:20,market:10},desc:'총독 임명(마을 정복)'},
+  market:  {ic:'⚖️', nm:'빌지워터 시장', max:25, w:100, c:100, i:100, f:1.26,  p:20, req:{main:3,storage:2},           desc:'자원 거래'},
+  wood:    {ic:'🪵', nm:'벌목장',        max:30, res:'wood', w:50, c:60, i:40, f:1.155, p:5,  desc:'목재 생산'},
+  clay:    {ic:'🔹', nm:'마정석 광산',   max:30, res:'clay', w:65, c:50, i:40, f:1.155, p:5,  desc:'마정석 채굴'},
+  iron:    {ic:'⚙️', nm:'철광산',        max:30, res:'iron', w:75, c:65, i:70, f:1.155, p:10, desc:'철 생산'},
+  farm:    {ic:'🌾', nm:'농장',          max:30, w:45,  c:40,  i:30,  f:1.172, desc:'식량 → 인구 상한'},
+  storage: {ic:'📦', nm:'창고',          max:30, w:60,  c:50,  i:40,  f:1.229, desc:'자원 저장 한도'},
+  hide:    {ic:'🕳️', nm:'은신처',        max:10, w:50,  c:60,  i:50,  f:1.333, p:2,  desc:'약탈 방어(자원 은닉)'},
+  wall:    {ic:'🧱', nm:'성벽',          max:20, w:50,  c:100, i:20,  f:1.26,  p:5,  req:{barracks:1}, desc:'방어력 향상'},
 };
 function tc(base,l,f){ return Math.round(base*Math.pow(f,l-1)); }
 function bcost(b,l){ const d=BLD[b]; return {wood:tc(d.w,l,d.f), clay:tc(d.c,l,d.f), iron:tc(d.i,l,d.f)}; }
 function bldPop(b,l){ const p=BLD[b].p; return p? Math.round(p*Math.pow(1.17,l-1)) : 0; }
 // ══ 병력 — 실제 부족전쟁(궁병 월드): 비용·인구·속도[분/칸]·공격·병과별 방어(대보병/대기병/대궁병)·약탈량 ══
 //    cls = 공격 병과(inf 보병 / cav 기병 / arch 궁병) — 부족전쟁식 부분 전투 배분에 사용
-const TROOP = {
-  spear:  {ic:'🔱', nm:'창병',   from:'barracks', cost:{wood:50,clay:30,iron:10},      pop:1,  time:8,  speed:18, atk:10,  def:15,  defC:45,  defA:20,  carry:25, cls:'inf'},
-  sword:  {ic:'⚔️', nm:'검사',   from:'barracks', cost:{wood:30,clay:30,iron:70},      pop:1,  time:11, speed:22, atk:25,  def:50,  defC:15,  defA:40,  carry:15, cls:'inf'},
-  axe:    {ic:'🪓', nm:'도끼병', from:'barracks', cost:{wood:60,clay:30,iron:40},      pop:1,  time:9,  speed:18, atk:40,  def:10,  defC:5,   defA:10,  carry:10, cls:'inf'},
-  archer: {ic:'🏹', nm:'궁병',   from:'barracks', cost:{wood:100,clay:30,iron:60},     pop:1,  time:11, speed:18, atk:15,  def:50,  defC:40,  defA:5,   carry:10, cls:'arch'},
-  scout:  {ic:'🧭', nm:'정찰병', from:'stable',   cost:{wood:50,clay:50,iron:20},      pop:2,  time:9,  speed:9,  atk:0,   def:2,   defC:1,   defA:2,   carry:0,  cls:'cav', scout:true},
-  lcav:   {ic:'🐎', nm:'경기병', from:'stable',   cost:{wood:125,clay:100,iron:250},   pop:4,  time:20, speed:10, atk:130, def:30,  defC:40,  defA:30,  carry:80, cls:'cav'},
-  marcher:{ic:'🏇', nm:'궁기병', from:'stable',   cost:{wood:250,clay:100,iron:150},   pop:5,  time:22, speed:10, atk:120, def:40,  defC:30,  defA:50,  carry:50, cls:'arch'},
-  hcav:   {ic:'🛡️', nm:'중기병', from:'stable',   cost:{wood:200,clay:150,iron:600},   pop:6,  time:26, speed:11, atk:150, def:200, defC:80,  defA:180, carry:50, cls:'cav'},
-  ram:    {ic:'🐏', nm:'파성추', from:'workshop', cost:{wood:300,clay:200,iron:200},   pop:5,  time:24, speed:30, atk:2,   def:20,  defC:50,  defA:20,  carry:0,  cls:'inf', ram:true},
-  cata:   {ic:'💥', nm:'투석기', from:'workshop', cost:{wood:320,clay:400,iron:100},   pop:8,  time:30, speed:30, atk:100, def:100, defC:50,  defA:100, carry:0,  cls:'inf', cata:true},
-  noble:  {ic:'👑', nm:'귀족',   from:'academy',  cost:{wood:40000,clay:50000,iron:50000},pop:100,time:120,speed:35, atk:30, def:100, defC:50, defA:100, carry:0, cls:'inf', noble:true},
+const TROOP = {   // 수치=부족전쟁 원본 그대로 · 명칭만 룬테라 진영 컨셉(껍데기)
+  spear:  {ic:'🔱', nm:'데마시아 창병',   from:'barracks', cost:{wood:50,clay:30,iron:10},      pop:1,  time:8,  speed:18, atk:10,  def:15,  defC:45,  defA:20,  carry:25, cls:'inf'},
+  sword:  {ic:'⚔️', nm:'데마시아 검사',   from:'barracks', cost:{wood:30,clay:30,iron:70},      pop:1,  time:11, speed:22, atk:25,  def:50,  defC:15,  defA:40,  carry:15, cls:'inf'},
+  axe:    {ic:'🪓', nm:'녹서스 도끼병',   from:'barracks', cost:{wood:60,clay:30,iron:40},      pop:1,  time:9,  speed:18, atk:40,  def:10,  defC:5,   defA:10,  carry:10, cls:'inf'},
+  archer: {ic:'🏹', nm:'아이오니아 궁수', from:'barracks', cost:{wood:100,clay:30,iron:60},     pop:1,  time:11, speed:18, atk:15,  def:50,  defC:40,  defA:5,   carry:10, cls:'arch'},
+  scout:  {ic:'🧭', nm:'요들 정찰대',     from:'stable',   cost:{wood:50,clay:50,iron:20},      pop:2,  time:9,  speed:9,  atk:0,   def:2,   defC:1,   defA:2,   carry:0,  cls:'cav', scout:true},
+  lcav:   {ic:'🐎', nm:'녹서스 습격대',   from:'stable',   cost:{wood:125,clay:100,iron:250},   pop:4,  time:20, speed:10, atk:130, def:30,  defC:40,  defA:30,  carry:80, cls:'cav'},
+  marcher:{ic:'🏇', nm:'프렐요드 궁기병', from:'stable',   cost:{wood:250,clay:100,iron:150},   pop:5,  time:22, speed:10, atk:120, def:40,  defC:30,  defA:50,  carry:50, cls:'arch'},
+  hcav:   {ic:'🛡️', nm:'철갑 기사단',     from:'stable',   cost:{wood:200,clay:150,iron:600},   pop:6,  time:26, speed:11, atk:150, def:200, defC:80,  defA:180, carry:50, cls:'cav'},
+  ram:    {ic:'👾', nm:'공성 미니언',     from:'workshop', cost:{wood:300,clay:200,iron:200},   pop:5,  time:24, speed:30, atk:2,   def:20,  defC:50,  defA:20,  carry:0,  cls:'inf', ram:true},
+  cata:   {ic:'💥', nm:'헥스텍 투석기',   from:'workshop', cost:{wood:320,clay:400,iron:100},   pop:8,  time:30, speed:30, atk:100, def:100, defC:50,  defA:100, carry:0,  cls:'inf', cata:true},
+  noble:  {ic:'👑', nm:'총독',            from:'academy',  cost:{wood:40000,clay:50000,iron:50000},pop:100,time:120,speed:35, atk:30, def:100, defC:50, defA:100, carry:0, cls:'inf', noble:true},
 };
 const UNIT_GROUPS = { barracks:['spear','sword','axe','archer'], stable:['scout','lcav','marcher','hcav'], workshop:['ram','cata'], academy:['noble'] };
 const MODE_LBL = {attack:'⚔️ 공격', support:'🛡️ 지원', scout:'🧭 정찰', return:'↩️ 귀환', raid:'🔥 습격'};
@@ -446,7 +453,7 @@ function travelMs(dist, slow){ return Math.round(dist*slow*60000/WSPEED); }
 const SAVE_VER=7;   // v0.2 부족전쟁 정합(집결지·지원·정찰·새 전투) — 이전 세이브 폐기
 const PROTECT_MS = 15*24*3600*1000;
 const SPAWN_MINDIST = 9, SPAWN_RADIUS = 30;
-const RIVAL_NAMES = ['소환사 아리','소환사 리븐','소환사 럭스','소환사 진','소환사 세트','소환사 야스오'];
+const RIVAL_NAMES = ['소환사 울퉁쓰','소환사 애긔반달곰','소환사 빛나는언즈','소환사 맹독','소환사 브랜딩프로','소환사 나랑듀오'];  // 칼바람 내전 팀원 소환사
 let S = load(); bindActive();
 function bindActive(){ S.active=S.active||HOME_KEY; if(!S.villages)S.villages={}; if(!S.research)S.research={}; if(!S.spy)S.spy={};
   for(const id in S.villages){ const v=S.villages[id]; if(!v.support) v.support=[]; }
@@ -487,7 +494,7 @@ function genWorld(now){
     if(taken.has(key)) continue; const d=fieldDist({x,y},home); if(d<2.2) continue;
     taken.add(key);
     let size=1+Math.floor(R()*3)+(d>6?Math.floor(R()*3):0); size=Math.max(1,Math.min(6,size));
-    W['v'+(n++)]={x,y,name:'야만인 마을',owner:'barb',size,loot:barbLoot(size),garrison:barbGarrison(size),wall:barbWall(size)};
+    W['v'+(n++)]={x,y,name:'버려진 마을',owner:'barb',size,loot:barbLoot(size),garrison:barbGarrison(size),wall:barbWall(size)};
   }
   return W;
 }
@@ -525,6 +532,7 @@ function hasUnits(u){ for(const k in u){ if(u[k]>0) return true; } return false;
 function armyTotalV(v){ let n=0; for(const u in v.troops) n+=v.troops[u]||0; return n; }
 function snapV(w){ return {name:w.name, x:w.x, y:w.y, owner:w.owner, size:w.size||1}; }
 function crd(w){ return `(${w.x}|${w.y}) K${Math.floor(w.y/10)}${Math.floor(w.x/10)}`; }
+function crdR(w){ return crd(w)+' · '+regionOf(w); }
 // ══ 부족전쟁 전투 엔진 ══
 //  · 공격 병과(보/기/궁) 비율대로 부분 전투 → 병과별 방어(def/defC/defA) 가중 합산
 //  · 🍀 운 -25%~+25%(공격자) · 사기(수비 점수/공격 점수 기반, 대 소환사만)
@@ -560,10 +568,10 @@ function moraleVs(originV, w){ const atkP=vilPoints(originV), defP=(w.size||1)*1
 function pushReport(r){ r.at=r.at||Date.now(); S.reports=S.reports||[]; S.reports.unshift(r); S.reports=S.reports.slice(0,30); }
 // ══ 명령(집결지) — 공격/지원/정찰 공용 ══
 function sendCommand(toId, units, mode){ const v=S.v;
-  if((v.blds.rally||0)<1){ toast('🚩 집결지가 필요해요 — 마을에서 건설하세요'); return false; }
+  if((v.blds.rally||0)<1){ toast('🚩 지휘소가 필요해요 — 마을에서 건설하세요'); return false; }
   for(const u in units){ if((v.troops[u]||0)<(units[u]||0)){ toast('병력이 부족해요'); return false; } }
   if(!hasUnits(units)){ toast('보낼 병력을 선택하세요'); return false; }
-  if(mode==='scout'){ for(const u in units){ if(u!=='scout'&&units[u]>0){ toast('정찰은 🧭 정찰병만 보낼 수 있어요'); return false; } } }
+  if(mode==='scout'){ for(const u in units){ if(u!=='scout'&&units[u]>0){ toast('정찰은 🧭 요들 정찰대만 보낼 수 있어요'); return false; } } }
   let slow=1; for(const u in units){ if(units[u]>0) slow=Math.max(slow,TROOP[u].speed); }
   const from=S.world[S.active], to=S.world[toId]; if(!to||!from) return false;
   const dist=fieldDist(from,to); const travel=Math.max(4000, travelMs(dist,slow));
@@ -581,7 +589,7 @@ function conquerVillage(id, survivors){ const w=S.world[id];
   if(w.wall) b.wall=Math.min(20,Math.round(w.wall));
   nv.res={wood:300,clay:300,iron:200}; nv.troops=gar;
   S.villages[id]=nv;
-  toast(`👑 ${crd(w)} 마을을 정복했어요! 새 마을 획득 — 🚩 집결지부터 지으세요`); save();
+  toast(`👑 ${crd(w)} 마을을 정복했어요! 새 마을 획득 — 🚩 지휘소부터 지으세요`); save();
 }
 function processMarches(now){
   S.marches.sort((a,b)=>b.arriveAt-a.arriveAt);   // 역순 루프가 배열 끝(가장 이른 도착)부터 처리 → 도착 시각 순 보장
@@ -623,7 +631,7 @@ function resolveAttack(m, now){
     sent:{...m.units}, lost:aRes.lost, defUnits:annihilated?null:defStack, defLost:annihilated?null:dRes.lost,
     loot, wallFrom:wall0, wallTo, cataDmg, loyalty:r.win?Math.max(0,Math.round(loyTo)):null, conquered});
   const lt=(loot.wood+loot.clay+loot.iron)|0;
-  if(conquered){ toast(`👑 ${w.name} 함락!`); conquerVillage(m.to, aRes.left); return true; }
+  if(conquered){ toast(`👑 ${w.name} 함락! 총독이 마을을 접수했어요`); conquerVillage(m.to, aRes.left); return true; }
   toast(r.win? `✅ ${w.name} 약탈 성공! +${NF(lt)} 자원 (📜 보고서)` : `💥 ${w.name} 공격 ${annihilated?'대패 — 전멸':'실패'} (📜 보고서)`);
   if(annihilated) return true;
   const trip=m.arriveAt-m.dep; m.mode='return'; m.units=aRes.left; m.loot=loot; m.dep=now; m.arriveAt=now+trip; return false;
@@ -644,12 +652,12 @@ function resolveScout(m, now){
     spy.def=Math.round(def*Math.pow(1.037,spy.wall)+wallBasicDef(spy.wall));
     S.spy[m.to]={at:now, ...spy};
     pushReport({type:'scout', win:true, tgt:snapV(w), sent:{scout:atkS}, lost:lost?{scout:lost}:{}, spy});
-    toast(`🧭 ${w.name} 정찰 성공${lost?` · 정찰병 -${lost}`:''} (📜 보고서)`);
+    toast(`🧭 ${w.name} 정찰 성공${lost?` · 정찰대 -${lost}`:''} (📜 보고서)`);
     if(left>0){ const trip=m.arriveAt-m.dep; m.mode='return'; m.units={scout:left}; m.loot=null; m.dep=now; m.arriveAt=now+trip; return false; }
     return true;
   }
   pushReport({type:'scout', win:false, tgt:snapV(w), sent:{scout:atkS}, lost:{scout:atkS}});
-  toast(`🧭 ${w.name} 정찰 실패 — 적 정찰병에 발각(전멸)`);
+  toast(`🧭 ${w.name} 정찰 실패 — 적 정찰대에 발각(전멸)`);
   return true;
 }
 // ⚔️ 피습 방어 — 부족전쟁식: 공격자 승리 시 수비 병력 전멸 + 약탈(은신처 보호) / 방어 성공 시 수비 비례 손실
@@ -722,7 +730,7 @@ function costStr(c){ return Object.keys(c).map(k=>`${RES[k]||''}${NF(c[k])}`).jo
 function payV(c){ const v=S.v; for(const k in c){ if((v.res[k]||0)<(c[k]||0)) return false; } for(const k in c) v.res[k]-=(c[k]||0); return true; }
 function canAffordV(c){ const v=S.v; for(const k in c){ if((v.res[k]||0)<(c[k]||0)) return false; } return true; }
 // ── 내비게이션: PC=상단 메뉴 / 모바일=하단 탭바 ──
-const NAVS=[['map','🗺️','지도'],['village','🏰','마을'],['rally','🚩','집결지'],['reports','📜','보고서']];
+const NAVS=[['map','🗺️','지도'],['village','🏰','마을'],['rally','🚩','지휘소'],['reports','📜','보고서']];
 function buildNav(){
   const pm=document.getElementById('pcmenu'), tb=document.getElementById('tabbar');
   pm.innerHTML = NAVS.map(([v,ic,nm])=>`<button class="pcm" data-v="${v}" onclick="go('${v}')">${ic} ${nm}<span class="bdg" data-bdg="${v}" style="display:none"></span></button>`).join('')
@@ -755,12 +763,12 @@ function renderTop(){
   const v=S.v, cap=storeCap();
   const chip=(k)=>{ const val=Math.floor(v.res[k]); const pct=Math.min(100,val/cap*100);
     const cls=pct>=97?'full':(pct>=80?'warn':'');
-    return `<span class="res ${cls}" title="${NF(val)} / ${NF(cap)} · +${prodPerMin(v.blds[k]||0)}/분"><i>${RES[k]}</i><div class="rv"><em>${NF(val)}</em><div class="cbar"><div style="width:${pct.toFixed(0)}%"></div></div></div><s>+${prodPerMin(v.blds[k]||0)}</s></span>`; };
+    return `<span class="res ${cls}" title="${RES_NM[k]} ${NF(val)} / ${NF(cap)} · +${prodPerMin(v.blds[k]||0)}/분"><i>${RES[k]}</i><div class="rv"><em>${NF(val)}</em><div class="cbar"><div style="width:${pct.toFixed(0)}%"></div></div></div><s>+${prodPerMin(v.blds[k]||0)}</s></span>`; };
   const pu=popUsed(), pcap=popCap(); const pcls=pu>=pcap?'full':(pu/pcap>=0.85?'warn':'');
   document.getElementById('resbar').innerHTML = ['wood','clay','iron'].map(chip).join('')
     + `<span class="res ${pcls}" title="인구(농장) ${pu}/${pcap}"><i>🌾</i><div class="rv"><em>${NF(pu)}/${NF(pcap)}</em><div class="cbar"><div style="width:${Math.min(100,pu/pcap*100).toFixed(0)}%"></div></div></div></span>`;
   const pb=document.getElementById('protect-banner'); if(pb){ const left=protectLeft(S.world[HOME_KEY]);
-    if(left>0){ pb.style.display='flex'; pb.innerHTML=`🛡️ <b>뉴비 보호 중</b> · ${fmtProtect(left)} 남음 <span class="pb-sub">먼저 공격 시 즉시 해제</span>`; }
+    if(left>0){ pb.style.display='flex'; pb.innerHTML=`🛡️ <b>신규 소환사 보호</b> · ${fmtProtect(left)} 남음 <span class="pb-sub">먼저 공격 시 즉시 해제</span>`; }
     else pb.style.display='none'; }
 }
 // ── PC 사이드바(부족전쟁 개요) ──
@@ -782,7 +790,7 @@ function renderSidebar(){
     else mv+=`<div class="sb-row">${MODE_LBL[m.mode]||m.mode} → (${tgt?tgt.x:'?'}|${tgt?tgt.y:'?'})<b>${fmtDur(m.arriveAt-now)}</b></div>`; });
   if(!mv) mv=`<div class="sb-row" style="color:#9a8a60">이동 중인 부대 없음</div>`;
   sb.innerHTML=`
-    <div class="box"><div class="bh">🏰 내 마을 <small>${crd(w)}</small></div><div class="bc">
+    <div class="box"><div class="bh">🏰 내 마을 <small>${crdR(w)}</small></div><div class="bc">
       ${sw}${resRow('wood')}${resRow('clay')}${resRow('iron')}
       <div class="sb-row">🌾 인구<b>${NF(popUsed())}/${NF(popCap())}</b></div>
       <div class="sb-row">🛡️ 주둔 병력<b>${NF(armyTotalV(v))}</b></div>
@@ -793,7 +801,9 @@ function renderSidebar(){
 // ── 지도(3D 우선 · 2D 폴백) ──
 function renderMap(){
   if(window.Map3D){ const wrap=document.getElementById('map-wrap'), mc=document.getElementById('map-content'); if(mc) mc.style.display='none';
-    if(wrap){ window.Map3D.mount(wrap); window.Map3D.build({ world:S.world, cols:HCOLS, rows:HROWS, hex:hexPos, isP:isProtected, onNode:onVillage, HOME:HOME_KEY, fmt:fmtDur, state:()=>({world:S.world,marches:S.marches}) });
+    if(wrap){ window.Map3D.mount(wrap); window.Map3D.build({ world:S.world, cols:HCOLS, rows:HROWS, hex:hexPos, isP:isProtected, onNode:onVillage, HOME:HOME_KEY, fmt:fmtDur,
+      regions:Object.keys(KMAP).map(k=>({c:Math.min((+k[1])*10+5,HCOLS-2), r:Math.min((+k[0])*10+5,HROWS-2), nm:KMAP[k], k:'K'+k})),
+      state:()=>({world:S.world,marches:S.marches}) });
       const rr=document.getElementById('map-reset'); if(rr) rr.onclick=()=>window.Map3D.resetCam(); }
     return; }
   // 2D 폴백(three.js CDN 차단 환경)
@@ -851,8 +861,11 @@ function drawGrid(){
   g.strokeStyle='rgba(202,168,75,.42)'; g.lineWidth=2;
   for(let i=0;i<=HCOLS;i+=10){ g.beginPath(); g.moveTo(i*F,0); g.lineTo(i*F,ph); g.stroke(); }
   for(let i=0;i<=HROWS;i+=10){ g.beginPath(); g.moveTo(0,i*F); g.lineTo(pw,i*F); g.stroke(); }
-  g.fillStyle='rgba(240,220,150,.42)'; g.font='bold 20px Georgia,serif'; g.textAlign='center';
-  for(let cy=0;cy<Math.ceil(HROWS/10);cy++)for(let cx=0;cx<Math.ceil(HCOLS/10);cx++) g.fillText('K'+cy+cx, Math.min(cx*10+5,HCOLS-2)*F, Math.min(cy*10+5,HROWS-2)*F+7);
+  g.textAlign='center';
+  for(let cy=0;cy<Math.ceil(HROWS/10);cy++)for(let cx=0;cx<Math.ceil(HCOLS/10);cx++){
+    const px2=Math.min(cx*10+5,HCOLS-2)*F, py2=Math.min(cy*10+5,HROWS-2)*F;
+    g.fillStyle='rgba(240,220,150,.5)'; g.font='bold 22px Georgia,serif'; g.fillText(KMAP[cy+''+cx]||'룬테라', px2, py2);
+    g.fillStyle='rgba(240,220,150,.32)'; g.font='bold 13px Georgia,serif'; g.fillText('K'+cy+cx, px2, py2+18); }
 }
 // 팬/줌(2D 폴백 전용)
 function attachPanZoom(wrap, content, opt){
@@ -910,6 +923,7 @@ function onVillage(id){ const w=S.world[id]; if(!w) return;
   if(w.owner==='me' && id===S.active){ go('village'); return; }
   openVillageInfo(id);
 }
+window.onVillageInfo=openVillageInfo; window.goVillage=onVillage;   // 디버그/테스트용 노출
 
 // ── 마을 정보 패널(부족전쟁식: 적 정보는 🧭 정찰해야 보임) ──
 function openVillageInfo(id){ const w=S.world[id]; if(!w) return;
@@ -927,8 +941,8 @@ function openVillageInfo(id){ const w=S.world[id]; if(!w) return;
   const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
   ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:360px">
     <div class="vi-hd"><span class="vi-ic">${ic}</span>
-      <div class="vi-tt"><b>${(w.name||'마을').replace('소환사 ','')}</b><small>${crd(w)}</small></div>
-      <span class="vi-tag ${isPlayer?'pl':''}">${mine?'🏰 내 마을':(isPlayer?'🗼 라이벌':'🏚️ 야만인')}</span></div>
+      <div class="vi-tt"><b>${(w.name||'마을').replace('소환사 ','')}</b><small>${crdR(w)}</small></div>
+      <span class="vi-tag ${isPlayer?'pl':''}">${mine?'🏰 내 마을':(isPlayer?'🗼 라이벌 소환사':'🏚️ 폐허')}</span></div>
     <div class="vi-grid">
       <div class="vi-cell"><div class="k">규모</div><div class="v">${w.size}★</div></div>
       <div class="vi-cell"><div class="k">내 마을에서</div><div class="v">${dist.toFixed(1)}<small>칸</small></div></div>
@@ -936,7 +950,8 @@ function openVillageInfo(id){ const w=S.world[id]; if(!w) return;
       <div class="vi-cell"><div class="k">👑 충성도</div><div class="v">${loyCell}</div></div>
       <div class="vi-cell" style="grid-column:1/3"><div class="k">📦 자원</div><div class="v">${lootCell}</div></div>
     </div>
-    ${prot?`<div class="vi-prot">🛡️ <b>뉴비 보호 중</b> · ${fmtProtect(protectLeft(w))} 동안 공격 불가</div>`:''}
+    ${(!mine&&!isPlayer)?`<div class="muted" style="margin-bottom:9px;padding:6px">룬테라 전쟁으로 주인을 잃은 마을 — 잔존병이 지키고, 자원이 쌓여 있어요</div>`:''}
+    ${prot?`<div class="vi-prot">🛡️ <b>신규 소환사 보호</b> · ${fmtProtect(protectLeft(w))} 동안 공격 불가</div>`:''}
     <div class="vi-acts ${mine?(id===S.active?'two':''):''}" id="vi-acts"></div></div>`;
   const acts=ov.querySelector('#vi-acts');
   const btn=(cls,txt,fn,dis)=>{ const b=document.createElement('button'); b.className='btn '+cls; b.innerHTML=txt; if(dis)b.disabled=true; else b.onclick=fn; acts.appendChild(b); };
@@ -956,15 +971,15 @@ function confirmRelease(onYes){ const left=protectLeft(S.world[HOME_KEY]);
   const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
   ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:330px;text-align:center">
     <div style="font-size:34px;margin:4px 0">⚠️</div>
-    <h3 class="pick-h" style="color:#a3542c">뉴비 보호가 풀려요</h3>
-    <div class="muted" style="margin:8px 4px 2px;line-height:1.55">지금 먼저 공격하면 남은 <b style="color:#1d5c96">${fmtProtect(left)}</b>의<br>🛡️ 뉴비 보호가 <b style="color:#b3261e">즉시 해제</b>됩니다.<br>이후 다른 소환사에게 공격받을 수 있어요.</div>
+    <h3 class="pick-h" style="color:#a3542c">소환사 보호가 풀려요</h3>
+    <div class="muted" style="margin:8px 4px 2px;line-height:1.55">지금 먼저 공격하면 남은 <b style="color:#1d5c96">${fmtProtect(left)}</b>의<br>🛡️ 신규 소환사 보호가 <b style="color:#b3261e">즉시 해제</b>됩니다.<br>이후 다른 소환사에게 공격받을 수 있어요.</div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn cr-no" style="flex:1;padding:11px">취소</button>
       <button class="btn btn-red cr-yes" style="flex:1;padding:11px">무시하고 공격</button>
     </div></div>`;
   document.body.appendChild(ov);
   ov.querySelector('.cr-no').onclick=()=>ov.remove();
-  ov.querySelector('.cr-yes').onclick=()=>{ S.world[HOME_KEY].protectUntil=0; save(); renderTop(); toast('🛡️ 뉴비 보호가 해제됐어요'); ov.remove(); onYes(); };
+  ov.querySelector('.cr-yes').onclick=()=>{ S.world[HOME_KEY].protectUntil=0; save(); renderTop(); toast('🛡️ 신규 소환사 보호가 해제됐어요'); ov.remove(); onYes(); };
 }
 // ── 공격/지원/정찰 모달(집결지 명령) ──
 function openAttack(id, mode0){
@@ -974,13 +989,13 @@ function openAttack(id, mode0){
     const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
     ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:320px;text-align:center">
       <div style="font-size:34px;margin:4px 0">🛡️</div>
-      <h3 class="pick-h" style="text-align:center">${w.name} · 뉴비 보호 중</h3>
+      <h3 class="pick-h" style="text-align:center">${w.name} · 소환사 보호 중</h3>
       <div class="muted" style="margin:8px 0 2px;line-height:1.5">이 소환사는 <b style="color:#1d5c96">${fmtProtect(protectLeft(w))}</b> 동안<br>공격받지 않아요.</div>
       <button class="btn" style="width:100%;padding:11px;margin-top:10px" onclick="this.closest('.ov').remove()">확인</button>
     </div>`;
     document.body.appendChild(ov); return;
   }
-  if((v.blds.rally||0)<1){ toast('🚩 집결지가 필요해요 — 마을에서 건설하세요'); go('village'); return; }
+  if((v.blds.rally||0)<1){ toast('🚩 지휘소가 필요해요 — 마을에서 건설하세요'); go('village'); return; }
   let mode = mode0 || (mine?'support':'attack');
   const from=S.world[S.active]; const dist=fieldDist(w,from);
   let sel={};
@@ -996,11 +1011,11 @@ function openAttack(id, mode0){
       ${tabs.length? `<div class="atk-tabs">${tabs.map(([m2,nm])=>`<button class="atab ${mode===m2?'on':''}" data-m="${m2}">${nm}</button>`).join('')}</div>`:''}
       ${!mine? `<div class="atk-info">${spy? `🧭 최근 정찰(${fmtAgo(Date.now()-spy.at)}) — 🛡️ 수비 ~<b>${NF(spy.def)}</b> · 🧱 성벽 ${spy.wall} · 📦 ${NF(spy.res.wood+spy.res.clay+spy.res.iron)} · 👑 충성도 ${spy.loyalty}`
         : '❓ <b>수비 정보 없음</b> — 부족전쟁식으로 적 정보는 🧭 정찰해야 보여요'}</div>`
-        : `<div class="atk-info">🛡️ 내 마을에 병력을 <b>지원</b>합니다 — 도착하면 그 마을 수비에 합류하고, 🚩 집결지에서 회수할 수 있어요</div>`}
+        : `<div class="atk-info">🛡️ 내 마을에 병력을 <b>지원</b>합니다 — 도착하면 그 마을 수비에 합류하고, 🚩 지휘소에서 회수할 수 있어요</div>`}
       ${rows.length? rows.map(u=>`<div class="atk-row"><span class="u-ic">${TROOP[u].ic}</span><span class="u-nm">${TROOP[u].nm}</span><span class="u-have">보유 ${NF(v.troops[u])}</span>
         <span class="atk-step"><button data-u="${u}" data-d="-1">－</button><b>${sel[u]||0}</b><button data-u="${u}" data-d="1">＋</button><button data-u="${u}" data-d="max" class="mx">최대</button></span></div>`).join('')
-        : `<div class="muted" style="margin:10px 0">보낼 병력이 없어요${mode==='scout'?' · 🧭 정찰병은 마구간에서 훈련':''}</div>`}
-      <div class="atk-est">${mode==='scout'? `🧭 정찰병 <b>${es.n}</b> · 수비 정찰병×2를 뚫어야 성공`
+        : `<div class="muted" style="margin:10px 0">보낼 병력이 없어요${mode==='scout'?' · 🧭 요들 정찰대는 마구간에서 훈련':''}</div>`}
+      <div class="atk-est">${mode==='scout'? `🧭 요들 정찰대 <b>${es.n}</b> · 수비 정찰대×2를 뚫어야 성공`
         : mode==='support'? `🛡️ 지원 병력 <b>${es.n}</b>명`
         : `⚔️ 공격력 <b>${NF(es.atk)}</b>${w.owner==='player'?` · 사기 ${Math.round(moraleVs(v,w)*100)}%`:''} · 🍀 운 ±25%`}
         · ${es.travel?('행군 '+fmtDur(es.travel)):'—'}</div>
@@ -1030,7 +1045,7 @@ function renderVillage(full){
         <div class="scene-cam" id="rgn-cam"></div>
         <div class="scene-amb" style="background:radial-gradient(48% 36% at 50% 40%, ${B.amb}, transparent 72%)"></div>
         <div class="biome-fx" id="biome-fx"></div>
-        <div class="stt">🏰 내 마을 <small>${w?crd(w):''}</small></div>
+        <div class="stt">🏰 내 마을 <small>${w?crdR(w):''}</small></div>
         <div class="schint">건물 명패를 탭해 건설·업그레이드</div>
         <button class="pz-reset" id="rgn-reset" title="원래대로">⤢</button>
         <button class="pz-reset" id="rgn-daynight" style="top:46px" title="낮/밤">🌙</button>
@@ -1038,10 +1053,10 @@ function renderVillage(full){
       <div id="vil-switch"></div>
       <div id="vil-queues"></div>
       <div class="box"><div class="bh">🏗️ 건물 <small id="vil-bldhint"></small></div><div class="bc" id="vil-blds"></div></div>
-      <div class="box"><div class="bh">⚔️ 병영 <small>창병 · 검사 · 도끼병 · 궁병</small></div><div class="bc" id="vil-barracks"></div></div>
-      <div class="box"><div class="bh">🐎 마구간 <small>정찰 · 경기 · 궁기 · 중기병</small></div><div class="bc" id="vil-stable"></div></div>
-      <div class="box"><div class="bh">🛠️ 공방 <small>파성추 · 투석기</small></div><div class="bc" id="vil-workshop"></div></div>
-      <div class="box"><div class="bh">🎓 대학 <small>귀족 — 마을 정복</small></div><div class="bc" id="vil-academy"></div></div>
+      <div class="box"><div class="bh">⚔️ 병영 <small>데마시아 창병·검사 · 녹서스 도끼병 · 아이오니아 궁수</small></div><div class="bc" id="vil-barracks"></div></div>
+      <div class="box"><div class="bh">🐎 마구간 <small>요들 정찰대 · 습격대 · 궁기병 · 철갑 기사단</small></div><div class="bc" id="vil-stable"></div></div>
+      <div class="box"><div class="bh">🛠️ 헥스텍 공방 <small>공성 미니언 · 헥스텍 투석기</small></div><div class="bc" id="vil-workshop"></div></div>
+      <div class="box"><div class="bh">🎓 총독부 <small>총독 — 마을 정복</small></div><div class="bc" id="vil-academy"></div></div>
       <div class="box"><div class="bh">🛡️ 병력 <small id="vil-armytot"></small></div><div class="bc" id="vil-army"></div></div>
       <div class="box"><div class="bh">📡 이 마을의 행군</div><div class="bc" id="vil-marches"></div></div>
       <div style="height:8px"></div>`;
@@ -1067,7 +1082,7 @@ function bldEffTxt(b,lv){ const d=BLD[b];
   if(b==='stable') return `🐎 기병 훈련`;
   if(b==='workshop') return `🛠️ 공성 병기`;
   if(b==='smithy') return `⚒️ 성능 연구`;
-  if(b==='academy') return `👑 귀족 훈련`;
+  if(b==='academy') return `👑 총독 임명`;
   if(b==='market') return `⚖️ 자원 거래`;
   if(b==='hide') return `🕳️ 자원 은닉 ${lv?NF(Math.round(150*Math.pow(1.333,lv-1))):0}`;
   return d.desc||'';
@@ -1080,7 +1095,7 @@ function updateVillageDynamic(){
   if(v.buildQ.length){ const h=v.buildQ[0]; q+=`<div class="q-row">🏗️ <b>${BLD[h.b].nm}</b> Lv${(v.blds[h.b]||0)+1} · <b>${fmtDur(h.doneAt-now)}</b>${v.buildQ.length>1?` <span>대기 +${v.buildQ.length-1}</span>`:''}</div>`; }
   if(v.recQ.length){ const h=v.recQ[0]; q+=`<div class="q-row">${TROOP[h.u].ic} <b>${TROOP[h.u].nm}</b> · <b>${fmtDur(h.doneAt-now)}</b> <span>대기 ${v.recQ.length}</span></div>`; }
   const qe=document.getElementById('vil-queues'); if(qe) qe.innerHTML=q;
-  const bh=document.getElementById('vil-bldhint'); if(bh) bh.textContent=(v.blds.rally||0)<1?'— 🚩 집결지를 지어야 공격할 수 있어요':'';
+  const bh=document.getElementById('vil-bldhint'); if(bh) bh.textContent=(v.blds.rally||0)<1?'— 🚩 지휘소를 지어야 공격할 수 있어요':'';
   const be=document.getElementById('vil-blds');
   if(be){
     const rows=Object.keys(BLD).map(b=>{ const d=BLD[b]; const lv=v.blds[b]||0; const qd=v.buildQ.filter(x=>x.b===b).length; const eff=lv+qd; const maxed=eff>=d.max;
@@ -1158,14 +1173,14 @@ window.switchVil=function(id){ if(!S.villages[id]) return; setActive(id);
   if(view==='village') renderVillage(true); else if(view==='rally') renderRally(true);
   renderTop(); renderSidebar(); toast(`🏰 ${crd(S.world[id])} 마을로 전환`); };
 // ⚖️ 시장 — 자원 교환(수수료 10%, 레벨당 200 용량)
-window.openMarket=function(){ const v=S.v; const lv=v.blds.market||0; if(lv<1){ toast('⚖️ 시장이 필요해요 — 마을에서 건설'); return; }
+window.openMarket=function(){ const v=S.v; const lv=v.blds.market||0; if(lv<1){ toast('⚖️ 빌지워터 시장이 필요해요 — 마을에서 건설'); return; }
   let give='wood', get='clay'; const cap=()=>lv*200;
   const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
   let amt=Math.min(cap(), Math.floor(v.res[give]||0));
   function pill(k,cur,role){ return `<button class="mk-res ${cur===k?'on':''}" data-role="${role}" data-k="${k}">${RES[k]} ${NF(v.res[k])}</button>`; }
   function draw(){ amt=Math.max(0,Math.min(amt, cap(), Math.floor(v.res[give]||0))); const got=Math.floor(amt*0.9);
     ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:340px">
-      <h3 class="pick-h">⚖️ 시장 <small>Lv${lv} · 1회 최대 ${NF(cap())}</small></h3>
+      <h3 class="pick-h">⚖️ 빌지워터 시장 <small>Lv${lv} · 1회 최대 ${NF(cap())}</small></h3>
       <div class="mk-lbl">내놓기</div><div class="mk-row">${['wood','clay','iron'].map(k=>pill(k,give,'give')).join('')}</div>
       <div class="mk-lbl">받기 <span style="color:#9a8a60">(수수료 10%)</span></div><div class="mk-row">${['wood','clay','iron'].map(k=>pill(k,get,'get')).join('')}</div>
       <div class="mk-amt"><button data-a="-">－</button><b>${RES[give]} ${NF(amt)}</b><button data-a="+">＋</button><button data-a="max" class="mx">최대</button></div>
@@ -1184,12 +1199,12 @@ window.openMarket=function(){ const v=S.v; const lv=v.blds.market||0; if(lv<1){ 
   draw(); document.body.appendChild(ov);
 };
 // ⚒️ 대장간 — 병력 성능 연구(+12%/레벨·최대3)
-window.openSmithy=function(){ const v=S.v; if((v.blds.smithy||0)<1){ toast('⚒️ 대장간이 필요해요 — 마을에서 건설'); return; }
+window.openSmithy=function(){ const v=S.v; if((v.blds.smithy||0)<1){ toast('⚒️ 오른의 대장간이 필요해요 — 마을에서 건설'); return; }
   const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
   function rcost(u,lvl){ const t=TROOP[u]; const m=6*(lvl+1); return {wood:(t.cost.wood||0)*m, clay:(t.cost.clay||0)*m, iron:(t.cost.iron||0)*m}; }
   function draw(){ const units=Object.keys(TROOP).filter(u=>(v.blds[TROOP[u].from]||0)>=1 && !TROOP[u].noble);
     ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:380px">
-      <h3 class="pick-h">⚒️ 대장간 연구 <small>병력 ⚔️🛡️ +12%/레벨</small></h3>
+      <h3 class="pick-h">⚒️ 오른의 대장간 <small>병력 ⚔️🛡️ +12%/레벨 연구</small></h3>
       ${units.length? units.map(u=>{ const t=TROOP[u]; const lvl=(S.research[u]||0); const maxed=lvl>=3; const c=maxed?null:rcost(u,lvl); const aff=c&&canAffordV(c);
         return `<div class="sm-row"><div class="sm-l"><span class="u-ic">${t.ic}</span><b>${t.nm}</b> <span class="sm-lv">Lv${lvl}/3</span><div class="sm-b">현재 ⚔️${Math.round(t.atk*(1+lvl*0.12))} 🛡️${Math.round(t.def*(1+lvl*0.12))}</div></div>
           ${maxed?`<button class="sm-btn" disabled>최대</button>`:`<button class="sm-btn ${aff?'':'no'}" data-u="${u}">연구 · ${costStr(c)}</button>`}</div>`; }).join('')
@@ -1207,7 +1222,7 @@ function renderRally(full){
   const lv=S.v.blds.rally||0;
   if(full){
     el.innerHTML=`
-      ${lv<1? `<div class="box warnbox"><div class="bc">🚩 <b>집결지가 없어요.</b> 부대를 지휘(공격·지원·정찰)하려면 마을에서 집결지를 지으세요. <button class="btn sm" onclick="go('village')">🏰 마을로</button></div></div>`:''}
+      ${lv<1? `<div class="box warnbox"><div class="bc">🚩 <b>지휘소가 없어요.</b> 부대를 지휘(공격·지원·정찰)하려면 마을에서 지휘소를 지으세요. <button class="btn sm" onclick="go('village')">🏰 마을로</button></div></div>`:''}
       <div class="box"><div class="bh">🎯 좌표로 마을 찾기</div><div class="bc"><div class="rl-coord">
         <input id="rc-x" type="number" min="0" max="${HCOLS-1}" placeholder="x"> <b>|</b> <input id="rc-y" type="number" min="0" max="${HROWS-1}" placeholder="y">
         <button class="btn" onclick="rallyFind()">찾기</button>
@@ -1286,7 +1301,7 @@ function reportCard(r){
         <div class="rp-meta"><span class="rp-chip">📦 🪵${NF(r.spy.res.wood)} 🧱${NF(r.spy.res.clay)} ⚙️${NF(r.spy.res.iron)}</span>
         <span class="rp-chip">🧱 성벽 ${r.spy.wall}</span><span class="rp-chip">👑 충성도 ${r.spy.loyalty}</span><span class="rp-chip">🛡️ 수비력 ~${NF(r.spy.def)}</span></div>
         <div class="rp-sec">주둔 병력</div>${uchips(r.spy.troops,null)}`
-        : `<span class="mut">적 정찰병에 발각되어 아무 정보도 얻지 못했어요</span>`}
+        : `<span class="mut">적 정찰대에 발각되어 아무 정보도 얻지 못했어요</span>`}
     </div></details>`;
   }
   return '';
@@ -1379,7 +1394,7 @@ document.addEventListener('DOMContentLoaded', ()=>{ buildNav(); showView(); loop
 // ═══════════ 디버그/테스트 ═══════════
 window.rune=()=>S;
 window.runeReset=function(){ localStorage.removeItem('rune_proto'); S=fresh(); bindActive(); showView(); toast('프로토타입 초기화'); };
-window.runeGrantNoble=function(n){ n=n||3; S.v.troops.noble=(S.v.troops.noble||0)+n; save(); if(view==='village')updateVillageDynamic(); toast(`👑 귀족 +${n}(테스트)`); };
+window.runeGrantNoble=function(n){ n=n||3; S.v.troops.noble=(S.v.troops.noble||0)+n; save(); if(view==='village')updateVillageDynamic(); toast(`👑 총독 +${n}(테스트)`); };
 window.runeArmy=function(n){ n=n||50; const v=S.v; v.troops.axe=(v.troops.axe||0)+n; v.troops.lcav=(v.troops.lcav||0)+Math.ceil(n/5);
   v.troops.scout=(v.troops.scout||0)+10; v.troops.ram=(v.troops.ram||0)+6; v.troops.spear=(v.troops.spear||0)+n; v.blds.rally=1;
   save(); if(view==='village')renderVillage(true); toast(`⚔️ 테스트 병력 지급 + 집결지`); };
@@ -1611,6 +1626,9 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
   off=opts.hex((cols-1)/2,(rows-1)/2); HGT=rows*0.866;
   while(GRP.children.length) GRP.remove(GRP.children[0]);
   VLAB.forEach(L=>L.el.remove()); VLAB.length=0;
+  (opts.regions||[]).forEach(rg=>{ const p=opts.hex(rg.c,rg.r); const el=document.createElement('div');
+    el.className='v3-label rgn3'; el.innerHTML=`<b>${rg.nm}</b><span class="rk">${rg.k}</span>`;
+    LH.appendChild(el); VLAB.push({el,pos:new T.Vector3(p.x-off.x,0.05,p.z-off.z)}); });   // 룬테라 지역명(대륙 K##)
   // 마을 좌표 인덱스
   const at={}; for(const id in world){ const w=world[id]; at[w.x+','+w.y]=id; }
   const roads=computeRoads(world, opts, at);   // 마을 간 길(헥스 길 타일)
