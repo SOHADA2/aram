@@ -898,8 +898,9 @@ function renderRgn(full){
         <button class="bk2" onclick="view='map';showView();">‹</button>
         <div class="stt">🏰 내 마을 <small>${REGIONS[id].nm}</small></div>
         <div class="schint">${B.label} · 🏗️ 건물을 탭해 건설·업글</div>
-        <div class="pz-hint" id="rgn-hint">🔍 확대·드래그로 마을을 둘러보세요</div>
+        <div class="pz-hint" id="rgn-hint">🔍 휠로 확대 · 건물 명패를 탭해 건설·업글</div>
         <button class="pz-reset" id="rgn-reset" title="원래대로">⤢</button>
+        <button class="pz-reset" id="rgn-daynight" style="top:46px" title="낮/밤">🌙</button>
       </div>
       <div id="vil-switch"></div>
       <div id="vil-queues"></div>
@@ -921,7 +922,8 @@ function renderRgn(full){
     fillBiomeFx(B.fx);
     const _sc=document.getElementById('rgn-scene');
     if(_sc && window.Town3D){ try{ window.Town3D.mount(_sc); window.Town3D.build(S.v.blds,{onBuild:(b)=>window.build(b), BLD});
-        const rr=document.getElementById('rgn-reset'); if(rr) rr.onclick=()=>window.Town3D.resetCam(); }catch(e){}
+        const rr=document.getElementById('rgn-reset'); if(rr) rr.onclick=()=>window.Town3D.resetCam();
+        const dn=document.getElementById('rgn-daynight'); if(dn) dn.onclick=()=>{ dn.textContent=window.Town3D.setNight()?'☀️':'🌙'; }; }catch(e){}
       setTimeout(()=>{ const h=document.getElementById('rgn-hint'); if(h) h.classList.add('gone'); },4500);
     } else if(_sc){ buildIso(id); const _cam=document.getElementById('rgn-cam');   // WebGL 미지원 폴백(2D)
       if(_cam){ const pz=attachPanZoom(_sc,_cam,{max:3.4,dbl:2}); const rr=document.getElementById('rgn-reset'); if(rr) rr.onclick=()=>pz.reset(); }
@@ -1161,22 +1163,23 @@ import * as T from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 const P2=Math.PI/2, KIT={town:'assets/town/',castle:'assets/castle/',surv:'assets/survival/'};
-let renderer,scene,cam,ctrl,vgroup,bgroup,curEl,labelHost,W=1,H=1,onBuild=null,walled=false;
+let renderer,scene,cam,ctrl,vgroup,bgroup,curEl,labelHost,W=1,H=1,onBuild=null,sun,hemi,night=false,_wallLv=-1;
 const cache={}, gl=new GLTFLoader(), labels=[];
 function loadG(kit,n){ const k=kit+'|'+n; return cache[k]||(cache[k]=gl.loadAsync(KIT[kit]+n+'.glb').then(g=>g.scene)); }
 async function inst(kit,n,parent,x,z,o){ o=o||{}; try{ const src=await loadG(kit,n); const m=src.clone(true);
   m.position.set(x,o.y||0,z); m.rotation.y=o.ry||0; m.scale.setScalar(o.s||1);
-  m.traverse(c=>{ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; } }); parent.add(m); return m; }catch(e){} }
+  m.traverse(c=>{ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true;
+    if(o.tint!=null){ c.material=c.material.clone(); c.material.color=new T.Color(o.tint); } } }); parent.add(m); return m; }catch(e){} }
 function initScene(){
   if(renderer) return;
   renderer=new T.WebGLRenderer({antialias:true,alpha:true}); renderer.setPixelRatio(Math.min(2,devicePixelRatio));
   renderer.outputColorSpace=T.SRGBColorSpace; renderer.shadowMap.enabled=true; renderer.shadowMap.type=T.PCFSoftShadowMap;
   renderer.domElement.style.cssText='position:absolute;inset:0;width:100%;height:100%;';
   scene=new T.Scene();
-  cam=new T.OrthographicCamera(-9,9,9,-9,-50,90); cam.position.set(15,15,15); cam.lookAt(0,0,0);
-  ctrl=new OrbitControls(cam,renderer.domElement); ctrl.enableDamping=true; ctrl.maxPolarAngle=Math.PI*0.47; ctrl.minZoom=0.55; ctrl.maxZoom=2.4; ctrl.enablePan=false;
-  scene.add(new T.HemisphereLight(0xdcefff,0x50603a,0.95));
-  const sun=new T.DirectionalLight(0xfff3d8,1.4); sun.position.set(11,18,7); sun.castShadow=true; sun.shadow.mapSize.set(1536,1536);
+  cam=new T.OrthographicCamera(-9,9,9,-9,-60,100); cam.position.set(7,17,7); cam.lookAt(0,0.5,0);   // 고정 탑뷰(밑면 안 보이게)
+  ctrl=new OrbitControls(cam,renderer.domElement); ctrl.enableDamping=true; ctrl.enableRotate=false; ctrl.enablePan=false; ctrl.minZoom=0.6; ctrl.maxZoom=2.8; ctrl.target.set(0,0.5,0);
+  hemi=new T.HemisphereLight(0xdcefff,0x50603a,0.95); scene.add(hemi);
+  sun=new T.DirectionalLight(0xfff3d8,1.4); sun.position.set(11,18,7); sun.castShadow=true; sun.shadow.mapSize.set(1536,1536);
   const s=sun.shadow.camera; s.left=-11;s.right=11;s.top=11;s.bottom=-11;s.near=1;s.far=48; sun.shadow.bias=-0.0006; scene.add(sun);
   const grass=new T.Mesh(new T.CircleGeometry(8,52),new T.MeshStandardMaterial({color:0x6f9e46,roughness:1})); grass.rotation.x=-P2; grass.receiveShadow=true; scene.add(grass);
   const moat=new T.Mesh(new T.RingGeometry(7.9,9,52),new T.MeshStandardMaterial({color:0x3f7fb0,roughness:.7})); moat.rotation.x=-P2; moat.position.y=-0.06; scene.add(moat);
@@ -1185,31 +1188,38 @@ function initScene(){
   (function loop(){ requestAnimationFrame(loop); if(!curEl||!renderer||curEl.offsetParent===null) return; if(ctrl) ctrl.update();
     renderer.render(scene,cam); updateLabels(); })();
 }
-async function buildWallRing(){ if(walled) return; walled=true; const R=7.0, N=18;
-  for(let i=0;i<N;i++){ const a=i/N*Math.PI*2; const front=Math.abs(((a+Math.PI)%(Math.PI*2))-Math.PI); if(a<0.35||a>Math.PI*2-0.35) continue; // 정문 갭
-    await inst('town','wall',vgroup,Math.cos(a)*R,Math.sin(a)*R,{ry:-a,s:1.2}); }
-  for(let i=0;i<6;i++){ const a=0.6+i*(Math.PI*2-1.2)/5; const x=Math.cos(a)*R,z=Math.sin(a)*R;
-    await inst('castle','tower-square-base',vgroup,x,z,{s:.9}); await inst('castle','tower-square-mid-windows',vgroup,x,z,{y:.75,s:.9}); await inst('castle','tower-square-top-roof-high',vgroup,x,z,{y:1.5,s:.9}); }
-  await inst('castle','gate',vgroup,R,0,{ry:P2,s:1.15});
+async function buildWallRing(wallLv){ if(wallLv===_wallLv) return; _wallLv=wallLv;
+  while(vgroup.children.length) vgroup.remove(vgroup.children[0]);
+  const R=7.4, N=22, th=Math.min(1.4,1.1+wallLv*0.04);
+  for(let i=0;i<N;i++){ const a=i/N*Math.PI*2; if(a<0.3||a>Math.PI*2-0.3) continue;   // 정문 갭
+    await inst('town','wall',vgroup,Math.cos(a)*R,Math.sin(a)*R,{ry:-a,s:th}); }
+  const nT=Math.max(4,Math.min(10,4+Math.floor(wallLv))), ts=0.95+Math.min(0.4,wallLv*0.03), hi=wallLv>=3;
+  for(let i=0;i<nT;i++){ const a=0.5+i*(Math.PI*2-1.0)/(nT-1); const x=Math.cos(a)*R,z=Math.sin(a)*R;
+    await inst('castle','tower-square-base',vgroup,x,z,{s:ts});
+    await inst('castle','tower-square-mid-windows',vgroup,x,z,{y:.75*ts,s:ts});
+    if(hi) await inst('castle','tower-square-mid-windows',vgroup,x,z,{y:1.5*ts,s:ts});   // 성벽 고레벨=더 높은 탑
+    await inst('castle','tower-square-top-roof-high',vgroup,x,z,{y:(hi?2.25:1.5)*ts,s:ts}); }
+  await inst('castle','gate',vgroup,R,0,{ry:P2,s:1.25});
 }
+const ROOF_MAIN=0xe6c266;
 const RING=[
-  {b:'barracks',prop:['castle','flag-banner-long']},{b:'stable',prop:['town','cart']},
-  {b:'workshop',prop:['castle','siege-catapult']},{b:'smithy',prop:['surv','resource-stone']},
-  {b:'academy',prop:['castle','flag']},{b:'market',prop:['town','stall-red']},
-  {b:'wood',prop:['surv','resource-wood']},{b:'clay',prop:['surv','barrel']},
-  {b:'iron',prop:['surv','resource-planks']},{b:'farm',prop:['town','tree']},
-  {b:'storage',prop:['surv','box-large']},{b:'hide',prop:['surv','tent']},
+  {b:'barracks',roof:0xc0503a,prop:['castle','flag-banner-long']},{b:'stable',roof:0x8a6a3a,prop:['town','cart']},
+  {b:'workshop',roof:0x8a8f99,prop:['castle','siege-catapult']},{b:'smithy',roof:0xc07a3a,prop:['surv','resource-stone']},
+  {b:'academy',roof:0x9a6ac8,prop:['castle','flag']},{b:'market',roof:0x5a9e5a,prop:['town','stall-red']},
+  {b:'wood',roof:0x7a8a42,prop:['surv','resource-wood']},{b:'clay',roof:0xc0794a,prop:['surv','barrel']},
+  {b:'iron',roof:0x6a7a8a,prop:['surv','resource-planks']},{b:'farm',roof:0xa8b050,prop:['town','tree']},
+  {b:'storage',roof:0xc0a870,prop:['surv','box-large']},{b:'hide',roof:0x5a5a52,prop:['surv','tent']},
 ];
 async function placeBuilding(x,z,ry,b,lv,central){
-  if(lv>0){
-    const sc=central?1.15:1; const roofH=(lv>=5||central);
-    await inst('town',central?'wall-wood-door':'wall-door',bgroup,x,z,{ry,s:sc});
-    await inst('town','wall-window-shutters',bgroup,x,z,{ry:ry+P2,s:sc});
-    await inst('town',central?'wall-wood':'wall',bgroup,x,z,{ry:ry-P2,s:sc});
-    await inst('town',central?'wall-wood':'wall',bgroup,x,z,{ry:ry+Math.PI,s:sc});
-    await inst('town',roofH?'roof-high-gable':'roof-gable',bgroup,x,z,{y:sc,ry,s:sc});
-    const slot=RING.find(r=>r.b===b); if(slot&&slot.prop) await inst(slot.prop[0],slot.prop[1],bgroup,x+0.55,z+0.55,{s:.85});
-  }
+  if(lv<=0) return;
+  const sc=(central?1.55:1.2)+Math.min(0.35,lv*0.05); const roofH=(lv>=4||central);
+  const slot=RING.find(r=>r.b===b); const tint=central?ROOF_MAIN:(slot&&slot.roof||0xb06a4a);
+  await inst('town',central?'wall-wood-door':'wall-door',bgroup,x,z,{ry,s:sc});
+  await inst('town','wall-window-shutters',bgroup,x,z,{ry:ry+P2,s:sc});
+  await inst('town',central?'wall-wood':'wall',bgroup,x,z,{ry:ry-P2,s:sc});
+  await inst('town',central?'wall-wood':'wall',bgroup,x,z,{ry:ry+Math.PI,s:sc});
+  await inst('town',roofH?'roof-high-gable':'roof-gable',bgroup,x,z,{y:sc,ry,s:sc,tint});
+  if(slot&&slot.prop) await inst(slot.prop[0],slot.prop[1],bgroup,x+0.6*sc,z+0.6*sc,{s:1});
 }
 function mkLabel(){ const d=document.createElement('div'); d.className='v3-label'; labelHost.appendChild(d); return d; }
 function updateLabels(){ if(!curEl) return; const rect=curEl.getBoundingClientRect();
@@ -1221,20 +1231,24 @@ export function mount(el){ initScene(); curEl=el; el.appendChild(renderer.domEle
   resize(); }
 function resize(){ if(!curEl) return; W=curEl.clientWidth||420; H=curEl.clientHeight||300; renderer.setSize(W,H);
   const D=9, a=W/H; cam.left=-D*a;cam.right=D*a;cam.top=D;cam.bottom=-D; cam.updateProjectionMatrix(); }
-export function build(blds, opts){ opts=opts||{}; onBuild=opts.onBuild; initScene(); buildWallRing();
+export function build(blds, opts){ opts=opts||{}; onBuild=opts.onBuild; initScene(); buildWallRing(blds.wall||0);
   while(bgroup.children.length) bgroup.remove(bgroup.children[0]);
   labels.forEach(L=>L.el.remove()); labels.length=0;
   const BLD=opts.BLD||{};
-  // 중앙 본진
-  const add=(x,y,z,b,lv,central)=>{ placeBuilding(x,z,central?0:Math.atan2(-x,-z),b,lv,central);
+  const add=(x,z,b,lv,central)=>{ placeBuilding(x,z,central?0:Math.atan2(-x,-z),b,lv,central);
+    const y=central?2.9:(1.5+Math.min(0.6,lv*0.08));
     const el=mkLabel(); const d=BLD[b]||{}; el.innerHTML= lv>0? `<b>${d.ic||''} ${d.nm||b}</b><i>Lv${lv}</i>` : `<span class="plus">＋ ${d.ic||''} ${d.nm||b}</span>`;
     if(lv<=0) el.classList.add('empty'); el.onclick=()=>{ if(onBuild) onBuild(b); };
     labels.push({el,pos:new T.Vector3(x,y,z)}); };
-  add(0,1.8,0,'main',blds.main||0,true);
-  RING.forEach((slot,i)=>{ const a=(i/RING.length)*Math.PI*2 - P2; const r=3.6; add(Math.cos(a)*r,1.15,Math.sin(a)*r,slot.b,blds[slot.b]||0,false); });
+  add(0,0,'main',blds.main||0,true);
+  RING.forEach((slot,i)=>{ const a=(i/RING.length)*Math.PI*2 - P2; const r=4.9; add(Math.cos(a)*r,Math.sin(a)*r,slot.b,blds[slot.b]||0,false); });
 }
-export function resetCam(){ if(!cam) return; cam.position.set(15,15,15); cam.zoom=1; cam.updateProjectionMatrix(); if(ctrl){ ctrl.target.set(0,0,0); ctrl.update(); } }
+export function resetCam(){ if(!cam) return; cam.position.set(7,17,7); cam.zoom=1; cam.updateProjectionMatrix(); if(ctrl){ ctrl.target.set(0,0.5,0); ctrl.update(); } }
+export function setNight(){ if(!hemi) return night; night=!night;
+  if(night){ scene.background=new T.Color(0x161d2e); hemi.color.set(0x8fa8d0); hemi.groundColor.set(0x1c2028); hemi.intensity=0.6; sun.color.set(0x9fb2dc); sun.intensity=0.55; }
+  else { scene.background=null; hemi.color.set(0xdcefff); hemi.groundColor.set(0x50603a); hemi.intensity=0.95; sun.color.set(0xfff3d8); sun.intensity=1.4; }
+  return night; }
 window.addEventListener('resize',resize);
-window.Town3D={ mount, build, resetCam, ok:true };
+window.Town3D={ mount, build, resetCam, setNight, ok:true };
 </script>
 </body></html>
