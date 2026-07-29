@@ -817,15 +817,33 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### 🎮 룬테라 원정 프로토타입 개선 + 🗑️ 뒷골목 쓰레기통 씬 목업 (2026-07-28·이 PC·`main` 직접·APP_VERSION 무변경=프로토타입/목업만) ← 최신
-> ⚠️ **index.html(라이브 앱) 무변경** — 이 세션은 전부 프로토타입/목업 파일 + 에셋. `APP_VERSION`은 v2.45.633 그대로. Edge 헤드리스 스샷으로 시각 검증(see [[reference_edge_headless_screenshot]]).
-- **🗺️ 룬테라 원정 프로토타입(`룬테라원정-프로토타입.html`)**:
-  - **지역 화면(`renderRgn`) 프리미엄 통합**: 아이소 정착지 씬(`buildIso`) + 영웅 정보 카드(`.hero2`·초상화/역할/설명/⚡⚔️❤️/HP바) + 방어 패널(`.def2`) + 건물 목록. `assets/rune/iso` 스프라이트로 건물 배치·빈 터 표식.
-  - **정착지 대형화(부족전쟁식)**: 씬 250→408px, 요새(흙 앞마당+돌 안뜰+성벽 링+둥근 코너 탑 `stoneWallRoundWindow`+정문 `stoneWallGateOpen`), 건물/빈 터 **탭→건설·업글**(인게임 상호작용). `ISO_PLOTS` 3×3 배치도.
-  - **지도 리디자인**: 다크 전황도 — 딥씨 + SVG 청동 대륙(`feTurbulence` 거친 해안선)+발광 금빛 해안선, 아이오니아·빌지워터=개별 섬, 위경도 격자·산맥/사막·공허 균열, RUNETERRA 카투슈+나침반+금빛 프레임, 지역 핀 금빛 마커.
-  - 에셋: 이소 미니어처 던전 킷에서 요새 스프라이트 12종 추가 추출(`assets/rune/iso`).
-- **🗑️ 뒷골목 쓰레기통 씬 목업(`뒷골목-쓰레기통-목업.html`·`*-목업.html`이라 배포됨)**: 사장님 요청("쓰레기통 하나 덜렁 말고, 클릭 시 위쪽 복권방 느낌+하단 쓰레기통 뒤지기"). Kenney 레트로 판타지 텍스처(CC0)로 밤 뒷골목 한 컷 — 상단 불 켜진 「복권방」 문(`door_wood_window_lit`)+간판+랜턴+창문+빨간 기와, 하프팀버 벽/벽돌 굽/자갈 바닥, 하단 자갈 위 쓰레기통에서 유미 뒤적, 비/비네트. 에셋 `assets/alley/`(텍스처 9종·`.gitignore` 화이트리스트 추가). **⏭️ 다음: 사장님 확인 후 실제 `openTrashCan`(index.html)에 씬 이식**(기능=드래그 뒤지기·3D 유미·무료복권·골드·교장 유미 전부 유지, 배경만 교체).
-- ⚠️ **원본 ZIP은 이 PC Downloads에만**(`kenney_*.zip`·`전투사관학교_유미_교장선생님.glb` 등) — 커밋된 **추출 PNG/에셋만** 다른 컴에 전달됨. 현재 작업 이어가는 데는 리포에 다 있음(추가 텍스처 더 뽑으려면 그 ZIP 필요).
+### 🗺️ 룬테라 원정 프로토타입 → 부족전쟁식 격자 맵 전환 (2026-07-29·원격web·작업브랜치 `claude/continue-previous-work-b6dd2h`·main+브랜치 배포) ← 최신
+> ⚠️ **index.html(라이브 앱) 무관** — 이건 **독립 단일 HTML 프로토타입 `룬테라원정-프로토타입.html`**(빌드 없음·순수 JS/CSS/SVG/Canvas·localStorage mock `rune_proto`, 실제 사이트 골드와 무관). `APP_VERSION` 안 건드림. 배포=`git push HEAD:main` + `HEAD:claude/continue-previous-work-b6dd2h` 둘 다 → GitHub Pages. **확인 링크=`https://sohada2.github.io/aram/룬테라원정-프로토타입.html`**(캐시 강함·시크릿/새 탭).
+>
+> **🖥️ 다른 컴퓨터 이어작업 필독 (검증 방법·함정)**
+> - **시각 검증=Playwright**(이 원격 env: `require('/opt/node22/lib/node_modules/playwright/index.js')`의 CommonJS·chromium `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`·`.cjs` 파일·`file:///…룬테라원정-프로토타입.html`). Edge 헤드리스 쓰는 PC면 그걸로도 됨.
+> - **⚠️ `let S`(상태)는 Playwright `page.evaluate`에서 접근 불가**(classic `<script>`라 top-level `let`/`const`는 window에 안 올라감·참조 시 ReferenceError). **`window.rune()` 헬퍼**로 상태 접근(`const S=window.rune()`). **function 선언(sendAttack·renderMap·openAttack·onVillage·fieldDist·drawGrid 등)은 window에 있음** → 직접 호출 OK.
+> - **⚠️ TDZ 함정**: `let S = load()`가 파일 상단(상태 섹션)에서 즉시 실행되며 `fresh()`를 호출 → `fresh`가 참조하는 `const SAVE_VER`는 **반드시 `let S` 위에** 선언돼 있어야 함(현재 그렇게 배치됨). 상태 초기값에 새 const 참조 추가 시 주의.
+> - **검증 후 배포=바로**(상시 지시). 문법 체크=인라인 `<script>` 추출 후 `node --check`(단일 블록).
+>
+> **✅ 이번 전환(부족전쟁 원본형)** — 사장님: "실제 부족전쟁 전체 지도처럼 **격자** + 한 칸 거리 계산해 이동 시간, 명령 이동 모습 지도에서 확인, 안 넣은 병종 추가, 자원 비용 전부 부족전쟁과 동일하게(밸런싱 불필요)". *게임 수치는 사실이라 저작권 무관 — 실제 부족전쟁 값 재현이 요청이자 허용 범위(아트/코드 복제 X, 수치·메커니즘만).*
+> - **격자 세계**: 실사 룬테라 맵 이미지 폐기 → **100×100 격자**(`WORLD=100, FIELD=15px` → `.map-content` 1500×1500px). `drawGrid()`가 `<canvas id=grid-canvas>`에 초원+숲/물/황무지 얼룩(seeded)+칸 격자선+10칸 대륙선·**K00~K99 라벨** 그림. 내 마을 `S.world['home']`(`HOME_KEY`) 좌표(50,50)·야만인 마을 ~170개(`genWorld`: 14개 클러스터 중심 주변 산개+정수 좌표+멀수록 큰 마을 size1~6·홈 3칸 반경 비움).
+> - **칸 거리→시간**: `fieldDist(a,b)`=Math.hypot·`travelMs(dist,slow)=dist*slow*60000/WSPEED`(slow=병종 `speed`=분/칸, `WSPEED=140`=시간 압축). `sendAttack`/`openAttack`가 이걸로 행군 시간 산출·거리(칸) 표시.
+> - **지도 위 움직이는 명령**: `updateArmies()`(#armies 오버레이)가 각 march의 `dep→arriveAt` 진행도로 홈↔목표 사이 위치 보간해 ⚔️/🎒+ETA 마커 렌더. `armyLoop()` rAF가 지도 뷰일 때 매 프레임 갱신. 행군선=`#edges` SVG(viewBox 0~100=칸).
+> - **전 병종**: `TROOP` = 병영(창병 spear·검사 sword·**도끼병 axe**·궁병 archer)·마구간(정찰 scout·경기 lcav·**궁기 marcher**·**중기 hcav**)·**공방(파성추 ram·투석기 cata)**·**대학(귀족 noble)**. `UNIT_GROUPS`로 건물별 묶음. 각 병종 비용/인구/이동속도/공·방/약탈량=실제 부족전쟁 값. `renderRecruit(elId,bld,UNIT_GROUPS[bld])`로 4섹션.
+> - **정통 비용**: `BLD`(본진·병영·마구간·공방·대장간·대학·시장·목재소·점토·철·농장·창고·은신처·성벽) 레벨1 비용+증가율 `f`+선행조건 `req`=부족전쟁 값. `bcost(b,lv)=base*f^(lv-1)`·`prodPerMin`·`storeCap`·`popCap`·`bldPop`. 건물 그리드는 `bcost` 사용(구 `d.cost()` 제거됨).
+> - **팬/줌**: `attachPanZoom`에 절대 배율 옵션 `minScale/maxScale/initScale` 추가. 지도=`{minScale:0.28,maxScale:4.2,initScale:2.1,focus:홈타일}`→홈 확대 시작·대륙 전체까지 축소. 마커 카운터스케일 `--mkz=1/max(sc,1)`(확대=고정 크기, 축소=점처럼 작아짐)를 `#map-content`에 세팅(#mnodes·#armies 상속).
+> - **세이브 가드**: `SAVE_VER=2` — 구(대륙 좌표) 세이브 자동 폐기·`load()`가 `ver===2 && world['home']` 확인. 초기화=`window.runeReset()`.
+> - **검증 완료**(Playwright): 격자 지도+홈+야만인 마커·마을 화면(전 건물 정통비용·req 잠금·공방/대학 훈련 섹션)·공격 모달(거리칸/약탈/수비/병력 스텝)·전체 축소(K00~K99·170마을 점)·움직이는 행군 마커 전부 오류 0.
+>
+> **⏭️ 다음/미구현 (핸드오프)**
+> - **귀족 정복 미완**: `noble` 병종·`academy` 건물·비용은 있으나 **실제 마을 점령 로직 없음**(공격은 약탈만). 부족전쟁식 "충성도↓→점령" 미구현 → 다음 큰 작업 후보.
+> - **방어(들어오는 공격) 없음**: 현재 야만인은 공격 안 옴(내 마을 일방 성장). AI 습격·성벽/은신처 실효과 미구현.
+> - **시장(거래)·대장간(연구) 효과 미연결**(건물만 존재). 이소 정착지 씬(`buildIso`·`ISO_PLOTS`)은 데코라 공방/대장간/대학/시장/은신처 스프라이트 없음(건물 관리는 `vil-blds` 그리드에서 가능).
+> - **튜닝 노브**: 마을 밀도(`genWorld` 170·클러스터14)·시작 비움 반경(3칸)·행군 체감(`WSPEED=140`↑=빠름)·시작 자원(`freshVillage` 600/600/450).
+> - **정리 메모**: `assets/rune/runeterra_map.jpg`(구 배경)·`paintMap()`/`LANDS`(구 SVG 대륙)·`REGIONS`/`BIOME`/`HEROES`는 **미사용이나 잔존**(BIOME/HEROES는 정착지 씬·도감에서 아직 사용, REGIONS는 `renderRgn`이 홈 바이옴 표시에 씀). runeterra_map.jpg만 완전 dead(삭제해도 무방·안 지움). 새 에셋 커밋 시 `.gitignore`가 `*`+화이트리스트라 `git add -f` 필요.
+>
+> **(이전 맥락·2026-07-28 이 PC)** 아이소 정착지 씬(`buildIso`·`assets/rune/iso` 스프라이트·요새/안뜰/성벽·`ISO_PLOTS`) + 영웅 정보 카드(`.hero2`)·방어 패널(`.def2`)·구 실사맵 배경은 **이번 격자 전환으로 지도만 교체**(정착지 씬은 그대로 `renderRgn`이 사용). 별도 **🗑️ 뒷골목 쓰레기통 씬 목업(`뒷골목-쓰레기통-목업.html`·Kenney CC0 텍스처 `assets/alley/`)** 은 index.html `openTrashCan` 이식 대기(무관·미완). ⚠️ 원본 ZIP(`kenney_*.zip`·교장 유미 GLB 등)은 그 PC Downloads에만 — 리포엔 추출 에셋만.
 
 ### v2.45.633 (2026-07-28·원격web·작업브랜치 `claude/continue-work-gq5zvj`·main+브랜치 배포·Pages success) — 🐱 쓰레기통 유미 눈 사라짐 수정 + 🎓 교장 유미 3D 반영
 > 이 세션 = **원격(web) 환경**(⚠️github.io egress 차단이라 라이브 curl 불가[HTTP 000]·three.js CDN 차단이라 **3D 렌더 헤드리스 검증 불가** → 코드·문법만 검증, 실기 확인은 사장님 폰). 세션 시작 시 브랜치=`origin/main`과 동일(v632, 워킹트리 깨끗·직전 이 PC 세션 전부 푸시됨). 배포=`main`+작업브랜치 둘 다·인라인 `<script>` 7블록 `node --check` 7/7. 배포 확인=MCP `actions_list`(결과 토큰초과→파일 python 파싱)로 `a6495f5` "pages build and deployment" **completed success**(클래식 자동 트리거 정상 작동·`pages-rebuild.yml`도 병행).
