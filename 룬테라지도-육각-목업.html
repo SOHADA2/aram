@@ -1,0 +1,76 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>룬테라 전쟁 — 육각 지도 목업</title>
+<style>
+*{box-sizing:border-box;margin:0;}
+body{background:#0a0a0f;font-family:system-ui,sans-serif;overflow:hidden;}
+#wrap{position:relative;width:100vw;height:100vh;}
+canvas{display:block;}
+#tag{position:fixed;left:10px;top:8px;z-index:5;color:#f0dca0;font-weight:800;font-size:14px;text-shadow:0 2px 4px #000;}
+#hint{position:fixed;left:0;right:0;bottom:10px;text-align:center;color:#c9b98a;font-size:11px;z-index:5;text-shadow:0 1px 2px #000;}
+#err{position:fixed;left:10px;top:34px;color:#ff8a6a;font-size:11px;z-index:9;white-space:pre;}
+</style></head>
+<body><div id="wrap">
+<div id="tag">🗺️ 룬테라 전쟁 · 육각 지도 목업</div>
+<div id="err"></div>
+<div id="hint">🖱️ 드래그 회전 · 휠 확대 · 🏰내 성 · 🗼적 소환사 · ⛏️야만인 · (육각 키트 · Kenney CC0)</div>
+</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const BASE='assets/hex/', err=document.getElementById('err'), tag=document.getElementById('tag'), P2=Math.PI/2;
+const W=innerWidth,H=innerHeight;
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(1.5,devicePixelRatio)); renderer.setSize(W,H);
+renderer.outputColorSpace=THREE.SRGBColorSpace; renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+document.getElementById('wrap').appendChild(renderer.domElement);
+const scene=new THREE.Scene(); scene.background=new THREE.Color('#9fcdea'); scene.fog=new THREE.Fog('#9fcdea',26,54);
+const D=9, aspect=W/H;
+const cam=new THREE.OrthographicCamera(-D*aspect,D*aspect,D,-D,-60,140);
+cam.position.set(16,16,16); cam.lookAt(0,0,0);
+const ctrl=new OrbitControls(cam,renderer.domElement); ctrl.target.set(0,0,0); ctrl.enableDamping=true; ctrl.maxPolarAngle=Math.PI*0.49;
+scene.add(new THREE.HemisphereLight(0xdcefff,0x556644,0.95));
+const sun=new THREE.DirectionalLight(0xfff3d8,1.4); sun.position.set(12,20,7); sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048); const sc=sun.shadow.camera; sc.left=-16;sc.right=16;sc.top=16;sc.bottom=-16;sc.near=1;sc.far=60; sun.shadow.bias=-0.0006;
+scene.add(sun);
+// 바다(맵 아래 파란 판)
+const sea=new THREE.Mesh(new THREE.PlaneGeometry(60,60),new THREE.MeshStandardMaterial({color:0x3f7fb0,roughness:.7}));
+sea.rotation.x=-P2; sea.position.y=-0.06; sea.receiveShadow=true; scene.add(sea);
+const root=new THREE.Group(); scene.add(root);
+const gl=new GLTFLoader(); const cache={}; const PLACE=[];
+// 육각 격자(pointy-top): 폭1.0 높이1.155 · 행 간격 0.866 · 홀수행 +0.5 오프셋
+const HW=1.0, RS=1.155*0.75, COLS=9, ROWS=11;
+function hx(c,r){ return { x:HW*(c + (r&1?0.5:0)) - HW*COLS/2, z:RS*r - RS*ROWS/2 }; }
+function mkrng(s){ return ()=>{ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; }; }
+const R=mkrng(20260729);
+function put(n,c,r,o){ o=o||{}; const p=hx(c,r); PLACE.push({n,x:p.x,z:p.z,o}); }
+// 바이옴 배정
+const TERR=(c,r)=>{ const rr=R();
+  if(r<=1) return rr<.6?'stone-mountain':'stone-hill';           // 북쪽 산맥
+  if(r>=ROWS-2) return rr<.5?'sand-desert':(rr<.8?'sand':'sand-rocks'); // 남쪽 사막
+  if(c>=COLS-2 && r>4) return rr<.6?'sand':'grass-hill';
+  if(rr<.22) return 'grass-forest'; if(rr<.34) return 'grass-hill'; if(rr<.42) return 'stone-hill'; return 'grass'; };
+for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++) put(TERR(c,r),c,r,{});
+// 건물 타일(지형 위 덮어쓰기)
+function bld(n,c,r){ const p=hx(c,r); // 같은 좌표의 지형 위에 살짝 올림 대신 지형 타일 교체
+  for(let i=PLACE.length-1;i>=0;i--){ if(Math.abs(PLACE[i].x-p.x)<0.01&&Math.abs(PLACE[i].z-p.z)<0.01){ PLACE.splice(i,1); break; } }
+  PLACE.push({n,x:p.x,z:p.z,o:{}}); }
+bld('building-castle',4,5);   // 🏰 내 성(중앙)
+bld('building-tower',2,4); bld('building-tower',6,6); bld('building-house',3,7); // 🗼 적 소환사
+bld('building-cabin',6,3); bld('building-mine',1,2); bld('building-cabin',7,8); bld('building-mine',3,9); bld('building-cabin',5,8); bld('building-village',1,6); // ⛏️ 야만인/중립
+bld('building-market',5,4); bld('building-farm',3,4); bld('building-mill',2,7); bld('building-watermill',6,7); bld('building-wizard-tower',7,5);
+// 강(세로 한 줄)
+[[4,1],[4,3],[3,4]].forEach(([c,r])=>{});
+// 로드
+const names=[...new Set(PLACE.map(p=>p.n))];
+Promise.all(names.map(n=>gl.loadAsync(BASE+n+'.glb').then(g=>{cache[n]=g.scene;}).catch(e=>err.textContent+='\n'+n+':'+e.message))).then(()=>{
+  for(const {n,x,z,o} of PLACE){ const src=cache[n]; if(!src)continue; const m=src.clone(true);
+    m.position.set(x,0,z); m.traverse(c=>{if(c.isMesh){c.castShadow=true;c.receiveShadow=true;}}); root.add(m); }
+  tag.textContent='🗺️ 룬테라 육각 지도 · '+root.children.length+'헥스';
+  document.title='HEXMAP_'+root.children.length;
+  renderer.render(scene,cam);
+});
+addEventListener('resize',()=>{ const w=innerWidth,h=innerHeight,a=w/h; cam.left=-D*a;cam.right=D*a;cam.top=D;cam.bottom=-D;cam.updateProjectionMatrix(); renderer.setSize(w,h); });
+(function loop(){ ctrl.update(); renderer.render(scene,cam); requestAnimationFrame(loop); })();
+</script></body></html>
