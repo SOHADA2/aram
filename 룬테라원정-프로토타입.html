@@ -275,6 +275,21 @@ body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system
 .vsw{display:flex;gap:6px;flex-wrap:wrap;margin:2px 2px 8px;}
 .vsw-b{border:1px solid #6b4f24;border-radius:9px;background:linear-gradient(180deg,rgba(60,44,20,.5),rgba(20,14,8,.6));color:#e8dcc0;font-weight:800;font-size:11px;padding:6px 10px;cursor:pointer;}
 .vsw-b.on{border-color:#f0c84a;color:#f7e2ad;box-shadow:0 0 10px rgba(240,200,74,.3);}
+/* 마을 정보 패널(부족전쟁식) */
+.vi-hd{display:flex;align-items:center;gap:8px;padding:2px 2px 8px;border-bottom:1px solid rgba(200,168,75,.2);margin-bottom:8px;}
+.vi-ic{font-size:30px;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));}
+.vi-tt{flex:1;min-width:0;} .vi-tt b{font-size:15px;font-weight:900;color:#f0e2b8;display:block;}
+.vi-tt small{font-size:10.5px;color:#c9a86a;font-weight:800;}
+.vi-tag{font-size:9px;font-weight:800;padding:2px 8px;border-radius:8px;background:rgba(120,90,30,.4);border:1px solid #7a5c1e;color:#f0dca0;white-space:nowrap;}
+.vi-tag.pl{background:rgba(120,160,255,.18);border-color:rgba(120,160,255,.45);color:#bcd6ff;}
+.vi-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:9px;}
+.vi-cell{background:rgba(0,0,0,.32);border:1px solid rgba(200,168,75,.14);border-radius:9px;padding:6px 9px;}
+.vi-cell .k{font-size:9px;color:#a8925e;font-weight:800;letter-spacing:.3px;}
+.vi-cell .v{font-size:13px;font-weight:900;color:#f3e6c4;margin-top:1px;}
+.vi-cell .v small{font-size:9.5px;color:#9a8a60;font-weight:700;}
+.vi-prot{display:flex;align-items:center;gap:7px;background:rgba(90,150,255,.12);border:1px solid rgba(120,160,255,.35);border-radius:9px;padding:7px 10px;font-size:11px;font-weight:800;color:#bcd6ff;margin-bottom:9px;}
+.vi-acts{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+.vi-acts .btn{padding:11px;font-size:13px;} .vi-acts .btn:disabled{opacity:.4;cursor:default;filter:grayscale(.5);}
 .bld-open{width:100%;margin-top:5px;padding:5px;border:none;border-radius:7px;background:rgba(90,120,60,.35);border:1px solid rgba(150,200,120,.4);color:#cfe8b8;font-size:9px;font-weight:800;cursor:pointer;}
 /* ── 반응형: PC(넓은 화면)에서는 지도·마을을 크게, 자원바를 여유있게 ── */
 @media(min-width:760px){
@@ -823,7 +838,36 @@ function drawGrid(){
   for(let cy=0;cy<10;cy++)for(let cx=0;cx<10;cx++) g.fillText('K'+cy+cx, (cx*10+5)*FIELD, (cy*10+5)*FIELD+7);
 }
 function onVillage(id){ const w=S.world[id]; if(!w) return;
-  if(w.owner==='me'){ curRgn='home'; view='rgn'; showView(); } else openAttack(id);
+  if(w.owner==='me'){ curRgn='home'; view='rgn'; showView(); } else openVillageInfo(id);
+}
+// 부족전쟁식 마을 정보 패널 — 클릭 시 먼저 정보를 보여주고 여기서 공격으로
+function openVillageInfo(id){ const w=S.world[id]; if(!w) return;
+  const from=S.world[HOME_KEY]; const dist=fieldDist(w,from); const prot=isProtected(w);
+  const isPlayer=w.owner==='player'; const ic=isPlayer?'🗼':'🏚️';
+  let def=0; for(const u in (w.garrison||{})) def+=(w.garrison[u]||0)*(TROOP[u]?TROOP[u].def:0);
+  def=Math.round(def*(1+(w.wall||0)*0.04));
+  const loot=Math.floor((w.loot&&w.loot.wood||0)+(w.loot&&w.loot.clay||0)+(w.loot&&w.loot.iron||0));
+  const loy=Math.round(w.loyalty==null?100:w.loyalty);
+  const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+  ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:340px">
+    <div class="vi-hd"><span class="vi-ic">${ic}</span>
+      <div class="vi-tt"><b>${(w.name||'마을').replace('소환사 ','')}</b><small>${w.size}★ 마을</small></div>
+      <span class="vi-tag ${isPlayer?'pl':''}">${isPlayer?'🗼 라이벌':'🏚️ 야만인'}</span></div>
+    <div class="vi-grid">
+      <div class="vi-cell"><div class="k">좌표</div><div class="v">${w.x}｜${w.y}</div></div>
+      <div class="vi-cell"><div class="k">내 성에서</div><div class="v">${dist.toFixed(1)}<small>칸</small></div></div>
+      <div class="vi-cell"><div class="k">🛡️ 예상 수비</div><div class="v">${def}${w.wall?` <small>성벽${w.wall}</small>`:''}</div></div>
+      <div class="vi-cell"><div class="k">👑 충성도</div><div class="v">${loy}</div></div>
+      <div class="vi-cell" style="grid-column:1/3"><div class="k">📦 약탈 가능 자원</div><div class="v">${loot} ${loot?'<small>🪵🧱⚙️</small>':'<small>(비어 있음)</small>'}</div></div>
+    </div>
+    ${prot?`<div class="vi-prot">🛡️ <b>뉴비 보호 중</b> · ${fmtProtect(protectLeft(w))} 동안 공격 불가</div>`:''}
+    <div class="vi-acts">
+      <button class="btn btn-dk vi-close">닫기</button>
+      <button class="btn btn-gold vi-atk" ${prot?'disabled':''}>⚔️ 공격 준비</button>
+    </div></div>`;
+  ov.querySelector('.vi-close').onclick=()=>ov.remove();
+  const ab=ov.querySelector('.vi-atk'); if(ab&&!prot) ab.onclick=()=>{ ov.remove(); openAttack(id); };
+  document.body.appendChild(ov);
 }
 function costStr(c){ return Object.keys(c).map(k=>`${RES[k]||''}${c[k]}`).join(' '); }
 function payV(c){ const v=S.v; for(const k in c){ if((v.res[k]||0)<(c[k]||0)) return false; } for(const k in c) v.res[k]-=(c[k]||0); return true; }
