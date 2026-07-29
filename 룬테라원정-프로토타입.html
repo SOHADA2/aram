@@ -1,5 +1,5 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>룬테라 원정 — 프로토타입 v0.1</title>
+<title>룬테라 전쟁 — 프로토타입 v0.1</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system-ui,sans-serif;overscroll-behavior:none;}
@@ -25,6 +25,13 @@ body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system
 .army-mk .am-lbl{display:block;font-size:8px;font-weight:800;font-family:monospace;color:#f0dca0;background:rgba(10,7,4,.82);border-radius:6px;padding:0 4px;margin-top:-2px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.6);}
 .army-mk.attack .am-ic{animation:amBob 1s ease-in-out infinite;}
 .army-mk.return .am-lbl{color:#a7f3c0;}
+.army-mk.raid{z-index:7;} .army-mk.raid .am-ic{animation:amBob .6s ease-in-out infinite;filter:drop-shadow(0 0 6px rgba(255,70,55,.9));}
+.army-mk.raid .am-lbl{color:#ffb0a0;background:rgba(50,10,8,.9);box-shadow:0 0 8px rgba(255,60,50,.5);}
+.rep{border-radius:9px;padding:7px 10px;margin-bottom:6px;border:1px solid rgba(255,255,255,.08);}
+.rep.win{background:linear-gradient(180deg,rgba(30,90,50,.28),rgba(14,40,24,.3));border-color:rgba(120,220,150,.35);}
+.rep.lose{background:linear-gradient(180deg,rgba(90,30,26,.3),rgba(40,14,12,.32));border-color:rgba(255,120,90,.35);}
+.rep-h{font-size:11.5px;font-weight:800;color:#f0e2c0;}
+.rep-m{font-size:9.5px;color:#c9b98a;margin-top:2px;}
 @keyframes amBob{50%{transform:translateY(-2px) scale(1.12)}}
 /* 팬/줌 공통 컨트롤 */
 .pz-hint{position:absolute;left:50%;bottom:7px;transform:translateX(-50%);z-index:6;font-size:9px;color:#cfe0e8;background:rgba(6,12,16,.6);border:1px solid rgba(200,168,75,.25);border-radius:12px;padding:3px 10px;pointer-events:none;white-space:nowrap;transition:opacity .5s;}
@@ -269,7 +276,8 @@ body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system
 </style></head>
 <body><div class="app">
   <div class="topbar">
-    <span class="tt" id="topttl">🗺️ 룬테라 원정</span>
+    <span class="tt" id="topttl">🗺️ 룬테라 전쟁</span>
+    <span class="res-chip" id="report-btn" style="cursor:pointer" onclick="openReports()">📜</span>
     <span class="res-chip" style="cursor:pointer" onclick="openDex()">🎴 도감</span>
     <span class="res-chip g" id="c-gold">🪙 0</span>
   </div>
@@ -479,7 +487,7 @@ function tick(){
     if(v.recQ.length) v.recQ[0].doneAt=now+trainTime(v.recQ[0].u)*1000; }
   for(const id in S.world){ const w=S.world[id]; if(w.owner==='me') continue; const lc=w.size*300, gr=w.size*3;
     ['wood','clay','iron'].forEach(k=>{ w.loot[k]=Math.min(lc,(w.loot[k]||0)+gr*dt/60); }); }
-  processMarches(now); S.t=now;
+  maybeRaid(now); processMarches(now); S.t=now;
 }
 function hasUnits(u){ for(const k in u){ if(u[k]>0) return true; } return false; }
 function armyTotal(){ let n=0; for(const u in S.v.troops) n+=S.v.troops[u]||0; return n; }
@@ -495,6 +503,7 @@ function sendAttack(toId, units){ const v=S.v;
 }
 function processMarches(now){
   for(let i=S.marches.length-1;i>=0;i--){ const m=S.marches[i]; if(now<m.arriveAt) continue;
+    if(m.mode==='raid'){ resolveDefense(m,now); S.marches.splice(i,1); continue; }   // ⚔️ 나에게 온 습격 도착 → 방어 전투
     if(m.mode==='attack'){ const w=S.world[m.to]; const res=resolveCombat(m.units,w);
       const trip=m.arriveAt-m.dep; m.mode='return'; m.units=res.survivors; m.loot=res.loot; m.dep=now; m.arriveAt=now+trip; m.win=res.win;
       const lt=(res.loot.wood+res.loot.clay+res.loot.iron)|0;
@@ -514,6 +523,42 @@ function resolveCombat(units,w){ let atk=0,carry=0; for(const u in units){ atk+=
   } else { const lf=Math.min(1, 0.55+atk/Math.max(1,def)*0.3); for(const u in units) survivors[u]=Math.max(0,Math.round((units[u]||0)*(1-lf)));
     const dl=Math.min(0.7, atk/Math.max(1,def)*0.6); for(const u in g) g[u]=Math.max(0,Math.round(g[u]*(1-dl))); }
   return {win,survivors,loot};
+}
+// ⚔️ 피습 방어 전투 — 적군 vs 내 주둔 병력(+성벽). 실패 시 자원 약탈(은신처로 일부 보호)
+function resolveDefense(m, now){ const v=S.v, a=S.world[m.from];
+  let atk=0, carry=0; for(const u in m.units){ atk+=(m.units[u]||0)*TROOP[u].atk; carry+=(m.units[u]||0)*TROOP[u].carry; }
+  let def=0; for(const u in v.troops) def+=(v.troops[u]||0)*TROOP[u].def;
+  const wall=v.blds.wall||0; def=Math.round(def*(1+wall*0.05));   // 성벽 = 방어 +5%/레벨
+  const win = atk>def;   // 공격자 승리?
+  const lost={}, loot={wood:0,clay:0,iron:0};
+  if(win){   // 방어 실패 — 주둔 병력 대부분 전멸 + 자원 약탈
+    const lf=Math.min(0.9, 0.5+(atk-def)/Math.max(1,atk)*0.4);
+    for(const u in v.troops){ const l=Math.round((v.troops[u]||0)*lf); if(l){ v.troops[u]-=l; lost[u]=l; } }
+    const hideCap=(v.blds.hide||0)?Math.round(150*Math.pow(1.333,(v.blds.hide||0)-1)):0;   // 은신처 = 자원 은닉
+    let space=carry;
+    ['wood','clay','iron'].forEach(k=>{ const av=Math.max(0,(v.res[k]||0)-hideCap); const t=Math.min(av,space); if(t>0){ v.res[k]-=t; loot[k]=Math.round(t); space-=t; } });
+  } else {   // 방어 성공 — 공격자 격퇴, 수비도 일부 손실
+    const lf=Math.min(0.4, def>0? atk/def*0.3 : 0);
+    for(const u in v.troops){ const l=Math.round((v.troops[u]||0)*lf); if(l){ v.troops[u]-=l; lost[u]=l; } }
+  }
+  S.reports=S.reports||[]; S.reports.unshift({at:now, from:a?a.name:'적 소환사', defended:!win, atk, def, lost, loot});
+  S.reports=S.reports.slice(0,20);
+  toast(win?`💥 ${a?a.name:'적'}에게 약탈당했어요! (📜 전투 보고)`:`🛡️ ${a?a.name:'적'}의 공격을 막아냈어요!`);
+}
+function raidGap(){ return (45+Math.random()*75)*1000; }   // 45~120초마다(프로토타입 체감·실제판은 훨씬 길게)
+// 습격 예약/발생 — 보호 중이면 안 옴. 한 번에 하나만
+function maybeRaid(now){
+  if(isProtected(S.world[HOME_KEY])){ S._nextRaid=0; return; }
+  if(!S._nextRaid){ S._nextRaid=now+raidGap(); return; }
+  if(now<S._nextRaid) return; S._nextRaid=now+raidGap();
+  if((S.marches||[]).some(m=>m.mode==='raid')) return;
+  const rivals=Object.keys(S.world).filter(id=>S.world[id].owner==='player');
+  if(!rivals.length) return;
+  const aid=rivals[Math.floor(Math.random()*rivals.length)], a=S.world[aid], home=S.world[HOME_KEY];
+  const units={axe:Math.max(4,a.size*7), spear:a.size*4, lcav:a.size}; let slow=1; for(const u in units) slow=Math.max(slow,TROOP[u].speed);
+  const travel=Math.max(6000, travelMs(fieldDist(a,home),slow));
+  S.marches.push({from:aid, to:HOME_KEY, units, dep:now, arriveAt:now+travel, mode:'raid'});
+  toast(`⚔️ ${a.name}이(가) 습격해와요! ${fmtDur(travel)} 후 도착`);
 }
 
 // ═══════════ UI ═══════════
@@ -624,17 +669,31 @@ function renderTop(){
     ['wood','clay','iron'].map(k=>`<span class="res-chip">${RES[k]} ${Math.floor(v.res[k])}<span style="color:#7a6a42">/${cap}</span> <span style="color:#8fce8a">+${prodPerMin(v.blds[k]||0)}</span></span>`).join('')
     + `<span class="res-chip food">🌾 ${popUsed()}<span style="color:#7a6a42">/${popCap()}</span></span>`;
   const cg=document.getElementById('c-gold'); if(cg) cg.textContent='🛡️ '+armyTotal();
-  document.getElementById('topttl').textContent = view==='map'?'🗺️ 룬테라 원정':'◀ 내 마을';
+  document.getElementById('topttl').textContent = view==='map'?'🗺️ 룬테라 전쟁':'◀ 내 마을';
   const pb=document.getElementById('protect-banner'); if(pb){ const left=protectLeft(S.world[HOME_KEY]);
     if(left>0){ pb.style.display='flex'; pb.innerHTML=`🛡️ <b>뉴비 보호 중</b> · ${fmtProtect(left)} 남음 <span class="pb-sub">먼저 공격 시 즉시 해제</span>`; }
     else pb.style.display='none'; }
+  const rb2=document.getElementById('report-btn'); if(rb2){ const un=(S.reports||[]).length-(S._reportsSeen||0);
+    rb2.innerHTML='📜'+(un>0?` <b style="color:#ff6a5a">${un}</b>`:''); }
 }
+window.openReports=function(){ const rs=S.reports||[]; const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+  ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:360px">
+    <h3 class="pick-h">📜 전투 보고</h3>
+    ${rs.length? rs.map(r=>{ const lootT=((r.loot.wood||0)+(r.loot.clay||0)+(r.loot.iron||0))|0; const lostT=Object.values(r.lost||{}).reduce((a,b)=>a+b,0);
+      return `<div class="rep ${r.defended?'win':'lose'}"><div class="rep-h">${r.defended?'🛡️ 방어 성공':'💥 약탈당함'} · <b>${r.from}</b></div>
+        <div class="rep-m">⚔️ 공격 ${r.atk} vs 🛡️ 방어 ${r.def}${lostT?` · 내 병력 -${lostT}`:''}${lootT?` · 자원 -${lootT}`:''}</div></div>`; }).join('')
+      : '<div class="muted" style="margin:12px 0;text-align:center">아직 전투 기록이 없어요</div>'}
+  </div>`;
+  document.body.appendChild(ov); S._reportsSeen=(S.reports||[]).length; renderTop();
+};
 function renderMap(){
   const mn=document.getElementById('mnodes'); if(!mn) return;
   // 행군 경로선(공격=빨강 / 귀환=초록) — viewBox 0~100 단위 = 격자 칸
   let e=''; const home=S.world[HOME_KEY];
   (S.marches||[]).forEach(m=>{ const to=S.world[m.to]; if(!home||!to)return;
-    e+=`<line x1="${home.x+0.5}" y1="${home.y+0.5}" x2="${to.x+0.5}" y2="${to.y+0.5}" stroke="${m.mode==='attack'?'rgba(255,120,90,.55)':'rgba(120,220,150,.5)'}" stroke-width="0.32" stroke-dasharray="1.1 1.5" stroke-linecap="round"/>`; });
+    const org=m.mode==='raid'?S.world[m.from]:home, dst=m.mode==='raid'?home:to; if(!org||!dst)return;
+    const col=m.mode==='raid'?'rgba(255,70,55,.75)':(m.mode==='attack'?'rgba(255,120,90,.55)':'rgba(120,220,150,.5)');
+    e+=`<line x1="${org.x+0.5}" y1="${org.y+0.5}" x2="${dst.x+0.5}" y2="${dst.y+0.5}" stroke="${col}" stroke-width="0.34" stroke-dasharray="1.1 1.5" stroke-linecap="round"/>`; });
   const eg=document.getElementById('edges'); if(eg) eg.innerHTML=e;
   // 마을 마커 — 내 마을(성)·야만인 마을(크기별). 좌표=칸 중앙 픽셀
   mn.innerHTML = Object.keys(S.world).map(id=>{ const w=S.world[id];
@@ -656,11 +715,13 @@ function renderMap(){
 function updateArmies(){
   const host=document.getElementById('armies'); if(!host) return;
   const now=Date.now(); const home=S.world[HOME_KEY]; let h='';
-  (S.marches||[]).forEach(m=>{ const to=S.world[m.to]; if(!home||!to) return;
+  (S.marches||[]).forEach(m=>{
+    const org = m.mode==='raid'?S.world[m.from] : (m.mode==='attack'?home:S.world[m.to]);
+    const dst = m.mode==='raid'?home : (m.mode==='attack'?S.world[m.to]:home);
+    if(!org||!dst) return;
     const span=m.arriveAt-m.dep; const p=span>0?Math.min(1,Math.max(0,(now-m.dep)/span)):1;
-    const a = m.mode==='attack'?home:to, b = m.mode==='attack'?to:home;
-    const x=((a.x+(b.x-a.x)*p+0.5)*FIELD).toFixed(1), y=((a.y+(b.y-a.y)*p+0.5)*FIELD).toFixed(1);
-    const ic=m.mode==='attack'?'⚔️':'🎒'; const eta=fmtDur(m.arriveAt-now);
+    const x=((org.x+(dst.x-org.x)*p+0.5)*FIELD).toFixed(1), y=((org.y+(dst.y-org.y)*p+0.5)*FIELD).toFixed(1);
+    const ic=m.mode==='raid'?'🔥':(m.mode==='attack'?'⚔️':'🎒'); const eta=fmtDur(m.arriveAt-now);
     h+=`<div class="army-mk ${m.mode}" style="left:${x}px;top:${y}px"><span class="am-ic">${ic}</span><span class="am-lbl">${eta}</span></div>`; });
   host.innerHTML=h;
 }
@@ -987,5 +1048,12 @@ window.runeSpawnDemo=function(n){ n=Math.max(2,Math.min(9,n||8)); const R=Math.r
   console.log(`🎯 플레이어 ${placed+1}명 배치 · 최소 간격 ${minD.toFixed(1)}칸(기준 ${SPAWN_MINDIST}칸)`); toast(`🎯 ${placed+1}명 분배 · 최소 ${minD.toFixed(1)}칸`);
 };
 window.runeEndProtect=function(){ S.world[HOME_KEY].protectUntil=0; save(); renderTop(); if(view==='map')renderMap(); toast('🛡️ 내 보호 해제(테스트)'); };
+// ⚔️ 습격 테스트 — 지금 즉시 라이벌 습격 발생(보호 무시)
+window.runeRaid=function(){ const rivals=Object.keys(S.world).filter(id=>S.world[id].owner==='player'); if(!rivals.length){ toast('라이벌 없음'); return; }
+  const aid=rivals[Math.floor(Math.random()*rivals.length)], a=S.world[aid], home=S.world[HOME_KEY];
+  const units={axe:Math.max(6,a.size*8), lcav:a.size*2}; let slow=1; for(const u in units) slow=Math.max(slow,TROOP[u].speed);
+  const travel=Math.max(4000, travelMs(fieldDist(a,home),slow));
+  S.marches.push({from:aid,to:HOME_KEY,units,dep:Date.now(),arriveAt:Date.now()+travel,mode:'raid'}); save();
+  if(view==='map')renderMap(); toast(`⚔️ ${a.name} 습격(테스트) · ${fmtDur(travel)} 후 도착`); };
 </script>
 </body></html>
