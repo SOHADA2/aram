@@ -1120,10 +1120,11 @@ window.openDex=function(){ const ov=document.createElement('div'); ov.className=
 
 // ═══════════ 루프 ═══════════
 function loop(){ tick(); if(view==='map') renderMap(); else if(curRgn) renderRgn(false); renderTop(); save(); }
-showView(); loop(); setInterval(loop, 1000);
-// 지도 팬/줌 초기화(휠·핀치 확대, 드래그 이동, 더블탭)
+// 3D 모듈은 defer 실행 → DOMContentLoaded(모듈 이후)에 초기화해야 지도가 처음부터 3D로 뜸
+document.addEventListener('DOMContentLoaded', ()=>{ showView(); loop(); setInterval(loop, 1000); initMapPZ(); });
+// 지도 팬/줌 초기화(2D 폴백 전용 — 3D 지도면 스킵)
 let _mapPZ=null;
-(function initMapPZ(){ if(window.Map3D) return;   // 3D 지도 사용 시 2D 팬/줌·격자 스킵
+function initMapPZ(){ if(window.Map3D) return;   // 3D 지도 사용 시 2D 팬/줌·격자 스킵
   const w=document.getElementById('map-wrap'), c=document.getElementById('map-content'); if(!w||!c) return;
   drawGrid();
   const hk=S.world[HOME_KEY]; const fx=hk?(hk.x+0.5)/WORLD:0.5, fy=hk?(hk.y+0.5)/WORLD:0.5;
@@ -1133,7 +1134,7 @@ let _mapPZ=null;
     onZoom:(sc)=>{ c.style.setProperty('--mkz',(1/Math.max(sc,1)).toFixed(3)); }});  // 확대=고정크기, 축소=점처럼 작아짐
   const rb=document.getElementById('map-reset'); if(rb) rb.onclick=()=>_mapPZ.reset();
   setTimeout(()=>{ const h=document.getElementById('map-hint'); if(h) h.classList.add('gone'); },4500);
-})();
+}
 // 지도 위 행군 마커 실시간 이동(rAF)
 (function armyLoop(){ if(view==='map'){ const host=document.getElementById('armies'); if(host && (S.marches||[]).length) updateArmies(); } requestAnimationFrame(armyLoop); })();
 window.runeReset=function(){ localStorage.removeItem('rune_proto'); S=fresh(); bindActive(); showView(); toast('프로토타입 초기화'); };
@@ -1266,7 +1267,7 @@ window.Town3D={ mount, build, resetCam, setNight, ok:true };
 import * as T from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-const HX='assets/hex/'; let R,SC,CAM,CT,GRP,MK,EL,LH,OPT=null,off={x:0,z:0};
+const HX='assets/hex/'; let R,SC,CAM,CT,GRP,MK,EL,LH,OPT=null,off={x:0,z:0},_lastSig='';
 const C={}, GL=new GLTFLoader(), VLAB=[], MLAB=[];
 function ld(n){ return C[n]||(C[n]=GL.loadAsync(HX+n+'.glb').then(g=>g.scene)); }
 function biome(c,r,rows,rnd){ if(r<3) return rnd<.55?'stone-mountain':'stone-hill';
@@ -1306,13 +1307,17 @@ function proj(){ if(!EL) return; const rc=EL.getBoundingClientRect();
       L.el.innerHTML=`<span>${m.mode==='raid'?'🔥':(m.mode==='attack'?'⚔️':'🎒')}</span><b>${OPT.fmt(m.arriveAt-now)}</b>`; L.el.className='mm3 '+m.mode; }); }
 }
 function hp(w){ const p=OPT.hex(w.x,w.y); return {x:p.x-off.x, z:p.z-off.z}; }   // 중앙 정렬된 3D 좌표
-export function mount(el){ initS(); EL=el; el.appendChild(R.domElement);
+export function mount(el){ initS(); if(EL===el && el.contains(R.domElement)) return;   // 이미 마운트됨 → 재부착 안 함
+  EL=el; if(!el.contains(R.domElement)) el.appendChild(R.domElement);
   if(!LH||!el.contains(LH)){ LH=document.createElement('div'); LH.className='v3-labels'; el.appendChild(LH); } resize(); }
 function resize(){ if(!EL) return; const w=EL.clientWidth||420,h=EL.clientHeight||400; R.setSize(w,h);
   const D=Math.max(8, HGT/1.9), a=w/h; CAM.left=-D*a;CAM.right=D*a;CAM.top=D;CAM.bottom=-D; CAM.updateProjectionMatrix(); }
 let HGT=13;
 export function build(opts){ opts=opts||{}; OPT=opts; initS();
   const world=opts.world, cols=opts.cols, rows=opts.rows, rng=mkrng2(12345);
+  let sig=cols+'x'+rows; for(const id in world){ const w=world[id]; sig+='|'+id+w.x+','+w.y+w.owner+(w.size||0); }
+  if(sig===_lastSig) return;   // 월드 변화 없으면 재구성 스킵(루프 매초 호출 대비) — 렌더/명패/행군은 계속
+  _lastSig=sig;
   off=opts.hex((cols-1)/2,(rows-1)/2); HGT=rows*0.866;
   while(GRP.children.length) GRP.remove(GRP.children[0]);
   VLAB.forEach(L=>L.el.remove()); VLAB.length=0;
