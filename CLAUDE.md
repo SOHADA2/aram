@@ -817,7 +817,25 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### 🗺️ 룬테라 원정 프로토타입 → 부족전쟁식 격자 맵 전환 (2026-07-29·원격web·작업브랜치 `claude/continue-previous-work-b6dd2h`·main+브랜치 배포) ← 최신
+### 🗺️ 룬테라 전쟁 프로토타입 — 지도/마을 대개편 (2026-07-29·이 PC win32·작업브랜치 `claude/continue-previous-work-b6dd2h`·main+브랜치 배포) ← 최신
+> ⚠️ **index.html(라이브 앱) 무관** — 독립 단일 HTML `룬테라원정-프로토타입.html`(순수 JS/three.js·localStorage `rune_proto`·실사이트 골드 무관). `APP_VERSION` 안 건드림. 배포=`git push HEAD:main` + `HEAD:claude/continue-previous-work-b6dd2h` 둘 다. 확인=`https://sohada2.github.io/aram/룬테라원정-프로토타입.html`(⚠️**캐시 매우 강함** — 매번 사장님이 "안 바뀜" 하면 `?v=N`/Ctrl+Shift+R/시크릿. 라이브 파일은 `curl`로 grep해 실제 배포 확인 가능).
+>
+> **🖥️ 다른 컴퓨터 이어작업 — 검증법(이 PC 방식)**: **Edge 헤드리스 + 로컬 http.server**(GLB fetch는 HTTP 필수·file:// 불가). 커맨드 골격: `python3 -m http.server PORT &` → `msedge --headless=new --disable-gpu --no-sandbox --use-gl=swiftshader --user-data-dir=<tmp> --virtual-time-budget=10000 --screenshot=<Temp>/x.png --window-size=W,H "http://localhost:PORT/<URL인코딩된 한글파일명>"`. ⚠️**함정**: ①한글 파일명은 `urllib.parse.quote`로 URL 인코딩 ②출력 png는 **Temp**(스크래치패드 쓰기 거부 0x5) ③모바일 폭 스샷 우측 잘림=헤드리스 캡처 아티팩트(실오버플로 아님) ④수치검증은 `--dump-dom`으로 `<title>` 읽기(예: `window.Map3D.dbg()`→타깃/줌). 인라인 `<script>` 3블록 `node --check`(module은 .mjs).
+>
+> **✅ 이번 세션 작업(전부 배포됨)**:
+> - **🛣️ 마을 간 길 = 헥스 키트 path 타일**(리본 폐기): `computeRoads`(Map3D 모듈)가 큐브좌표 헥스라인(`o2c/c2o/cubeRound/hexLine`)으로 마을 경로 계산→경로 헥스에 `path-straight/corner/corner-sharp`(교차는 `path-crossing`) 배치, `pickRoad(a,b)`가 변 각도로 타일·회전 결정(**타일 기본방향 렌더 판독**: straight=0/180°·corner=180/300°·sharp=180/240°, 세계각=국소각−rotation.y). ⚠️**path 타일 윗면 0.025 < 잔디 0.2** → 잔디 위 `y=0.2` 오버레이로 얹음(`tile()`에 y인자). 도로망=각 마을→최근접 + 내 성→라이벌.
+> - **🏚️ 마을 클릭=정보 패널**(부족전쟁식): `onVillage`가 남의 마을은 `openVillageInfo`(주인/좌표/거리/예상수비/충성도/약탈/보호)→[공격 준비]로 `openAttack`. 내 마을은 rgn뷰. CSS `.vi-*`.
+> - **🗺️ 광활한 지도 + 지역 지형**: `HCOLS/HROWS 15×19→25×31`, 야만인 30→100, 라이벌 분산 ring4~14. `biome(c,r,cols,rows,rnd)` 지역형 재작성(`_snoise` 노이즈+정규화좌표: 북/대각 산맥·남/남동 사막·중서부 호수·군집 숲·중앙 평원). 카메라 초기 zoom 1.4. **`SAVE_VER 5→6`**(구세이브 폐기).
+> - **🖐️ 지도 드래그 이동(pan)**: OrbitControls `mouseButtons.LEFT=PAN`·`touches.ONE=PAN,TWO=DOLLY_PAN`(회전 꺼서 좌드래그 무동작이던 것). ⚠️검증 함정: OrbitControls 캔버스는 **`#map-wrap > canvas`**(숨은 `#map-content > .grid-canvas` 아님)·합성 PointerEvent는 `setPointerCapture` 스텁 필요. `window.Map3D.dbg()`로 타깃 이동 수치확인함(마우스·터치 둘 다 OK·매초 재빌드에도 유지).
+> - **🏰 내 마을 3D 밀도/퀄 강화**: 중앙 광장(분수/좌판/수레/벤치)+순환대로+정문대로, 건물 2중 링 배치, 굴뚝/추가창문/본진 깃발, 환경 데코 스캐터 ~48개(`decorate` 시드고정: 나무/바위/산울타리/통/천막/울타리/가로등)·정적 장식 `decorStatic`. Kenney CC0만(부족전쟁 원본 아트 미복제).
+> - **📐 자원바 스크롤 제거 + 반응형**: `.resbar` overflow 제거·칩 flex 균등·콤팩트(값+생산, /cap은 title). `@media(min-width:760px)` PC 앱860·지도/마을 확대·건물 3열, 1120px+ 4열.
+>
+> **⏭️ 다음/미결(핸드오프)**:
+> - **🌫️ 전장의 안개(fog of war) — 사장님 승인·미구현**: 먼 지역을 안개로 가리고 **초반 전체 렌더 안 함**, 탐험(정찰/공격/점령)으로 시야 닿은 헥스만 `revealed`에 추가→**증분 타일 생성**(전체 재빌드 X). 성능(대형 지도 가능)+게임성 동시 해결. 시야 규칙(내 마을/점령지 반경 N칸·정찰 경로 등) 미정—사장님과 정할 것.
+> - ⚠️ 성능: 25×31=수백 헥스 GLB → 저사양 모바일서 무거울 수 있음(안개 넣으면 해소). biome 물 위에 마을 스폰 가능(genWorld는 biome 무관·소수·용인).
+> - 기존 미결: 귀족 정복(실제 점령 로직 없음·약탈만)·방어(들어오는 공격 AI 없음)·시장/대장간 효과 미연결. `Map3D.dbg()`는 디버그 훅(무해·유지).
+
+### 🗺️ 룬테라 원정 프로토타입 → 부족전쟁식 격자 맵 전환 (2026-07-29·원격web·작업브랜치 `claude/continue-previous-work-b6dd2h`·main+브랜치 배포)
 > ⚠️ **index.html(라이브 앱) 무관** — 이건 **독립 단일 HTML 프로토타입 `룬테라원정-프로토타입.html`**(빌드 없음·순수 JS/CSS/SVG/Canvas·localStorage mock `rune_proto`, 실제 사이트 골드와 무관). `APP_VERSION` 안 건드림. 배포=`git push HEAD:main` + `HEAD:claude/continue-previous-work-b6dd2h` 둘 다 → GitHub Pages. **확인 링크=`https://sohada2.github.io/aram/룬테라원정-프로토타입.html`**(캐시 강함·시크릿/새 탭).
 >
 > **🖥️ 다른 컴퓨터 이어작업 필독 (검증 방법·함정)**
