@@ -234,6 +234,13 @@ body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system
 .vmk.v-cap .vmk-ic{background:radial-gradient(circle,rgba(255,120,90,.28),transparent 70%);box-shadow:0 0 0 2px rgba(230,110,80,.85);}
 .vmk.v-barb .vmk-ic{background:radial-gradient(circle,rgba(10,16,20,.5),transparent 72%);box-shadow:0 0 0 1.5px rgba(180,180,180,.55);}
 .vmk-tag{margin-top:2px;font-size:8px;font-weight:800;white-space:nowrap;padding:1px 6px;border-radius:7px;background:linear-gradient(135deg,#f4e3a8,#d8b45a);color:#2a1c06;box-shadow:0 2px 5px rgba(0,0,0,.5);}
+.vmk.v-player .vmk-ic{background:radial-gradient(circle,rgba(120,170,255,.3),transparent 70%);box-shadow:0 0 0 2px rgba(120,170,255,.8),0 0 12px rgba(120,170,255,.4);}
+.vmk-tag.player{background:linear-gradient(135deg,#bcd3ff,#6f93d6);color:#0a1730;}
+.vmk-shield{position:absolute;left:50%;top:-15px;transform:translate(-50%,0) scale(var(--mkz,1));transform-origin:center bottom;font-size:12px;filter:drop-shadow(0 1px 2px #000);z-index:3;pointer-events:none;}
+.protect-banner{margin:0 8px 6px;padding:6px 11px;border-radius:10px;font-size:11px;font-weight:800;display:flex;align-items:center;gap:6px;
+  background:linear-gradient(180deg,rgba(56,110,160,.28),rgba(20,40,64,.32));border:1px solid rgba(120,170,255,.4);color:#cfe0ff;box-shadow:inset 0 1px 0 rgba(255,255,255,.06);}
+.protect-banner b{color:#9fd0ff;}
+.protect-banner .pb-sub{margin-left:auto;font-size:9px;font-weight:700;color:#ff9a6a;}
 .vmk-tag.barb{background:linear-gradient(135deg,#6a6f76,#3e4248);color:#e8e4dc;font-family:monospace;}
 /* 큐 */
 .q-row{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#f0dca0;background:linear-gradient(180deg,rgba(60,44,20,.5),rgba(20,14,8,.55));border:1px solid #6b4f24;border-radius:9px;padding:6px 10px;margin-bottom:5px;}
@@ -267,6 +274,7 @@ body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system
     <span class="res-chip g" id="c-gold">🪙 0</span>
   </div>
   <div class="resbar" id="resbar"></div>
+  <div class="protect-banner" id="protect-banner" style="display:none"></div>
 
   <!-- 지도 -->
   <div id="map-view">
@@ -408,16 +416,40 @@ function fieldDist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
 function travelMs(dist, slow){ return Math.round(dist*slow*60000/WSPEED); }  // slow=분/칸 · 거리(칸)×속도×월드속도
 
 // ═══════════ 상태 ═══════════
-const SAVE_VER=2;  // 격자 지도 도입 — 이전(대륙 좌표) 세이브는 폐기
+const SAVE_VER=3;  // 뉴비 보호·라이벌 소환사·스폰 분배 추가 — 이전 세이브 폐기
+const PROTECT_MS = 15*24*3600*1000;          // 🛡️ 뉴비 보호 15일(공격 안 받음)
+const SPAWN_MINDIST = 9, SPAWN_RADIUS = 30;  // 플레이어끼리 최소 9칸 · 중앙 반경 30칸에 분배(월드는 100 유지)
+const RIVAL_NAMES = ['소환사 아리','소환사 리븐','소환사 럭스','소환사 진','소환사 세트','소환사 야스오'];
 let S = load();
 function freshVillage(){ return { res:{wood:600,clay:600,iron:450}, blds:{main:1,wood:1,clay:1,iron:1,farm:1,storage:1}, troops:{}, buildQ:[], recQ:[] }; }
 function barbGarrison(size){ return {spear:size*7, sword:size*3, archer:size*3}; }
 function barbLoot(size){ return {wood:size*180, clay:size*160, iron:size*110}; }
+// 🛡️ 뉴비 보호 헬퍼 (실제판은 Firebase 서버시각 기준 — 여기선 로컬 시각)
+function protectLeft(w){ return (w&&w.protectUntil)? Math.max(0, w.protectUntil-Date.now()) : 0; }
+function isProtected(w){ return protectLeft(w)>0; }
+function fmtProtect(ms){ const d=Math.floor(ms/86400000), h=Math.floor(ms%86400000/3600000), m=Math.floor(ms%3600000/60000);
+  return d>0? `${d}일 ${h}시간` : (h>0? `${h}시간 ${m}분` : `${m}분`); }
+// 🎯 시작 지점 분배 — 중앙 반경 내, 다른 플레이어와 최소거리 확보한 빈 칸(겹침 방지). 실제판은 Firebase runTransaction으로 원자적 점유
+function allocSpawn(taken, players, R){ R=R||Math.random; const cx=WORLD/2, cy=WORLD/2;
+  for(let ring=8; ring<=SPAWN_RADIUS; ring+=2){ for(let t=0;t<60;t++){
+    const ang=R()*Math.PI*2, rr=ring-R()*4;
+    const x=Math.round(cx+Math.cos(ang)*rr), y=Math.round(cy+Math.sin(ang)*rr);
+    if(x<2||y<2||x>WORLD-3||y>WORLD-3) continue;
+    if(taken.has(x+','+y)) continue;
+    let ok=true; for(const p of players){ if(Math.hypot(x-p.x,y-p.y)<SPAWN_MINDIST){ ok=false; break; } }
+    if(ok) return {x,y};
+  } }
+  return null;
+}
 // 격자 세계 생성 — 내 마을(50,50) + 야만인 마을 ~170개(뭉치고 흩어짐, 정수 좌표=칸). 부족전쟁식
-function genWorld(){
-  const R=mkrng(778899); const W={};
-  W[HOME_KEY]={x:50,y:50,name:'내 마을',owner:'me',size:6,loot:{wood:0,clay:0,iron:0},garrison:{}};
-  const taken=new Set(['50,50']); let n=0, guard=0;
+function genWorld(now){
+  const R=mkrng(778899); const W={}; now = now || Date.now();
+  W[HOME_KEY]={x:50,y:50,name:'내 마을',owner:'me',size:6,loot:{wood:0,clay:0,iron:0},garrison:{},foundedAt:now,protectUntil:now+PROTECT_MS};
+  const taken=new Set(['50,50']); const players=[{x:50,y:50}]; let n=0, guard=0;
+  // 🎯 라이벌 소환사(멀티 예시) — 스폰 분배로 겹치지 않게 배치 · 일부는 뉴비 보호 중
+  for(let i=0;i<5;i++){ const sp=allocSpawn(taken, players, R); if(!sp) break; taken.add(sp.x+','+sp.y); players.push(sp);
+    const size=3+Math.floor(R()*3); const prot = i<3 ? now + PROTECT_MS*(0.25+R()*0.7) : 0;   // 5명 중 3명 보호중
+    W['p'+i]={x:sp.x,y:sp.y,name:RIVAL_NAMES[i]||('소환사 '+i),owner:'player',size,loot:barbLoot(size),garrison:barbGarrison(size),foundedAt:now,protectUntil:prot}; }
   const clusters=[]; for(let i=0;i<14;i++) clusters.push({cx:6+R()*88, cy:6+R()*88});
   while(n<170 && guard<5000){ guard++;
     let x,y;
@@ -432,7 +464,7 @@ function genWorld(){
   }
   return W;
 }
-function fresh(){ return { ver:SAVE_VER, v:freshVillage(), world:genWorld(), marches:[], t:Date.now() }; }
+function fresh(){ const now=Date.now(); return { ver:SAVE_VER, v:freshVillage(), world:genWorld(now), marches:[], t:now }; }
 function load(){ try{ const j=JSON.parse(localStorage.getItem('rune_proto')); if(j&&j.ver===SAVE_VER&&j.v&&j.world&&j.world[HOME_KEY]) return j; }catch(e){} return fresh(); }
 function save(){ localStorage.setItem('rune_proto', JSON.stringify(S)); }
 
@@ -593,6 +625,9 @@ function renderTop(){
     + `<span class="res-chip food">🌾 ${popUsed()}<span style="color:#7a6a42">/${popCap()}</span></span>`;
   const cg=document.getElementById('c-gold'); if(cg) cg.textContent='🛡️ '+armyTotal();
   document.getElementById('topttl').textContent = view==='map'?'🗺️ 룬테라 원정':'◀ 내 마을';
+  const pb=document.getElementById('protect-banner'); if(pb){ const left=protectLeft(S.world[HOME_KEY]);
+    if(left>0){ pb.style.display='flex'; pb.innerHTML=`🛡️ <b>뉴비 보호 중</b> · ${fmtProtect(left)} 남음 <span class="pb-sub">먼저 공격 시 즉시 해제</span>`; }
+    else pb.style.display='none'; }
 }
 function renderMap(){
   const mn=document.getElementById('mnodes'); if(!mn) return;
@@ -603,12 +638,16 @@ function renderMap(){
   const eg=document.getElementById('edges'); if(eg) eg.innerHTML=e;
   // 마을 마커 — 내 마을(성)·야만인 마을(크기별). 좌표=칸 중앙 픽셀
   mn.innerHTML = Object.keys(S.world).map(id=>{ const w=S.world[id];
-    const cls = w.owner==='me'?'v-me':'v-barb';
-    const szc = w.owner==='me'?'big':(w.size>=5?'big':(w.size>=3?'mid':'sml'));
-    const ic = w.owner==='me'?'🏰':'🏚️';
-    const tag = w.owner==='me'?'<span class="vmk-tag home">내 마을</span>':(w.size>=4?`<span class="vmk-tag barb">${w.size}★</span>`:'');
+    const me=w.owner==='me', pl=w.owner==='player';
+    const cls = me?'v-me':(pl?'v-player':'v-barb');
+    const szc = (me||pl)?'big':(w.size>=5?'big':(w.size>=3?'mid':'sml'));
+    const ic = me?'🏰':(pl?'🏯':'🏚️');
+    const shield = isProtected(w)?'<span class="vmk-shield">🛡️</span>':'';
+    const tag = me?`<span class="vmk-tag home">내 마을${isProtected(w)?' 🛡️':''}</span>`
+              : (pl?`<span class="vmk-tag player">${(w.name||'').replace('소환사 ','')}${isProtected(w)?' 🛡️':''}</span>`
+              : (w.size>=4?`<span class="vmk-tag barb">${w.size}★</span>`:''));
     const L=((w.x+0.5)*FIELD).toFixed(1), T=((w.y+0.5)*FIELD).toFixed(1);
-    return `<div class="vmk ${cls} ${szc}" style="left:${L}px;top:${T}px" data-id="${id}"><div class="vmk-box"><span class="vmk-ic">${ic}</span>${tag}</div></div>`;
+    return `<div class="vmk ${cls} ${szc}" style="left:${L}px;top:${T}px" data-id="${id}"><div class="vmk-box">${shield}<span class="vmk-ic">${ic}</span>${tag}</div></div>`;
   }).join('');
   // 마을 선택은 attachPanZoom onTap(칸 히트테스트)이 처리 — 팬/줌 포인터 캡처와 무관
   updateArmies();
@@ -837,7 +876,32 @@ window.recruit=function(u){ const v=S.v; const t=TROOP[u]; if((v.blds[t.from]||0
   if(!payV(t.cost)){ toast('자원 부족 · '+costStr(t.cost)); return; }
   const now=Date.now(); const wasEmpty=v.recQ.length===0; v.recQ.push({u, doneAt:0}); if(wasEmpty) v.recQ[0].doneAt=now+trainTime(u)*1000;
   save(); updateRgnDynamic(); renderTop(); };
+// ⚠️ 뉴비 선공 경고(무시하면 보호 해제 후 진행)
+function confirmRelease(onYes){ const left=protectLeft(S.world[HOME_KEY]);
+  const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+  ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:330px;text-align:center">
+    <div style="font-size:34px;margin:4px 0">⚠️</div>
+    <h3 class="pick-h" style="justify-content:center;color:#ffcf87">뉴비 보호가 풀려요</h3>
+    <div class="muted" style="margin:8px 4px 2px;line-height:1.55">지금 먼저 공격하면 남은 <b style="color:#9fd0ff">${fmtProtect(left)}</b>의<br>🛡️ 뉴비 보호가 <b style="color:#ff9a6a">즉시 해제</b>됩니다.<br>이후 다른 소환사에게 공격받을 수 있어요.</div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-dk cr-no" style="flex:1;padding:11px">취소</button>
+      <button class="btn btn-gold cr-yes" style="flex:1;padding:11px">무시하고 공격</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  ov.querySelector('.cr-no').onclick=()=>ov.remove();
+  ov.querySelector('.cr-yes').onclick=()=>{ S.world[HOME_KEY].protectUntil=0; save(); renderTop(); toast('🛡️ 뉴비 보호가 해제됐어요'); ov.remove(); onYes(); };
+}
 function openAttack(id){ const w=S.world[id]; if(!w) return; const v=S.v;
+  if(isProtected(w)){   // 🛡️ 보호 중인 소환사는 공격 불가
+    const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+    ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:320px;text-align:center">
+      <div style="font-size:34px;margin:4px 0">🛡️</div>
+      <h3 class="pick-h" style="justify-content:center">${w.name} · 뉴비 보호 중</h3>
+      <div class="muted" style="margin:8px 0 2px;line-height:1.5">이 소환사는 <b style="color:#9fd0ff">${fmtProtect(protectLeft(w))}</b> 동안<br>공격받지 않아요. 보호가 끝나면 공격할 수 있어요.</div>
+      <button class="btn btn-dk" style="width:100%;padding:11px;margin-top:10px" onclick="this.closest('.ov').remove()">확인</button>
+    </div>`;
+    document.body.appendChild(ov); return;
+  }
   const owned=Object.keys(TROOP).filter(u=>(v.troops[u]||0)>0);
   const from=S.world[HOME_KEY]; const dist=fieldDist(w,from);
   const sel={}; owned.forEach(u=>sel[u]=0);
@@ -855,7 +919,10 @@ function openAttack(id){ const w=S.world[id]; if(!w) return; const v=S.v;
       <button class="btn btn-gold atk-go" ${owned.length?'':'disabled'} style="width:100%;padding:12px;margin-top:8px;font-size:14px">⚔️ 공격 출발</button>
     </div>`;
     ov.querySelectorAll('.atk-step button').forEach(bn=>bn.onclick=()=>{ const u=bn.dataset.u,d=bn.dataset.d; if(d==='max') sel[u]=v.troops[u]||0; else sel[u]=Math.max(0,Math.min(v.troops[u]||0, sel[u]+(+d))); draw(); });
-    const go=ov.querySelector('.atk-go'); if(go) go.onclick=()=>{ if(sendAttack(id,sel)){ ov.remove(); renderMap(); renderTop(); } };
+    const go=ov.querySelector('.atk-go'); if(go) go.onclick=()=>{
+      const doSend=()=>{ if(sendAttack(id,sel)){ ov.remove(); renderMap(); renderTop(); } };
+      if(isProtected(S.world[HOME_KEY])) confirmRelease(doSend); else doSend();   // 내가 보호 중이면 선공 경고
+    };
   }
   draw(); ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); }; document.body.appendChild(ov);
 }
@@ -899,5 +966,26 @@ let _mapPZ=null;
 (function armyLoop(){ if(view==='map'){ const host=document.getElementById('armies'); if(host && (S.marches||[]).length) updateArmies(); } requestAnimationFrame(armyLoop); })();
 window.runeReset=function(){ localStorage.removeItem('rune_proto'); S=fresh(); showView(); toast('프로토타입 초기화'); };
 window.rune=()=>S;  // 콘솔 디버그: 현재 상태 접근
+// 💾 저장 무결성 검사(실시간 저장 확인) — 저장→다시 읽기→구조/좌표 비교
+window.runeSaveCheck=function(){ save(); let ok=false, msg='';
+  try{ const j=JSON.parse(localStorage.getItem('rune_proto'));
+    ok = j && j.ver===SAVE_VER && j.world && j.world[HOME_KEY] && j.world[HOME_KEY].x===S.world[HOME_KEY].x && JSON.stringify(j.v.blds)===JSON.stringify(S.v.blds);
+    const players=Object.values(S.world).filter(w=>w.owner==='player'||w.owner==='me').length;
+    msg=`world ${Object.keys(j.world).length}마을 · 플레이어 ${players}명 · 자원 목${Math.floor(S.v.res.wood)}/점${Math.floor(S.v.res.clay)}/철${Math.floor(S.v.res.iron)} · 내 보호 ${protectLeft(S.world[HOME_KEY])>0?fmtProtect(protectLeft(S.world[HOME_KEY])):'해제됨'}`;
+  }catch(e){ msg='읽기 오류 '+e.message; }
+  console.log((ok?'✅ 저장 정상 · ':'❌ 저장 이상 · ')+msg+' (자동저장=매 1초 loop + 액션마다)'); toast(ok?'💾 저장 정상':'❌ 저장 이상'); return ok;
+};
+// 🎯 스폰 분배 데모 — N명 플레이어를 겹치지 않게 재배치(최소거리 확인)
+window.runeSpawnDemo=function(n){ n=Math.max(2,Math.min(9,n||8)); const R=Math.random;
+  const taken=new Set(['50,50']); const players=[{x:50,y:50}]; const now=Date.now();
+  for(const id in S.world){ if(id!==HOME_KEY && S.world[id].owner==='player') delete S.world[id]; }  // 기존 라이벌 제거
+  let placed=0; for(let i=0;i<n-1;i++){ const sp=allocSpawn(taken,players,R); if(!sp)break; taken.add(sp.x+','+sp.y); players.push(sp);
+    const size=3+Math.floor(R()*3); S.world['p'+i]={x:sp.x,y:sp.y,name:RIVAL_NAMES[i%RIVAL_NAMES.length]+' '+(i+1),owner:'player',size,loot:barbLoot(size),garrison:barbGarrison(size),foundedAt:now,protectUntil:(i%2?now+PROTECT_MS:0)}; placed++; }
+  // 최소거리 검산
+  let minD=1e9; for(let a=0;a<players.length;a++)for(let b=a+1;b<players.length;b++) minD=Math.min(minD,Math.hypot(players[a].x-players[b].x,players[a].y-players[b].y));
+  save(); if(view==='map') showView();
+  console.log(`🎯 플레이어 ${placed+1}명 배치 · 최소 간격 ${minD.toFixed(1)}칸(기준 ${SPAWN_MINDIST}칸)`); toast(`🎯 ${placed+1}명 분배 · 최소 ${minD.toFixed(1)}칸`);
+};
+window.runeEndProtect=function(){ S.world[HOME_KEY].protectUntil=0; save(); renderTop(); if(view==='map')renderMap(); toast('🛡️ 내 보호 해제(테스트)'); };
 </script>
 </body></html>
