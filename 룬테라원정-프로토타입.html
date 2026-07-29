@@ -435,7 +435,7 @@ const RES = {wood:'🪵', clay:'🧱', iron:'⚙️'};
 const HOME_ID = 'demacia';    // 내 마을 바이옴(정착지 테마)
 const HOME_KEY = 'home';      // 격자 지도상 내 마을 키
 const WORLD=100, FIELD=15, WSPEED=140;  // (구 2D 폴백용) 월드 속도(시간 압축)
-const HCOLS=15, HROWS=19, HHZ=1.155*0.75;         // 🗺️ 육각 월드(마을이 앉는 격자·pointy-top)
+const HCOLS=25, HROWS=31, HHZ=1.155*0.75;         // 🗺️ 육각 월드(마을이 앉는 격자·pointy-top) — 광활한 지도
 function hexPos(c,r){ return { x:(c+((r&1)?0.5:0)), z:r*HHZ }; }   // 헥스 → 타일 단위 좌표(거리=이 좌표 유클리드)
 // 건물 — 실제 부족전쟁 레벨1 비용/증가율/선행조건 (본진·병영·마구간·공방·대장간·대학·시장·자원·농장·창고·성벽·은신처·집결지)
 const BLD = {
@@ -492,7 +492,7 @@ function fieldDist(a,b){ const A=hexPos(a.x,a.y),B=hexPos(b.x,b.y); return Math.
 function travelMs(dist, slow){ return Math.round(dist*slow*60000/WSPEED); }  // slow=분/칸 · 거리(칸)×속도×월드속도
 
 // ═══════════ 상태 ═══════════
-const SAVE_VER=5;  // 육각 월드(3D 지도) 전환 — 이전 세이브 폐기
+const SAVE_VER=6;  // 광활한 월드 + 지역 지형 — 이전 세이브 폐기
 const PROTECT_MS = 15*24*3600*1000;          // 🛡️ 뉴비 보호 15일(공격 안 받음)
 const SPAWN_MINDIST = 9, SPAWN_RADIUS = 30;  // 플레이어끼리 최소 9칸 · 중앙 반경 30칸에 분배(월드는 100 유지)
 const RIVAL_NAMES = ['소환사 아리','소환사 리븐','소환사 럭스','소환사 진','소환사 세트','소환사 야스오'];
@@ -511,12 +511,12 @@ function fmtProtect(ms){ const d=Math.floor(ms/86400000), h=Math.floor(ms%864000
   return d>0? `${d}일 ${h}시간` : (h>0? `${h}시간 ${m}분` : `${m}분`); }
 // 🎯 시작 지점 분배 — 중앙 반경 내, 다른 플레이어와 최소거리 확보한 빈 칸(겹침 방지). 실제판은 Firebase runTransaction으로 원자적 점유
 function allocSpawn(taken, players, R){ R=R||Math.random; const HC=Math.floor(HCOLS/2), HR=Math.floor(HROWS/2);
-  for(let ring=3; ring<=8; ring++){ for(let t=0;t<80;t++){
+  for(let ring=4; ring<=14; ring++){ for(let t=0;t<80;t++){
     const ang=R()*Math.PI*2;
     const x=Math.round(HC+Math.cos(ang)*ring), y=Math.round(HR+Math.sin(ang)*ring*1.3);
     if(x<1||y<1||x>HCOLS-2||y>HROWS-2) continue;
     if(taken.has(x+','+y)) continue;
-    let ok=true; for(const p of players){ if(fieldDist({x,y},p)<3){ ok=false; break; } }   // 플레이어끼리 최소 3칸
+    let ok=true; for(const p of players){ if(fieldDist({x,y},p)<4){ ok=false; break; } }   // 플레이어끼리 최소 4칸
     if(ok) return {x,y};
   } }
   return null;
@@ -531,8 +531,8 @@ function genWorld(now){
   for(let i=0;i<5;i++){ const sp=allocSpawn(taken, players, R); if(!sp) break; taken.add(sp.x+','+sp.y); players.push(sp);
     const size=3+Math.floor(R()*3); const prot = i<3 ? now + PROTECT_MS*(0.25+R()*0.7) : 0;
     W['p'+i]={x:sp.x,y:sp.y,name:RIVAL_NAMES[i]||('소환사 '+i),owner:'player',size,loot:barbLoot(size),garrison:barbGarrison(size),foundedAt:now,protectUntil:prot}; }
-  // 야만인 마을 ~30개(헥스 곳곳·홈 주변 2칸 비움·멀수록 큼)
-  while(n<30 && guard<3000){ guard++;
+  // 야만인 마을 ~100개(헥스 곳곳·홈 주변 2칸 비움·멀수록 큼)
+  while(n<100 && guard<9000){ guard++;
     const x=Math.floor(R()*HCOLS), y=Math.floor(R()*HROWS); const key=x+','+y;
     if(taken.has(key)) continue; const d=fieldDist({x,y},home); if(d<2.2) continue;
     taken.add(key);
@@ -1334,9 +1334,22 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 const HX='assets/hex/'; let R,SC,CAM,CT,GRP,MK,EL,LH,OPT=null,off={x:0,z:0},_lastSig='';
 const C={}, GL=new GLTFLoader(), VLAB=[], MLAB=[];
 function ld(n){ return C[n]||(C[n]=GL.loadAsync(HX+n+'.glb').then(g=>g.scene)); }
-function biome(c,r,rows,rnd){ if(r<3) return rnd<.55?'stone-mountain':'stone-hill';
-  if(r>=rows-3) return rnd<.5?'sand-desert':(rnd<.8?'sand':'sand-rocks');
-  if(rnd<.24) return 'grass-forest'; if(rnd<.36) return 'grass-hill'; if(rnd<.44) return 'stone-hill'; return 'grass'; }
+// 지역별 지형 — 정규화 좌표 + 부드러운 노이즈로 산맥/사막/호수/숲이 뭉쳐 나옴
+function _snoise(x,y){ return Math.sin(x*3.1+y*1.7)*0.5 + Math.sin(x*1.3-y*2.7+2.0)*0.3 + Math.sin((x+y)*2.3+4.0)*0.2; } // ~[-1,1]
+function biome(c,r,cols,rows,rnd){
+  const u=c/((cols-1)||1), v=r/((rows-1)||1); const j=_snoise(u*4,v*4)*0.09;
+  // ⛰️ 산맥: 북쪽 가장자리 + 대각 능선
+  if((v+j)<0.15 || Math.abs((u*0.75+v)-1.18 + _snoise(u*3,v*3+1)*0.13)<0.075) return rnd<.5?'stone-mountain':(rnd<.8?'stone-hill':'stone-rocks');
+  // 🏜️ 사막: 남쪽 + 남동 블롭
+  if((v-j)>0.85 || Math.hypot((u-0.85)*1.1,(v-0.8))<(0.20+j)) return rnd<.45?'sand-desert':(rnd<.8?'sand':'sand-rocks');
+  // 💧 호수: 중서부 블롭
+  if(Math.hypot((u-0.32)*1.15,(v-0.6))<(0.10+_snoise(u*5,v*5)*0.03)) return rnd<.72?'water':'water-rocks';
+  // 🌲 숲: 여러 군집
+  if(Math.hypot((u-0.63)*1.0,(v-0.28))<0.15 || Math.hypot((u-0.22)*1.0,(v-0.30))<0.12 || Math.hypot((u-0.72)*1.1,(v-0.68))<0.14 || rnd<.10)
+    return 'grass-forest';
+  if(rnd<.10) return 'grass-hill';
+  return 'grass';
+}
 function vTile(w){ if(w.owner==='me') return 'building-castle'; if(w.owner==='player') return 'building-tower';
   return w.size>=5?'building-village':(w.size>=3?'building-house':'building-cabin'); }
 function initS(){ if(R) return;
@@ -1344,7 +1357,7 @@ function initS(){ if(R) return;
   R.outputColorSpace=T.SRGBColorSpace; R.shadowMap.enabled=true; R.shadowMap.type=T.PCFSoftShadowMap;
   R.domElement.style.cssText='position:absolute;inset:0;width:100%;height:100%;';
   SC=new T.Scene();
-  CAM=new T.OrthographicCamera(-10,10,10,-10,-80,140); CAM.position.set(16,16,16); CAM.lookAt(0,0,0);
+  CAM=new T.OrthographicCamera(-10,10,10,-10,-80,140); CAM.position.set(16,16,16); CAM.lookAt(0,0,0); CAM.zoom=1.4;
   CT=new OrbitControls(CAM,R.domElement); CT.enableDamping=true; CT.enableRotate=false; CT.enablePan=true; CT.screenSpacePanning=true; CT.minZoom=0.5; CT.maxZoom=3.2;
   CT.mouseButtons={ LEFT:T.MOUSE.PAN, MIDDLE:T.MOUSE.DOLLY, RIGHT:T.MOUSE.PAN };   // 좌클릭 드래그=이동
   CT.touches={ ONE:T.TOUCH.PAN, TWO:T.TOUCH.DOLLY_PAN };   // 한손가락=이동, 두손가락=확대+이동
@@ -1398,7 +1411,7 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
       el.innerHTML=w.owner==='me'?`<b>${ic} 내 성${prot}</b>`:(w.owner==='player'?`<b>${ic} ${(w.name||'').replace('소환사 ','')}${prot}</b>`:`<b>${ic} ${w.size}★</b>`);
       el.onclick=()=>{ if(opts.onNode) opts.onNode(id); }; LH.appendChild(el); VLAB.push({el,pos:new T.Vector3(x,0.9,z)});
     } else if(roads[key]){ tile((r>=rows-3)?'sand':'grass',x,z,false); tile(roads[key].n,x,z,false,roads[key].rot,0.2); }
-    else { tile(biome(c,r,rows,rng()),x,z,false); }
+    else { tile(biome(c,r,cols,rows,rng()),x,z,false); }
   }
   resize(); if(CT){ CT.target.set(0,0,0); CT.update(); }
 }
@@ -1441,7 +1454,7 @@ function computeRoads(world, opts, at){
   return road;
 }
 function mkrng2(s){ return ()=>{ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; }; }
-export function resetCam(){ if(!CAM)return; CAM.position.set(16,16,16); CAM.zoom=1; CAM.updateProjectionMatrix(); if(CT){CT.target.set(0,0,0);CT.update();} }
+export function resetCam(){ if(!CAM)return; CAM.position.set(16,16,16); CAM.zoom=1.4; CAM.updateProjectionMatrix(); if(CT){CT.target.set(0,0,0);CT.update();} }
 window.addEventListener('resize',resize);
 window.Map3D={ mount, build, resetCam, ok:true, dbg:()=>CT?{tx:+CT.target.x.toFixed(2),tz:+CT.target.z.toFixed(2),zoom:+CAM.zoom.toFixed(2)}:null };
 </script>
