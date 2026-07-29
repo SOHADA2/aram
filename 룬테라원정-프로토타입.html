@@ -1,5 +1,6 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>룬테라 전쟁 — 프로토타입 v0.1</title>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/"}}</script>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system-ui,sans-serif;overscroll-behavior:none;}
@@ -285,6 +286,14 @@ body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system
 .atk-step{margin-left:auto;display:flex;align-items:center;gap:4px;} .atk-step button{width:26px;height:26px;border:none;border-radius:7px;background:rgba(255,255,255,.1);color:#f0dca0;font-size:14px;font-weight:800;cursor:pointer;} .atk-step button.mx{width:auto;padding:0 8px;font-size:10px;} .atk-step b{min-width:26px;text-align:center;font-family:monospace;color:#ffd76a;}
 .atk-est{font-size:11px;color:#e8dcc0;text-align:center;margin-top:10px;font-weight:700;} .atk-est b{color:#ffd76a;}
 .sec2 span{font-weight:600;color:#8a7a52;font-size:9px;}
+.v3-labels{position:absolute;inset:0;z-index:6;pointer-events:none;}
+.v3-label{position:absolute;transform:translate(-50%,-100%);white-space:nowrap;pointer-events:auto;cursor:pointer;text-align:center;
+  background:linear-gradient(180deg,rgba(28,22,12,.94),rgba(14,10,5,.96));border:1px solid #a3812f;border-radius:8px;padding:2px 7px;box-shadow:0 3px 8px rgba(0,0,0,.55);}
+.v3-label b{display:block;font-size:9.5px;font-weight:800;color:#f2e2ad;}
+.v3-label i{font-size:8px;font-style:normal;font-weight:800;color:#3a2a08;background:linear-gradient(180deg,#fbe9a8,#d9ab48);border-radius:5px;padding:0 5px;}
+.v3-label.empty{background:rgba(10,8,4,.6);border-style:dashed;border-color:rgba(200,168,75,.5);}
+.v3-label .plus{font-size:9px;font-weight:800;color:#e6d29a;}
+.v3-label:active{transform:translate(-50%,calc(-100% + 1px));}
 </style></head>
 <body><div class="app">
   <div class="topbar">
@@ -909,9 +918,13 @@ function renderRgn(full){
       <div class="sec2">📡 진행 중 행군</div>
       <div id="vil-marches"></div>
       <div style="height:20px"></div>`;
-    buildIso(id); fillBiomeFx(B.fx);
-    const _sc=document.getElementById('rgn-scene'), _cam=document.getElementById('rgn-cam');
-    if(_sc&&_cam){ const pz=attachPanZoom(_sc,_cam,{max:3.4,dbl:2}); const rr=document.getElementById('rgn-reset'); if(rr) rr.onclick=()=>pz.reset();
+    fillBiomeFx(B.fx);
+    const _sc=document.getElementById('rgn-scene');
+    if(_sc && window.Town3D){ try{ window.Town3D.mount(_sc); window.Town3D.build(S.v.blds,{onBuild:(b)=>window.build(b), BLD});
+        const rr=document.getElementById('rgn-reset'); if(rr) rr.onclick=()=>window.Town3D.resetCam(); }catch(e){}
+      setTimeout(()=>{ const h=document.getElementById('rgn-hint'); if(h) h.classList.add('gone'); },4500);
+    } else if(_sc){ buildIso(id); const _cam=document.getElementById('rgn-cam');   // WebGL 미지원 폴백(2D)
+      if(_cam){ const pz=attachPanZoom(_sc,_cam,{max:3.4,dbl:2}); const rr=document.getElementById('rgn-reset'); if(rr) rr.onclick=()=>pz.reset(); }
       setTimeout(()=>{ const h=document.getElementById('rgn-hint'); if(h) h.classList.add('gone'); },4500); }
     document.getElementById('topttl').onclick=()=>{ view='map'; showView(); };
     _rgnBuilt=S.active;
@@ -1141,5 +1154,87 @@ window.runeRaid=function(){ const rivals=Object.keys(S.world).filter(id=>S.world
   const travel=Math.max(4000, travelMs(fieldDist(a,home),slow));
   S.marches.push({from:aid,to:HOME_KEY,units,dep:Date.now(),arriveAt:Date.now()+travel,mode:'raid'}); save();
   if(view==='map')renderMap(); toast(`⚔️ ${a.name} 습격(테스트) · ${fmtDur(travel)} 후 도착`); };
+</script>
+<script type="module">
+// ══ 3D 마을(부족전쟁식 원형 성벽 마을) — 판타지 타운/성/서바이벌 키트(Kenney CC0) ══
+import * as T from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+const P2=Math.PI/2, KIT={town:'assets/town/',castle:'assets/castle/',surv:'assets/survival/'};
+let renderer,scene,cam,ctrl,vgroup,bgroup,curEl,labelHost,W=1,H=1,onBuild=null,walled=false;
+const cache={}, gl=new GLTFLoader(), labels=[];
+function loadG(kit,n){ const k=kit+'|'+n; return cache[k]||(cache[k]=gl.loadAsync(KIT[kit]+n+'.glb').then(g=>g.scene)); }
+async function inst(kit,n,parent,x,z,o){ o=o||{}; try{ const src=await loadG(kit,n); const m=src.clone(true);
+  m.position.set(x,o.y||0,z); m.rotation.y=o.ry||0; m.scale.setScalar(o.s||1);
+  m.traverse(c=>{ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; } }); parent.add(m); return m; }catch(e){} }
+function initScene(){
+  if(renderer) return;
+  renderer=new T.WebGLRenderer({antialias:true,alpha:true}); renderer.setPixelRatio(Math.min(2,devicePixelRatio));
+  renderer.outputColorSpace=T.SRGBColorSpace; renderer.shadowMap.enabled=true; renderer.shadowMap.type=T.PCFSoftShadowMap;
+  renderer.domElement.style.cssText='position:absolute;inset:0;width:100%;height:100%;';
+  scene=new T.Scene();
+  cam=new T.OrthographicCamera(-9,9,9,-9,-50,90); cam.position.set(15,15,15); cam.lookAt(0,0,0);
+  ctrl=new OrbitControls(cam,renderer.domElement); ctrl.enableDamping=true; ctrl.maxPolarAngle=Math.PI*0.47; ctrl.minZoom=0.55; ctrl.maxZoom=2.4; ctrl.enablePan=false;
+  scene.add(new T.HemisphereLight(0xdcefff,0x50603a,0.95));
+  const sun=new T.DirectionalLight(0xfff3d8,1.4); sun.position.set(11,18,7); sun.castShadow=true; sun.shadow.mapSize.set(1536,1536);
+  const s=sun.shadow.camera; s.left=-11;s.right=11;s.top=11;s.bottom=-11;s.near=1;s.far=48; sun.shadow.bias=-0.0006; scene.add(sun);
+  const grass=new T.Mesh(new T.CircleGeometry(8,52),new T.MeshStandardMaterial({color:0x6f9e46,roughness:1})); grass.rotation.x=-P2; grass.receiveShadow=true; scene.add(grass);
+  const moat=new T.Mesh(new T.RingGeometry(7.9,9,52),new T.MeshStandardMaterial({color:0x3f7fb0,roughness:.7})); moat.rotation.x=-P2; moat.position.y=-0.06; scene.add(moat);
+  const road=new T.Mesh(new T.RingGeometry(3.1,4.0,52),new T.MeshStandardMaterial({color:0xc2ab7a,roughness:1})); road.rotation.x=-P2; road.position.y=0.02; road.receiveShadow=true; scene.add(road);
+  vgroup=new T.Group(); scene.add(vgroup); bgroup=new T.Group(); scene.add(bgroup);
+  (function loop(){ requestAnimationFrame(loop); if(!curEl||!renderer||curEl.offsetParent===null) return; if(ctrl) ctrl.update();
+    renderer.render(scene,cam); updateLabels(); })();
+}
+async function buildWallRing(){ if(walled) return; walled=true; const R=7.0, N=18;
+  for(let i=0;i<N;i++){ const a=i/N*Math.PI*2; const front=Math.abs(((a+Math.PI)%(Math.PI*2))-Math.PI); if(a<0.35||a>Math.PI*2-0.35) continue; // 정문 갭
+    await inst('town','wall',vgroup,Math.cos(a)*R,Math.sin(a)*R,{ry:-a,s:1.2}); }
+  for(let i=0;i<6;i++){ const a=0.6+i*(Math.PI*2-1.2)/5; const x=Math.cos(a)*R,z=Math.sin(a)*R;
+    await inst('castle','tower-square-base',vgroup,x,z,{s:.9}); await inst('castle','tower-square-mid-windows',vgroup,x,z,{y:.75,s:.9}); await inst('castle','tower-square-top-roof-high',vgroup,x,z,{y:1.5,s:.9}); }
+  await inst('castle','gate',vgroup,R,0,{ry:P2,s:1.15});
+}
+const RING=[
+  {b:'barracks',prop:['castle','flag-banner-long']},{b:'stable',prop:['town','cart']},
+  {b:'workshop',prop:['castle','siege-catapult']},{b:'smithy',prop:['surv','resource-stone']},
+  {b:'academy',prop:['castle','flag']},{b:'market',prop:['town','stall-red']},
+  {b:'wood',prop:['surv','resource-wood']},{b:'clay',prop:['surv','barrel']},
+  {b:'iron',prop:['surv','resource-planks']},{b:'farm',prop:['town','tree']},
+  {b:'storage',prop:['surv','box-large']},{b:'hide',prop:['surv','tent']},
+];
+async function placeBuilding(x,z,ry,b,lv,central){
+  if(lv>0){
+    const sc=central?1.15:1; const roofH=(lv>=5||central);
+    await inst('town',central?'wall-wood-door':'wall-door',bgroup,x,z,{ry,s:sc});
+    await inst('town','wall-window-shutters',bgroup,x,z,{ry:ry+P2,s:sc});
+    await inst('town',central?'wall-wood':'wall',bgroup,x,z,{ry:ry-P2,s:sc});
+    await inst('town',central?'wall-wood':'wall',bgroup,x,z,{ry:ry+Math.PI,s:sc});
+    await inst('town',roofH?'roof-high-gable':'roof-gable',bgroup,x,z,{y:sc,ry,s:sc});
+    const slot=RING.find(r=>r.b===b); if(slot&&slot.prop) await inst(slot.prop[0],slot.prop[1],bgroup,x+0.55,z+0.55,{s:.85});
+  }
+}
+function mkLabel(){ const d=document.createElement('div'); d.className='v3-label'; labelHost.appendChild(d); return d; }
+function updateLabels(){ if(!curEl) return; const rect=curEl.getBoundingClientRect();
+  for(const L of labels){ const v=L.pos.clone().project(cam);
+    const x=(v.x*0.5+0.5)*rect.width, y=(-v.y*0.5+0.5)*rect.height;
+    L.el.style.left=x+'px'; L.el.style.top=y+'px'; L.el.style.display=(v.z<1)?'block':'none'; } }
+export function mount(el){ initScene(); curEl=el; el.appendChild(renderer.domElement);
+  if(!labelHost||!el.contains(labelHost)){ labelHost=document.createElement('div'); labelHost.className='v3-labels'; el.appendChild(labelHost); }
+  resize(); }
+function resize(){ if(!curEl) return; W=curEl.clientWidth||420; H=curEl.clientHeight||300; renderer.setSize(W,H);
+  const D=9, a=W/H; cam.left=-D*a;cam.right=D*a;cam.top=D;cam.bottom=-D; cam.updateProjectionMatrix(); }
+export function build(blds, opts){ opts=opts||{}; onBuild=opts.onBuild; initScene(); buildWallRing();
+  while(bgroup.children.length) bgroup.remove(bgroup.children[0]);
+  labels.forEach(L=>L.el.remove()); labels.length=0;
+  const BLD=opts.BLD||{};
+  // 중앙 본진
+  const add=(x,y,z,b,lv,central)=>{ placeBuilding(x,z,central?0:Math.atan2(-x,-z),b,lv,central);
+    const el=mkLabel(); const d=BLD[b]||{}; el.innerHTML= lv>0? `<b>${d.ic||''} ${d.nm||b}</b><i>Lv${lv}</i>` : `<span class="plus">＋ ${d.ic||''} ${d.nm||b}</span>`;
+    if(lv<=0) el.classList.add('empty'); el.onclick=()=>{ if(onBuild) onBuild(b); };
+    labels.push({el,pos:new T.Vector3(x,y,z)}); };
+  add(0,1.8,0,'main',blds.main||0,true);
+  RING.forEach((slot,i)=>{ const a=(i/RING.length)*Math.PI*2 - P2; const r=3.6; add(Math.cos(a)*r,1.15,Math.sin(a)*r,slot.b,blds[slot.b]||0,false); });
+}
+export function resetCam(){ if(!cam) return; cam.position.set(15,15,15); cam.zoom=1; cam.updateProjectionMatrix(); if(ctrl){ ctrl.target.set(0,0,0); ctrl.update(); } }
+window.addEventListener('resize',resize);
+window.Town3D={ mount, build, resetCam, ok:true };
 </script>
 </body></html>
