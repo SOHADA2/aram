@@ -1353,7 +1353,7 @@ function initS(){ if(R) return;
   GRP=new T.Group(); SC.add(GRP);
   (function loop(){ requestAnimationFrame(loop); if(!EL||!R||EL.offsetParent===null) return; if(CT)CT.update(); R.render(SC,CAM); proj(); })();
 }
-async function tile(n,x,z,building){ try{ const m=(await ld(n)).clone(true); m.position.set(x,0,z);
+async function tile(n,x,z,building,rot){ try{ const m=(await ld(n)).clone(true); m.position.set(x,0,z); if(rot) m.rotation.y=rot;
   m.traverse(c=>{ if(c.isMesh){ c.castShadow=!!building; c.receiveShadow=true; } }); GRP.add(m); }catch(e){} }
 function proj(){ if(!EL) return; const rc=EL.getBoundingClientRect();
   const set=(arr)=>{ for(const L of arr){ const v=L.pos.clone().project(CAM); const x=(v.x*.5+.5)*rc.width, y=(-v.y*.5+.5)*rc.height;
@@ -1387,33 +1387,55 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
   VLAB.forEach(L=>L.el.remove()); VLAB.length=0;
   // 마을 좌표 인덱스
   const at={}; for(const id in world){ const w=world[id]; at[w.x+','+w.y]=id; }
+  const roads=computeRoads(world, opts, at);   // 마을 간 길(헥스 길 타일)
   for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ const p=opts.hex(c,r); const x=p.x-off.x, z=p.z-off.z; const key=c+','+r; const id=at[key];
     if(id){ const w=world[id]; tile(vTile(w),x,z,true);
       const el=document.createElement('div'); el.className='v3-label vmk3 '+(w.owner==='me'?'me':(w.owner==='player'?'pl':'barb'));
       const ic=w.owner==='me'?'🏰':(w.owner==='player'?'🗼':'🏚️'); const prot=opts.isP(w)?' 🛡️':'';
       el.innerHTML=w.owner==='me'?`<b>${ic} 내 성${prot}</b>`:(w.owner==='player'?`<b>${ic} ${(w.name||'').replace('소환사 ','')}${prot}</b>`:`<b>${ic} ${w.size}★</b>`);
       el.onclick=()=>{ if(opts.onNode) opts.onNode(id); }; LH.appendChild(el); VLAB.push({el,pos:new T.Vector3(x,0.9,z)});
-    } else { tile(biome(c,r,rows,rng()),x,z,false); }
+    } else if(roads[key]){ tile(roads[key].n,x,z,false,roads[key].rot); }
+    else { tile(biome(c,r,rows,rng()),x,z,false); }
   }
-  drawRoads(world, opts); // 마을 간 길
   resize(); if(CT){ CT.target.set(0,0,0); CT.update(); }
 }
-// 마을 사이 도로망: 각 마을→가장 가까운 다른 마을 + 내 성→주변 마을 허브
-function drawRoads(world, opts){
-  const ids=Object.keys(world); if(ids.length<2) return;
+// ── 마을 간 길: 헥스 길 타일(path-*)을 경로 헥스에 깔고 회전 맞춤 ──
+// 오프셋(odd-r pointy)↔큐브 좌표 + 헥스 라인
+function o2c(col,row){ const q=col-((row-(row&1))>>1); return {x:q,z:row,y:-q-row}; }
+function c2o(cu){ const row=cu.z, col=cu.x+((row-(row&1))>>1); return {c:col,r:row}; }
+function cubeRound(x,y,z){ let rx=Math.round(x),ry=Math.round(y),rz=Math.round(z);
+  const dx=Math.abs(rx-x),dy=Math.abs(ry-y),dz=Math.abs(rz-z);
+  if(dx>dy&&dx>dz) rx=-ry-rz; else if(dy>dz) ry=-rx-rz; else rz=-rx-ry; return {x:rx,y:ry,z:rz}; }
+function cubeDist(a,b){ return (Math.abs(a.x-b.x)+Math.abs(a.y-b.y)+Math.abs(a.z-b.z))/2; }
+function hexLine(A,B){ const N=cubeDist(A,B); const out=[]; for(let i=0;i<=N;i++){ const t=N===0?0:i/N;
+  out.push(c2o(cubeRound(A.x+(B.x-A.x)*t,A.y+(B.y-A.y)*t,A.z+(B.z-A.z)*t))); } return out; }
+function rad(d){ return d*Math.PI/180; }
+// 두 변(각도, 60°배수)을 잇는 길 타일 + 회전(세계각=국소각-회전)
+function pickRoad(a,b){ let d=((b-a)%360+360)%360;
+  if(d===180) return {n:'path-straight',rot:rad(-a)};
+  if(d===120) return {n:'path-corner',rot:rad(180-a)};
+  if(d===240) return {n:'path-corner',rot:rad(180-b)};
+  if(d===60)  return {n:'path-corner-sharp',rot:rad(180-a)};
+  if(d===300) return {n:'path-corner-sharp',rot:rad(180-b)};
+  return {n:'path-straight',rot:rad(-a)}; }
+function computeRoads(world, opts, at){
+  const road={}, ids=Object.keys(world); if(ids.length<2) return road;
   const dV=(a,b)=>{ const p=opts.hex(a.x,a.y),q=opts.hex(b.x,b.y); return Math.hypot(p.x-q.x,p.z-q.z); };
-  const seen={}, rmat=new T.MeshStandardMaterial({color:0x9c7d4c,roughness:1,metalness:0});
-  const RY=1.0; // 헥스 타일 윗면 높이
-  const seg=(a,b)=>{ const A=hp(a),B=hp(b),dx=B.x-A.x,dz=B.z-A.z,len=Math.hypot(dx,dz); if(len<0.05)return;
-    const m=new T.Mesh(new T.BoxGeometry(len,0.05,0.2),rmat); m.position.set((A.x+B.x)/2,RY,(A.z+B.z)/2);
-    m.rotation.y=-Math.atan2(dz,dx); m.receiveShadow=true; GRP.add(m);
-    const cap=(P)=>{ const d=new T.Mesh(new T.CylinderGeometry(0.12,0.12,0.05,10),rmat); d.position.set(P.x,RY,P.z); GRP.add(d); }; cap(A); cap(B); };
-  const link=(id1,id2)=>{ const k=[id1,id2].sort().join('|'); if(seen[k])return; seen[k]=1; seg(world[id1],world[id2]); };
-  for(const id of ids){ const w=world[id]; let best=null,bd=1e9;
-    for(const j of ids){ if(j===id)continue; const d=dV(w,world[j]); if(d<bd){bd=d;best=j;} }
-    if(best) link(id,best); }
-  const HK=opts.HOME, home=world[HK];
-  if(home) for(const id of ids){ if(id===HK)continue; const w=world[id]; if(w.owner==='player'||dV(home,w)<=5) link(HK,id); }
+  // 각 마을→가장 가까운 다른 마을(중복 제거) + 내 성→라이벌
+  const seen={}, edges=[];
+  for(const id of ids){ let best=null,bd=1e9; for(const j of ids){ if(j===id)continue; const d=dV(world[id],world[j]); if(d<bd){bd=d;best=j;} }
+    if(best){ const k=[id,best].sort().join('|'); if(!seen[k]){ seen[k]=1; edges.push([id,best]); } } }
+  const HK=opts.HOME; if(world[HK]) for(const id of ids){ if(id===HK||world[id].owner!=='player')continue; const k=[HK,id].sort().join('|'); if(!seen[k]){ seen[k]=1; edges.push([HK,id]); } }
+  // 변 방향(세계각 60°배수)
+  const edge6=(h1,h2)=>{ const p=opts.hex(h1.c,h1.r),q=opts.hex(h2.c,h2.r); let g=Math.round(Math.atan2(q.z-p.z,q.x-p.x)*180/Math.PI/60)*60; return ((g%360)+360)%360; };
+  const conn={};
+  for(const [ia,ib] of edges){ const line=hexLine(o2c(world[ia].x,world[ia].y), o2c(world[ib].x,world[ib].y));
+    for(let i=1;i<line.length-1;i++){ const h=line[i]; const key=h.c+','+h.r; if(at[key]) continue; // 마을 헥스는 건너뜀
+      const s=conn[key]||(conn[key]=new Set()); s.add(edge6(h,line[i-1])); s.add(edge6(h,line[i+1])); } }
+  for(const key in conn){ const dirs=[...conn[key]].sort((a,b)=>a-b);
+    if(dirs.length===2){ const t=pickRoad(dirs[0],dirs[1]); road[key]={n:t.n,rot:t.rot}; }
+    else road[key]={n:'path-crossing',rot:0}; }   // 교차(3+)는 교차로 타일
+  return road;
 }
 function mkrng2(s){ return ()=>{ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; }; }
 export function resetCam(){ if(!CAM)return; CAM.position.set(16,16,16); CAM.zoom=1; CAM.updateProjectionMatrix(); if(CT){CT.target.set(0,0,0);CT.update();} }
