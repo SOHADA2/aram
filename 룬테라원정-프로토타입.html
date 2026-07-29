@@ -506,7 +506,9 @@ function attachPanZoom(wrap, content, opt){
   function apply(){ clamp(); content.style.transform=`translate(${tx.toFixed(1)}px,${ty.toFixed(1)}px) scale(${sc.toFixed(3)})`; if(opt.onZoom) opt.onZoom(sc); }
   function zoomAt(cx,cy,ns){ const px=(cx-tx)/sc, py=(cy-ty)/sc; sc=ns; clamp(); tx=cx-px*sc; ty=cy-py*sc; apply(); }
   function center(){ tx=(vw()-cw0()*sc)/2; ty=(vh()-ch0()*sc)/2; apply(); }
-  wrap.addEventListener('wheel',e=>{ e.preventDefault(); const r=wrap.getBoundingClientRect(); zoomAt(e.clientX-r.left,e.clientY-r.top, sc*(e.deltaY<0?1.2:1/1.2)); },{passive:false});
+  wrap.addEventListener('wheel',e=>{ e.preventDefault(); const r=wrap.getBoundingClientRect();
+    let dy=e.deltaY; if(e.deltaMode===1) dy*=16; else if(e.deltaMode===2) dy*=400; dy=Math.max(-120,Math.min(120,dy)); // 라인/페이지 모드 정규화 + 클램프
+    zoomAt(e.clientX-r.left,e.clientY-r.top, sc*Math.exp(-dy*0.0008)); },{passive:false}); // 한 노치 ≈ ±9%(완만)
   wrap.addEventListener('pointerdown',e=>{ wrap.setPointerCapture(e.pointerId); pts.set(e.pointerId,{x:e.clientX,y:e.clientY}); panned=false;
     if(pts.size===1) downXY={x:e.clientX,y:e.clientY};
     else if(pts.size===2){ const a=[...pts.values()]; lastDist=D(a[0],a[1]); }
@@ -517,7 +519,9 @@ function attachPanZoom(wrap, content, opt){
   function up(e){ pts.delete(e.pointerId); if(pts.size<2) lastDist=0;
     if(pts.size===0){ wrap.classList.remove('grabbing');
       if(panned){ wrap._panned=true; setTimeout(()=>{wrap._panned=false;},60); }
-      else if(downXY){ const now=Date.now(); if(now-lastTap<300){ const r=wrap.getBoundingClientRect(); zoomAt(downXY.x-r.left,downXY.y-r.top, sc>initSc*1.25?initSc:initSc*DBL); lastTap=0; } else lastTap=now; } } }
+      else if(downXY){ const r=wrap.getBoundingClientRect(); const lx=downXY.x-r.left, ly=downXY.y-r.top;
+        if(opt.onTap && opt.onTap((lx-tx)/sc,(ly-ty)/sc)){ lastTap=0; }               // 탭=콘텐츠 좌표로 히트테스트(마을 선택)
+        else { const now=Date.now(); if(now-lastTap<300){ zoomAt(lx,ly, sc>initSc*1.25?initSc:initSc*DBL); lastTap=0; } else lastTap=now; } } } }
   wrap.addEventListener('pointerup',up); wrap.addEventListener('pointercancel',up);
   function init(){ initSc = opt.initScale!=null ? opt.initScale : (opt.fill ? coverScale() : Math.min(fitScale(),1)); sc=initSc;
     if(opt.focus){ tx=vw()/2 - opt.focus.fx*cw0()*sc; ty=vh()/2 - opt.focus.fy*ch0()*sc; apply(); } else center(); }
@@ -606,7 +610,7 @@ function renderMap(){
     const L=((w.x+0.5)*FIELD).toFixed(1), T=((w.y+0.5)*FIELD).toFixed(1);
     return `<div class="vmk ${cls} ${szc}" style="left:${L}px;top:${T}px" data-id="${id}"><div class="vmk-box"><span class="vmk-ic">${ic}</span>${tag}</div></div>`;
   }).join('');
-  mn.querySelectorAll('.vmk').forEach(n=>n.onclick=()=>{ const wp=document.getElementById('map-wrap'); if(wp&&wp._panned)return; onVillage(n.dataset.id); });
+  // 마을 선택은 attachPanZoom onTap(칸 히트테스트)이 처리 — 팬/줌 포인터 캡처와 무관
   updateArmies();
 }
 // 전체 지도 위 실시간 행군 마커 — 출발→목표 사이 진행도로 보간(부족전쟁식 움직이는 명령)
@@ -623,9 +627,9 @@ function updateArmies(){
 }
 // 격자 지형 캔버스 — 초원 바탕 + 숲/호수/황무지 얼룩 + 칸 격자선 + 대륙선(10칸) K## 라벨
 function drawGrid(){
-  const cv=document.getElementById('grid-canvas'); if(!cv) return; const px=WORLD*FIELD;
-  if(cv.width!==px){ cv.width=px; cv.height=px; }
-  const g=cv.getContext('2d');
+  const cv=document.getElementById('grid-canvas'); if(!cv) return; const px=WORLD*FIELD; const SS=2; // 2배 슈퍼샘플 → 확대 시 선명
+  if(cv.width!==px*SS){ cv.width=px*SS; cv.height=px*SS; }
+  const g=cv.getContext('2d'); g.setTransform(SS,0,0,SS,0,0);
   g.fillStyle='#38512e'; g.fillRect(0,0,px,px);                         // 초원
   const R=mkrng(424242);
   for(let i=0;i<300;i++){ const x=Math.floor(R()*WORLD), y=Math.floor(R()*WORLD), t=R();
@@ -884,7 +888,9 @@ let _mapPZ=null;
 (function initMapPZ(){ const w=document.getElementById('map-wrap'), c=document.getElementById('map-content'); if(!w||!c) return;
   drawGrid();
   const hk=S.world[HOME_KEY]; const fx=hk?(hk.x+0.5)/WORLD:0.5, fy=hk?(hk.y+0.5)/WORLD:0.5;
-  _mapPZ=attachPanZoom(w,c,{maxScale:4.2, minScale:0.28, initScale:2.1, dbl:1.8, focus:{fx,fy},
+  _mapPZ=attachPanZoom(w,c,{maxScale:2.4, minScale:0.3, initScale:1.8, dbl:1.6, focus:{fx,fy},
+    onTap:(px,py)=>{ let best=null,bd=1e9; for(const id in S.world){ const wv=S.world[id]; const d=Math.hypot((wv.x+0.5)*FIELD-px,(wv.y+0.5)*FIELD-py); if(d<bd){bd=d;best=id;} }
+      if(best && bd<FIELD*0.9){ onVillage(best); return true; } return false; },   // 탭한 칸의 마을 선택
     onZoom:(sc)=>{ c.style.setProperty('--mkz',(1/Math.max(sc,1)).toFixed(3)); }});  // 확대=고정크기, 축소=점처럼 작아짐
   const rb=document.getElementById('map-reset'); if(rb) rb.onclick=()=>_mapPZ.reset();
   setTimeout(()=>{ const h=document.getElementById('map-hint'); if(h) h.classList.add('gone'); },4500);
