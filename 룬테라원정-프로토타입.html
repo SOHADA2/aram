@@ -269,6 +269,18 @@ body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system
 .march.attack{border-color:#7a3a2e;} .march.return{border-color:#3a6a4a;} .march .mu{color:#c9b98a;font-size:10px;} .march b{margin-left:auto;color:#ffd76a;font-family:monospace;}
 /* 공격 모달 */
 .picker.atk{max-width:420px;} .atk-info{font-size:11px;color:#c9b98a;background:rgba(0,0,0,.3);border-radius:8px;padding:6px 9px;margin-bottom:8px;font-weight:700;}
+.vsw{display:flex;gap:6px;flex-wrap:wrap;margin:2px 2px 8px;}
+.vsw-b{border:1px solid #6b4f24;border-radius:9px;background:linear-gradient(180deg,rgba(60,44,20,.5),rgba(20,14,8,.6));color:#e8dcc0;font-weight:800;font-size:11px;padding:6px 10px;cursor:pointer;}
+.vsw-b.on{border-color:#f0c84a;color:#f7e2ad;box-shadow:0 0 10px rgba(240,200,74,.3);}
+.bld-open{width:100%;margin-top:5px;padding:5px;border:none;border-radius:7px;background:rgba(90,120,60,.35);border:1px solid rgba(150,200,120,.4);color:#cfe8b8;font-size:9px;font-weight:800;cursor:pointer;}
+.mk-lbl{font-size:10px;font-weight:800;color:#b9a878;margin:8px 2px 4px;}
+.mk-row{display:flex;gap:6px;} .mk-res{flex:1;border:1px solid #6b4f24;border-radius:9px;background:rgba(0,0,0,.35);color:#e8dcc0;font-weight:800;font-size:11px;padding:8px 4px;cursor:pointer;font-family:monospace;}
+.mk-res.on{border-color:#f0c84a;color:#f7e2ad;background:rgba(90,66,26,.5);}
+.mk-amt{display:flex;align-items:center;justify-content:center;gap:10px;margin:10px 0 4px;} .mk-amt button{width:34px;height:32px;border:1px solid #6b4f24;border-radius:8px;background:rgba(60,44,20,.5);color:#f0dca0;font-weight:800;font-size:15px;cursor:pointer;} .mk-amt .mx{width:auto;padding:0 10px;font-size:11px;} .mk-amt b{min-width:96px;text-align:center;font-family:monospace;color:#f3e6c4;}
+.mk-eq{text-align:center;font-size:13px;font-weight:800;color:#e8dcc0;margin:2px 0;}
+.sm-row{display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.28);border:1px solid rgba(200,168,75,.2);border-radius:10px;padding:8px 10px;margin-bottom:6px;}
+.sm-l{flex:1;font-size:12px;color:#f0e2c0;} .sm-lv{font-size:9px;color:#c9a86a;font-weight:800;margin-left:4px;} .sm-b{font-size:9.5px;color:#9fce9a;margin-top:2px;}
+.sm-btn{border:none;border-radius:8px;background:rgba(120,90,30,.5);border:1px solid #7a5c1e;color:#f0dca0;font-size:9.5px;font-weight:800;padding:8px 10px;cursor:pointer;white-space:nowrap;} .sm-btn.no{opacity:.5;} .sm-btn:disabled{opacity:.4;}
 .atk-row{display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.06);} .atk-row .u-ic{font-size:16px;} .atk-row .u-nm{font-size:12px;font-weight:800;color:#f0e2b8;min-width:44px;} .atk-row .u-have{font-size:9.5px;color:#9a8a6a;}
 .atk-step{margin-left:auto;display:flex;align-items:center;gap:4px;} .atk-step button{width:26px;height:26px;border:none;border-radius:7px;background:rgba(255,255,255,.1);color:#f0dca0;font-size:14px;font-weight:800;cursor:pointer;} .atk-step button.mx{width:auto;padding:0 8px;font-size:10px;} .atk-step b{min-width:26px;text-align:center;font-family:monospace;color:#ffd76a;}
 .atk-est{font-size:11px;color:#e8dcc0;text-align:center;margin-top:10px;font-weight:700;} .atk-est b{color:#ffd76a;}
@@ -410,26 +422,35 @@ const TROOP = {
 };
 const UNIT_GROUPS = { barracks:['spear','sword','axe','archer'], stable:['scout','lcav','marcher','hcav'], workshop:['ram','cata'], academy:['noble'] };
 function prodPerMin(l){ return l? Math.round(30*Math.pow(1.163,l-1)*WSPEED/60) : 0; }
-function storeCap(){ const l=S.v.blds.storage||0; return Math.round(1000*Math.pow(1.2294,Math.max(0,l-1))); }
-function popCap(){ const l=S.v.blds.farm||0; return Math.round(240*Math.pow(1.172,Math.max(0,l-1))); }
+function storeCapV(v){ const l=v.blds.storage||0; return Math.round(1000*Math.pow(1.2294,Math.max(0,l-1))); }
+function storeCap(){ return storeCapV(S.v); }
+function popCapV(v){ const l=v.blds.farm||0; return Math.round(240*Math.pow(1.172,Math.max(0,l-1))); }
+function popCap(){ return popCapV(S.v); }
 function popUsed(){ const v=S.v; let p=0; for(const b in v.blds) p+=bldPop(b,v.blds[b]);
   for(const u in v.troops) p+=(v.troops[u]||0)*TROOP[u].pop;
   v.recQ.forEach(q=>p+=TROOP[q.u].pop);
-  (S.marches||[]).forEach(m=>{ for(const u in m.units) p+=(m.units[u]||0)*TROOP[u].pop; });
+  (S.marches||[]).forEach(m=>{ if((m.fromV||HOME_KEY)!==S.active) return; for(const u in m.units) p+=(m.units[u]||0)*TROOP[u].pop; });
   return p; }
 function reqMet(b){ const r=BLD[b].req; if(!r) return true; for(const k in r){ if((S.v.blds[k]||0)<r[k]) return false; } return true; }
+function buildTimeV(v,b){ return Math.max(3, Math.round((10+((v.blds[b]||0)+1)*8)*(1-((v.blds.main||1)-1)*0.033))); }
 function buildTime(b,lv){ return Math.max(3, Math.round((10+lv*8)*(1-((S.v.blds.main||1)-1)*0.033))); }
-function trainTime(u){ const lv=S.v.blds[TROOP[u].from]||1; return Math.max(2, Math.round(TROOP[u].time*(1-(lv-1)*0.02))); }
+function trainTimeV(v,u){ const lv=v.blds[TROOP[u].from]||1; return Math.max(2, Math.round(TROOP[u].time*(1-(lv-1)*0.02))); }
+function trainTime(u){ return trainTimeV(S.v,u); }
+function researchBonus(u){ return 1 + ((S.research&&S.research[u])||0)*0.12; }   // ⚒️ 대장간 연구 +12%/레벨
 function fieldDist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
 function travelMs(dist, slow){ return Math.round(dist*slow*60000/WSPEED); }  // slow=분/칸 · 거리(칸)×속도×월드속도
 
 // ═══════════ 상태 ═══════════
-const SAVE_VER=3;  // 뉴비 보호·라이벌 소환사·스폰 분배 추가 — 이전 세이브 폐기
+const SAVE_VER=4;  // 멀티 마을(귀족 정복)·연구·시장 추가 — 이전 세이브 폐기
 const PROTECT_MS = 15*24*3600*1000;          // 🛡️ 뉴비 보호 15일(공격 안 받음)
 const SPAWN_MINDIST = 9, SPAWN_RADIUS = 30;  // 플레이어끼리 최소 9칸 · 중앙 반경 30칸에 분배(월드는 100 유지)
 const RIVAL_NAMES = ['소환사 아리','소환사 리븐','소환사 럭스','소환사 진','소환사 세트','소환사 야스오'];
-let S = load();
+let S = load(); bindActive();  // S.v = 활성 마을(게터)
+function bindActive(){ S.active = S.active || HOME_KEY; if(!S.villages) S.villages={}; if(!S.research) S.research={};
+  if(!Object.getOwnPropertyDescriptor(S,'v')) Object.defineProperty(S,'v',{get(){return S.villages[S.active];},configurable:true,enumerable:false}); }
+function setActive(id){ if(S.villages[id]){ S.active=id; } }
 function freshVillage(){ return { res:{wood:600,clay:600,iron:450}, blds:{main:1,wood:1,clay:1,iron:1,farm:1,storage:1}, troops:{}, buildQ:[], recQ:[] }; }
+function ownedIds(){ return Object.keys(S.world).filter(id=>S.world[id].owner==='me'); }
 function barbGarrison(size){ return {spear:size*7, sword:size*3, archer:size*3}; }
 function barbLoot(size){ return {wood:size*180, clay:size*160, iron:size*110}; }
 // 🛡️ 뉴비 보호 헬퍼 (실제판은 Firebase 서버시각 기준 — 여기선 로컬 시각)
@@ -472,22 +493,26 @@ function genWorld(now){
   }
   return W;
 }
-function fresh(){ const now=Date.now(); return { ver:SAVE_VER, v:freshVillage(), world:genWorld(now), marches:[], t:now }; }
-function load(){ try{ const j=JSON.parse(localStorage.getItem('rune_proto')); if(j&&j.ver===SAVE_VER&&j.v&&j.world&&j.world[HOME_KEY]) return j; }catch(e){} return fresh(); }
-function save(){ localStorage.setItem('rune_proto', JSON.stringify(S)); }
+function fresh(){ const now=Date.now(); return { ver:SAVE_VER, villages:{[HOME_KEY]:freshVillage()}, active:HOME_KEY, research:{}, world:genWorld(now), marches:[], reports:[], t:now }; }
+function load(){ try{ const j=JSON.parse(localStorage.getItem('rune_proto')); if(j&&j.ver===SAVE_VER&&j.villages&&j.villages[HOME_KEY]&&j.world&&j.world[HOME_KEY]) return j; }catch(e){} return fresh(); }
+function save(){ localStorage.setItem('rune_proto', JSON.stringify(S)); }   // S.v는 non-enumerable 게터라 직렬화 안 됨
 
 // ═══════════ 로직 ═══════════
 function tick(){
   const now=Date.now(); let dt=(now-S.t)/1000; if(dt<=0){ S.t=now; return; } dt=Math.min(dt, 24*3600);
-  const v=S.v; const cap=storeCap();
-  ['wood','clay','iron'].forEach(k=>{ v.res[k]=Math.min(cap,(v.res[k]||0)+prodPerMin(v.blds[k]||0)*dt/60); v.res[k]=Math.floor(v.res[k]*10)/10; });
-  while(v.buildQ.length && now>=v.buildQ[0].doneAt){ const q=v.buildQ.shift(); v.blds[q.b]=(v.blds[q.b]||0)+1; toast(`🏗️ ${BLD[q.b].nm} Lv${v.blds[q.b]} 완성`);
-    if(v.buildQ.length) v.buildQ[0].doneAt=now+buildTime(v.buildQ[0].b,(v.blds[v.buildQ[0].b]||0)+1)*1000; }
-  while(v.recQ.length && now>=v.recQ[0].doneAt){ const q=v.recQ.shift(); v.troops[q.u]=(v.troops[q.u]||0)+1;
-    if(v.recQ.length) v.recQ[0].doneAt=now+trainTime(v.recQ[0].u)*1000; }
+  for(const id in S.villages) tickVillage(S.villages[id], dt, now);   // 내 모든 마을 생산·건설·훈련
   for(const id in S.world){ const w=S.world[id]; if(w.owner==='me') continue; const lc=w.size*300, gr=w.size*3;
-    ['wood','clay','iron'].forEach(k=>{ w.loot[k]=Math.min(lc,(w.loot[k]||0)+gr*dt/60); }); }
+    ['wood','clay','iron'].forEach(k=>{ w.loot[k]=Math.min(lc,(w.loot[k]||0)+gr*dt/60); });
+    if(w.loyalty!=null && w.loyalty<100) w.loyalty=Math.min(100, w.loyalty + dt/3600);   // 👑 충성도 +1/시간 회복
+  }
   maybeRaid(now); processMarches(now); S.t=now;
+}
+function tickVillage(v, dt, now){ const cap=storeCapV(v);
+  ['wood','clay','iron'].forEach(k=>{ v.res[k]=Math.min(cap,(v.res[k]||0)+prodPerMin(v.blds[k]||0)*dt/60); v.res[k]=Math.floor(v.res[k]*10)/10; });
+  while(v.buildQ.length && now>=v.buildQ[0].doneAt){ const q=v.buildQ.shift(); v.blds[q.b]=(v.blds[q.b]||0)+1; if(v===S.v) toast(`🏗️ ${BLD[q.b].nm} Lv${v.blds[q.b]} 완성`);
+    if(v.buildQ.length) v.buildQ[0].doneAt=now+buildTimeV(v,v.buildQ[0].b)*1000; }
+  while(v.recQ.length && now>=v.recQ[0].doneAt){ const q=v.recQ.shift(); v.troops[q.u]=(v.troops[q.u]||0)+1;
+    if(v.recQ.length) v.recQ[0].doneAt=now+trainTimeV(v,v.recQ[0].u)*1000; }
 }
 function hasUnits(u){ for(const k in u){ if(u[k]>0) return true; } return false; }
 function armyTotal(){ let n=0; for(const u in S.v.troops) n+=S.v.troops[u]||0; return n; }
@@ -495,39 +520,50 @@ function sendAttack(toId, units){ const v=S.v;
   for(const u in units){ if((v.troops[u]||0)<(units[u]||0)){ toast('병력이 부족해요'); return false; } }
   if(!hasUnits(units)){ toast('보낼 병력을 선택하세요'); return false; }
   let slow=1; for(const u in units){ if(units[u]>0) slow=Math.max(slow, TROOP[u].speed); }
-  const from=S.world[HOME_KEY], to=S.world[toId]; if(!to) return false;
+  const from=S.world[S.active], to=S.world[toId]; if(!to||!from) return false;
   const dist=fieldDist(from,to); const travel=Math.max(4000, travelMs(dist,slow));
   for(const u in units) v.troops[u]-=(units[u]||0);
-  S.marches.push({to:toId, units:{...units}, dep:Date.now(), arriveAt:Date.now()+travel, mode:'attack'});
-  toast(`⚔️ ${to.name} 방면 행군 · ${dist.toFixed(1)}칸 · ${fmtDur(travel)}`); save(); return true;
+  S.marches.push({fromV:S.active, to:toId, units:{...units}, dep:Date.now(), arriveAt:Date.now()+travel, mode:'attack'});
+  toast(`⚔️ ${to.name} 방면 행군 · ${dist.toFixed(1)}칸 · ${fmtDur(travel)}${units.noble?' · 👑 귀족 포함':''}`); save(); return true;
+}
+function conquerVillage(id, survivors, fromV){ const w=S.world[id]; const nx=w.x, ny=w.y;
+  const gar={...survivors}; if(gar.noble>0){ gar.noble--; if(!gar.noble) delete gar.noble; }   // 귀족 1명 소모
+  w.owner='me'; w.name='내 마을'; w.loyalty=25; w.protectUntil=0; w.size=Math.max(w.size||1,4); w.garrison={}; w.loot={wood:0,clay:0,iron:0};
+  S.villages[id]=freshVillage(); S.villages[id].troops=gar;   // 남은 병력 = 새 마을 주둔군
+  toast(`👑 (${nx},${ny}) 마을을 정복했어요! 새 마을 획득`); save();
 }
 function processMarches(now){
   for(let i=S.marches.length-1;i>=0;i--){ const m=S.marches[i]; if(now<m.arriveAt) continue;
     if(m.mode==='raid'){ resolveDefense(m,now); S.marches.splice(i,1); continue; }   // ⚔️ 나에게 온 습격 도착 → 방어 전투
     if(m.mode==='attack'){ const w=S.world[m.to]; const res=resolveCombat(m.units,w);
+      if(res.conquered){ conquerVillage(m.to, res.survivors, m.fromV); S.marches.splice(i,1); continue; }   // 👑 함락 → 그 자리에 새 마을
       const trip=m.arriveAt-m.dep; m.mode='return'; m.units=res.survivors; m.loot=res.loot; m.dep=now; m.arriveAt=now+trip; m.win=res.win;
       const lt=(res.loot.wood+res.loot.clay+res.loot.iron)|0;
-      toast(res.win?`✅ ${w.name} 약탈 성공! +${lt} 자원 · 귀환 ${fmtDur(trip)}`:`💥 ${w.name} 공격 실패 · 귀환 ${fmtDur(trip)}`);
+      const loy = res.loyalty!=null? ` · 👑 충성도 ${Math.max(0,Math.round(res.loyalty))}` : '';
+      toast(res.win?`✅ ${w.name} 약탈 성공! +${lt} 자원${loy} · 귀환 ${fmtDur(trip)}`:`💥 ${w.name} 공격 실패 · 귀환 ${fmtDur(trip)}`);
       if(!hasUnits(res.survivors)) S.marches.splice(i,1);
-    } else { const v=S.v; for(const u in m.units) v.troops[u]=(v.troops[u]||0)+m.units[u];
-      if(m.loot){ const cap=storeCap(); ['wood','clay','iron'].forEach(k=>{ v.res[k]=Math.min(cap,(v.res[k]||0)+(m.loot[k]||0)); }); }
+    } else { const v=S.villages[m.fromV||HOME_KEY]||S.v; for(const u in m.units) v.troops[u]=(v.troops[u]||0)+m.units[u];
+      if(m.loot){ const cap=storeCapV(v); ['wood','clay','iron'].forEach(k=>{ v.res[k]=Math.min(cap,(v.res[k]||0)+(m.loot[k]||0)); }); }
       S.marches.splice(i,1); }
   }
 }
-function resolveCombat(units,w){ let atk=0,carry=0; for(const u in units){ atk+=(units[u]||0)*TROOP[u].atk; carry+=(units[u]||0)*TROOP[u].carry; }
+function resolveCombat(units,w){ let atk=0,carry=0; for(const u in units){ atk+=(units[u]||0)*TROOP[u].atk*researchBonus(u); carry+=(units[u]||0)*TROOP[u].carry; }
+  atk=Math.round(atk);
   let def=0; const g=w.garrison||{}; for(const u in g) def+=(g[u]||0)*TROOP[u].def; def=Math.round(def*(1+(w.wall||0)*0.04));
-  const win=atk>def; const survivors={}; const loot={wood:0,clay:0,iron:0};
+  const win=atk>def; const survivors={}; const loot={wood:0,clay:0,iron:0}; let conquered=false;
   if(win){ const lf=Math.min(0.85, def/Math.max(1,atk)*0.8); for(const u in units) survivors[u]=Math.max(0,Math.round((units[u]||0)*(1-lf)));
     w.garrison={}; const avail=(w.loot.wood||0)+(w.loot.clay||0)+(w.loot.iron||0), take=Math.min(carry,avail);
     ['wood','clay','iron'].forEach(k=>{ const t=avail>0?Math.floor(take*(w.loot[k]||0)/avail):0; loot[k]=t; w.loot[k]=(w.loot[k]||0)-t; });
+    const sn=survivors.noble||0;   // 👑 살아남은 귀족 → 충성도 감소, 0이하면 함락
+    if(sn>0 && w.owner!=='me'){ if(w.loyalty==null) w.loyalty=100; w.loyalty-=sn*(20+Math.random()*15); if(w.loyalty<=0) conquered=true; }
   } else { const lf=Math.min(1, 0.55+atk/Math.max(1,def)*0.3); for(const u in units) survivors[u]=Math.max(0,Math.round((units[u]||0)*(1-lf)));
     const dl=Math.min(0.7, atk/Math.max(1,def)*0.6); for(const u in g) g[u]=Math.max(0,Math.round(g[u]*(1-dl))); }
-  return {win,survivors,loot};
+  return {win,survivors,loot,conquered,loyalty:w.loyalty};
 }
 // ⚔️ 피습 방어 전투 — 적군 vs 내 주둔 병력(+성벽). 실패 시 자원 약탈(은신처로 일부 보호)
 function resolveDefense(m, now){ const v=S.v, a=S.world[m.from];
   let atk=0, carry=0; for(const u in m.units){ atk+=(m.units[u]||0)*TROOP[u].atk; carry+=(m.units[u]||0)*TROOP[u].carry; }
-  let def=0; for(const u in v.troops) def+=(v.troops[u]||0)*TROOP[u].def;
+  let def=0; for(const u in v.troops) def+=(v.troops[u]||0)*TROOP[u].def*researchBonus(u);   // ⚒️ 연구 방어 보너스
   const wall=v.blds.wall||0; def=Math.round(def*(1+wall*0.05));   // 성벽 = 방어 +5%/레벨
   const win = atk>def;   // 공격자 승리?
   const lost={}, loot={wood:0,clay:0,iron:0};
@@ -844,7 +880,7 @@ function fillBiomeFx(key){ const host=document.getElementById('biome-fx'); if(!h
 }
 function renderRgn(full){
   const id=HOME_ID; const B=BIOME[id];
-  if(full || _rgnBuilt!=='home'){
+  if(full || _rgnBuilt!==S.active){
     document.getElementById('rgn-view').innerHTML = `
       <div class="scene" id="rgn-scene" style="background:radial-gradient(64% 56% at 50% 42%, ${B.sky[0]}, ${B.sky[1]} 58%, ${B.sky[2]} 100%)">
         <div class="scene-cam" id="rgn-cam"></div>
@@ -856,6 +892,7 @@ function renderRgn(full){
         <div class="pz-hint" id="rgn-hint">🔍 확대·드래그로 마을을 둘러보세요</div>
         <button class="pz-reset" id="rgn-reset" title="원래대로">⤢</button>
       </div>
+      <div id="vil-switch"></div>
       <div id="vil-queues"></div>
       <div class="sec2">🏗️ 건물</div>
       <div class="bgrid" id="vil-blds"></div>
@@ -877,12 +914,15 @@ function renderRgn(full){
     if(_sc&&_cam){ const pz=attachPanZoom(_sc,_cam,{max:3.4,dbl:2}); const rr=document.getElementById('rgn-reset'); if(rr) rr.onclick=()=>pz.reset();
       setTimeout(()=>{ const h=document.getElementById('rgn-hint'); if(h) h.classList.add('gone'); },4500); }
     document.getElementById('topttl').onclick=()=>{ view='map'; showView(); };
-    _rgnBuilt='home';
+    _rgnBuilt=S.active;
   }
   updateRgnDynamic();
 }
 function updateRgnDynamic(){
   const v=S.v; const now=Date.now();
+  // 🏰 내 마을 전환(정복으로 여러 개 소유 시)
+  const sw=document.getElementById('vil-switch'); if(sw){ const owned=ownedIds();
+    sw.innerHTML = owned.length>1 ? `<div class="vsw">${owned.map(id=>{ const wv=S.world[id]; return `<button class="vsw-b ${id===S.active?'on':''}" onclick="switchVil('${id}')">🏰 (${wv.x},${wv.y})</button>`; }).join('')}</div>` : ''; }
   // 큐(건설·훈련)
   let q='';
   if(v.buildQ.length){ const h=v.buildQ[0]; q+=`<div class="q-row build">🏗️ <b>${BLD[h.b].nm}</b> Lv${(v.blds[h.b]||0)+1} · <b>${fmtDur(h.doneAt-now)}</b>${v.buildQ.length>1?` <span>대기 +${v.buildQ.length-1}</span>`:''}</div>`; }
@@ -907,7 +947,9 @@ function updateRgnDynamic(){
     const btn = maxed?`<button class="bld-up" disabled>최대${qd?' (예약)':''}</button>`
       : !met?`<button class="bld-up" disabled>🔒 ${Object.keys(d.req).map(k=>BLD[k].nm+d.req[k]).join('·')}</button>`
       : `<button class="bld-up ${aff?'':'no'}" onclick="build('${b}')">${lv?'업글':'건설'}${qd?'(+'+qd+')':''} · ${costStr(nc)}</button>`;
-    return `<div class="bld"><div class="bld-h"><span class="bld-ic">${d.ic}</span><span class="bld-nm">${d.nm}</span><span class="bld-lv">Lv${lv}</span></div><div class="bld-eff">${ef}</div>${btn}</div>`;
+    const open = (b==='market'&&lv>=1)?`<button class="bld-open" onclick="openMarket()">⚖️ 거래 열기</button>`
+               : (b==='smithy'&&lv>=1)?`<button class="bld-open" onclick="openSmithy()">⚒️ 연구 열기</button>`:'';
+    return `<div class="bld"><div class="bld-h"><span class="bld-ic">${d.ic}</span><span class="bld-nm">${d.nm}</span><span class="bld-lv">Lv${lv}</span></div><div class="bld-eff">${ef}</div>${btn}${open}</div>`;
   }).join('');
   renderRecruit('vil-barracks','barracks',UNIT_GROUPS.barracks);
   renderRecruit('vil-stable','stable',UNIT_GROUPS.stable);
@@ -937,6 +979,50 @@ window.recruit=function(u){ const v=S.v; const t=TROOP[u]; if((v.blds[t.from]||0
   if(!payV(t.cost)){ toast('자원 부족 · '+costStr(t.cost)); return; }
   const now=Date.now(); const wasEmpty=v.recQ.length===0; v.recQ.push({u, doneAt:0}); if(wasEmpty) v.recQ[0].doneAt=now+trainTime(u)*1000;
   save(); updateRgnDynamic(); renderTop(); };
+window.switchVil=function(id){ if(!S.villages[id]) return; setActive(id); renderRgn(true); renderTop(); toast(`🏰 (${S.world[id].x},${S.world[id].y}) 마을로 전환`); };
+// ⚖️ 시장 — 자원 교환(수수료 10%, 시장 레벨당 200 용량)
+window.openMarket=function(){ const v=S.v; const lv=v.blds.market||0; if(lv<1){ toast('시장이 필요해요'); return; }
+  let give='wood', get='clay'; const cap=()=>lv*200;
+  const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+  let amt=Math.min(cap(), Math.floor(v.res[give]||0));
+  function pill(k,cur,role){ return `<button class="mk-res ${cur===k?'on':''}" data-role="${role}" data-k="${k}">${RES[k]} ${Math.floor(v.res[k])}</button>`; }
+  function draw(){ amt=Math.max(0,Math.min(amt, cap(), Math.floor(v.res[give]||0))); const got=Math.floor(amt*0.9);
+    ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:340px">
+      <h3 class="pick-h">⚖️ 시장 <small style="font-size:11px;color:#c9a86a">Lv${lv} · 1회 최대 ${cap()}</small></h3>
+      <div class="mk-lbl">내놓기</div><div class="mk-row">${['wood','clay','iron'].map(k=>pill(k,give,'give')).join('')}</div>
+      <div class="mk-lbl">받기 <span style="color:#8a7a52">(수수료 10%)</span></div><div class="mk-row">${['wood','clay','iron'].map(k=>pill(k,get,'get')).join('')}</div>
+      <div class="mk-amt"><button data-a="-">－</button><b>${RES[give]} ${amt}</b><button data-a="+">＋</button><button data-a="max" class="mx">최대</button></div>
+      <div class="mk-eq">${RES[give]} ${amt} → ${RES[get]} <b style="color:#8fce8a">${got}</b></div>
+      <button class="btn btn-gold" style="width:100%;padding:11px;margin-top:8px" ${(amt>0&&give!==get)?'':'disabled'} data-a="go">교환</button>
+    </div>`;
+    ov.querySelectorAll('.mk-res').forEach(b=>b.onclick=()=>{ if(b.dataset.role==='give'){ give=b.dataset.k; amt=Math.min(cap(),Math.floor(v.res[give]||0)); } else get=b.dataset.k; draw(); });
+    ov.querySelectorAll('.mk-amt button, [data-a="go"]').forEach(b=>b.onclick=()=>{ const a=b.dataset.a;
+      if(a==='-') amt=Math.max(0,amt-Math.max(10,Math.round(cap()/10)));
+      else if(a==='+') amt+=Math.max(10,Math.round(cap()/10));
+      else if(a==='max') amt=Math.min(cap(),Math.floor(v.res[give]||0));
+      else if(a==='go'){ if(give===get){ toast('다른 자원을 고르세요'); return; } if(amt<=0||(v.res[give]||0)<amt){ toast('자원 부족'); return; }
+        v.res[give]-=amt; const cp=storeCapV(v); v.res[get]=Math.min(cp,(v.res[get]||0)+Math.floor(amt*0.9)); save(); renderTop(); toast(`⚖️ ${RES[give]}${amt} → ${RES[get]}${Math.floor(amt*0.9)} 교환`); amt=Math.min(cap(),Math.floor(v.res[give]||0)); }
+      draw(); });
+  }
+  draw(); document.body.appendChild(ov);
+};
+// ⚒️ 대장간 — 병력 성능 연구(전역 +12%/레벨·최대3). 활성 마을 자원으로 즉시 연구
+window.openSmithy=function(){ const v=S.v; if((v.blds.smithy||0)<1){ toast('대장간이 필요해요'); return; }
+  const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+  function rcost(u,lvl){ const t=TROOP[u]; const m=6*(lvl+1); return {wood:(t.cost.wood||0)*m, clay:(t.cost.clay||0)*m, iron:(t.cost.iron||0)*m}; }
+  function draw(){ const units=Object.keys(TROOP).filter(u=>(v.blds[TROOP[u].from]||0)>=1 && !TROOP[u].noble);
+    ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:360px">
+      <h3 class="pick-h">⚒️ 대장간 연구 <small style="font-size:11px;color:#c9a86a">병력 ⚔️🛡️ +12%/레벨</small></h3>
+      ${units.length? units.map(u=>{ const t=TROOP[u]; const lvl=(S.research[u]||0); const maxed=lvl>=3; const c=maxed?null:rcost(u,lvl); const aff=c&&canAffordV(c);
+        return `<div class="sm-row"><div class="sm-l"><span class="u-ic">${t.ic}</span><b>${t.nm}</b> <span class="sm-lv">Lv${lvl}/3</span><div class="sm-b">현재 ⚔️${Math.round(t.atk*(1+lvl*0.12))} 🛡️${Math.round(t.def*(1+lvl*0.12))}</div></div>
+          ${maxed?`<button class="sm-btn" disabled>최대</button>`:`<button class="sm-btn ${aff?'':'no'}" data-u="${u}">연구 · ${costStr(c)}</button>`}</div>`; }).join('')
+        : '<div class="muted" style="margin:10px 0">먼저 병영/마구간을 지어 병종을 해금하세요</div>'}
+    </div>`;
+    ov.querySelectorAll('.sm-btn[data-u]').forEach(b=>b.onclick=()=>{ const u=b.dataset.u; const lvl=(S.research[u]||0); if(lvl>=3) return; const c=rcost(u,lvl);
+      if(!payV(c)){ toast('자원 부족 · '+costStr(c)); return; } S.research[u]=lvl+1; save(); renderTop(); toast(`⚒️ ${TROOP[u].nm} 연구 Lv${lvl+1} (⚔️🛡️ +${(lvl+1)*12}%)`); draw(); });
+  }
+  draw(); document.body.appendChild(ov);
+};
 // ⚠️ 뉴비 선공 경고(무시하면 보호 해제 후 진행)
 function confirmRelease(onYes){ const left=protectLeft(S.world[HOME_KEY]);
   const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
@@ -972,7 +1058,7 @@ function openAttack(id){ const w=S.world[id]; if(!w) return; const v=S.v;
   function draw(){ const es=estimate();
     ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker atk">
       <h3 class="pick-h">🏚️ ${w.name} <small style="font-size:11px;color:#c9a86a">${w.size}★ · 📍${dist.toFixed(1)}칸</small></h3>
-      <div class="atk-info">📦 약탈 가능 ${Math.floor((w.loot.wood||0)+(w.loot.clay||0)+(w.loot.iron||0))} · 🛡️ 수비 ${es.def}</div>
+      <div class="atk-info">📦 약탈 가능 ${Math.floor((w.loot.wood||0)+(w.loot.clay||0)+(w.loot.iron||0))} · 🛡️ 수비 ${es.def} · 👑 충성도 <b>${Math.round(w.loyalty==null?100:w.loyalty)}</b>${(v.troops.noble>0)?' <span style="color:#c4b5fd">· 귀족 넣으면 충성도↓→0에서 함락</span>':''}</div>
       ${owned.length? owned.map(u=>`<div class="atk-row"><span class="u-ic">${TROOP[u].ic}</span><span class="u-nm">${TROOP[u].nm}</span><span class="u-have">보유 ${v.troops[u]}</span>
         <span class="atk-step"><button data-u="${u}" data-d="-1">－</button><b>${sel[u]}</b><button data-u="${u}" data-d="1">＋</button><button data-u="${u}" data-d="max" class="mx">최대</button></span></div>`).join('')
         : `<div class="muted" style="margin:10px 0">보낼 병력이 없어요 · 병영/마구간에서 훈련하세요</div>`}
@@ -1025,14 +1111,14 @@ let _mapPZ=null;
 })();
 // 지도 위 행군 마커 실시간 이동(rAF)
 (function armyLoop(){ if(view==='map'){ const host=document.getElementById('armies'); if(host && (S.marches||[]).length) updateArmies(); } requestAnimationFrame(armyLoop); })();
-window.runeReset=function(){ localStorage.removeItem('rune_proto'); S=fresh(); showView(); toast('프로토타입 초기화'); };
+window.runeReset=function(){ localStorage.removeItem('rune_proto'); S=fresh(); bindActive(); showView(); toast('프로토타입 초기화'); };
+window.runeGrantNoble=function(n){ n=n||3; S.v.troops.noble=(S.v.troops.noble||0)+n; save(); if(view==='rgn')renderRgn(true); toast(`👑 귀족 +${n}(테스트) · 활성 마을`); };
 window.rune=()=>S;  // 콘솔 디버그: 현재 상태 접근
 // 💾 저장 무결성 검사(실시간 저장 확인) — 저장→다시 읽기→구조/좌표 비교
 window.runeSaveCheck=function(){ save(); let ok=false, msg='';
   try{ const j=JSON.parse(localStorage.getItem('rune_proto'));
-    ok = j && j.ver===SAVE_VER && j.world && j.world[HOME_KEY] && j.world[HOME_KEY].x===S.world[HOME_KEY].x && JSON.stringify(j.v.blds)===JSON.stringify(S.v.blds);
-    const players=Object.values(S.world).filter(w=>w.owner==='player'||w.owner==='me').length;
-    msg=`world ${Object.keys(j.world).length}마을 · 플레이어 ${players}명 · 자원 목${Math.floor(S.v.res.wood)}/점${Math.floor(S.v.res.clay)}/철${Math.floor(S.v.res.iron)} · 내 보호 ${protectLeft(S.world[HOME_KEY])>0?fmtProtect(protectLeft(S.world[HOME_KEY])):'해제됨'}`;
+    ok = j && j.ver===SAVE_VER && j.villages && j.villages[S.active] && j.world && j.world[HOME_KEY] && JSON.stringify(j.villages[S.active].blds)===JSON.stringify(S.v.blds);
+    msg=`내 마을 ${ownedIds().length}개 · world ${Object.keys(j.world).length}칸 · 자원 목${Math.floor(S.v.res.wood)}/점${Math.floor(S.v.res.clay)}/철${Math.floor(S.v.res.iron)} · 내 보호 ${protectLeft(S.world[HOME_KEY])>0?fmtProtect(protectLeft(S.world[HOME_KEY])):'해제됨'}`;
   }catch(e){ msg='읽기 오류 '+e.message; }
   console.log((ok?'✅ 저장 정상 · ':'❌ 저장 이상 · ')+msg+' (자동저장=매 1초 loop + 액션마다)'); toast(ok?'💾 저장 정상':'❌ 저장 이상'); return ok;
 };
