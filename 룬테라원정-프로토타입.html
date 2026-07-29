@@ -9,7 +9,9 @@ body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system
 .topbar .tt{font-weight:900;color:#f0dca0;font-size:14px;flex:1;}
 .res-chip{font-family:monospace;font-weight:800;font-size:11px;background:rgba(0,0,0,.4);border:1px solid rgba(200,168,75,.3);border-radius:14px;padding:3px 8px;white-space:nowrap;}
 .res-chip.g{color:#ffd76a;}
-.resbar{display:flex;gap:4px;padding:6px 10px;overflow-x:auto;background:#0e0b14;border-bottom:1px solid rgba(255,255,255,.05);}
+.resbar{display:flex;gap:5px;padding:6px 8px;background:#0e0b14;border-bottom:1px solid rgba(255,255,255,.05);}
+.resbar .res-chip{flex:1 1 0;min-width:0;display:flex;align-items:center;justify-content:center;gap:3px;padding:4px 4px;font-size:10.5px;overflow:hidden;}
+.res-chip em{font-style:normal;color:#f3e6c4;font-weight:800;} .res-chip s{text-decoration:none;color:#8fce8a;font-size:9px;font-weight:800;}
 .btn{border:none;border-radius:9px;font-weight:800;cursor:pointer;font-family:inherit;}
 .btn-gold{background:linear-gradient(135deg,#d4a843,#f0c84a);color:#1a1206;}
 .btn-dk{background:rgba(255,255,255,.07);color:#e8dcc0;border:1px solid rgba(255,255,255,.12);}
@@ -274,6 +276,24 @@ body{margin:0;background:#0a0a0f;color:#e8dcc0;font-family:'Noto Sans KR',system
 .vsw-b{border:1px solid #6b4f24;border-radius:9px;background:linear-gradient(180deg,rgba(60,44,20,.5),rgba(20,14,8,.6));color:#e8dcc0;font-weight:800;font-size:11px;padding:6px 10px;cursor:pointer;}
 .vsw-b.on{border-color:#f0c84a;color:#f7e2ad;box-shadow:0 0 10px rgba(240,200,74,.3);}
 .bld-open{width:100%;margin-top:5px;padding:5px;border:none;border-radius:7px;background:rgba(90,120,60,.35);border:1px solid rgba(150,200,120,.4);color:#cfe8b8;font-size:9px;font-weight:800;cursor:pointer;}
+/* ── 반응형: PC(넓은 화면)에서는 지도·마을을 크게, 자원바를 여유있게 ── */
+@media(min-width:760px){
+  .app{max-width:860px;box-shadow:0 0 0 1px rgba(200,168,75,.15),0 24px 60px rgba(0,0,0,.6);}
+  .map-wrap{height:min(80vh,800px);}
+  .scene{height:540px;}
+  .bgrid,.pgrid,.rgrid{grid-template-columns:1fr 1fr 1fr;}
+  .resbar{gap:8px;padding:8px 14px;}
+  .resbar .res-chip{font-size:13px;padding:6px 12px;gap:5px;}
+  .topbar{padding:10px 14px;}
+  .picker,.picker.atk{max-width:520px;}
+  #rgn-view{padding:14px 18px;}
+}
+@media(min-width:1120px){
+  .app{max-width:1040px;}
+  .bgrid,.pgrid,.rgrid{grid-template-columns:1fr 1fr 1fr 1fr;}
+}
+/* 모바일: 자원 칩이 좁을 때 생산량(+N) 숨겨 값 우선 표시 */
+@media(max-width:360px){ .res-chip s{display:none;} }
 .mk-lbl{font-size:10px;font-weight:800;color:#b9a878;margin:8px 2px 4px;}
 .mk-row{display:flex;gap:6px;} .mk-res{flex:1;border:1px solid #6b4f24;border-radius:9px;background:rgba(0,0,0,.35);color:#e8dcc0;font-weight:800;font-size:11px;padding:8px 4px;cursor:pointer;font-family:monospace;}
 .mk-res.on{border-color:#f0c84a;color:#f7e2ad;background:rgba(90,66,26,.5);}
@@ -715,8 +735,8 @@ function fmtDur(ms){ const s=Math.max(0,Math.ceil(ms/1000)); const m=Math.floor(
 function renderTop(){
   const v=S.v, cap=storeCap();
   document.getElementById('resbar').innerHTML =
-    ['wood','clay','iron'].map(k=>`<span class="res-chip">${RES[k]} ${Math.floor(v.res[k])}<span style="color:#7a6a42">/${cap}</span> <span style="color:#8fce8a">+${prodPerMin(v.blds[k]||0)}</span></span>`).join('')
-    + `<span class="res-chip food">🌾 ${popUsed()}<span style="color:#7a6a42">/${popCap()}</span></span>`;
+    ['wood','clay','iron'].map(k=>`<span class="res-chip" title="${Math.floor(v.res[k])} / ${cap} · +${prodPerMin(v.blds[k]||0)}/분">${RES[k]}<em>${Math.floor(v.res[k])}</em><s>+${prodPerMin(v.blds[k]||0)}</s></span>`).join('')
+    + `<span class="res-chip food" title="인구 ${popUsed()}/${popCap()}">🌾<em>${popUsed()}/${popCap()}</em></span>`;
   const cg=document.getElementById('c-gold'); if(cg) cg.textContent='🛡️ '+armyTotal();
   document.getElementById('topttl').textContent = view==='map'?'🗺️ 룬테라 전쟁':'◀ 내 마을';
   const pb=document.getElementById('protect-banner'); if(pb){ const left=protectLeft(S.world[HOME_KEY]);
@@ -1331,7 +1351,25 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
       el.onclick=()=>{ if(opts.onNode) opts.onNode(id); }; LH.appendChild(el); VLAB.push({el,pos:new T.Vector3(x,0.9,z)});
     } else { tile(biome(c,r,rows,rng()),x,z,false); }
   }
+  drawRoads(world, opts); // 마을 간 길
   resize(); if(CT){ CT.target.set(0,0,0); CT.update(); }
+}
+// 마을 사이 도로망: 각 마을→가장 가까운 다른 마을 + 내 성→주변 마을 허브
+function drawRoads(world, opts){
+  const ids=Object.keys(world); if(ids.length<2) return;
+  const dV=(a,b)=>{ const p=opts.hex(a.x,a.y),q=opts.hex(b.x,b.y); return Math.hypot(p.x-q.x,p.z-q.z); };
+  const seen={}, rmat=new T.MeshStandardMaterial({color:0x9c7d4c,roughness:1,metalness:0});
+  const RY=1.0; // 헥스 타일 윗면 높이
+  const seg=(a,b)=>{ const A=hp(a),B=hp(b),dx=B.x-A.x,dz=B.z-A.z,len=Math.hypot(dx,dz); if(len<0.05)return;
+    const m=new T.Mesh(new T.BoxGeometry(len,0.05,0.2),rmat); m.position.set((A.x+B.x)/2,RY,(A.z+B.z)/2);
+    m.rotation.y=-Math.atan2(dz,dx); m.receiveShadow=true; GRP.add(m);
+    const cap=(P)=>{ const d=new T.Mesh(new T.CylinderGeometry(0.12,0.12,0.05,10),rmat); d.position.set(P.x,RY,P.z); GRP.add(d); }; cap(A); cap(B); };
+  const link=(id1,id2)=>{ const k=[id1,id2].sort().join('|'); if(seen[k])return; seen[k]=1; seg(world[id1],world[id2]); };
+  for(const id of ids){ const w=world[id]; let best=null,bd=1e9;
+    for(const j of ids){ if(j===id)continue; const d=dV(w,world[j]); if(d<bd){bd=d;best=j;} }
+    if(best) link(id,best); }
+  const HK=opts.HOME, home=world[HK];
+  if(home) for(const id of ids){ if(id===HK)continue; const w=world[id]; if(w.owner==='player'||dV(home,w)<=5) link(HK,id); }
 }
 function mkrng2(s){ return ()=>{ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; }; }
 export function resetCam(){ if(!CAM)return; CAM.position.set(16,16,16); CAM.zoom=1; CAM.updateProjectionMatrix(); if(CT){CT.target.set(0,0,0);CT.update();} }
