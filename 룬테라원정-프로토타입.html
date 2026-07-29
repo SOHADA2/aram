@@ -1258,8 +1258,11 @@ function initScene(){
   const s=sun.shadow.camera; s.left=-11;s.right=11;s.top=11;s.bottom=-11;s.near=1;s.far=48; sun.shadow.bias=-0.0006; scene.add(sun);
   const grass=new T.Mesh(new T.CircleGeometry(8,52),new T.MeshStandardMaterial({color:0x6f9e46,roughness:1})); grass.rotation.x=-P2; grass.receiveShadow=true; scene.add(grass);
   const moat=new T.Mesh(new T.RingGeometry(7.9,9,52),new T.MeshStandardMaterial({color:0x3f7fb0,roughness:.7})); moat.rotation.x=-P2; moat.position.y=-0.06; scene.add(moat);
-  const road=new T.Mesh(new T.RingGeometry(3.1,4.0,52),new T.MeshStandardMaterial({color:0xc2ab7a,roughness:1})); road.rotation.x=-P2; road.position.y=0.02; road.receiveShadow=true; scene.add(road);
+  const plaza=new T.Mesh(new T.CircleGeometry(2.9,44),new T.MeshStandardMaterial({color:0xbaa072,roughness:1})); plaza.rotation.x=-P2; plaza.position.y=0.025; plaza.receiveShadow=true; scene.add(plaza);
+  const ringrd=new T.Mesh(new T.RingGeometry(5.25,6.05,56),new T.MeshStandardMaterial({color:0xc2ab7a,roughness:1})); ringrd.rotation.x=-P2; ringrd.position.y=0.02; ringrd.receiveShadow=true; scene.add(ringrd);
+  const mainrd=new T.Mesh(new T.PlaneGeometry(5.6,1.5),new T.MeshStandardMaterial({color:0xc2ab7a,roughness:1})); mainrd.rotation.x=-P2; mainrd.position.set(4.9,0.02,0); mainrd.receiveShadow=true; scene.add(mainrd);
   vgroup=new T.Group(); scene.add(vgroup); bgroup=new T.Group(); scene.add(bgroup);
+  decorStatic();
   (function loop(){ requestAnimationFrame(loop); if(!curEl||!renderer||curEl.offsetParent===null) return; if(ctrl) ctrl.update();
     renderer.render(scene,cam); updateLabels(); })();
 }
@@ -1287,14 +1290,47 @@ const RING=[
 ];
 async function placeBuilding(x,z,ry,b,lv,central){
   if(lv<=0) return;
-  const sc=(central?1.55:1.2)+Math.min(0.35,lv*0.05); const roofH=(lv>=4||central);
+  const sc=(central?1.75:1.18)+Math.min(0.3,lv*0.045); const roofH=(lv>=3||central);
   const slot=RING.find(r=>r.b===b); const tint=central?ROOF_MAIN:(slot&&slot.roof||0xb06a4a);
-  await inst('town',central?'wall-wood-door':'wall-door',bgroup,x,z,{ry,s:sc});
+  const wd=central?'wall-wood-door':'wall-door', ww=central?'wall-wood':'wall';
+  await inst('town',wd,bgroup,x,z,{ry,s:sc});
   await inst('town','wall-window-shutters',bgroup,x,z,{ry:ry+P2,s:sc});
-  await inst('town',central?'wall-wood':'wall',bgroup,x,z,{ry:ry-P2,s:sc});
-  await inst('town',central?'wall-wood':'wall',bgroup,x,z,{ry:ry+Math.PI,s:sc});
+  await inst('town','wall-window-shutters',bgroup,x,z,{ry:ry-P2,s:sc});
+  await inst('town',ww,bgroup,x,z,{ry:ry+Math.PI,s:sc});
   await inst('town',roofH?'roof-high-gable':'roof-gable',bgroup,x,z,{y:sc,ry,s:sc,tint});
-  if(slot&&slot.prop) await inst(slot.prop[0],slot.prop[1],bgroup,x+0.6*sc,z+0.6*sc,{s:1});
+  await inst('town','chimney',bgroup,x-0.30*sc,z+0.28*sc,{y:sc*0.85,s:sc*0.7});
+  if(central){ await inst('castle','flag',bgroup,x+0.85*sc,z+0.2,{s:1.15}); await inst('castle','flag-banner-long',bgroup,x-0.85*sc,z+0.2,{s:1.05}); }
+  if(slot&&slot.prop) await inst(slot.prop[0],slot.prop[1],bgroup,x+0.66*sc,z+0.5*sc,{s:1});
+}
+// 광장 정적 장식(한 번)
+function decorStatic(){
+  inst('town','fountain-round',scene,1.75,1.55,{s:1.1});
+  inst('town','cart',scene,-0.5,2.35,{s:1,ry:0.4});
+  inst('town','stall-red',scene,-2.0,1.7,{s:1,ry:0.6});
+  inst('town','stall-green',scene,-2.25,-1.3,{s:1,ry:-0.4});
+  inst('town','stall-bench',scene,1.0,-2.3,{s:1,ry:0.2});
+  [[3.05,0.95],[3.05,-0.95],[2.2,2.0],[2.2,-2.0]].forEach(([x,z])=>inst('town','lantern',scene,x,z,{s:1}));
+}
+// 환경 데코 스캐터(나무·바위·울타리·통·천막·가로등) — 시드 고정
+function mkrngT(s){ return ()=>{ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; }; }
+async function decorate(pts){
+  const R=mkrngT(20260729);
+  const trees=['tree','tree-high','tree-high-round','tree-crooked'], rocks=['rock-small','rock-wide'];
+  const clash=(x,z)=>pts.some(p=>Math.hypot(p.x-x,p.z-z)<1.5);
+  let placed=0,guard=0;
+  while(placed<48 && guard<800){ guard++;
+    const a=R()*6.283, rr=2.5+R()*4.5, x=Math.cos(a)*rr, z=Math.sin(a)*rr;
+    if(Math.hypot(x,z)>7.0||clash(x,z)) continue;
+    const k=R();
+    if(k<0.42) await inst('town',trees[(R()*trees.length)|0],bgroup,x,z,{s:0.75+R()*0.5,ry:R()*6.283});
+    else if(k<0.58) await inst('town',rocks[(R()*rocks.length)|0],bgroup,x,z,{s:0.7+R()*0.5,ry:R()*6.283});
+    else if(k<0.70) await inst('town','hedge-large',bgroup,x,z,{s:0.85,ry:R()*6.283});
+    else if(k<0.80) await inst('surv',R()<.5?'barrel':'box',bgroup,x,z,{s:1,ry:R()*6.283});
+    else if(k<0.88) await inst('town','fence',bgroup,x,z,{s:1,ry:R()*6.283});
+    else if(k<0.94) await inst('town','lantern',bgroup,x,z,{s:1});
+    else await inst('surv','tent',bgroup,x,z,{s:1,ry:R()*6.283});
+    placed++;
+  }
 }
 function mkLabel(){ const d=document.createElement('div'); d.className='v3-label'; labelHost.appendChild(d); return d; }
 function updateLabels(){ if(!curEl) return; const rect=curEl.getBoundingClientRect();
@@ -1315,8 +1351,13 @@ export function build(blds, opts){ opts=opts||{}; onBuild=opts.onBuild; initScen
     const el=mkLabel(); const d=BLD[b]||{}; el.innerHTML= lv>0? `<b>${d.ic||''} ${d.nm||b}</b><i>Lv${lv}</i>` : `<span class="plus">＋ ${d.ic||''} ${d.nm||b}</span>`;
     if(lv<=0) el.classList.add('empty'); el.onclick=()=>{ if(onBuild) onBuild(b); };
     labels.push({el,pos:new T.Vector3(x,y,z)}); };
+  const pts=[{x:0,z:0}];
   add(0,0,'main',blds.main||0,true);
-  RING.forEach((slot,i)=>{ const a=(i/RING.length)*Math.PI*2 - P2; const r=4.9; add(Math.cos(a)*r,Math.sin(a)*r,slot.b,blds[slot.b]||0,false); });
+  const half=RING.length/2;
+  RING.forEach((slot,i)=>{ const inner=(i%2===0), idx=(i/2)|0;
+    const a=(idx/half)*Math.PI*2 - P2 + (inner?0:Math.PI/half); const r=inner?3.75:6.0;
+    const x=Math.cos(a)*r, z=Math.sin(a)*r; pts.push({x,z}); add(x,z,slot.b,blds[slot.b]||0,false); });
+  decorate(pts);
 }
 export function resetCam(){ if(!cam) return; cam.position.set(7,17,7); cam.zoom=1; cam.updateProjectionMatrix(); if(ctrl){ ctrl.target.set(0,0.5,0); ctrl.update(); } }
 export function setNight(){ if(!hemi) return night; night=!night;
