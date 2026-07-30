@@ -122,23 +122,14 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .v3-label.blab.empty .plus{color:#d9c99a;}
 .v3-label.blab:hover{opacity:1;z-index:30;}
 
-/* 마을 작업 게이지(건설/훈련) — 건물 위 진행바+남은시간+애니메이션 */
-.work-gauge{position:absolute;transform:translate(-50%,-100%);pointer-events:none;z-index:14;min-width:50px;
-  background:linear-gradient(180deg,rgba(32,24,10,.93),rgba(15,11,4,.96));border:1px solid #caa24e;border-radius:9px;padding:3px 6px 4px;box-shadow:0 4px 12px rgba(0,0,0,.55);}
-.work-gauge.train{border-color:#5a9fe0;}
-.work-gauge .wg-h{display:flex;align-items:center;gap:2px;font-size:8.5px;font-weight:800;color:#f2e2ad;white-space:nowrap;line-height:1.3;}
-.work-gauge .wg-ic{font-size:11px;display:inline-block;transform-origin:50% 80%;animation:wgBob .85s ease-in-out infinite;}
-.work-gauge.train .wg-ic{animation:wgPulse .7s ease-in-out infinite;}
-.work-gauge .wg-nm{max-width:52px;overflow:hidden;text-overflow:ellipsis;}
-.work-gauge .wg-lv,.work-gauge .wg-cnt{color:#3a2a08;background:linear-gradient(180deg,#fbe9a8,#d9ab48);border-radius:5px;padding:0 4px;font-size:8px;}
-.work-gauge.train .wg-cnt{background:linear-gradient(180deg,#bfe0ff,#6aa8e0);}
-.work-gauge .wg-t{margin-left:auto;color:#ffd982;font-family:monospace;font-size:9px;}
-.work-gauge.train .wg-t{color:#bfe0ff;}
-.work-gauge .wg-bar{margin-top:3px;height:5px;border-radius:3px;background:rgba(0,0,0,.5);overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.6);}
-.work-gauge .wg-fill{height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,#d4a843,#f7e08a);box-shadow:0 0 6px rgba(247,224,138,.7);transition:width .3s linear;}
-.work-gauge.train .wg-fill{background:linear-gradient(90deg,#3f7fc0,#9fd4f5);box-shadow:0 0 6px rgba(140,200,245,.7);}
-@keyframes wgBob{0%,100%{transform:translateY(0) rotate(-10deg);}50%{transform:translateY(-3px) rotate(12deg);}}
-@keyframes wgPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.28);}}
+/* 마을 작업 게이지 — 별도 박스 없이 **건물 이름표 바로 아래**에 얇은 바 + 남은시간만 */
+.v3-label.blab .wgm{display:none;margin-top:1px;}
+.v3-label.blab .wgr{display:flex;align-items:center;justify-content:center;gap:3px;line-height:1;margin-top:1px;}
+.v3-label.blab .wgr i{display:block;width:30px;height:3px;border-radius:2px;overflow:hidden;
+  background:rgba(0,0,0,.55);box-shadow:0 0 0 1px rgba(0,0,0,.75);}
+.v3-label.blab .wgr i>b{display:block;height:100%;width:0;background:linear-gradient(90deg,#b4cf6a,#eaf6b0);transition:width .4s linear;}
+.v3-label.blab .wgr.train i>b{background:linear-gradient(90deg,#f0c86a,#ffe9a8);}
+.v3-label.blab .wgr span{font-size:7px;font-weight:900;color:#ffe9a8;letter-spacing:-.2px;}
 .vmk3.me b{color:#ffe6a8;} .vmk3.pl b{color:#bcd3ff;} .vmk3.barb{background:rgba(10,8,4,.7);} .vmk3.barb b{color:#d8c79a;font-size:9px;}
 .mm3{position:absolute;transform:translate(-50%,-50%);z-index:7;text-align:center;pointer-events:none;}
 .mm3 span{font-size:15px;filter:drop-shadow(0 1px 2px #000);display:block;}
@@ -215,6 +206,8 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .q-row b{color:#8a5a10;font-family:monospace;} .q-row .qmeta{margin-left:auto;font-size:9px;color:#a89668;font-weight:600;text-align:right;}
 .q-row .qbar{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(0,0,0,.08);}
 .q-row .qbar>div{height:100%;background:linear-gradient(90deg,#8fae4a,#b4cf6a);transition:width .5s linear;}
+.q-line{display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:#e6d7ab;background:#1e1710;border:1px solid #56411f;border-radius:7px;padding:5px 9px;margin-bottom:4px;}
+.q-line b{color:#f4e3a8;} .q-line .qmeta{margin-left:auto;font-size:9px;color:#a89668;font-weight:600;text-align:right;}
 .q-row.train .qbar>div{background:linear-gradient(90deg,#c99a3e,#2a2013);}
 .army{display:flex;flex-wrap:wrap;gap:6px;}
 .unit{font-size:11px;font-weight:700;color:#f0e2b8;background:#221910;border:1px solid #6b4f24;border-radius:14px;padding:4px 10px;}
@@ -1320,20 +1313,19 @@ function updateVillageDynamic(){
   const sw=document.getElementById('vil-switch'); if(sw){ const owned=ownedIds();
     sw.innerHTML = owned.length>1 ? `<div class="vswrow">${owned.map(id=>`<button class="vsw-b ${id===S.active?'on':''}" onclick="switchVil('${id}')">🏰 (${S.world[id].x}|${S.world[id].y})</button>`).join('')}</div>` : ''; }
   let q='';
-  if(v.buildQ.length){ const h=v.buildQ[0]; const rem=h.doneAt-now; const tot=h.dur||rem;
-    const pct=Math.max(0,Math.min(100,(1-rem/Math.max(1,tot))*100));
-    let totalMs=rem; for(let i=1;i<v.buildQ.length;i++) totalMs+=buildTimeV(v,v.buildQ[i].b)*1000;
-    q+=`<div class="q-row">🏗️ <b>${BLD[h.b].nm}</b> Lv${(v.blds[h.b]||0)+1}
-      <span class="qmeta">완료 ${fmtClock(h.doneAt)}${v.buildQ.length>1?` · 대기 +${v.buildQ.length-1} (전체 ${fmtDur(totalMs)})`:''}</span>
-      <b>${fmtDur(rem)}</b><div class="qbar"><div style="width:${pct.toFixed(0)}%"></div></div></div>`; }
-  if(v.recQ.length){ const h=v.recQ[0]; const rem=h.doneAt-now; const tot=h.dur||rem;
-    const pct=Math.max(0,Math.min(100,(1-rem/Math.max(1,tot))*100));
+  // 🏗️ 건설·훈련 진행바는 마을 3D의 건물 이름표 아래에 붙는다(중복 제거).
+  //    여기엔 3D로 못 보여주는 것 — 완료 예정 시각과 대기열 — 만 한 줄로 남긴다.
+  if(v.buildQ.length){ const h=v.buildQ[0];
+    let totalMs=h.doneAt-now; for(let i=1;i<v.buildQ.length;i++) totalMs+=buildTimeV(v,v.buildQ[i].b)*1000;
+    const wait=v.buildQ.slice(1).map(x=>BLD[x.b].ic).join('');
+    q+=`<div class="q-line">🏗️ <b>${BLD[h.b].nm}</b> Lv${(v.blds[h.b]||0)+1} 건설 중
+      <span class="qmeta">완료 ${fmtClock(h.doneAt)}${v.buildQ.length>1?` · 대기 ${wait} (전체 ${fmtDur(totalMs)})`:''}</span></div>`; }
+  if(v.recQ.length){ const h=v.recQ[0];
+    let totalMs=h.doneAt-now; for(let i=1;i<v.recQ.length;i++) totalMs+=trainTimeV(v,v.recQ[i].u)*1000;
     const cnt={}; v.recQ.forEach(x=>cnt[x.u]=(cnt[x.u]||0)+1);
-    let totalMs=rem; for(let i=1;i<v.recQ.length;i++) totalMs+=trainTimeV(v,v.recQ[i].u)*1000;
     const sum=Object.keys(cnt).map(u=>TROOP[u].ic+'×'+cnt[u]).join(' ');
-    q+=`<div class="q-row train">${TROOP[h.u].ic} <b>${TROOP[h.u].nm}</b>
-      <span class="qmeta">${sum} · 전체 ${fmtDur(totalMs)} · 완료 ${fmtClock(now+totalMs)}</span>
-      <b>${fmtDur(rem)}</b><div class="qbar"><div style="width:${pct.toFixed(0)}%"></div></div></div>`; }
+    q+=`<div class="q-line train">${TROOP[h.u].ic} <b>${TROOP[h.u].nm}</b> 훈련 중
+      <span class="qmeta">${sum} · 완료 ${fmtClock(now+totalMs)}</span></div>`; }
   if(S.researchQ){ const h=S.researchQ, rem=Math.max(0,h.doneAt-now), tot=h.dur||rem;
     const pct=Math.max(0,Math.min(100,(1-rem/Math.max(1,tot))*100));
     q+=`<div class="q-row research">⚒️ <b>${TROOP[h.u].nm}</b> Lv${h.lvl+1} 연구
@@ -1917,38 +1909,45 @@ async function decorate(pts,count){ count=count||48;
 }
 function mkLabel(){ const d=document.createElement('div'); d.className='v3-label'; labelHost.appendChild(d); return d; }
 // 🏗️ 마을 3D 작업 게이지(건설/훈련) + 3D 펄스 링
-let _bPos={}, _workFn=null, _bg=null,_bgFill,_bgT,_bgNm,_bgLv,_bgIc, _tg=null,_tgFill,_tgT,_tgNm,_tgCnt,_tgIc, _ring=null,_ring2=null;
+let _bPos={}, _workFn=null, _ring=null,_ring2=null;
 function _fmtT(ms){ ms=Math.max(0,ms|0); const s=Math.round(ms/1000), m=(s/60)|0; return m+':'+String(s%60).padStart(2,'0'); }
-function _ensureBG(){ if(_bg) return; _bg=document.createElement('div'); _bg.className='work-gauge build';
-  _bg.innerHTML='<div class="wg-h"><span class="wg-ic">🔨</span><span class="wg-lv"></span><span class="wg-t"></span></div><div class="wg-bar"><div class="wg-fill"></div></div>';
-  labelHost.appendChild(_bg); _bgFill=_bg.querySelector('.wg-fill'); _bgT=_bg.querySelector('.wg-t'); _bgNm=null; _bgLv=_bg.querySelector('.wg-lv'); _bgIc=_bg.querySelector('.wg-ic'); }
-function _ensureTG(){ if(_tg) return; _tg=document.createElement('div'); _tg.className='work-gauge train';
-  _tg.innerHTML='<div class="wg-h"><span class="wg-ic">⚔️</span><span class="wg-cnt"></span><span class="wg-t"></span></div><div class="wg-bar"><div class="wg-fill"></div></div>';
-  labelHost.appendChild(_tg); _tgFill=_tg.querySelector('.wg-fill'); _tgT=_tg.querySelector('.wg-t'); _tgNm=null; _tgCnt=_tg.querySelector('.wg-cnt'); _tgIc=_tg.querySelector('.wg-ic'); }
 function _mkRing(col){ const m=new T.Mesh(new T.TorusGeometry(0.95,0.1,8,26), new T.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:0.7,roughness:.5,transparent:true,opacity:.85})); m.rotation.x=-P2; m.visible=false; scene.add(m); return m; }
 function _ringShow(ring,p){ ring.visible=true; ring.position.set(p.x,0.14,p.z); const t=(typeof performance!=='undefined'?performance.now():Date.now())*0.003;
   ring.scale.setScalar(1+Math.sin(t)*0.09); ring.rotation.z=t*0.6; ring.material.opacity=0.55+0.35*Math.abs(Math.sin(t*0.8)); }
-function _placeGauge(el,p,dy){ const v=new T.Vector3(p.x,1.7,p.z).project(cam); const rect=curEl.getBoundingClientRect();
-  el.style.left=(v.x*.5+.5)*rect.width+'px'; el.style.top=((-v.y*.5+.5)*rect.height+(dy||0))+'px'; el.style.display=v.z<1?'':'none'; }
-function updateWork(){
-  if(!curEl||!_workFn){ if(_bg)_bg.style.display='none'; if(_tg)_tg.style.display='none'; if(_ring)_ring.visible=false; if(_ring2)_ring2.visible=false; return; }
-  const w=_workFn()||{};
-  if(w.build && _bPos[w.build.b]){ _ensureBG(); const p=_bPos[w.build.b];
-    _bgFill.style.width=(w.build.frac*100).toFixed(1)+'%'; _bgT.textContent=_fmtT(w.build.left); _bgLv.textContent='Lv'+w.build.lv; _bgIc.textContent=w.build.ic||'🔨';
-    _placeGauge(_bg,p,0); if(!_ring)_ring=_mkRing(0xf0c040); _ringShow(_ring,p);
-  } else { if(_bg)_bg.style.display='none'; if(_ring)_ring.visible=false; }
-  if(w.train && _bPos[w.train.b]){ _ensureTG(); const p=_bPos[w.train.b]; const same=w.build&&w.build.b===w.train.b;
-    _tgFill.style.width=(w.train.frac*100).toFixed(1)+'%'; _tgT.textContent=_fmtT(w.train.left); _tgCnt.textContent='×'+w.train.cnt; _tgIc.textContent=w.train.ic||'⚔️';
-    _placeGauge(_tg,p,same?46:0); if(!_ring2)_ring2=_mkRing(0x5a9fe0); if(!same)_ringShow(_ring2,p); else _ring2.visible=false;
-  } else { if(_tg)_tg.style.display='none'; if(_ring2)_ring2.visible=false; }
-  // 게이지가 뜬 건물의 이름표는 숨긴다 — 같은 자리에 겹쳐 주변 글자·건물을 가리던 문제
-  const hide={};
-  if(w.build) hide[w.build.b]=1;
-  if(w.train) hide[w.train.b]=1;
-  for(const L of labels){
-    const h=!!hide[L.b];
-    if(L._h!==h){ L.el.style.visibility=h?'hidden':''; L._h=h; }
+// 이름표 아래에 붙는 미니 게이지(건설/훈련). 별도 떠다니는 박스를 없애 주변 글자·건물을 안 가린다.
+function _labelWork(L, bd, tr){
+  if(!L.wg){
+    if(!bd && !tr) return;
+    const d=document.createElement('div'); d.className='wgm';
+    d.innerHTML='<div class="wgr build"><i><b></b></i><span></span></div><div class="wgr train"><i><b></b></i><span></span></div>';
+    L.el.appendChild(d);
+    const rows=[...d.querySelectorAll('.wgr')].map(r=>({el:r, fill:r.querySelector('b'), t:r.querySelector('span')}));
+    L.wg={box:d, r:rows};
   }
+  const g=L.wg, on=!!(bd||tr);
+  if(g._on!==on){ g.box.style.display=on?'block':'none'; g._on=on; }
+  const set=(row,d,pre)=>{
+    const vis=!!d;
+    if(row._v!==vis){ row.el.style.display=vis?'flex':'none'; row._v=vis; }
+    if(!d) return;
+    const w=(d.frac*100).toFixed(0)+'%'; if(row._w!==w){ row.fill.style.width=w; row._w=w; }
+    const t=pre+_fmtT(d.left);        if(row._t!==t){ row.t.textContent=t; row._t=t; }
+  };
+  set(g.r[0], bd, '');
+  set(g.r[1], tr, tr?('×'+tr.cnt+' '):'');
+}
+function updateWork(){
+  const w=(curEl&&_workFn)? (_workFn()||{}) : {};
+  for(const L of labels){
+    const bd=(w.build && w.build.b===L.b)? w.build : null;
+    const tr=(w.train && w.train.b===L.b)? w.train : null;
+    _labelWork(L, bd, tr);
+  }
+  // 바닥 펄스 링만 3D로 유지(글자를 안 가림)
+  if(w.build && _bPos[w.build.b]){ if(!_ring)_ring=_mkRing(0xf0c040); _ringShow(_ring,_bPos[w.build.b]); }
+  else if(_ring) _ring.visible=false;
+  if(w.train && _bPos[w.train.b] && !(w.build&&w.build.b===w.train.b)){ if(!_ring2)_ring2=_mkRing(0xe0a83e); _ringShow(_ring2,_bPos[w.train.b]); }
+  else if(_ring2) _ring2.visible=false;
 }
 function updateLabels(){ if(!curEl) return; const rect=curEl.getBoundingClientRect();
   for(const L of labels){ const v=L.pos.clone().project(cam);
@@ -1966,19 +1965,20 @@ export function build(blds, opts){ opts=opts||{}; onBuild=opts.onBuild; initScen
   while(bgroup.children.length) bgroup.remove(bgroup.children[0]);
   labels.forEach(L=>L.el.remove()); labels.length=0; _bPos={}; _workFn=opts.work||null;
   const BLD=opts.BLD||{};
-  const add=(x,z,b,lv,central)=>{ placeBuilding(x,z,central?0:Math.atan2(-x,-z),b,lv,central); _bPos[b]={x,z};
-    const y=central?3.3:(2.1+Math.min(0.5,lv*0.06));
+  const mkNamePlate=(x,y,z,b,lv)=>{ _bPos[b]={x,z};
     const el=mkLabel(); el.classList.add('blab'); const d=BLD[b]||{};
     const nmS=(d.nm||b).replace(/\s/g,'');
     el.innerHTML= lv>0? `<b><span class="li">${d.ic||''}</span><span class="ln">${nmS}</span></b><i>${lv}</i>`
                       : `<span class="plus"><span class="li">${d.ic||'＋'}</span><span class="ln">${nmS}</span></span><i>＋</i>`;
     if(lv<=0) el.classList.add('empty'); el.onclick=()=>{ if(onBuild) onBuild(b); };
     labels.push({el,pos:new T.Vector3(x,y,z),b}); };
+  const add=(x,z,b,lv,central)=>{ placeBuilding(x,z,central?0:Math.atan2(-x,-z),b,lv,central);
+    mkNamePlate(x, central?3.3:(2.1+Math.min(0.5,lv*0.06)), z, b, lv); };
   const pts=[{x:0,z:0}];
   add(0,0,'main',blds.main||0,true);
-  // 성벽은 RING 슬롯이 아니라 마을을 두르는 링이라 좌표가 없었다.
-  // → 정문 앞을 성벽의 대표 위치로 등록해야 건설/업그레이드 게이지가 3D에 뜬다.
-  _bPos['wall']={x:6.9,z:0};
+  // 성벽은 RING 슬롯이 아니라 마을을 두르는 링이라 좌표가 없다.
+  // → 정문 앞을 대표 위치로 잡아 이름표(+게이지)만 따로 세운다(모델은 buildWallRing이 그림).
+  mkNamePlate(6.9, 1.9, 0, 'wall', blds.wall||0);
   const half=RING.length/2;
   RING.forEach((slot,i)=>{ const inner=(i%2===0), idx=(i/2)|0;
     const a=(idx/half)*Math.PI*2 - P2 + (inner?0:Math.PI/half); const r=inner?3.75:6.0;
