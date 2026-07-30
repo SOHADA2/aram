@@ -116,6 +116,23 @@ body{margin:0;background:#c3ad7c;color:#43310f;font-family:'Noto Sans KR',system
 .v3-label.blab i{font-size:7.5px;padding:0 4px;margin-left:3px;}
 .v3-label.blab:hover{opacity:1;z-index:30;}
 .v3-label.blab:hover .ln{max-width:130px;opacity:1;margin-left:3px;}
+/* 마을 작업 게이지(건설/훈련) — 건물 위 진행바+남은시간+애니메이션 */
+.work-gauge{position:absolute;transform:translate(-50%,-100%);pointer-events:none;z-index:14;min-width:78px;
+  background:linear-gradient(180deg,rgba(32,24,10,.93),rgba(15,11,4,.96));border:1px solid #caa24e;border-radius:9px;padding:3px 6px 4px;box-shadow:0 4px 12px rgba(0,0,0,.55);}
+.work-gauge.train{border-color:#5a9fe0;}
+.work-gauge .wg-h{display:flex;align-items:center;gap:3px;font-size:9px;font-weight:800;color:#f2e2ad;white-space:nowrap;line-height:1.3;}
+.work-gauge .wg-ic{font-size:13px;display:inline-block;transform-origin:50% 80%;animation:wgBob .85s ease-in-out infinite;}
+.work-gauge.train .wg-ic{animation:wgPulse .7s ease-in-out infinite;}
+.work-gauge .wg-nm{max-width:52px;overflow:hidden;text-overflow:ellipsis;}
+.work-gauge .wg-lv,.work-gauge .wg-cnt{color:#3a2a08;background:linear-gradient(180deg,#fbe9a8,#d9ab48);border-radius:5px;padding:0 4px;font-size:8px;}
+.work-gauge.train .wg-cnt{background:linear-gradient(180deg,#bfe0ff,#6aa8e0);}
+.work-gauge .wg-t{margin-left:auto;color:#ffd982;font-family:monospace;font-size:9px;}
+.work-gauge.train .wg-t{color:#bfe0ff;}
+.work-gauge .wg-bar{margin-top:3px;height:5px;border-radius:3px;background:rgba(0,0,0,.5);overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.6);}
+.work-gauge .wg-fill{height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,#d4a843,#f7e08a);box-shadow:0 0 6px rgba(247,224,138,.7);transition:width .3s linear;}
+.work-gauge.train .wg-fill{background:linear-gradient(90deg,#3f7fc0,#9fd4f5);box-shadow:0 0 6px rgba(140,200,245,.7);}
+@keyframes wgBob{0%,100%{transform:translateY(0) rotate(-10deg);}50%{transform:translateY(-3px) rotate(12deg);}}
+@keyframes wgPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.28);}}
 .vmk3.me b{color:#ffe6a8;} .vmk3.pl b{color:#bcd3ff;} .vmk3.barb{background:rgba(10,8,4,.7);} .vmk3.barb b{color:#d8c79a;font-size:9px;}
 .mm3{position:absolute;transform:translate(-50%,-50%);z-index:7;text-align:center;pointer-events:none;}
 .mm3 span{font-size:15px;filter:drop-shadow(0 1px 2px #000);display:block;}
@@ -472,6 +489,13 @@ function reqMet(b){ const r=BLD[b].req; if(!r) return true; for(const k in r){ i
 function buildTimeV(v,b){ return Math.max(3, Math.round((10+((v.blds[b]||0)+1)*8)*(1-((v.blds.main||1)-1)*0.033))); }
 function buildTime(b,lv){ return Math.max(3, Math.round((10+lv*8)*(1-((S.v.blds.main||1)-1)*0.033))); }
 function trainTimeV(v,u){ const lv=v.blds[TROOP[u].from]||1; return Math.max(2, Math.round(TROOP[u].time*(1-(lv-1)*0.02))); }
+// 🏗️ 현재 마을에서 진행 중인 작업(건설/훈련) — 3D 마을 게이지용
+function villageWork(){ const v=S.v, now=Date.now(); const o={build:null,train:null}; if(!v) return o;
+  if(v.buildQ&&v.buildQ.length){ const q=v.buildQ[0], dur=q.dur||buildTimeV(v,q.b)*1000, left=Math.max(0,(q.doneAt||now)-now), d=BLD[q.b]||{};
+    o.build={b:q.b, nm:d.nm||q.b, ic:d.ic||'🏗️', lv:(v.blds[q.b]||0)+1, frac:dur>0?Math.min(1,Math.max(0,1-left/dur)):1, left, n:v.buildQ.length}; }
+  if(v.recQ&&v.recQ.length){ const q=v.recQ[0], t=TROOP[q.u]||{}, dur=q.dur||trainTimeV(v,q.u)*1000, left=Math.max(0,(q.doneAt||now)-now);
+    o.train={u:q.u, b:t.from||'barracks', ic:t.ic||'⚔️', nm:t.nm||q.u, frac:dur>0?Math.min(1,Math.max(0,1-left/dur)):1, left, cnt:v.recQ.length}; }
+  return o; }
 function trainTime(u){ return trainTimeV(S.v,u); }
 function researchBonus(u){ return 1 + ((S.research&&S.research[u])||0)*0.12; }
 function fieldDist(a,b){ const A=hexPos(a.x,a.y),B=hexPos(b.x,b.y); return Math.hypot(A.x-B.x, A.z-B.z); }
@@ -1090,7 +1114,7 @@ function renderVillage(full){
       <div style="height:8px"></div>`;
     fillBiomeFx(B.fx);
     const _sc=document.getElementById('rgn-scene');
-    if(_sc && window.Town3D){ try{ window.Town3D.mount(_sc); window.Town3D.build(S.v.blds,{onBuild:(b)=>{ if(isPC()) window.build(b); else window.openBldSheet(b); }, BLD});
+    if(_sc && window.Town3D){ try{ window.Town3D.mount(_sc); window.Town3D.build(S.v.blds,{onBuild:(b)=>{ if(isPC()) window.build(b); else window.openBldSheet(b); }, BLD, work:villageWork});
         const rr=document.getElementById('rgn-reset'); if(rr) rr.onclick=()=>window.Town3D.resetCam();
         const dn=document.getElementById('rgn-daynight'); if(dn) dn.onclick=()=>{ dn.textContent=window.Town3D.setNight()?'☀️':'🌙'; }; }catch(e){}
     } else if(_sc){ buildIso(HOME_ID); const _cam=document.getElementById('rgn-cam');
@@ -1510,7 +1534,7 @@ function initScene(){
   vgroup=new T.Group(); scene.add(vgroup); bgroup=new T.Group(); scene.add(bgroup); tgroup=new T.Group(); scene.add(tgroup);
   decorStatic();   // 성 밖 자연물만(광장·소품은 발전 단계별 buildTier가 담당)
   (function loop(){ requestAnimationFrame(loop); if(!curEl||!renderer||curEl.offsetParent===null) return; if(ctrl) ctrl.update();
-    renderer.render(scene,cam); updateLabels(); })();
+    renderer.render(scene,cam); updateLabels(); updateWork(); })();
 }
 // 성벽 외형 = 성벽 건물 레벨 연동(부족전쟁식): 0=무방비 · 1~4=나무 울타리 · 5~9=돌벽+망루 · 10+=높은 성벽+해자
 async function buildWallRing(wallLv){ if(wallLv===_wallLv) return; _wallLv=wallLv;
@@ -1621,6 +1645,32 @@ async function decorate(pts,count){ count=count||48;
   }
 }
 function mkLabel(){ const d=document.createElement('div'); d.className='v3-label'; labelHost.appendChild(d); return d; }
+// 🏗️ 마을 3D 작업 게이지(건설/훈련) + 3D 펄스 링
+let _bPos={}, _workFn=null, _bg=null,_bgFill,_bgT,_bgNm,_bgLv,_bgIc, _tg=null,_tgFill,_tgT,_tgNm,_tgCnt,_tgIc, _ring=null,_ring2=null;
+function _fmtT(ms){ ms=Math.max(0,ms|0); const s=Math.round(ms/1000), m=(s/60)|0; return m+':'+String(s%60).padStart(2,'0'); }
+function _ensureBG(){ if(_bg) return; _bg=document.createElement('div'); _bg.className='work-gauge build';
+  _bg.innerHTML='<div class="wg-h"><span class="wg-ic">🔨</span><span class="wg-nm"></span><span class="wg-lv"></span><span class="wg-t"></span></div><div class="wg-bar"><div class="wg-fill"></div></div>';
+  labelHost.appendChild(_bg); _bgFill=_bg.querySelector('.wg-fill'); _bgT=_bg.querySelector('.wg-t'); _bgNm=_bg.querySelector('.wg-nm'); _bgLv=_bg.querySelector('.wg-lv'); _bgIc=_bg.querySelector('.wg-ic'); }
+function _ensureTG(){ if(_tg) return; _tg=document.createElement('div'); _tg.className='work-gauge train';
+  _tg.innerHTML='<div class="wg-h"><span class="wg-ic">⚔️</span><span class="wg-nm"></span><span class="wg-cnt"></span><span class="wg-t"></span></div><div class="wg-bar"><div class="wg-fill"></div></div>';
+  labelHost.appendChild(_tg); _tgFill=_tg.querySelector('.wg-fill'); _tgT=_tg.querySelector('.wg-t'); _tgNm=_tg.querySelector('.wg-nm'); _tgCnt=_tg.querySelector('.wg-cnt'); _tgIc=_tg.querySelector('.wg-ic'); }
+function _mkRing(col){ const m=new T.Mesh(new T.TorusGeometry(0.95,0.1,8,26), new T.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:0.7,roughness:.5,transparent:true,opacity:.85})); m.rotation.x=-P2; m.visible=false; scene.add(m); return m; }
+function _ringShow(ring,p){ ring.visible=true; ring.position.set(p.x,0.14,p.z); const t=(typeof performance!=='undefined'?performance.now():Date.now())*0.003;
+  ring.scale.setScalar(1+Math.sin(t)*0.09); ring.rotation.z=t*0.6; ring.material.opacity=0.55+0.35*Math.abs(Math.sin(t*0.8)); }
+function _placeGauge(el,p,dy){ const v=new T.Vector3(p.x,1.7,p.z).project(cam); const rect=curEl.getBoundingClientRect();
+  el.style.left=(v.x*.5+.5)*rect.width+'px'; el.style.top=((-v.y*.5+.5)*rect.height+(dy||0))+'px'; el.style.display=v.z<1?'':'none'; }
+function updateWork(){
+  if(!curEl||!_workFn){ if(_bg)_bg.style.display='none'; if(_tg)_tg.style.display='none'; if(_ring)_ring.visible=false; if(_ring2)_ring2.visible=false; return; }
+  const w=_workFn()||{};
+  if(w.build && _bPos[w.build.b]){ _ensureBG(); const p=_bPos[w.build.b];
+    _bgFill.style.width=(w.build.frac*100).toFixed(1)+'%'; _bgT.textContent=_fmtT(w.build.left); _bgNm.textContent=w.build.nm; _bgLv.textContent='Lv'+w.build.lv; _bgIc.textContent=w.build.ic||'🔨';
+    _placeGauge(_bg,p,0); if(!_ring)_ring=_mkRing(0xf0c040); _ringShow(_ring,p);
+  } else { if(_bg)_bg.style.display='none'; if(_ring)_ring.visible=false; }
+  if(w.train && _bPos[w.train.b]){ _ensureTG(); const p=_bPos[w.train.b]; const same=w.build&&w.build.b===w.train.b;
+    _tgFill.style.width=(w.train.frac*100).toFixed(1)+'%'; _tgT.textContent=_fmtT(w.train.left); _tgNm.textContent=w.train.nm; _tgCnt.textContent='×'+w.train.cnt; _tgIc.textContent=w.train.ic||'⚔️';
+    _placeGauge(_tg,p,same?46:0); if(!_ring2)_ring2=_mkRing(0x5a9fe0); if(!same)_ringShow(_ring2,p); else _ring2.visible=false;
+  } else { if(_tg)_tg.style.display='none'; if(_ring2)_ring2.visible=false; }
+}
 function updateLabels(){ if(!curEl) return; const rect=curEl.getBoundingClientRect();
   for(const L of labels){ const v=L.pos.clone().project(cam);
     const x=(v.x*0.5+0.5)*rect.width, y=(-v.y*0.5+0.5)*rect.height;
@@ -1635,14 +1685,14 @@ export function build(blds, opts){ opts=opts||{}; onBuild=opts.onBuild; initScen
   const tier = devp>=45?3 : devp>=25?2 : devp>=10?1 : 0;   // ⚠️ classic vilStage와 동일 공식 유지
   buildTier(tier); buildWallRing(blds.wall||0);
   while(bgroup.children.length) bgroup.remove(bgroup.children[0]);
-  labels.forEach(L=>L.el.remove()); labels.length=0;
+  labels.forEach(L=>L.el.remove()); labels.length=0; _bPos={}; _workFn=opts.work||null;
   const BLD=opts.BLD||{};
-  const add=(x,z,b,lv,central)=>{ placeBuilding(x,z,central?0:Math.atan2(-x,-z),b,lv,central);
+  const add=(x,z,b,lv,central)=>{ placeBuilding(x,z,central?0:Math.atan2(-x,-z),b,lv,central); _bPos[b]={x,z};
     const y=central?3.3:(2.1+Math.min(0.5,lv*0.06));
     const el=mkLabel(); el.classList.add('blab'); const d=BLD[b]||{};
     el.innerHTML= lv>0? `<b><span class="li">${d.ic||''}</span><span class="ln">${d.nm||b}</span></b><i>Lv${lv}</i>` : `<span class="plus"><span class="li">＋${d.ic||''}</span><span class="ln">${d.nm||b}</span></span>`;
     if(lv<=0) el.classList.add('empty'); el.onclick=()=>{ if(onBuild) onBuild(b); };
-    labels.push({el,pos:new T.Vector3(x,y,z)}); };
+    labels.push({el,pos:new T.Vector3(x,y,z),b}); };
   const pts=[{x:0,z:0}];
   add(0,0,'main',blds.main||0,true);
   const half=RING.length/2;
