@@ -459,7 +459,7 @@ const RES_NM = {wood:'목재', clay:'점토', iron:'철'};
 const HOME_ID = 'demacia'; const HOME_KEY = 'home';
 const WSPEED=140;                              // 월드 속도(시간 압축 — speed 서버 개념)
 const HCOLS=79, HROWS=98, HHZ=1.155*0.75;      // 육각 월드 격자(pointy-top) — 광활(안개로 탐험)
-const REVEAL_HOME=4, REVEAL_SCOUT=3, REVEAL_HIT=2;   // 🌫️ 전장의 안개 공개 반경(홈/정찰성공/도착)
+const REVEAL_HOME=7, REVEAL_SCOUT=4, REVEAL_HIT=3;   // 🌫️ 전장의 안개 공개 반경(홈/정찰성공/도착)
 function hexPos(c,r){ return { x:(c+((r&1)?0.5:0)), z:r*HHZ }; }
 // ══ 건물 — 정통 전략 레벨1 비용/증가율/선행조건 ══
 const BLD = {   // 수치=정통 전략 밸런스
@@ -2013,7 +2013,7 @@ function initS(){ if(R) return;
   (function loop(){ requestAnimationFrame(loop); if(!EL||!R||EL.offsetParent===null) return; if(CT)CT.update(); R.render(SC,CAM); proj(); })();
 }
 async function tile(n,x,z,building,rot,y){ try{ const m=(await ld(n)).clone(true); m.position.set(x,y||0,z); if(rot) m.rotation.y=rot;
-  m.traverse(c=>{ if(c.isMesh){ c.castShadow=!!building; c.receiveShadow=true; } }); GRP.add(m); }catch(e){} }
+  m.traverse(c=>{ if(c.isMesh){ c.castShadow=!!building; c.receiveShadow=true; } }); GRP.add(m); return m; }catch(e){} }
 let MSIG='', MLINES=null;
 const MCOL={raid:0xe0492e, attack:0xe06a3e, return:0x6faa5a, support:0x5a8fc0, scout:0x62b8d8};
 // 행군 마커 = 3D 모델(이모지 대신 톤앤매너): 귀환=짐수레, 공격/지원/정찰/습격=색 깃발 배너
@@ -2083,7 +2083,7 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
   const rcnt=Object.keys(rev).length;
   const full=(wsig!==_wsig);
   if(full){   // 월드 구조 변경 → 전체 재구성
-    _wsig=wsig; _rcnt=-1; _built=Object.create(null);
+    _wsig=wsig; _rcnt=-1; _built=Object.create(null); _pen=Object.create(null);
     while(GRP.children.length) GRP.remove(GRP.children[0]);
     VLAB.forEach(L=>L.el.remove()); VLAB.length=0;
     off=opts.hex((cols-1)/2,(rows-1)/2); HGT=rows*0.866;
@@ -2106,6 +2106,32 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
     else { tile(biome(c,r,cols,rows,_hrand(c,r)),x,z,false); }
     if(!full && _fogCtx){ eraseFogCell(c,r); hideCloudAt(c,r); fogDirty=true; }   // 증분: 안개 부드럽게 걷힘
   }
+  // 🌫️ 구름 아래로 지형이 어렴풋이 보이게 — 공개 구역 주변 PEN칸에 **지형만** 깐다.
+  //    마을·길은 깔지 않아 정보(마을 위치)는 계속 가려진다.
+  const PEN=4, want=Object.create(null);
+  for(const k in rev){
+    const t=k.split(','), rc=+t[0], rr=+t[1];
+    for(let dr=-PEN;dr<=PEN;dr++)for(let dc=-PEN;dc<=PEN;dc++){
+      if(Math.abs(dc)+Math.abs(dr)>PEN) continue;
+      const c2=rc+dc, r2=rr+dr;
+      if(c2<0||r2<0||c2>=cols||r2>=rows) continue;
+      const k2=c2+','+r2;
+      if(rev[k2]||_built[k2]) continue;
+      want[k2]=1;
+    }
+  }
+  for(const k2 in want){
+    if(_pen[k2]) continue;
+    _pen[k2]='pending';
+    const t=k2.split(','), c2=+t[0], r2=+t[1], p2=opts.hex(c2,r2);
+    tile(biome(c2,r2,cols,rows,_hrand(c2,r2)), p2.x-off.x, p2.z-off.z, false).then(m=>{ if(m&&_pen[k2]) _pen[k2]=m; });
+  }
+  for(const k2 in _pen){
+    if(!rev[k2]) continue;
+    const m=_pen[k2];
+    if(m&&m!=='pending') GRP.remove(m);
+    delete _pen[k2];
+  }
   if(full) fogInit(cols,rows,rev,opts,at);
   else if(fogDirty && _fogTex){ _fogTex.needsUpdate=true; }
   if(full){ resize(); if(CT){ CT.target.set(0,0,0); CT.update(); } }
@@ -2113,6 +2139,7 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
 // 🌫️ 안개 = 흐릿한 반투명 저지대 헥스 — 지형색을 희미하게 비쳐 "미지의 대륙"처럼(마을=따뜻한 봉우리)
 const _BIOMECOL={'stone-mountain':0x6b6f78,'stone-hill':0x707680,'stone-rocks':0x6b7078,'sand-desert':0xccb473,'sand':0xccb473,'sand-rocks':0xc3a869,'water':0x3f7fb0,'water-rocks':0x3f7fb0,'grass-forest':0x3f7a3a,'grass-hill':0x6f9e46,'grass':0x6f9e46};
 const _FOGDK=new T.Color(0x0f1826);
+let _pen=Object.create(null);
 let _fogCanvas=null,_fogCtx=null,_fogTex=null,_fogPlane=null,_fb=null,_fogCols=0,_fogRows=0,_cloudTex=null,_puffTex=null,_cloudMesh=null,_cloudIdx=null,_cloudDummy=null;
 function _cellRGB(c,r,isV){ const base=isV?0x9a7448:(_BIOMECOL[biome(c,r,_fogCols,_fogRows,_hrand(c,r))]||0x6f9e46);
   const col=new T.Color(base).multiplyScalar(0.80).lerp(_FOGDK,0.16);   // 예전 0.55/0.32는 거의 검정 → 바닥이 끊겨 보였음
@@ -2166,18 +2193,19 @@ function buildClouds(cols,rows,rev,opts){
   if(_cloudMesh){ SC.remove(_cloudMesh); _cloudMesh.geometry.dispose(); _cloudMesh.material.dispose(); _cloudMesh=null; }
   _cloudIdx=Object.create(null);
   const cells=[];
-  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ if(!rev[c+','+r]) cells.push([c,r]); }
+  // 성글게(약 68%) — 빽빽하면 아래가 아예 안 보여 답답하다
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ if(rev[c+','+r]) continue; if(_hrand(c+7,r+13)>0.68) continue; cells.push([c,r]); }
   if(!cells.length) return;
-  const mat=new T.MeshBasicMaterial({map:_makePuffTex(), transparent:true, depthWrite:false, color:0xbfccd8, opacity:0.95});
+  const mat=new T.MeshBasicMaterial({map:_makePuffTex(), transparent:true, depthWrite:false, color:0xc6d2de, opacity:0.66});
   _cloudMesh=new T.InstancedMesh(new T.PlaneGeometry(1,1), mat, cells.length);
   _cloudMesh.renderOrder=6; _cloudMesh.frustumCulled=false;
   _cloudDummy=new T.Object3D();
   for(let i=0;i<cells.length;i++){
     const [c,r]=cells[i]; const p=opts.hex(c,r); const q=_hrand(c,r), q2=_hrand(r,c);
     const d=_cloudDummy;
-    d.position.set(p.x-off.x+(q-0.5)*0.7, 1.15+q2*0.9, p.z-off.z+(q2-0.5)*0.7);
+    d.position.set(p.x-off.x+(q-0.5)*0.8, 0.72+q2*0.5, p.z-off.z+(q2-0.5)*0.8);
     d.rotation.set(-Math.PI/2, 0, q*6.2832);
-    const sc=2.25+q2*0.95; d.scale.set(sc,sc,1);
+    const sc=2.0+q2*0.9; d.scale.set(sc,sc,1);
     d.updateMatrix(); _cloudMesh.setMatrixAt(i,d.matrix);
     const t=0.80+_hrand(c+911,r+733)*0.20;
     _cloudMesh.setColorAt(i,new T.Color(t,t*1.005,t*1.02));
@@ -2210,7 +2238,7 @@ function fogInit(cols,rows,rev,opts,at){
   if(_fogPlane){ SC.remove(_fogPlane); _fogPlane.geometry.dispose(); _fogPlane.material.dispose(); if(_fogTex)_fogTex.dispose(); }
   _fogTex=new T.CanvasTexture(_fogCanvas); _fogTex.flipY=false; _fogTex.minFilter=T.LinearFilter; _fogTex.magFilter=T.LinearFilter;
   const geo=new T.PlaneGeometry(w,h);
-  const mat=new T.MeshBasicMaterial({alphaMap:_fogTex, color:0xa9b8c6, transparent:true, depthWrite:false, fog:false});
+  const mat=new T.MeshBasicMaterial({alphaMap:_fogTex, color:0xa9b8c6, opacity:0.5, transparent:true, depthWrite:false, fog:false});
   _fogPlane=new T.Mesh(geo,mat); _fogPlane.rotation.x=-Math.PI/2;
   _fogPlane.position.set(minX+w/2,0.24,minZ+h/2); _fogPlane.renderOrder=4; SC.add(_fogPlane);
   buildClouds(cols,rows,rev,opts);
