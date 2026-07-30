@@ -801,7 +801,7 @@ function sendCommand(toId, units, mode){ const v=S.v;
   const dist=fieldDist(from,to); const travel=Math.max(4000, travelMs(dist,slow));
   for(const u in units) v.troops[u]-=(units[u]||0);
   S.marches.push({fromV:S.active, to:toId, units:{...units}, dep:Date.now(), arriveAt:Date.now()+travel, mode});
-  toast(`${modeLbl(mode)} 출발 — ${to.name} ${crd(to)} · ${dist.toFixed(1)}칸 · ${fmtDur(travel)}`);
+  toast(`${MODE_NM[mode]||mode} 출발 — ${to.name} ${crd(to)} · ${dist.toFixed(1)}칸 · ${fmtDur(travel)}`);   // ⚠️ toast=textContent → modeLbl(SVG) 쓰면 마크업이 글자로 찍힘
   save(); return true;
 }
 function conquerVillage(id, survivors){ const w=S.world[id];
@@ -973,7 +973,10 @@ window.recallSupport=function(vid, ix){ const v=S.villages[vid]; if(!v||!v.suppo
 let view='map', _vilBuilt=null, _vilPC=null, _bldSheetB=null, _mapPZ=null;
 const isPC=()=>window.matchMedia('(min-width:900px)').matches;
 function mkrng(seed){ return function(){ seed|=0; seed=(seed+0x6D2B79F5)|0; let t=Math.imul(seed^(seed>>>15),1|seed); t=(t+Math.imul(t^(t>>>7),61|t))^t; return ((t^(t>>>14))>>>0)/4294967296; }; }
-function toast(m){ const t=document.getElementById('toast'); t.textContent=m; t.classList.add('on'); clearTimeout(t._); t._=setTimeout(()=>t.classList.remove('on'),2600); }
+function toast(m){ const t=document.getElementById('toast');
+  // 안전망 — 실수로 아이콘(SVG) 문자열이 섞여 들어와도 태그가 글자로 찍히지 않게 벗긴다
+  m=String(m); if(m.indexOf('<')>=0) m=m.replace(/<[^>]*>/g,'').replace(/\s{2,}/g,' ').trim();
+  t.textContent=m; t.classList.add('on'); clearTimeout(t._); t._=setTimeout(()=>t.classList.remove('on'),2600); }
 const NF=n=>Math.floor(n||0).toLocaleString('ko-KR');
 function fmtDur(ms){ const s=Math.max(0,Math.ceil(ms/1000));
   if(s>=3600) return Math.floor(s/3600)+':'+String(Math.floor(s%3600/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
