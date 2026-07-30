@@ -410,6 +410,7 @@ const RES_NM = {wood:'목재', clay:'점토', iron:'철'};
 const HOME_ID = 'demacia'; const HOME_KEY = 'home';
 const WSPEED=140;                              // 월드 속도(시간 압축 — 부족전쟁 speed 서버 개념)
 const HCOLS=25, HROWS=31, HHZ=1.155*0.75;      // 육각 월드 격자(pointy-top)
+const REVEAL_HOME=4, REVEAL_SCOUT=3, REVEAL_HIT=2;   // 🌫️ 전장의 안개 공개 반경(홈/정찰성공/도착)
 function hexPos(c,r){ return { x:(c+((r&1)?0.5:0)), z:r*HHZ }; }
 // ══ 건물 — 실제 부족전쟁 레벨1 비용/증가율/선행조건 ══
 const BLD = {   // 수치=부족전쟁 원본 그대로
@@ -475,7 +476,7 @@ const SPAWN_MINDIST = 9, SPAWN_RADIUS = 30;
 let S = load(); bindActive();
 function bindActive(){ S.active=S.active||HOME_KEY; if(!S.villages)S.villages={}; if(!S.research)S.research={}; if(!S.spy)S.spy={};
   for(const id in S.villages){ const v=S.villages[id]; if(!v.support) v.support=[]; }
-  if(!Object.getOwnPropertyDescriptor(S,'v')) Object.defineProperty(S,'v',{get(){return S.villages[S.active];},configurable:true,enumerable:false}); }
+  if(!Object.getOwnPropertyDescriptor(S,'v')) Object.defineProperty(S,'v',{get(){return S.villages[S.active];},configurable:true,enumerable:false}); seedReveal(); }
 function setActive(id){ if(S.villages[id]){ S.active=id; } }
 function freshVillage(){ return { res:{wood:600,clay:600,iron:450}, blds:{main:1,wood:1,clay:1,iron:1,farm:1,storage:1}, troops:{}, buildQ:[], recQ:[], support:[] }; }
 function ownedIds(){ return Object.keys(S.world).filter(id=>S.world[id].owner==='me'); }
@@ -518,6 +519,25 @@ function genWorld(now){
 function fresh(){ const now=Date.now(); return { ver:SAVE_VER, villages:{[HOME_KEY]:freshVillage()}, active:HOME_KEY, research:{}, spy:{}, world:genWorld(now), marches:[], reports:[], t:now }; }
 function load(){ try{ const j=JSON.parse(localStorage.getItem('rune_proto')); if(j&&j.ver===SAVE_VER&&j.villages&&j.villages[HOME_KEY]&&j.world&&j.world[HOME_KEY]) return j; }catch(e){} return fresh(); }
 function save(){ localStorage.setItem('rune_proto', JSON.stringify(S)); }
+// 🌫️ 전장의 안개 — 공개된 헥스만 지도에 보임. 정찰/행군/점령으로 점점 밝혀짐(공개는 영구)
+function _cubeH(x,y){ const q=x-((y-(y&1))>>1); return {x:q,z:y,y:-q-y}; }
+function hexDistXY(ax,ay,bx,by){ const a=_cubeH(ax,ay),b=_cubeH(bx,by); return (Math.abs(a.x-b.x)+Math.abs(a.y-b.y)+Math.abs(a.z-b.z))/2; }
+function isRevealed(x,y){ return !!(S.revealed && S.revealed[x+','+y]); }
+function revealDisc(cx,cy,rad){ if(!S.revealed) S.revealed={}; let any=false;
+  for(let y=Math.max(0,cy-rad-1); y<=Math.min(HROWS-1,cy+rad+1); y++)
+    for(let x=Math.max(0,cx-rad-1); x<=Math.min(HCOLS-1,cx+rad+1); x++)
+      if(hexDistXY(cx,cy,x,y)<=rad){ const k=x+','+y; if(!S.revealed[k]){ S.revealed[k]=1; any=true; } }
+  return any; }
+function seedReveal(){ if(!S.revealed) S.revealed={}; if(S._revSeed) return; S._revSeed=1;
+  for(const id in S.world){ const w=S.world[id]; if(w.owner==='me') revealDisc(w.x,w.y,REVEAL_HOME); } }
+// 행군 중인 부대 주변을 실시간으로 밝힘(안개가 걷히는 연출)
+function revealMarchPositions(now){ if(!S.marches||!S.marches.length) return;
+  for(const m of S.marches){
+    const org=m.mode==='raid'?S.world[m.from]:(m.mode==='return'?S.world[m.to]:S.world[m.fromV||HOME_KEY]);
+    const dst=m.mode==='raid'?S.world[m.to]:(m.mode==='return'?S.world[m.fromV||HOME_KEY]:S.world[m.to]);
+    if(!org||!dst) continue;
+    const sp=m.arriveAt-m.dep, p=sp>0?Math.min(1,Math.max(0,(now-m.dep)/sp)):1;
+    revealDisc(Math.round(org.x+(dst.x-org.x)*p), Math.round(org.y+(dst.y-org.y)*p), 1); } }
 
 // ═══════════ 로직 ═══════════
 function tick(){
@@ -535,6 +555,7 @@ function tick(){
     w.garrison=w.garrison||{};
     for(const u in base){ const cur=w.garrison[u]||0; if(cur<base[u]) w.garrison[u]=Math.min(base[u], cur+base[u]*dt/5400); }
   }
+  revealMarchPositions(now);   // 🌫️ 행군 부대가 지나는 곳 안개 걷힘
   processMarches(now); S.t=now;
 }
 function tickVillage(v, dt, now){ const cap=storeCapV(v);
@@ -607,7 +628,7 @@ function conquerVillage(id, survivors){ const w=S.world[id];
   b.main=Math.min(10,Math.max(1,s)); b.wood=b.clay=b.iron=Math.min(15,s+2); b.farm=Math.min(12,s+1); b.storage=Math.min(12,s+1);
   if(w.wall) b.wall=Math.min(20,Math.round(w.wall));
   nv.res={wood:300,clay:300,iron:200}; nv.troops=gar;
-  S.villages[id]=nv;
+  S.villages[id]=nv; revealDisc(w.x,w.y,REVEAL_HOME);   // 🌫️ 정복지=내 마을 시야
   toast(`👑 ${crd(w)} 마을을 정복했어요! 새 마을 획득 — 🚩 집결지부터 지으세요`); save();
 }
 function processMarches(now){
@@ -628,6 +649,7 @@ function processMarches(now){
 }
 function resolveAttack(m, now){
   const w=S.world[m.to]; if(!w) return true;
+  revealDisc(w.x,w.y,REVEAL_HIT);   // 🌫️ 부대 도착 → 주변 공개
   if(w.owner==='me'){ const tv=S.villages[m.to]; if(tv) tv.support.push({from:m.fromV||HOME_KEY, units:{...m.units}}); return true; }   // 이미 함락됨 → 지원 합류
   const originV=S.villages[m.fromV||HOME_KEY]||S.v;
   const morale = w.owner==='player'? moraleVs(originV,w) : 1;
@@ -661,6 +683,7 @@ function resolveScout(m, now){
   const atkS=m.units.scout||0;
   const defS=Math.floor((w.garrison&&w.garrison.scout)||0);
   const power=defS*2;
+  revealDisc(w.x,w.y, atkS>power?REVEAL_SCOUT:REVEAL_HIT);   // 🌫️ 정찰 도착 → 주변 공개(성공 시 더 넓게)
   if(atkS>power){
     const ratio=power>0? Math.pow(power/atkS,1.5) : 0;
     const lost=Math.min(atkS,Math.round(atkS*ratio)); const left=atkS-lost;
@@ -804,7 +827,7 @@ function renderSidebar(){
 // ── 지도(3D 우선 · 2D 폴백) ──
 function renderMap(){
   if(window.Map3D){ const wrap=document.getElementById('map-wrap'), mc=document.getElementById('map-content'); if(mc) mc.style.display='none';
-    if(wrap){ window.Map3D.mount(wrap); window.Map3D.build({ world:S.world, cols:HCOLS, rows:HROWS, hex:hexPos, isP:isProtected, onNode:onVillage, HOME:HOME_KEY, fmt:fmtDur, state:()=>({world:S.world,marches:S.marches}) });
+    if(wrap){ window.Map3D.mount(wrap); window.Map3D.build({ world:S.world, cols:HCOLS, rows:HROWS, hex:hexPos, isP:isProtected, onNode:onVillage, HOME:HOME_KEY, fmt:fmtDur, revealed:S.revealed, state:()=>({world:S.world,marches:S.marches}) });
       const rr=document.getElementById('map-reset'); if(rr) rr.onclick=()=>window.Map3D.resetCam(); }
     return; }
   // 2D 폴백(three.js CDN 차단 환경)
@@ -1718,27 +1741,52 @@ export function mount(el){ initS(); if(EL===el && el.contains(R.domElement)) ret
 function resize(){ if(!EL) return; const w=EL.clientWidth||420,h=EL.clientHeight||400; R.setSize(w,h);
   const D=Math.max(8, HGT/1.9), a=w/h; CAM.left=-D*a;CAM.right=D*a;CAM.top=D;CAM.bottom=-D; CAM.updateProjectionMatrix(); }
 let HGT=13;
+// 🌫️ 안개: 미공개 헥스별 결정론적 난수(공개 순서와 무관하게 지형 고정)
+function _hrand(c,r){ let h=((c*73856093)^(r*19349663)^0xA5A5)>>>0; h=(h*1103515245+12345)>>>0; return (h&0xffff)/0x10000; }
+let _wsig='', _rcnt=-1, _built=null, _at=null, _roads=null, _fog=null;
 export function build(opts){ opts=opts||{}; OPT=opts; initS();
-  const world=opts.world, cols=opts.cols, rows=opts.rows, rng=mkrng2(12345);
-  let sig=cols+'x'+rows; for(const id in world){ const w=world[id]; sig+='|'+id+w.x+','+w.y+w.owner+(w.size||0); }
-  if(sig===_lastSig) return;   // 월드 변화 없으면 재구성 스킵(루프 매초 호출 대비) — 렌더/명패/행군은 계속
-  _lastSig=sig;
-  off=opts.hex((cols-1)/2,(rows-1)/2); HGT=rows*0.866;
-  while(GRP.children.length) GRP.remove(GRP.children[0]);
-  VLAB.forEach(L=>L.el.remove()); VLAB.length=0;
-  // 마을 좌표 인덱스
-  const at={}; for(const id in world){ const w=world[id]; at[w.x+','+w.y]=id; }
-  const roads=computeRoads(world, opts, at);   // 마을 간 길(헥스 길 타일)
-  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ const p=opts.hex(c,r); const x=p.x-off.x, z=p.z-off.z; const key=c+','+r; const id=at[key];
+  const world=opts.world, cols=opts.cols, rows=opts.rows, rev=opts.revealed||{};
+  let wsig=cols+'x'+rows; for(const id in world){ const w=world[id]; wsig+='|'+id+w.x+','+w.y+w.owner+(w.size||0); }
+  const rcnt=Object.keys(rev).length;
+  const full=(wsig!==_wsig);
+  if(full){   // 월드 구조 변경 → 전체 재구성
+    _wsig=wsig; _rcnt=-1; _built=Object.create(null);
+    while(GRP.children.length) GRP.remove(GRP.children[0]);
+    VLAB.forEach(L=>L.el.remove()); VLAB.length=0;
+    off=opts.hex((cols-1)/2,(rows-1)/2); HGT=rows*0.866;
+    _at={}; for(const id in world){ const w=world[id]; _at[w.x+','+w.y]=id; }
+    _roads=computeRoads(world, opts, _at);
+  }
+  if(rcnt===_rcnt && !full) return;   // 공개·월드 변화 없음 → 스킵(팬/줌 유지)
+  _rcnt=rcnt;
+  const at=_at, roads=_roads;
+  // 새로 공개된 헥스만 타일 배치(증분) — 미공개는 안개가 덮음
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ const key=c+','+r;
+    if(_built[key] || !rev[key]) continue; _built[key]=1;
+    const p=opts.hex(c,r); const x=p.x-off.x, z=p.z-off.z; const id=at[key];
     if(id){ const w=world[id]; tile(vTile(w),x,z,true);
       const el=document.createElement('div'); el.className='v3-label vmk3 '+(w.owner==='me'?'me':(w.owner==='player'?'pl':'barb'));
       const ic=w.owner==='me'?'🏰':(w.owner==='player'?'🗼':'🏚️'); const prot=opts.isP(w)?' 🛡️':'';
       el.innerHTML=w.owner==='me'?`<b>${ic} 내 성${prot}</b>`:(w.owner==='player'?`<b>${ic} ${(w.name||'').replace('소환사 ','')}${prot}</b>`:`<b>${ic} ${w.size}★</b>`);
       el.onclick=()=>{ if(opts.onNode) opts.onNode(id); }; LH.appendChild(el); VLAB.push({el,pos:new T.Vector3(x,0.9,z)});
     } else if(roads[key]){ tile((r>=rows-3)?'sand':'grass',x,z,false); tile(roads[key].n,x,z,false,roads[key].rot,0.2); }
-    else { tile(biome(c,r,cols,rows,rng()),x,z,false); }
+    else { tile(biome(c,r,cols,rows,_hrand(c,r)),x,z,false); }
   }
-  resize(); if(CT){ CT.target.set(0,0,0); CT.update(); }
+  buildFog(cols,rows,rev,opts);
+  if(full){ resize(); if(CT){ CT.target.set(0,0,0); CT.update(); } }
+}
+// 🌫️ 미공개 헥스를 어두운 육각 안개로 덮음(InstancedMesh 1드로우콜 — 넓어도 가벼움)
+function buildFog(cols,rows,rev,opts){
+  if(_fog){ SC.remove(_fog); _fog.geometry.dispose(); _fog.material.dispose(); _fog=null; }
+  const cells=[];
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ if(rev[c+','+r]) continue; const p=opts.hex(c,r); cells.push([p.x-off.x,p.z-off.z,c,r]); }
+  if(!cells.length) return;
+  const geo=new T.CylinderGeometry(0.63,0.63,0.8,6);
+  const mat=new T.MeshStandardMaterial({color:0x151d2b, roughness:1, metalness:0, emissive:0x0b1220, emissiveIntensity:0.5});
+  _fog=new T.InstancedMesh(geo,mat,cells.length); _fog.castShadow=false; _fog.receiveShadow=true;
+  const m=new T.Matrix4(), q=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/6), sc=new T.Vector3(), pos=new T.Vector3();
+  cells.forEach((cl,i)=>{ const h=0.65+_hrand(cl[2],cl[3])*0.8; sc.set(1,h,1); pos.set(cl[0],0.35*h,cl[1]); m.compose(pos,q,sc); _fog.setMatrixAt(i,m); });
+  _fog.instanceMatrix.needsUpdate=true; SC.add(_fog);
 }
 // ── 마을 간 길: 헥스 길 타일(path-*)을 경로 헥스에 깔고 회전 맞춤 ──
 // 오프셋(odd-r pointy)↔큐브 좌표 + 헥스 라인
