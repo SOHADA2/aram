@@ -2269,13 +2269,23 @@ function resize(){ if(!EL) return; const w=EL.clientWidth||420,h=EL.clientHeight
 let HGT=13;
 // 🌫️ 안개: 미공개 헥스별 결정론적 난수(공개 순서와 무관하게 지형 고정)
 function _hrand(c,r){ let h=((c*73856093)^(r*19349663)^0xA5A5)>>>0; h=(h*1103515245+12345)>>>0; return (h&0xffff)/0x10000; }
-let _wsig='', _rcnt=-1, _built=null, _at=null, _roads=null, _fog=null;
+let _wsig='', _rcnt=-1, _built=null, _at=null, _roads=null, _fog=null, _camPlaced=false;
+function _mkMarkHtml(w){ const ic=_mIcon(w.owner==='me'?'main':(w.owner==='player'?'tower':'hut'));
+  const prot=OPT&&OPT.isP&&OPT.isP(w)?_mIcon('shield'):'';
+  return w.owner==='me'?`<b>${ic} 내 성${prot}</b>`
+       : w.owner==='player'?`<b>${ic} ${(w.name||'').replace('소환사 ','')}${prot}</b>`
+       : `<b>${ic} ${w.size}★</b>`; }
 export function build(opts){ opts=opts||{}; OPT=opts; initS();
   _mIcon = opts.icon || (()=>'');
   const world=opts.world, cols=opts.cols, rows=opts.rows, rev=opts.revealed||{};
-  let wsig=cols+'x'+rows; for(const id in world){ const w=world[id]; wsig+='|'+id+w.x+','+w.y+w.owner+(w.size||0); }
+  // size(마을 성장)는 라벨 글자만 바뀌므로 시그니처에서 뺀다 — 넣으면 성장할 때마다 전체 재구성이 돈다
+  let wsig=cols+'x'+rows; for(const id in world){ const w=world[id]; wsig+='|'+id+w.x+','+w.y+w.owner; }
   const rcnt=Object.keys(rev).length;
   const full=(wsig!==_wsig);
+  // 성장(★)·보호 상태만 바뀐 경우 → 전체 재구성 없이 이미 만든 라벨 글자만 갱신
+  if(!full){ for(const L of VLAB){ if(!L.id) continue; const w=world[L.id]; if(!w) continue;
+    const sig=(w.size||0)+'|'+(opts.isP(w)?1:0);
+    if(L.sig!==sig){ L.sig=sig; L.el.innerHTML=_mkMarkHtml(w); } } }
   if(full){   // 월드 구조 변경 → 전체 재구성
     _wsig=wsig; _rcnt=-1; _built=Object.create(null); _pen=Object.create(null);
     while(GRP.children.length) GRP.remove(GRP.children[0]);
@@ -2293,9 +2303,8 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
     const p=opts.hex(c,r); const x=p.x-off.x, z=p.z-off.z; const id=at[key];
     if(id){ const w=world[id]; tile(vTile(w),x,z,true);
       const el=document.createElement('div'); el.className='v3-label vmk3 '+(w.owner==='me'?'me':(w.owner==='player'?'pl':'barb'));
-      const ic=_mIcon(w.owner==='me'?'main':(w.owner==='player'?'tower':'hut')); const prot=opts.isP(w)?_mIcon('shield'):'';
-      el.innerHTML=w.owner==='me'?`<b>${ic} 내 성${prot}</b>`:(w.owner==='player'?`<b>${ic} ${(w.name||'').replace('소환사 ','')}${prot}</b>`:`<b>${ic} ${w.size}★</b>`);
-      LH.appendChild(el); VLAB.push({el,pos:new T.Vector3(x,0.9,z),onTap:()=>{ if(opts.onNode) opts.onNode(id); }});
+      el.innerHTML=_mkMarkHtml(w);
+      LH.appendChild(el); VLAB.push({el,pos:new T.Vector3(x,0.9,z),id,sig:(w.size||0)+'|'+(opts.isP(w)?1:0),onTap:()=>{ if(opts.onNode) opts.onNode(id); }});
     } else if(roads[key]){ tile((r>=rows-3)?'sand':'grass',x,z,false); tile(roads[key].n,x,z,false,roads[key].rot,0.2); }
     else { tile(biome(c,r,cols,rows,_hrand(c,r)),x,z,false); }
     if(!full && _fogCtx){ eraseFogCell(c,r); hideCloudAt(c,r); fogDirty=true; }   // 증분: 안개 부드럽게 걷힘
@@ -2328,7 +2337,8 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
   }
   if(full) fogInit(cols,rows,rev,opts,at);
   else if(fogDirty && _fogTex){ _fogTex.needsUpdate=true; }
-  if(full){ resize(); if(CT){ CT.target.set(0,0,0); CT.update(); } }
+  // 재구성 때 카메라를 건드리지 않는다(보던 위치 유지). 최초 1회만 집 위치로 맞춘다.
+  if(full){ resize(); if(CT && !_camPlaced){ _camPlaced=true; CT.target.set(0,0,0); CT.update(); } }
 }
 // 🌫️ 안개 = 흐릿한 반투명 저지대 헥스 — 지형색을 희미하게 비쳐 "미지의 대륙"처럼(마을=따뜻한 봉우리)
 const _BIOMECOL={'stone-mountain':0x6b6f78,'stone-hill':0x707680,'stone-rocks':0x6b7078,'sand-desert':0xccb473,'sand':0xccb473,'sand-rocks':0xc3a869,'water':0x3f7fb0,'water-rocks':0x3f7fb0,'grass-forest':0x3f7a3a,'grass-hill':0x6f9e46,'grass':0x6f9e46};
