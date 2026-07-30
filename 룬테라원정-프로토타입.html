@@ -19,6 +19,7 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .res{flex:1;display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto auto;column-gap:6px;row-gap:2px;align-items:center;min-width:0;border-radius:7px;padding:4px 8px 5px;background:linear-gradient(180deg,#2a2114,#181109);border:1px solid #6b4f24;box-shadow:inset 0 1px 0 rgba(255,228,170,.12),inset 0 -3px 5px rgba(0,0,0,.4),0 1px 2px rgba(0,0,0,.5);}
 .res .ricon{grid-row:1/3;display:flex;align-items:center;}
 .res .rtop{display:flex;align-items:baseline;gap:4px;min-width:0;}
+.res .rslash{font-size:9px;font-weight:700;color:#8f7f57;}
 .res .rcap{flex:0 1 auto;min-width:0;font-size:9px;font-weight:700;color:#8f7f57;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;}
 .res .rbar{grid-column:2;height:3px;border-radius:2px;background:rgba(0,0,0,.55);box-shadow:inset 0 0 0 1px rgba(0,0,0,.5);overflow:hidden;}
 .res .rbar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#8fae4a,#c4da84);transition:width .5s linear;}
@@ -217,6 +218,13 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .q-row b{color:#8a5a10;font-family:monospace;} .q-row .qmeta{margin-left:auto;font-size:9px;color:#a89668;font-weight:600;text-align:right;}
 .q-row .qbar{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(0,0,0,.08);}
 .q-row .qbar>div{height:100%;background:linear-gradient(90deg,#8fae4a,#b4cf6a);transition:width .5s linear;}
+.rc-stat{display:flex;align-items:baseline;flex-wrap:wrap;gap:3px;font-size:10.5px;color:#c9b98a;font-weight:700;}
+.rc-stat b{color:#f4e6bd;font-size:11.5px;font-variant-numeric:tabular-nums;}
+.ts-k{font-size:9px;color:#9a8a60;font-weight:800;}
+.ts-d{padding:0 3px;border-radius:4px;background:rgba(0,0,0,.28);}
+.ts-sep{width:1px;height:10px;background:#5a4620;margin:0 2px;}
+.rc-role{margin-top:4px;font-size:9.5px;line-height:1.45;color:#a2916a;font-weight:600;word-break:keep-all;}
+.tw-role{margin-top:2px;font-size:10px;line-height:1.4;color:#8a7a52;font-weight:600;max-width:280px;white-space:normal;}
 .q-line{display:flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:#e6d7ab;background:#1e1710;border:1px solid #56411f;border-radius:7px;padding:5px 9px;margin-bottom:4px;}
 .q-line b{color:#f4e3a8;} .q-line .qmeta{margin-left:auto;font-size:9px;color:#a89668;font-weight:600;text-align:right;}
 .q-row.train .qbar>div{background:linear-gradient(90deg,#c99a3e,#2a2013);}
@@ -572,6 +580,27 @@ const TROOP = {   // 수치=정통 전략 밸런스 · ⚠️명칭은 기능명
   cata:   {ic:'cata', nm:'투석기',     from:'workshop', cost:{wood:320,clay:400,iron:100},   pop:8,  time:30, speed:30, atk:100, def:100, defC:50,  defA:100, carry:0,  cls:'inf', cata:true},
   noble:  {ic:'noble', nm:'귀족',       from:'academy',  cost:{wood:40000,clay:50000,iron:50000},pop:100,time:120,speed:35, atk:30, def:100, defC:50, defA:100, carry:0, cls:'inf', noble:true},
 };
+// ══ 병종 평가 — 「이 유닛이 수치상 어떤 물건인지」만 적는다.
+//    조합·전술은 일부러 안 적는다(플레이어가 직접 알아내는 영역).
+const TROOP_ROLE = {
+  spear:  '가장 싸다. 대기병 방어 45로 인구 1당 최고치이고, 공격력 10은 사실상 없는 값.',
+  sword:  '대보병 방어 50으로 인구 1당 최고치. 대신 22분/칸으로 전 병종 중 가장 느리다.',
+  axe:    '인구 1당 공격 40으로 보병 최고. 방어는 10/5/10으로 전 병종 최하위.',
+  archer: '대보병 50·대기병 40으로 방어가 두루 높지만, 대궁병 5로 궁병 공격에 극도로 약하다.',
+  scout:  '전투력이 없다. 정찰 전용이며 성패는 상대 정찰병 수로 갈린다.',
+  lcav:   '약탈 80으로 최대. 공격 130에 이동도 빠르지만 인구를 4 먹는다.',
+  marcher:'대궁병 방어 50이 특징. 공격·약탈은 경기병보다 낮고 인구는 5.',
+  hcav:   '공격 150·대보병 방어 200으로 양쪽 다 최상급. 대신 철 600에 인구 6으로 가장 비싸다.',
+  ram:    '공격력이 2뿐. 성벽을 깎기 위한 전용 병기다.',
+  cata:   '마을 발전도를 파괴한다. 인구 8로 가장 무겁다.',
+  noble:  '충성도를 20~35 깎는다. 인구 100에 대학이 필요하다.',
+};
+// 방어 3종이 각각 무엇을 막는지 라벨을 붙여준다(숫자 3개만 있으면 뜻을 알 수 없음)
+function troopStatHtml(t){
+  return `<span class="ts-k">공격</span><b>${t.atk}</b>
+    <span class="ts-sep"></span>
+    <span class="ts-k">방어</span><span class="ts-d" title="보병 공격에 대한 방어">보 <b>${t.def}</b></span><span class="ts-d" title="기병 공격에 대한 방어">기 <b>${t.defC}</b></span><span class="ts-d" title="궁병 공격에 대한 방어">궁 <b>${t.defA}</b></span>`;
+}
 const UNIT_GROUPS = { barracks:['spear','sword','axe','archer'], stable:['scout','lcav','marcher','hcav'], workshop:['ram','cata'], academy:['noble'] };
 const MODE_ICO = {attack:'barracks', support:'shield', scout:'scout', return:'back', raid:'fire'};
 const MODE_NM  = {attack:'공격', support:'지원', scout:'정찰', return:'귀환', raid:'습격'};
@@ -1035,7 +1064,7 @@ function renderTop(){
   document.getElementById('resbar').innerHTML = ['wood','clay','iron'].map(chip).join('')
     + `<span class="res pop ${pcls}" title="인구 ${NF(pu)} / ${NF(pcap)} · 농장을 올리면 늘어나요${pu>=pcap?' · 인구가 꽉 차 훈련·건설이 막혀요':''}">
       <i class="ricon">${I('pop','ic-lg')}</i>
-      <span class="rtop"><em>${NF(pu)}</em><span class="rcap">/ ${NF(pcap)}</span></span>
+      <span class="rtop"><em>${NF(pu)}<span class="rslash">/${NF(pcap)}</span></em></span>
       <span class="rbar"><i style="width:${ppct.toFixed(1)}%"></i></span></span>`;
   const pb=document.getElementById('protect-banner'); if(pb){ const left=protectLeft(S.world[HOME_KEY]);
     if(left>0){ pb.style.display='flex'; pb.innerHTML=`${I('shield')} <b>신규 보호 중</b> · ${fmtProtect(left)} 남음 <span class="pb-sub">먼저 공격 시 즉시 해제</span>`; }
@@ -1466,7 +1495,7 @@ function renderRecruit(elId, bld, units, pc){ const v=S.v; const el=document.get
   if(pc){
     el.innerHTML=`<table class="twt"><tr><th style="text-align:left">병종</th><th>보유</th><th>${I('sword')}</th><th title="대보병">${I('shield')}보</th><th title="대기병">${I('shield')}기</th><th title="대궁병">${I('shield')}궁</th><th>${I('wood')}</th><th>${I('clay')}</th><th>${I('iron')}</th><th>${I('pop')}</th><th>속도</th><th>${I('time')}</th><th></th></tr>`+
       units.map(u=>{ const t=TROOP[u]; const aff=canAffordV(t.cost); const popok=popUsed()+t.pop<=popCap();
-        return `<tr><td>${I(t.ic)} <b>${t.nm}</b></td><td style="text-align:center;font-family:monospace">${NF(v.troops[u]||0)}</td>
+        return `<tr><td>${I(t.ic)} <b>${t.nm}</b>${TROOP_ROLE[u]?`<div class="tw-role">${TROOP_ROLE[u]}</div>`:''}</td><td style="text-align:center;font-family:monospace">${NF(v.troops[u]||0)}</td>
           <td style="text-align:center">${t.atk}</td><td style="text-align:center">${t.def}</td><td style="text-align:center">${t.defC}</td><td style="text-align:center">${t.defA}</td>
           <td style="text-align:right">${t.cost.wood}</td><td style="text-align:right">${t.cost.clay}</td><td style="text-align:right">${t.cost.iron}</td>
           <td style="text-align:center">${t.pop}</td><td style="text-align:center">${t.speed}분/칸</td><td style="text-align:center">${trainTime(u)}s</td>
@@ -1474,8 +1503,9 @@ function renderRecruit(elId, bld, units, pc){ const v=S.v; const el=document.get
   } else {
     el.innerHTML=`<div class="rgrid">`+units.map(u=>{ const t=TROOP[u]; const aff=canAffordV(t.cost); const popok=popUsed()+t.pop<=popCap();
       return `<div class="rcard"><div class="rc-h"><span class="u-ic">${I(t.ic)}</span><span class="u-nm">${t.nm}</span><span class="u-have">${NF(v.troops[u]||0)}</span></div>
-        <div class="rc-cost">${costStr(t.cost)} · ${I('pop')}${t.pop} · ${I('time')}${trainTime(u)}초</div>
-        <div class="rc-stat">${I('sword')}${t.atk} ${I('shield')}${t.def}/${t.defC}/${t.defA} · ${t.speed}분/칸</div>
+        <div class="rc-cost">${costStr(t.cost)} · ${I('pop')}${t.pop} · ${I('time')}${trainTime(u)}초 · ${t.speed}분/칸 · 약탈 ${t.carry}</div>
+        <div class="rc-stat">${troopStatHtml(t)}</div>
+        ${TROOP_ROLE[u]?`<div class="rc-role">${TROOP_ROLE[u]}</div>`:''}
         <div class="rc-btns"><button class="rc-btn ${(aff&&popok)?'':'no'}" onclick="recruit('${u}',1)">＋1</button><button class="rc-btn ${(aff&&popok)?'':'no'}" onclick="recruit('${u}',5)">＋5</button></div></div>`; }).join('')+`</div>`;
   }
 }
@@ -1522,8 +1552,9 @@ function renderBldSheet(){ const b=_bldSheetB; const sh=document.getElementById(
     ${units? `<div class="rp-sec">병력 훈련</div>`+(lv<1? `<div class="muted">${jo(d.nm,'을')} 먼저 지어야 훈련할 수 있어요</div>`
       : `<div class="rgrid">`+units.map(u=>{ const t=TROOP[u]; const aff2=canAffordV(t.cost); const popok=popUsed()+t.pop<=popCap();
         return `<div class="rcard"><div class="rc-h"><span class="u-ic">${I(t.ic)}</span><span class="u-nm">${t.nm}</span><span class="u-have">${NF(v.troops[u]||0)}</span></div>
-          <div class="rc-cost">${costStr(t.cost)} · ${I('pop')}${t.pop} · ${I('time')}${trainTime(u)}초</div>
-          <div class="rc-stat">${I('sword')}${t.atk} ${I('shield')}${t.def}/${t.defC}/${t.defA} · ${t.speed}분/칸</div>
+          <div class="rc-cost">${costStr(t.cost)} · ${I('pop')}${t.pop} · ${I('time')}${trainTime(u)}초 · ${t.speed}분/칸 · 약탈 ${t.carry}</div>
+          <div class="rc-stat">${troopStatHtml(t)}</div>
+          ${TROOP_ROLE[u]?`<div class="rc-role">${TROOP_ROLE[u]}</div>`:''}
           <div class="rc-btns"><button class="rc-btn ${(aff2&&popok)?'':'no'}" onclick="sheetRecruit('${u}',1)">＋1</button><button class="rc-btn ${(aff2&&popok)?'':'no'}" onclick="sheetRecruit('${u}',5)">＋5</button></div></div>`; }).join('')+`</div>`) : ''}
     ${(b==='market'&&lv>=1)? `<button class="btn" style="width:100%;margin-top:9px;padding:10px" onclick="closeBldSheet();openMarket()">${I('market')} 거래 열기</button>`:''}
     ${(b==='smithy'&&lv>=1)? `<button class="btn" style="width:100%;margin-top:9px;padding:10px" onclick="closeBldSheet();openSmithy()">${I('smithy')} 연구 열기</button>`:''}
