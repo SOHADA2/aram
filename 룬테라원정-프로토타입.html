@@ -1,5 +1,5 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>룬테라 전쟁 — 프로토타입 v0.3</title>
+<title>룬테라 전쟁 — 프로토타입 v0.4</title>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/"}}</script>
 <style>
 /* ═══ 클래식 전략 스타일 양피지 테마 ═══
@@ -315,6 +315,22 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .sm-b{font-size:9.5px;color:#8fce8a;margin-top:2px;font-weight:700;}
 .sm-btn{border:1px solid #6b4f24;border-radius:8px;background:linear-gradient(180deg,#f4e3b3,#dfc182);color:#2e1f08;font-size:9.5px;font-weight:800;padding:8px 10px;cursor:pointer;white-space:nowrap;font-family:inherit;}
 .sm-btn.no{opacity:.55;} .sm-btn:disabled{opacity:.4;}
+/* ⚖️ 시장 탭·🐴 수송 */
+.mk-tabs{display:flex;gap:6px;margin:2px 0 6px;}
+.mk-tabs button{flex:1;border:1px solid #6b4f24;border-radius:8px;background:#221910;color:#a89668;font-weight:800;font-size:11.5px;padding:8px 4px;cursor:pointer;font-family:inherit;}
+.mk-tabs button.on{background:linear-gradient(180deg,#f4e3a8,#d8b45a);color:#3a2a08;border-color:#a3812f;}
+.mk-lrow{display:flex;align-items:center;gap:6px;margin-bottom:5px;}
+.mk-lrow .mk-lk{flex:1;min-width:0;font-size:11px;font-weight:700;color:#c9b98a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mk-lrow button{width:30px;height:29px;border:1px solid #a3812f;border-radius:7px;background:#2b2216;color:#c9b98a;font-weight:800;font-size:14px;cursor:pointer;flex:none;}
+.mk-lrow .mx{width:auto;padding:0 8px;font-size:10px;}
+.mk-lrow b{min-width:62px;text-align:center;font-family:monospace;font-size:12px;color:#f0e2b8;}
+.mk-trow{display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;color:#c9b98a;background:#221910;border:1px solid #54401f;border-radius:7px;padding:6px 9px;margin-bottom:4px;}
+.mk-trow b{color:#e6c877;font-family:monospace;margin-left:auto;}
+.mk-trow .mk-tres{font-size:9.5px;color:#8fce8a;}
+.mk-empty{font-size:10.5px;line-height:1.55;color:#a89668;background:#221910;border:1px dashed #54401f;border-radius:8px;padding:9px 10px;text-align:center;}
+.eff-nx{display:block;font-size:9.5px;color:#8fce8a;font-weight:700;margin-top:1px;}
+.q-row.research .qbar>div{background:linear-gradient(90deg,#b07fd8,#e0c0ff);}
+.q-row.ship .qbar>div{background:linear-gradient(90deg,#4a8fae,#6ac6cf);}
 /* 토스트 */
 .toast{position:fixed;bottom:64px;left:50%;transform:translateX(-50%);z-index:80;background:rgba(30,20,8,.96);border:1px solid #a3812f;color:#f0dca0;font-size:12px;font-weight:700;padding:9px 16px;border-radius:20px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:92vw;text-align:center;}
 .toast.on{opacity:1;}
@@ -395,7 +411,7 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">프로토타입 v0.3 · 이 브라우저에만 저장(mock) · 실제 사이트 골드와 무관</div>
+  <div class="proto-tag">프로토타입 v0.4 · 이 브라우저에만 저장(mock) · 실제 사이트 골드와 무관</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -477,10 +493,25 @@ const TROOP = {   // 수치=정통 전략 밸런스 · ⚠️명칭은 기능명
 const UNIT_GROUPS = { barracks:['spear','sword','axe','archer'], stable:['scout','lcav','marcher','hcav'], workshop:['ram','cata'], academy:['noble'] };
 const MODE_LBL = {attack:'⚔️ 공격', support:'🛡️ 지원', scout:'🧭 정찰', return:'↩️ 귀환', raid:'🔥 습격'};
 function prodPerMin(l){ return l? Math.round(30*Math.pow(1.163,l-1)*WSPEED/60) : 0; }
-function storeCapV(v){ const l=v.blds.storage||0; return Math.round(1000*Math.pow(1.2294,Math.max(0,l-1))); }
+function storeCapAt(l){ return Math.round(1000*Math.pow(1.2294,Math.max(0,l-1))); }
+function popCapAt(l){ return Math.round(240*Math.pow(1.172,Math.max(0,l-1))); }
+function hideCapAt(l){ return l? Math.round(150*Math.pow(1.333,l-1)) : 0; }
+function storeCapV(v){ return storeCapAt(v.blds.storage||0); }
 function storeCap(){ return storeCapV(S.v); }
-function popCapV(v){ const l=v.blds.farm||0; return Math.round(240*Math.pow(1.172,Math.max(0,l-1))); }
+function popCapV(v){ return popCapAt(v.blds.farm||0); }
 function popCap(){ return popCapV(S.v); }
+// ══ ⚖️ 시장 상인 — 마을 간 자원 수송(레벨당 1명·적재 1000·12분/칸) ══
+const MERCH_CAP=1000, MERCH_SPEED=12;
+function merchTotal(v){ return v? (v.blds.market||0) : 0; }
+function merchBusy(vid){ let n=0; (S.trades||[]).forEach(t=>{ if(t.from===vid) n+=(t.n||0); }); return n; }
+function merchFree(vid){ return Math.max(0, merchTotal(S.villages[vid]) - merchBusy(vid)); }
+function resSum(r){ return Math.floor((r.wood||0)+(r.clay||0)+(r.iron||0)); }
+function resStr(r){ return ['wood','clay','iron'].filter(k=>(r[k]||0)>0).map(k=>`${RES[k]}${NF(r[k])}`).join(' ')||'—'; }
+// ══ ⚒️ 대장간 연구 — 대장간 레벨이 연구 상한을 결정 + 연구에 시간 소요(전 마을 공통) ══
+const RES_MAX=3, RES_SMITHY_REQ=[3,8,15];   // 연구 Lv1/2/3에 필요한 대장간 레벨
+function resSmithyReq(lvl){ return RES_SMITHY_REQ[lvl]!=null? RES_SMITHY_REQ[lvl] : 99; }
+function resCost(u,lvl){ const t=TROOP[u], m=6*(lvl+1); return {wood:(t.cost.wood||0)*m, clay:(t.cost.clay||0)*m, iron:(t.cost.iron||0)*m}; }
+function resTime(lvl,smLv){ return Math.max(6, Math.round((45+40*lvl)*(1-Math.min(0.6,Math.max(0,smLv-1)*0.03)))); }
 function popUsed(){ const v=S.v; let p=0; for(const b in v.blds) p+=bldPop(b,v.blds[b]);
   for(const u in v.troops) p+=(v.troops[u]||0)*TROOP[u].pop;
   v.recQ.forEach(q=>p+=TROOP[q.u].pop);
@@ -508,6 +539,7 @@ const PROTECT_MS = 15*24*3600*1000;
 const SPAWN_MINDIST = 9, SPAWN_RADIUS = 30;
 let S = load(); bindActive();
 function bindActive(){ S.active=S.active||HOME_KEY; if(!S.villages)S.villages={}; if(!S.research)S.research={}; if(!S.spy)S.spy={};
+  if(!Array.isArray(S.trades)) S.trades=[]; if(S.researchQ===undefined) S.researchQ=null;   // 구 세이브 호환(버전 유지)
   for(const id in S.villages){ const v=S.villages[id]; if(!v.support) v.support=[]; }
   if(!Object.getOwnPropertyDescriptor(S,'v')) Object.defineProperty(S,'v',{get(){return S.villages[S.active];},configurable:true,enumerable:false}); seedReveal(); }
 function setActive(id){ if(S.villages[id]){ S.active=id; } }
@@ -589,7 +621,26 @@ function tick(){
     for(const u in base){ const cur=w.garrison[u]||0; if(cur<base[u]) w.garrison[u]=Math.min(base[u], cur+base[u]*dt/5400); }
   }
   revealMarchPositions(now);   // 🌫️ 행군 부대가 지나는 곳 안개 걷힘
-  processMarches(now); S.t=now;
+  processMarches(now); processTrades(now); processResearch(now); S.t=now;
+}
+// 🐴 상인 수송 — 도착 시 입고 후 자동 귀환, 귀환 완료 시 상인 복귀
+function processTrades(now){ const A=S.trades||[];
+  for(let i=A.length-1;i>=0;i--){ const t=A[i]; if(now<t.arriveAt) continue;
+    if(t.back){ A.splice(i,1); continue; }
+    const tv=S.villages[t.to];
+    if(tv){ const cap=storeCapV(tv); ['wood','clay','iron'].forEach(k=>{ if((t.res[k]||0)>0) tv.res[k]=Math.min(cap,(tv.res[k]||0)+t.res[k]); });
+      toast(`🐴 ${crd(S.world[t.to])} 마을에 자원 도착 · ${resStr(t.res)}`); }
+    else { const fv=S.villages[t.from];   // 대상이 더 이상 내 마을이 아님 → 싣고 되돌아옴
+      if(fv){ const cap=storeCapV(fv); ['wood','clay','iron'].forEach(k=>{ if((t.res[k]||0)>0) fv.res[k]=Math.min(cap,(fv.res[k]||0)+t.res[k]); }); }
+      toast('🐴 수송 대상 마을을 잃어 자원이 되돌아왔어요'); }
+    const trip=t.arriveAt-t.dep; t.back=true; t.dep=now; t.arriveAt=now+trip; t.res={wood:0,clay:0,iron:0};
+    if(S.active===t.from||S.active===t.to) S._dirtyVil=true;
+  }
+}
+// ⚒️ 연구 완료 처리(전 마을 공통·동시 1건)
+function processResearch(now){ const q=S.researchQ; if(!q||now<q.doneAt) return;
+  S.research[q.u]=Math.min(RES_MAX,(S.research[q.u]||0)+1); S.researchQ=null;
+  toast(`⚒️ ${TROOP[q.u].nm} 연구 Lv${S.research[q.u]} 완료 — ⚔️🛡️ +${S.research[q.u]*12}%`); S._dirtyVil=true;
 }
 function tickVillage(v, dt, now){ const cap=storeCapV(v);
   ['wood','clay','iron'].forEach(k=>{ v.res[k]=Math.min(cap,(v.res[k]||0)+prodPerMin(v.blds[k]||0)*dt/60); v.res[k]=Math.floor(v.res[k]*10)/10; });
@@ -1126,21 +1177,29 @@ function renderVillage(full){
   }
   updateVillageDynamic();
 }
+// 건물 효과 — ⚠️lv 인자 기준으로만 계산할 것(다음 레벨 미리보기가 같은 함수를 씀)
 function bldEffTxt(b,lv){ const d=BLD[b];
   if(d.res) return `${RES[d.res]} +${prodPerMin(lv)}/분`;
-  if(b==='farm') return `🌾 인구 ${NF(popCap())}`;
-  if(b==='storage') return `📦 저장 ${NF(storeCap())}`;
+  if(b==='farm') return `🌾 인구 ${NF(popCapAt(lv))}`;
+  if(b==='storage') return `📦 저장 ${NF(storeCapAt(lv))}`;
   if(b==='wall') return `🛡️ 방어 ×${Math.pow(1.037,lv).toFixed(2)} +${wallBasicDef(lv)}`;
-  if(b==='main') return `⚡ 건설 속도`;
+  if(b==='main') return lv>1? `⚡ 건설 ${Math.round((lv-1)*3.3)}% 단축` : `⚡ 건설 속도`;
   if(b==='rally') return lv?`🚩 부대 지휘 가능`:`🚩 공격·지원·정찰에 필요!`;
-  if(b==='barracks') return `⚔️ 보병 훈련`;
-  if(b==='stable') return `🐎 기병 훈련`;
-  if(b==='workshop') return `🛠️ 공성 병기`;
-  if(b==='smithy') return `⚒️ 성능 연구`;
-  if(b==='academy') return `👑 귀족 훈련`;
-  if(b==='market') return `⚖️ 자원 거래`;
-  if(b==='hide') return `🕳️ 자원 은닉 ${lv?NF(Math.round(150*Math.pow(1.333,lv-1))):0}`;
+  if(b==='barracks') return lv>1?`⚔️ 보병 훈련 ${Math.round((lv-1)*2)}% 단축`:`⚔️ 보병 훈련`;
+  if(b==='stable') return lv>1?`🐎 기병 훈련 ${Math.round((lv-1)*2)}% 단축`:`🐎 기병 훈련`;
+  if(b==='workshop') return lv>1?`🛠️ 공성 병기 ${Math.round((lv-1)*2)}% 단축`:`🛠️ 공성 병기`;
+  if(b==='smithy'){ if(!lv) return `⚒️ 성능 연구`;
+    const un=RES_SMITHY_REQ.filter(r=>lv>=r).length;
+    return un? `⚒️ 연구 상한 Lv${un}/${RES_MAX}` : `⚒️ 대장간 ${RES_SMITHY_REQ[0]}에서 연구 해금`; }
+  if(b==='academy') return lv?`👑 귀족 훈련 가능`:`👑 귀족 훈련(마을 정복)`;
+  if(b==='market') return lv?`🐴 상인 ${lv}명 · 교환 ${NF(lv*200)}`:`⚖️ 자원 거래`;
+  if(b==='hide') return `🕳️ 자원 은닉 ${NF(hideCapAt(lv))}`;
   return d.desc||'';
+}
+// 다음 레벨 미리보기 — 값이 실제로 바뀌는 건물만 「현재 → 다음」
+function bldNextTxt(b,lv){ const d=BLD[b]; if(lv>=d.max) return '';
+  const nx=bldEffTxt(b,lv+1); if(!nx||nx===bldEffTxt(b,lv)) return '';
+  return nx;
 }
 function updateVillageDynamic(){
   const v=S.v; const now=Date.now(); const pc=isPC();
@@ -1161,6 +1220,17 @@ function updateVillageDynamic(){
     q+=`<div class="q-row train">${TROOP[h.u].ic} <b>${TROOP[h.u].nm}</b>
       <span class="qmeta">${sum} · 전체 ${fmtDur(totalMs)} · 완료 ${fmtClock(now+totalMs)}</span>
       <b>${fmtDur(rem)}</b><div class="qbar"><div style="width:${pct.toFixed(0)}%"></div></div></div>`; }
+  if(S.researchQ){ const h=S.researchQ, rem=Math.max(0,h.doneAt-now), tot=h.dur||rem;
+    const pct=Math.max(0,Math.min(100,(1-rem/Math.max(1,tot))*100));
+    q+=`<div class="q-row research">⚒️ <b>${TROOP[h.u].nm}</b> Lv${h.lvl+1} 연구
+      <span class="qmeta">전 마을 공통 · 완료 ${fmtClock(h.doneAt)}</span>
+      <b>${fmtDur(rem)}</b><div class="qbar"><div style="width:${pct.toFixed(0)}%"></div></div></div>`; }
+  (S.trades||[]).filter(t=>t.from===S.active||t.to===S.active).forEach(t=>{
+    const rem=Math.max(0,t.arriveAt-now), tot=Math.max(1,t.arriveAt-t.dep);
+    const pct=Math.max(0,Math.min(100,(1-rem/tot)*100)); const w=S.world[t.back?t.from:t.to];
+    q+=`<div class="q-row ship">🐴 <b>${t.back?'상인 귀환':(t.from===S.active?'자원 수송':'자원 도착 예정')}</b>
+      <span class="qmeta">${w?crd(w):'?'} · ${t.back?`상인 ${t.n}명`:resStr(t.res)}</span>
+      <b>${fmtDur(rem)}</b><div class="qbar"><div style="width:${pct.toFixed(0)}%"></div></div></div>`; });
   const qe=document.getElementById('vil-queues'); if(qe) qe.innerHTML=q;
   const bh=document.getElementById('vil-bldhint'); if(bh) bh.textContent=(v.blds.rally||0)<1?'— 🚩 집결지를 지어야 공격할 수 있어요':'';
   const be=document.getElementById('vil-blds');
@@ -1169,11 +1239,12 @@ function updateVillageDynamic(){
       const c=bcost(b,eff+1); const met=reqMet(b); const aff=canAffordV(c);
       const reqTxt=d.req? Object.keys(d.req).map(k=>BLD[k].nm+d.req[k]).join('·') : '';
       const hl=(b==='rally'&&lv<1&&met);
-      return {b,d,lv,qd,maxed,c,met,aff,reqTxt,hl,ef:bldEffTxt(b,lv),tS:fmtSec(buildTime(b,eff+1))}; });
+      return {b,d,lv,qd,maxed,c,met,aff,reqTxt,hl,ef:bldEffTxt(b,lv),nx:bldNextTxt(b,eff),tS:fmtSec(buildTime(b,eff+1))}; });
     if(pc){
       be.innerHTML=`<table class="twt"><tr><th style="text-align:left">건물</th><th>Lv</th><th style="text-align:left">효과</th><th>🪵</th><th>🧱</th><th>⚙️</th><th>⏱</th><th></th></tr>`+
         rows.map(r=>`<tr class="${r.hl?'hl':''}"><td>${r.d.ic} <b>${r.d.nm}</b>${(r.b==='market'&&r.lv>=1)?` <button class="btn sm" onclick="openMarket()">열기</button>`:(r.b==='smithy'&&r.lv>=1)?` <button class="btn sm" onclick="openSmithy()">열기</button>`:''}</td>
-          <td style="text-align:center">${r.lv}${r.qd?`<small>(+${r.qd})</small>`:''}</td><td class="eff">${r.ef}</td>
+          <td style="text-align:center">${r.lv}${r.qd?`<small>(+${r.qd})</small>`:''}</td>
+          <td class="eff">${r.ef}${(!r.maxed&&r.met&&r.nx)?`<span class="eff-nx">▸ ${r.nx}</span>`:''}</td>
           ${r.maxed? `<td colspan="4" class="mut" style="text-align:center">최대</td>` : !r.met? `<td colspan="4" class="mut" style="text-align:center">🔒 ${r.reqTxt}</td>`
             : `<td style="text-align:right">${NF(r.c.wood)}</td><td style="text-align:right">${NF(r.c.clay)}</td><td style="text-align:right">${NF(r.c.iron)}</td><td style="text-align:center">${r.tS}</td>`}
           <td style="text-align:center">${r.maxed||!r.met?'':`<button class="btn sm ${r.aff?'':'no'}" onclick="build('${r.b}')">${r.lv?'업글':'건설'}</button>`}</td></tr>`).join('')+`</table>`;
@@ -1257,6 +1328,7 @@ function renderBldSheet(){ const b=_bldSheetB; const sh=document.getElementById(
     ${maxed? `<div class="muted">✨ 최대 레벨이에요</div>`
       : !met? `<div class="muted">🔒 먼저 필요: ${reqTxt}</div>`
       : `<div class="bsh-up"><div style="flex:1;min-width:0"><b>Lv${eff+1}</b>${lv?'로 업그레이드':' 건설'}
+          ${bldNextTxt(b,eff)?`<div class="eff-nx" style="margin-top:2px">▸ ${bldNextTxt(b,eff)}</div>`:''}
           <div style="font-size:10px;color:#7a5c2e;font-weight:700;margin-top:2px">${costStr(c)} · ⏱${fmtSec(buildTime(b,eff+1))}</div></div>
         <button class="btn ${aff?'btn-green':''}" ${aff?'':'disabled'} onclick="sheetBuild('${b}')">🏗️ ${lv?'업글':'건설'}</button></div>`}
     ${units? `<div class="rp-sec">병력 훈련</div>`+(lv<1? `<div class="muted">${d.nm}을(를) 먼저 지어야 훈련할 수 있어요</div>`
@@ -1276,20 +1348,53 @@ window.switchVil=function(id){ if(!S.villages[id]) return; setActive(id);
   renderTop(); renderSidebar(); toast(`🏰 ${crd(S.world[id])} 마을로 전환`); };
 // ⚖️ 시장 — 자원 교환(수수료 10%, 레벨당 200 용량)
 window.openMarket=function(){ const v=S.v; const lv=v.blds.market||0; if(lv<1){ toast('⚖️ 시장이 필요해요 — 마을에서 건설'); return; }
+  const vid=S.active;
+  let tab='trade';                                  // trade=교환 · ship=수송
   let give='wood', get='clay'; const cap=()=>lv*200;
-  const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
   let amt=Math.min(cap(), Math.floor(v.res[give]||0));
-  function pill(k,cur,role){ return `<button class="mk-res ${cur===k?'on':''}" data-role="${role}" data-k="${k}">${RES[k]} ${NF(v.res[k])}</button>`; }
-  function draw(){ amt=Math.max(0,Math.min(amt, cap(), Math.floor(v.res[give]||0))); const got=Math.floor(amt*0.9);
-    ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:340px">
-      <h3 class="pick-h">⚖️ 시장 <small>Lv${lv} · 1회 최대 ${NF(cap())}</small></h3>
-      <div class="mk-lbl">내놓기</div><div class="mk-row">${['wood','clay','iron'].map(k=>pill(k,give,'give')).join('')}</div>
+  let dest=null, load={wood:0,clay:0,iron:0};       // 수송 대상·적재량
+  const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+  const pill=(k,cur,role)=>`<button class="mk-res ${cur===k?'on':''}" data-role="${role}" data-k="${k}">${RES[k]} ${NF(v.res[k])}</button>`;
+
+  function tradeBody(){ const got=Math.floor(amt*0.9);
+    return `<div class="mk-lbl">내놓기</div><div class="mk-row">${['wood','clay','iron'].map(k=>pill(k,give,'give')).join('')}</div>
       <div class="mk-lbl">받기 <span style="color:#9a8a60">(수수료 10%)</span></div><div class="mk-row">${['wood','clay','iron'].map(k=>pill(k,get,'get')).join('')}</div>
       <div class="mk-amt"><button data-a="-">－</button><b>${RES[give]} ${NF(amt)}</b><button data-a="+">＋</button><button data-a="max" class="mx">최대</button></div>
       <div class="mk-eq">${RES[give]} ${NF(amt)} → ${RES[get]} <b style="color:#2e6b28">${NF(got)}</b></div>
-      <button class="btn btn-green" style="width:100%;padding:11px;margin-top:8px" ${(amt>0&&give!==get)?'':'disabled'} data-a="go">교환</button>
-    </div>`;
-    ov.querySelectorAll('.mk-res').forEach(b=>b.onclick=()=>{ if(b.dataset.role==='give'){ give=b.dataset.k; amt=Math.min(cap(),Math.floor(v.res[give]||0)); } else get=b.dataset.k; draw(); });
+      <button class="btn btn-green" style="width:100%;padding:11px;margin-top:8px" ${(amt>0&&give!==get)?'':'disabled'} data-a="go">교환</button>`; }
+
+  function shipBody(){
+    const owned=ownedIds().filter(id=>id!==vid);
+    const free=merchFree(vid), total=merchTotal(v);
+    const mine=(S.trades||[]).filter(t=>t.from===vid||t.to===vid);
+    const listH = mine.length? `<div class="mk-lbl" style="margin-top:10px">진행 중 수송</div>`+mine.map(t=>{
+        const w=S.world[t.back?t.from:t.to], out=(t.from===vid&&!t.back);
+        return `<div class="mk-trow"><span>${t.back?'↩️ 귀환':(out?'🐴 보냄':'📥 받는 중')} <b>${w?crd(w):'?'}</b></span>
+          <span class="mk-tres">${t.back?`상인 ${t.n}`:resStr(t.res)}</span><b>${fmtDur(t.arriveAt-Date.now())}</b></div>`; }).join('') : '';
+    if(!owned.length) return `<div class="mk-empty">수송할 다른 마을이 없어요.<br><b>👑 귀족으로 마을을 정복</b>하면 마을끼리 자원을 옮길 수 있어요.</div>
+      <div class="mk-eq" style="margin-top:8px">🐴 상인 <b>${free}/${total}</b> · 시장 레벨당 1명</div>${listH}`;
+    if(!dest||!S.villages[dest]) dest=owned[0];
+    const from=S.world[vid], to=S.world[dest];
+    const dist=fieldDist(from,to), travel=Math.max(4000, travelMs(dist,MERCH_SPEED));
+    const tot=resSum(load), need=Math.ceil(tot/MERCH_CAP), ok=tot>0&&need<=free;
+    return `<div class="mk-lbl">받을 마을</div>
+      <div class="mk-row">${owned.map(id=>`<button class="mk-res ${id===dest?'on':''}" data-dest="${id}">🏰 ${S.world[id].x}|${S.world[id].y}</button>`).join('')}</div>
+      <div class="mk-lbl" style="margin-top:8px">실을 자원 <span style="color:#9a8a60">(상인 1명당 ${NF(MERCH_CAP)})</span></div>
+      ${['wood','clay','iron'].map(k=>`<div class="mk-lrow"><span class="mk-lk">${RES[k]} ${RES_NM[k]}</span>
+        <button data-l="-" data-k="${k}">－</button><b>${NF(load[k])}</b><button data-l="+" data-k="${k}">＋</button>
+        <button class="mx" data-l="max" data-k="${k}">최대</button></div>`).join('')}
+      <div class="mk-eq">🐴 상인 필요 <b style="color:${need>free?'#e08a6a':'#8fce8a'}">${need}</b> · 가용 ${free}명<br><small style="color:#9a8a60;font-weight:700">거리 ${dist.toFixed(1)}칸 · 편도 ${fmtDur(travel)} · 왕복 ${fmtDur(travel*2)}</small></div>
+      <button class="btn btn-green" style="width:100%;padding:11px;margin-top:8px" ${ok?'':'disabled'} data-a="send">${tot>0&&need>free?`상인 부족 (${need}명 필요)`:'수송 보내기'}</button>${listH}`; }
+
+  function draw(){ amt=Math.max(0,Math.min(amt, cap(), Math.floor(v.res[give]||0)));
+    ['wood','clay','iron'].forEach(k=>{ load[k]=Math.max(0,Math.min(load[k], Math.floor(v.res[k]||0))); });
+    ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:360px">
+      <h3 class="pick-h">⚖️ 시장 <small>Lv${lv} · 🐴 상인 ${merchFree(vid)}/${merchTotal(v)}</small></h3>
+      <div class="mk-tabs"><button class="${tab==='trade'?'on':''}" data-tab="trade">🔁 교환</button><button class="${tab==='ship'?'on':''}" data-tab="ship">🐴 수송</button></div>
+      ${tab==='trade'? tradeBody() : shipBody()}</div>`;
+    ov.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.tab; draw(); });
+    ov.querySelectorAll('.mk-res[data-role]').forEach(b=>b.onclick=()=>{ if(b.dataset.role==='give'){ give=b.dataset.k; amt=Math.min(cap(),Math.floor(v.res[give]||0)); } else get=b.dataset.k; draw(); });
+    ov.querySelectorAll('[data-dest]').forEach(b=>b.onclick=()=>{ dest=b.dataset.dest; draw(); });
     ov.querySelectorAll('.mk-amt button, [data-a="go"]').forEach(b=>b.onclick=()=>{ const a=b.dataset.a;
       if(a==='-') amt=Math.max(0,amt-Math.max(10,Math.round(cap()/10)));
       else if(a==='+') amt+=Math.max(10,Math.round(cap()/10));
@@ -1297,23 +1402,59 @@ window.openMarket=function(){ const v=S.v; const lv=v.blds.market||0; if(lv<1){ 
       else if(a==='go'){ if(give===get){ toast('다른 자원을 고르세요'); return; } if(amt<=0||(v.res[give]||0)<amt){ toast('자원 부족'); return; }
         v.res[give]-=amt; const cp=storeCapV(v); v.res[get]=Math.min(cp,(v.res[get]||0)+Math.floor(amt*0.9)); save(); renderTop(); toast(`⚖️ ${RES[give]}${NF(amt)} → ${RES[get]}${NF(Math.floor(amt*0.9))} 교환`); amt=Math.min(cap(),Math.floor(v.res[give]||0)); }
       draw(); });
+    ov.querySelectorAll('[data-l]').forEach(b=>b.onclick=()=>{ const k=b.dataset.k, st=100;
+      if(b.dataset.l==='-') load[k]=Math.max(0,load[k]-st);
+      else if(b.dataset.l==='+') load[k]+=st;
+      else load[k]=Math.floor(v.res[k]||0);
+      draw(); });
+    const sendB=ov.querySelector('[data-a="send"]'); if(sendB) sendB.onclick=()=>{
+      const tot=resSum(load), need=Math.ceil(tot/MERCH_CAP);
+      if(tot<=0){ toast('실을 자원을 고르세요'); return; }
+      if(need>merchFree(vid)){ toast(`🐴 상인이 부족해요 — ${need}명 필요`); return; }
+      for(const k in load){ if((v.res[k]||0)<load[k]){ toast('자원 부족'); return; } }
+      const to=S.world[dest]; const travel=Math.max(4000, travelMs(fieldDist(S.world[vid],to), MERCH_SPEED));
+      for(const k in load) v.res[k]-=load[k];
+      S.trades.push({from:vid, to:dest, res:{...load}, n:need, dep:Date.now(), arriveAt:Date.now()+travel, back:false});
+      toast(`🐴 ${crd(to)}로 수송 출발 — ${resStr(load)} · ${fmtDur(travel)}`);
+      load={wood:0,clay:0,iron:0}; save(); renderTop(); if(view==='village') updateVillageDynamic(); draw(); };
   }
   draw(); document.body.appendChild(ov);
 };
-// ⚒️ 대장간 — 병력 성능 연구(+12%/레벨·최대3)
-window.openSmithy=function(){ const v=S.v; if((v.blds.smithy||0)<1){ toast('⚒️ 대장간이 필요해요 — 마을에서 건설'); return; }
+// ⚒️ 대장간 — 병력 성능 연구(+12%/레벨·최대3) · 대장간 레벨이 연구 상한 결정 + 연구에 시간 소요(전 마을 공통·동시 1건)
+window.openSmithy=function(){ const v=S.v; const sm=v.blds.smithy||0; if(sm<1){ toast('⚒️ 대장간이 필요해요 — 마을에서 건설'); return; }
   const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
-  function rcost(u,lvl){ const t=TROOP[u]; const m=6*(lvl+1); return {wood:(t.cost.wood||0)*m, clay:(t.cost.clay||0)*m, iron:(t.cost.iron||0)*m}; }
+  let timer=null;
+  const stop=()=>{ if(timer){ clearInterval(timer); timer=null; } };
+  new MutationObserver((m,o)=>{ if(!document.body.contains(ov)){ stop(); o.disconnect(); } }).observe(document.body,{childList:true});
   function draw(){ const units=Object.keys(TROOP).filter(u=>(v.blds[TROOP[u].from]||0)>=1 && !TROOP[u].noble);
-    ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:380px">
-      <h3 class="pick-h">⚒️ 대장간 연구 <small>병력 ⚔️🛡️ +12%/레벨</small></h3>
-      ${units.length? units.map(u=>{ const t=TROOP[u]; const lvl=(S.research[u]||0); const maxed=lvl>=3; const c=maxed?null:rcost(u,lvl); const aff=c&&canAffordV(c);
-        return `<div class="sm-row"><div class="sm-l"><span class="u-ic">${t.ic}</span><b>${t.nm}</b> <span class="sm-lv">Lv${lvl}/3</span><div class="sm-b">현재 ⚔️${Math.round(t.atk*(1+lvl*0.12))} 🛡️${Math.round(t.def*(1+lvl*0.12))}</div></div>
-          ${maxed?`<button class="sm-btn" disabled>최대</button>`:`<button class="sm-btn ${aff?'':'no'}" data-u="${u}">연구 · ${costStr(c)}</button>`}</div>`; }).join('')
+    const q=S.researchQ;
+    const qH = q? (()=>{ const rem=Math.max(0,q.doneAt-Date.now()), tot=q.dur||rem, pct=Math.max(0,Math.min(100,(1-rem/Math.max(1,tot))*100));
+      return `<div class="q-row" style="margin:2px 0 10px">⚒️ <b>${TROOP[q.u].nm}</b> Lv${q.lvl+1} 연구 중
+        <span class="qmeta">완료 ${fmtClock(q.doneAt)}</span><b>${fmtDur(rem)}</b>
+        <div class="qbar"><div style="width:${pct.toFixed(0)}%"></div></div></div>`; })() : '';
+    ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:390px">
+      <h3 class="pick-h">⚒️ 대장간 연구 <small>Lv${sm} · 병력 ⚔️🛡️ +12%/레벨</small></h3>${qH}
+      ${units.length? units.map(u=>{ const t=TROOP[u], lvl=(S.research[u]||0), maxed=lvl>=RES_MAX;
+        const req=resSmithyReq(lvl), gated=!maxed&&sm<req, c=maxed?null:resCost(u,lvl);
+        const aff=c&&canAffordV(c), busy=!!q, secs=resTime(lvl,sm);
+        const btn = maxed? `<button class="sm-btn" disabled>최대</button>`
+          : gated? `<button class="sm-btn" disabled>🔒 대장간 ${req}</button>`
+          : busy? `<button class="sm-btn" disabled>연구 중</button>`
+          : `<button class="sm-btn ${aff?'':'no'}" data-u="${u}">Lv${lvl+1} · ${costStr(c)} · ⏱${fmtSec(secs)}</button>`;
+        return `<div class="sm-row"><div class="sm-l"><span class="u-ic">${t.ic}</span><b>${t.nm}</b> <span class="sm-lv">Lv${lvl}/${RES_MAX}</span>
+            <div class="sm-b">⚔️${Math.round(t.atk*(1+lvl*0.12))} 🛡️${Math.round(t.def*(1+lvl*0.12))}${maxed?'':` <span style="color:#9a8a60">→ ⚔️${Math.round(t.atk*(1+(lvl+1)*0.12))} 🛡️${Math.round(t.def*(1+(lvl+1)*0.12))}</span>`}</div></div>
+          ${btn}</div>`; }).join('')
         : '<div class="muted" style="margin:10px 0">먼저 병영/마구간을 지어 병종을 해금하세요</div>'}
+      <div class="mk-empty" style="margin-top:8px">연구는 <b>전 마을 공통</b>이고 한 번에 하나만 진행돼요 · 대장간을 올릴수록 상한 해금(Lv1→${RES_SMITHY_REQ[0]}·Lv2→${RES_SMITHY_REQ[1]}·Lv3→${RES_SMITHY_REQ[2]})되고 연구가 빨라져요</div>
     </div>`;
-    ov.querySelectorAll('.sm-btn[data-u]').forEach(b=>b.onclick=()=>{ const u=b.dataset.u; const lvl=(S.research[u]||0); if(lvl>=3) return; const c=rcost(u,lvl);
-      if(!payV(c)){ toast('자원 부족 · '+costStr(c)); return; } S.research[u]=lvl+1; save(); renderTop(); toast(`⚒️ ${TROOP[u].nm} 연구 Lv${lvl+1} (⚔️🛡️ +${(lvl+1)*12}%)`); draw(); });
+    ov.querySelectorAll('.sm-btn[data-u]').forEach(b=>b.onclick=()=>{ const u=b.dataset.u, lvl=(S.research[u]||0);
+      if(lvl>=RES_MAX||S.researchQ) return;
+      if(sm<resSmithyReq(lvl)){ toast(`🔒 대장간 Lv${resSmithyReq(lvl)} 필요`); return; }
+      const c=resCost(u,lvl); if(!payV(c)){ toast('자원 부족 · '+costStr(c)); return; }
+      const d=resTime(lvl,sm)*1000; S.researchQ={u, lvl, doneAt:Date.now()+d, dur:d};
+      save(); renderTop(); toast(`⚒️ ${TROOP[u].nm} Lv${lvl+1} 연구 시작 — ${fmtSec(resTime(lvl,sm))}`);
+      if(view==='village') updateVillageDynamic(); draw(); });
+    stop(); if(S.researchQ) timer=setInterval(()=>{ if(!document.body.contains(ov)){ stop(); return; } draw(); },1000);
   }
   draw(); document.body.appendChild(ov);
 };
