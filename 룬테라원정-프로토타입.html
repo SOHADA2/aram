@@ -1757,6 +1757,13 @@ async function tile(n,x,z,building,rot,y){ try{ const m=(await ld(n)).clone(true
   m.traverse(c=>{ if(c.isMesh){ c.castShadow=!!building; c.receiveShadow=true; } }); GRP.add(m); }catch(e){} }
 let MSIG='', MLINES=null;
 const MCOL={raid:0xe0492e, attack:0xe06a3e, return:0x6faa5a, support:0x5a8fc0, scout:0x62b8d8};
+// 행군 마커 = 3D 모델(이모지 대신 톤앤매너): 귀환=짐수레, 공격/지원/정찰/습격=색 깃발 배너
+const MKIT={cart:'assets/town/cart.glb', banner:'assets/castle/flag-banner-long.glb', flag:'assets/castle/flag.glb'};
+const MMDL={ return:{u:'cart',tint:null,s:0.62}, attack:{u:'banner',tint:0xcf3b2c,s:0.52}, support:{u:'banner',tint:0x4a8fd0,s:0.52}, scout:{u:'flag',tint:0x69c0dc,s:0.5}, raid:{u:'banner',tint:0x7a1f16,s:0.52} };
+const MMC={}; function ldKit(u){ return MMC[u]||(MMC[u]=GL.loadAsync(MKIT[u]).then(g=>g.scene)); }
+let MM3=null, MM3ARR=[];
+function mkMarchMesh(mode,cb){ const cfg=MMDL[mode]||MMDL.attack; ldKit(cfg.u).then(src=>{ const m=src.clone(true); m.scale.setScalar(cfg.s);
+  m.traverse(c=>{ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; if(cfg.tint!=null){ c.material=c.material.clone(); c.material.color=new T.Color(cfg.tint); } } }); cb(m); }).catch(()=>{}); }
 // 부족전쟁식: 진행 중인 명령을 지도 전체에 경로선(아치 점선)으로 표시
 function updMarchLines(st){
   const ms=st.marches||[];
@@ -1768,11 +1775,16 @@ function updMarchLines(st){
     const org=m.mode==='raid'?st.world[m.from]:(m.mode==='return'?st.world[m.to]:orig);
     const dst=m.mode==='raid'?st.world[m.to]:(m.mode==='return'?orig:st.world[m.to]);
     if(!org||!dst) return;
-    const a=hp(org), b=hp(dst); const mh=0.9+Math.hypot(b.x-a.x,b.z-a.z)*0.06;
-    const curve=new T.QuadraticBezierCurve3(new T.Vector3(a.x,0.35,a.z), new T.Vector3((a.x+b.x)/2,mh,(a.z+b.z)/2), new T.Vector3(b.x,0.35,b.z));
+    const a=hp(org), b=hp(dst); const mh=0.45+Math.hypot(b.x-a.x,b.z-a.z)*0.025;   // 낮은 경로 아치(지면 근처)
+    const curve=new T.QuadraticBezierCurve3(new T.Vector3(a.x,0.26,a.z), new T.Vector3((a.x+b.x)/2,mh,(a.z+b.z)/2), new T.Vector3(b.x,0.26,b.z));
     const geo=new T.BufferGeometry().setFromPoints(curve.getPoints(40));
     const ln=new T.Line(geo,new T.LineDashedMaterial({color:MCOL[m.mode]||0xffffff,dashSize:0.3,gapSize:0.2,transparent:true,opacity:0.9}));
     ln.computeLineDistances(); MLINES.add(ln); });
+  // 3D 행군 모델(수레/깃발) 재생성 — 명령 집합 변할 때만
+  if(!MM3){ MM3=new T.Group(); SC.add(MM3); }
+  while(MM3.children.length) MM3.remove(MM3.children[0]);
+  MM3ARR=ms.map(m=>({mode:m.mode,obj:null}));
+  ms.forEach((m,i)=>{ mkMarchMesh(m.mode,(mesh)=>{ if(MM3ARR[i]&&MM3ARR[i].mode===m.mode){ MM3ARR[i].obj=mesh; MM3.add(mesh); } }); });
 }
 function proj(){ if(!EL) return; const rc=EL.getBoundingClientRect();
   const set=(arr)=>{ for(const L of arr){ const v=L.pos.clone().project(CAM); const x=(v.x*.5+.5)*rc.width, y=(-v.y*.5+.5)*rc.height;
@@ -1782,16 +1794,17 @@ function proj(){ if(!EL) return; const rc=EL.getBoundingClientRect();
   const st=OPT&&OPT.state&&OPT.state(); if(st){ updMarchLines(st); const now=Date.now(); const home=st.world[OPT.HOME], ms=st.marches||[];
     while(MLAB.length<ms.length){ const d=document.createElement('div'); d.className='mm3'; LH.appendChild(d); MLAB.push({el:d}); }
     for(let i=MLAB.length-1;i>=ms.length;i--){ MLAB[i].el.remove(); MLAB.pop(); }
-    const MICON={raid:'\ud83d\udd25',attack:'\u2694\ufe0f',support:'\ud83d\udee1\ufe0f',scout:'\ud83e\udded',return:'\ud83c\udf92'};
     ms.forEach((m,i)=>{ const orig=st.world[m.fromV||OPT.HOME];
       const org=m.mode==='raid'?st.world[m.from]:(m.mode==='return'?st.world[m.to]:orig);
       const dst=m.mode==='raid'?st.world[m.to]:(m.mode==='return'?orig:st.world[m.to]); const L=MLAB[i]; if(!org||!dst){L.el.style.display='none';return;}
       const sp=m.arriveAt-m.dep, p=sp>0?Math.min(1,Math.max(0,(now-m.dep)/sp)):1;
-      const a=hp(org), b=hp(dst); const mh=0.9+Math.hypot(b.x-a.x,b.z-a.z)*0.06; const q1=1-p;
-      const wx=q1*q1*a.x+2*q1*p*(a.x+b.x)/2+p*p*b.x, wz=q1*q1*a.z+2*q1*p*(a.z+b.z)/2+p*p*b.z, wy=q1*q1*0.35+2*q1*p*mh+p*p*0.35;
-      const wp=new T.Vector3(wx,wy+0.15,wz).project(CAM);
+      const a=hp(org), b=hp(dst);
+      const gx=a.x+(b.x-a.x)*p, gz=a.z+(b.z-a.z)*p;   // 지면 경로 위 위치
+      const mo=MM3ARR[i]&&MM3ARR[i].obj;
+      if(mo){ mo.position.set(gx,0.2,gz); mo.rotation.y=-Math.atan2(b.z-a.z,b.x-a.x); }   // 진행방향 회전
+      const wp=new T.Vector3(gx,1.0,gz).project(CAM);
       L.el.style.left=(wp.x*.5+.5)*rc.width+'px'; L.el.style.top=(-wp.y*.5+.5)*rc.height+'px'; L.el.style.display=wp.z<1?'':'none';
-      L.el.innerHTML=`<span>${MICON[m.mode]||'⚔️'}</span><b>${OPT.fmt(m.arriveAt-now)}</b>`; L.el.className='mm3 '+m.mode; }); }
+      L.el.innerHTML=`<b>${OPT.fmt(m.arriveAt-now)}</b>`; L.el.className='mm3 '+m.mode; }); }
 }
 function hp(w){ const p=OPT.hex(w.x,w.y); return {x:p.x-off.x, z:p.z-off.z}; }   // 중앙 정렬된 3D 좌표
 export function mount(el){ initS(); if(EL===el && el.contains(R.domElement)) return;   // 이미 마운트됨 → 재부착 안 함
