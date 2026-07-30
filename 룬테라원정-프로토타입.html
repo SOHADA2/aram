@@ -329,6 +329,17 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .mk-trow .mk-tres{font-size:9.5px;color:#8fce8a;}
 .mk-empty{font-size:10.5px;line-height:1.55;color:#a89668;background:#221910;border:1px dashed #54401f;border-radius:8px;padding:9px 10px;text-align:center;}
 .eff-nx{display:block;font-size:9.5px;color:#8fce8a;font-weight:700;margin-top:1px;}
+/* 🔥 습격 대비 상태 */
+.raid-st{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:10.5px;font-weight:700;color:#c9b98a;
+  background:#221910;border:1px solid #54401f;border-left:3px solid #6b4f24;border-radius:8px;padding:7px 10px;margin-bottom:7px;}
+.raid-st b{font-family:monospace;color:#f0e2b8;}
+.raid-st .rs-mid{color:#a89668;} .raid-st .rs-eta{margin-left:auto;white-space:nowrap;}
+.raid-st b.hot{color:#ffb46a;}
+.raid-st.ok{border-left-color:#5f8f3e;} .raid-st.ok .rs-mid b{color:#8fce8a;}
+.raid-st.warn{border-left-color:#c07a2c;} .raid-st.warn .rs-mid b{color:#e0a86a;}
+.raid-st.danger{border-left-color:#b3261e;} .raid-st.danger .rs-mid b{color:#ff9a7a;}
+.raid-st.inc{border-left-color:#b3261e;background:#2a1712;} .raid-st.inc>span:first-child{color:#ff9a7a;}
+.raid-st.calm{border-left-color:#3f5f7a;}
 .q-row.research .qbar>div{background:linear-gradient(90deg,#b07fd8,#e0c0ff);}
 .q-row.ship .qbar>div{background:linear-gradient(90deg,#4a8fae,#6ac6cf);}
 /* 토스트 */
@@ -536,6 +547,22 @@ function travelMs(dist, slow){ return Math.round(dist*slow*60000/WSPEED); }
 // ═══════════ 상태 ═══════════
 const SAVE_VER=9;   // 광활 월드(79×98)+전장의 안개 — 이전 세이브 폐기
 const PROTECT_MS = 15*24*3600*1000;
+// ══ 🔥 야만인 습격 ══
+// ⚠️ 야만인은 뉴비 보호(protectUntil)를 무시함 → 난이도를 시간이 아니라 **내 수비력 대비 비율**로만 조절한다.
+//    전투 공식상 패자는 전멸·승자는 (약한쪽/강한쪽)^1.5 비율로 잃으므로, 비율 0.3이면 방어 성공해도 병력 16%를 잃는다.
+//    그래서 비율을 낮게 유지(0.12~0.34)해야 "성가시지만 회복 가능"한 선이 된다.
+const RAID_DEV_MIN   = 16;              // 마을 발전도(건물 레벨 합)가 이 값을 넘어야 습격 시작 = 개척지 구간은 무공격
+const RAID_INT_BASE  = 55*60*1000;      // 습격 간격 기준(발전도 높을수록 짧아짐)
+const RAID_INT_MIN   = 22*60*1000;
+const RAID_WARN_MIN  = 4*60*1000;       // 최소 예고 시간 — 지원 회수·대비할 시간을 보장
+const RAID_RATIO_MIN = 0.12, RAID_RATIO_MAX = 0.34;   // 습격 공격력 = 내 수비력 × 이 비율(발전도로 램프)
+const RAID_RAMP_DEV  = 60;              // 이 발전도만큼 오르면 비율이 MAX에 도달
+const RAID_BIG_CHANCE= 0.14, RAID_BIG_MULT = 1.6;     // 가끔 대규모(그래도 대부분 방어 성공선 유지)
+// 병력이 없어도 오는 최소 규모 — 발전도에 비례(고정값이면 후반에 '병력 0'이 오히려 안전해짐).
+// 이 하한이 곧 "마을 규모에 맞는 최소 상비군" 요구선이 된다.
+const RAID_FLOOR_BASE = 50, RAID_FLOOR_PER_DEV = 5;
+function raidFloor(dev){ return RAID_FLOOR_BASE + Math.max(0, dev-RAID_DEV_MIN)*RAID_FLOOR_PER_DEV; }
+const RAID_OFFLINE_MAX = 1;             // 오프라인 복귀 시 즉시 정산되는 습격 최대 수(복귀 몰살 방지)
 const SPAWN_MINDIST = 9, SPAWN_RADIUS = 30;
 let S = load(); bindActive();
 function bindActive(){ S.active=S.active||HOME_KEY; if(!S.villages)S.villages={}; if(!S.research)S.research={}; if(!S.spy)S.spy={};
@@ -621,7 +648,7 @@ function tick(){
     for(const u in base){ const cur=w.garrison[u]||0; if(cur<base[u]) w.garrison[u]=Math.min(base[u], cur+base[u]*dt/5400); }
   }
   revealMarchPositions(now);   // 🌫️ 행군 부대가 지나는 곳 안개 걷힘
-  processMarches(now); processTrades(now); processResearch(now); S.t=now;
+  processMarches(now); processTrades(now); processResearch(now); maybeRaid(now); S.t=now;
 }
 // 🐴 상인 수송 — 도착 시 입고 후 자동 귀환, 귀환 완료 시 상인 복귀
 function processTrades(now){ const A=S.trades||[];
@@ -808,9 +835,55 @@ function resolveDefense(m, now){
     app(v.troops); (v.support||[]).forEach(s=>app(s.units)); v.support=(v.support||[]).filter(s=>hasUnits(s.units));
   }
   const aRes2=applyLoss(m.units, r.win? r.atkLossRatio : 1);
-  pushReport({type:'defense', win:!r.win, from:{name:atkName, x:a?a.x:0, y:a?a.y:0}, tgt:{name:'내 마을', x:w.x, y:w.y},
+  pushReport({type:'defense', win:!r.win, raid:m.mode==='raid', big:!!m.big, from:{name:atkName, x:a?a.x:0, y:a?a.y:0}, tgt:{name:'내 마을', x:w.x, y:w.y},
     luck:r.luck, atkPow:r.atkPow, defPow:r.defPow, atkUnits:{...m.units}, atkLost:aRes2.lost, myLost, loot});
-  toast(r.win? `💥 ${atkName}에게 ${crd(w)} 마을이 약탈당했어요! (📜 보고서)` : `🛡️ ${atkName}의 공격을 막아냈어요! (📜 보고서)`);
+  const rTag=m.big?'대규모 ':'';
+  toast(r.win? `💥 ${rTag}야만인 습격 — ${crd(w)} 마을이 약탈당했어요! (📜 보고서)` : `🛡️ ${rTag}야만인 습격을 막아냈어요! (📜 보고서)`);
+}
+// ══ 🔥 야만인 습격 — 스폰/난이도 ══
+// 발전도 = 습격 규모의 기준. ⚠️방어 건물(성벽·은신처)은 제외 — 포함하면 "성벽을 올릴수록 습격이 세져서 더 아픈" 역효과가 남.
+function villageDev(v){ let s=0; for(const b in v.blds){ if(b==='wall'||b==='hide') continue; s+=(v.blds[b]||0); } return s; }
+// ⚠️ 습격 규모는 **병력만** 기준으로 잡는다(성벽 제외). 성벽까지 포함하면 성벽을 올릴수록 습격도 세져서
+//    방어 투자가 상쇄돼 버림 → 성벽·은신처가 순수 이득이 되도록 의도적으로 뺌.
+function villageTroopPow(v){
+  let d=0; const stacks=[v.troops].concat((v.support||[]).map(s=>s.units));
+  stacks.forEach(st=>{ for(const u in st){ const c=Math.floor(st[u]||0); if(c) d+=c*TROOP[u].def*researchBonus(u); } });
+  return d;
+}
+function raidRatio(dev){ const t=Math.max(0,Math.min(1,(dev-RAID_DEV_MIN)/RAID_RAMP_DEV)); return RAID_RATIO_MIN+(RAID_RATIO_MAX-RAID_RATIO_MIN)*t; }
+function raidIntervalMs(dev){ return Math.max(RAID_INT_MIN, Math.round(RAID_INT_BASE*Math.pow(0.986, Math.max(0,dev-RAID_DEV_MIN)))); }
+function raidUnitsFor(pow){   // 도끼병 위주 + 창병 — 기병·공성 없음(성벽 파괴·정복 불가)
+  const u={axe:Math.max(1,Math.round(pow*0.72/TROOP.axe.atk))};
+  const sp=Math.round(pow*0.28/TROOP.spear.atk); if(sp>0) u.spear=sp; return u;
+}
+function nearestBarb(w){ let best=null,bd=Infinity;
+  for(const id in S.world){ const o=S.world[id]; if(o.owner!=='barb') continue;
+    const d=fieldDist(w,o); if(d<bd){ bd=d; best=id; } }
+  return best;
+}
+function spawnRaid(vid, now, immediate){
+  const v=S.villages[vid], w=S.world[vid]; if(!v||!w) return;
+  const big=Math.random()<RAID_BIG_CHANCE, dev=villageDev(v);
+  let pow=Math.max(raidFloor(dev), villageTroopPow(v)*raidRatio(dev));
+  pow*=(0.85+Math.random()*0.3); if(big) pow*=RAID_BIG_MULT;
+  const from=nearestBarb(w)||vid;
+  const travel=Math.max(RAID_WARN_MIN, travelMs(fieldDist(S.world[from],w), TROOP.axe.speed));
+  const m={from, to:vid, units:raidUnitsFor(pow), mode:'raid', big, dep:now, arriveAt:now+travel};
+  if(immediate){ m.dep=now-travel; m.arriveAt=now; resolveDefense(m, now); return; }
+  S.marches.push(m);
+  toast(`🔥 ${big?'대규모 ':''}야만인 습격대가 ${crd(w)}로 몰려와요 — ${fmtDur(travel)} 후 도착`);
+}
+function maybeRaid(now){
+  for(const vid in S.villages){ const v=S.villages[vid], w=S.world[vid];
+    if(!w||w.owner!=='me') continue;
+    const dev=villageDev(v);
+    if(dev<RAID_DEV_MIN || !v.nextRaid){ v.nextRaid=now+raidIntervalMs(dev); continue; }   // 초반 구간·최초 진입은 타이머만 예약
+    if(now<v.nextRaid) continue;
+    let due=0; while(v.nextRaid<=now && due<50){ due++; v.nextRaid+=raidIntervalMs(dev); }
+    for(let i=0;i<Math.min(due-1, RAID_OFFLINE_MAX);i++) spawnRaid(vid, now, true);          // 오프라인 밀린 분(제한적으로 즉시 정산)
+    if((S.marches||[]).some(m=>m.mode==='raid'&&m.to===vid)) continue;                       // 이미 오는 중이면 중복 스폰 안 함
+    spawnRaid(vid, now, false);
+  }
 }
 // 🛡️ 지원 회수
 window.recallSupport=function(vid, ix){ const v=S.villages[vid]; if(!v||!v.support[ix]) return;
@@ -1201,6 +1274,27 @@ function bldNextTxt(b,lv){ const d=BLD[b]; if(lv>=d.max) return '';
   const nx=bldEffTxt(b,lv+1); if(!nx||nx===bldEffTxt(b,lv)) return '';
   return nx;
 }
+// 🔥 습격 대비 상태 — 난이도를 숨기지 않고 "안전선"을 그대로 보여준다(자동 이벤트라 예측 가능해야 함)
+function raidStatusHtml(v, now){
+  const dev=villageDev(v), wl=v.blds.wall||0;
+  if(dev<RAID_DEV_MIN) return `<div class="raid-st calm">🔥 야만인 습격 — 마을이 더 크면 시작돼요 <b>발전도 ${dev}/${RAID_DEV_MIN}</b></div>`;
+  const inc=(S.marches||[]).find(m=>m.mode==='raid'&&m.to===S.active);
+  const defNow=Math.round(villageTroopPow(v)*Math.pow(1.037,wl)+wallBasicDef(wl));
+  const breach=Math.round(raidFloor(dev)*1.25);                 // 이 아래면 습격이 뚫려 약탈당함
+  // 권장선 = 습격 규모가 '하한'에서 '내 병력 비례'로 넘어가는 교차점. 이 위부터 손실률이 ~10%로 안정된다.
+  const rec=Math.round(raidFloor(dev)/raidRatio(dev));
+  const lv = defNow<breach? 'danger' : (defNow<rec? 'warn' : 'ok');
+  const perSpear=TROOP.spear.def*Math.pow(1.037,wl);
+  const need=Math.max(0, Math.ceil((rec-defNow)/perSpear));
+  const eta=inc? `<b class="hot">도착 ${fmtDur(inc.arriveAt-now)}</b>` : (v.nextRaid? `다음 <b>${fmtDur(Math.max(0,v.nextRaid-now))}</b>` : '');
+  const head = inc? `${inc.big?'대규모 ':''}야만인 습격대 접근 중`
+    : lv==='danger'? '야만인 습격 · <b class="hot">약탈 위험</b>'
+    : lv==='warn'? '야만인 습격 · 막지만 손실 큼' : '야만인 습격 · 대비됨';
+  return `<div class="raid-st ${inc?'inc':lv}">
+    <span>🔥 ${head}</span>
+    <span class="rs-mid">🛡️ 방어 <b>${NF(defNow)}</b> / 권장 ${NF(rec)}${need?` · 창병 <b>+${need}</b>`:''}</span>
+    <span class="rs-eta">${eta}</span></div>`;
+}
 function updateVillageDynamic(){
   const v=S.v; const now=Date.now(); const pc=isPC();
   const sw=document.getElementById('vil-switch'); if(sw){ const owned=ownedIds();
@@ -1262,7 +1356,8 @@ function updateVillageDynamic(){
   renderRecruit('vil-academy','academy',UNIT_GROUPS.academy,pc);
   const at=document.getElementById('vil-armytot'); if(at) at.textContent=NF(armyTotalV(v))+'명';
   const ae=document.getElementById('vil-army'); if(ae){ const ks=Object.keys(TROOP).filter(u=>(v.troops[u]||0)>0);
-    let h = ks.length? `<div class="army">${ks.map(u=>`<span class="unit"><span class="u-ic">${TROOP[u].ic}</span>${TROOP[u].nm} <b>${NF(v.troops[u])}</b></span>`).join('')}</div>` : `<div class="muted">아직 병력이 없어요 · 병영/마구간에서 훈련하세요</div>`;
+    let h = raidStatusHtml(v, now);
+    h += ks.length? `<div class="army">${ks.map(u=>`<span class="unit"><span class="u-ic">${TROOP[u].ic}</span>${TROOP[u].nm} <b>${NF(v.troops[u])}</b></span>`).join('')}</div>` : `<div class="muted">아직 병력이 없어요 · 병영/마구간에서 훈련하세요</div>`;
     (v.support||[]).forEach((sp,ix)=>{ const fw=S.world[sp.from];
       h+=`<div class="rl-mrow support" style="margin-top:6px"><span>🛡️ 지원군 <b>${fw?crd(fw):'?'}</b></span><span class="rl-units">${Object.keys(sp.units).filter(u=>sp.units[u]>0).map(u=>TROOP[u].ic+NF(sp.units[u])).join(' ')}</span><button class="btn sm" onclick="recallSupport('${S.active}',${ix})">회수</button></div>`; });
     ae.innerHTML=h; }
@@ -1527,7 +1622,7 @@ function reportCard(r){
     </div></details>`;
   }
   if(r.type==='defense'){
-    const title=`${r.win?'🛡️ 방어 성공':'💥 약탈당함'} · ${(r.from.name||'').replace('소환사 ','')} → ${crd(r.tgt)}`;
+    const title=`${r.win?'🛡️ 방어 성공':'💥 약탈당함'} · ${r.raid?`🔥 ${r.big?'대규모 ':''}야만인 습격`:(r.from.name||'').replace('소환사 ','')} → ${crd(r.tgt)}`;
     const lootT=r.loot?(r.loot.wood+r.loot.clay+r.loot.iron):0;
     return `<details class="rep2 ${r.win?'w':'l'}"><summary>${title}<span class="rtime">${t}</span></summary><div class="rp-body">
       <div class="rp-meta">${pows}${luck}</div>
