@@ -817,7 +817,19 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### 🗺️ 룬테라 전쟁 — 안개 흐릿화·마을 UX·3D 행군·다크골드 테마·중세 텍스처 (2026-07-29 이 PC win32·main+작업브랜치 `claude/continue-previous-work-b6dd2h` 배포·최종 커밋 `0b2cd63`) ← 최신
+### 🗺️ 룬테라 전쟁 v0.4 — 🏘️ 마을 콘텐츠 채우기(시장 상인 수송·대장간 연구 시간/게이트·다음 레벨 미리보기) (2026-07-30·원격web·작업브랜치 `claude/continue-update-bnfsry`·main+브랜치 배포) ← 최신
+> ⚠️ **index.html(라이브 앱) 무관** — `룬테라원정-프로토타입.html` 단독. `APP_VERSION` 안 건드림. 파일 내 표기만 **v0.3→v0.4**. **`SAVE_VER`는 9 그대로**(구 세이브 폐기 안 함 — `bindActive`에서 `trades`/`researchQ` 기본값만 보강).
+> 사장님 지시=「이어서 업데이트」 → `AskUserQuestion`으로 **「마을·건물 콘텐츠 채우기」** 확정 후 진행.
+> ⚠️ **핸드오프 정정**: 이전 이력의 "시장(거래)·대장간(연구) 효과 미연결(건물만 존재)"은 **오래된 메모였음** — 실제로는 교환/연구 둘 다 이미 동작 중이었고(`researchBonus`가 `twBattle`에 물려 있음), 이번 작업은 **그 위에 깊이를 더한 것**.
+> **검증**: 인라인 `<script>` 3블록 `node --check` 3/3 + **Playwright 헤드리스**(chromium `/opt/pw-browsers/chromium-1194` · python http.server 8899 · 한글파일명 URL 인코딩) PC 1366 / 모바일 390 양쪽. 연구 시작·동시연구 차단·완료 처리, 수송 상인수 계산(2,000=상인2·50,000=상인51 부족)·발송·도착 입고·귀환 전환, 대장간 저레벨 게이트(`🔒 대장간 3`), 큐 4종 렌더, **pageerror 0**. ⚠️이 환경은 **jsdelivr 차단(HTTP 000)**이라 three.js 미로드 → **3D는 2D 폴백으로만 확인**(3D 실렌더는 사장님 확인 필요·이번 변경은 전부 DOM/로직이라 3D 영향 없음).
+> - **⚖️ 시장 = [🔁 교환 / 🐴 수송] 2탭 재작성**(`openMarket`): 교환은 기존 그대로(10% 수수료·1회 최대 `lv*200`). **수송 신설** — `MERCH_CAP=1000`·`MERCH_SPEED=12`(분/칸)·상인 수=시장 레벨. `merchTotal/merchBusy/merchFree(vid)`. **내 다른 마을로 자원 이동** → `S.trades[{from,to,res,n,dep,arriveAt,back}]`, `processTrades(now)`(tick)에서 도착 시 입고(창고 cap 제한)→`back=true`로 **자동 귀환**→귀환 완료 시 상인 복귀. **대상이 내 마을이 아니게 되면 자원 싣고 되돌아옴**(정복 뺏김 대비). 마을 1개면 "👑 귀족으로 정복하면 수송 가능" 안내. 필요 상인 부족 시 버튼에 `상인 부족 (N명 필요)`.
+> - **⚒️ 대장간 = 연구 시간 + 레벨 게이트**(`openSmithy` 재작성): 전엔 **대장간 1레벨만 있어도 즉시 Lv3까지** 무시간 연구 가능(깊이 0) → `RES_SMITHY_REQ=[3,8,15]`(연구 Lv1/2/3에 필요한 대장간 레벨) + `resTime(lvl,smLv)`(대장간 레벨당 -3%·최대 -60%) + **전 마을 공통·동시 1건** `S.researchQ`→`processResearch(now)`. 모달에 진행바(완료 시각)·병종별 `⚔️🛡️ 현재 → 연구 후` 미리보기·1초 갱신 타이머(모달 제거 시 `MutationObserver`로 자동 정리). ⚠️**연구 상한 Lv3·+12%/레벨은 그대로** = 전투력 천장 불변(인플레 없음), 도달 난이도만 상승.
+> - **🏛️ 건물 효과 표기 정정 + 다음 레벨 미리보기**: `bldEffTxt(b,lv)`가 농장/창고/은신처에서 **lv 인자를 무시하고 현재 마을 값**(`popCap()`/`storeCap()`)을 쓰던 것 → `popCapAt/storeCapAt/hideCapAt(l)` 신설해 **lv 기준으로만** 계산(미리보기가 같은 함수를 쓰므로 필수). 본진(`건설 N% 단축`)·병영/마구간/공방(`훈련 N% 단축`)·대장간(`연구 상한 LvN/3`)·시장(`상인 N명 · 교환 N`)을 **실제 공식대로 수치화**. `bldNextTxt(b,lv)`=값이 실제로 바뀔 때만 「▸ 다음」 반환(0% 같은 노이즈 제거) → PC 건물표 효과칸·모바일 건물 시트에 `.eff-nx` 초록 줄.
+> - **🏗️ 마을 화면 큐**(`updateVillageDynamic`)에 **연구**(`.q-row.research` 보라 바)·**수송/귀환**(`.q-row.ship` 청록 바) 진행 추가 — 건설/훈련과 동일한 진행바+완료 시각.
+> - CSS 신설: `.mk-tabs/.mk-lrow/.mk-lk/.mk-trow/.mk-tres/.mk-empty/.eff-nx/.q-row.research/.q-row.ship`.
+> ⏭️ **미결/다음**: ①**적 AI 부재**(라이벌 제거 후 아무도 공격 안 함 → 성벽·은신처·지원·`resolveDefense`/`mode:'raid'`가 전부 죽은 콘텐츠. 실팀원 멀티(Firebase) 또는 **재설계된 습격**을 붙이면 즉시 동작 — ⚠️사장님이 "라이벌 시스템 자체가 의미없다"고 한 적 있어 **설계 먼저 합의** 필요) ②시장 **교환도 상인 소모**로 통일할지(현재 교환=즉시·무상인) ③정찰병 연구는 atk 0·def 2라 표시상 변화가 없음(무해·필요시 목록서 제외) ④3D 실렌더 확인·텍스처 밝기 튜닝(사장님 피드백 대기) ⑤부족(길드)·프리미엄·투석기 목표 건물 선택.
+
+### 🗺️ 룬테라 전쟁 — 안개 흐릿화·마을 UX·3D 행군·다크골드 테마·중세 텍스처 (2026-07-29 이 PC win32·main+작업브랜치 `claude/continue-previous-work-b6dd2h` 배포·최종 커밋 `0b2cd63`)
 > ⚠️ **index.html(라이브 앱) 무관** — 독립 HTML `룬테라원정-프로토타입.html`. `APP_VERSION` 안 건드림. 배포=`git push origin HEAD:main` + `HEAD:claude/continue-previous-work-b6dd2h`. 확인=`https://sohada2.github.io/aram/룬테라원정-프로토타입.html`(캐시 매우 강함·`?v=N`/시크릿). 검증=이 PC는 Edge 헤드리스(`--headless=new --use-gl=swiftshader`)+로컬 http.server(한글 파일명 URL 인코딩·출력 png는 Temp)·인라인 `<script>` 3블록 `node --check`. ⚠️swiftshader가 간헐적으로 3D 렌더 캡처 실패(빈 png) → 실기 확인은 사장님.
 > **✅ 이번 세션 작업(전부 배포 완료)**:
 > - **🌫️ 안개 흐릿화**: 육각 블록 InstancedMesh → **블러 캔버스 텍스처 평면**(`fogInit`/`eraseFogCell`/`_fogXY`·`_BIOMECOL`). 미공개 셀을 지형색(희미)·마을=따뜻한색 blob으로 그려 블러 → 진짜 안개처럼 부드럽고 지형/마을이 비침. 공개=destination-out 소프트 원. (Map3D 모듈)
