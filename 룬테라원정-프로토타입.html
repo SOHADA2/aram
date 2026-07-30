@@ -114,6 +114,8 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .pz-reset svg.ic{width:16px;height:16px;vertical-align:-3px;}
 /* 3D 지도 마을 명패(다크 유지 — 지형 위 대비) */
 .v3-labels{position:absolute;inset:0;z-index:6;pointer-events:none;}
+/* 지도 마커는 제스처를 절대 가로채면 안 된다(팬·핀치가 씹힘) — 탭은 JS 히트테스트로 */
+.v3-labels.map-lab .v3-label{pointer-events:none;}
 .v3-label{position:absolute;transform:translate(-50%,-100%);white-space:nowrap;pointer-events:auto;cursor:pointer;text-align:center;
   background:linear-gradient(180deg,rgba(28,22,12,.94),rgba(14,10,5,.96));border:1px solid #a3812f;border-radius:8px;padding:2px 7px;box-shadow:0 3px 8px rgba(0,0,0,.55);}
 .v3-label b{display:block;font-size:9.5px;font-weight:800;color:#f2e2ad;}
@@ -2210,6 +2212,7 @@ function proj(){ if(!EL) return;
   const rc=_rc;
   const set=(arr)=>{ for(const L of arr){ _pv.copy(L.pos).project(CAM);
     const x=(_pv.x*.5+.5)*rc.width, y=(-_pv.y*.5+.5)*rc.height, vis=_pv.z<1?'':'none';
+    L._sx=x; L._sy=y;                                    // 탭 히트테스트용 화면좌표
     if(L._x!==x){ L.el.style.left=x+'px'; L._x=x; }
     if(L._y!==y){ L.el.style.top=y+'px'; L._y=y; }
     if(L._v!==vis){ L.el.style.display=vis; L._v=vis; } } };
@@ -2241,7 +2244,26 @@ function proj(){ if(!EL) return;
 function hp(w){ const p=OPT.hex(w.x,w.y); return {x:p.x-off.x, z:p.z-off.z}; }   // 중앙 정렬된 3D 좌표
 export function mount(el){ initS(); if(EL===el && el.contains(R.domElement)) return;   // 이미 마운트됨 → 재부착 안 함
   EL=el; if(!el.contains(R.domElement)) el.appendChild(R.domElement);
-  if(!LH||!el.contains(LH)){ LH=document.createElement('div'); LH.className='v3-labels'; el.appendChild(LH); } resize(); }
+  if(!LH||!el.contains(LH)){ LH=document.createElement('div'); LH.className='v3-labels map-lab'; el.appendChild(LH); }
+  bindTap(el); resize(); }
+// 마커를 pointer-events:none 으로 뺐으므로 탭은 여기서 직접 판정한다(제스처는 전부 OrbitControls로).
+let _tapX=0,_tapY=0,_tapT=0,_tapOk=false,_tapBound=null;
+function bindTap(el){ if(_tapBound===el) return; _tapBound=el;
+  el.addEventListener('pointerdown',e=>{ _tapOk=(e.isPrimary!==false) && !e.target.closest('button');
+    _tapX=e.clientX; _tapY=e.clientY; _tapT=performance.now(); },{passive:true});
+  el.addEventListener('pointermove',e=>{ if(_tapOk && Math.hypot(e.clientX-_tapX,e.clientY-_tapY)>10) _tapOk=false; },{passive:true});
+  el.addEventListener('pointercancel',()=>{ _tapOk=false; },{passive:true});
+  el.addEventListener('pointerup',e=>{ if(!_tapOk) return; _tapOk=false;
+    if(performance.now()-_tapT>500) return;
+    const rc=el.getBoundingClientRect(), px=e.clientX-rc.left, py=e.clientY-rc.top;
+    let best=null,bd=Infinity;
+    for(const L of VLAB){ if(L._v==='none'||!L.onTap) continue;
+      const w=L.el.offsetWidth||44, h=L.el.offsetHeight||16;      // 라벨은 translate(-50%,-100%) 기준
+      const cx=L._sx, cy=L._sy-h/2;
+      if(px<cx-w/2-6||px>cx+w/2+6||py<cy-h/2-6||py>cy+h/2+6) continue;
+      const d=(px-cx)*(px-cx)+(py-cy)*(py-cy); if(d<bd){ bd=d; best=L; } }
+    if(best) best.onTap(); },{passive:true});
+}
 function resize(){ if(!EL) return; const w=EL.clientWidth||420,h=EL.clientHeight||400; R.setSize(w,h);
   const D=Math.max(8, HGT/1.9), a=w/h; CAM.left=-D*a;CAM.right=D*a;CAM.top=D;CAM.bottom=-D; CAM.updateProjectionMatrix(); }
 let HGT=13;
@@ -2273,7 +2295,7 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
       const el=document.createElement('div'); el.className='v3-label vmk3 '+(w.owner==='me'?'me':(w.owner==='player'?'pl':'barb'));
       const ic=_mIcon(w.owner==='me'?'main':(w.owner==='player'?'tower':'hut')); const prot=opts.isP(w)?_mIcon('shield'):'';
       el.innerHTML=w.owner==='me'?`<b>${ic} 내 성${prot}</b>`:(w.owner==='player'?`<b>${ic} ${(w.name||'').replace('소환사 ','')}${prot}</b>`:`<b>${ic} ${w.size}★</b>`);
-      el.onclick=()=>{ if(opts.onNode) opts.onNode(id); }; LH.appendChild(el); VLAB.push({el,pos:new T.Vector3(x,0.9,z)});
+      LH.appendChild(el); VLAB.push({el,pos:new T.Vector3(x,0.9,z),onTap:()=>{ if(opts.onNode) opts.onNode(id); }});
     } else if(roads[key]){ tile((r>=rows-3)?'sand':'grass',x,z,false); tile(roads[key].n,x,z,false,roads[key].rot,0.2); }
     else { tile(biome(c,r,cols,rows,_hrand(c,r)),x,z,false); }
     if(!full && _fogCtx){ eraseFogCell(c,r); hideCloudAt(c,r); fogDirty=true; }   // 증분: 안개 부드럽게 걷힘
