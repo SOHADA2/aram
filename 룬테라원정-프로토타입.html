@@ -1845,7 +1845,11 @@ const RING=[
 // 목표 높이에 맞춰 자동 스케일(+바닥 정렬) — 키트마다 원본 크기가 달라도 안전
 async function instFit(kit,n,parent,x,z,o){ o=o||{}; try{ const srcM=await loadG(kit,n); const m=srcM.clone(true);
   const b1=new T.Box3().setFromObject(m); const sz=b1.getSize(new T.Vector3());
-  const s=(o.h||1.6)/Math.max(sz.y,0.001); m.scale.setScalar(s);
+  // ⚠️ 헥스 키트 건물은 **육각 받침이 본체와 한 메시**라, 높이로 정규화하면 납작한 모델일수록 받침이 거대해진다
+  //    (농장 받침 6.0 vs 광산 3.35 — 안쪽 링 간격 3.62를 넘어 이웃과 겹쳤음).
+  //    → o.w를 주면 **바닥 폭** 기준으로 맞춰 받침 크기를 통일하고, 높이는 모델 비율대로 자연스럽게 둔다.
+  const s = o.w ? (o.w/Math.max(sz.x,sz.z,0.001)) : ((o.h||1.6)/Math.max(sz.y,0.001));
+  m.scale.setScalar(s);
   const b2=new T.Box3().setFromObject(m);
   m.position.set(x, -b2.min.y+0.02, z); m.rotation.y=o.ry||0;
   m.traverse(c=>{ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true;
@@ -1856,13 +1860,16 @@ async function placeBuilding(x,z,ry,b,lv,central){
   const grow=1+Math.min(0.4,lv*0.05);   // 레벨이 오를수록 커짐
   if(central){   // 본진: Lv1~4=집 · 5~9=저택 · 10+=성 (약한 마을 → 성곽 도시)
     const n = lv>=10?'building-castle' : lv>=5?'building-village' : 'building-house';
-    const h = (lv>=10?3.2 : lv>=5?2.6 : 2.0)*(1+Math.min(0.2,lv*0.012));
-    await instFit('hex',n,bgroup,x,z,{h,ry});
+    const w = (lv>=10?3.5 : lv>=5?3.2 : 2.9)*(1+Math.min(0.14,lv*0.009));
+    await instFit('hex',n,bgroup,x,z,{w,ry});
     if(lv>=5){ await inst('castle','flag',bgroup,x+1.2,z+0.3,{s:1.15}); }
     if(lv>=10){ await inst('castle','flag-banner-long',bgroup,x-1.2,z+0.3,{s:1.05}); }
     return; }
   const slot=RING.find(r=>r.b===b); if(!slot) return;
-  await instFit(slot.kit,slot.n,bgroup,x,z,{h:slot.h*grow,ry,tint:slot.tint});
+  // 헥스 건물=폭 기준(받침 통일·이웃 겹침 방지) · 그 외(깃발·천막)는 받침이 없으니 기존 높이 기준
+  if(slot.kit==='hex'){ const w=2.45*(1+Math.min(0.22,lv*0.028));
+    await instFit(slot.kit,slot.n,bgroup,x,z,{w,ry,tint:slot.tint}); }
+  else await instFit(slot.kit,slot.n,bgroup,x,z,{h:slot.h*grow,ry,tint:slot.tint});
   if(slot.prop) await inst(slot.prop[0],slot.prop[1],bgroup,x+0.8,z+0.6,{s:1});
 }
 // 광장 정적 장식(한 번)
