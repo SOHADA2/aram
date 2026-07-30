@@ -535,6 +535,7 @@ const RES_NM = {wood:'목재', clay:'점토', iron:'철'};
 const HOME_ID = 'demacia'; const HOME_KEY = 'home';
 const WSPEED=140;                              // 월드 속도(시간 압축 — speed 서버 개념)
 const HCOLS=79, HROWS=98, HHZ=1.155*0.75;      // 육각 월드 격자(pointy-top) — 광활(안개로 탐험)
+const BARB_TOTAL=1800, BARB_NEAR=12;           // 야만인 마을 총수 / 그중 집 근처(2.5~7칸)에 보장 배치할 소형 마을 수
 const REVEAL_HOME=7, REVEAL_SCOUT=4, REVEAL_HIT=3;   // 🌫️ 전장의 안개 공개 반경(홈/정찰성공/도착)
 function hexPos(c,r){ return { x:(c+((r&1)?0.5:0)), z:r*HHZ }; }
 // ══ 건물 — 정통 전략 레벨1 비용/증가율/선행조건 ══
@@ -644,7 +645,7 @@ function researchBonus(u){ return 1 + ((S.research&&S.research[u])||0)*0.12; }
 function fieldDist(a,b){ const A=hexPos(a.x,a.y),B=hexPos(b.x,b.y); return Math.hypot(A.x-B.x, A.z-B.z); }
 function travelMs(dist, slow){ return Math.round(dist*slow*60000/WSPEED); }
 // ═══════════ 상태 ═══════════
-const SAVE_VER=9;   // 광활 월드(79×98)+전장의 안개 — 이전 세이브 폐기
+const SAVE_VER=10;  // 마을 밀도 상향(700→1800)+집 근처 파밍 대상 보장 — 이전 세이브 폐기
 const PROTECT_MS = 15*24*3600*1000;
 // ══ 🔥 야만인 습격 ══
 // ⚠️ 야만인은 뉴비 보호(protectUntil)를 무시함 → 난이도를 시간이 아니라 **내 수비력 대비 비율**로만 조절한다.
@@ -698,12 +699,25 @@ function genWorld(now){
   W[HOME_KEY]={x:HC,y:HR,name:'내 마을',owner:'me',size:6,loot:{wood:0,clay:0,iron:0},garrison:{},foundedAt:now};
   const taken=new Set([HC+','+HR]); let n=0, guard=0;
   // ⚠️ 라이벌 AI 마을/습격은 제거됨(사장님 피드백 — 의미 없는 가짜 라이벌 X) · 추후 실제 팀원 멀티로 설계
-  while(n<700 && guard<80000){ guard++;
+  const put=(x,y,size)=>{ taken.add(x+','+y); size=Math.max(1,Math.min(6,size));
+    W['v'+(n++)]={x,y,name:'야만인 마을',owner:'barb',size,loot:barbLoot(size),garrison:barbGarrison(size),wall:barbWall(size)}; };
+  // ① 집 근처 파밍 대상 보장 — 무작위 분포만 쓰면 시작 지점에 마을이 2~3개뿐인 경우가 생긴다.
+  //    2.5~7칸 고리에 무방비 소형(1~2★)을 먼저 깔아 초반에 털 곳이 항상 있게 한다.
+  for(let i=0;i<BARB_NEAR;i++){
+    for(let t=0;t<500;t++){
+      const ang=R()*Math.PI*2, rad=2.5+R()*4.5;
+      const x=Math.round(HC+Math.cos(ang)*rad), y=Math.round(HR+Math.sin(ang)*rad/HHZ);
+      if(x<0||y<0||x>=HCOLS||y>=HROWS) continue;
+      if(taken.has(x+','+y)) continue;
+      const d=fieldDist({x,y},home); if(d<2.2||d>7.5) continue;
+      put(x,y,1+Math.floor(R()*2)); break;
+    }
+  }
+  // ② 나머지는 월드 전역에 흩뿌린다(멀수록 큰 마을)
+  while(n<BARB_TOTAL && guard<400000){ guard++;
     const x=Math.floor(R()*HCOLS), y=Math.floor(R()*HROWS); const key=x+','+y;
     if(taken.has(key)) continue; const d=fieldDist({x,y},home); if(d<2.2) continue;
-    taken.add(key);
-    let size=1+Math.floor(R()*3)+(d>6?Math.floor(R()*3):0); size=Math.max(1,Math.min(6,size));
-    W['v'+(n++)]={x,y,name:'야만인 마을',owner:'barb',size,loot:barbLoot(size),garrison:barbGarrison(size),wall:barbWall(size)};
+    put(x,y, 1+Math.floor(R()*3)+(d>6?Math.floor(R()*3):0));
   }
   return W;
 }
