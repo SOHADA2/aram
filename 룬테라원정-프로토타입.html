@@ -1770,35 +1770,48 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
       el.onclick=()=>{ if(opts.onNode) opts.onNode(id); }; LH.appendChild(el); VLAB.push({el,pos:new T.Vector3(x,0.9,z)});
     } else if(roads[key]){ tile((r>=rows-3)?'sand':'grass',x,z,false); tile(roads[key].n,x,z,false,roads[key].rot,0.2); }
     else { tile(biome(c,r,cols,rows,_hrand(c,r)),x,z,false); }
-    if(!full && _fog){ hideFogAt(key); fogDirty=true; }   // 증분: 안개 걷기
+    if(!full && _fogCtx){ eraseFogCell(c,r); fogDirty=true; }   // 증분: 안개 부드럽게 걷힘
   }
-  if(full) buildFog(cols,rows,rev,opts,at);
-  else if(fogDirty && _fog){ _fog.instanceMatrix.needsUpdate=true; }
+  if(full) fogInit(cols,rows,rev,opts,at);
+  else if(fogDirty && _fogTex){ _fogTex.needsUpdate=true; }
   if(full){ resize(); if(CT){ CT.target.set(0,0,0); CT.update(); } }
 }
 // 🌫️ 안개 = 흐릿한 반투명 저지대 헥스 — 지형색을 희미하게 비쳐 "미지의 대륙"처럼(마을=따뜻한 봉우리)
 const _BIOMECOL={'stone-mountain':0x6b6f78,'stone-hill':0x707680,'stone-rocks':0x6b7078,'sand-desert':0xccb473,'sand':0xccb473,'sand-rocks':0xc3a869,'water':0x3f7fb0,'water-rocks':0x3f7fb0,'grass-forest':0x3f7a3a,'grass-hill':0x6f9e46,'grass':0x6f9e46};
-const _FOGDK=new T.Color(0x0f1826), _fogHideM=new T.Matrix4().makeScale(0,0,0);
-let _fogIdx=null;
-function _fogTint(c,r,cols,rows,isV,out){ const base=isV?0x9a7448:(_BIOMECOL[biome(c,r,cols,rows,_hrand(c,r))]||0x6f9e46);
-  return out.set(base).multiplyScalar(0.42).lerp(_FOGDK,0.4); }
-function hideFogAt(key){ const i=_fogIdx&&_fogIdx[key]; if(i==null||!_fog) return; _fog.setMatrixAt(i,_fogHideM); }
-function buildFog(cols,rows,rev,opts,at){
-  if(_fog){ SC.remove(_fog); _fog.geometry.dispose(); _fog.material.dispose(); _fog=null; }
-  const N=cols*rows;
-  const geo=new T.CylinderGeometry(0.64,0.64,0.3,6);
-  const mat=new T.MeshStandardMaterial({color:0xffffff, roughness:1, metalness:0, transparent:true, opacity:0.66, depthWrite:false, emissive:0x0a1220, emissiveIntensity:0.35});
-  _fog=new T.InstancedMesh(geo,mat,N); _fog.castShadow=false; _fog.receiveShadow=false; _fog.renderOrder=2;
-  _fogIdx=Object.create(null);
-  const m=new T.Matrix4(), q=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/6), sc=new T.Vector3(), pos=new T.Vector3(), col=new T.Color();
-  let i=0;
-  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ const key=c+','+r; _fogIdx[key]=i;
-    const isV=!!(at&&at[key]); const p=opts.hex(c,r);
-    _fog.setColorAt(i,_fogTint(c,r,cols,rows,isV,col));
-    if(rev[key]){ sc.set(0,0,0); pos.set(0,0,0); }
-    else { const h=isV?2.0:(0.8+_hrand(c,r)*0.7); sc.set(1,h,1); pos.set(p.x-off.x,0.14*h,p.z-off.z); }
-    m.compose(pos,q,sc); _fog.setMatrixAt(i,m); i++; }
-  _fog.instanceMatrix.needsUpdate=true; if(_fog.instanceColor) _fog.instanceColor.needsUpdate=true; SC.add(_fog);
+const _FOGDK=new T.Color(0x0f1826);
+let _fogCanvas=null,_fogCtx=null,_fogTex=null,_fogPlane=null,_fb=null,_fogCols=0,_fogRows=0;
+function _cellRGB(c,r,isV){ const base=isV?0x9a7448:(_BIOMECOL[biome(c,r,_fogCols,_fogRows,_hrand(c,r))]||0x6f9e46);
+  const col=new T.Color(base).multiplyScalar(0.55).lerp(_FOGDK,0.32);
+  return `${(col.r*255)|0},${(col.g*255)|0},${(col.b*255)|0}`; }
+function _fogXY(c,r){ const p=OPT.hex(c,r); return {cx:(p.x-off.x-_fb.minX)/_fb.w*_fb.cw, cy:(1-(p.z-off.z-_fb.minZ)/_fb.h)*_fb.ch}; }
+function eraseFogCell(c,r){ if(!_fogCtx||!_fb) return; const {cx,cy}=_fogXY(c,r); const R=_fb.k*1.55;
+  _fogCtx.save(); _fogCtx.globalCompositeOperation='destination-out';
+  const g=_fogCtx.createRadialGradient(cx,cy,0,cx,cy,R); g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(.5,'rgba(0,0,0,1)'); g.addColorStop(1,'rgba(0,0,0,0)');
+  _fogCtx.fillStyle=g; _fogCtx.beginPath(); _fogCtx.arc(cx,cy,R,0,6.2832); _fogCtx.fill(); _fogCtx.restore(); }
+// 🌫️ 안개 = 블러 처리한 캔버스 텍스처 평면(진짜 안개처럼 부드럽게·지형/마을 희미하게 비침)
+function fogInit(cols,rows,rev,opts,at){
+  _fogCols=cols; _fogRows=rows; const K=8;
+  let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ const p=opts.hex(c,r); const x=p.x-off.x,z=p.z-off.z;
+    if(x<minX)minX=x; if(x>maxX)maxX=x; if(z<minZ)minZ=z; if(z>maxZ)maxZ=z; }
+  minX-=0.7; maxX+=0.7; minZ-=0.7; maxZ+=0.7;
+  const w=maxX-minX, h=maxZ-minZ, cw=Math.ceil(w*K), ch=Math.ceil(h*K);
+  _fb={minX,minZ,w,h,cw,ch,k:cw/w};
+  _fogCanvas=document.createElement('canvas'); _fogCanvas.width=cw; _fogCanvas.height=ch; _fogCtx=_fogCanvas.getContext('2d');
+  _fogCtx.clearRect(0,0,cw,ch);
+  _fogCtx.filter='blur('+Math.max(2,_fb.k*0.55)+'px)';   // 부드러운 안개
+  const rad=_fb.k*1.2;
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ if(rev[c+','+r]) continue; const isV=!!(at&&at[c+','+r]); const {cx,cy}=_fogXY(c,r);
+    const rgb=_cellRGB(c,r,isV), rr=isV?rad*0.85:rad;
+    const g=_fogCtx.createRadialGradient(cx,cy,0,cx,cy,rr);
+    g.addColorStop(0,`rgba(${rgb},${isV?0.98:0.9})`); g.addColorStop(0.7,`rgba(${rgb},${isV?0.92:0.82})`); g.addColorStop(1,`rgba(${rgb},0)`);
+    _fogCtx.fillStyle=g; _fogCtx.beginPath(); _fogCtx.arc(cx,cy,rr,0,6.2832); _fogCtx.fill(); }
+  _fogCtx.filter='none';
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ if(rev[c+','+r]) eraseFogCell(c,r); }
+  if(_fogPlane){ SC.remove(_fogPlane); _fogPlane.geometry.dispose(); _fogPlane.material.dispose(); if(_fogTex)_fogTex.dispose(); }
+  _fogTex=new T.CanvasTexture(_fogCanvas); _fogTex.colorSpace=T.SRGBColorSpace; _fogTex.flipY=false; _fogTex.minFilter=T.LinearFilter; _fogTex.magFilter=T.LinearFilter;
+  const geo=new T.PlaneGeometry(w,h), mat=new T.MeshBasicMaterial({map:_fogTex,transparent:true,depthWrite:false});
+  _fogPlane=new T.Mesh(geo,mat); _fogPlane.rotation.x=-Math.PI/2; _fogPlane.position.set(minX+w/2,0.5,minZ+h/2); _fogPlane.renderOrder=4; SC.add(_fogPlane);
 }
 // ── 마을 간 길: 헥스 길 타일(path-*)을 경로 헥스에 깔고 회전 맞춤 ──
 // 오프셋(odd-r pointy)↔큐브 좌표 + 헥스 라인
