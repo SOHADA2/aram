@@ -817,7 +817,22 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### 🗺️ 룬테라 전쟁 — 🔥 야만인 습격 신설(적 AI 부재 해소) (2026-07-30·원격web·작업브랜치 `claude/continue-update-bnfsry`·main+브랜치 배포) ← 최신
+### 🗺️ 룬테라 전쟁 — 🚨 3D 지도가 안 뜨던 근본 원인 수정 + three.js 자체 호스팅 (2026-07-30·원격web·작업브랜치 `claude/continue-update-bnfsry`·main+브랜치 배포) ← 최신
+> 사장님 제보: 「지도가 초록 격자만 보이고 아래가 검게 비어 있다」 = **3D 실패 → 2D 폴백**(`.vmk` 이모지 마커)을 보고 있던 것.
+> ### ⚠️⚠️ 근본 원인 — 안개 생성이 메인 스레드를 멎게 함 (다음 작업자 必독)
+> `fogInit`이 **`ctx.filter='blur(...)'`를 켜 둔 채로** 헥스마다 radial-gradient를 채웠음. **캔버스 2D의 `filter`는 draw 1회마다 블러 패스가 도는 속성** → 월드가 10배(25×31 → **79×98 = 7,742헥스**)로 커진 뒤부터 블러가 7,742번 실행돼 페이지가 사실상 정지(헤드리스에서 12초 뒤에도 evaluate 무응답·브라우저 close조차 hang). **→ 필터 없이 전부 그린 뒤 임시 캔버스로 옮겨 딱 한 번만 블러**(결과물 동일·비용 7,742패스→1패스). 원인 좁힌 방법=월드를 25×31로 줄인 사본을 만들어 비교(작은 월드는 정상 로드) — **앞으로 "3D가 안 뜬다" 하면 이 이분법부터**.
+> ### 📦 three.js 자체 호스팅 (`vendor/three/` · 1.5MB · 외부 의존 2개 제거)
+> ①**jsdelivr 차단 환경**에서 3D 통째 실패 ②**importmap 미지원 브라우저**(구형 Safari 등)에서 bare specifier 실패 — 둘 다 조용히 2D로 떨어짐. → `npm pack three@0.160.0`으로 `three.module.js`/`GLTFLoader`/`OrbitControls`/`BufferGeometryUtils`를 받아 `vendor/`에 넣고, **애드온 내부의 `from 'three'`를 상대경로로 치환**해 **importmap 자체를 제거**. `.gitignore`(전체 무시+화이트리스트)에 `!vendor/...` 6줄 추가. ⚠️**이 원격 환경은 jsdelivr(HTTP 000)은 막혔지만 `registry.npmjs.org`는 열려 있음(200)** — 앞으로 CDN 라이브러리가 필요하면 npm pack으로 우회 가능.
+> ### 🖥️ 그 외
+> - **지도 뷰포트가 화면을 안 채움**: `.map-wrap`이 모바일 `min(60vh,540px)` 고정이라 아래 **186px 검은 여백**(팁 제거로 더 도드라짐) → `calc(100dvh - 188px)`(PC는 `-176px`). 실측 186→36px·작은폰 154→46·PC 112→38.
+> - **3D 실패 시 조용히 2D로 떨어지던 것** → `map-wrap`에 실패 배너(`.map-fb`)+모듈 에러 메시지 표시(`_mapFallbackNotice`·window error 캡처). 진단 불가 상태를 없앰.
+> - **ASCII 짧은 주소 `rune.html`** 신설 — 한글 파일명 URL이 채팅에서 깨져 접속 실패하는 경우 대응(`location.replace`·쿼리/해시 전달·JS 꺼져도 링크 제공). **확인은 https://sohada2.github.io/aram/rune.html 로 안내할 것.**
+> - **인라인 팁 전부 제거**(설명은 모달로 갈 예정): 지도 조작 힌트(`pz-hint`)·하단 플레이 순서(`map-tip`)·마을 씬 캡션(`schint`)·건물 헤더 힌트(`vil-bldhint`)·모바일 건물 그리드 하단 팁·보고서 「탭하면 상세」. 빈 상태 문구는 **상태만 남기고 설명 꼬리 제거**. ⚠️모달 안 설명(시장 수송·대장간 연구·지원 모드)은 유지.
+> - **상단바 질감 벽돌 → 석재**: 벽돌 텍스처가 "사각형 나열"로 보인다는 지적 → 자원바/탭바와 같은 `floor_stone_pattern`으로 통일(성벽 총안 `::after`는 유지). `wall_brick_sand_both.png`는 뒷골목 목업이 계속 써서 파일은 보존.
+> **검증**: 3블록 `node --check` 3/3 + Playwright에 **실제 three.js를 물려**(소프트웨어 GL) 79×98 월드 3D 렌더 스크린샷 확인·`Map3D` 로드·pageerror 0·요청실패 0.
+> ⏭️ **미결**: 실기(폰) 3D 체감 확인 · 도움말 모달(전투 규칙/야만인 습격 우선) 미착수 · 3D 성능은 안개만 고친 상태라 저사양 폰에서 추가 최적화 여지.
+
+### 🗺️ 룬테라 전쟁 — 🔥 야만인 습격 신설(적 AI 부재 해소) (2026-07-30·원격web·작업브랜치 `claude/continue-update-bnfsry`·main+브랜치 배포)
 > ⚠️ **index.html 무관** — `룬테라원정-프로토타입.html` 단독. `SAVE_VER` 9 유지(`v.nextRaid`는 첫 tick에 자동 생성).
 > 사장님 지시=「야만인 공격이라 이건 **뉴비쉴드에 영향받지 않아** 그래서 적당히 난이도 조절이 필요해」 → 그동안 아무도 공격 안 해 **성벽·은신처·지원·`resolveDefense`/`mode:'raid'`가 전부 죽은 콘텐츠**였던 것을 해소.
 > **코드맵**(classic 블록): 상수 `RAID_*`(`PROTECT_MS` 바로 아래) · `villageDev`/`villageTroopPow`/`raidRatio`/`raidIntervalMs`/`raidFloor`/`raidUnitsFor`/`nearestBarb`/`spawnRaid`/`maybeRaid`(`recallSupport` 직전) · `tick()`에서 `maybeRaid(now)` 호출 · UI `raidStatusHtml`(`updateVillageDynamic` 직전, `vil-army` 상단에 주입) · CSS `.raid-st{.calm/.ok/.warn/.danger/.inc}`.
