@@ -546,6 +546,9 @@ function tickVillage(v, dt, now){ const cap=storeCapV(v);
 }
 function hasUnits(u){ for(const k in u){ if(u[k]>0) return true; } return false; }
 function armyTotalV(v){ let n=0; for(const u in v.troops) n+=v.troops[u]||0; return n; }
+// 🏘️ 마을 발전 단계(건물 레벨 합) — 3D 마을 외형과 연동 (Town3D의 공식과 동일하게 유지할 것)
+function vilStage(v){ let p=0; for(const b in v.blds) p+=v.blds[b]||0; return p>=45?3:p>=25?2:p>=10?1:0; }
+const STAGE_NM=['🏕️ 개척지','🛖 마을','🏘️ 소도시','🏰 성곽 도시'];
 function snapV(w){ return {name:w.name, x:w.x, y:w.y, owner:w.owner, size:w.size||1}; }
 function crd(w){ return `(${w.x}|${w.y}) K${Math.floor(w.y/10)}${Math.floor(w.x/10)}`; }
 // ══ 부족전쟁 전투 엔진 ══
@@ -1038,7 +1041,7 @@ function renderVillage(full){
         <div class="scene-cam" id="rgn-cam"></div>
         <div class="scene-amb" style="background:radial-gradient(48% 36% at 50% 40%, ${B.amb}, transparent 72%)"></div>
         <div class="biome-fx" id="biome-fx"></div>
-        <div class="stt">🏰 내 마을 <small>${w?crd(w):''}</small></div>
+        <div class="stt">${STAGE_NM[vilStage(S.v)]} <small>${w?crd(w):''}</small></div>
         <div class="schint">건물 명패를 탭해 건설·업그레이드</div>
         <button class="pz-reset" id="rgn-reset" title="원래대로">⤢</button>
         <button class="pz-reset" id="rgn-daynight" style="top:46px" title="낮/밤">🌙</button>
@@ -1453,7 +1456,7 @@ import * as T from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 const P2=Math.PI/2, KIT={town:'assets/town/',castle:'assets/castle/',surv:'assets/survival/',hex:'assets/hex/'};
-let renderer,scene,cam,ctrl,vgroup,bgroup,curEl,labelHost,W=1,H=1,onBuild=null,sun,hemi,night=false,_wallLv=-1;
+let renderer,scene,cam,ctrl,vgroup,bgroup,tgroup,curEl,labelHost,W=1,H=1,onBuild=null,sun,hemi,night=false,_wallLv=-1,_tierBuilt=-1;
 const cache={}, gl=new GLTFLoader(), labels=[];
 function loadG(kit,n){ const k=kit+'|'+n; return cache[k]||(cache[k]=gl.loadAsync(KIT[kit]+n+'.glb').then(g=>g.scene)); }
 async function inst(kit,n,parent,x,z,o){ o=o||{}; try{ const src=await loadG(kit,n); const m=src.clone(true);
@@ -1473,27 +1476,51 @@ function initScene(){
   const s=sun.shadow.camera; s.left=-11;s.right=11;s.top=11;s.bottom=-11;s.near=1;s.far=48; sun.shadow.bias=-0.0006; scene.add(sun);
   const earth=new T.Mesh(new T.PlaneGeometry(90,90),new T.MeshStandardMaterial({color:0x5e8a3e,roughness:1})); earth.rotation.x=-P2; earth.position.y=-0.12; earth.receiveShadow=true; scene.add(earth);   // 성 밖 대지(공중에 뜬 느낌 제거)
   const grass=new T.Mesh(new T.CircleGeometry(8,52),new T.MeshStandardMaterial({color:0x6f9e46,roughness:1})); grass.rotation.x=-P2; grass.receiveShadow=true; scene.add(grass);
-  const moat=new T.Mesh(new T.RingGeometry(7.9,9,52),new T.MeshStandardMaterial({color:0x3f7fb0,roughness:.7})); moat.rotation.x=-P2; moat.position.y=-0.06; scene.add(moat);
-  const plaza=new T.Mesh(new T.CircleGeometry(2.9,44),new T.MeshStandardMaterial({color:0xbaa072,roughness:1})); plaza.rotation.x=-P2; plaza.position.y=0.025; plaza.receiveShadow=true; scene.add(plaza);
-  const ringrd=new T.Mesh(new T.RingGeometry(5.25,6.05,56),new T.MeshStandardMaterial({color:0xc2ab7a,roughness:1})); ringrd.rotation.x=-P2; ringrd.position.y=0.02; ringrd.receiveShadow=true; scene.add(ringrd);
-  const mainrd=new T.Mesh(new T.PlaneGeometry(5.6,1.5),new T.MeshStandardMaterial({color:0xc2ab7a,roughness:1})); mainrd.rotation.x=-P2; mainrd.position.set(4.9,0.02,0); mainrd.receiveShadow=true; scene.add(mainrd);
-  vgroup=new T.Group(); scene.add(vgroup); bgroup=new T.Group(); scene.add(bgroup);
-  decorStatic();
+  vgroup=new T.Group(); scene.add(vgroup); bgroup=new T.Group(); scene.add(bgroup); tgroup=new T.Group(); scene.add(tgroup);
+  decorStatic();   // 성 밖 자연물만(광장·소품은 발전 단계별 buildTier가 담당)
   (function loop(){ requestAnimationFrame(loop); if(!curEl||!renderer||curEl.offsetParent===null) return; if(ctrl) ctrl.update();
     renderer.render(scene,cam); updateLabels(); })();
 }
+// 성벽 외형 = 성벽 건물 레벨 연동(부족전쟁식): 0=무방비 · 1~4=나무 울타리 · 5~9=돌벽+망루 · 10+=높은 성벽+해자
 async function buildWallRing(wallLv){ if(wallLv===_wallLv) return; _wallLv=wallLv;
   while(vgroup.children.length) vgroup.remove(vgroup.children[0]);
-  const R=7.4, N=22, th=Math.min(1.4,1.1+wallLv*0.04);
+  const R=7.4;
+  if(wallLv<=0) return;   // 🏕️ 아직 방벽 없음
+  if(wallLv<5){   // 🛖 나무 울타리
+    const N=34;
+    for(let i=0;i<N;i++){ const a=i/N*Math.PI*2; if(a<0.25||a>Math.PI*2-0.25) continue;
+      await inst('town','fence',vgroup,Math.cos(a)*R,Math.sin(a)*R,{ry:-a+P2,s:1.35}); }
+    await inst('town','fence-gate',vgroup,R,0,{ry:P2,s:1.4});
+    return; }
+  if(wallLv>=10){ const moat=new T.Mesh(new T.RingGeometry(7.9,9,52),new T.MeshStandardMaterial({color:0x3f7fb0,roughness:.7}));
+    moat.rotation.x=-P2; moat.position.y=-0.06; moat.receiveShadow=true; vgroup.add(moat); }   // 🏰 해자
+  const N=22, th=Math.min(1.4,1.0+wallLv*0.04);
   for(let i=0;i<N;i++){ const a=i/N*Math.PI*2; if(a<0.3||a>Math.PI*2-0.3) continue;   // 정문 갭
     await inst('town','wall',vgroup,Math.cos(a)*R,Math.sin(a)*R,{ry:-a,s:th}); }
-  const nT=Math.max(4,Math.min(10,4+Math.floor(wallLv))), ts=0.95+Math.min(0.4,wallLv*0.03), hi=wallLv>=3;
-  for(let i=0;i<nT;i++){ const a=0.5+i*(Math.PI*2-1.0)/(nT-1); const x=Math.cos(a)*R,z=Math.sin(a)*R;
+  const nT=Math.max(3,Math.min(10,2+Math.floor(wallLv*0.7))), ts=0.95+Math.min(0.4,wallLv*0.03), hi=wallLv>=10;
+  for(let i=0;i<nT;i++){ const a=0.5+i*(Math.PI*2-1.0)/Math.max(1,nT-1); const x=Math.cos(a)*R,z=Math.sin(a)*R;
     await inst('castle','tower-square-base',vgroup,x,z,{s:ts});
     await inst('castle','tower-square-mid-windows',vgroup,x,z,{y:.75*ts,s:ts});
-    if(hi) await inst('castle','tower-square-mid-windows',vgroup,x,z,{y:1.5*ts,s:ts});   // 성벽 고레벨=더 높은 탑
+    if(hi) await inst('castle','tower-square-mid-windows',vgroup,x,z,{y:1.5*ts,s:ts});
     await inst('castle','tower-square-top-roof-high',vgroup,x,z,{y:(hi?2.25:1.5)*ts,s:ts}); }
   await inst('castle','gate',vgroup,R,0,{ry:P2,s:1.25});
+}
+// 🏘️ 마을 중심가(광장·길·소품) — 발전 단계에 따라 점점 번화(0 개척지→3 성곽 도시)
+async function buildTier(t){ if(t===_tierBuilt) return; _tierBuilt=t;
+  while(tgroup.children.length) tgroup.remove(tgroup.children[0]);
+  const flat=(geo,c,y)=>{ const m=new T.Mesh(geo,new T.MeshStandardMaterial({color:c,roughness:1})); m.rotation.x=-P2; m.position.y=y; m.receiveShadow=true; tgroup.add(m); return m; };
+  if(t>=2){ flat(new T.CircleGeometry(2.9,44),0xbaa072,0.025);   // 돌 광장
+    flat(new T.RingGeometry(5.25,6.05,56),0xc2ab7a,0.02);
+    const rd=flat(new T.PlaneGeometry(5.6,1.5),0xc2ab7a,0.02); rd.position.set(4.9,0.02,0); }
+  else if(t===1){ flat(new T.CircleGeometry(2.2,36),0x8f7a52,0.02);   // 흙길
+    const rd=flat(new T.PlaneGeometry(5.6,1.1),0x8f7a52,0.018); rd.position.set(4.9,0.018,0); }
+  else { flat(new T.CircleGeometry(1.7,30),0x87764f,0.018); }   // 🏕️ 다져진 흙마당
+  inst('town','cart',tgroup,-0.5,2.35,{s:1,ry:0.4});
+  inst('surv','barrel',tgroup,1.2,-2.0,{s:1});
+  if(t===0){ inst('surv','tent',tgroup,1.9,1.5,{s:1.1,ry:-0.5}); }
+  if(t>=1){ inst('town','stall-bench',tgroup,1.0,-2.3,{s:1,ry:0.2}); inst('surv','box-large',tgroup,-1.9,-1.4,{s:1}); }
+  if(t>=2){ inst('town','fountain-round',tgroup,1.75,1.55,{s:1.1}); inst('town','stall-red',tgroup,-2.0,1.7,{s:1,ry:0.6}); inst('town','stall-green',tgroup,-2.25,-1.3,{s:1,ry:-0.4}); }
+  if(t>=3){ [[3.05,0.95],[3.05,-0.95],[2.2,2.0],[2.2,-2.0]].forEach(([x,z])=>inst('town','lantern',tgroup,x,z,{s:1})); }
 }
 // 건물별 전용 모델(Kenney hex 키트) — 실루엣이 서로 달라 부족전쟁처럼 한눈에 구분됨
 const RING=[
@@ -1523,9 +1550,13 @@ async function instFit(kit,n,parent,x,z,o){ o=o||{}; try{ const srcM=await loadG
 async function placeBuilding(x,z,ry,b,lv,central){
   if(lv<=0) return;
   const grow=1+Math.min(0.4,lv*0.05);   // 레벨이 오를수록 커짐
-  if(central){ await instFit('hex','building-castle',bgroup,x,z,{h:3.2*grow,ry});
-    await inst('castle','flag',bgroup,x+1.2,z+0.3,{s:1.15});
-    await inst('castle','flag-banner-long',bgroup,x-1.2,z+0.3,{s:1.05}); return; }
+  if(central){   // 본진: Lv1~4=집 · 5~9=저택 · 10+=성 (약한 마을 → 성곽 도시)
+    const n = lv>=10?'building-castle' : lv>=5?'building-village' : 'building-house';
+    const h = (lv>=10?3.2 : lv>=5?2.6 : 2.0)*(1+Math.min(0.2,lv*0.012));
+    await instFit('hex',n,bgroup,x,z,{h,ry});
+    if(lv>=5){ await inst('castle','flag',bgroup,x+1.2,z+0.3,{s:1.15}); }
+    if(lv>=10){ await inst('castle','flag-banner-long',bgroup,x-1.2,z+0.3,{s:1.05}); }
+    return; }
   const slot=RING.find(r=>r.b===b); if(!slot) return;
   await instFit(slot.kit,slot.n,bgroup,x,z,{h:slot.h*grow,ry,tint:slot.tint});
   if(slot.prop) await inst(slot.prop[0],slot.prop[1],bgroup,x+0.8,z+0.6,{s:1});
@@ -1536,21 +1567,15 @@ function decorStatic(){
   const R=mkrngT(778); const OT=['tree','tree-high','tree-crooked','tree-high-round'];
   for(let i=0;i<16;i++){ const a=R()*6.283, r=9.8+R()*4.2; inst('town',OT[(R()*OT.length)|0],scene,Math.cos(a)*r,Math.sin(a)*r,{s:0.85+R()*0.6,ry:R()*6.283}); }
   for(let i=0;i<6;i++){ const a=R()*6.283, r=9.6+R()*3.4; inst('town',R()<.5?'rock-large':'rock-wide',scene,Math.cos(a)*r,Math.sin(a)*r,{s:0.7+R()*0.5,ry:R()*6.283}); }
-  inst('town','fountain-round',scene,1.75,1.55,{s:1.1});
-  inst('town','cart',scene,-0.5,2.35,{s:1,ry:0.4});
-  inst('town','stall-red',scene,-2.0,1.7,{s:1,ry:0.6});
-  inst('town','stall-green',scene,-2.25,-1.3,{s:1,ry:-0.4});
-  inst('town','stall-bench',scene,1.0,-2.3,{s:1,ry:0.2});
-  [[3.05,0.95],[3.05,-0.95],[2.2,2.0],[2.2,-2.0]].forEach(([x,z])=>inst('town','lantern',scene,x,z,{s:1}));
 }
 // 환경 데코 스캐터(나무·바위·울타리·통·천막·가로등) — 시드 고정
 function mkrngT(s){ return ()=>{ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; }; }
-async function decorate(pts){
+async function decorate(pts,count){ count=count||48;
   const R=mkrngT(20260729);
   const trees=['tree','tree-high','tree-high-round','tree-crooked'], rocks=['rock-small','rock-wide'];
   const clash=(x,z)=>pts.some(p=>Math.hypot(p.x-x,p.z-z)<1.5);
   let placed=0,guard=0;
-  while(placed<48 && guard<800){ guard++;
+  while(placed<count && guard<800){ guard++;
     const a=R()*6.283, rr=2.5+R()*4.5, x=Math.cos(a)*rr, z=Math.sin(a)*rr;
     if(Math.hypot(x,z)>7.0||clash(x,z)) continue;
     const k=R();
@@ -1574,7 +1599,10 @@ export function mount(el){ initScene(); curEl=el; el.appendChild(renderer.domEle
   resize(); }
 function resize(){ if(!curEl) return; W=curEl.clientWidth||420; H=curEl.clientHeight||300; renderer.setSize(W,H);
   const D=9, a=W/H; cam.left=-D*a;cam.right=D*a;cam.top=D;cam.bottom=-D; cam.updateProjectionMatrix(); }
-export function build(blds, opts){ opts=opts||{}; onBuild=opts.onBuild; initScene(); buildWallRing(blds.wall||0);
+export function build(blds, opts){ opts=opts||{}; onBuild=opts.onBuild; initScene();
+  let devp=0; for(const k in blds) devp+=blds[k]||0;
+  const tier = devp>=45?3 : devp>=25?2 : devp>=10?1 : 0;   // ⚠️ classic vilStage와 동일 공식 유지
+  buildTier(tier); buildWallRing(blds.wall||0);
   while(bgroup.children.length) bgroup.remove(bgroup.children[0]);
   labels.forEach(L=>L.el.remove()); labels.length=0;
   const BLD=opts.BLD||{};
@@ -1589,7 +1617,7 @@ export function build(blds, opts){ opts=opts||{}; onBuild=opts.onBuild; initScen
   RING.forEach((slot,i)=>{ const inner=(i%2===0), idx=(i/2)|0;
     const a=(idx/half)*Math.PI*2 - P2 + (inner?0:Math.PI/half); const r=inner?3.75:6.0;
     const x=Math.cos(a)*r, z=Math.sin(a)*r; pts.push({x,z}); add(x,z,slot.b,blds[slot.b]||0,false); });
-  decorate(pts);
+  decorate(pts,[10,22,34,48][tier]);
 }
 export function resetCam(){ if(!cam) return; cam.position.set(7,17,7); cam.zoom=1; cam.updateProjectionMatrix(); if(ctrl){ ctrl.target.set(0,0.5,0); ctrl.update(); } }
 export function setNight(){ if(!hemi) return night; night=!night;
