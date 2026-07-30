@@ -817,7 +817,16 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### 🗺️ 룬테라 전쟁 v0.2~v0.3.2 — 부족전쟁 게임성 정합 · 라이벌 제거 · PC/모바일 분리 · 마을 발전 단계 (2026-07-29·원격web·작업브랜치 `claude/computer-work-session-we1guo`·main+브랜치 배포·**최종 커밋 `aefaaf7`·Pages success**) ← 최신
+### 🗺️ 룬테라 전쟁 — 🌫️ 전장의 안개(fog of war) 구현 (2026-07-29·이 PC win32·main 배포·최종 커밋은 git log 참조) ← 최신
+> ⚠️ **index.html(라이브 앱) 무관** — 독립 HTML `룬테라원정-프로토타입.html`. `APP_VERSION` 안 건드림. 배포=`git push origin HEAD:main`(+작업브랜치). 확인=`https://sohada2.github.io/aram/룬테라원정-프로토타입.html`(캐시 강함·`?v=N`/시크릿). 검증=이 PC는 Edge 헤드리스(`--headless=new --use-gl=swiftshader`)+로컬 http.server(한글 파일명 URL 인코딩·출력 png는 Temp).
+> **✅ 이번 작업(배포 완료·Edge 헤드리스로 초기 안개+증분 공개 렌더 검증)**:
+> - **전장의 안개**: 공개된 헥스만 지도에 보이고 나머지는 어두운 육각 안개로 덮임. 초반 전체 렌더 안 함(성능↑)+탐험으로 점점 밝혀짐(공개는 영구).
+> - **상태**: `S.revealed`={"c,r":1} 공개 헥스 집합(save에 자동 직렬화). classic 헬퍼 `revealDisc(cx,cy,rad)`·`isRevealed`·`hexDistXY`(큐브 헥스거리)·`seedReveal()`(bindActive에서 호출, 내 마을 반경 `REVEAL_HOME=4` 초기 공개·`S._revSeed` 1회 가드)·`revealMarchPositions(now)`(tick에서 호출, 행군 부대 현재 헥스 주변 반경1 실시간 공개=안개 걷힘 연출). 상수 `REVEAL_HOME=4/REVEAL_SCOUT=3/REVEAL_HIT=2`(HCOLS 근처 선언).
+> - **공개 훅**: `resolveScout`(성공 반경3·실패 반경2)·`resolveAttack`(도착 반경2)·`conquerVillage`(정복지 반경4). renderMap이 `revealed:S.revealed`를 Map3D.build opts로 전달.
+> - **Map3D `build()` 재작성(증분+안개)**: `_wsig`(월드 구조 시그니처)·`_rcnt`(공개 헥스 수)·`_built`(배치된 헥스). 월드 구조 변경 시만 전체 재구성+카메라 리셋(`resize`/`CT.target` 리셋을 `full`일 때만 → **팬/줌이 매초 리셋되던 것 방지**). 공개 수만 변하면 **새로 공개된 헥스만 증분 타일 배치**. `biome`은 순차 rng→**헥스별 결정론 난수 `_hrand(c,r)`**(공개 순서 무관하게 지형 고정=깜빡임 방지). 미공개 헥스는 `buildFog`가 어두운 육각 프리즘 **InstancedMesh**(1드로우콜·높이 살짝 랜덤=구름 느낌·30° 회전으로 pointy-top 격자 정렬)로 덮음, 공개 변화마다 재생성(가벼움).
+> - ⏭️ **미결/다음**: 안개 반경·색/높이 튜닝은 상수(REVEAL_*)·buildFog 색(`0x151d2b`)으로 조절 가능. 좌표 기반 정찰(집결지에서 안개 속 좌표로 정찰 보내기)은 기존 rally 좌표 입력으로 가능. 적 AI/실팀원 멀티는 여전히 미결(방어/지원 로직은 살아 있음). 3D 마을 발전 단계·성벽 등 다른 컴퓨터 작업의 실기 확인은 별도.
+
+### 🗺️ 룬테라 전쟁 v0.2~v0.3.2 — 부족전쟁 게임성 정합 · 라이벌 제거 · PC/모바일 분리 · 마을 발전 단계 (2026-07-29·원격web·작업브랜치 `claude/computer-work-session-we1guo`·main+브랜치 배포·**최종 커밋 `aefaaf7`·Pages success**)
 > ⚠️ **index.html(라이브 앱) 무관** — `룬테라원정-프로토타입.html` 전면 재작성(v0.1→**v0.2→v0.3**·`SAVE_VER 8`=구세이브 폐기). 사장님 지시: "부족전쟁과 최대한 동일한 게임성으로 검토 + 비주얼/퀄리티 재구성 + **PC버전과 모바일버전이 다름을 확실히 인지**". 검증=Playwright 헤드리스(`/opt/node22/lib/node_modules/playwright`·chromium `/opt/pw-browsers/chromium-1194`·python http.server 8899·⚠️이 환경 jsdelivr 차단이라 3D는 2D 폴백으로 검증, 3D 실렌더는 실기 확인 필요) — PC 1366px/모바일 390px 스크린샷+전투/정찰/정복/지원 흐름 evaluate 실행 전부 통과·pageerror 0.
 > ### 🖥️ 다른 컴퓨터 이어작업 — 퀵스타트(필독)
 > - **작업 파일 1개**: `룬테라원정-프로토타입.html`(단일 HTML·빌드 없음·`localStorage rune_proto` mock 저장). **index.html(라이브 앱)과 완전 무관** — APP_VERSION·CHANGELOG 안 건드림. 에셋=`assets/{hex,town,castle,survival}/*.glb`(Kenney CC0·전부 리포에 커밋됨·존재 확인 완료).
