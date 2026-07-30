@@ -1998,7 +1998,7 @@ function initS(){ if(R) return;
   R.domElement.style.cssText='position:absolute;inset:0;width:100%;height:100%;';
   SC=new T.Scene();
   CAM=new T.OrthographicCamera(-10,10,10,-10,-80,140); CAM.position.set(16,16,16); CAM.lookAt(0,0,0); CAM.zoom=8;   // 시작=내 마을 근처 클로즈업
-  CT=new OrbitControls(CAM,R.domElement); CT.enableDamping=true; CT.enableRotate=false; CT.enablePan=true; CT.screenSpacePanning=true; CT.minZoom=0.5; CT.maxZoom=14;   // 넓은 맵 → 확대 여유 크게
+  CT=new OrbitControls(CAM,R.domElement); CT.enableDamping=true; CT.dampingFactor=0.28; CT.enableRotate=false; CT.enablePan=true; CT.screenSpacePanning=true; CT.minZoom=0.5; CT.maxZoom=14;   // 넓은 맵 → 확대 여유 크게
   CT.mouseButtons={ LEFT:T.MOUSE.PAN, MIDDLE:T.MOUSE.DOLLY, RIGHT:T.MOUSE.PAN };   // 좌클릭 드래그=이동
   CT.touches={ ONE:T.TOUCH.PAN, TWO:T.TOUCH.DOLLY_PAN };   // 한손가락=이동, 두손가락=확대+이동
   CT.panSpeed=1.1; CT.zoomSpeed=1.1;
@@ -2045,9 +2045,19 @@ function updMarchLines(st){
   MM3ARR=ms.map(m=>({mode:m.mode,obj:null}));
   ms.forEach((m,i)=>{ mkMarchMesh(m.mode,(mesh)=>{ if(MM3ARR[i]&&MM3ARR[i].mode===m.mode){ MM3ARR[i].obj=mesh; MM3.add(mesh); } }); });
 }
-function proj(){ if(!EL) return; const rc=EL.getBoundingClientRect();
-  const set=(arr)=>{ for(const L of arr){ const v=L.pos.clone().project(CAM); const x=(v.x*.5+.5)*rc.width, y=(-v.y*.5+.5)*rc.height;
-    L.el.style.left=x+'px'; L.el.style.top=y+'px'; L.el.style.display=v.z<1?'':'none'; } };
+// 화면 좌표 갱신 — ⚠️매 프레임 도는 함수라 여기서 낭비하면 조작이 곧바로 뻑뻑해진다.
+//   getBoundingClientRect(강제 레이아웃)·벡터 할당·스타일/innerHTML 쓰기를 모두 줄였다.
+const _pv=new T.Vector3();
+let _rc=null, _rcAt=0;
+function proj(){ if(!EL) return;
+  const now=performance.now();
+  if(!_rc || now-_rcAt>400){ _rc=EL.getBoundingClientRect(); _rcAt=now; }
+  const rc=_rc;
+  const set=(arr)=>{ for(const L of arr){ _pv.copy(L.pos).project(CAM);
+    const x=(_pv.x*.5+.5)*rc.width, y=(-_pv.y*.5+.5)*rc.height, vis=_pv.z<1?'':'none';
+    if(L._x!==x){ L.el.style.left=x+'px'; L._x=x; }
+    if(L._y!==y){ L.el.style.top=y+'px'; L._y=y; }
+    if(L._v!==vis){ L.el.style.display=vis; L._v=vis; } } };
   set(VLAB);
   // 행군 마커(실시간 보간)
   const st=OPT&&OPT.state&&OPT.state(); if(st){ updMarchLines(st); const now=Date.now(); const home=st.world[OPT.HOME], ms=st.marches||[];
@@ -2063,9 +2073,15 @@ function proj(){ if(!EL) return; const rc=EL.getBoundingClientRect();
       // 진행방향 회전 — ⚠️수레·깃발 GLB는 **앞이 +Z**(cart z1.34>x0.89 · banner z0.63>x0.04).
       //   local +Z → world(sinθ,0,cosθ) 이므로 θ=atan2(dx,dz). (예전 -atan2(dz,dx)는 +X 기준이라 90° 틀어져 옆으로 갔음)
       if(mo){ mo.position.set(gx,0.2,gz); mo.rotation.y=Math.atan2(b.x-a.x,b.z-a.z); }
-      const wp=new T.Vector3(gx,1.0,gz).project(CAM);
-      L.el.style.left=(wp.x*.5+.5)*rc.width+'px'; L.el.style.top=(-wp.y*.5+.5)*rc.height+'px'; L.el.style.display=wp.z<1?'':'none';
-      L.el.innerHTML=`<b>${OPT.fmt(m.arriveAt-now)}</b>`; L.el.className='mm3 '+m.mode; }); }
+      _pv.set(gx,1.0,gz).project(CAM);
+      const lx=(_pv.x*.5+.5)*rc.width, ly=(-_pv.y*.5+.5)*rc.height, lv=_pv.z<1?'':'none';
+      if(L._x!==lx){ L.el.style.left=lx+'px'; L._x=lx; }
+      if(L._y!==ly){ L.el.style.top=ly+'px'; L._y=ly; }
+      if(L._v!==lv){ L.el.style.display=lv; L._v=lv; }
+      const txt=OPT.fmt(m.arriveAt-now);
+      if(L._t!==txt){ L.el.innerHTML='<b>'+txt+'</b>'; L._t=txt; }
+      const cls='mm3 '+m.mode;
+      if(L._c!==cls){ L.el.className=cls; L._c=cls; } }); }
 }
 function hp(w){ const p=OPT.hex(w.x,w.y); return {x:p.x-off.x, z:p.z-off.z}; }   // 중앙 정렬된 3D 좌표
 export function mount(el){ initS(); if(EL===el && el.contains(R.domElement)) return;   // 이미 마운트됨 → 재부착 안 함
