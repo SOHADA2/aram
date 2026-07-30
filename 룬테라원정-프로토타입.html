@@ -2005,7 +2005,7 @@ function initS(){ if(R) return;
   SC.add(new T.HemisphereLight(0xdcefff,0x55664a,0.98));
   const sun=new T.DirectionalLight(0xfff3d8,1.35); sun.position.set(12,20,8); sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
   const s=sun.shadow.camera; s.left=-14;s.right=14;s.top=14;s.bottom=-14;s.near=1;s.far=60; sun.shadow.bias=-0.0006; SC.add(sun);
-  const sea=new T.Mesh(new T.PlaneGeometry(300,300),new T.MeshStandardMaterial({color:0x3f7fb0,roughness:.7})); sea.rotation.x=-Math.PI/2; sea.position.y=-0.08; sea.receiveShadow=true; SC.add(sea);
+  const sea=new T.Mesh(new T.PlaneGeometry(300,300),new T.MeshStandardMaterial({color:0x2b3742,roughness:.9}));   // 안개 톤과 맞춘 배경 — 밝은 파랑이면 안개 경계로 비쳐 테두리가 생김 sea.rotation.x=-Math.PI/2; sea.position.y=-0.08; sea.receiveShadow=true; SC.add(sea);
   GRP=new T.Group(); SC.add(GRP);
   (function loop(){ requestAnimationFrame(loop); if(!EL||!R||EL.offsetParent===null) return; if(CT)CT.update(); R.render(SC,CAM); proj(); })();
 }
@@ -2110,20 +2110,37 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
 // 🌫️ 안개 = 흐릿한 반투명 저지대 헥스 — 지형색을 희미하게 비쳐 "미지의 대륙"처럼(마을=따뜻한 봉우리)
 const _BIOMECOL={'stone-mountain':0x6b6f78,'stone-hill':0x707680,'stone-rocks':0x6b7078,'sand-desert':0xccb473,'sand':0xccb473,'sand-rocks':0xc3a869,'water':0x3f7fb0,'water-rocks':0x3f7fb0,'grass-forest':0x3f7a3a,'grass-hill':0x6f9e46,'grass':0x6f9e46};
 const _FOGDK=new T.Color(0x0f1826);
-let _fogCanvas=null,_fogCtx=null,_fogTex=null,_fogPlane=null,_fb=null,_fogCols=0,_fogRows=0;
+let _fogCanvas=null,_fogCtx=null,_fogTex=null,_fogPlane=null,_fb=null,_fogCols=0,_fogRows=0,_cloudTex=null;
 function _cellRGB(c,r,isV){ const base=isV?0x9a7448:(_BIOMECOL[biome(c,r,_fogCols,_fogRows,_hrand(c,r))]||0x6f9e46);
   const col=new T.Color(base).multiplyScalar(0.80).lerp(_FOGDK,0.16);   // 예전 0.55/0.32는 거의 검정 → 바닥이 끊겨 보였음
   return `${(col.r*255)|0},${(col.g*255)|0},${(col.b*255)|0}`; }
 function _fogXY(c,r){ const p=OPT.hex(c,r); return {cx:(p.x-off.x-_fb.minX)/_fb.w*_fb.cw, cy:(1-(p.z-off.z-_fb.minZ)/_fb.h)*_fb.ch}; }
 function eraseFogCell(c,r){ if(!_fogCtx||!_fb) return; const {cx,cy}=_fogXY(c,r);
   // ⚠️ 반경이 셀(1.0)보다 크면 공개 타일 **바깥**까지 안개가 걷혀 그 틈으로 바다·타일 옆면이 드러난다(섬처럼 보이던 원인)
-  const R=_fb.k*0.62;
+  const R=_fb.k*0.78;   // 완전 제거는 0.7R=0.55 → 이웃 칸(간격 0.866~1.0)과 이어짐 · 예전 1.55는 타일 밖까지 걷혀 섬처럼 보였음
   _fogCtx.save(); _fogCtx.globalCompositeOperation='destination-out';
-  const g=_fogCtx.createRadialGradient(cx,cy,0,cx,cy,R); g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(.72,'rgba(0,0,0,1)'); g.addColorStop(1,'rgba(0,0,0,0)');
+  const g=_fogCtx.createRadialGradient(cx,cy,0,cx,cy,R); g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(.70,'rgba(0,0,0,1)'); g.addColorStop(1,'rgba(0,0,0,0)');
   _fogCtx.fillStyle=g; _fogCtx.beginPath(); _fogCtx.arc(cx,cy,R,0,6.2832); _fogCtx.fill(); _fogCtx.restore(); }
 // 🌫️ 안개 = 블러 처리한 캔버스 텍스처 평면(진짜 안개처럼 부드럽게·지형/마을 희미하게 비침)
+// 🌫️ 안개 = **가림 마스크(어디를 가릴지) + 타일링 구름 텍스처(어떻게 보일지)** 분리 구조.
+//   ⚠️예전엔 지형색을 헥스마다 칠하고 통째로 블러했는데, 텍스처가 월드 전체에 1유닛당 8px뿐이라
+//     확대하면 그 저해상도가 그대로 늘어나 "안개"가 아니라 **블러로 뭉갠 지형**처럼 보였음.
+//   구름은 월드 좌표 기준으로 반복(repeat)시켜 확대해도 무늬가 또렷하게 유지된다.
+function _makeCloudTex(){
+  if(_cloudTex) return _cloudTex;
+  const N=256, cv=document.createElement('canvas'); cv.width=cv.height=N; const g=cv.getContext('2d');
+  g.fillStyle='#b9c6cf'; g.fillRect(0,0,N,N);
+  const blob=(x,y,r,a,c)=>{ const rg=g.createRadialGradient(x,y,0,x,y,r);
+    rg.addColorStop(0,`rgba(${c},${a})`); rg.addColorStop(1,`rgba(${c},0)`);
+    g.fillStyle=rg; g.beginPath(); g.arc(x,y,r,0,6.2832); g.fill(); };
+  for(let i=0;i<54;i++){ const x=Math.random()*N, y=Math.random()*N, r=16+Math.random()*44;
+    const light=Math.random()<0.5, c=light?'246,252,255':'92,104,116', a=0.30+Math.random()*0.42;
+    for(const dx of [-N,0,N]) for(const dy of [-N,0,N]) blob(x+dx,y+dy,r,a,c); }   // 경계 넘는 얼룩은 반대편에도 → 이음매 없음
+  _cloudTex=new T.CanvasTexture(cv); _cloudTex.wrapS=_cloudTex.wrapT=T.RepeatWrapping;
+  _cloudTex.colorSpace=T.SRGBColorSpace; return _cloudTex;
+}
 function fogInit(cols,rows,rev,opts,at){
-  _fogCols=cols; _fogRows=rows; const K=8;
+  _fogCols=cols; _fogRows=rows; const K=14;   // 마스크 해상도(가장자리 선명도만 좌우 — 색은 구름 텍스처가 담당)
   let minX=1e9,maxX=-1e9,minZ=1e9,maxZ=-1e9;
   for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ const p=opts.hex(c,r); const x=p.x-off.x,z=p.z-off.z;
     if(x<minX)minX=x; if(x>maxX)maxX=x; if(z<minZ)minZ=z; if(z>maxZ)maxZ=z; }
@@ -2131,30 +2148,13 @@ function fogInit(cols,rows,rev,opts,at){
   const w=maxX-minX, h=maxZ-minZ, cw=Math.ceil(w*K), ch=Math.ceil(h*K);
   _fb={minX,minZ,w,h,cw,ch,k:cw/w};
   _fogCanvas=document.createElement('canvas'); _fogCanvas.width=cw; _fogCanvas.height=ch; _fogCtx=_fogCanvas.getContext('2d');
-  _fogCtx.clearRect(0,0,cw,ch);
-  // ⚠️ ctx.filter를 켠 채로 그리면 draw 1회마다 블러 패스가 돈다. 헥스 수천 개면 메인스레드가 멎음(79×98=7,742).
-  //    → 필터 없이 전부 그린 뒤 아래에서 **딱 한 번** 블러한다.
-  const rad=_fb.k*1.2;
-  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ if(rev[c+','+r]) continue; const isV=!!(at&&at[c+','+r]); const {cx,cy}=_fogXY(c,r);
-    const rgb=_cellRGB(c,r,isV), rr=isV?rad*0.85:rad;
-    const g=_fogCtx.createRadialGradient(cx,cy,0,cx,cy,rr);
-    // 미탐험 구역은 **불투명한 지면**으로 칠한다 — 반투명이면 아래가 비어 보여서 탐험지가 섬처럼 떠 보였음.
-    //    안개면(y=0.24)이 타일 윗면(0.2)보다 살짝 높아, 불투명하면 경계의 타일 옆면(절벽)까지 가려준다.
-    g.addColorStop(0,`rgba(${rgb},1)`); g.addColorStop(0.72,`rgba(${rgb},1)`); g.addColorStop(1,`rgba(${rgb},0)`);
-    _fogCtx.fillStyle=g; _fogCtx.beginPath(); _fogCtx.arc(cx,cy,rr,0,6.2832); _fogCtx.fill(); }
-  // 블러 1회만(임시 캔버스로 옮겨 되그리기) — 안개 결과물은 동일, 비용은 7,742패스 → 1패스
-  try{ const tmp=document.createElement('canvas'); tmp.width=cw; tmp.height=ch;
-    tmp.getContext('2d').drawImage(_fogCanvas,0,0);
-    _fogCtx.clearRect(0,0,cw,ch);
-    _fogCtx.filter='blur('+Math.max(2,_fb.k*0.55)+'px)';
-    _fogCtx.drawImage(tmp,0,0);
-  }catch(e){}
-  _fogCtx.filter='none';
+  _fogCtx.fillStyle='#ffffff'; _fogCtx.fillRect(0,0,cw,ch);   // 전부 안개(흰색=불투명) → 공개된 칸만 파낸다
   for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ if(rev[c+','+r]) eraseFogCell(c,r); }
   if(_fogPlane){ SC.remove(_fogPlane); _fogPlane.geometry.dispose(); _fogPlane.material.dispose(); if(_fogTex)_fogTex.dispose(); }
-  _fogTex=new T.CanvasTexture(_fogCanvas); _fogTex.colorSpace=T.SRGBColorSpace; _fogTex.flipY=false; _fogTex.minFilter=T.LinearFilter; _fogTex.magFilter=T.LinearFilter;
-  const geo=new T.PlaneGeometry(w,h), mat=new T.MeshBasicMaterial({map:_fogTex,transparent:true,depthWrite:false});
-  // 안개면은 타일 윗면(0.2) 바로 위 — 경계에서 타일 옆면(절벽)을 덮어준다
+  _fogTex=new T.CanvasTexture(_fogCanvas); _fogTex.flipY=false; _fogTex.minFilter=T.LinearFilter; _fogTex.magFilter=T.LinearFilter;
+  const cloud=_makeCloudTex(); cloud.repeat.set(w/7.5,h/7.5);   // 약 7.5칸마다 구름 무늬 1회 반복
+  const geo=new T.PlaneGeometry(w,h);
+  const mat=new T.MeshBasicMaterial({map:cloud, alphaMap:_fogTex, color:0x38443a, transparent:true, depthWrite:false, fog:false});
   _fogPlane=new T.Mesh(geo,mat); _fogPlane.rotation.x=-Math.PI/2;
   _fogPlane.position.set(minX+w/2,0.24,minZ+h/2); _fogPlane.renderOrder=4; SC.add(_fogPlane);
 }
