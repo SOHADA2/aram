@@ -1,6 +1,5 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>룬테라 전쟁 — 프로토타입 v0.4</title>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160/examples/jsm/"}}</script>
 <style>
 /* ═══ 클래식 전략 스타일 양피지 테마 ═══
    PC(≥900px)  = 브라우저 게임 레이아웃: 상단 메뉴 + 본문 + 우측 사이드바(개요) + 테이블 UI
@@ -72,7 +71,7 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .protect-banner b{color:#a9d4ff;} .protect-banner .pb-sub{margin-left:auto;font-size:9px;font-weight:700;color:#e0a86a;}
 /* 지도 */
 #view-map{position:relative;}
-.map-wrap{position:relative;width:100%;height:min(60vh,540px);border-radius:8px;overflow:hidden;cursor:grab;touch-action:none;
+.map-wrap{position:relative;width:100%;height:calc(100vh - 188px);height:calc(100dvh - 188px);min-height:300px;border-radius:8px;overflow:hidden;cursor:grab;touch-action:none;
   background:radial-gradient(120% 100% at 50% 20%,#0e2632,#081820 60%,#050f14 100%);
   box-shadow:inset 0 0 0 2px #6b4f24,inset 0 0 0 4px #54401f,0 3px 12px rgba(70,45,10,.35);}
 .map-wrap.grabbing{cursor:grabbing;}
@@ -96,6 +95,9 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .vmk-tag{margin-top:2px;font-size:8px;font-weight:800;white-space:nowrap;padding:1px 6px;border-radius:7px;background:linear-gradient(135deg,#f4e3a8,#d8b45a);color:#2a1c06;}
 .vmk-tag.player{background:linear-gradient(135deg,#bcd3ff,#6f93d6);color:#0a1730;}
 .vmk-tag.barb{background:linear-gradient(135deg,#6a6f76,#3e4248);color:#251c11;font-family:monospace;}
+.map-fb{position:absolute;left:8px;right:8px;bottom:8px;z-index:8;font-size:10px;font-weight:700;color:#ffd9c0;
+  background:rgba(40,12,8,.88);border:1px solid #b3261e;border-radius:8px;padding:7px 10px;line-height:1.5;}
+.map-fb small{display:block;margin-top:3px;font-size:9px;color:#ffb9a0;font-family:monospace;word-break:break-all;}
 .pz-reset{position:absolute;right:8px;top:8px;z-index:6;width:30px;height:30px;border:none;border-radius:8px;background:rgba(8,14,18,.7);border:1px solid rgba(200,168,75,.45);color:#f0dca0;font-size:15px;cursor:pointer;}
 .pz-reset:active{transform:scale(.94);}
 /* 3D 지도 마을 명패(다크 유지 — 지형 위 대비) */
@@ -380,7 +382,7 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
   .pcm-sep{flex:1;}
   .main{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:10px;padding:10px;align-items:start;}
   .sidebar{display:block;position:sticky;top:10px;}
-  .map-wrap{height:calc(100vh - 250px);min-height:480px;}
+  .map-wrap{height:calc(100vh - 176px);height:calc(100dvh - 176px);min-height:480px;}
   .scene{height:560px;}
   .picker,.picker.atk{max-width:520px;}
   .vi-acts .btn{font-size:13px;}
@@ -977,12 +979,24 @@ function renderSidebar(){
     <div class="box"><div class="bh">📡 부대 이동</div><div class="bc">${mv}</div></div>`;
 }
 // ── 지도(3D 우선 · 2D 폴백) ──
+// 3D 지도 로드 실패 배너 — 원인(모듈 에러)을 같이 보여줘 추측하지 않게
+let _mapFbShown=false, _mapFbErr='';
+window.addEventListener('error', e=>{ if(e&&e.filename&&/three|vendor/i.test(e.filename)) _mapFbErr=String(e.message||'').slice(0,120); }, true);
+function _mapFallbackNotice(){
+  if(_mapFbShown) return; _mapFbShown=true;
+  const wrap=document.getElementById('map-wrap'); if(!wrap||wrap.querySelector('.map-fb')) return;
+  const d=document.createElement('div'); d.className='map-fb';
+  d.innerHTML=`⚠️ <b>3D 지도를 불러오지 못해 간이 지도로 표시 중</b>${_mapFbErr?`<small>${escHtml(_mapFbErr)}</small>`:''}`;
+  wrap.appendChild(d);
+}
+function escHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function renderMap(){
   if(window.Map3D){ const wrap=document.getElementById('map-wrap'), mc=document.getElementById('map-content'); if(mc) mc.style.display='none';
     if(wrap){ window.Map3D.mount(wrap); window.Map3D.build({ world:S.world, cols:HCOLS, rows:HROWS, hex:hexPos, isP:isProtected, onNode:onVillage, HOME:HOME_KEY, fmt:fmtDur, revealed:S.revealed, state:()=>({world:S.world,marches:S.marches}) });
       const rr=document.getElementById('map-reset'); if(rr) rr.onclick=()=>window.Map3D.resetCam(); }
     return; }
-  // 2D 폴백(three.js CDN 차단 환경)
+  // 2D 폴백 — ⚠️조용히 떨어지면 원인 파악이 불가능해서, 실패했다는 사실을 화면에 남긴다
+  _mapFallbackNotice();
   const F=44; const mn=document.getElementById('mnodes'); if(!mn) return;
   let e=''; (S.marches||[]).forEach(m=>{ const inc=m.mode==='raid';
     const org=inc? S.world[m.from] : (m.mode==='return'? S.world[m.to] : S.world[m.fromV||HOME_KEY]);
@@ -1736,9 +1750,9 @@ window.runeSaveCheck=function(){ save(); let ok=false, msg='';
 </script>
 <script type="module">
 // ══ 3D 마을(정통 전략식 원형 성벽 마을) — 판타지 타운/성/서바이벌 키트(Kenney CC0) ══
-import * as T from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import * as T from './vendor/three/three.module.js';
+import { GLTFLoader } from './vendor/three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from './vendor/three/addons/controls/OrbitControls.js';
 const P2=Math.PI/2, KIT={town:'assets/town/',castle:'assets/castle/',surv:'assets/survival/',hex:'assets/hex/'};
 let renderer,scene,cam,ctrl,vgroup,bgroup,tgroup,curEl,labelHost,W=1,H=1,onBuild=null,sun,hemi,night=false,_wallLv=-1,_tierBuilt=-1;
 const cache={}, gl=new GLTFLoader(), labels=[];
@@ -1940,9 +1954,9 @@ window.Town3D={ mount, build, resetCam, setNight, ok:true };
 </script>
 <script type="module">
 // ══ 3D 육각 지도 — 육각 키트(Kenney CC0) · 마을=헥스 위 건물타일 · 거리=헥스 실좌표 ══
-import * as T from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import * as T from './vendor/three/three.module.js';
+import { GLTFLoader } from './vendor/three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from './vendor/three/addons/controls/OrbitControls.js';
 const HX='assets/hex/'; let R,SC,CAM,CT,GRP,MK,EL,LH,OPT=null,off={x:0,z:0},_lastSig='';
 const C={}, GL=new GLTFLoader(), VLAB=[], MLAB=[];
 function ld(n){ return C[n]||(C[n]=GL.loadAsync(HX+n+'.glb').then(g=>g.scene)); }
@@ -2100,13 +2114,21 @@ function fogInit(cols,rows,rev,opts,at){
   _fb={minX,minZ,w,h,cw,ch,k:cw/w};
   _fogCanvas=document.createElement('canvas'); _fogCanvas.width=cw; _fogCanvas.height=ch; _fogCtx=_fogCanvas.getContext('2d');
   _fogCtx.clearRect(0,0,cw,ch);
-  _fogCtx.filter='blur('+Math.max(2,_fb.k*0.55)+'px)';   // 부드러운 안개
+  // ⚠️ ctx.filter를 켠 채로 그리면 draw 1회마다 블러 패스가 돈다. 헥스 수천 개면 메인스레드가 멎음(79×98=7,742).
+  //    → 필터 없이 전부 그린 뒤 아래에서 **딱 한 번** 블러한다.
   const rad=_fb.k*1.2;
   for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ if(rev[c+','+r]) continue; const isV=!!(at&&at[c+','+r]); const {cx,cy}=_fogXY(c,r);
     const rgb=_cellRGB(c,r,isV), rr=isV?rad*0.85:rad;
     const g=_fogCtx.createRadialGradient(cx,cy,0,cx,cy,rr);
     g.addColorStop(0,`rgba(${rgb},${isV?0.98:0.9})`); g.addColorStop(0.7,`rgba(${rgb},${isV?0.92:0.82})`); g.addColorStop(1,`rgba(${rgb},0)`);
     _fogCtx.fillStyle=g; _fogCtx.beginPath(); _fogCtx.arc(cx,cy,rr,0,6.2832); _fogCtx.fill(); }
+  // 블러 1회만(임시 캔버스로 옮겨 되그리기) — 안개 결과물은 동일, 비용은 7,742패스 → 1패스
+  try{ const tmp=document.createElement('canvas'); tmp.width=cw; tmp.height=ch;
+    tmp.getContext('2d').drawImage(_fogCanvas,0,0);
+    _fogCtx.clearRect(0,0,cw,ch);
+    _fogCtx.filter='blur('+Math.max(2,_fb.k*0.55)+'px)';
+    _fogCtx.drawImage(tmp,0,0);
+  }catch(e){}
   _fogCtx.filter='none';
   for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ if(rev[c+','+r]) eraseFogCell(c,r); }
   if(_fogPlane){ SC.remove(_fogPlane); _fogPlane.geometry.dispose(); _fogPlane.material.dispose(); if(_fogTex)_fogTex.dispose(); }
