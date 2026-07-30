@@ -353,17 +353,15 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
 .mk-trow .mk-tres{font-size:9.5px;color:#8fce8a;}
 .mk-empty{font-size:10.5px;line-height:1.55;color:#a89668;background:#221910;border:1px dashed #54401f;border-radius:8px;padding:9px 10px;text-align:center;}
 .eff-nx{display:block;font-size:9.5px;color:#8fce8a;font-weight:700;margin-top:1px;}
-/* 🔥 습격 대비 상태 */
-.raid-st{display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:10.5px;font-weight:700;color:#c9b98a;
+/* 🛡️ 마을 수비 상태 — 병과별 방어력 */
+.def-st{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;font-size:10.5px;font-weight:700;color:#c9b98a;
   background:#221910;border:1px solid #54401f;border-left:3px solid #6b4f24;border-radius:8px;padding:7px 10px;margin-bottom:7px;}
-.raid-st b{font-family:monospace;color:#f0e2b8;}
-.raid-st .rs-mid{color:#a89668;} .raid-st .rs-eta{margin-left:auto;white-space:nowrap;}
-.raid-st b.hot{color:#ffb46a;}
-.raid-st.ok{border-left-color:#5f8f3e;} .raid-st.ok .rs-mid b{color:#8fce8a;}
-.raid-st.warn{border-left-color:#c07a2c;} .raid-st.warn .rs-mid b{color:#e0a86a;}
-.raid-st.danger{border-left-color:#b3261e;} .raid-st.danger .rs-mid b{color:#ff9a7a;}
-.raid-st.inc{border-left-color:#b3261e;background:#2a1712;} .raid-st.inc>span:first-child{color:#ff9a7a;}
-.raid-st.calm{border-left-color:#3f5f7a;}
+.def-st .ds-h{font-size:10px;color:#a89668;font-weight:800;margin-right:2px;}
+.def-st .ds-row{display:flex;align-items:baseline;gap:4px;padding:1px 6px;border-radius:5px;background:rgba(0,0,0,.3);box-shadow:inset 0 0 0 1px rgba(107,79,36,.45);}
+.def-st .ds-row i{font-style:normal;font-size:8.5px;font-weight:800;color:#9a8a60;}
+.def-st .ds-row b{font-size:11.5px;font-weight:900;color:#f4e6bd;font-variant-numeric:tabular-nums;}
+.def-st .ds-wall{margin-left:auto;font-size:9.5px;color:#a89668;white-space:nowrap;}
+.def-st.inc{border-left-color:#b3261e;background:#2a1712;}
 .q-row.research .qbar>div{background:linear-gradient(90deg,#b07fd8,#e0c0ff);}
 .q-row.ship .qbar>div{background:linear-gradient(90deg,#4a8fae,#6ac6cf);}
 /* 토스트 */
@@ -749,7 +747,7 @@ function tick(){
     for(const u in base){ const cur=w.garrison[u]||0; if(cur<base[u]) w.garrison[u]=Math.min(base[u], cur+base[u]*dt/5400); }
   }
   revealMarchPositions(now);   // 🌫️ 행군 부대가 지나는 곳 안개 걷힘
-  processMarches(now); processTrades(now); processResearch(now); maybeRaid(now); S.t=now;
+  processMarches(now); processTrades(now); processResearch(now); S.t=now;   // ⚠️maybeRaid 제거 — 야만인은 먼저 공격하지 않는다(원작 동일)
 }
 // 🐴 상인 수송 — 도착 시 입고 후 자동 귀환, 귀환 완료 시 상인 복귀
 function processTrades(now){ const A=S.trades||[];
@@ -939,9 +937,12 @@ function resolveDefense(m, now){
   pushReport({type:'defense', win:!r.win, raid:m.mode==='raid', big:!!m.big, from:{name:atkName, x:a?a.x:0, y:a?a.y:0}, tgt:{name:'내 마을', x:w.x, y:w.y},
     luck:r.luck, atkPow:r.atkPow, defPow:r.defPow, atkUnits:{...m.units}, atkLost:aRes2.lost, myLost, loot});
   const rTag=m.big?'대규모 ':'';
-  toast(r.win? `💥 ${rTag}야만인 습격 — ${crd(w)} 마을이 약탈당했어요! (📜 보고서)` : `🛡️ ${rTag}야만인 습격을 막아냈어요! (📜 보고서)`);
+  toast(r.win? `${rTag}습격 — ${crd(w)} 마을이 약탈당했어요! (보고서 확인)` : `${rTag}습격을 막아냈어요! (보고서 확인)`);
 }
-// ══ 🔥 야만인 습격 — 스폰/난이도 ══
+// ══ 🔥 습격 스폰 — ⚠️현재 비활성(tick 에서 maybeRaid 를 부르지 않는다) ══
+// 원작의 야만인 마을은 먼저 공격해 오지 않는다. 파밍 난이도는 「그 마을의 수비대·성벽」이 만든다(barbGarrison/barbWall).
+// 타이머로 계속 쳐들어오게 했더니 인과가 없어 인위적이었음 → 스폰만 끊고, 방어 전투(resolveDefense)와
+// 이 스폰 코드는 실팀원 멀티(플레이어 공격) 붙일 때 재사용하려고 의도적으로 남겨둔다.
 // 발전도 = 습격 규모의 기준. ⚠️방어 건물(성벽·지하창고)은 제외 — 포함하면 "성벽을 올릴수록 습격이 세져서 더 아픈" 역효과가 남.
 function villageDev(v){ let s=0; for(const b in v.blds){ if(b==='wall'||b==='hide') continue; s+=(v.blds[b]||0); } return s; }
 // ⚠️ 습격 규모는 **병력만** 기준으로 잡는다(성벽 제외). 성벽까지 포함하면 성벽을 올릴수록 습격도 세져서
@@ -1399,25 +1400,23 @@ function bldNextTxt(b,lv){ const d=BLD[b]; if(lv>=d.max) return '';
   return nx;
 }
 // 🔥 습격 대비 상태 — 난이도를 숨기지 않고 "안전선"을 그대로 보여준다(자동 이벤트라 예측 가능해야 함)
-function raidStatusHtml(v, now){
-  const dev=villageDev(v), wl=v.blds.wall||0;
-  if(dev<RAID_DEV_MIN) return `<div class="raid-st calm">${I('fire')} 야만인 습격 — 마을이 더 크면 시작돼요 <b>발전도 ${dev}/${RAID_DEV_MIN}</b></div>`;
-  const inc=(S.marches||[]).find(m=>m.mode==='raid'&&m.to===S.active);
-  const defNow=Math.round(villageTroopPow(v)*Math.pow(1.037,wl)+wallBasicDef(wl));
-  const breach=Math.round(raidFloor(dev)*1.25);                 // 이 아래면 습격이 뚫려 약탈당함
-  // 권장선 = 습격 규모가 '하한'에서 '내 병력 비례'로 넘어가는 교차점. 이 위부터 손실률이 ~10%로 안정된다.
-  const rec=Math.round(raidFloor(dev)/raidRatio(dev));
-  const lv = defNow<breach? 'danger' : (defNow<rec? 'warn' : 'ok');
-  const perSpear=TROOP.spear.def*Math.pow(1.037,wl);
-  const need=Math.max(0, Math.ceil((rec-defNow)/perSpear));
-  const eta=inc? `<b class="hot">도착 ${fmtDur(inc.arriveAt-now)}</b>` : (v.nextRaid? `다음 <b>${fmtDur(Math.max(0,v.nextRaid-now))}</b>` : '');
-  const head = inc? `${inc.big?'대규모 ':''}야만인 습격대 접근 중`
-    : lv==='danger'? '야만인 습격 · <b class="hot">약탈 위험</b>'
-    : lv==='warn'? '야만인 습격 · 막지만 손실 큼' : '야만인 습격 · 대비됨';
-  return `<div class="raid-st ${inc?'inc':lv}">
-    <span>${I('fire')} ${head}</span>
-    <span class="rs-mid">${I('shield')} 방어 <b>${NF(defNow)}</b> / 권장 ${NF(rec)}${need?` · 창병 <b>+${need}</b>`:''}</span>
-    <span class="rs-eta">${eta}</span></div>`;
+// 마을 수비 상태 — 습격 예고가 아니라 「지금 이 마을이 얼마나 버티는가」만 담담히 보여준다.
+// 방어는 병과별로 갈리므로 합산 하나로 뭉개지 않고 보병/기병/궁병을 따로 적는다.
+function defenseStatusHtml(v){
+  const wl=v.blds.wall||0, wm=Math.pow(1.037,wl), wb=wallBasicDef(wl);
+  let di=0, dc=0, da=0;
+  for(const u in v.troops){ const n=v.troops[u]||0; if(!n) continue; const t=TROOP[u]; const rb=researchBonus(u);
+    di+=n*t.def*rb; dc+=n*t.defC*rb; da+=n*t.defA*rb; }
+  (v.support||[]).forEach(sp=>{ for(const u in sp.units){ const n=sp.units[u]||0; if(!n) continue; const t=TROOP[u];
+    di+=n*t.def; dc+=n*t.defC; da+=n*t.defA; } });
+  const f=x=>NF(Math.round(x*wm+wb));
+  const inc=(S.marches||[]).find(m=>m.to===S.active && (m.mode==='raid'||m.mode==='attack'));
+  return `<div class="def-st${inc?' inc':''}">
+    <span class="ds-h">${I('shield')} 마을 수비</span>
+    <span class="ds-row"><i>보병</i><b>${f(di)}</b></span>
+    <span class="ds-row"><i>기병</i><b>${f(dc)}</b></span>
+    <span class="ds-row"><i>궁병</i><b>${f(da)}</b></span>
+    ${wl?`<span class="ds-wall">${I('wall')} 성벽 ${wl}</span>`:''}</div>`;
 }
 function updateVillageDynamic(){
   const v=S.v; const now=Date.now(); const pc=isPC();
@@ -1477,7 +1476,7 @@ function updateVillageDynamic(){
   renderRecruit('vil-academy','academy',UNIT_GROUPS.academy,pc);
   const at=document.getElementById('vil-armytot'); if(at) at.textContent=NF(armyTotalV(v))+'명';
   const ae=document.getElementById('vil-army'); if(ae){ const ks=Object.keys(TROOP).filter(u=>(v.troops[u]||0)>0);
-    let h = raidStatusHtml(v, now);
+    let h = defenseStatusHtml(v);
     h += ks.length? `<div class="army">${ks.map(u=>`<span class="unit"><span class="u-ic">${I(TROOP[u].ic)}</span>${TROOP[u].nm} <b>${NF(v.troops[u])}</b></span>`).join('')}</div>` : `<div class="muted">아직 병력이 없어요</div>`;
     (v.support||[]).forEach((sp,ix)=>{ const fw=S.world[sp.from];
       h+=`<div class="rl-mrow support" style="margin-top:6px"><span>${I('shield')} 지원군 <b>${fw?crd(fw):'?'}</b></span><span class="rl-units">${Object.keys(sp.units).filter(u=>sp.units[u]>0).map(u=>I(TROOP[u].ic)+NF(sp.units[u])).join(' ')}</span><button class="btn sm" onclick="recallSupport('${S.active}',${ix})">회수</button></div>`; });
