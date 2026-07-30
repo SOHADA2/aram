@@ -1784,24 +1784,30 @@ async function buildWallRing(wallLv){ if(wallLv===_wallLv) return; _wallLv=wallL
   while(vgroup.children.length) vgroup.remove(vgroup.children[0]);
   const R=7.4;
   if(wallLv<=0) return;   // 🏕️ 아직 방벽 없음
+  // ⚠️ fence/wall GLB는 **긴 축이 Z**(길이 1.0 · 두께 0.075)이고 원점이 한쪽 끝(x≈0.46)에 치우쳐 있다.
+  //    rotation.y=θ에서 local +Z → world (sinθ,0,cosθ). 접선 (-sin a,0,cos a)와 맞추려면 **θ = -a**.
+  //    (예전 -a+90°는 90° 틀려서 조각이 방사 방향으로 서 있었고, 얇은 판이라 '이빨 빠진' 링으로 보였음)
+  //    x 오프셋은 θ=-a에서 반지름 방향으로 밀리므로 실효 반지름이 R+off가 된다 → 조각 수를 그 원주로 계산해야 빈틈이 없다.
+  const SEGN=(RR,segLen)=>Math.max(14, Math.round(2*Math.PI*RR/segLen));
   if(wallLv<5){   // 🛖 나무 울타리
-    const N=34;
+    const s=1.35, RR=R+0.462*s, N=SEGN(RR, 1.0*s);
     for(let i=0;i<N;i++){ const a=i/N*Math.PI*2; if(a<0.25||a>Math.PI*2-0.25) continue;
-      await inst('town','fence',vgroup,Math.cos(a)*R,Math.sin(a)*R,{ry:-a+P2,s:1.35}); }
-    await inst('town','fence-gate',vgroup,R,0,{ry:P2,s:1.4});
+      await inst('town','fence',vgroup,Math.cos(a)*R,Math.sin(a)*R,{ry:-a,s}); }
+    await inst('town','fence-gate',vgroup,R,0,{ry:0,s:1.4});
     return; }
-  if(wallLv>=10){ const moat=new T.Mesh(new T.RingGeometry(7.9,9,52),new T.MeshStandardMaterial({color:0x3f7fb0,roughness:.7}));
-    moat.rotation.x=-P2; moat.position.y=-0.06; moat.receiveShadow=true; vgroup.add(moat); }   // 🏰 해자
-  const N=22, th=Math.min(1.4,1.0+wallLv*0.04);
+  const th=Math.min(1.4,1.0+wallLv*0.04), RW=R+0.45*th;
+  if(wallLv>=10){ const moat=new T.Mesh(new T.RingGeometry(RW+0.35,RW+1.45,52),new T.MeshStandardMaterial({color:0x3f7fb0,roughness:.7}));
+    moat.rotation.x=-P2; moat.position.y=-0.06; moat.receiveShadow=true; vgroup.add(moat); }   // 🏰 해자(성벽 바깥)
+  const N=SEGN(RW, 1.0*th);
   for(let i=0;i<N;i++){ const a=i/N*Math.PI*2; if(a<0.3||a>Math.PI*2-0.3) continue;   // 정문 갭
     await inst('town','wall',vgroup,Math.cos(a)*R,Math.sin(a)*R,{ry:-a,s:th}); }
   const nT=Math.max(3,Math.min(10,2+Math.floor(wallLv*0.7))), ts=0.95+Math.min(0.4,wallLv*0.03), hi=wallLv>=10;
-  for(let i=0;i<nT;i++){ const a=0.5+i*(Math.PI*2-1.0)/Math.max(1,nT-1); const x=Math.cos(a)*R,z=Math.sin(a)*R;
+  for(let i=0;i<nT;i++){ const a=0.5+i*(Math.PI*2-1.0)/Math.max(1,nT-1); const x=Math.cos(a)*RW,z=Math.sin(a)*RW;
     await inst('castle','tower-square-base',vgroup,x,z,{s:ts});
     await inst('castle','tower-square-mid-windows',vgroup,x,z,{y:.75*ts,s:ts});
     if(hi) await inst('castle','tower-square-mid-windows',vgroup,x,z,{y:1.5*ts,s:ts});
     await inst('castle','tower-square-top-roof-high',vgroup,x,z,{y:(hi?2.25:1.5)*ts,s:ts}); }
-  await inst('castle','gate',vgroup,R,0,{ry:P2,s:1.25});
+  await inst('castle','gate',vgroup,RW,0,{ry:0,s:1.25});   // gate도 긴 축이 Z → ry=0이 접선
 }
 // 🏘️ 마을 중심가(광장·길·소품) — 발전 단계에 따라 점점 번화(0 개척지→3 성곽 도시)
 async function buildTier(t){ if(t===_tierBuilt) return; _tierBuilt=t;
@@ -2043,7 +2049,9 @@ function proj(){ if(!EL) return; const rc=EL.getBoundingClientRect();
       const a=hp(org), b=hp(dst);
       const gx=a.x+(b.x-a.x)*p, gz=a.z+(b.z-a.z)*p;   // 지면 경로 위 위치
       const mo=MM3ARR[i]&&MM3ARR[i].obj;
-      if(mo){ mo.position.set(gx,0.2,gz); mo.rotation.y=-Math.atan2(b.z-a.z,b.x-a.x); }   // 진행방향 회전
+      // 진행방향 회전 — ⚠️수레·깃발 GLB는 **앞이 +Z**(cart z1.34>x0.89 · banner z0.63>x0.04).
+      //   local +Z → world(sinθ,0,cosθ) 이므로 θ=atan2(dx,dz). (예전 -atan2(dz,dx)는 +X 기준이라 90° 틀어져 옆으로 갔음)
+      if(mo){ mo.position.set(gx,0.2,gz); mo.rotation.y=Math.atan2(b.x-a.x,b.z-a.z); }
       const wp=new T.Vector3(gx,1.0,gz).project(CAM);
       L.el.style.left=(wp.x*.5+.5)*rc.width+'px'; L.el.style.top=(-wp.y*.5+.5)*rc.height+'px'; L.el.style.display=wp.z<1?'':'none';
       L.el.innerHTML=`<b>${OPT.fmt(m.arriveAt-now)}</b>`; L.el.className='mm3 '+m.mode; }); }
