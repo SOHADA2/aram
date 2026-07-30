@@ -817,7 +817,22 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### 🗺️ 룬테라 전쟁 — 🌫️ 전장의 안개 + 안개 흐릿화·월드 10배 확대·도감 제거 (2026-07-29·이 PC win32·main 배포·최종 커밋은 git log 참조) ← 최신
+### 🗺️ 룬테라 전쟁 — 안개 흐릿화·마을 UX·3D 행군·다크골드 테마·중세 텍스처 (2026-07-29 이 PC win32·main+작업브랜치 `claude/continue-previous-work-b6dd2h` 배포·최종 커밋 `0b2cd63`) ← 최신
+> ⚠️ **index.html(라이브 앱) 무관** — 독립 HTML `룬테라원정-프로토타입.html`. `APP_VERSION` 안 건드림. 배포=`git push origin HEAD:main` + `HEAD:claude/continue-previous-work-b6dd2h`. 확인=`https://sohada2.github.io/aram/룬테라원정-프로토타입.html`(캐시 매우 강함·`?v=N`/시크릿). 검증=이 PC는 Edge 헤드리스(`--headless=new --use-gl=swiftshader`)+로컬 http.server(한글 파일명 URL 인코딩·출력 png는 Temp)·인라인 `<script>` 3블록 `node --check`. ⚠️swiftshader가 간헐적으로 3D 렌더 캡처 실패(빈 png) → 실기 확인은 사장님.
+> **✅ 이번 세션 작업(전부 배포 완료)**:
+> - **🌫️ 안개 흐릿화**: 육각 블록 InstancedMesh → **블러 캔버스 텍스처 평면**(`fogInit`/`eraseFogCell`/`_fogXY`·`_BIOMECOL`). 미공개 셀을 지형색(희미)·마을=따뜻한색 blob으로 그려 블러 → 진짜 안개처럼 부드럽고 지형/마을이 비침. 공개=destination-out 소프트 원. (Map3D 모듈)
+> - **🗺️ 월드 10배**: `HCOLS/HROWS 25×31→79×98`(≈7742헥스), 야만인 마을 700, `SAVE_VER 9`. 지도 `maxZoom 3.2→14`, 첫 시작 `CAM.zoom=8`(내 마을 클로즈업). 도감 버튼 제거.
+> - **🏰 마을 3D 명패 축소**: 큰 이름 박스가 건물 가림 → `.blab` 컴팩트 칩(아이콘+Lv/빈부지 ＋아이콘), 이름은 hover 시 펼침(Town3D `add()`·CSS `.v3-label.blab`).
+> - **🏗️ 마을 3D 작업 게이지+애니**: `villageWork()`(classic)가 현재 건설/훈련 진행 전달 → Town3D가 해당 건물 위에 게이지(진행바+남은시간+아이콘 바운스/펄스)+바닥 3D 펄스 링(TorusGeometry) 표시. `updateWork`/`_bPos`/`_ensureBG/_ensureTG`. 매 프레임 갱신.
+> - **🕐 완료 시각 KST 고정**: `fmtClock`을 `toLocaleTimeString('en-GB',{timeZone:'Asia/Seoul'})`로(기기 시간대 무관). 게임 로직은 원래 `Date.now()` 경과시간이라 무관.
+> - **🚩 월드맵 행군 마커 3D화**: 이모지(🎒 등) → 3D 모델(귀환=수레 town/cart, 공격/지원/정찰/습격=색 깃발 castle/flag)이 지면 경로 따라 이동+진행방향 회전. `MKIT`/`MMDL`/`mkMarchMesh`/`MM3ARR`, HTML 마커는 남은시간만. (Map3D `updMarchLines`/`proj`)
+> - **🚫 '부족전쟁' 노출 제거**: 사용자 문구+주석 전부 중립 표현으로(파일 내 0건). ⚠️앞으로 '부족전쟁'(Tribal Wars) 이름을 사이트/소스에 노출 금지 — 참고만.
+> - **🎨 톤앤매너 다크+골드(사이트 톤)**: 양피지 황토/노랑 팔레트 → 다크+골드로 CSS 재매핑(`<style>` 블록 한정, 3D JS 색은 유지). 텍스트 패널은 따뜻한 다크(가죽+골드) 표면으로 리프트(납작함 해소).
+> - **🧱 상단 크롬 중세 텍스처**: 제목바=벽돌(`assets/alley/wall_brick_sand_both.png`), 자원바/탭바/메뉴=석재(`floor_stone_pattern`/`floor_stone`) + 다크골드 오버레이. 제목바 하단 성벽 총안(크레넬) `::after`. (CSS 그라데이션 블록은 저품질이라 실제 CC0 텍스처로 교체함)
+> - **📊 자원 표시**: 상단바/사이드바 용량 BAR 전부 제거(사장님 요청), 값 폰트 tabular-nums로 가독성↑·석판 스타일, 가득참은 값 색으로. **모바일 자원 잘림 수정**: 값 폰트/패딩 콤팩트, 392px↓에선 생산량(+N) 숨김.
+> ⏭️ **미결/다음**: 텍스처 밝기·타일 크기·크레넬 강도 튜닝은 사장님 피드백 대기(swiftshader로 최종 렌더 확인 못 함). 적 AI/실팀원 멀티 미구현(방어/지원 로직은 살아있음). 기존 미결(귀족정복 실제 점령 등) 유지.
+
+### 🗺️ 룬테라 전쟁 — 🌫️ 전장의 안개 + 안개 흐릿화·월드 10배 확대·도감 제거 (2026-07-29·이 PC win32·main 배포·최종 커밋은 git log 참조)
 > ⚠️ **index.html(라이브 앱) 무관** — 독립 HTML `룬테라원정-프로토타입.html`. `APP_VERSION` 안 건드림. 배포=`git push origin HEAD:main`(+작업브랜치). 확인=`https://sohada2.github.io/aram/룬테라원정-프로토타입.html`(캐시 강함·`?v=N`/시크릿). 검증=이 PC는 Edge 헤드리스(`--headless=new --use-gl=swiftshader`)+로컬 http.server(한글 파일명 URL 인코딩·출력 png는 Temp).
 > **✅ 이번 작업(배포 완료·Edge 헤드리스로 초기 안개+증분 공개 렌더 검증)**:
 > - **전장의 안개**: 공개된 헥스만 지도에 보이고 나머지는 어두운 육각 안개로 덮임. 초반 전체 렌더 안 함(성능↑)+탐험으로 점점 밝혀짐(공개는 영구).
