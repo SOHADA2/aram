@@ -817,13 +817,14 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### 🗺️ 룬테라 전쟁 — 🌫️ 전장의 안개(fog of war) 구현 (2026-07-29·이 PC win32·main 배포·최종 커밋은 git log 참조) ← 최신
+### 🗺️ 룬테라 전쟁 — 🌫️ 전장의 안개 + 안개 흐릿화·월드 10배 확대·도감 제거 (2026-07-29·이 PC win32·main 배포·최종 커밋은 git log 참조) ← 최신
 > ⚠️ **index.html(라이브 앱) 무관** — 독립 HTML `룬테라원정-프로토타입.html`. `APP_VERSION` 안 건드림. 배포=`git push origin HEAD:main`(+작업브랜치). 확인=`https://sohada2.github.io/aram/룬테라원정-프로토타입.html`(캐시 강함·`?v=N`/시크릿). 검증=이 PC는 Edge 헤드리스(`--headless=new --use-gl=swiftshader`)+로컬 http.server(한글 파일명 URL 인코딩·출력 png는 Temp).
 > **✅ 이번 작업(배포 완료·Edge 헤드리스로 초기 안개+증분 공개 렌더 검증)**:
 > - **전장의 안개**: 공개된 헥스만 지도에 보이고 나머지는 어두운 육각 안개로 덮임. 초반 전체 렌더 안 함(성능↑)+탐험으로 점점 밝혀짐(공개는 영구).
 > - **상태**: `S.revealed`={"c,r":1} 공개 헥스 집합(save에 자동 직렬화). classic 헬퍼 `revealDisc(cx,cy,rad)`·`isRevealed`·`hexDistXY`(큐브 헥스거리)·`seedReveal()`(bindActive에서 호출, 내 마을 반경 `REVEAL_HOME=4` 초기 공개·`S._revSeed` 1회 가드)·`revealMarchPositions(now)`(tick에서 호출, 행군 부대 현재 헥스 주변 반경1 실시간 공개=안개 걷힘 연출). 상수 `REVEAL_HOME=4/REVEAL_SCOUT=3/REVEAL_HIT=2`(HCOLS 근처 선언).
 > - **공개 훅**: `resolveScout`(성공 반경3·실패 반경2)·`resolveAttack`(도착 반경2)·`conquerVillage`(정복지 반경4). renderMap이 `revealed:S.revealed`를 Map3D.build opts로 전달.
 > - **Map3D `build()` 재작성(증분+안개)**: `_wsig`(월드 구조 시그니처)·`_rcnt`(공개 헥스 수)·`_built`(배치된 헥스). 월드 구조 변경 시만 전체 재구성+카메라 리셋(`resize`/`CT.target` 리셋을 `full`일 때만 → **팬/줌이 매초 리셋되던 것 방지**). 공개 수만 변하면 **새로 공개된 헥스만 증분 타일 배치**. `biome`은 순차 rng→**헥스별 결정론 난수 `_hrand(c,r)`**(공개 순서 무관하게 지형 고정=깜빡임 방지). 미공개 헥스는 `buildFog`가 어두운 육각 프리즘 **InstancedMesh**(1드로우콜·높이 살짝 랜덤=구름 느낌·30° 회전으로 pointy-top 격자 정렬)로 덮음, 공개 변화마다 재생성(가벼움).
+> - **🔧 후속 튜닝(사장님 피드백 반영·배포 완료)**: ①**안개 흐릿화** — 어두운 불투명 육각 프리즘 → **반투명 저지대 헥스**(`buildFog`: `MeshStandardMaterial` opacity 0.66·`depthWrite:false`·낮은 높이). 각 안개 헥스를 **그 밑 지형의 희미한 색**으로 칠함(`_fogTint`/`_BIOMECOL`: biome색×0.42를 네이비 `0x0f1826`로 lerp) → 안개 너머로 지형(초원/호수/사막)이 흐릿하게 비침. ②**마을은 안개 너머로 대충 보임** — 미공개 마을 헥스는 안개 인스턴스를 **따뜻한 색(0x9a7448)+높이 2.0 봉우리**로 → "저기 뭔가 있다" 궁금증. ③**월드 10배 확대** — `HCOLS/HROWS 25×31 → 79×98`(≈7,742헥스), 야만인 마을 100→700, **`SAVE_VER 8→9`**(구세이브 폐기). 안개가 있어 초반엔 홈 반경만 렌더 → 넓어도 가벼움. ④**성능**: 안개 InstancedMesh를 전체 재구성 때 **1회만 생성**(전 헥스 인스턴스·공개된 건 scale 0), 증분 공개 시 `hideFogAt(key)`로 해당 인스턴스만 scale 0 처리(재생성 X). ⑤**🎴 도감 버튼 제거**(안 쓰는 기능·topstrip에서 삭제·`openDex` 함수는 잔존·무해). ⑥biome은 순차 rng→**헥스별 결정론 `_hrand(c,r)`**(증분 배치 순서 무관하게 지형 고정).
 > - ⏭️ **미결/다음**: 안개 반경·색/높이 튜닝은 상수(REVEAL_*)·buildFog 색(`0x151d2b`)으로 조절 가능. 좌표 기반 정찰(집결지에서 안개 속 좌표로 정찰 보내기)은 기존 rally 좌표 입력으로 가능. 적 AI/실팀원 멀티는 여전히 미결(방어/지원 로직은 살아 있음). 3D 마을 발전 단계·성벽 등 다른 컴퓨터 작업의 실기 확인은 별도.
 
 ### 🗺️ 룬테라 전쟁 v0.2~v0.3.2 — 부족전쟁 게임성 정합 · 라이벌 제거 · PC/모바일 분리 · 마을 발전 단계 (2026-07-29·원격web·작업브랜치 `claude/computer-work-session-we1guo`·main+브랜치 배포·**최종 커밋 `aefaaf7`·Pages success**)
