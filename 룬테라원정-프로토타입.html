@@ -342,7 +342,6 @@ body{margin:0;background:#c3ad7c;color:#43310f;font-family:'Noto Sans KR',system
   <div class="topstrip">
     <span class="logo">🗺️ 룬테라 전쟁</span>
     <span class="world">프로토타입 · 월드 1</span>
-    <button class="top-ic" onclick="openDex()">🎴 도감</button>
   </div>
   <div class="resbar" id="resbar"></div>
   <nav class="pcmenu" id="pcmenu"></nav>
@@ -409,7 +408,7 @@ const RES_NM = {wood:'목재', clay:'점토', iron:'철'};
 // ⚠️ 지역/진영/컨셉 명칭은 나중에 사장님과 별도 설계 — 기능명 그대로 쓸 것
 const HOME_ID = 'demacia'; const HOME_KEY = 'home';
 const WSPEED=140;                              // 월드 속도(시간 압축 — 부족전쟁 speed 서버 개념)
-const HCOLS=25, HROWS=31, HHZ=1.155*0.75;      // 육각 월드 격자(pointy-top)
+const HCOLS=79, HROWS=98, HHZ=1.155*0.75;      // 육각 월드 격자(pointy-top) — 광활(안개로 탐험)
 const REVEAL_HOME=4, REVEAL_SCOUT=3, REVEAL_HIT=2;   // 🌫️ 전장의 안개 공개 반경(홈/정찰성공/도착)
 function hexPos(c,r){ return { x:(c+((r&1)?0.5:0)), z:r*HHZ }; }
 // ══ 건물 — 실제 부족전쟁 레벨1 비용/증가율/선행조건 ══
@@ -470,7 +469,7 @@ function researchBonus(u){ return 1 + ((S.research&&S.research[u])||0)*0.12; }
 function fieldDist(a,b){ const A=hexPos(a.x,a.y),B=hexPos(b.x,b.y); return Math.hypot(A.x-B.x, A.z-B.z); }
 function travelMs(dist, slow){ return Math.round(dist*slow*60000/WSPEED); }
 // ═══════════ 상태 ═══════════
-const SAVE_VER=8;   // v0.3 라이벌 제거·마을 리뉴얼 — 이전 세이브 폐기
+const SAVE_VER=9;   // 광활 월드(79×98)+전장의 안개 — 이전 세이브 폐기
 const PROTECT_MS = 15*24*3600*1000;
 const SPAWN_MINDIST = 9, SPAWN_RADIUS = 30;
 let S = load(); bindActive();
@@ -507,7 +506,7 @@ function genWorld(now){
   W[HOME_KEY]={x:HC,y:HR,name:'내 마을',owner:'me',size:6,loot:{wood:0,clay:0,iron:0},garrison:{},foundedAt:now};
   const taken=new Set([HC+','+HR]); let n=0, guard=0;
   // ⚠️ 라이벌 AI 마을/습격은 제거됨(사장님 피드백 — 의미 없는 가짜 라이벌 X) · 추후 실제 팀원 멀티로 설계
-  while(n<100 && guard<9000){ guard++;
+  while(n<700 && guard<80000){ guard++;
     const x=Math.floor(R()*HCOLS), y=Math.floor(R()*HROWS); const key=x+','+y;
     if(taken.has(key)) continue; const d=fieldDist({x,y},home); if(d<2.2) continue;
     taken.add(key);
@@ -1759,7 +1758,7 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
   }
   if(rcnt===_rcnt && !full) return;   // 공개·월드 변화 없음 → 스킵(팬/줌 유지)
   _rcnt=rcnt;
-  const at=_at, roads=_roads;
+  const at=_at, roads=_roads; let fogDirty=false;
   // 새로 공개된 헥스만 타일 배치(증분) — 미공개는 안개가 덮음
   for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ const key=c+','+r;
     if(_built[key] || !rev[key]) continue; _built[key]=1;
@@ -1771,22 +1770,35 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
       el.onclick=()=>{ if(opts.onNode) opts.onNode(id); }; LH.appendChild(el); VLAB.push({el,pos:new T.Vector3(x,0.9,z)});
     } else if(roads[key]){ tile((r>=rows-3)?'sand':'grass',x,z,false); tile(roads[key].n,x,z,false,roads[key].rot,0.2); }
     else { tile(biome(c,r,cols,rows,_hrand(c,r)),x,z,false); }
+    if(!full && _fog){ hideFogAt(key); fogDirty=true; }   // 증분: 안개 걷기
   }
-  buildFog(cols,rows,rev,opts);
+  if(full) buildFog(cols,rows,rev,opts,at);
+  else if(fogDirty && _fog){ _fog.instanceMatrix.needsUpdate=true; }
   if(full){ resize(); if(CT){ CT.target.set(0,0,0); CT.update(); } }
 }
-// 🌫️ 미공개 헥스를 어두운 육각 안개로 덮음(InstancedMesh 1드로우콜 — 넓어도 가벼움)
-function buildFog(cols,rows,rev,opts){
+// 🌫️ 안개 = 흐릿한 반투명 저지대 헥스 — 지형색을 희미하게 비쳐 "미지의 대륙"처럼(마을=따뜻한 봉우리)
+const _BIOMECOL={'stone-mountain':0x6b6f78,'stone-hill':0x707680,'stone-rocks':0x6b7078,'sand-desert':0xccb473,'sand':0xccb473,'sand-rocks':0xc3a869,'water':0x3f7fb0,'water-rocks':0x3f7fb0,'grass-forest':0x3f7a3a,'grass-hill':0x6f9e46,'grass':0x6f9e46};
+const _FOGDK=new T.Color(0x0f1826), _fogHideM=new T.Matrix4().makeScale(0,0,0);
+let _fogIdx=null;
+function _fogTint(c,r,cols,rows,isV,out){ const base=isV?0x9a7448:(_BIOMECOL[biome(c,r,cols,rows,_hrand(c,r))]||0x6f9e46);
+  return out.set(base).multiplyScalar(0.42).lerp(_FOGDK,0.4); }
+function hideFogAt(key){ const i=_fogIdx&&_fogIdx[key]; if(i==null||!_fog) return; _fog.setMatrixAt(i,_fogHideM); }
+function buildFog(cols,rows,rev,opts,at){
   if(_fog){ SC.remove(_fog); _fog.geometry.dispose(); _fog.material.dispose(); _fog=null; }
-  const cells=[];
-  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ if(rev[c+','+r]) continue; const p=opts.hex(c,r); cells.push([p.x-off.x,p.z-off.z,c,r]); }
-  if(!cells.length) return;
-  const geo=new T.CylinderGeometry(0.63,0.63,0.8,6);
-  const mat=new T.MeshStandardMaterial({color:0x151d2b, roughness:1, metalness:0, emissive:0x0b1220, emissiveIntensity:0.5});
-  _fog=new T.InstancedMesh(geo,mat,cells.length); _fog.castShadow=false; _fog.receiveShadow=true;
-  const m=new T.Matrix4(), q=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/6), sc=new T.Vector3(), pos=new T.Vector3();
-  cells.forEach((cl,i)=>{ const h=0.65+_hrand(cl[2],cl[3])*0.8; sc.set(1,h,1); pos.set(cl[0],0.35*h,cl[1]); m.compose(pos,q,sc); _fog.setMatrixAt(i,m); });
-  _fog.instanceMatrix.needsUpdate=true; SC.add(_fog);
+  const N=cols*rows;
+  const geo=new T.CylinderGeometry(0.64,0.64,0.3,6);
+  const mat=new T.MeshStandardMaterial({color:0xffffff, roughness:1, metalness:0, transparent:true, opacity:0.66, depthWrite:false, emissive:0x0a1220, emissiveIntensity:0.35});
+  _fog=new T.InstancedMesh(geo,mat,N); _fog.castShadow=false; _fog.receiveShadow=false; _fog.renderOrder=2;
+  _fogIdx=Object.create(null);
+  const m=new T.Matrix4(), q=new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),Math.PI/6), sc=new T.Vector3(), pos=new T.Vector3(), col=new T.Color();
+  let i=0;
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ const key=c+','+r; _fogIdx[key]=i;
+    const isV=!!(at&&at[key]); const p=opts.hex(c,r);
+    _fog.setColorAt(i,_fogTint(c,r,cols,rows,isV,col));
+    if(rev[key]){ sc.set(0,0,0); pos.set(0,0,0); }
+    else { const h=isV?2.0:(0.8+_hrand(c,r)*0.7); sc.set(1,h,1); pos.set(p.x-off.x,0.14*h,p.z-off.z); }
+    m.compose(pos,q,sc); _fog.setMatrixAt(i,m); i++; }
+  _fog.instanceMatrix.needsUpdate=true; if(_fog.instanceColor) _fog.instanceColor.needsUpdate=true; SC.add(_fog);
 }
 // ── 마을 간 길: 헥스 길 타일(path-*)을 경로 헥스에 깔고 회전 맞춤 ──
 // 오프셋(odd-r pointy)↔큐브 좌표 + 헥스 라인
