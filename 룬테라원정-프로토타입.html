@@ -100,6 +100,7 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .map-fb small{display:block;margin-top:3px;font-size:9px;color:#ffb9a0;font-family:monospace;word-break:break-all;}
 .pz-reset{position:absolute;right:8px;top:8px;z-index:6;width:30px;height:30px;border:none;border-radius:8px;background:rgba(8,14,18,.7);border:1px solid rgba(200,168,75,.45);color:#f0dca0;font-size:15px;cursor:pointer;}
 .pz-reset:active{transform:scale(.94);}
+.pz-reset svg.ic{width:16px;height:16px;vertical-align:-3px;}
 /* 3D 지도 마을 명패(다크 유지 — 지형 위 대비) */
 .v3-labels{position:absolute;inset:0;z-index:6;pointer-events:none;}
 .v3-label{position:absolute;transform:translate(-50%,-100%);white-space:nowrap;pointer-events:auto;cursor:pointer;text-align:center;
@@ -246,7 +247,12 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .rp-sec{font-size:10px;font-weight:900;color:#b09a6a;margin:8px 0 4px;letter-spacing:.5px;}
 /* 사이드바(PC) */
 .sb-res{display:flex;align-items:center;gap:7px;padding:5px 9px;margin-bottom:4px;font-weight:800;color:#f0e2b8;background:linear-gradient(180deg,#2a2114,#181109);border:1px solid #5a4620;border-radius:6px;box-shadow:inset 0 1px 0 rgba(255,228,170,.1);}
-.sb-res .ic{width:18px;text-align:center;font-size:14px;}
+svg.ic{width:1.05em;height:1.05em;display:inline-block;vertical-align:-0.16em;fill:currentColor;flex:none;}
+svg.ic-lg{width:1.35em;height:1.35em;vertical-align:-0.28em;}
+svg.ic-xl{width:1.8em;height:1.8em;vertical-align:-0.4em;}
+svg.ic-hero{width:38px;height:38px;vertical-align:0;}
+svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
+.sb-res .ricw{width:18px;display:flex;align-items:center;justify-content:center;}
 .sb-res em{font-style:normal;font-weight:800;font-size:15px;font-variant-numeric:tabular-nums;letter-spacing:.3px;color:#f4e6bd;text-shadow:0 1px 1px rgba(0,0,0,.5);}
 .sb-res .cap{font-size:9.5px;color:#9a8a60;font-weight:700;}
 
@@ -394,7 +400,7 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 </style></head>
 <body><div class="app">
   <div class="topstrip">
-    <span class="logo">🗺️ 룬테라 전쟁</span>
+    <span class="logo">룬테라 전쟁</span>
     <span class="world">프로토타입 · 월드 1</span>
   </div>
   <div class="resbar" id="resbar"></div>
@@ -410,7 +416,7 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
             <div id="mnodes"></div>
             <div id="armies"></div>
           </div>
-          <button class="pz-reset" id="map-reset" title="원래대로">⤢</button>
+          <button class="pz-reset" id="map-reset" title="원래대로"></button>
         </div>
       </div>
       <div id="view-village" style="display:none"></div>
@@ -424,6 +430,57 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 </div>
 <div class="toast" id="toast"></div>
 <script>
+// ═══════════ 🎨 아이콘 — 인라인 SVG ═══════════
+// ⚠️ 이모지를 쓰지 않는다. 이유 두 가지:
+//   ① 기기마다(아이폰/안드로이드/윈도우) 글리프가 달라 같은 화면이 다르게 보인다.
+//   ② 톱니바퀴·드럼통·졸업모자 같은 현대 물건이 중세 배경과 안 맞는다.
+// 전부 24x24 실루엣 패스 + fill:currentColor → 글자 색을 그대로 따라가고 어디서나 동일하게 렌더된다.
+const ICO = {
+  // 건물
+  main:'M2 22V9h3V6h3v3h3V4h4v5h3V6h3v3h3v13h-8v-5a2.5 2.5 0 0 0-5 0v5z',
+  wall:'M2 7h4v3h4V7h4v3h4V7h4v15H2zm2 6h16v1.6H4z',
+  rally:'M5 2h2.4v20H5zM8.6 3H20l-3.2 4.2L20 11.4H8.6z',
+  barracks:'M4.4 2.2 2.2 4.4l15.4 15.4 2.2-2.2zM19.6 2.2 21.8 4.4 6.4 19.8l-2.2-2.2zM4 17.6h16v2.2H4z',
+  stable:'M12 2.5c-4.1 0-7.4 3.3-7.4 7.4v8.6a2.3 2.3 0 0 0 4.6 0V9.9a2.8 2.8 0 0 1 5.6 0v8.6a2.3 2.3 0 0 0 4.6 0V9.9c0-4.1-3.3-7.4-7.4-7.4z',
+  workshop:'M13.4 1.8 22 6.6l-2.6 4.6-8.6-4.8zM9.8 8.6 2.6 19.4l2.9 1.9 7.2-10.8z',
+  smithy:'M2.5 8h13l5.5 2.2-5.5 2.2H14v2.6h3.2V18H6.8v-3h3.2v-2.6H6.4z',
+  academy:'M6 3h11a2.6 2.6 0 0 1 2.6 2.6v12.8A2.6 2.6 0 0 1 17 21H6a2.6 2.6 0 0 1-2.6-2.6V5.6A2.6 2.6 0 0 1 6 3zm1.6 4v2H16V7zm0 4.4v2H16v-2z',
+  market:'M11 2h2v3h8.4v2H13v12h4v2H7v-2h4V7H2.6V5H11zM5.8 8.4 9.6 15H2zM18.2 8.4 22 15h-7.6z',
+  wood:'M5 8h11a4 4 0 0 1 0 8H5a4 4 0 0 1 0-8zm11 2.2a1.8 1.8 0 0 0 0 3.6 1.8 1.8 0 0 0 0-3.6z',
+  clay:'M2 6h9.2v4.6H2zM12.8 6H22v4.6h-9.2zM2 12.4h6.2V17H2zM9.8 12.4H19v4.6H9.8z',
+  iron:'M12 2.4 20.6 8l-2.6 11.6h-4.3L14.2 9zM12 2.4 3.4 8 6 19.6h4.3L9.8 9z',
+  farm:'M12 1.4c1.3 1.7 1.3 3.6 0 5.3-1.3-1.7-1.3-3.6 0-5.3zM11.1 22V8.6h1.8V22zM11.4 8.4C9 8 7.4 6.6 7 4.6c2.4.4 4 1.8 4.4 3.8zm0 4.2C9 12.2 7.4 10.8 7 8.8c2.4.4 4 1.8 4.4 3.8zm0 4.2C9 16.4 7.4 15 7 13c2.4.4 4 1.8 4.4 3.8zm1.2-8.4c.4-2 2-3.4 4.4-3.8-.4 2-2 3.4-4.4 3.8zm0 4.2c.4-2 2-3.4 4.4-3.8-.4 2-2 3.4-4.4 3.8zm0 4.2c.4-2 2-3.4 4.4-3.8-.4 2-2 3.4-4.4 3.8z',
+  storage:'M7.5 2.5h9c1.6 4.5 1.6 14.5 0 19h-9c-1.6-4.5-1.6-14.5 0-19zm-1 5.2v2h11v-2zm0 6.6v2h11v-2z',
+  hide:'M9 4.4h6l.5 2.2H8.5zM8 8h8l1 5.4a5 5 0 0 1-10 0zM1.6 18h20.8v2.4H1.6z',
+  pop:'M12 3.2a3.9 3.9 0 1 1 0 7.8 3.9 3.9 0 0 1 0-7.8zM4.2 21a7.8 7.8 0 0 1 15.6 0z',
+  // 병력
+  spear:'M21 2 15.4 3.8l-1.6 4.5 1.9 1.9 4.5-1.6zM13.9 9.1 2.2 20.8l1.9 1.9L15.8 11z',
+  sword:'M12 1.6 13.6 5v8h-3.2V5zM7.6 13h8.8v2.2H7.6zM11 15.2h2v4h-2zM9.9 19.2h4.2v2.2H9.9z',
+  axe:'M10.4 2.6h2.6v18.8h-2.6zM13 3.4c4.6.4 7.6 3 7.6 6.2s-3 5.8-7.6 6.2zM10.4 6.6 7.2 8.2v3.8l3.2 1.6z',
+  archer:'M6 3.2h1.6v17.6H6zM8.6 2.4a1.7 1.7 0 0 0-1.4 2.6 9.4 9.4 0 0 1 0 14 1.7 1.7 0 0 0 1.4 2.6 12.7 12.7 0 0 0 0-19.2zM4 11h11v2H4zM13.6 8.4 20 12l-6.4 3.6z',
+  scout:'M12 5c5.6 0 9.6 5.4 10.4 7-1 1.6-4.8 7-10.4 7S3.4 13.6 2.6 12C3.6 10.4 6.4 5 12 5zm0 3.2a3.8 3.8 0 1 0 0 7.6 3.8 3.8 0 0 0 0-7.6z',
+  lcav:'M6.6 21.6v-2.4c0-4 2.3-6.7 5.2-8.1l-.6-1.9-2.8 1.9-1.7-2.5 4.4-3 .8-2.7 2.3 1.2 1.2 2.6c2.6 1.5 3.4 3.8 3.4 6.4v8.5z',
+  marcher:'M8.6 21.6v-2.4c0-4 2.3-6.7 5.2-8.1l-.6-1.9-2.8 1.9-1.7-2.5 4.4-3 .8-2.7 2.3 1.2 1.2 2.6c2.6 1.5 3.4 3.8 3.4 6.4v8.5zM1.4 4.4a1.3 1.3 0 0 0-1.1 2 7.4 7.4 0 0 1 0 7.8 1.3 1.3 0 0 0 1.1 2 10.3 10.3 0 0 0 0-11.8z',
+  hcav:'M6 4h12v8.6a6 6 0 0 1-12 0zm1.8 5.2v2.2h8.4V9.2zM9.4 19h5.2v3H9.4z',
+  ram:'M2.5 6h13l4 3-4 3h-13zM4 12.8h13.4v2H4zM6.6 15.6a2.6 2.6 0 1 1 0 5.2 2.6 2.6 0 0 1 0-5.2zM15.2 15.6a2.6 2.6 0 1 1 0 5.2 2.6 2.6 0 0 1 0-5.2z',
+  cata:'M2.4 6 20.6 13l-.9 2.4L1.5 8.4zM6 21.4 11 10l2 .9-5 10.5zM18 21.4 13 10l-2 .9 5 10.5zM3 20.6h18V23H3z',
+  noble:'M2.5 8.4 7 12.2l5-8 5 8 4.5-3.8L20 19.2H4zM4 20.6h16V22.8H4z',
+  hut:'M12 1.8 1.8 11.2h3.4V22.2h13.6V11.2h3.4zM9.6 14.4h4.8v7.8H9.6z',
+  tower:'M6.6 2h10.8v3.2h-1.6v3H19V22H5V8.2h3.2v-3H6.6zM10 12.6h4V22h-4z',
+  // 모드·기타
+  shield:'M12 1.8 21 4.8v7c0 5.2-4.2 8.6-9 10.4C7.2 20.4 3 17 3 11.8v-7z',
+  back:'M10.6 3.4 2 12l8.6 8.6v-5.4h11V8.8h-11z',
+  fire:'M12 1.6c3.2 4.6 6.4 6.4 6.4 10.4A6.4 6.4 0 0 1 5.6 12c0-2 .9-3.4 2-4.6.2 1.3.8 2.2 1.8 2.2 1.6 0 1-4 2.6-8z',
+  time:'M5 2h14v2.2h-1.2v2.6L13.4 12l4.4 5.2v2.6H19V22H5v-2.2h1.2v-2.6L10.6 12 6.2 6.8V4.2H5z',
+  map:'M9 3 3 5.2v16L9 19l6 2 6-2.2v-16L15 5zm.9 2.4 4.2 1.4v11.4l-4.2-1.4z',
+  cart:'M2 4.6h4.2l1 3.4H21l-2.2 7.6H8.2L6.6 9.6H2zM8.6 17.4a2.3 2.3 0 1 1 0 4.6 2.3 2.3 0 0 1 0-4.6zM16.6 17.4a2.3 2.3 0 1 1 0 4.6 2.3 2.3 0 0 1 0-4.6z',
+  moon:'M20.4 14.8A8.8 8.8 0 0 1 9.2 3.6 9.2 9.2 0 1 0 20.4 14.8z',
+  expand:'M3.6 3.6h7.2V6H6v4.8H3.6zM13.2 3.6h7.2v7.2H18V6h-4.8zM3.6 13.2H6V18h4.8v2.4H3.6zM18 13.2h2.4v7.2h-7.2V18H18z',
+  warn:'M12 2.4 22.6 21H1.4zm-1.2 6.2v6.2h2.4V8.6zm0 8v2.4h2.4v-2.4z',
+};
+// I('key') → 인라인 SVG 한 조각. cls로 크기/색 조절(.ic-lg, .ic-w 등)
+function I(k, cls){ const d=ICO[k]; if(!d) return '';
+  return '<svg class="ic'+(cls?' '+cls:'')+'" viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="'+d+'"/></svg>'; }
 // ═══════════ 데이터 ═══════════
 const ROLE_STAT = { tank:{mv:4,atk:5,hp:9}, fighter:{mv:6,atk:7,hp:7}, assassin:{mv:8,atk:9,hp:3},
   marksman:{mv:6,atk:8,hp:4}, mage:{mv:5,atk:7,hp:4}, support:{mv:5,atk:3,hp:6} };
@@ -455,7 +512,7 @@ const REGIONS = {
 const BIOME = {
   demacia:{sky:['#a6c8e6','#c6dcea','#e8ead6'], amb:'rgba(255,250,225,.25)', gf:'saturate(.65) brightness(1.22)', wf:'saturate(.55) brightness(1.3)', ac:'#bcd4ff', fx:'holy', label:'백금 성채'},
 };
-const RES = {wood:'🪵', clay:'🧱', iron:'⚙️'};
+const RES = {wood:'wood', clay:'clay', iron:'iron'};   // 아이콘 키(ICO)
 const RES_NM = {wood:'목재', clay:'점토', iron:'철'};
 // ⚠️ 지역/진영/컨셉 명칭은 나중에 사장님과 별도 설계 — 기능명 그대로 쓸 것
 const HOME_ID = 'demacia'; const HOME_KEY = 'home';
@@ -465,21 +522,21 @@ const REVEAL_HOME=7, REVEAL_SCOUT=4, REVEAL_HIT=3;   // 🌫️ 전장의 안개
 function hexPos(c,r){ return { x:(c+((r&1)?0.5:0)), z:r*HHZ }; }
 // ══ 건물 — 정통 전략 레벨1 비용/증가율/선행조건 ══
 const BLD = {   // 수치=정통 전략 밸런스
-  main:    {ic:'🏛️', nm:'본진',        max:30, w:90,  c:80,  i:70,  f:1.26,  p:5,  desc:'건설 속도'},
-  rally:   {ic:'🚩', nm:'집결지',      max:1,  w:10,  c:40,  i:30,  f:1,     p:1,  req:{main:1}, desc:'부대 지휘 — 공격·지원·정찰'},
-  barracks:{ic:'⚔️', nm:'병영',          max:25, w:200, c:170, i:90,  f:1.26,  p:7,  req:{main:3},                     desc:'보병 훈련'},
-  stable:  {ic:'🐎', nm:'마구간',        max:20, w:270, c:240, i:260, f:1.26,  p:8,  req:{main:10,barracks:5},         desc:'기병·정찰대 훈련'},
-  workshop:{ic:'🛠️', nm:'공방',        max:15, w:300, c:240, i:260, f:1.26,  p:8,  req:{main:10,barracks:5},         desc:'공성 병기 제작'},
-  smithy:  {ic:'⚒️', nm:'대장간',      max:20, w:220, c:180, i:240, f:1.26,  p:20, req:{main:5,barracks:1},          desc:'병력 성능 연구'},
-  academy: {ic:'🎓', nm:'대학',        max:1,  w:15000,c:25000,i:10000, f:1, p:80, req:{main:20,smithy:20,market:10},desc:'귀족 훈련(마을 정복)'},
-  market:  {ic:'⚖️', nm:'시장',        max:25, w:100, c:100, i:100, f:1.26,  p:20, req:{main:3,storage:2},           desc:'자원 거래'},
-  wood:    {ic:'🪵', nm:'목재소',      max:30, res:'wood', w:50, c:60, i:40, f:1.155, p:5,  desc:'목재 생산'},
-  clay:    {ic:'🧱', nm:'점토굴',      max:30, res:'clay', w:65, c:50, i:40, f:1.155, p:5,  desc:'점토 생산'},
-  iron:    {ic:'⚙️', nm:'철광산',        max:30, res:'iron', w:75, c:65, i:70, f:1.155, p:10, desc:'철 생산'},
-  farm:    {ic:'🌾', nm:'농장',          max:30, w:45,  c:40,  i:30,  f:1.172, desc:'식량 → 인구 상한'},
-  storage: {ic:'🛢️', nm:'창고',          max:30, w:60,  c:50,  i:40,  f:1.229, desc:'자원을 쌓아둘 수 있는 양'},
-  hide:    {ic:'🏺', nm:'지하창고',      max:10, w:50,  c:60,  i:50,  f:1.333, p:2,  desc:'약탈당해도 이만큼은 지켜져요'},
-  wall:    {ic:'🏰', nm:'성벽',          max:20, w:50,  c:100, i:20,  f:1.26,  p:5,  req:{barracks:1}, desc:'마을 방어력'},
+  main:    {ic:'main', nm:'본진',        max:30, w:90,  c:80,  i:70,  f:1.26,  p:5,  desc:'건설 속도'},
+  rally:   {ic:'rally', nm:'집결지',      max:1,  w:10,  c:40,  i:30,  f:1,     p:1,  req:{main:1}, desc:'부대 지휘 — 공격·지원·정찰'},
+  barracks:{ic:'barracks', nm:'병영',          max:25, w:200, c:170, i:90,  f:1.26,  p:7,  req:{main:3},                     desc:'보병 훈련'},
+  stable:  {ic:'stable', nm:'마구간',        max:20, w:270, c:240, i:260, f:1.26,  p:8,  req:{main:10,barracks:5},         desc:'기병·정찰대 훈련'},
+  workshop:{ic:'workshop', nm:'공방',        max:15, w:300, c:240, i:260, f:1.26,  p:8,  req:{main:10,barracks:5},         desc:'공성 병기 제작'},
+  smithy:  {ic:'smithy', nm:'대장간',      max:20, w:220, c:180, i:240, f:1.26,  p:20, req:{main:5,barracks:1},          desc:'병력 성능 연구'},
+  academy: {ic:'academy', nm:'대학',        max:1,  w:15000,c:25000,i:10000, f:1, p:80, req:{main:20,smithy:20,market:10},desc:'귀족 훈련(마을 정복)'},
+  market:  {ic:'market', nm:'시장',        max:25, w:100, c:100, i:100, f:1.26,  p:20, req:{main:3,storage:2},           desc:'자원 거래'},
+  wood:    {ic:'wood', nm:'목재소',      max:30, res:'wood', w:50, c:60, i:40, f:1.155, p:5,  desc:'목재 생산'},
+  clay:    {ic:'clay', nm:'점토굴',      max:30, res:'clay', w:65, c:50, i:40, f:1.155, p:5,  desc:'점토 생산'},
+  iron:    {ic:'iron', nm:'철광산',        max:30, res:'iron', w:75, c:65, i:70, f:1.155, p:10, desc:'철 생산'},
+  farm:    {ic:'farm', nm:'농장',          max:30, w:45,  c:40,  i:30,  f:1.172, desc:'식량 → 인구 상한'},
+  storage: {ic:'storage', nm:'창고',          max:30, w:60,  c:50,  i:40,  f:1.229, desc:'자원을 쌓아둘 수 있는 양'},
+  hide:    {ic:'hide', nm:'지하창고',      max:10, w:50,  c:60,  i:50,  f:1.333, p:2,  desc:'약탈당해도 이만큼은 지켜져요'},
+  wall:    {ic:'wall', nm:'성벽',          max:20, w:50,  c:100, i:20,  f:1.26,  p:5,  req:{barracks:1}, desc:'마을 방어력'},
 };
 // 받침 유무로 조사 자동 선택 — 「점토굴을/성벽을」처럼 자연스럽게(기계식 '을(를)' 제거)
 function jo(w,a){ const t=(w||'').trim(); const c=t.charCodeAt(t.length-1);
@@ -492,20 +549,22 @@ function bldPop(b,l){ const p=BLD[b].p; return p? Math.round(p*Math.pow(1.17,l-1
 // ══ 병력 — 정통 전략(궁병 월드): 비용·인구·속도[분/칸]·공격·병과별 방어(대보병/대기병/대궁병)·약탈량 ══
 //    cls = 공격 병과(inf 보병 / cav 기병 / arch 궁병) — 정통 전략식 부분 전투 배분에 사용
 const TROOP = {   // 수치=정통 전략 밸런스 · ⚠️명칭은 기능명 그대로(컨셉 리네이밍 금지 — 사장님과 설계 후에만)
-  spear:  {ic:'🔱', nm:'창병',       from:'barracks', cost:{wood:50,clay:30,iron:10},      pop:1,  time:8,  speed:18, atk:10,  def:15,  defC:45,  defA:20,  carry:25, cls:'inf'},
-  sword:  {ic:'⚔️', nm:'검사',       from:'barracks', cost:{wood:30,clay:30,iron:70},      pop:1,  time:11, speed:22, atk:25,  def:50,  defC:15,  defA:40,  carry:15, cls:'inf'},
-  axe:    {ic:'🪓', nm:'도끼병',     from:'barracks', cost:{wood:60,clay:30,iron:40},      pop:1,  time:9,  speed:18, atk:40,  def:10,  defC:5,   defA:10,  carry:10, cls:'inf'},
-  archer: {ic:'🏹', nm:'궁병',       from:'barracks', cost:{wood:100,clay:30,iron:60},     pop:1,  time:11, speed:18, atk:15,  def:50,  defC:40,  defA:5,   carry:10, cls:'arch'},
-  scout:  {ic:'🧭', nm:'정찰병',     from:'stable',   cost:{wood:50,clay:50,iron:20},      pop:2,  time:9,  speed:9,  atk:0,   def:2,   defC:1,   defA:2,   carry:0,  cls:'cav', scout:true},
-  lcav:   {ic:'🐎', nm:'경기병',     from:'stable',   cost:{wood:125,clay:100,iron:250},   pop:4,  time:20, speed:10, atk:130, def:30,  defC:40,  defA:30,  carry:80, cls:'cav'},
-  marcher:{ic:'🏇', nm:'궁기병',     from:'stable',   cost:{wood:250,clay:100,iron:150},   pop:5,  time:22, speed:10, atk:120, def:40,  defC:30,  defA:50,  carry:50, cls:'arch'},
-  hcav:   {ic:'🛡️', nm:'중기병',     from:'stable',   cost:{wood:200,clay:150,iron:600},   pop:6,  time:26, speed:11, atk:150, def:200, defC:80,  defA:180, carry:50, cls:'cav'},
-  ram:    {ic:'🐏', nm:'파성추',     from:'workshop', cost:{wood:300,clay:200,iron:200},   pop:5,  time:24, speed:30, atk:2,   def:20,  defC:50,  defA:20,  carry:0,  cls:'inf', ram:true},
-  cata:   {ic:'💥', nm:'투석기',     from:'workshop', cost:{wood:320,clay:400,iron:100},   pop:8,  time:30, speed:30, atk:100, def:100, defC:50,  defA:100, carry:0,  cls:'inf', cata:true},
-  noble:  {ic:'👑', nm:'귀족',       from:'academy',  cost:{wood:40000,clay:50000,iron:50000},pop:100,time:120,speed:35, atk:30, def:100, defC:50, defA:100, carry:0, cls:'inf', noble:true},
+  spear:  {ic:'spear', nm:'창병',       from:'barracks', cost:{wood:50,clay:30,iron:10},      pop:1,  time:8,  speed:18, atk:10,  def:15,  defC:45,  defA:20,  carry:25, cls:'inf'},
+  sword:  {ic:'sword', nm:'검사',       from:'barracks', cost:{wood:30,clay:30,iron:70},      pop:1,  time:11, speed:22, atk:25,  def:50,  defC:15,  defA:40,  carry:15, cls:'inf'},
+  axe:    {ic:'axe', nm:'도끼병',     from:'barracks', cost:{wood:60,clay:30,iron:40},      pop:1,  time:9,  speed:18, atk:40,  def:10,  defC:5,   defA:10,  carry:10, cls:'inf'},
+  archer: {ic:'archer', nm:'궁병',       from:'barracks', cost:{wood:100,clay:30,iron:60},     pop:1,  time:11, speed:18, atk:15,  def:50,  defC:40,  defA:5,   carry:10, cls:'arch'},
+  scout:  {ic:'scout', nm:'정찰병',     from:'stable',   cost:{wood:50,clay:50,iron:20},      pop:2,  time:9,  speed:9,  atk:0,   def:2,   defC:1,   defA:2,   carry:0,  cls:'cav', scout:true},
+  lcav:   {ic:'lcav', nm:'경기병',     from:'stable',   cost:{wood:125,clay:100,iron:250},   pop:4,  time:20, speed:10, atk:130, def:30,  defC:40,  defA:30,  carry:80, cls:'cav'},
+  marcher:{ic:'marcher', nm:'궁기병',     from:'stable',   cost:{wood:250,clay:100,iron:150},   pop:5,  time:22, speed:10, atk:120, def:40,  defC:30,  defA:50,  carry:50, cls:'arch'},
+  hcav:   {ic:'hcav', nm:'중기병',     from:'stable',   cost:{wood:200,clay:150,iron:600},   pop:6,  time:26, speed:11, atk:150, def:200, defC:80,  defA:180, carry:50, cls:'cav'},
+  ram:    {ic:'ram', nm:'파성추',     from:'workshop', cost:{wood:300,clay:200,iron:200},   pop:5,  time:24, speed:30, atk:2,   def:20,  defC:50,  defA:20,  carry:0,  cls:'inf', ram:true},
+  cata:   {ic:'cata', nm:'투석기',     from:'workshop', cost:{wood:320,clay:400,iron:100},   pop:8,  time:30, speed:30, atk:100, def:100, defC:50,  defA:100, carry:0,  cls:'inf', cata:true},
+  noble:  {ic:'noble', nm:'귀족',       from:'academy',  cost:{wood:40000,clay:50000,iron:50000},pop:100,time:120,speed:35, atk:30, def:100, defC:50, defA:100, carry:0, cls:'inf', noble:true},
 };
 const UNIT_GROUPS = { barracks:['spear','sword','axe','archer'], stable:['scout','lcav','marcher','hcav'], workshop:['ram','cata'], academy:['noble'] };
-const MODE_LBL = {attack:'⚔️ 공격', support:'🛡️ 지원', scout:'🧭 정찰', return:'↩️ 귀환', raid:'🔥 습격'};
+const MODE_ICO = {attack:'barracks', support:'shield', scout:'scout', return:'back', raid:'fire'};
+const MODE_NM  = {attack:'공격', support:'지원', scout:'정찰', return:'귀환', raid:'습격'};
+function modeLbl(m){ return I(MODE_ICO[m]||'barracks')+' '+(MODE_NM[m]||m); }
 function prodPerMin(l){ return l? Math.round(30*Math.pow(1.163,l-1)*WSPEED/60) : 0; }
 function storeCapAt(l){ return Math.round(1000*Math.pow(1.2294,Math.max(0,l-1))); }
 function popCapAt(l){ return Math.round(240*Math.pow(1.172,Math.max(0,l-1))); }
@@ -520,7 +579,7 @@ function merchTotal(v){ return v? (v.blds.market||0) : 0; }
 function merchBusy(vid){ let n=0; (S.trades||[]).forEach(t=>{ if(t.from===vid) n+=(t.n||0); }); return n; }
 function merchFree(vid){ return Math.max(0, merchTotal(S.villages[vid]) - merchBusy(vid)); }
 function resSum(r){ return Math.floor((r.wood||0)+(r.clay||0)+(r.iron||0)); }
-function resStr(r){ return ['wood','clay','iron'].filter(k=>(r[k]||0)>0).map(k=>`${RES[k]}${NF(r[k])}`).join(' ')||'—'; }
+function resStr(r){ return ['wood','clay','iron'].filter(k=>(r[k]||0)>0).map(k=>`${I(RES[k],'r-'+k)}${NF(r[k])}`).join(' ')||'—'; }
 // ══ ⚒️ 대장간 연구 — 대장간 레벨이 연구 상한을 결정 + 연구에 시간 소요(전 마을 공통) ══
 const RES_MAX=3, RES_SMITHY_REQ=[3,8,15];   // 연구 Lv1/2/3에 필요한 대장간 레벨
 function resSmithyReq(lvl){ return RES_SMITHY_REQ[lvl]!=null? RES_SMITHY_REQ[lvl] : 99; }
@@ -539,9 +598,9 @@ function trainTimeV(v,u){ const lv=v.blds[TROOP[u].from]||1; return Math.max(2, 
 // 🏗️ 현재 마을에서 진행 중인 작업(건설/훈련) — 3D 마을 게이지용
 function villageWork(){ const v=S.v, now=Date.now(); const o={build:null,train:null}; if(!v) return o;
   if(v.buildQ&&v.buildQ.length){ const q=v.buildQ[0], dur=q.dur||buildTimeV(v,q.b)*1000, left=Math.max(0,(q.doneAt||now)-now), d=BLD[q.b]||{};
-    o.build={b:q.b, nm:d.nm||q.b, ic:d.ic||'🏗️', lv:(v.blds[q.b]||0)+1, frac:dur>0?Math.min(1,Math.max(0,1-left/dur)):1, left, n:v.buildQ.length}; }
+    o.build={b:q.b, nm:d.nm||q.b, ic:d.ic||'workshop', lv:(v.blds[q.b]||0)+1, frac:dur>0?Math.min(1,Math.max(0,1-left/dur)):1, left, n:v.buildQ.length}; }
   if(v.recQ&&v.recQ.length){ const q=v.recQ[0], t=TROOP[q.u]||{}, dur=q.dur||trainTimeV(v,q.u)*1000, left=Math.max(0,(q.doneAt||now)-now);
-    o.train={u:q.u, b:t.from||'barracks', ic:t.ic||'⚔️', nm:t.nm||q.u, frac:dur>0?Math.min(1,Math.max(0,1-left/dur)):1, left, cnt:v.recQ.length}; }
+    o.train={u:q.u, b:t.from||'barracks', ic:t.ic||'sword', nm:t.nm||q.u, frac:dur>0?Math.min(1,Math.max(0,1-left/dur)):1, left, cnt:v.recQ.length}; }
   return o; }
 function trainTime(u){ return trainTimeV(S.v,u); }
 function researchBonus(u){ return 1 + ((S.research&&S.research[u])||0)*0.12; }
@@ -659,10 +718,10 @@ function processTrades(now){ const A=S.trades||[];
     if(t.back){ A.splice(i,1); continue; }
     const tv=S.villages[t.to];
     if(tv){ const cap=storeCapV(tv); ['wood','clay','iron'].forEach(k=>{ if((t.res[k]||0)>0) tv.res[k]=Math.min(cap,(tv.res[k]||0)+t.res[k]); });
-      toast(`🐴 ${crd(S.world[t.to])} 마을에 자원 도착 · ${resStr(t.res)}`); }
+      toast(`${crd(S.world[t.to])} 마을에 자원 도착 · ${resStr(t.res)}`); }
     else { const fv=S.villages[t.from];   // 대상이 더 이상 내 마을이 아님 → 싣고 되돌아옴
       if(fv){ const cap=storeCapV(fv); ['wood','clay','iron'].forEach(k=>{ if((t.res[k]||0)>0) fv.res[k]=Math.min(cap,(fv.res[k]||0)+t.res[k]); }); }
-      toast('🐴 수송 대상 마을을 잃어 자원이 되돌아왔어요'); }
+      toast('수송 대상 마을을 잃어 자원이 되돌아왔어요'); }
     const trip=t.arriveAt-t.dep; t.back=true; t.dep=now; t.arriveAt=now+trip; t.res={wood:0,clay:0,iron:0};
     if(S.active===t.from||S.active===t.to) S._dirtyVil=true;
   }
@@ -670,12 +729,12 @@ function processTrades(now){ const A=S.trades||[];
 // ⚒️ 연구 완료 처리(전 마을 공통·동시 1건)
 function processResearch(now){ const q=S.researchQ; if(!q||now<q.doneAt) return;
   S.research[q.u]=Math.min(RES_MAX,(S.research[q.u]||0)+1); S.researchQ=null;
-  toast(`⚒️ ${TROOP[q.u].nm} 연구 Lv${S.research[q.u]} 완료 — ⚔️🛡️ +${S.research[q.u]*12}%`); S._dirtyVil=true;
+  toast(`${TROOP[q.u].nm} 연구 Lv${S.research[q.u]} 완료 — +${S.research[q.u]*12}%`); S._dirtyVil=true;
 }
 function tickVillage(v, dt, now){ const cap=storeCapV(v);
   ['wood','clay','iron'].forEach(k=>{ v.res[k]=Math.min(cap,(v.res[k]||0)+prodPerMin(v.blds[k]||0)*dt/60); v.res[k]=Math.floor(v.res[k]*10)/10; });
   while(v.buildQ.length && now>=v.buildQ[0].doneAt){ const q=v.buildQ.shift(); v.blds[q.b]=(v.blds[q.b]||0)+1;
-    if(v===S.v){ toast(`🏗️ ${BLD[q.b].nm} Lv${v.blds[q.b]} 완성`); S._dirtyVil=true; }
+    if(v===S.v){ toast(`${BLD[q.b].nm} Lv${v.blds[q.b]} 완성`); S._dirtyVil=true; }
     if(v.buildQ.length){ const d=buildTimeV(v,v.buildQ[0].b)*1000; v.buildQ[0].doneAt=now+d; v.buildQ[0].dur=d; } }
   while(v.recQ.length && now>=v.recQ[0].doneAt){ const q=v.recQ.shift(); v.troops[q.u]=(v.troops[q.u]||0)+1;
     if(v.recQ.length){ const d=trainTimeV(v,v.recQ[0].u)*1000; v.recQ[0].doneAt=now+d; v.recQ[0].dur=d; } }
@@ -684,7 +743,7 @@ function hasUnits(u){ for(const k in u){ if(u[k]>0) return true; } return false;
 function armyTotalV(v){ let n=0; for(const u in v.troops) n+=v.troops[u]||0; return n; }
 // 🏘️ 마을 발전 단계(건물 레벨 합) — 3D 마을 외형과 연동 (Town3D의 공식과 동일하게 유지할 것)
 function vilStage(v){ let p=0; for(const b in v.blds) p+=v.blds[b]||0; return p>=45?3:p>=25?2:p>=10?1:0; }
-const STAGE_NM=['🏕️ 개척지','🛖 마을','🏘️ 소도시','🏰 성곽 도시'];
+const STAGE_NM=['개척지','마을','소도시','성곽 도시'];
 function snapV(w){ return {name:w.name, x:w.x, y:w.y, owner:w.owner, size:w.size||1}; }
 function crd(w){ return `(${w.x}|${w.y}) K${Math.floor(w.y/10)}${Math.floor(w.x/10)}`; }
 // ══ 전투 엔진 ══
@@ -722,16 +781,16 @@ function moraleVs(originV, w){ const atkP=vilPoints(originV), defP=(w.size||1)*1
 function pushReport(r){ r.at=r.at||Date.now(); S.reports=S.reports||[]; S.reports.unshift(r); S.reports=S.reports.slice(0,30); }
 // ══ 명령(집결지) — 공격/지원/정찰 공용 ══
 function sendCommand(toId, units, mode){ const v=S.v;
-  if((v.blds.rally||0)<1){ toast('🚩 집결지가 필요해요 — 마을에서 건설하세요'); return false; }
+  if((v.blds.rally||0)<1){ toast('집결지가 필요해요 — 마을에서 건설하세요'); return false; }
   for(const u in units){ if((v.troops[u]||0)<(units[u]||0)){ toast('병력이 부족해요'); return false; } }
   if(!hasUnits(units)){ toast('보낼 병력을 선택하세요'); return false; }
-  if(mode==='scout'){ for(const u in units){ if(u!=='scout'&&units[u]>0){ toast('정찰은 🧭 정찰병만 보낼 수 있어요'); return false; } } }
+  if(mode==='scout'){ for(const u in units){ if(u!=='scout'&&units[u]>0){ toast('정찰은 정찰병만 보낼 수 있어요'); return false; } } }
   let slow=1; for(const u in units){ if(units[u]>0) slow=Math.max(slow,TROOP[u].speed); }
   const from=S.world[S.active], to=S.world[toId]; if(!to||!from) return false;
   const dist=fieldDist(from,to); const travel=Math.max(4000, travelMs(dist,slow));
   for(const u in units) v.troops[u]-=(units[u]||0);
   S.marches.push({fromV:S.active, to:toId, units:{...units}, dep:Date.now(), arriveAt:Date.now()+travel, mode});
-  toast(`${MODE_LBL[mode]||mode} 출발 — ${to.name} ${crd(to)} · ${dist.toFixed(1)}칸 · ${fmtDur(travel)}`);
+  toast(`${modeLbl(mode)} 출발 — ${to.name} ${crd(to)} · ${dist.toFixed(1)}칸 · ${fmtDur(travel)}`);
   save(); return true;
 }
 function conquerVillage(id, survivors){ const w=S.world[id];
@@ -743,7 +802,7 @@ function conquerVillage(id, survivors){ const w=S.world[id];
   if(w.wall) b.wall=Math.min(20,Math.round(w.wall));
   nv.res={wood:300,clay:300,iron:200}; nv.troops=gar;
   S.villages[id]=nv; revealDisc(w.x,w.y,REVEAL_HOME);   // 🌫️ 정복지=내 마을 시야
-  toast(`👑 ${crd(w)} 마을을 정복했어요! 새 마을 획득 — 🚩 집결지부터 지으세요`); save();
+  toast(`${crd(w)} 마을을 정복했어요! 새 마을 획득 — 집결지부터 지으세요`); save();
 }
 function processMarches(now){
   S.marches.sort((a,b)=>b.arriveAt-a.arriveAt);   // 역순 루프가 배열 끝(가장 이른 도착)부터 처리 → 도착 시각 순 보장
@@ -752,7 +811,7 @@ function processMarches(now){
     if(m.mode==='attack'){ if(resolveAttack(m,now)) S.marches.splice(i,1); continue; }
     if(m.mode==='scout'){ if(resolveScout(m,now)) S.marches.splice(i,1); continue; }
     if(m.mode==='support'){ const tv=S.villages[m.to];
-      if(tv){ tv.support.push({from:m.fromV||HOME_KEY, units:{...m.units}}); toast(`🛡️ ${crd(S.world[m.to])} 마을에 지원군 도착`); S.marches.splice(i,1); }
+      if(tv){ tv.support.push({from:m.fromV||HOME_KEY, units:{...m.units}}); toast(`${crd(S.world[m.to])} 마을에 지원군 도착`); S.marches.splice(i,1); }
       else { const trip=m.arriveAt-m.dep; m.mode='return'; m.dep=now; m.arriveAt=now+trip; }   // 대상이 내 마을이 아니게 됨 → 회군
       continue; }
     // return — 출발 마을로 귀환
@@ -786,7 +845,7 @@ function resolveAttack(m, now){
     sent:{...m.units}, lost:aRes.lost, defUnits:annihilated?null:defStack, defLost:annihilated?null:dRes.lost,
     loot, wallFrom:wall0, wallTo, cataDmg, loyalty:r.win?Math.max(0,Math.round(loyTo)):null, conquered});
   const lt=(loot.wood+loot.clay+loot.iron)|0;
-  if(conquered){ toast(`👑 ${w.name} 함락!`); conquerVillage(m.to, aRes.left); return true; }
+  if(conquered){ toast(`${w.name} 함락!`); conquerVillage(m.to, aRes.left); return true; }
   toast(r.win? `✅ ${w.name} 약탈 성공! +${NF(lt)} 자원 (📜 보고서)` : `💥 ${w.name} 공격 ${annihilated?'대패 — 전멸':'실패'} (📜 보고서)`);
   if(annihilated) return true;
   const trip=m.arriveAt-m.dep; m.mode='return'; m.units=aRes.left; m.loot=loot; m.dep=now; m.arriveAt=now+trip; return false;
@@ -813,7 +872,7 @@ function resolveScout(m, now){
     return true;
   }
   pushReport({type:'scout', win:false, tgt:snapV(w), sent:{scout:atkS}, lost:{scout:atkS}});
-  toast(`🧭 ${w.name} 정찰 실패 — 적 정찰병에 발각(전멸)`);
+  toast(`${w.name} 정찰 실패 — 적 정찰병에 발각(전멸)`);
   return true;
 }
 // ⚔️ 피습 방어 — 정통 전략식: 공격자 승리 시 수비 병력 전멸 + 약탈(지하창고 보호) / 방어 성공 시 수비 비례 손실
@@ -874,7 +933,7 @@ function spawnRaid(vid, now, immediate){
   const m={from, to:vid, units:raidUnitsFor(pow), mode:'raid', big, dep:now, arriveAt:now+travel};
   if(immediate){ m.dep=now-travel; m.arriveAt=now; resolveDefense(m, now); return; }
   S.marches.push(m);
-  toast(`🔥 ${big?'대규모 ':''}야만인 습격대가 ${crd(w)}로 몰려와요 — ${fmtDur(travel)} 후 도착`);
+  toast(`${big?'대규모 ':''}야만인 습격대가 ${crd(w)}로 몰려와요 — ${fmtDur(travel)} 후 도착`);
 }
 function maybeRaid(now){
   for(const vid in S.villages){ const v=S.villages[vid], w=S.world[vid];
@@ -895,7 +954,7 @@ window.recallSupport=function(vid, ix){ const v=S.villages[vid]; if(!v||!v.suppo
   let slow=1; for(const u in sp.units){ if(sp.units[u]>0) slow=Math.max(slow,TROOP[u].speed); }
   const travel=Math.max(4000, travelMs(fieldDist(from,here),slow));
   S.marches.push({fromV:sp.from, to:vid, units:sp.units, dep:Date.now(), arriveAt:Date.now()+travel, mode:'return'});
-  toast(`↩️ 지원군 회수 — ${fmtDur(travel)} 후 귀환`); save();
+  toast(`지원군 회수 — ${fmtDur(travel)} 후 귀환`); save();
   if(view==='rally') renderRally(true); if(view==='village') updateVillageDynamic();
 };
 
@@ -913,18 +972,18 @@ function fmtClock(ts){ try{ return new Date(ts).toLocaleTimeString('en-GB',{time
   catch(e){ const d=new Date(ts); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0'); } }
 function fmtAgo(ms){ if(ms<60000) return '방금'; if(ms<3600000) return Math.floor(ms/60000)+'분 전';
   if(ms<86400000) return Math.floor(ms/3600000)+'시간 전'; return Math.floor(ms/86400000)+'일 전'; }
-function costStr(c){ return Object.keys(c).map(k=>`${RES[k]||''}${NF(c[k])}`).join(' '); }
+function costStr(c){ return Object.keys(c).map(k=>`${I(RES[k],'r-'+k)}${NF(c[k])}`).join(' '); }
 function payV(c){ const v=S.v; for(const k in c){ if((v.res[k]||0)<(c[k]||0)) return false; } for(const k in c) v.res[k]-=(c[k]||0); return true; }
 function canAffordV(c){ const v=S.v; for(const k in c){ if((v.res[k]||0)<(c[k]||0)) return false; } return true; }
 // ── 내비게이션: PC=상단 메뉴 / 모바일=하단 탭바 ──
-const NAVS=[['map','🗺️','지도'],['village','🏰','마을'],['rally','🚩','집결지'],['reports','📜','보고서']];
+const NAVS=[['map','map','지도'],['village','main','마을'],['rally','rally','집결지'],['reports','academy','보고서']];
 function buildNav(){
   const pm=document.getElementById('pcmenu'), tb=document.getElementById('tabbar');
-  pm.innerHTML = NAVS.map(([v,ic,nm])=>`<button class="pcm" data-v="${v}" onclick="go('${v}')">${ic} ${nm}<span class="bdg" data-bdg="${v}" style="display:none"></span></button>`).join('')
+  pm.innerHTML = NAVS.map(([v,ic,nm])=>`<button class="pcm" data-v="${v}" onclick="go('${v}')">${I(ic)} ${nm}<span class="bdg" data-bdg="${v}" style="display:none"></span></button>`).join('')
     + `<span class="pcm-sep"></span>
-       <button class="pcm" onclick="openMarket()">⚖️ 시장</button>
-       <button class="pcm" onclick="openSmithy()">⚒️ 대장간</button>`;
-  tb.innerHTML = NAVS.map(([v,ic,nm])=>`<button class="tab" data-v="${v}" onclick="go('${v}')"><span class="ti">${ic}</span>${nm}<span class="bdg" data-bdg="${v}" style="display:none"></span></button>`).join('');
+       <button class="pcm" onclick="openMarket()">${I('market')} 시장</button>
+       <button class="pcm" onclick="openSmithy()">${I('smithy')} 대장간</button>`;
+  tb.innerHTML = NAVS.map(([v,ic,nm])=>`<button class="tab" data-v="${v}" onclick="go('${v}')"><span class="ti">${I(ic,'ic-xl')}</span>${nm}<span class="bdg" data-bdg="${v}" style="display:none"></span></button>`).join('');
 }
 window.go=function(v){ view=v; showView(); };
 function showView(){
@@ -950,12 +1009,12 @@ function renderTop(){
   const v=S.v, cap=storeCap();
   const chip=(k)=>{ const val=Math.floor(v.res[k]); const pct=Math.min(100,val/cap*100);
     const cls=pct>=97?'full':(pct>=80?'warn':'');
-    return `<span class="res ${cls}" title="${RES_NM[k]} ${NF(val)} / ${NF(cap)} · +${prodPerMin(v.blds[k]||0)}/분"><i>${RES[k]}</i><em>${NF(val)}</em><s>+${prodPerMin(v.blds[k]||0)}</s></span>`; };
+    return `<span class="res ${cls}" title="${RES_NM[k]} ${NF(val)} / ${NF(cap)} · +${prodPerMin(v.blds[k]||0)}/분"><i>${I(RES[k],'ic-lg r-'+k)}</i><em>${NF(val)}</em><s>+${prodPerMin(v.blds[k]||0)}</s></span>`; };
   const pu=popUsed(), pcap=popCap(); const pcls=pu>=pcap?'full':(pu/pcap>=0.85?'warn':'');
   document.getElementById('resbar').innerHTML = ['wood','clay','iron'].map(chip).join('')
-    + `<span class="res ${pcls}" title="인구(농장) ${pu}/${pcap}"><i>🌾</i><em>${NF(pu)}/${NF(pcap)}</em></span>`;
+    + `<span class="res ${pcls}" title="인구(농장) ${pu}/${pcap}"><i>${I('pop')}</i><em>${NF(pu)}/${NF(pcap)}</em></span>`;
   const pb=document.getElementById('protect-banner'); if(pb){ const left=protectLeft(S.world[HOME_KEY]);
-    if(left>0){ pb.style.display='flex'; pb.innerHTML=`🛡️ <b>뉴비 보호 중</b> · ${fmtProtect(left)} 남음 <span class="pb-sub">먼저 공격 시 즉시 해제</span>`; }
+    if(left>0){ pb.style.display='flex'; pb.innerHTML=`${I('shield')} <b>신규 보호 중</b> · ${fmtProtect(left)} 남음 <span class="pb-sub">먼저 공격 시 즉시 해제</span>`; }
     else pb.style.display='none'; }
 }
 // ── PC 사이드바(클래식 전략 개요) ──
@@ -964,26 +1023,26 @@ function renderSidebar(){
   if(!isPC()){ sb.innerHTML=''; return; }
   const v=S.v, w=S.world[S.active], cap=storeCap(), now=Date.now();
   const owned=ownedIds();
-  const sw = owned.length>1? `<div class="vswrow">${owned.map(id=>`<button class="vsw-b ${id===S.active?'on':''}" onclick="switchVil('${id}')">🏰 (${S.world[id].x}|${S.world[id].y})</button>`).join('')}</div>` : '';
+  const sw = owned.length>1? `<div class="vswrow">${owned.map(id=>`<button class="vsw-b ${id===S.active?'on':''}" onclick="switchVil('${id}')">${I('main')} (${S.world[id].x}|${S.world[id].y})</button>`).join('')}</div>` : '';
   const resRow=(k)=>{ const val=Math.floor(v.res[k]); const pct=Math.min(100,val/cap*100); const cls=pct>=97?'full':(pct>=80?'warn':'');
-    return `<div class="sb-res ${cls}"><span class="ic">${RES[k]}</span><em>${NF(val)}</em><span class="cap">/ ${NF(cap)}</span><s>+${prodPerMin(v.blds[k]||0)}/분</s></div>`; };
+    return `<div class="sb-res ${cls}"><span class="ricw">${I(RES[k],'ic-lg r-'+k)}</span><em>${NF(val)}</em><span class="cap">/ ${NF(cap)}</span><s>+${prodPerMin(v.blds[k]||0)}/분</s></div>`; };
   let q='';
-  if(v.buildQ.length){ const h=v.buildQ[0]; q+=`<div class="sb-row">🏗️ ${BLD[h.b].nm} Lv${(v.blds[h.b]||0)+1}${v.buildQ.length>1?` (+${v.buildQ.length-1})`:''}<b>${fmtDur(h.doneAt-now)} · ${fmtClock(h.doneAt)}</b></div>`; }
-  if(v.recQ.length){ const h=v.recQ[0]; q+=`<div class="sb-row">${TROOP[h.u].ic} ${TROOP[h.u].nm} ×${v.recQ.length}<b>${fmtDur(h.doneAt-now)} · ${fmtClock(h.doneAt)}</b></div>`; }
+  if(v.buildQ.length){ const h=v.buildQ[0]; q+=`<div class="sb-row">${I('workshop')} ${BLD[h.b].nm} Lv${(v.blds[h.b]||0)+1}${v.buildQ.length>1?` (+${v.buildQ.length-1})`:''}<b>${fmtDur(h.doneAt-now)} · ${fmtClock(h.doneAt)}</b></div>`; }
+  if(v.recQ.length){ const h=v.recQ[0]; q+=`<div class="sb-row">${I(TROOP[h.u].ic)} ${TROOP[h.u].nm} ×${v.recQ.length}<b>${fmtDur(h.doneAt-now)} · ${fmtClock(h.doneAt)}</b></div>`; }
   if(!q) q=`<div class="sb-row" style="color:#9a8a60">진행 중인 작업 없음</div>`;
   let mv='';
   (S.marches||[]).forEach(m=>{ const inc=m.mode==='raid'; const tgt=S.world[m.to];
-    if(inc) mv+=`<div class="sb-row inc">🔥 습격! → (${tgt?tgt.x:'?'}|${tgt?tgt.y:'?'})<b>${fmtDur(m.arriveAt-now)}</b></div>`;
-    else mv+=`<div class="sb-row">${MODE_LBL[m.mode]||m.mode} → (${tgt?tgt.x:'?'}|${tgt?tgt.y:'?'})<b>${fmtDur(m.arriveAt-now)}</b></div>`; });
+    if(inc) mv+=`<div class="sb-row inc">${I('fire')} 습격! → (${tgt?tgt.x:'?'}|${tgt?tgt.y:'?'})<b>${fmtDur(m.arriveAt-now)}</b></div>`;
+    else mv+=`<div class="sb-row">${modeLbl(m.mode)} → (${tgt?tgt.x:'?'}|${tgt?tgt.y:'?'})<b>${fmtDur(m.arriveAt-now)}</b></div>`; });
   if(!mv) mv=`<div class="sb-row" style="color:#9a8a60">이동 중인 부대 없음</div>`;
   sb.innerHTML=`
-    <div class="box"><div class="bh">🏰 내 마을 <small>${crd(w)}</small></div><div class="bc">
+    <div class="box"><div class="bh">${I('main')} 내 마을 <small>${crd(w)}</small></div><div class="bc">
       ${sw}${resRow('wood')}${resRow('clay')}${resRow('iron')}
-      <div class="sb-row">🌾 인구<b>${NF(popUsed())}/${NF(popCap())}</b></div>
-      <div class="sb-row">🛡️ 주둔 병력<b>${NF(armyTotalV(v))}</b></div>
+      <div class="sb-row">${I('pop')} 인구<b>${NF(popUsed())}/${NF(popCap())}</b></div>
+      <div class="sb-row">${I('shield')} 주둔 병력<b>${NF(armyTotalV(v))}</b></div>
     </div></div>
     <div class="box"><div class="bh">⏳ 진행</div><div class="bc">${q}</div></div>
-    <div class="box"><div class="bh">📡 부대 이동</div><div class="bc">${mv}</div></div>`;
+    <div class="box"><div class="bh">${I('cart')} 부대 이동</div><div class="bc">${mv}</div></div>`;
 }
 // ── 지도(3D 우선 · 2D 폴백) ──
 // 3D 지도 로드 실패 배너 — 원인(모듈 에러)을 같이 보여줘 추측하지 않게
@@ -999,8 +1058,8 @@ function _mapFallbackNotice(){
 function escHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function renderMap(){
   if(window.Map3D){ const wrap=document.getElementById('map-wrap'), mc=document.getElementById('map-content'); if(mc) mc.style.display='none';
-    if(wrap){ window.Map3D.mount(wrap); window.Map3D.build({ world:S.world, cols:HCOLS, rows:HROWS, hex:hexPos, isP:isProtected, onNode:onVillage, HOME:HOME_KEY, fmt:fmtDur, revealed:S.revealed, state:()=>({world:S.world,marches:S.marches}) });
-      const rr=document.getElementById('map-reset'); if(rr) rr.onclick=()=>window.Map3D.resetCam(); }
+    if(wrap){ window.Map3D.mount(wrap); window.Map3D.build({ icon:I, world:S.world, cols:HCOLS, rows:HROWS, hex:hexPos, isP:isProtected, onNode:onVillage, HOME:HOME_KEY, fmt:fmtDur, revealed:S.revealed, state:()=>({world:S.world,marches:S.marches}) });
+      const rr=document.getElementById('map-reset'); if(rr){ rr.innerHTML=I('expand'); rr.onclick=()=>window.Map3D.resetCam(); } }
     return; }
   // 2D 폴백 — ⚠️조용히 떨어지면 원인 파악이 불가능해서, 실패했다는 사실을 화면에 남긴다
   _mapFallbackNotice();
@@ -1016,9 +1075,9 @@ function renderMap(){
     const me=w.owner==='me', pl=w.owner==='player';
     const cls = me?'v-me':(pl?'v-player':'v-barb');
     const szc = (me||pl)?'big':(w.size>=5?'big':(w.size>=3?'mid':'sml'));
-    const ic = me?'🏰':(pl?'🗼':'🏚️');
-    const tag = me?`<span class="vmk-tag">내 마을${isProtected(w)?' 🛡️':''}</span>`
-              : (pl?`<span class="vmk-tag player">${(w.name||'').replace('소환사 ','')}${isProtected(w)?' 🛡️':''}</span>`
+    const ic = I(me?'main':(pl?'tower':'hut'),'ic-lg');
+    const tag = me?`<span class="vmk-tag">내 마을${isProtected(w)?' '+I('shield'):''}</span>`
+              : (pl?`<span class="vmk-tag player">${(w.name||'').replace('소환사 ','')}${isProtected(w)?' '+I('shield'):''}</span>`
               : (w.size>=4?`<span class="vmk-tag barb">${w.size}★</span>`:''));
     return `<div class="vmk ${cls} ${szc}" style="left:${((w.x+0.5)*F).toFixed(1)}px;top:${((w.y+0.5)*F).toFixed(1)}px" data-id="${id}"><div class="vmk-box"><span class="vmk-ic">${ic}</span>${tag}</div></div>`;
   }).join('');
@@ -1034,7 +1093,7 @@ function updateArmies(){
     if(!org||!dst) return;
     const span=m.arriveAt-m.dep; const p=span>0?Math.min(1,Math.max(0,(now-m.dep)/span)):1;
     const x=((org.x+(dst.x-org.x)*p+0.5)*F).toFixed(1), y=((org.y+(dst.y-org.y)*p+0.5)*F).toFixed(1);
-    const ic=inc?'🔥':(m.mode==='attack'?'⚔️':(m.mode==='support'?'🛡️':(m.mode==='scout'?'🧭':'🎒')));
+    const ic=I(inc?'fire':(m.mode==='attack'?'barracks':(m.mode==='support'?'shield':(m.mode==='scout'?'scout':'cart'))));
     h+=`<div class="army-mk ${m.mode}" style="left:${x}px;top:${y}px"><span class="am-ic">${ic}</span><span class="am-lbl">${fmtDur(m.arriveAt-now)}</span></div>`; });
   host.innerHTML=h;
 }
@@ -1110,7 +1169,7 @@ function initMapPZ(){ if(window.Map3D) return;
     onTap:(px,py)=>{ let best=null,bd=1e9; for(const id in S.world){ const wv=S.world[id]; const d=Math.hypot((wv.x+0.5)*F-px,(wv.y+0.5)*F-py); if(d<bd){bd=d;best=id;} }
       if(best && bd<F*0.9){ onVillage(best); return true; } return false; },
     onZoom:(sc)=>{ c.style.setProperty('--mkz',(1/Math.max(sc,1)).toFixed(3)); }});
-  const rb=document.getElementById('map-reset'); if(rb) rb.onclick=()=>_mapPZ.reset();
+  const rb=document.getElementById('map-reset'); if(rb){ rb.innerHTML=I('expand'); rb.onclick=()=>_mapPZ.reset(); }
 }
 function onVillage(id){ const w=S.world[id]; if(!w) return;
   if(w.owner==='me' && id===S.active){ go('village'); return; }
@@ -1122,7 +1181,7 @@ window.onVillageInfo=openVillageInfo; window.goVillage=onVillage;   // 디버그
 function openVillageInfo(id){ const w=S.world[id]; if(!w) return;
   const mine=w.owner==='me';
   const from=S.world[S.active]||S.world[HOME_KEY]; const dist=fieldDist(w,from); const prot=!mine&&isProtected(w);
-  const isPlayer=w.owner==='player'; const ic=mine?'🏰':(isPlayer?'🗼':'🏚️');
+  const isPlayer=w.owner==='player'; const ic=I(mine?'main':(isPlayer?'tower':'hut'),'ic-xl');
   const spy=S.spy[id]; const spyAge=spy? fmtAgo(Date.now()-spy.at) : null;
   let defCell, loyCell, lootCell;
   if(mine){ const v=S.villages[id]; let def=0; for(const u in v.troops) def+=Math.floor(v.troops[u]||0)*TROOP[u].def;
@@ -1130,31 +1189,31 @@ function openVillageInfo(id){ const w=S.world[id]; if(!w) return;
     lootCell=`${NF((v.res.wood||0)+(v.res.clay||0)+(v.res.iron||0))} <small>보유 자원</small>`; }
   else if(spy){ defCell=`~${NF(spy.def)} <small>성벽${spy.wall} · ${spyAge}</small>`; loyCell=`${spy.loyalty} <small>${spyAge}</small>`;
     lootCell=`${NF(spy.res.wood+spy.res.clay+spy.res.iron)} <small>${spyAge}</small>`; }
-  else { defCell='<small>❓ 정찰 필요</small>'; loyCell='<small>❓</small>'; lootCell='<small>❓ 정찰 필요</small>'; }
+  else { defCell='<small>정찰이 필요해요</small>'; loyCell='<small>—</small>'; lootCell='<small>정찰이 필요해요</small>'; }
   const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
   ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:360px">
     <div class="vi-hd"><span class="vi-ic">${ic}</span>
       <div class="vi-tt"><b>${(w.name||'마을').replace('소환사 ','')}</b><small>${crd(w)}</small></div>
-      <span class="vi-tag ${isPlayer?'pl':''}">${mine?'🏰 내 마을':(isPlayer?'🗼 라이벌':'🏚️ 야만인')}</span></div>
+      <span class="vi-tag ${isPlayer?'pl':''}">${mine?I('main')+' 내 마을':(isPlayer?I('tower')+' 라이벌':I('hut')+' 야만인 마을')}</span></div>
     <div class="vi-grid">
       <div class="vi-cell"><div class="k">규모</div><div class="v">${w.size}★</div></div>
       <div class="vi-cell"><div class="k">내 마을에서</div><div class="v">${dist.toFixed(1)}<small>칸</small></div></div>
-      <div class="vi-cell"><div class="k">🛡️ 수비</div><div class="v">${defCell}</div></div>
-      <div class="vi-cell"><div class="k">👑 충성도</div><div class="v">${loyCell}</div></div>
-      <div class="vi-cell" style="grid-column:1/3"><div class="k">📦 자원</div><div class="v">${lootCell}</div></div>
+      <div class="vi-cell"><div class="k">${I('shield')} 수비</div><div class="v">${defCell}</div></div>
+      <div class="vi-cell"><div class="k">${I('noble')} 충성도</div><div class="v">${loyCell}</div></div>
+      <div class="vi-cell" style="grid-column:1/3"><div class="k">${I('storage')} 자원</div><div class="v">${lootCell}</div></div>
     </div>
-    ${prot?`<div class="vi-prot">🛡️ <b>보호 중</b> · ${fmtProtect(protectLeft(w))} 동안 공격 불가</div>`:''}
+    ${prot?`<div class="vi-prot">${I('shield')} <b>보호 중</b> · ${fmtProtect(protectLeft(w))} 동안 공격 불가</div>`:''}
     <div class="vi-acts ${mine?(id===S.active?'two':''):''}" id="vi-acts"></div></div>`;
   const acts=ov.querySelector('#vi-acts');
   const btn=(cls,txt,fn,dis)=>{ const b=document.createElement('button'); b.className='btn '+cls; b.innerHTML=txt; if(dis)b.disabled=true; else b.onclick=fn; acts.appendChild(b); };
   if(mine){
     btn('','닫기',()=>ov.remove());
-    btn('btn-green','🏰 들어가기',()=>{ ov.remove(); setActive(id); go('village'); });
-    if(id!==S.active) btn('btn-blue','🛡️ 지원 보내기',()=>{ ov.remove(); openAttack(id,'support'); });
+    btn('btn-green',I('main')+' 들어가기',()=>{ ov.remove(); setActive(id); go('village'); });
+    if(id!==S.active) btn('btn-blue',I('shield')+' 지원 보내기',()=>{ ov.remove(); openAttack(id,'support'); });
   } else {
     btn('','닫기',()=>ov.remove());
-    btn('btn-blue','🧭 정찰',()=>{ ov.remove(); openAttack(id,'scout'); }, prot);
-    btn('btn-red','⚔️ 공격',()=>{ ov.remove(); openAttack(id,'attack'); }, prot);
+    btn('btn-blue',I('scout')+' 정찰',()=>{ ov.remove(); openAttack(id,'scout'); }, prot);
+    btn('btn-red',I('barracks')+' 공격',()=>{ ov.remove(); openAttack(id,'attack'); }, prot);
   }
   document.body.appendChild(ov);
 }
@@ -1164,14 +1223,14 @@ function confirmRelease(onYes){ const left=protectLeft(S.world[HOME_KEY]);
   ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:330px;text-align:center">
     <div style="font-size:34px;margin:4px 0">⚠️</div>
     <h3 class="pick-h" style="color:#a3542c">보호가 풀려요</h3>
-    <div class="muted" style="margin:8px 4px 2px;line-height:1.55">지금 먼저 공격하면 남은 <b style="color:#1d5c96">${fmtProtect(left)}</b>의<br>🛡️ 보호가 <b style="color:#b3261e">즉시 해제</b>됩니다.</div>
+    <div class="muted" style="margin:8px 4px 2px;line-height:1.55">지금 먼저 공격하면 남은 <b style="color:#1d5c96">${fmtProtect(left)}</b>의<br>보호가 <b style="color:#b3261e">즉시 해제</b>됩니다.</div>
     <div style="display:flex;gap:8px;margin-top:12px">
       <button class="btn cr-no" style="flex:1;padding:11px">취소</button>
       <button class="btn btn-red cr-yes" style="flex:1;padding:11px">무시하고 공격</button>
     </div></div>`;
   document.body.appendChild(ov);
   ov.querySelector('.cr-no').onclick=()=>ov.remove();
-  ov.querySelector('.cr-yes').onclick=()=>{ S.world[HOME_KEY].protectUntil=0; save(); renderTop(); toast('🛡️ 보호가 해제됐어요'); ov.remove(); onYes(); };
+  ov.querySelector('.cr-yes').onclick=()=>{ S.world[HOME_KEY].protectUntil=0; save(); renderTop(); toast('보호가 해제됐어요'); ov.remove(); onYes(); };
 }
 // ── 공격/지원/정찰 모달(집결지 명령) ──
 function openAttack(id, mode0){
@@ -1180,14 +1239,14 @@ function openAttack(id, mode0){
   if(!mine && isProtected(w)){
     const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
     ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:320px;text-align:center">
-      <div style="font-size:34px;margin:4px 0">🛡️</div>
+      <div style="margin:4px 0">${I('shield','ic-hero')}</div>
       <h3 class="pick-h" style="text-align:center">${w.name} · 보호 중</h3>
       <div class="muted" style="margin:8px 0 2px;line-height:1.5">이 소환사는 <b style="color:#1d5c96">${fmtProtect(protectLeft(w))}</b> 동안<br>공격받지 않아요.</div>
       <button class="btn" style="width:100%;padding:11px;margin-top:10px" onclick="this.closest('.ov').remove()">확인</button>
     </div>`;
     document.body.appendChild(ov); return;
   }
-  if((v.blds.rally||0)<1){ toast('🚩 집결지가 필요해요 — 마을에서 건설하세요'); go('village'); return; }
+  if((v.blds.rally||0)<1){ toast('집결지가 필요해요 — 마을에서 건설하세요'); go('village'); return; }
   let mode = mode0 || (mine?'support':'attack');
   const from=S.world[S.active]; const dist=fieldDist(w,from);
   let sel={};
@@ -1197,22 +1256,22 @@ function openAttack(id, mode0){
     return {travel: slow?Math.max(4000,travelMs(dist,slow)):0, atk:Math.round(atk), n}; }
   function draw(){
     const es=estimate(); const rows=avail(); const spy=S.spy[id];
-    const tabs = mine? [] : [['attack','⚔️ 공격'],['scout','🧭 정찰']];
+    const tabs = mine? [] : [['attack',I('barracks')+' 공격'],['scout',I('scout')+' 정찰']];
     ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker atk">
-      <h3 class="pick-h">${mine?'🛡️':(mode==='scout'?'🧭':'⚔️')} ${w.name} <small>${crd(w)} · ${dist.toFixed(1)}칸</small></h3>
+      <h3 class="pick-h">${I(mine?'shield':(mode==='scout'?'scout':'barracks'))} ${w.name} <small>${crd(w)} · ${dist.toFixed(1)}칸</small></h3>
       ${tabs.length? `<div class="atk-tabs">${tabs.map(([m2,nm])=>`<button class="atab ${mode===m2?'on':''}" data-m="${m2}">${nm}</button>`).join('')}</div>`:''}
-      ${!mine? `<div class="atk-info">${spy? `🧭 최근 정찰(${fmtAgo(Date.now()-spy.at)}) — 🛡️ 수비 ~<b>${NF(spy.def)}</b> · 🧱 성벽 ${spy.wall} · 📦 ${NF(spy.res.wood+spy.res.clay+spy.res.iron)} · 👑 충성도 ${spy.loyalty}`
-        : '❓ <b>수비 정보 없음</b> — 적 정보는 🧭 정찰해야 보여요'}</div>`
-        : `<div class="atk-info">🛡️ 내 마을에 병력을 <b>지원</b>합니다 — 도착하면 그 마을 수비에 합류하고, 🚩 집결지에서 회수할 수 있어요</div>`}
-      ${rows.length? rows.map(u=>`<div class="atk-row"><span class="u-ic">${TROOP[u].ic}</span><span class="u-nm">${TROOP[u].nm}</span><span class="u-have">보유 ${NF(v.troops[u])}</span>
+      ${!mine? `<div class="atk-info">${spy? `${I('scout')} 최근 정찰(${fmtAgo(Date.now()-spy.at)}) — ${I('shield')} 수비 ~<b>${NF(spy.def)}</b> · ${I('wall')} 성벽 ${spy.wall} · ${I('storage')} ${NF(spy.res.wood+spy.res.clay+spy.res.iron)} · ${I('noble')} 충성도 ${spy.loyalty}`
+        : `<b>수비 정보 없음</b> — 적 정보는 ${I('scout')} 정찰해야 보여요`}</div>`
+        : `<div class="atk-info">${I('shield')} 내 마을에 병력을 <b>지원</b>합니다 — 도착하면 그 마을 수비에 합류하고, ${I('rally')} 집결지에서 회수할 수 있어요</div>`}
+      ${rows.length? rows.map(u=>`<div class="atk-row"><span class="u-ic">${I(TROOP[u].ic)}</span><span class="u-nm">${TROOP[u].nm}</span><span class="u-have">보유 ${NF(v.troops[u])}</span>
         <span class="atk-step"><button data-u="${u}" data-d="-1">－</button><b>${sel[u]||0}</b><button data-u="${u}" data-d="1">＋</button><button data-u="${u}" data-d="max" class="mx">최대</button></span></div>`).join('')
-        : `<div class="muted" style="margin:10px 0">보낼 병력이 없어요${mode==='scout'?' · 🧭 정찰병은 마구간에서 훈련':''}</div>`}
-      <div class="atk-est">${mode==='scout'? `🧭 정찰병 <b>${es.n}</b> · 수비 정찰병×2를 뚫어야 성공`
-        : mode==='support'? `🛡️ 지원 병력 <b>${es.n}</b>명`
-        : `⚔️ 공격력 <b>${NF(es.atk)}</b>${w.owner==='player'?` · 사기 ${Math.round(moraleVs(v,w)*100)}%`:''} · 🍀 운 ±25%`}
+        : `<div class="muted" style="margin:10px 0">보낼 병력이 없어요${mode==='scout'?' · 정찰병은 마구간에서 훈련':''}</div>`}
+      <div class="atk-est">${mode==='scout'? `${I('scout')} 정찰병 <b>${es.n}</b> · 수비 정찰병×2를 뚫어야 성공`
+        : mode==='support'? `${I('shield')} 지원 병력 <b>${es.n}</b>명`
+        : `${I('barracks')} 공격력 <b>${NF(es.atk)}</b>${w.owner==='player'?` · 사기 ${Math.round(moraleVs(v,w)*100)}%`:''} · 운 ±25%`}
         · ${es.travel?('행군 '+fmtDur(es.travel)):'—'}</div>
       <button class="btn ${mode==='attack'?'btn-red':(mode==='scout'?'btn-blue':'btn-green')} atk-go" ${rows.length?'':'disabled'}
-        style="width:100%;padding:12px;margin-top:8px;font-size:14px">${MODE_LBL[mode]} 출발</button>
+        style="width:100%;padding:12px;margin-top:8px;font-size:14px">${modeLbl(mode)} 출발</button>
     </div>`;
     ov.querySelectorAll('.atab').forEach(b=>b.onclick=()=>{ mode=b.dataset.m; sel={}; draw(); });
     ov.querySelectorAll('.atk-step button').forEach(bn=>bn.onclick=()=>{ const u=bn.dataset.u,d=bn.dataset.d;
@@ -1238,27 +1297,27 @@ function renderVillage(full){
         <div class="scene-amb" style="background:radial-gradient(48% 36% at 50% 40%, ${B.amb}, transparent 72%)"></div>
         <div class="biome-fx" id="biome-fx"></div>
         <div class="stt">${STAGE_NM[vilStage(S.v)]} <small>${w?crd(w):''}</small></div>
-        <button class="pz-reset" id="rgn-reset" title="원래대로">⤢</button>
-        <button class="pz-reset" id="rgn-daynight" style="top:46px" title="낮/밤">🌙</button>
+        <button class="pz-reset" id="rgn-reset" title="원래대로"></button>
+        <button class="pz-reset" id="rgn-daynight" style="top:46px" title="낮/밤"></button>
       </div>
       <div id="vil-switch"></div>
       <div id="vil-queues"></div>
-      <div class="box"><div class="bh">🏗️ 건물</div><div class="bc" id="vil-blds"></div></div>
+      <div class="box"><div class="bh">${I('workshop')} 건물</div><div class="bc" id="vil-blds"></div></div>
       ${isPC()? `
-      <div class="box"><div class="bh">⚔️ 병영 <small>창병 · 검사 · 도끼병 · 궁병</small></div><div class="bc" id="vil-barracks"></div></div>
-      <div class="box"><div class="bh">🐎 마구간 <small>정찰병 · 경기병 · 궁기병 · 중기병</small></div><div class="bc" id="vil-stable"></div></div>
-      <div class="box"><div class="bh">🛠️ 공방 <small>파성추 · 투석기</small></div><div class="bc" id="vil-workshop"></div></div>
+      <div class="box"><div class="bh">${I('barracks')} 병영 <small>창병 · 검사 · 도끼병 · 궁병</small></div><div class="bc" id="vil-barracks"></div></div>
+      <div class="box"><div class="bh">${I('stable')} 마구간 <small>정찰병 · 경기병 · 궁기병 · 중기병</small></div><div class="bc" id="vil-stable"></div></div>
+      <div class="box"><div class="bh">${I('workshop')} 공방 <small>파성추 · 투석기</small></div><div class="bc" id="vil-workshop"></div></div>
       <div class="box"><div class="bh">🎓 대학 <small>귀족 — 마을 정복</small></div><div class="bc" id="vil-academy"></div></div>`:''}
-      <div class="box"><div class="bh">🛡️ 병력 <small id="vil-armytot"></small></div><div class="bc" id="vil-army"></div></div>
-      <div class="box"><div class="bh">📡 이 마을의 행군</div><div class="bc" id="vil-marches"></div></div>
+      <div class="box"><div class="bh">${I('shield')} 병력 <small id="vil-armytot"></small></div><div class="bc" id="vil-army"></div></div>
+      <div class="box"><div class="bh">${I('cart')} 이 마을의 행군</div><div class="bc" id="vil-marches"></div></div>
       <div style="height:8px"></div>`;
     fillBiomeFx(B.fx);
     const _sc=document.getElementById('rgn-scene');
-    if(_sc && window.Town3D){ try{ window.Town3D.mount(_sc); window.Town3D.build(S.v.blds,{onBuild:(b)=>{ if(isPC()) window.build(b); else window.openBldSheet(b); }, BLD, work:villageWork});
-        const rr=document.getElementById('rgn-reset'); if(rr) rr.onclick=()=>window.Town3D.resetCam();
-        const dn=document.getElementById('rgn-daynight'); if(dn) dn.onclick=()=>{ dn.textContent=window.Town3D.setNight()?'☀️':'🌙'; }; }catch(e){}
+    if(_sc && window.Town3D){ try{ window.Town3D.mount(_sc); window.Town3D.build(S.v.blds,{onBuild:(b)=>{ if(isPC()) window.build(b); else window.openBldSheet(b); }, BLD, icon:I, work:villageWork});
+        const rr=document.getElementById('rgn-reset'); if(rr){ rr.innerHTML=I('expand'); rr.onclick=()=>window.Town3D.resetCam(); }
+        const dn=document.getElementById('rgn-daynight'); if(dn){ dn.innerHTML=I('moon'); } if(dn) dn.onclick=()=>{ dn.innerHTML=window.Town3D.setNight()?I('expand'):I('moon'); }; }catch(e){}
     } else if(_sc){ buildIso(HOME_ID); const _cam=document.getElementById('rgn-cam');
-      if(_cam){ const pz=attachPanZoom(_sc,_cam,{max:3.4,dbl:2}); const rr=document.getElementById('rgn-reset'); if(rr) rr.onclick=()=>pz.reset(); } }
+      if(_cam){ const pz=attachPanZoom(_sc,_cam,{max:3.4,dbl:2}); const rr=document.getElementById('rgn-reset'); if(rr){ rr.innerHTML=I('expand'); rr.onclick=()=>pz.reset(); } } }
     _vilBuilt=S.active; _vilPC=isPC();
   }
   updateVillageDynamic();
@@ -1266,20 +1325,20 @@ function renderVillage(full){
 // 건물 효과 — ⚠️lv 인자 기준으로만 계산할 것(다음 레벨 미리보기가 같은 함수를 씀)
 function bldEffTxt(b,lv){ const d=BLD[b];
   if(d.res) return `${RES[d.res]} +${prodPerMin(lv)}/분`;
-  if(b==='farm') return `🌾 인구 ${NF(popCapAt(lv))}`;
-  if(b==='storage') return `🛢️ 저장 ${NF(storeCapAt(lv))}`;
-  if(b==='wall') return `🛡️ 방어 ×${Math.pow(1.037,lv).toFixed(2)} +${wallBasicDef(lv)}`;
-  if(b==='main') return lv>1? `⚡ 건설 ${Math.round((lv-1)*3.3)}% 단축` : `⚡ 건설 속도`;
-  if(b==='rally') return lv?`🚩 부대 지휘 가능`:`🚩 공격·지원·정찰에 필요!`;
-  if(b==='barracks') return lv>1?`⚔️ 보병 훈련 ${Math.round((lv-1)*2)}% 단축`:`⚔️ 보병 훈련`;
-  if(b==='stable') return lv>1?`🐎 기병 훈련 ${Math.round((lv-1)*2)}% 단축`:`🐎 기병 훈련`;
-  if(b==='workshop') return lv>1?`🛠️ 공성 병기 ${Math.round((lv-1)*2)}% 단축`:`🛠️ 공성 병기`;
-  if(b==='smithy'){ if(!lv) return `⚒️ 성능 연구`;
+  if(b==='farm') return `${I('pop')} 인구 ${NF(popCapAt(lv))}`;
+  if(b==='storage') return `${I('storage')} 저장 ${NF(storeCapAt(lv))}`;
+  if(b==='wall') return `${I('shield')} 방어 ×${Math.pow(1.037,lv).toFixed(2)} +${wallBasicDef(lv)}`;
+  if(b==='main') return lv>1? `건설 ${Math.round((lv-1)*3.3)}% 단축` : `건설 속도`;
+  if(b==='rally') return lv?`${I('rally')} 부대 지휘 가능`:`${I('rally')} 공격·지원·정찰에 필요!`;
+  if(b==='barracks') return lv>1?`${I('sword')} 보병 훈련 ${Math.round((lv-1)*2)}% 단축`:`${I('sword')} 보병 훈련`;
+  if(b==='stable') return lv>1?`${I('stable')} 기병 훈련 ${Math.round((lv-1)*2)}% 단축`:`${I('stable')} 기병 훈련`;
+  if(b==='workshop') return lv>1?`${I('workshop')} 공성 병기 ${Math.round((lv-1)*2)}% 단축`:`${I('workshop')} 공성 병기`;
+  if(b==='smithy'){ if(!lv) return `${I('smithy')} 성능 연구`;
     const un=RES_SMITHY_REQ.filter(r=>lv>=r).length;
-    return un? `⚒️ 연구 상한 Lv${un}/${RES_MAX}` : `⚒️ 대장간 ${RES_SMITHY_REQ[0]}에서 연구 해금`; }
-  if(b==='academy') return lv?`👑 귀족 훈련 가능`:`👑 귀족 훈련(마을 정복)`;
-  if(b==='market') return lv?`🐴 상인 ${lv}명 · 교환 ${NF(lv*200)}`:`⚖️ 자원 거래`;
-  if(b==='hide') return `🏺 약탈 보호 ${NF(hideCapAt(lv))}`;
+    return un? `${I('smithy')} 연구 상한 Lv${un}/${RES_MAX}` : `${I('smithy')} 대장간 ${RES_SMITHY_REQ[0]}에서 연구 해금`; }
+  if(b==='academy') return lv?`${I('noble')} 귀족 훈련 가능`:`${I('noble')} 귀족 훈련(마을 정복)`;
+  if(b==='market') return lv?`${I('cart')} 상인 ${lv}명 · 교환 ${NF(lv*200)}`:`${I('market')} 자원 거래`;
+  if(b==='hide') return `${I('hide')} 약탈 보호 ${NF(hideCapAt(lv))}`;
   return d.desc||'';
 }
 // 다음 레벨 미리보기 — 값이 실제로 바뀌는 건물만 「현재 → 다음」
@@ -1290,7 +1349,7 @@ function bldNextTxt(b,lv){ const d=BLD[b]; if(lv>=d.max) return '';
 // 🔥 습격 대비 상태 — 난이도를 숨기지 않고 "안전선"을 그대로 보여준다(자동 이벤트라 예측 가능해야 함)
 function raidStatusHtml(v, now){
   const dev=villageDev(v), wl=v.blds.wall||0;
-  if(dev<RAID_DEV_MIN) return `<div class="raid-st calm">🔥 야만인 습격 — 마을이 더 크면 시작돼요 <b>발전도 ${dev}/${RAID_DEV_MIN}</b></div>`;
+  if(dev<RAID_DEV_MIN) return `<div class="raid-st calm">${I('fire')} 야만인 습격 — 마을이 더 크면 시작돼요 <b>발전도 ${dev}/${RAID_DEV_MIN}</b></div>`;
   const inc=(S.marches||[]).find(m=>m.mode==='raid'&&m.to===S.active);
   const defNow=Math.round(villageTroopPow(v)*Math.pow(1.037,wl)+wallBasicDef(wl));
   const breach=Math.round(raidFloor(dev)*1.25);                 // 이 아래면 습격이 뚫려 약탈당함
@@ -1304,37 +1363,37 @@ function raidStatusHtml(v, now){
     : lv==='danger'? '야만인 습격 · <b class="hot">약탈 위험</b>'
     : lv==='warn'? '야만인 습격 · 막지만 손실 큼' : '야만인 습격 · 대비됨';
   return `<div class="raid-st ${inc?'inc':lv}">
-    <span>🔥 ${head}</span>
-    <span class="rs-mid">🛡️ 방어 <b>${NF(defNow)}</b> / 권장 ${NF(rec)}${need?` · 창병 <b>+${need}</b>`:''}</span>
+    <span>${I('fire')} ${head}</span>
+    <span class="rs-mid">${I('shield')} 방어 <b>${NF(defNow)}</b> / 권장 ${NF(rec)}${need?` · 창병 <b>+${need}</b>`:''}</span>
     <span class="rs-eta">${eta}</span></div>`;
 }
 function updateVillageDynamic(){
   const v=S.v; const now=Date.now(); const pc=isPC();
   const sw=document.getElementById('vil-switch'); if(sw){ const owned=ownedIds();
-    sw.innerHTML = owned.length>1 ? `<div class="vswrow">${owned.map(id=>`<button class="vsw-b ${id===S.active?'on':''}" onclick="switchVil('${id}')">🏰 (${S.world[id].x}|${S.world[id].y})</button>`).join('')}</div>` : ''; }
+    sw.innerHTML = owned.length>1 ? `<div class="vswrow">${owned.map(id=>`<button class="vsw-b ${id===S.active?'on':''}" onclick="switchVil('${id}')">${I('main')} (${S.world[id].x}|${S.world[id].y})</button>`).join('')}</div>` : ''; }
   let q='';
   // 🏗️ 건설·훈련 진행바는 마을 3D의 건물 이름표 아래에 붙는다(중복 제거).
   //    여기엔 3D로 못 보여주는 것 — 완료 예정 시각과 대기열 — 만 한 줄로 남긴다.
   if(v.buildQ.length){ const h=v.buildQ[0];
     let totalMs=h.doneAt-now; for(let i=1;i<v.buildQ.length;i++) totalMs+=buildTimeV(v,v.buildQ[i].b)*1000;
-    const wait=v.buildQ.slice(1).map(x=>BLD[x.b].ic).join('');
-    q+=`<div class="q-line">🏗️ <b>${BLD[h.b].nm}</b> Lv${(v.blds[h.b]||0)+1} 건설 중
+    const wait=v.buildQ.slice(1).map(x=>I(BLD[x.b].ic)).join('');
+    q+=`<div class="q-line">${I('workshop')} <b>${BLD[h.b].nm}</b> Lv${(v.blds[h.b]||0)+1} 건설 중
       <span class="qmeta">완료 ${fmtClock(h.doneAt)}${v.buildQ.length>1?` · 대기 ${wait} (전체 ${fmtDur(totalMs)})`:''}</span></div>`; }
   if(v.recQ.length){ const h=v.recQ[0];
     let totalMs=h.doneAt-now; for(let i=1;i<v.recQ.length;i++) totalMs+=trainTimeV(v,v.recQ[i].u)*1000;
     const cnt={}; v.recQ.forEach(x=>cnt[x.u]=(cnt[x.u]||0)+1);
-    const sum=Object.keys(cnt).map(u=>TROOP[u].ic+'×'+cnt[u]).join(' ');
-    q+=`<div class="q-line train">${TROOP[h.u].ic} <b>${TROOP[h.u].nm}</b> 훈련 중
+    const sum=Object.keys(cnt).map(u=>I(TROOP[u].ic)+'×'+cnt[u]).join(' ');
+    q+=`<div class="q-line train">${I(TROOP[h.u].ic)} <b>${TROOP[h.u].nm}</b> 훈련 중
       <span class="qmeta">${sum} · 완료 ${fmtClock(now+totalMs)}</span></div>`; }
   if(S.researchQ){ const h=S.researchQ, rem=Math.max(0,h.doneAt-now), tot=h.dur||rem;
     const pct=Math.max(0,Math.min(100,(1-rem/Math.max(1,tot))*100));
-    q+=`<div class="q-row research">⚒️ <b>${TROOP[h.u].nm}</b> Lv${h.lvl+1} 연구
+    q+=`<div class="q-row research">${I('smithy')} <b>${TROOP[h.u].nm}</b> Lv${h.lvl+1} 연구
       <span class="qmeta">전 마을 공통 · 완료 ${fmtClock(h.doneAt)}</span>
       <b>${fmtDur(rem)}</b><div class="qbar"><div style="width:${pct.toFixed(0)}%"></div></div></div>`; }
   (S.trades||[]).filter(t=>t.from===S.active||t.to===S.active).forEach(t=>{
     const rem=Math.max(0,t.arriveAt-now), tot=Math.max(1,t.arriveAt-t.dep);
     const pct=Math.max(0,Math.min(100,(1-rem/tot)*100)); const w=S.world[t.back?t.from:t.to];
-    q+=`<div class="q-row ship">🐴 <b>${t.back?'상인 귀환':(t.from===S.active?'자원 수송':'자원 도착 예정')}</b>
+    q+=`<div class="q-row ship">${I('cart')} <b>${t.back?'상인 귀환':(t.from===S.active?'자원 수송':'자원 도착 예정')}</b>
       <span class="qmeta">${w?crd(w):'?'} · ${t.back?`상인 ${t.n}명`:resStr(t.res)}</span>
       <b>${fmtDur(rem)}</b><div class="qbar"><div style="width:${pct.toFixed(0)}%"></div></div></div>`; });
   const qe=document.getElementById('vil-queues'); if(qe) qe.innerHTML=q;
@@ -1346,18 +1405,18 @@ function updateVillageDynamic(){
       const hl=(b==='rally'&&lv<1&&met);
       return {b,d,lv,qd,maxed,c,met,aff,reqTxt,hl,ef:bldEffTxt(b,lv),nx:bldNextTxt(b,eff),tS:fmtSec(buildTime(b,eff+1))}; });
     if(pc){
-      be.innerHTML=`<table class="twt"><tr><th style="text-align:left">건물</th><th>Lv</th><th style="text-align:left">효과</th><th>🪵</th><th>🧱</th><th>⚙️</th><th>⏱</th><th></th></tr>`+
-        rows.map(r=>`<tr class="${r.hl?'hl':''}"><td>${r.d.ic} <b>${r.d.nm}</b>${(r.b==='market'&&r.lv>=1)?` <button class="btn sm" onclick="openMarket()">열기</button>`:(r.b==='smithy'&&r.lv>=1)?` <button class="btn sm" onclick="openSmithy()">열기</button>`:''}</td>
+      be.innerHTML=`<table class="twt"><tr><th style="text-align:left">건물</th><th>Lv</th><th style="text-align:left">효과</th><th>${I('wood')}</th><th>${I('clay')}</th><th>${I('iron')}</th><th>${I('time')}</th><th></th></tr>`+
+        rows.map(r=>`<tr class="${r.hl?'hl':''}"><td>${I(r.d.ic)} <b>${r.d.nm}</b>${(r.b==='market'&&r.lv>=1)?` <button class="btn sm" onclick="openMarket()">열기</button>`:(r.b==='smithy'&&r.lv>=1)?` <button class="btn sm" onclick="openSmithy()">열기</button>`:''}</td>
           <td style="text-align:center">${r.lv}${r.qd?`<small>(+${r.qd})</small>`:''}</td>
           <td class="eff">${r.ef}${(!r.maxed&&r.met&&r.nx)?`<span class="eff-nx">▸ ${r.nx}</span>`:''}</td>
-          ${r.maxed? `<td colspan="4" class="mut" style="text-align:center">최대</td>` : !r.met? `<td colspan="4" class="mut" style="text-align:center">🔒 ${r.reqTxt}</td>`
+          ${r.maxed? `<td colspan="4" class="mut" style="text-align:center">최대</td>` : !r.met? `<td colspan="4" class="mut" style="text-align:center">잠김 · ${r.reqTxt}</td>`
             : `<td style="text-align:right">${NF(r.c.wood)}</td><td style="text-align:right">${NF(r.c.clay)}</td><td style="text-align:right">${NF(r.c.iron)}</td><td style="text-align:center">${r.tS}</td>`}
           <td style="text-align:center">${r.maxed||!r.met?'':`<button class="btn sm ${r.aff?'':'no'}" onclick="build('${r.b}')">${r.lv?'업글':'건설'}</button>`}</td></tr>`).join('')+`</table>`;
     } else {
       // 📱 모바일식: 아이콘 그리드 — 탭하면 그 건물 시트(업글·훈련)가 떠서 스크롤 왕복 없음
       be.innerHTML=`<div class="bgrid2">`+rows.map(r=>
         `<div class="bt2 ${(!r.met&&!r.lv)?'lock':''} ${r.hl?'hl':''} ${(!r.maxed&&r.met&&r.aff)?'can':''}" onclick="openBldSheet('${r.b}')">
-          <span class="i">${r.d.ic}</span><span class="n">${(r.d.nm||'').replace(/\s/g,'')}</span><span class="lv${r.qd?' up':''}">${r.qd?`${r.lv}▸${r.lv+r.qd}`:r.lv}</span></div>`).join('')+`</div>`;
+          <span class="i">${I(r.d.ic,'ic-lg')}</span><span class="n">${(r.d.nm||'').replace(/\s/g,'')}</span><span class="lv${r.qd?' up':''}">${r.qd?`${r.lv}▸${r.lv+r.qd}`:r.lv}</span></div>`).join('')+`</div>`;
     }
   }
   renderRecruit('vil-barracks','barracks',UNIT_GROUPS.barracks,pc);
@@ -1367,32 +1426,32 @@ function updateVillageDynamic(){
   const at=document.getElementById('vil-armytot'); if(at) at.textContent=NF(armyTotalV(v))+'명';
   const ae=document.getElementById('vil-army'); if(ae){ const ks=Object.keys(TROOP).filter(u=>(v.troops[u]||0)>0);
     let h = raidStatusHtml(v, now);
-    h += ks.length? `<div class="army">${ks.map(u=>`<span class="unit"><span class="u-ic">${TROOP[u].ic}</span>${TROOP[u].nm} <b>${NF(v.troops[u])}</b></span>`).join('')}</div>` : `<div class="muted">아직 병력이 없어요</div>`;
+    h += ks.length? `<div class="army">${ks.map(u=>`<span class="unit"><span class="u-ic">${I(TROOP[u].ic)}</span>${TROOP[u].nm} <b>${NF(v.troops[u])}</b></span>`).join('')}</div>` : `<div class="muted">아직 병력이 없어요</div>`;
     (v.support||[]).forEach((sp,ix)=>{ const fw=S.world[sp.from];
-      h+=`<div class="rl-mrow support" style="margin-top:6px"><span>🛡️ 지원군 <b>${fw?crd(fw):'?'}</b></span><span class="rl-units">${Object.keys(sp.units).filter(u=>sp.units[u]>0).map(u=>TROOP[u].ic+NF(sp.units[u])).join(' ')}</span><button class="btn sm" onclick="recallSupport('${S.active}',${ix})">회수</button></div>`; });
+      h+=`<div class="rl-mrow support" style="margin-top:6px"><span>${I('shield')} 지원군 <b>${fw?crd(fw):'?'}</b></span><span class="rl-units">${Object.keys(sp.units).filter(u=>sp.units[u]>0).map(u=>I(TROOP[u].ic)+NF(sp.units[u])).join(' ')}</span><button class="btn sm" onclick="recallSupport('${S.active}',${ix})">회수</button></div>`; });
     ae.innerHTML=h; }
   const me=document.getElementById('vil-marches'); if(me){
     const ms=(S.marches||[]).filter(m=> m.mode==='raid'? m.to===S.active : (m.fromV||HOME_KEY)===S.active);
     me.innerHTML = !ms.length ? `<div class="muted">진행 중인 행군이 없어요</div>`
       : ms.map(m=>{ const w2=S.world[m.to]; const inc=m.mode==='raid';
-        const uu=inc?'':Object.keys(m.units).filter(u=>m.units[u]>0).map(u=>TROOP[u].ic+NF(m.units[u])).join(' ');
-        return `<div class="march ${m.mode}"><span>${MODE_LBL[m.mode]||m.mode} · ${w2?w2.name+' '+crd(w2):''}</span><span class="mu">${uu}</span><b>${fmtDur(m.arriveAt-now)}</b></div>`; }).join(''); }
+        const uu=inc?'':Object.keys(m.units).filter(u=>m.units[u]>0).map(u=>I(TROOP[u].ic)+NF(m.units[u])).join(' ');
+        return `<div class="march ${m.mode}"><span>${modeLbl(m.mode)} · ${w2?w2.name+' '+crd(w2):''}</span><span class="mu">${uu}</span><b>${fmtDur(m.arriveAt-now)}</b></div>`; }).join(''); }
 }
 function renderRecruit(elId, bld, units, pc){ const v=S.v; const el=document.getElementById(elId); if(!el) return;
   if((v.blds[bld]||0)<1){ el.innerHTML=`<div class="muted">${jo(BLD[bld].nm,'을')} 먼저 지으세요${BLD[bld].req?` · 조건: ${Object.keys(BLD[bld].req).map(k=>BLD[k].nm+BLD[bld].req[k]).join('·')}`:''}</div>`; return; }
   if(pc){
-    el.innerHTML=`<table class="twt"><tr><th style="text-align:left">병종</th><th>보유</th><th>⚔️</th><th>🛡️보</th><th>🛡️기</th><th>🛡️궁</th><th>🪵</th><th>🧱</th><th>⚙️</th><th>👤</th><th>속도</th><th>⏱</th><th></th></tr>`+
+    el.innerHTML=`<table class="twt"><tr><th style="text-align:left">병종</th><th>보유</th><th>${I('sword')}</th><th title="대보병">${I('shield')}보</th><th title="대기병">${I('shield')}기</th><th title="대궁병">${I('shield')}궁</th><th>${I('wood')}</th><th>${I('clay')}</th><th>${I('iron')}</th><th>${I('pop')}</th><th>속도</th><th>${I('time')}</th><th></th></tr>`+
       units.map(u=>{ const t=TROOP[u]; const aff=canAffordV(t.cost); const popok=popUsed()+t.pop<=popCap();
-        return `<tr><td>${t.ic} <b>${t.nm}</b></td><td style="text-align:center;font-family:monospace">${NF(v.troops[u]||0)}</td>
+        return `<tr><td>${I(t.ic)} <b>${t.nm}</b></td><td style="text-align:center;font-family:monospace">${NF(v.troops[u]||0)}</td>
           <td style="text-align:center">${t.atk}</td><td style="text-align:center">${t.def}</td><td style="text-align:center">${t.defC}</td><td style="text-align:center">${t.defA}</td>
           <td style="text-align:right">${t.cost.wood}</td><td style="text-align:right">${t.cost.clay}</td><td style="text-align:right">${t.cost.iron}</td>
           <td style="text-align:center">${t.pop}</td><td style="text-align:center">${t.speed}분/칸</td><td style="text-align:center">${trainTime(u)}s</td>
           <td style="white-space:nowrap;text-align:center"><button class="btn sm ${(aff&&popok)?'':'no'}" onclick="recruit('${u}',1)">＋1</button> <button class="btn sm ${(aff&&popok)?'':'no'}" onclick="recruit('${u}',5)">＋5</button></td></tr>`; }).join('')+`</table>`;
   } else {
     el.innerHTML=`<div class="rgrid">`+units.map(u=>{ const t=TROOP[u]; const aff=canAffordV(t.cost); const popok=popUsed()+t.pop<=popCap();
-      return `<div class="rcard"><div class="rc-h"><span class="u-ic">${t.ic}</span><span class="u-nm">${t.nm}</span><span class="u-have">${NF(v.troops[u]||0)}</span></div>
-        <div class="rc-cost">${costStr(t.cost)} · 👤${t.pop} · ⏱${trainTime(u)}초</div>
-        <div class="rc-stat">⚔️${t.atk} 🛡️${t.def}/${t.defC}/${t.defA} · ${t.speed}분/칸</div>
+      return `<div class="rcard"><div class="rc-h"><span class="u-ic">${I(t.ic)}</span><span class="u-nm">${t.nm}</span><span class="u-have">${NF(v.troops[u]||0)}</span></div>
+        <div class="rc-cost">${costStr(t.cost)} · ${I('pop')}${t.pop} · ${I('time')}${trainTime(u)}초</div>
+        <div class="rc-stat">${I('sword')}${t.atk} ${I('shield')}${t.def}/${t.defC}/${t.defA} · ${t.speed}분/칸</div>
         <div class="rc-btns"><button class="rc-btn ${(aff&&popok)?'':'no'}" onclick="recruit('${u}',1)">＋1</button><button class="rc-btn ${(aff&&popok)?'':'no'}" onclick="recruit('${u}',5)">＋5</button></div></div>`; }).join('')+`</div>`;
   }
 }
@@ -1426,40 +1485,40 @@ function renderBldSheet(){ const b=_bldSheetB; const sh=document.getElementById(
   const reqTxt=d.req? Object.keys(d.req).map(k=>BLD[k].nm+d.req[k]).join(' · ') : '';
   const units=UNIT_GROUPS[b];
   sh.innerHTML=`<div class="bsh-handle"></div>
-    <div class="bsh-head"><span class="bi">${d.ic}</span>
+    <div class="bsh-head"><span class="bi">${I(d.ic,'ic-xl')}</span>
       <div style="min-width:0"><b style="font-size:14px">${d.nm}</b> <span class="bld-lv">Lv${lv}</span>${qd?` <span style="font-size:10px;color:#9a8a60">예약 +${qd}</span>`:''}
         <div style="font-size:10px;color:#2e6b28;font-weight:700;margin-top:2px">${bldEffTxt(b,lv)}</div></div>
       <button class="bsh-x" onclick="closeBldSheet()">✕</button></div>
     ${maxed? `<div class="muted">✨ 최대 레벨이에요</div>`
-      : !met? `<div class="muted">🔒 먼저 필요: ${reqTxt}</div>`
+      : !met? `<div class="muted">먼저 필요: ${reqTxt}</div>`
       : `<div class="bsh-up"><div style="flex:1;min-width:0"><b>Lv${eff+1}</b>${lv?'로 업그레이드':' 건설'}
           ${bldNextTxt(b,eff)?`<div class="eff-nx" style="margin-top:2px">▸ ${bldNextTxt(b,eff)}</div>`:''}
-          <div style="font-size:10px;color:#7a5c2e;font-weight:700;margin-top:2px">${costStr(c)} · ⏱${fmtSec(buildTime(b,eff+1))}</div></div>
-        <button class="btn ${aff?'btn-green':''}" ${aff?'':'disabled'} onclick="sheetBuild('${b}')">🏗️ ${lv?'업글':'건설'}</button></div>`}
+          <div style="font-size:10px;color:#7a5c2e;font-weight:700;margin-top:2px">${costStr(c)} · ${I('time')}${fmtSec(buildTime(b,eff+1))}</div></div>
+        <button class="btn ${aff?'btn-green':''}" ${aff?'':'disabled'} onclick="sheetBuild('${b}')">${I('workshop')} ${lv?'업글':'건설'}</button></div>`}
     ${units? `<div class="rp-sec">병력 훈련</div>`+(lv<1? `<div class="muted">${jo(d.nm,'을')} 먼저 지어야 훈련할 수 있어요</div>`
       : `<div class="rgrid">`+units.map(u=>{ const t=TROOP[u]; const aff2=canAffordV(t.cost); const popok=popUsed()+t.pop<=popCap();
-        return `<div class="rcard"><div class="rc-h"><span class="u-ic">${t.ic}</span><span class="u-nm">${t.nm}</span><span class="u-have">${NF(v.troops[u]||0)}</span></div>
-          <div class="rc-cost">${costStr(t.cost)} · 👤${t.pop} · ⏱${trainTime(u)}초</div>
-          <div class="rc-stat">⚔️${t.atk} 🛡️${t.def}/${t.defC}/${t.defA} · ${t.speed}분/칸</div>
+        return `<div class="rcard"><div class="rc-h"><span class="u-ic">${I(t.ic)}</span><span class="u-nm">${t.nm}</span><span class="u-have">${NF(v.troops[u]||0)}</span></div>
+          <div class="rc-cost">${costStr(t.cost)} · ${I('pop')}${t.pop} · ${I('time')}${trainTime(u)}초</div>
+          <div class="rc-stat">${I('sword')}${t.atk} ${I('shield')}${t.def}/${t.defC}/${t.defA} · ${t.speed}분/칸</div>
           <div class="rc-btns"><button class="rc-btn ${(aff2&&popok)?'':'no'}" onclick="sheetRecruit('${u}',1)">＋1</button><button class="rc-btn ${(aff2&&popok)?'':'no'}" onclick="sheetRecruit('${u}',5)">＋5</button></div></div>`; }).join('')+`</div>`) : ''}
-    ${(b==='market'&&lv>=1)? `<button class="btn" style="width:100%;margin-top:9px;padding:10px" onclick="closeBldSheet();openMarket()">⚖️ 거래 열기</button>`:''}
-    ${(b==='smithy'&&lv>=1)? `<button class="btn" style="width:100%;margin-top:9px;padding:10px" onclick="closeBldSheet();openSmithy()">⚒️ 연구 열기</button>`:''}
-    ${(b==='rally'&&lv>=1)? `<button class="btn" style="width:100%;margin-top:9px;padding:10px" onclick="closeBldSheet();go('rally')">🚩 집결지 화면으로</button>`:''}`;
+    ${(b==='market'&&lv>=1)? `<button class="btn" style="width:100%;margin-top:9px;padding:10px" onclick="closeBldSheet();openMarket()">${I('market')} 거래 열기</button>`:''}
+    ${(b==='smithy'&&lv>=1)? `<button class="btn" style="width:100%;margin-top:9px;padding:10px" onclick="closeBldSheet();openSmithy()">${I('smithy')} 연구 열기</button>`:''}
+    ${(b==='rally'&&lv>=1)? `<button class="btn" style="width:100%;margin-top:9px;padding:10px" onclick="closeBldSheet();go('rally')">${I('rally')} 집결지 화면으로</button>`:''}`;
 }
 window.sheetBuild=function(b){ window.build(b); renderBldSheet(); };
 window.sheetRecruit=function(u,n){ window.recruit(u,n); renderBldSheet(); };
 window.switchVil=function(id){ if(!S.villages[id]) return; setActive(id);
   if(view==='village') renderVillage(true); else if(view==='rally') renderRally(true);
-  renderTop(); renderSidebar(); toast(`🏰 ${crd(S.world[id])} 마을로 전환`); };
+  renderTop(); renderSidebar(); toast(`${crd(S.world[id])} 마을로 전환`); };
 // ⚖️ 시장 — 자원 교환(수수료 10%, 레벨당 200 용량)
-window.openMarket=function(){ const v=S.v; const lv=v.blds.market||0; if(lv<1){ toast('⚖️ 시장이 필요해요 — 마을에서 건설'); return; }
+window.openMarket=function(){ const v=S.v; const lv=v.blds.market||0; if(lv<1){ toast('시장이 필요해요 — 마을에서 건설'); return; }
   const vid=S.active;
   let tab='trade';                                  // trade=교환 · ship=수송
   let give='wood', get='clay'; const cap=()=>lv*200;
   let amt=Math.min(cap(), Math.floor(v.res[give]||0));
   let dest=null, load={wood:0,clay:0,iron:0};       // 수송 대상·적재량
   const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
-  const pill=(k,cur,role)=>`<button class="mk-res ${cur===k?'on':''}" data-role="${role}" data-k="${k}">${RES[k]} ${NF(v.res[k])}</button>`;
+  const pill=(k,cur,role)=>`<button class="mk-res ${cur===k?'on':''}" data-role="${role}" data-k="${k}">${I(RES[k],'r-'+k)} ${NF(v.res[k])}</button>`;
 
   function tradeBody(){ const got=Math.floor(amt*0.9);
     return `<div class="mk-lbl">내놓기</div><div class="mk-row">${['wood','clay','iron'].map(k=>pill(k,give,'give')).join('')}</div>
@@ -1474,28 +1533,28 @@ window.openMarket=function(){ const v=S.v; const lv=v.blds.market||0; if(lv<1){ 
     const mine=(S.trades||[]).filter(t=>t.from===vid||t.to===vid);
     const listH = mine.length? `<div class="mk-lbl" style="margin-top:10px">진행 중 수송</div>`+mine.map(t=>{
         const w=S.world[t.back?t.from:t.to], out=(t.from===vid&&!t.back);
-        return `<div class="mk-trow"><span>${t.back?'↩️ 귀환':(out?'🐴 보냄':'📥 받는 중')} <b>${w?crd(w):'?'}</b></span>
+        return `<div class="mk-trow"><span>${t.back?I('back')+' 귀환':(out?I('cart')+' 보냄':I('cart')+' 받는 중')} <b>${w?crd(w):'?'}</b></span>
           <span class="mk-tres">${t.back?`상인 ${t.n}`:resStr(t.res)}</span><b>${fmtDur(t.arriveAt-Date.now())}</b></div>`; }).join('') : '';
-    if(!owned.length) return `<div class="mk-empty">수송할 다른 마을이 없어요.<br><b>👑 귀족으로 마을을 정복</b>하면 마을끼리 자원을 옮길 수 있어요.</div>
-      <div class="mk-eq" style="margin-top:8px">🐴 상인 <b>${free}/${total}</b> · 시장 레벨당 1명</div>${listH}`;
+    if(!owned.length) return `<div class="mk-empty">수송할 다른 마을이 없어요.<br><b>${I('noble')} 귀족으로 마을을 정복</b>하면 마을끼리 자원을 옮길 수 있어요.</div>
+      <div class="mk-eq" style="margin-top:8px">${I('cart')} 상인 <b>${free}/${total}</b> · 시장 레벨당 1명</div>${listH}`;
     if(!dest||!S.villages[dest]) dest=owned[0];
     const from=S.world[vid], to=S.world[dest];
     const dist=fieldDist(from,to), travel=Math.max(4000, travelMs(dist,MERCH_SPEED));
     const tot=resSum(load), need=Math.ceil(tot/MERCH_CAP), ok=tot>0&&need<=free;
     return `<div class="mk-lbl">받을 마을</div>
-      <div class="mk-row">${owned.map(id=>`<button class="mk-res ${id===dest?'on':''}" data-dest="${id}">🏰 ${S.world[id].x}|${S.world[id].y}</button>`).join('')}</div>
+      <div class="mk-row">${owned.map(id=>`<button class="mk-res ${id===dest?'on':''}" data-dest="${id}">${I('main')} ${S.world[id].x}|${S.world[id].y}</button>`).join('')}</div>
       <div class="mk-lbl" style="margin-top:8px">실을 자원 <span style="color:#9a8a60">(상인 1명당 ${NF(MERCH_CAP)})</span></div>
-      ${['wood','clay','iron'].map(k=>`<div class="mk-lrow"><span class="mk-lk">${RES[k]} ${RES_NM[k]}</span>
+      ${['wood','clay','iron'].map(k=>`<div class="mk-lrow"><span class="mk-lk">${I(RES[k],'r-'+k)} ${RES_NM[k]}</span>
         <button data-l="-" data-k="${k}">－</button><b>${NF(load[k])}</b><button data-l="+" data-k="${k}">＋</button>
         <button class="mx" data-l="max" data-k="${k}">최대</button></div>`).join('')}
-      <div class="mk-eq">🐴 상인 필요 <b style="color:${need>free?'#e08a6a':'#8fce8a'}">${need}</b> · 가용 ${free}명<br><small style="color:#9a8a60;font-weight:700">거리 ${dist.toFixed(1)}칸 · 편도 ${fmtDur(travel)} · 왕복 ${fmtDur(travel*2)}</small></div>
+      <div class="mk-eq">${I('cart')} 상인 필요 <b style="color:${need>free?'#e08a6a':'#8fce8a'}">${need}</b> · 가용 ${free}명<br><small style="color:#9a8a60;font-weight:700">거리 ${dist.toFixed(1)}칸 · 편도 ${fmtDur(travel)} · 왕복 ${fmtDur(travel*2)}</small></div>
       <button class="btn btn-green" style="width:100%;padding:11px;margin-top:8px" ${ok?'':'disabled'} data-a="send">${tot>0&&need>free?`상인 부족 (${need}명 필요)`:'수송 보내기'}</button>${listH}`; }
 
   function draw(){ amt=Math.max(0,Math.min(amt, cap(), Math.floor(v.res[give]||0)));
     ['wood','clay','iron'].forEach(k=>{ load[k]=Math.max(0,Math.min(load[k], Math.floor(v.res[k]||0))); });
     ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:360px">
-      <h3 class="pick-h">⚖️ 시장 <small>Lv${lv} · 🐴 상인 ${merchFree(vid)}/${merchTotal(v)}</small></h3>
-      <div class="mk-tabs"><button class="${tab==='trade'?'on':''}" data-tab="trade">🔁 교환</button><button class="${tab==='ship'?'on':''}" data-tab="ship">🐴 수송</button></div>
+      <h3 class="pick-h">${I('market')} 시장 <small>Lv${lv} · ${I('cart')} 상인 ${merchFree(vid)}/${merchTotal(v)}</small></h3>
+      <div class="mk-tabs"><button class="${tab==='trade'?'on':''}" data-tab="trade">교환</button><button class="${tab==='ship'?'on':''}" data-tab="ship">${I('cart')} 수송</button></div>
       ${tab==='trade'? tradeBody() : shipBody()}</div>`;
     ov.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{ tab=b.dataset.tab; draw(); });
     ov.querySelectorAll('.mk-res[data-role]').forEach(b=>b.onclick=()=>{ if(b.dataset.role==='give'){ give=b.dataset.k; amt=Math.min(cap(),Math.floor(v.res[give]||0)); } else get=b.dataset.k; draw(); });
@@ -1505,7 +1564,7 @@ window.openMarket=function(){ const v=S.v; const lv=v.blds.market||0; if(lv<1){ 
       else if(a==='+') amt+=Math.max(10,Math.round(cap()/10));
       else if(a==='max') amt=Math.min(cap(),Math.floor(v.res[give]||0));
       else if(a==='go'){ if(give===get){ toast('다른 자원을 고르세요'); return; } if(amt<=0||(v.res[give]||0)<amt){ toast('자원 부족'); return; }
-        v.res[give]-=amt; const cp=storeCapV(v); v.res[get]=Math.min(cp,(v.res[get]||0)+Math.floor(amt*0.9)); save(); renderTop(); toast(`⚖️ ${RES[give]}${NF(amt)} → ${RES[get]}${NF(Math.floor(amt*0.9))} 교환`); amt=Math.min(cap(),Math.floor(v.res[give]||0)); }
+        v.res[give]-=amt; const cp=storeCapV(v); v.res[get]=Math.min(cp,(v.res[get]||0)+Math.floor(amt*0.9)); save(); renderTop(); toast(`${RES[give]}${NF(amt)} → ${RES[get]}${NF(Math.floor(amt*0.9))} 교환`); amt=Math.min(cap(),Math.floor(v.res[give]||0)); }
       draw(); });
     ov.querySelectorAll('[data-l]').forEach(b=>b.onclick=()=>{ const k=b.dataset.k, st=100;
       if(b.dataset.l==='-') load[k]=Math.max(0,load[k]-st);
@@ -1515,18 +1574,18 @@ window.openMarket=function(){ const v=S.v; const lv=v.blds.market||0; if(lv<1){ 
     const sendB=ov.querySelector('[data-a="send"]'); if(sendB) sendB.onclick=()=>{
       const tot=resSum(load), need=Math.ceil(tot/MERCH_CAP);
       if(tot<=0){ toast('실을 자원을 고르세요'); return; }
-      if(need>merchFree(vid)){ toast(`🐴 상인이 부족해요 — ${need}명 필요`); return; }
+      if(need>merchFree(vid)){ toast(`상인이 부족해요 — ${need}명 필요`); return; }
       for(const k in load){ if((v.res[k]||0)<load[k]){ toast('자원 부족'); return; } }
       const to=S.world[dest]; const travel=Math.max(4000, travelMs(fieldDist(S.world[vid],to), MERCH_SPEED));
       for(const k in load) v.res[k]-=load[k];
       S.trades.push({from:vid, to:dest, res:{...load}, n:need, dep:Date.now(), arriveAt:Date.now()+travel, back:false});
-      toast(`🐴 ${crd(to)}로 수송 출발 — ${resStr(load)} · ${fmtDur(travel)}`);
+      toast(`${crd(to)}로 수송 출발 — ${resStr(load)} · ${fmtDur(travel)}`);
       load={wood:0,clay:0,iron:0}; save(); renderTop(); if(view==='village') updateVillageDynamic(); draw(); };
   }
   draw(); document.body.appendChild(ov);
 };
 // ⚒️ 대장간 — 병력 성능 연구(+12%/레벨·최대3) · 대장간 레벨이 연구 상한 결정 + 연구에 시간 소요(전 마을 공통·동시 1건)
-window.openSmithy=function(){ const v=S.v; const sm=v.blds.smithy||0; if(sm<1){ toast('⚒️ 대장간이 필요해요 — 마을에서 건설'); return; }
+window.openSmithy=function(){ const v=S.v; const sm=v.blds.smithy||0; if(sm<1){ toast('대장간이 필요해요 — 마을에서 건설'); return; }
   const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
   let timer=null;
   const stop=()=>{ if(timer){ clearInterval(timer); timer=null; } };
@@ -1534,30 +1593,30 @@ window.openSmithy=function(){ const v=S.v; const sm=v.blds.smithy||0; if(sm<1){ 
   function draw(){ const units=Object.keys(TROOP).filter(u=>(v.blds[TROOP[u].from]||0)>=1 && !TROOP[u].noble);
     const q=S.researchQ;
     const qH = q? (()=>{ const rem=Math.max(0,q.doneAt-Date.now()), tot=q.dur||rem, pct=Math.max(0,Math.min(100,(1-rem/Math.max(1,tot))*100));
-      return `<div class="q-row" style="margin:2px 0 10px">⚒️ <b>${TROOP[q.u].nm}</b> Lv${q.lvl+1} 연구 중
+      return `<div class="q-row" style="margin:2px 0 10px">${I('smithy')} <b>${TROOP[q.u].nm}</b> Lv${q.lvl+1} 연구 중
         <span class="qmeta">완료 ${fmtClock(q.doneAt)}</span><b>${fmtDur(rem)}</b>
         <div class="qbar"><div style="width:${pct.toFixed(0)}%"></div></div></div>`; })() : '';
     ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:390px">
-      <h3 class="pick-h">⚒️ 대장간 연구 <small>Lv${sm} · 병력 ⚔️🛡️ +12%/레벨</small></h3>${qH}
+      <h3 class="pick-h">${I('smithy')} 대장간 연구 <small>Lv${sm} · 병력 ${I('sword')}${I('shield')} +12%/레벨</small></h3>${qH}
       ${units.length? units.map(u=>{ const t=TROOP[u], lvl=(S.research[u]||0), maxed=lvl>=RES_MAX;
         const req=resSmithyReq(lvl), gated=!maxed&&sm<req, c=maxed?null:resCost(u,lvl);
         const aff=c&&canAffordV(c), busy=!!q, secs=resTime(lvl,sm);
         const btn = maxed? `<button class="sm-btn" disabled>최대</button>`
-          : gated? `<button class="sm-btn" disabled>🔒 대장간 ${req}</button>`
+          : gated? `<button class="sm-btn" disabled>대장간 ${req} 필요</button>`
           : busy? `<button class="sm-btn" disabled>연구 중</button>`
-          : `<button class="sm-btn ${aff?'':'no'}" data-u="${u}">Lv${lvl+1} · ${costStr(c)} · ⏱${fmtSec(secs)}</button>`;
-        return `<div class="sm-row"><div class="sm-l"><span class="u-ic">${t.ic}</span><b>${t.nm}</b> <span class="sm-lv">Lv${lvl}/${RES_MAX}</span>
-            <div class="sm-b">⚔️${Math.round(t.atk*(1+lvl*0.12))} 🛡️${Math.round(t.def*(1+lvl*0.12))}${maxed?'':` <span style="color:#9a8a60">→ ⚔️${Math.round(t.atk*(1+(lvl+1)*0.12))} 🛡️${Math.round(t.def*(1+(lvl+1)*0.12))}</span>`}</div></div>
+          : `<button class="sm-btn ${aff?'':'no'}" data-u="${u}">Lv${lvl+1} · ${costStr(c)} · ${I('time')}${fmtSec(secs)}</button>`;
+        return `<div class="sm-row"><div class="sm-l"><span class="u-ic">${I(t.ic)}</span><b>${t.nm}</b> <span class="sm-lv">Lv${lvl}/${RES_MAX}</span>
+            <div class="sm-b">${I('sword')}${Math.round(t.atk*(1+lvl*0.12))} ${I('shield')}${Math.round(t.def*(1+lvl*0.12))}${maxed?'':` <span style="color:#9a8a60">→ ${I('sword')}${Math.round(t.atk*(1+(lvl+1)*0.12))} ${I('shield')}${Math.round(t.def*(1+(lvl+1)*0.12))}</span>`}</div></div>
           ${btn}</div>`; }).join('')
         : '<div class="muted" style="margin:10px 0">연구할 병종이 없어요</div>'}
       <div class="mk-empty" style="margin-top:8px">연구는 <b>전 마을 공통</b>이고 한 번에 하나만 진행돼요 · 대장간을 올릴수록 상한 해금(Lv1→${RES_SMITHY_REQ[0]}·Lv2→${RES_SMITHY_REQ[1]}·Lv3→${RES_SMITHY_REQ[2]})되고 연구가 빨라져요</div>
     </div>`;
     ov.querySelectorAll('.sm-btn[data-u]').forEach(b=>b.onclick=()=>{ const u=b.dataset.u, lvl=(S.research[u]||0);
       if(lvl>=RES_MAX||S.researchQ) return;
-      if(sm<resSmithyReq(lvl)){ toast(`🔒 대장간 Lv${resSmithyReq(lvl)} 필요`); return; }
+      if(sm<resSmithyReq(lvl)){ toast(`대장간 Lv${resSmithyReq(lvl)} 필요`); return; }
       const c=resCost(u,lvl); if(!payV(c)){ toast('자원 부족 · '+costStr(c)); return; }
       const d=resTime(lvl,sm)*1000; S.researchQ={u, lvl, doneAt:Date.now()+d, dur:d};
-      save(); renderTop(); toast(`⚒️ ${TROOP[u].nm} Lv${lvl+1} 연구 시작 — ${fmtSec(resTime(lvl,sm))}`);
+      save(); renderTop(); toast(`${TROOP[u].nm} Lv${lvl+1} 연구 시작 — ${fmtSec(resTime(lvl,sm))}`);
       if(view==='village') updateVillageDynamic(); draw(); });
     stop(); if(S.researchQ) timer=setInterval(()=>{ if(!document.body.contains(ov)){ stop(); return; } draw(); },1000);
   }
@@ -1570,14 +1629,14 @@ function renderRally(full){
   const lv=S.v.blds.rally||0;
   if(full){
     el.innerHTML=`
-      ${lv<1? `<div class="box warnbox"><div class="bc">🚩 <b>집결지가 없어요.</b> 부대를 지휘(공격·지원·정찰)하려면 마을에서 집결지를 지으세요. <button class="btn sm" onclick="go('village')">🏰 마을로</button></div></div>`:''}
-      <div class="box"><div class="bh">🎯 좌표로 마을 찾기</div><div class="bc"><div class="rl-coord">
+      ${lv<1? `<div class="box warnbox"><div class="bc">${I('rally')} <b>집결지가 없어요.</b> 부대를 지휘(공격·지원·정찰)하려면 마을에서 집결지를 지으세요. <button class="btn sm" onclick="go('village')">${I('main')} 마을로</button></div></div>`:''}
+      <div class="box"><div class="bh">${I('map')} 좌표로 마을 찾기</div><div class="bc"><div class="rl-coord">
         <input id="rc-x" type="number" min="0" max="${HCOLS-1}" placeholder="x"> <b>|</b> <input id="rc-y" type="number" min="0" max="${HROWS-1}" placeholder="y">
         <button class="btn" onclick="rallyFind()">찾기</button>
         <span style="font-size:9.5px;color:#9a8a60;margin-left:4px">예: (12|15)</span></div></div></div>
-      <div class="box"><div class="bh">🛡️ 부대 총괄 <small>마을별 주둔 병력</small></div><div class="bc" id="rl-forces"></div></div>
-      <div class="box"><div class="bh">📡 진행 중 명령</div><div class="bc" id="rl-moves"></div></div>
-      <div class="box"><div class="bh">🤝 주둔 지원 <small>내 마을에 가 있는 지원군</small></div><div class="bc" id="rl-sup"></div></div>`;
+      <div class="box"><div class="bh">${I('shield')} 부대 총괄 <small>마을별 주둔 병력</small></div><div class="bc" id="rl-forces"></div></div>
+      <div class="box"><div class="bh">${I('cart')} 진행 중 명령</div><div class="bc" id="rl-moves"></div></div>
+      <div class="box"><div class="bh">${I('shield')} 주둔 지원 <small>내 마을에 가 있는 지원군</small></div><div class="bc" id="rl-sup"></div></div>`;
   }
   updateRallyLive();
 }
@@ -1592,62 +1651,62 @@ function updateRallyLive(){
   const now=Date.now();
   f.innerHTML = ownedIds().map(id=>{ const vv=S.villages[id]; const w=S.world[id];
     const ks=Object.keys(TROOP).filter(u=>(vv.troops[u]||0)>0);
-    return `<div class="rl-vrow ${id===S.active?'on':''}"><b onclick="switchVil('${id}')">🏰 ${crd(w)}${id===S.active?' ◀':''}</b><span class="rl-units">${ks.length?ks.map(u=>TROOP[u].ic+NF(vv.troops[u])).join(' '):'—'}</span></div>`; }).join('');
+    return `<div class="rl-vrow ${id===S.active?'on':''}"><b onclick="switchVil('${id}')">${I('main')} ${crd(w)}${id===S.active?' ◀':''}</b><span class="rl-units">${ks.length?ks.map(u=>I(TROOP[u].ic)+NF(vv.troops[u])).join(' '):'—'}</span></div>`; }).join('');
   const mv=document.getElementById('rl-moves'); if(mv){
     const ms=S.marches||[];
     const rows=ms.map(m=>{ const inc=m.mode==='raid'; const tgt=S.world[m.to]; const org=inc? S.world[m.from]:S.world[m.fromV||HOME_KEY];
-      const uu=inc?'':Object.keys(m.units).filter(u=>m.units[u]>0).map(u=>TROOP[u].ic+NF(m.units[u])).join(' ');
-      const lbl=inc? `🔥 <b>습격!</b> ${org?(org.name||'').replace('소환사 ',''):''} → ${tgt?crd(tgt):''}` : `${MODE_LBL[m.mode]||m.mode} → ${tgt?(tgt.name+' '+crd(tgt)):''}`;
+      const uu=inc?'':Object.keys(m.units).filter(u=>m.units[u]>0).map(u=>I(TROOP[u].ic)+NF(m.units[u])).join(' ');
+      const lbl=inc? `${I('fire')} <b>습격!</b> ${org?(org.name||'').replace('소환사 ',''):''} → ${tgt?crd(tgt):''}` : `${modeLbl(m.mode)} → ${tgt?(tgt.name+' '+crd(tgt)):''}`;
       return {inc, html:`<div class="rl-mrow ${inc?'inc':m.mode}"><span>${lbl}</span><span class="rl-units">${uu}</span><b>${fmtDur(m.arriveAt-now)}</b></div>`}; });
     rows.sort((a,b)=>(b.inc?1:0)-(a.inc?1:0));   // 들어오는 습격 최상단
     mv.innerHTML = rows.length? rows.map(r=>r.html).join('') : `<div class="muted">진행 중인 명령이 없어요</div>`;
   }
   const sp=document.getElementById('rl-sup'); if(sp){ let sh='';
     ownedIds().forEach(id=>{ const vv=S.villages[id]; (vv.support||[]).forEach((s,ix)=>{ const fw=S.world[s.from], hw=S.world[id];
-      const uu=Object.keys(s.units).filter(u=>s.units[u]>0).map(u=>TROOP[u].ic+NF(s.units[u])).join(' ');
-      sh+=`<div class="rl-mrow support"><span>🛡️ ${fw?crd(fw):'?'} → <b>${hw?crd(hw):'?'}</b></span><span class="rl-units">${uu}</span><button class="btn sm" onclick="recallSupport('${id}',${ix})">회수</button></div>`; }); });
+      const uu=Object.keys(s.units).filter(u=>s.units[u]>0).map(u=>I(TROOP[u].ic)+NF(s.units[u])).join(' ');
+      sh+=`<div class="rl-mrow support"><span>${I('shield')} ${fw?crd(fw):'?'} → <b>${hw?crd(hw):'?'}</b></span><span class="rl-units">${uu}</span><button class="btn sm" onclick="recallSupport('${id}',${ix})">회수</button></div>`; }); });
     sp.innerHTML= sh || `<div class="muted">주둔 중인 지원이 없어요</div>`; }
 }
 // ── 📜 보고서 화면 ──
 function uchips(units,lost){
   const ks=Object.keys(TROOP).filter(u=>((units&&units[u])||0)>0||((lost&&lost[u])||0)>0);
   if(!ks.length) return '<span class="mut">—</span>';
-  return ks.map(u=>`<span class="uc">${TROOP[u].ic}${NF((units&&units[u])||0)}${(lost&&lost[u])?`<b class="ul">-${NF(lost[u])}</b>`:''}</span>`).join('');
+  return ks.map(u=>`<span class="uc">${I(TROOP[u].ic)}${NF((units&&units[u])||0)}${(lost&&lost[u])?`<b class="ul">-${NF(lost[u])}</b>`:''}</span>`).join('');
 }
 function reportCard(r){
   const t=fmtAgo(Date.now()-r.at);
-  const luck=r.luck!=null? `<span class="rp-chip ${r.luck>=0?'g':'r'}">🍀 운 ${(r.luck*100).toFixed(1)}%</span>`:'';
-  const pows=r.atkPow!=null? `<span class="rp-chip">⚔️ ${NF(r.atkPow)} vs 🛡️ ${NF(r.defPow)}</span>`:'';
+  const luck=r.luck!=null? `<span class="rp-chip ${r.luck>=0?'g':'r'}">운 ${(r.luck*100).toFixed(1)}%</span>`:'';
+  const pows=r.atkPow!=null? `<span class="rp-chip">${I('sword')} ${NF(r.atkPow)} vs ${I('shield')} ${NF(r.defPow)}</span>`:'';
   if(r.type==='attack'){
-    const title=`${r.conquered?'👑':(r.win?'✅':'💥')} ${(r.tgt.name||'').replace('소환사 ','')} ${crd(r.tgt)} ${r.conquered?'정복!':(r.win?'공격 승리':'공격 패배')}`;
+    const title=`${I(r.conquered?'noble':(r.win?'sword':'warn'))} ${(r.tgt.name||'').replace('소환사 ','')} ${crd(r.tgt)} ${r.conquered?'정복!':(r.win?'공격 승리':'공격 패배')}`;
     const lootT=r.loot?(r.loot.wood+r.loot.clay+r.loot.iron):0;
     return `<details class="rep2 ${r.win?'w':'l'}"><summary>${title}<span class="rtime">${t}</span></summary><div class="rp-body">
       <div class="rp-meta">${pows}${luck}${r.morale!=null&&r.morale<1?`<span class="rp-chip">😤 사기 ${(r.morale*100).toFixed(0)}%</span>`:''}</div>
       <div class="rp-sec">내 부대</div>${uchips(r.sent,r.lost)}
-      <div class="rp-sec">수비 병력</div>${r.defUnits? uchips(r.defUnits,r.defLost) : '<span class="mut">💀 전멸 — 정보를 가져오지 못했어요</span>'}
-      ${lootT?`<div class="rp-sec">전리품</div><span class="rp-chip g">🪵${NF(r.loot.wood)} 🧱${NF(r.loot.clay)} ⚙️${NF(r.loot.iron)}</span>`:''}
-      <div class="rp-meta">${r.wallFrom!==r.wallTo?`<span class="rp-chip r">🐏 성벽 ${r.wallFrom}→${r.wallTo}</span>`:''}
-        ${r.cataDmg?`<span class="rp-chip r">💥 마을 파괴 -${r.cataDmg}★</span>`:''}
-        ${r.loyalty!=null?`<span class="rp-chip">👑 충성도 ${r.loyalty}</span>`:''}</div>
+      <div class="rp-sec">수비 병력</div>${r.defUnits? uchips(r.defUnits,r.defLost) : '<span class="mut">전멸 — 정보를 가져오지 못했어요</span>'}
+      ${lootT?`<div class="rp-sec">전리품</div><span class="rp-chip g">${I('wood')}${NF(r.loot.wood)} ${I('clay')}${NF(r.loot.clay)} ${I('iron')}${NF(r.loot.iron)}</span>`:''}
+      <div class="rp-meta">${r.wallFrom!==r.wallTo?`<span class="rp-chip r">${I('ram')} 성벽 ${r.wallFrom}→${r.wallTo}</span>`:''}
+        ${r.cataDmg?`<span class="rp-chip r">${I('cata')} 마을 파괴 -${r.cataDmg}단계</span>`:''}
+        ${r.loyalty!=null?`<span class="rp-chip">${I('noble')} 충성도 ${r.loyalty}</span>`:''}</div>
     </div></details>`;
   }
   if(r.type==='defense'){
-    const title=`${r.win?'🛡️ 방어 성공':'💥 약탈당함'} · ${r.raid?`🔥 ${r.big?'대규모 ':''}야만인 습격`:(r.from.name||'').replace('소환사 ','')} → ${crd(r.tgt)}`;
+    const title=`${r.win?I('shield')+' 방어 성공':I('warn')+' 약탈당함'} · ${r.raid?`${I('fire')} ${r.big?'대규모 ':''}야만인 습격`:(r.from.name||'').replace('소환사 ','')} → ${crd(r.tgt)}`;
     const lootT=r.loot?(r.loot.wood+r.loot.clay+r.loot.iron):0;
     return `<details class="rep2 ${r.win?'w':'l'}"><summary>${title}<span class="rtime">${t}</span></summary><div class="rp-body">
       <div class="rp-meta">${pows}${luck}</div>
       <div class="rp-sec">공격해 온 부대</div>${uchips(r.atkUnits,r.atkLost)}
       <div class="rp-sec">내 수비 손실</div>${uchips(null,r.myLost)}
-      ${lootT?`<div class="rp-sec">빼앗긴 자원</div><span class="rp-chip r">🪵${NF(r.loot.wood)} 🧱${NF(r.loot.clay)} ⚙️${NF(r.loot.iron)}</span>`:''}
+      ${lootT?`<div class="rp-sec">빼앗긴 자원</div><span class="rp-chip r">${I('wood')}${NF(r.loot.wood)} ${I('clay')}${NF(r.loot.clay)} ${I('iron')}${NF(r.loot.iron)}</span>`:''}
     </div></details>`;
   }
   if(r.type==='scout'){
-    const title=`🧭 ${(r.tgt.name||'').replace('소환사 ','')} ${crd(r.tgt)} 정찰 ${r.win?'성공':'실패'}`;
+    const title=`${I('scout')} ${(r.tgt.name||'').replace('소환사 ','')} ${crd(r.tgt)} 정찰 ${r.win?'성공':'실패'}`;
     return `<details class="rep2 ${r.win?'w':'l'}"><summary>${title}<span class="rtime">${t}</span></summary><div class="rp-body">
       <div class="rp-sec">정찰대</div>${uchips(r.sent,r.lost)}
       ${r.win&&r.spy? `<div class="rp-sec">정찰 결과</div>
-        <div class="rp-meta"><span class="rp-chip">📦 🪵${NF(r.spy.res.wood)} 🧱${NF(r.spy.res.clay)} ⚙️${NF(r.spy.res.iron)}</span>
-        <span class="rp-chip">🧱 성벽 ${r.spy.wall}</span><span class="rp-chip">👑 충성도 ${r.spy.loyalty}</span><span class="rp-chip">🛡️ 수비력 ~${NF(r.spy.def)}</span></div>
+        <div class="rp-meta"><span class="rp-chip">${I('storage')} ${I('wood')}${NF(r.spy.res.wood)} ${I('clay')}${NF(r.spy.res.clay)} ${I('iron')}${NF(r.spy.res.iron)}</span>
+        <span class="rp-chip">${I('wall')} 성벽 ${r.spy.wall}</span><span class="rp-chip">${I('noble')} 충성도 ${r.spy.loyalty}</span><span class="rp-chip">${I('shield')} 수비력 ~${NF(r.spy.def)}</span></div>
         <div class="rp-sec">주둔 병력</div>${uchips(r.spy.troops,null)}`
         : `<span class="mut">적 정찰병에 발각되어 아무 정보도 얻지 못했어요</span>`}
     </div></details>`;
@@ -1657,7 +1716,7 @@ function reportCard(r){
 function renderReports(){
   const el=document.getElementById('view-reports'); if(!el) return;
   const rs=S.reports||[];
-  el.innerHTML=`<div class="box"><div class="bh">📜 보고서 <small>최근 ${rs.length}건</small></div><div class="bc">`+
+  el.innerHTML=`<div class="box"><div class="bh">${I('academy')} 보고서 <small>최근 ${rs.length}건</small></div><div class="bc">`+
     (rs.length? rs.map(reportCard).join('') : `<div class="muted">아직 보고가 없어요 · 전투·정찰 결과가 여기 쌓여요</div>`)+`</div></div>`;
   S._reportsSeen=rs.length;
   document.querySelectorAll('[data-bdg="reports"]').forEach(b=>{ b.style.display='none'; });
@@ -1685,7 +1744,7 @@ function buildIso(id){
     if(bkey) d.onclick=()=>{ if(scene._panned)return; if(isPC()) build(bkey); else openBldSheet(bkey); }; cam.appendChild(d); }
   function emp(col,row,ey,bkey){ const x=cx+(col-row)*DX, y=cy+(col+row)*DY; const d=document.createElement('div');
     d.className='iso-emp'; d.style.left=x+'px'; d.style.top=(y-8+(ey||0))+'px'; d.style.zIndex=Math.round((col+row)*10+6);
-    d.innerHTML=`＋ ${BLD[bkey].ic} ${BLD[bkey].nm}`; d.onclick=()=>{ if(scene._panned)return; if(isPC()) build(bkey); else openBldSheet(bkey); }; cam.appendChild(d); }
+    d.innerHTML=`＋ ${I(BLD[bkey].ic)} ${BLD[bkey].nm}`; d.onclick=()=>{ if(scene._panned)return; if(isPC()) build(bkey); else openBldSheet(bkey); }; cam.appendChild(d); }
   for(let r=GR0;r<=GR1;r++)for(let c=GC0;c<=GC1;c++){ const inner=(c>=0&&c<=5&&r>=0&&r<=5);
     put(inner?((c+r)%2?'stoneTile_E':'stoneTile_N'):((c+r)%2?'dirt_E':'dirtTiles_E'),c,r,{dz:-9,filter:B.gf}); }
   for(let c=GC0;c<=GC1;c++) put('stoneWall_E',c,GR0,{filter:B.wf});
@@ -1743,10 +1802,10 @@ document.addEventListener('DOMContentLoaded', ()=>{ buildNav(); showView(); loop
 // ═══════════ 디버그/테스트 ═══════════
 window.rune=()=>S;
 window.runeReset=function(){ localStorage.removeItem('rune_proto'); S=fresh(); bindActive(); showView(); toast('프로토타입 초기화'); };
-window.runeGrantNoble=function(n){ n=n||3; S.v.troops.noble=(S.v.troops.noble||0)+n; save(); if(view==='village')updateVillageDynamic(); toast(`👑 귀족 +${n}(테스트)`); };
+window.runeGrantNoble=function(n){ n=n||3; S.v.troops.noble=(S.v.troops.noble||0)+n; save(); if(view==='village')updateVillageDynamic(); toast(`귀족 +${n}(테스트)`); };
 window.runeArmy=function(n){ n=n||50; const v=S.v; v.troops.axe=(v.troops.axe||0)+n; v.troops.lcav=(v.troops.lcav||0)+Math.ceil(n/5);
   v.troops.scout=(v.troops.scout||0)+10; v.troops.ram=(v.troops.ram||0)+6; v.troops.spear=(v.troops.spear||0)+n; v.blds.rally=1;
-  save(); if(view==='village')renderVillage(true); toast(`⚔️ 테스트 병력 지급 + 집결지`); };
+  save(); if(view==='village')renderVillage(true); toast(`테스트 병력 지급 + 집결지`); };
 window.runeSaveCheck=function(){ save(); let ok=false, msg='';
   try{ const j=JSON.parse(localStorage.getItem('rune_proto'));
     ok = j && j.ver===SAVE_VER && j.villages && j.villages[S.active] && j.world && j.world[HOME_KEY] && JSON.stringify(j.villages[S.active].blds)===JSON.stringify(S.v.blds);
@@ -1964,12 +2023,13 @@ export function build(blds, opts){ opts=opts||{}; onBuild=opts.onBuild; initScen
   buildTier(tier); buildWallRing(blds.wall||0);
   while(bgroup.children.length) bgroup.remove(bgroup.children[0]);
   labels.forEach(L=>L.el.remove()); labels.length=0; _bPos={}; _workFn=opts.work||null;
-  const BLD=opts.BLD||{};
+  const BLD=opts.BLD||{}; const _icon=opts.icon||null;
   const mkNamePlate=(x,y,z,b,lv)=>{ _bPos[b]={x,z};
     const el=mkLabel(); el.classList.add('blab'); const d=BLD[b]||{};
     const nmS=(d.nm||b).replace(/\s/g,'');
-    el.innerHTML= lv>0? `<b><span class="li">${d.ic||''}</span><span class="ln">${nmS}</span></b><i>${lv}</i>`
-                      : `<span class="plus"><span class="li">${d.ic||'＋'}</span><span class="ln">${nmS}</span></span><i>＋</i>`;
+    const ico = _icon? _icon(d.ic) : '';
+    el.innerHTML= lv>0? `<b><span class="li">${ico}</span><span class="ln">${nmS}</span></b><i>${lv}</i>`
+                      : `<span class="plus"><span class="li">${ico}</span><span class="ln">${nmS}</span></span><i>＋</i>`;
     if(lv<=0) el.classList.add('empty'); el.onclick=()=>{ if(onBuild) onBuild(b); };
     labels.push({el,pos:new T.Vector3(x,y,z),b}); };
   const add=(x,z,b,lv,central)=>{ placeBuilding(x,z,central?0:Math.atan2(-x,-z),b,lv,central);
@@ -1999,6 +2059,7 @@ import * as T from './vendor/three/three.module.js';
 import { GLTFLoader } from './vendor/three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from './vendor/three/addons/controls/OrbitControls.js';
 const HX='assets/hex/'; let R,SC,CAM,CT,GRP,MK,EL,LH,OPT=null,off={x:0,z:0},_lastSig='';
+let _mIcon = ()=>'';   // classic 의 I() 주입(모듈은 스코프가 달라 직접 못 씀)
 const C={}, GL=new GLTFLoader(), VLAB=[], MLAB=[];
 function ld(n){ return C[n]||(C[n]=GL.loadAsync(HX+n+'.glb').then(g=>g.scene)); }
 // 지역별 지형 — 정규화 좌표 + 부드러운 노이즈로 산맥/사막/호수/숲이 뭉쳐 나옴
@@ -2121,6 +2182,7 @@ let HGT=13;
 function _hrand(c,r){ let h=((c*73856093)^(r*19349663)^0xA5A5)>>>0; h=(h*1103515245+12345)>>>0; return (h&0xffff)/0x10000; }
 let _wsig='', _rcnt=-1, _built=null, _at=null, _roads=null, _fog=null;
 export function build(opts){ opts=opts||{}; OPT=opts; initS();
+  _mIcon = opts.icon || (()=>'');
   const world=opts.world, cols=opts.cols, rows=opts.rows, rev=opts.revealed||{};
   let wsig=cols+'x'+rows; for(const id in world){ const w=world[id]; wsig+='|'+id+w.x+','+w.y+w.owner+(w.size||0); }
   const rcnt=Object.keys(rev).length;
@@ -2142,7 +2204,7 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
     const p=opts.hex(c,r); const x=p.x-off.x, z=p.z-off.z; const id=at[key];
     if(id){ const w=world[id]; tile(vTile(w),x,z,true);
       const el=document.createElement('div'); el.className='v3-label vmk3 '+(w.owner==='me'?'me':(w.owner==='player'?'pl':'barb'));
-      const ic=w.owner==='me'?'🏰':(w.owner==='player'?'🗼':'🏚️'); const prot=opts.isP(w)?' 🛡️':'';
+      const ic=_mIcon(w.owner==='me'?'main':(w.owner==='player'?'tower':'hut')); const prot=opts.isP(w)?_mIcon('shield'):'';
       el.innerHTML=w.owner==='me'?`<b>${ic} 내 성${prot}</b>`:(w.owner==='player'?`<b>${ic} ${(w.name||'').replace('소환사 ','')}${prot}</b>`:`<b>${ic} ${w.size}★</b>`);
       el.onclick=()=>{ if(opts.onNode) opts.onNode(id); }; LH.appendChild(el); VLAB.push({el,pos:new T.Vector3(x,0.9,z)});
     } else if(roads[key]){ tile((r>=rows-3)?'sand':'grass',x,z,false); tile(roads[key].n,x,z,false,roads[key].rot,0.2); }
