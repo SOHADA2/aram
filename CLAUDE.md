@@ -817,7 +817,51 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > 새 세션 시작 시 이 섹션을 읽어 최근 맥락 파악. 작업 완료 후 업데이트할 것.
 > ⚠️ **상시 지시(2026-07-03·사장님)**: ①작업 완료+검증 통과 시 **묻지 말고 바로 배포**(main+작업브랜치) ②배포 후 **Actions 성공 확인**(요즘 GitHub Pages가 간헐적으로 `syncing_files`서 "Deployment failed, try again later" — GitHub측 오류, `gh run rerun <id>`로 재시도하면 됨) ③라이브 `APP_VERSION` curl 확인 ④응답에 버전 명시.
 
-### 🗺️ 룬테라 전쟁 — ☁️ 3D 구름 안개 + 마을/그리드 표기 정리 (2026-07-30·원격web·작업브랜치 `claude/continue-update-bnfsry`·main+브랜치 배포) ← 최신
+### 🗺️ 룬테라 전쟁 — 🖥️ 다른 컴퓨터 이어작업 핸드오프 (2026-07-31 기준·최종 커밋 `a2d6f42`·Pages success) ← 최신·必독
+> ⚠️ **index.html(라이브 앱)과 완전 무관.** 이 작업은 단일 파일 **`룬테라원정-프로토타입.html`** 하나만 건드린다. `APP_VERSION`·`CHANGELOG`는 손대지 않는다.
+>
+> #### 1) 5분 안에 이어받기
+> - **작업 파일**: `룬테라원정-프로토타입.html` (단일 HTML·빌드 없음·저장은 `localStorage rune_proto` mock). 에셋=`assets/{hex,town,castle,surv,alley}/*.glb`(Kenney CC0·전부 커밋됨) + **`vendor/three/`(자체 호스팅 1.5MB)**.
+> - **확인 주소**: **https://sohada2.github.io/aram/rune.html** ⚠️캐시 매우 강함 → `?v=숫자` 붙이거나 시크릿창. (한글 파일명 링크가 채팅서 깨져 만든 ASCII 리다이렉트)
+> - **작업 브랜치**: `claude/continue-update-bnfsry`. **배포 = `git push origin HEAD:main` + `HEAD:<작업브랜치>` 둘 다.** `.gitignore`가 `*`+화이트리스트라 **`git add -f`** 필요.
+> - **배포 확인**: `mcp__github__actions_list`(workflow_runs·branch main·status completed). ⚠️결과가 토큰 초과로 파일 저장됨 → `python3 -c "import json; d=json.load(open('<파일>')); ..."`로 파싱. 새 push가 이전 in-progress 빌드를 cancelled 로 만드는 건 정상.
+>
+> #### 2) 검증 레시피 (매번 이 순서로)
+> 1. **문법**: 인라인 `<script>` **3블록**(classic 1 + module 2) 추출 → `node --check`(module은 `.mjs`). importmap/json 블록 제외.
+> 2. **런타임**: 로컬 서버 + Playwright 헤드리스. `node --check`로는 **TDZ/미선언 식별자를 못 잡는다** — 반드시 브라우저로 띄워 `window.rune`이 함수인지 확인할 것(스크립트가 죽으면 undefined).
+>    - 서버: `(setsid nohup python3 -m http.server 8907 --bind 127.0.0.1 &)` — ⚠️세션 중 자주 죽으니 `ERR_CONNECTION_REFUSED` 나면 재기동.
+>    - 브라우저: chromium `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`, playwright `/opt/node22/lib/node_modules/playwright`, args `--use-gl=swiftshader --enable-unsafe-swiftshader --no-sandbox`. 한글 파일명은 `encodeURIComponent`.
+>    - 상태 접근: **`window.rune()`** (classic top-level `let S`는 evaluate에서 직접 못 봄). 카메라는 `window.Map3D.dbg()`.
+>    - 테스트 헬퍼: `runeArmy(n)`·`runeGrantNoble(n)`·`runeReset()`·`runeSaveCheck()`·`onVillageInfo(id)`/`goVillage(id)`·`go('map'|'village'|'rally'|'reports')`.
+> 3. **PC(1366)·모바일(390) 양쪽** 스샷 + `pageerror` 0 확인.
+>
+> #### 3) ⚠️ 이 파일에서 반복해서 밟은 함정 (다음 작업자 必독)
+> - **TDZ**: `let S = load()`가 **파일 상단에서 즉시** `genWorld()`를 부른다. 그 경로가 참조하는 값을 **아래쪽 모듈 최상위 `const`로 빼면 스크립트 전체가 ReferenceError로 죽는다.** 상수는 함수 안에 두거나 `let S` 위로. (`node --check` 통과함)
+> - **`toast()`는 `textContent`** — 아이콘(SVG) 문자열을 넣으면 마크업이 글자로 찍힌다. 토스트엔 아이콘 금지(안전망으로 태그 제거 로직은 넣어둠).
+> - **아이콘은 `I(key)`로 감쌀 것** — `BLD.ic`/`TROOP.ic`/`RES`는 이제 **이모지가 아니라 키 문자열**이다. 그대로 출력하면 화면에 `wood` 같은 글자가 샌다.
+> - **모듈(Town3D/Map3D)은 `I()` 스코프 밖** — `build({icon:I, ...})`로 주입받아 `_icon`/`_mIcon` 사용.
+> - **지도 마커는 `pointer-events:none` 유지** — `auto`로 되돌리면 손가락이 마커에서 시작할 때 팬/핀치가 통째로 씹힌다. 탭은 `bindTap()` 히트테스트가 처리.
+> - **`proj()`에 `camMoved` 같은 게이트 넣지 말 것** — 초기 1회도 스킵돼 라벨이 전부 원점에 뭉친다(실제로 겪음).
+> - **`resize()`는 크기 0이면 즉시 return** — 뷰가 `display:none`일 때 폴백값으로 캔버스가 굳는다. `ResizeObserver`가 붙어 있으니 유지할 것.
+> - **`wsig`(월드 시그니처)에 `size` 넣지 말 것** — 마을이 자랄 때마다 전체 재구성이 돌고 카메라가 튄다.
+> - **줄 끝 주석으로 문장을 삼키지 말 것** — 한 줄에 여러 statement가 있을 때 끝에 `// 주석`을 붙였다가 뒤 문장이 통째로 사라진 적이 두 번 있다(안개·바다 평면 소실). 문법 오류가 아니라 `node --check`로 못 잡는다.
+> - **네트워크**: jsdelivr 등 CDN 차단(HTTP 000). **`registry.npmjs.org`는 열려 있어** `npm pack`으로 라이브러리를 받아 `vendor/`에 넣는 방식으로 우회한다(three.js가 그렇게 들어옴). github.io도 차단이라 **라이브 curl 확인 불가** → 사장님이 브라우저로 확인.
+>
+> #### 4) 현재 상태 (무엇이 돌아가는가)
+> - **월드**: 79×98 헥스(7,742칸)·야만인 마을 **1,800개**·전장의 안개(공개된 칸만 렌더)·3D 구름층. `SAVE_VER 10`.
+> - **마을 성장**: 마을마다 **고유 무작위 상한**(2★30%·3★22%·4★20%·5★16%·6★12%). 2★까지는 수비대가 없어 영구 파밍터. 평균 2시간에 +1★. 집 근처 12개는 상한 2★ 고정(스폰 보조).
+> - **⛔ 야만인은 먼저 공격하지 않는다**(원작과 동일). 습격 스폰 코드(`spawnRaid`/`maybeRaid`)와 방어 전투(`resolveDefense`)는 **지우지 않고 보존** — 실팀원 멀티를 붙이면 그대로 되살아난다. 다시 켜려면 `tick()`에 `maybeRaid(now)` 한 줄.
+> - **UI**: 이모지 전면 폐지 → **인라인 SVG 아이콘 38종**(`ICO`/`I()`). 자원바=수량/용량+저장 게이지+분당생산(가득 시 경고). 병종 카드=공격/보병·기병·궁병 방어 2×2 격자 + 「무엇에 특화·무엇에 약함」 한 줄(`TROOP_ROLE`). 마을 3D 명패=아이콘·이름·레벨 + 작업 게이지.
+> - **조작**: 지도 팬/핀치는 OrbitControls, 마커 탭은 좌표 히트테스트. 카메라는 최초 1회만 집 위치 정렬(이후 재구성돼도 보던 위치 유지).
+>
+> #### 5) ⏭️ 다음 할 일 / 미결
+> - **도움말 모달**(가장 우선·사장님 승인됨). 인라인 팁을 전부 걷어낸 상태라 설명할 곳이 없다. 순서=**전투 규칙 → 지도 → 집결지 → 정찰 → 정복 → 마을 → 시장/대장간**. ⚠️전투 규칙엔 **병과 분할 계산 같은 「규칙」만** 넣고 **조합·전술 조언은 넣지 않는다**(사장님 방침 — 조합은 유저가 알아내는 영역).
+> - **적 AI 부재**: 아무도 공격하지 않아 성벽·지하창고·지원군·방어 전투가 놀고 있다. **실팀원 멀티(Firebase)** 또는 재설계된 습격이 붙어야 살아난다. ⚠️사장님이 "가짜 라이벌은 의미 없다"고 한 적 있어 **설계 합의 먼저**.
+> - **멀티 붙일 때**: 시작 파밍터(`BARB_NEAR`) 배치가 지금은 내 집 주변에만 돈다 → **스폰 지점마다** 돌려야 공평하다.
+> - **Town3D 라벨도 `pointer-events:auto`** — 건물 명패 위에서 드래그 시작 시 마을 씬 조작이 씹힌다. 지도와 같은 패턴 이식하면 됨.
+> - 3D 실기(폰) 체감 확인 · 헥스 타일 바닥색이 지면색과 살짝 안 맞음 · 지형 타일이 개별 드로우콜(~300+)이라 병합 여지 · **영웅 카드 도감은 아직 이모지**(진입 버튼을 제거해 현재 도달 불가 화면이라 후순위).
+
+### 🗺️ 룬테라 전쟁 — ☁️ 3D 구름 안개 + 마을/그리드 표기 정리 (2026-07-30~31·원격web·작업브랜치 `claude/continue-update-bnfsry`·main+브랜치 배포)
 > ⚠️ **index.html 무관** — `룬테라원정-프로토타입.html` 단독. 확인 주소는 **`https://sohada2.github.io/aram/rune.html`**(한글 파일명 링크가 채팅서 깨져 만든 ASCII 리다이렉트).
 > 사장님 피드백을 순서대로 반영한 폴리시 라운드. 검증=3블록 `node --check` 3/3 + Playwright(실제 three.js·swiftshader·모바일 390px) 렌더 스샷·`pageerror` 0.
 > - **☁️ 전장의 안개 = 지면 도색 → 진짜 3D 구름층**: 기존엔 미공개 헥스를 안개색으로 "칠하기"만 해서 **지형이 섬처럼 떠 보이고 구름 같지 않았음**. → `_makePuffTex()`(6로브 알파 실루엣)로 만든 텍스처를 **InstancedMesh 구름 뭉치**로 지형 **위(y≈0.72~1.2)** 에 띄움. 밀도 68%(빽빽하지 않게)·인스턴스별 크기/밝기 랜덤. 공개 시 `hideCloudAt`으로 scale 0. 지면에는 얇은 안개 평면(`alphaMap` 마스크 캔버스·opacity 0.5)만 남겨 **구름 아래로 지형이 어렴풋이 비침**.
@@ -906,7 +950,7 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 
 ### 🗺️ 룬테라 전쟁 v0.2~v0.3.2 — 부족전쟁 게임성 정합 · 라이벌 제거 · PC/모바일 분리 · 마을 발전 단계 (2026-07-29·원격web·작업브랜치 `claude/computer-work-session-we1guo`·main+브랜치 배포·**최종 커밋 `aefaaf7`·Pages success**)
 > ⚠️ **index.html(라이브 앱) 무관** — `룬테라원정-프로토타입.html` 전면 재작성(v0.1→**v0.2→v0.3**·`SAVE_VER 8`=구세이브 폐기). 사장님 지시: "부족전쟁과 최대한 동일한 게임성으로 검토 + 비주얼/퀄리티 재구성 + **PC버전과 모바일버전이 다름을 확실히 인지**". 검증=Playwright 헤드리스(`/opt/node22/lib/node_modules/playwright`·chromium `/opt/pw-browsers/chromium-1194`·python http.server 8899·⚠️이 환경 jsdelivr 차단이라 3D는 2D 폴백으로 검증, 3D 실렌더는 실기 확인 필요) — PC 1366px/모바일 390px 스크린샷+전투/정찰/정복/지원 흐름 evaluate 실행 전부 통과·pageerror 0.
-> ### 🖥️ 다른 컴퓨터 이어작업 — 퀵스타트(필독)
+> ### 🖥️ (구) 다른 컴퓨터 이어작업 퀵스타트 — ⚠️**이 블록은 v0.3.2 시점 기록. 최신은 맨 위 「🖥️ 다른 컴퓨터 이어작업 핸드오프」를 볼 것**(vendor/three 자체호스팅·rune.html·아이콘 시스템 등이 빠져 있음)
 > - **작업 파일 1개**: `룬테라원정-프로토타입.html`(단일 HTML·빌드 없음·`localStorage rune_proto` mock 저장). **index.html(라이브 앱)과 완전 무관** — APP_VERSION·CHANGELOG 안 건드림. 에셋=`assets/{hex,town,castle,survival}/*.glb`(Kenney CC0·전부 리포에 커밋됨·존재 확인 완료).
 > - **확인 URL**: `https://sohada2.github.io/aram/룬테라원정-프로토타입.html` ⚠️**캐시 매우 강함** — `?v=N`/Ctrl+Shift+R/시크릿. (원격web 환경은 github.io egress 차단이라 curl 확인 불가 → 사장님이 브라우저로 확인)
 > - **배포**: `git push origin HEAD:main` + `HEAD:<작업브랜치>` **둘 다**. Pages 자동빌드 1~3분(+`pages-rebuild.yml` 병행). 새 푸시가 이전 in-progress 빌드를 cancelled로 만드는 건 정상.
