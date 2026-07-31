@@ -674,20 +674,21 @@ function bindActive(){ S.active=S.active||HOME_KEY; if(!S.villages)S.villages={}
   if(!Object.getOwnPropertyDescriptor(S,'v')) Object.defineProperty(S,'v',{get(){return S.villages[S.active];},configurable:true,enumerable:false}); seedReveal(); }
 // 상한 필드가 없던 세이브 보정(세이브 폐기 없이). 이미 자란 마을은 줄이지 않고 그 자리에서 멈춘다.
 function _ensureBarbCaps(){ if(S._mxOk||!S.world) return; S._mxOk=1;
-  const home=S.world[HOME_KEY]; if(!home) return;
   for(const id in S.world){ const w=S.world[id]; if(w.owner!=='barb'||w.mx) continue;
-    w.mx=Math.max(w.size||1, barbMaxSize(fieldDist(w,home))); } }
+    w.mx=Math.max(w.size||1, barbMaxSize()); } }
 function setActive(id){ if(S.villages[id]){ S.active=id; } }
 function freshVillage(){ return { res:{wood:600,clay:600,iron:450}, blds:{main:1,wood:1,clay:1,iron:1,farm:1,storage:1}, troops:{}, buildQ:[], recQ:[], support:[] }; }
 function ownedIds(){ return Object.keys(S.world).filter(id=>S.world[id].owner==='me'); }
 // 정통 전략식: 소형 야만인 마을(1~2★)=무방비 파밍 대상(원본 야만 마을과 동일) · 대형(3★+)=수비대(솔로 콘텐츠 보정)
-// 마을별 성장 상한 — 집에서 멀수록 크게 자란다. 가까운 곳은 계속 만만하게 남겨 초반 파밍터를 보존.
-function barbMaxSize(d, rnd){ const R=rnd||Math.random;
-  if(d<7)  return 2 + (R()<0.30?1:0);   // 2~3★ (2★까지는 수비대 없음)
-  if(d<14) return 3 + (R()<0.55?1:0);   // 3~4★
-  if(d<24) return 4 + (R()<0.55?1:0);   // 4~5★
-  return 5 + (R()<0.60?1:0);            // 5~6★
-}
+// 마을별 성장 상한 — 마을 고유 속성(무작위). ⚠️「내 집에서의 거리」로 정하면 안 된다:
+//    나한테 먼 지역은 거기 스폰한 팀원에겐 집 앞이라, 그 사람만 시작부터 5~6★ 밭에 갇힌다.
+//    무작위로 고르게 섞어야 어느 지점에 스폰해도 만만한 마을과 단단한 마을이 함께 있다.
+//    2★까지는 수비대가 없어서 영구 파밍터가 된다(전체의 약 30%).
+//    ⚠️ 가중치 표를 모듈 최상위 const 로 빼면 안 된다 — `let S = load()`(파일 상단)가 genWorld를 즉시 부르는데
+//    그때 아래쪽 const 는 아직 TDZ라 ReferenceError 로 스크립트 전체가 죽는다. 함수 안에 둔다.
+function barbMaxSize(rnd){ const R=rnd||Math.random; const W=[[2,30],[3,22],[4,20],[5,16],[6,12]];
+  let t=R()*100; for(const [v,w] of W){ t-=w; if(t<=0) return v; }
+  return 4; }
 function barbGarrison(size){ return size>=3? {spear:size*6, sword:size*2, archer:size*2} : {}; }
 function barbWall(size){ return size>=4? size-3 : 0; }
 // ⚠️아래 2개(rivalGarrison·allocSpawn)는 현재 도달 불가(라이벌 AI 제거) — 실팀원 멀티 붙일 때 재사용할 코드라 의도적 보존
@@ -732,7 +733,7 @@ function genWorld(now){
   while(n<BARB_TOTAL && guard<400000){ guard++;
     const x=Math.floor(R()*HCOLS), y=Math.floor(R()*HROWS); const key=x+','+y;
     if(taken.has(key)) continue; const d=fieldDist({x,y},home); if(d<2.2) continue;
-    put(x,y, 1+Math.floor(R()*3)+(d>6?Math.floor(R()*3):0), barbMaxSize(d,R));
+    const mx=barbMaxSize(R); put(x,y, 1+Math.floor(R()*mx), mx);   // 시작 크기도 상한 안에서 무작위 → 자라면서 세계가 성숙
   }
   return W;
 }
