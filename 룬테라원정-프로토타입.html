@@ -2098,7 +2098,9 @@ function updateLabels(){ if(!curEl) return; const rect=curEl.getBoundingClientRe
 export function mount(el){ initScene(); curEl=el; el.appendChild(renderer.domElement);
   if(!labelHost||!el.contains(labelHost)){ labelHost=document.createElement('div'); labelHost.className='v3-labels'; el.appendChild(labelHost); }
   resize(); }
-function resize(){ if(!curEl) return; W=curEl.clientWidth||420; H=curEl.clientHeight||300; renderer.setSize(W,H);
+function resize(){ if(!curEl) return; const w=curEl.clientWidth, h=curEl.clientHeight;
+  if(!w||!h) return;   // 숨겨진 동안(0)엔 건드리지 않는다 — 엉뚱한 크기로 굳는 걸 방지
+  W=w; H=h; renderer.setSize(W,H);
   const D=9, a=W/H; cam.left=-D*a;cam.right=D*a;cam.top=D;cam.bottom=-D; cam.updateProjectionMatrix(); }
 export function build(blds, opts){ opts=opts||{}; onBuild=opts.onBuild; initScene();
   let devp=0; for(const k in blds) devp+=blds[k]||0;
@@ -2259,7 +2261,7 @@ function hp(w){ const p=OPT.hex(w.x,w.y); return {x:p.x-off.x, z:p.z-off.z}; }  
 export function mount(el){ initS(); if(EL===el && el.contains(R.domElement)) return;   // 이미 마운트됨 → 재부착 안 함
   EL=el; if(!el.contains(R.domElement)) el.appendChild(R.domElement);
   if(!LH||!el.contains(LH)){ LH=document.createElement('div'); LH.className='v3-labels map-lab'; el.appendChild(LH); }
-  bindTap(el); resize(); }
+  bindTap(el); watchSize(el); resize(); }
 // 마커를 pointer-events:none 으로 뺐으므로 탭은 여기서 직접 판정한다(제스처는 전부 OrbitControls로).
 let _tapX=0,_tapY=0,_tapT=0,_tapOk=false,_tapBound=null;
 function bindTap(el){ if(_tapBound===el) return; _tapBound=el;
@@ -2278,8 +2280,17 @@ function bindTap(el){ if(_tapBound===el) return; _tapBound=el;
       const d=(px-cx)*(px-cx)+(py-cy)*(py-cy); if(d<bd){ bd=d; best=L; } }
     if(best) best.onTap(); },{passive:true});
 }
-function resize(){ if(!EL) return; const w=EL.clientWidth||420,h=EL.clientHeight||400; R.setSize(w,h);
+let _cw=0,_ch=0;
+function resize(){ if(!EL) return; const w=EL.clientWidth, h=EL.clientHeight;
+  if(!w||!h) return;                      // 숨겨진 동안엔 0 → 엉뚱한 기본값으로 굳는 걸 막는다
+  if(w===_cw && h===_ch) return; _cw=w; _ch=h; _rc=null;   // 라벨 좌표 캐시도 무효화
+  R.setSize(w,h);
   const D=Math.max(8, HGT/1.9), a=w/h; CAM.left=-D*a;CAM.right=D*a;CAM.top=D;CAM.bottom=-D; CAM.updateProjectionMatrix(); }
+// 뷰 전환·주소창 여닫힘으로 컨테이너 크기가 바뀌면 즉시 맞춘다(window resize 만으론 놓친다)
+let _ro=null;
+function watchSize(el){ if(!('ResizeObserver' in window)) return;
+  if(!_ro) _ro=new ResizeObserver(()=>resize());
+  _ro.disconnect(); _ro.observe(el); }
 let HGT=13;
 // 🌫️ 안개: 미공개 헥스별 결정론적 난수(공개 순서와 무관하게 지형 고정)
 function _hrand(c,r){ let h=((c*73856093)^(r*19349663)^0xA5A5)>>>0; h=(h*1103515245+12345)>>>0; return (h&0xffff)/0x10000; }
