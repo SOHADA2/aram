@@ -670,11 +670,24 @@ let S = load(); bindActive();
 function bindActive(){ S.active=S.active||HOME_KEY; if(!S.villages)S.villages={}; if(!S.research)S.research={}; if(!S.spy)S.spy={};
   if(!Array.isArray(S.trades)) S.trades=[]; if(S.researchQ===undefined) S.researchQ=null;   // 구 세이브 호환(버전 유지)
   for(const id in S.villages){ const v=S.villages[id]; if(!v.support) v.support=[]; }
+  _ensureBarbCaps();
   if(!Object.getOwnPropertyDescriptor(S,'v')) Object.defineProperty(S,'v',{get(){return S.villages[S.active];},configurable:true,enumerable:false}); seedReveal(); }
+// 상한 필드가 없던 세이브 보정(세이브 폐기 없이). 이미 자란 마을은 줄이지 않고 그 자리에서 멈춘다.
+function _ensureBarbCaps(){ if(S._mxOk||!S.world) return; S._mxOk=1;
+  const home=S.world[HOME_KEY]; if(!home) return;
+  for(const id in S.world){ const w=S.world[id]; if(w.owner!=='barb'||w.mx) continue;
+    w.mx=Math.max(w.size||1, barbMaxSize(fieldDist(w,home))); } }
 function setActive(id){ if(S.villages[id]){ S.active=id; } }
 function freshVillage(){ return { res:{wood:600,clay:600,iron:450}, blds:{main:1,wood:1,clay:1,iron:1,farm:1,storage:1}, troops:{}, buildQ:[], recQ:[], support:[] }; }
 function ownedIds(){ return Object.keys(S.world).filter(id=>S.world[id].owner==='me'); }
 // 정통 전략식: 소형 야만인 마을(1~2★)=무방비 파밍 대상(원본 야만 마을과 동일) · 대형(3★+)=수비대(솔로 콘텐츠 보정)
+// 마을별 성장 상한 — 집에서 멀수록 크게 자란다. 가까운 곳은 계속 만만하게 남겨 초반 파밍터를 보존.
+function barbMaxSize(d, rnd){ const R=rnd||Math.random;
+  if(d<7)  return 2 + (R()<0.30?1:0);   // 2~3★ (2★까지는 수비대 없음)
+  if(d<14) return 3 + (R()<0.55?1:0);   // 3~4★
+  if(d<24) return 4 + (R()<0.55?1:0);   // 4~5★
+  return 5 + (R()<0.60?1:0);            // 5~6★
+}
 function barbGarrison(size){ return size>=3? {spear:size*6, sword:size*2, archer:size*2} : {}; }
 function barbWall(size){ return size>=4? size-3 : 0; }
 // ⚠️아래 2개(rivalGarrison·allocSpawn)는 현재 도달 불가(라이벌 AI 제거) — 실팀원 멀티 붙일 때 재사용할 코드라 의도적 보존
@@ -701,8 +714,8 @@ function genWorld(now){
   W[HOME_KEY]={x:HC,y:HR,name:'내 마을',owner:'me',size:6,loot:{wood:0,clay:0,iron:0},garrison:{},foundedAt:now};
   const taken=new Set([HC+','+HR]); let n=0, guard=0;
   // ⚠️ 라이벌 AI 마을/습격은 제거됨(사장님 피드백 — 의미 없는 가짜 라이벌 X) · 추후 실제 팀원 멀티로 설계
-  const put=(x,y,size)=>{ taken.add(x+','+y); size=Math.max(1,Math.min(6,size));
-    W['v'+(n++)]={x,y,name:'야만인 마을',owner:'barb',size,loot:barbLoot(size),garrison:barbGarrison(size),wall:barbWall(size)}; };
+  const put=(x,y,size,mx)=>{ taken.add(x+','+y); size=Math.max(1,Math.min(6,size)); mx=Math.max(size,Math.min(6,mx||size));
+    W['v'+(n++)]={x,y,name:'야만인 마을',owner:'barb',size,mx,loot:barbLoot(size),garrison:barbGarrison(size),wall:barbWall(size)}; };
   // ① 집 근처 파밍 대상 보장 — 무작위 분포만 쓰면 시작 지점에 마을이 2~3개뿐인 경우가 생긴다.
   //    2.5~7칸 고리에 무방비 소형(1~2★)을 먼저 깔아 초반에 털 곳이 항상 있게 한다.
   for(let i=0;i<BARB_NEAR;i++){
@@ -712,14 +725,14 @@ function genWorld(now){
       if(x<0||y<0||x>=HCOLS||y>=HROWS) continue;
       if(taken.has(x+','+y)) continue;
       const d=fieldDist({x,y},home); if(d<2.2||d>7.5) continue;
-      put(x,y,1+Math.floor(R()*2)); break;
+      put(x,y,1+Math.floor(R()*2),2); break;   // 시작 파밍터는 2★가 상한(수비대 안 생김)
     }
   }
   // ② 나머지는 월드 전역에 흩뿌린다(멀수록 큰 마을)
   while(n<BARB_TOTAL && guard<400000){ guard++;
     const x=Math.floor(R()*HCOLS), y=Math.floor(R()*HROWS); const key=x+','+y;
     if(taken.has(key)) continue; const d=fieldDist({x,y},home); if(d<2.2) continue;
-    put(x,y, 1+Math.floor(R()*3)+(d>6?Math.floor(R()*3):0));
+    put(x,y, 1+Math.floor(R()*3)+(d>6?Math.floor(R()*3):0), barbMaxSize(d,R));
   }
   return W;
 }
@@ -756,7 +769,7 @@ function tick(){
     const lc=w.size*300, gr=w.size*3;
     ['wood','clay','iron'].forEach(k=>{ w.loot[k]=Math.min(lc,(w.loot[k]||0)+gr*dt/60); });
     // 야만인 마을 성장(전략게임: 야만 마을은 서서히 성장)
-    if(w.owner==='barb' && w.size<6 && Math.random()<dt/7200){ w.size++; w.wall=Math.max(w.wall||0, barbWall(w.size)); }
+    if(w.owner==='barb' && w.size<(w.mx||6) && Math.random()<dt/7200){ w.size++; w.wall=Math.max(w.wall||0, barbWall(w.size)); }
     // 수비대 재생(90분에 완충) — 파밍 후 다시 차오름
     const base = w.owner==='barb'? barbGarrison(w.size) : rivalGarrison(w.size);
     w.garrison=w.garrison||{};
