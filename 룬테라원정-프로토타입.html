@@ -2226,6 +2226,18 @@ function biome(c,r,cols,rows,rnd){
 }
 function vTile(w){ if(w.owner==='me') return 'building-castle'; if(w.owner==='player') return 'building-tower';
   return w.size>=5?'building-village':(w.size>=3?'building-house':'building-cabin'); }
+// 🏰 월드맵 마을 = RTS 완성형 건물(마을 내부와 동일 퀄) — 헥스 위에 얹음
+const RTS='assets/rts/'; function ldR(n){ return C['r:'+n]||(C['r:'+n]=GL.loadAsync(RTS+n+'.glb').then(g=>g.scene)); }
+function vBuild(w){
+  if(w.owner==='me') return {n:'main_6',tw:1.2};
+  if(w.owner==='player') return {n:'rally_3',tw:0.98};
+  const sz=Math.min(6,Math.max(1,w.size||1));   // 야만인 마을: 규모(★)가 커질수록 큰 건물
+  return {n:['hide','wood_1','clay_2','iron_2','wood_3','main_2'][sz-1], tw:0.66+sz*0.06};
+}
+async function placeRTS(n,x,z,tw,ry){ try{ const m=(await ldR(n)).clone(true);
+  const b=new T.Box3().setFromObject(m); const foot=Math.max(b.max.x-b.min.x,b.max.z-b.min.z)||1; m.scale.setScalar(tw/foot);
+  const b2=new T.Box3().setFromObject(m); m.position.set(x, 0.13-b2.min.y, z); if(ry) m.rotation.y=ry;
+  m.traverse(c=>{ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; } }); GRP.add(m); return m; }catch(e){} }
 function initS(){ if(R) return;
   R=new T.WebGLRenderer({antialias:true,alpha:true}); R.setPixelRatio(Math.min(2,devicePixelRatio));
   R.outputColorSpace=T.SRGBColorSpace; R.shadowMap.enabled=true; R.shadowMap.type=T.PCFSoftShadowMap;
@@ -2387,10 +2399,11 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
   for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ const key=c+','+r;
     if(_built[key] || !rev[key]) continue; _built[key]=1;
     const p=opts.hex(c,r); const x=p.x-off.x, z=p.z-off.z; const id=at[key];
-    if(id){ const w=world[id]; tile(vTile(w),x,z,true);
+    if(id){ const w=world[id]; tile((r>=rows-3)?'sand':'grass',x,z,false); const vb=vBuild(w); placeRTS(vb.n,x,z,vb.tw,_hrand(c,r)*6.283);
       const el=document.createElement('div'); el.className='v3-label vmk3 '+(w.owner==='me'?'me':(w.owner==='player'?'pl':'barb'));
       el.innerHTML=_mkMarkHtml(w);
-      LH.appendChild(el); VLAB.push({el,pos:new T.Vector3(x,0.9,z),id,sig:(w.size||0)+'|'+(opts.isP(w)?1:0),onTap:()=>{ if(opts.onNode) opts.onNode(id); }});
+      const ly=(w.owner==='me'||w.owner==='player')?1.4:1.02;
+      LH.appendChild(el); VLAB.push({el,pos:new T.Vector3(x,ly,z),id,sig:(w.size||0)+'|'+(opts.isP(w)?1:0),onTap:()=>{ if(opts.onNode) opts.onNode(id); }});
     } else if(roads[key]){ tile((r>=rows-3)?'sand':'grass',x,z,false); tile(roads[key].n,x,z,false,roads[key].rot,0.2); }
     else { tile(biome(c,r,cols,rows,_hrand(c,r)),x,z,false); }
     if(!full && _fogCtx){ eraseFogCell(c,r); hideCloudAt(c,r); fogDirty=true; }   // 증분: 안개 부드럽게 걷힘
