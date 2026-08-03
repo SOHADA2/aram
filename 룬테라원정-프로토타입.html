@@ -1,5 +1,5 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>룬테라 전쟁 — 프로토타입 v0.9</title>
+<title>룬테라 전쟁 — 프로토타입 v0.10</title>
 <style>
 /* ═══ 클래식 전략 스타일 양피지 테마 ═══
    PC(≥900px)  = 브라우저 게임 레이아웃: 상단 메뉴 + 본문 + 우측 사이드바(개요) + 테이블 UI
@@ -49,7 +49,14 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .res s{text-decoration:none;font-size:9px;color:#8fce8a;font-weight:800;white-space:nowrap;margin-left:auto;}
 .res.warn s{color:#e8c86a;} .res.full s{color:#e08a6a;}
 /* 좁은 화면: 생산량 → 저장고 용량 순으로 접는다(수량과 게이지는 끝까지 유지) */
-@media(max-width:430px){.res s{display:none;} .res{padding:4px 6px 5px;column-gap:4px;} .res em{font-size:12.5px;} .res .rcap{display:none;} .res.pop .rcap{display:inline;font-size:8.5px;}}
+@media(max-width:430px){.res s{display:none;} .res{padding:4px 6px 5px;column-gap:4px;} .res em{font-size:12.5px;} .res .rcap{display:none;} .res.pop .rcap{display:inline;font-size:8.5px;}
+  /* ⚠️ 균등분배(flex:1)면 자리를 더 먹는 인구 칩이 잘린다 → 내용에 맞춰 나눠 갖게 한다 */
+  .resbar{gap:5px;padding:8px 8px 6px;}
+  .res{flex:1 1 auto;}
+  .res em{font-size:12px;letter-spacing:.2px;}
+  .res.pop em{font-size:11.5px;}
+  .res .rslash{font-size:8px;}}
+@media(max-width:400px){ .res em{font-size:11px;} .res.pop em{font-size:10.5px;} .res .rslash{font-size:7.5px;} .res{padding:4px 5px 5px;} }
 /* PC 상단 메뉴(클래식) — 모바일 숨김 */
 .pcmenu{display:none;}
 /* 모바일 하단 탭바 — PC 숨김 */
@@ -204,7 +211,7 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .bld-up.no{opacity:.6;} .bld-up.no{filter:grayscale(.35);}
 .bld-open{width:100%;margin-top:5px;padding:5px;border:1px solid #5a7a22;border-radius:6px;background:linear-gradient(180deg,#cfe0a0,#a8c46a);color:#243208;font-size:9px;font-weight:800;cursor:pointer;font-family:inherit;}
 /* 모바일 건물 아이콘 그리드(모바일식 — 탭하면 시트) */
-.bgrid2{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;}
+.bgrid2{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}   /* 자원6·군사6·중심3 → 3열이면 줄이 딱 맞는다 */
 .bcat{margin-bottom:9px;} .bcat:last-child{margin-bottom:0;}
 .bcat-h{font-size:9px;font-weight:800;color:#a08a58;letter-spacing:.5px;margin:0 0 4px 1px;}
 .bt2{position:relative;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:2px;padding:4px 3px;background:#221910;border:1px solid #6b4f24;border-radius:9px;cursor:pointer;}
@@ -513,7 +520,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">프로토타입 v0.9 · 이 브라우저에만 저장(mock) · 실제 사이트 골드와 무관</div>
+  <div class="proto-tag">프로토타입 v0.10 · 이 브라우저에만 저장(mock) · 실제 사이트 골드와 무관</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -2228,8 +2235,8 @@ const RING=[
   {b:'hide',    kit:'surv',n:'tent',              h:1.0},
 ];
 // ⚠️ 링 반지름은 (건물 폭 2.5 · 본진 폭 3.4 · 성벽 7.4)에 물려 있다. 하나만 바꾸면 겹치거나 성벽을 뚫는다.
-//    안쪽 3.4 = 본진 반폭 1.7 + 건물 반폭 1.25 + 여유 / 바깥 6.15 = 성벽 7.4 − 건물 반폭 1.25
-const RING_RI=3.55, RING_RO=6.15, RING_OFF=0.07;   // 바깥 링을 살짝 비틀어 안쪽 건물과 반지름 정렬 회피
+//    안쪽 3.45 = 본진 반폭 1.53 + 건물 반폭 1.03 + 여유 / 바깥 6.15 = 성벽 7.4 − 건물 반폭 − 여유
+const RING_RI=3.45, RING_RO=6.15, RING_OFF=0.07;   // 바깥 링을 살짝 비틀어 안쪽 건물과 반지름 정렬 회피
 // ✂️ 헥스 키트 건물에서 «육각 받침 + 가장자리 나무»만 잘라낸다.
 //    (이 키트는 받침이 본체와 한 메시·한 프리미티브라 노드로 못 지운다 → 삼각형 단위로 거른다)
 //    기준은 모델 로컬 좌표: 무게중심 y가 minY보다 높고, 중심에서의 거리가 maxR보다 가까운 삼각형만 남긴다.
@@ -2279,15 +2286,15 @@ async function placeBuilding(x,z,ry,b,lv,central,mx){
   // 🏛️ 완성형 RTS 건물 — 6단계를 건물 최대레벨에 고르게 분산(초기 목조 1~3 → 발전 석조 4~6)
   const tier = _forceTier || ((!mx||mx<=1) ? 3 : Math.max(1, Math.min(6, Math.ceil(lv/mx*6))));
   // 🏰 본진 = workshop(웅장한 요새→석조 성) 모델. (RTS main 모델은 사슴 동상 얹은 단상이라 본진답지 않음 → 공성 작업장과 맞바꿈)
-  if(central){ await instFit('rts','workshop_'+tier,bgroup,x,z,{w:3.4,ry:ry+P2,tag:b}); return; }
+  if(central){ await instFit('rts','workshop_'+tier,bgroup,x,z,{w:3.05,ry:ry+P2,tag:b}); return; }
   // 집결지=단층 감시초소(rally_1) 고정 — rally_3은 3층이라 아파트처럼 보임
   const name = (b==='hide') ? (tier>=4?'hide2':'hide') : (b==='rally') ? 'rally_1'
              : (b==='workshop') ? ('smithy_'+tier)   // 공성 작업장=공성병기 제작 → 조선소/건설 야드(Port) 모델
              : (b+'_'+tier);
   // ⚒️ 대장간만 헥스 키트 제련소(용광로+굴뚝) — RTS 팩엔 대장간다운 모델이 없다.
   //    이 키트 건물은 육각 받침이 본체와 한 메시라, 받침 폭까지 재서 크게 잡고 sink로 받침을 지면 아래에 묻는다.
-  if(b==='smithy'){ await instFit('hex','building-smelter',bgroup,x,z,{w:2.5,ry:ry+P2,tag:b,trim:{y:0.21,r:0.34}}); return; }
-  await instFit('rts',name,bgroup,x,z,{w:2.5,ry:ry+P2,tag:b});
+  if(b==='smithy'){ await instFit('hex','building-smelter',bgroup,x,z,{w:2.05,ry:ry+P2,tag:b,trim:{y:0.21,r:0.34}}); return; }
+  await instFit('rts',name,bgroup,x,z,{w:2.05,ry:ry+P2,tag:b});
 }
 // 광장 정적 장식(한 번)
 function decorStatic(){
@@ -2417,7 +2424,7 @@ export function build(blds, opts){ opts=opts||{}; onBuild=opts.onBuild; initScen
   [[RIN,RING_RI,0],[ROUT,RING_RO,RING_OFF]].forEach(([arr,r,off])=>{
     arr.forEach((slot,k)=>{ const a=(k/arr.length)*Math.PI*2 - P2 + off;
       const x=Math.cos(a)*r, z=Math.sin(a)*r; pts.push({x,z}); add(x,z,slot.b,blds[slot.b]||0,false); }); });
-  decorate(pts,[30,46,64,82][tier]);
+  decorate(pts,[24,36,50,64][tier]);   // 건물 사이가 보이도록 데코 밀도도 낮춤
 }
 export function resetCam(){ if(!cam) return; cam.position.set(7,17,7); cam.zoom=1; cam.updateProjectionMatrix(); if(ctrl){ ctrl.target.set(0,0.5,0); ctrl.update(); } }
 export function setNight(){ if(!hemi) return night; night=!night;
