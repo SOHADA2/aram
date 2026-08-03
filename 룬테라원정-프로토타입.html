@@ -828,6 +828,7 @@ const STAGE_NM=['개척지','마을','소도시','성곽 도시'];
 // 🏆 발전 포인트(부족전쟁식) — 레벨이 높을수록 점수가 기하급수적으로 커짐(마을 전체 발전도 지표·표시 전용)
 function bldPoints(L){ return L>0? Math.round(3*(Math.pow(1.16,L)-1)/0.16) : 0; }
 function devPoints(v){ let p=0; for(const b in v.blds) p+=bldPoints(v.blds[b]||0); return p; }
+function barbPoints(sz){ return [100,250,550,1100,2000,3400][Math.min(6,Math.max(1,sz||1))-1]; }   // 야만인 마을 발전 포인트(규모★ 근사)
 function snapV(w){ return {name:w.name, x:w.x, y:w.y, owner:w.owner, size:w.size||1}; }
 function crd(w){ return `(${w.x}|${w.y}) K${Math.floor(w.y/10)}${Math.floor(w.x/10)}`; }
 // ══ 전투 엔진 ══
@@ -1158,7 +1159,7 @@ function _mapFallbackNotice(){
 function escHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function renderMap(){
   if(window.Map3D){ const wrap=document.getElementById('map-wrap'), mc=document.getElementById('map-content'); if(mc) mc.style.display='none';
-    if(wrap){ window.Map3D.mount(wrap); window.Map3D.build({ icon:I, world:S.world, cols:HCOLS, rows:HROWS, hex:hexPos, isP:isProtected, onNode:onVillage, HOME:HOME_KEY, fmt:fmtDur, revealed:S.revealed, mainOf:(id)=>{ const vv=S.villages[id]; return (vv&&vv.blds)?(vv.blds.main||1):1; }, state:()=>({world:S.world,marches:S.marches}) });
+    if(wrap){ window.Map3D.mount(wrap); window.Map3D.build({ icon:I, world:S.world, cols:HCOLS, rows:HROWS, hex:hexPos, isP:isProtected, onNode:onVillage, HOME:HOME_KEY, fmt:fmtDur, revealed:S.revealed, mainOf:(id)=>{ const vv=S.villages[id]; return (vv&&vv.blds)?(vv.blds.main||1):1; }, ptsOf:(id)=>{ const vv=S.villages[id]; if(vv&&vv.blds) return devPoints(vv); const ww=S.world[id]; return (ww&&ww.owner==='barb')?barbPoints(ww.size):0; }, nf:NF, state:()=>({world:S.world,marches:S.marches}) });
       const rr=document.getElementById('map-reset'); if(rr){ rr.innerHTML=I('expand'); rr.onclick=()=>window.Map3D.resetCam(); } }
     return; }
   // 2D 폴백 — ⚠️조용히 떨어지면 원인 파악이 불가능해서, 실패했다는 사실을 화면에 남긴다
@@ -2385,11 +2386,14 @@ let HGT=13;
 // 🌫️ 안개: 미공개 헥스별 결정론적 난수(공개 순서와 무관하게 지형 고정)
 function _hrand(c,r){ let h=((c*73856093)^(r*19349663)^0xA5A5)>>>0; h=(h*1103515245+12345)>>>0; return (h&0xffff)/0x10000; }
 let _wsig='', _rcnt=-1, _built=null, _at=null, _roads=null, _fog=null, _camPlaced=false;
-function _mkMarkHtml(w){ const ic=_mIcon(w.owner==='me'?'main':(w.owner==='player'?'tower':'hut'));
+function _mkMarkHtml(w,id){ const ic=_mIcon(w.owner==='me'?'main':(w.owner==='player'?'tower':'hut'));
   const prot=OPT&&OPT.isP&&OPT.isP(w)?_mIcon('shield'):'';
-  return w.owner==='me'?`<b>${ic} 내 성${prot}</b>`
-       : w.owner==='player'?`<b>${ic} ${(w.name||'').replace('소환사 ','')}${prot}</b>`
-       : `<b>${ic} ${w.size}★</b>`; }
+  const pts=(OPT&&OPT.ptsOf)?OPT.ptsOf(id):0; const nf=(OPT&&OPT.nf)||(x=>x);
+  const pt=pts?`<i>${nf(pts)}점</i>`:'';
+  return w.owner==='me'?`<b>${ic} 내 성${prot}</b>${pt}`
+       : w.owner==='player'?`<b>${ic} ${(w.name||'').replace('소환사 ','')}${prot}</b>${pt}`
+       : `<b>${ic} ${w.size}★</b>${pt}`; }
+function _vsig(w,id){ return ((OPT&&OPT.ptsOf)?OPT.ptsOf(id):0)+'|'+(w.size||0)+'|'+((OPT&&OPT.isP&&OPT.isP(w))?1:0); }
 export function build(opts){ opts=opts||{}; OPT=opts; initS();
   _mIcon = opts.icon || (()=>'');
   const world=opts.world, cols=opts.cols, rows=opts.rows, rev=opts.revealed||{};
@@ -2399,8 +2403,8 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
   const full=(wsig!==_wsig);
   // 성장(★)·보호 상태만 바뀐 경우 → 전체 재구성 없이 이미 만든 라벨 글자만 갱신
   if(!full){ for(const L of VLAB){ if(!L.id) continue; const w=world[L.id]; if(!w) continue;
-    const sig=(w.size||0)+'|'+(opts.isP(w)?1:0);
-    if(L.sig!==sig){ L.sig=sig; L.el.innerHTML=_mkMarkHtml(w); }
+    const sig=_vsig(w,L.id);
+    if(L.sig!==sig){ L.sig=sig; L.el.innerHTML=_mkMarkHtml(w,L.id); }
     _applyVil(L,w); } }
   if(full){   // 월드 구조 변경 → 전체 재구성
     _wsig=wsig; _rcnt=-1; _built=Object.create(null); _pen=Object.create(null);
@@ -2419,8 +2423,8 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
     const p=opts.hex(c,r); const x=p.x-off.x, z=p.z-off.z; const id=at[key];
     if(id){ const w=world[id]; tile((r>=rows-3)?'sand':'grass',x,z,false);
       const el=document.createElement('div'); el.className='v3-label vmk3 '+(w.owner==='me'?'me':(w.owner==='player'?'pl':'barb'));
-      el.innerHTML=_mkMarkHtml(w);
-      const L={el,pos:new T.Vector3(x,1,z),id,sig:(w.size||0)+'|'+(opts.isP(w)?1:0),x,z,ry:_hrand(c,r)*6.283,msig:'',meshes:[],onTap:()=>{ if(opts.onNode) opts.onNode(id); }};
+      el.innerHTML=_mkMarkHtml(w,id);
+      const L={el,pos:new T.Vector3(x,1,z),id,sig:_vsig(w,id),x,z,ry:_hrand(c,r)*6.283,msig:'',meshes:[],onTap:()=>{ if(opts.onNode) opts.onNode(id); }};
       LH.appendChild(el); VLAB.push(L); _applyVil(L,w);
     } else if(roads[key]){ tile((r>=rows-3)?'sand':'grass',x,z,false); tile(roads[key].n,x,z,false,roads[key].rot,0.2); }
     else { tile(biome(c,r,cols,rows,_hrand(c,r)),x,z,false); }
