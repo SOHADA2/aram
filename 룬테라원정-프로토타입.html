@@ -825,6 +825,9 @@ function armyTotalV(v){ let n=0; for(const u in v.troops) n+=v.troops[u]||0; ret
 // 🏘️ 마을 발전 단계(건물 레벨 합) — 3D 마을 외형과 연동 (Town3D의 공식과 동일하게 유지할 것)
 function vilStage(v){ let p=0; for(const b in v.blds) p+=v.blds[b]||0; return p>=45?3:p>=25?2:p>=10?1:0; }
 const STAGE_NM=['개척지','마을','소도시','성곽 도시'];
+// 🏆 발전 포인트(부족전쟁식) — 레벨이 높을수록 점수가 기하급수적으로 커짐(마을 전체 발전도 지표·표시 전용)
+function bldPoints(L){ return L>0? Math.round(3*(Math.pow(1.16,L)-1)/0.16) : 0; }
+function devPoints(v){ let p=0; for(const b in v.blds) p+=bldPoints(v.blds[b]||0); return p; }
 function snapV(w){ return {name:w.name, x:w.x, y:w.y, owner:w.owner, size:w.size||1}; }
 function crd(w){ return `(${w.x}|${w.y}) K${Math.floor(w.y/10)}${Math.floor(w.x/10)}`; }
 // ══ 전투 엔진 ══
@@ -1133,7 +1136,7 @@ function renderSidebar(){
     else mv+=`<div class="sb-row">${modeLbl(m.mode)} → (${tgt?tgt.x:'?'}|${tgt?tgt.y:'?'})<b>${fmtDur(m.arriveAt-now)}</b></div>`; });
   if(!mv) mv=`<div class="sb-row" style="color:#9a8a60">이동 중인 부대 없음</div>`;
   sb.innerHTML=`
-    <div class="box"><div class="bh">${I('main')} 내 마을 <small>${crd(w)}</small></div><div class="bc">
+    <div class="box"><div class="bh">${I('main')} 내 마을 <small>${crd(w)} · 🏆 ${NF(devPoints(v))}점</small></div><div class="bc">
       ${sw}${resRow('wood')}${resRow('clay')}${resRow('iron')}
       <div class="sb-row">${I('pop')} 인구<b>${NF(popUsed())}/${NF(popCap())}</b></div>
       <div class="sb-row">${I('shield')} 주둔 병력<b>${NF(armyTotalV(v))}</b></div>
@@ -1393,7 +1396,7 @@ function renderVillage(full){
         <div class="scene-cam" id="rgn-cam"></div>
         <div class="scene-amb" style="background:radial-gradient(48% 36% at 50% 40%, ${B.amb}, transparent 72%)"></div>
         <div class="biome-fx" id="biome-fx"></div>
-        <div class="stt">${STAGE_NM[vilStage(S.v)]} <small>${w?crd(w):''}</small></div>
+        <div class="stt">${STAGE_NM[vilStage(S.v)]} <small>${w?crd(w):''} · ${NF(devPoints(S.v))}점</small></div>
         <button class="pz-reset" id="rgn-reset" title="원래대로"></button>
         <button class="pz-reset" id="rgn-daynight" style="top:46px" title="낮/밤"></button>
       </div>
