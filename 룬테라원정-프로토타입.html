@@ -183,6 +183,8 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .bld-open{width:100%;margin-top:5px;padding:5px;border:1px solid #5a7a22;border-radius:6px;background:linear-gradient(180deg,#cfe0a0,#a8c46a);color:#243208;font-size:9px;font-weight:800;cursor:pointer;font-family:inherit;}
 /* 모바일 건물 아이콘 그리드(모바일식 — 탭하면 시트) */
 .bgrid2{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;}
+.bcat{margin-bottom:9px;} .bcat:last-child{margin-bottom:0;}
+.bcat-h{font-size:9px;font-weight:800;color:#a08a58;letter-spacing:.5px;margin:0 0 4px 1px;}
 .bt2{position:relative;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:2px;padding:4px 3px;background:#221910;border:1px solid #6b4f24;border-radius:9px;cursor:pointer;}
 .bt2:active{transform:translateY(1px);}
 .bt2 .i{font-size:13px;line-height:1.1;filter:drop-shadow(0 1px 1px rgba(90,60,20,.3));}
@@ -421,13 +423,11 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
   .bsheet .bsh-handle{display:none;}
   .bsheet-dim{background:rgba(10,7,3,.6);backdrop-filter:blur(2px);}
   .bsheet .rgrid{grid-template-columns:1fr 1fr;}
-  /* 🏘️ 마을 화면 = [건물 빌드메뉴 좌 | 3D 씬 우] 2컬럼(전역 사이드바는 그대로 우측에) */
-  .vil-grid{display:grid;grid-template-columns:250px minmax(0,1fr);gap:10px;align-items:start;}
-  .vil-side{order:1;min-width:0;} .vil-main{order:2;min-width:0;}
-  .vil-side .box{margin-bottom:8px;}
+  /* 🏘️ 우측 사이드바 = 건물(카테고리)·병력·부대 이동 통합 패널(스크롤) · 건물=세로 아이콘 3열 */
+  .sidebar{max-height:calc(100vh - 20px);overflow-y:auto;overscroll-behavior:contain;}
   .bgrid2{grid-template-columns:repeat(3,1fr);gap:6px;}
-  .bt2{flex-direction:column;justify-content:flex-start;gap:3px;padding:8px 3px 7px;border-radius:9px;}
-  .bt2 .i{font-size:21px;line-height:1;}
+  .bt2{flex-direction:column;justify-content:flex-start;gap:3px;padding:7px 3px 6px;border-radius:9px;}
+  .bt2 .i{font-size:20px;line-height:1;}
   .bt2 .n{font-size:8.5px;letter-spacing:-.3px;max-width:100%;text-align:center;}
   .bt2 .lv{margin:0;font-size:8.5px;padding:0 5px;}
   .picker,.picker.atk{max-width:520px;}
@@ -1141,28 +1141,20 @@ function renderTop(){
 function renderSidebar(){
   const sb=document.getElementById('sidebar'); if(!sb) return;
   if(!isPC()){ sb.innerHTML=''; return; }
-  const v=S.v, w=S.world[S.active], cap=storeCap(), now=Date.now();
+  const v=S.v, w=S.world[S.active], cap=storeCap();
   const owned=ownedIds();
   const sw = owned.length>1? `<div class="vswrow">${owned.map(id=>`<button class="vsw-b ${id===S.active?'on':''}" onclick="switchVil('${id}')">${I('main')} (${S.world[id].x}|${S.world[id].y})</button>`).join('')}</div>` : '';
   const resRow=(k)=>{ const val=Math.floor(v.res[k]); const pct=Math.min(100,val/cap*100); const cls=pct>=97?'full':(pct>=80?'warn':'');
     return `<div class="sb-res ${cls}"><span class="ricw">${I(RES[k],'ic-lg r-'+k)}</span><em>${NF(val)}</em><span class="cap">/ ${NF(cap)}</span><s>+${prodPerMin(v.blds[k]||0)}/분</s></div>`; };
-  let q='';
-  if(v.buildQ.length){ const h=v.buildQ[0]; q+=`<div class="sb-row">${I('workshop')} ${BLD[h.b].nm} Lv${(v.blds[h.b]||0)+1}${v.buildQ.length>1?` (+${v.buildQ.length-1})`:''}<b>${fmtDur(h.doneAt-now)} · ${fmtClock(h.doneAt)}</b></div>`; }
-  if(v.recQ.length){ const h=v.recQ[0]; q+=`<div class="sb-row">${I(TROOP[h.u].ic)} ${TROOP[h.u].nm} ×${v.recQ.length}<b>${fmtDur(h.doneAt-now)} · ${fmtClock(h.doneAt)}</b></div>`; }
-  if(!q) q=`<div class="sb-row" style="color:#9a8a60">진행 중인 작업 없음</div>`;
-  let mv='';
-  (S.marches||[]).forEach(m=>{ const inc=m.mode==='raid'; const tgt=S.world[m.to];
-    if(inc) mv+=`<div class="sb-row inc">${I('fire')} 습격! → (${tgt?tgt.x:'?'}|${tgt?tgt.y:'?'})<b>${fmtDur(m.arriveAt-now)}</b></div>`;
-    else mv+=`<div class="sb-row">${modeLbl(m.mode)} → (${tgt?tgt.x:'?'}|${tgt?tgt.y:'?'})<b>${fmtDur(m.arriveAt-now)}</b></div>`; });
-  if(!mv) mv=`<div class="sb-row" style="color:#9a8a60">이동 중인 부대 없음</div>`;
   sb.innerHTML=`
     <div class="box"><div class="bh">${I('main')} 내 마을 <small>${crd(w)} · 🏆 ${NF(devPoints(v))}점</small></div><div class="bc">
       ${sw}${resRow('wood')}${resRow('clay')}${resRow('iron')}
       <div class="sb-row">${I('pop')} 인구<b>${NF(popUsed())}/${NF(popCap())}</b></div>
-      <div class="sb-row">${I('shield')} 주둔 병력<b>${NF(armyTotalV(v))}</b></div>
     </div></div>
-    <div class="box"><div class="bh">⏳ 진행</div><div class="bc">${q}</div></div>
-    <div class="box"><div class="bh">${I('cart')} 부대 이동</div><div class="bc">${mv}</div></div>`;
+    <div class="box"><div class="bh">${I('workshop')} 건물 <small>클릭 = 업글 · 훈련</small></div><div class="bc" id="vil-blds"></div></div>
+    <div class="box"><div class="bh">${I('shield')} 병력 <small id="vil-armytot"></small></div><div class="bc" id="vil-army"></div></div>
+    <div class="box"><div class="bh">${I('cart')} 부대 이동</div><div class="bc" id="vil-marches"></div></div>`;
+  updateVillageDynamic();   // #vil-blds/army/marches 즉시 채움(매초 loop가 이 함수→renderSidebar 순이라 안 채우면 깜빡임)
 }
 // ── 지도(3D 우선 · 2D 폴백) ──
 // 3D 지도 로드 실패 배너 — 원인(모듈 에러)을 같이 보여줘 추측하지 않게
@@ -1412,9 +1404,7 @@ function renderVillage(full){
   if(full || _vilBuilt!==S.active || S._dirtyVil || _vilPC!==isPC()){
     S._dirtyVil=false;
     el.innerHTML = `
-     <div class="vil-grid">
-      <div class="vil-main">
-        <div class="scene" id="rgn-scene" style="background:radial-gradient(64% 56% at 50% 42%, ${B.sky[0]}, ${B.sky[1]} 58%, ${B.sky[2]} 100%)">
+      <div class="scene" id="rgn-scene" style="background:radial-gradient(64% 56% at 50% 42%, ${B.sky[0]}, ${B.sky[1]} 58%, ${B.sky[2]} 100%)">
         <div class="scene-cam" id="rgn-cam"></div>
         <div class="scene-amb" style="background:radial-gradient(48% 36% at 50% 40%, ${B.amb}, transparent 72%)"></div>
         <div class="biome-fx" id="biome-fx"></div>
@@ -1422,15 +1412,12 @@ function renderVillage(full){
         <button class="pz-reset" id="rgn-reset" title="원래대로"></button>
         <button class="pz-reset" id="rgn-daynight" style="top:46px" title="낮/밤"></button>
       </div>
-        <div id="vil-switch"></div>
-        <div id="vil-queues"></div>
-      </div>
-      <div class="vil-side">
-        <div class="box"><div class="bh">${I('workshop')} 건물 <small>클릭해서 업그레이드 · 훈련</small></div><div class="bc" id="vil-blds"></div></div>
-        <div class="box"><div class="bh">${I('shield')} 병력 <small id="vil-armytot"></small></div><div class="bc" id="vil-army"></div></div>
-        <div class="box"><div class="bh">${I('cart')} 이 마을의 행군</div><div class="bc" id="vil-marches"></div></div>
-      </div>
-     </div>
+      <div id="vil-switch"></div>
+      <div id="vil-queues"></div>
+      ${isPC()? '' : `
+      <div class="box"><div class="bh">${I('workshop')} 건물 <small>클릭 = 업글 · 훈련</small></div><div class="bc" id="vil-blds"></div></div>
+      <div class="box"><div class="bh">${I('shield')} 병력 <small id="vil-armytot"></small></div><div class="bc" id="vil-army"></div></div>
+      <div class="box"><div class="bh">${I('cart')} 이 마을의 행군</div><div class="bc" id="vil-marches"></div></div>`}
       <div style="height:8px"></div>`;
     fillBiomeFx(B.fx);
     const _sc=document.getElementById('rgn-scene');
@@ -1486,6 +1473,13 @@ function defenseStatusHtml(v){
     <span class="ds-row"><i>궁병</i><b>${f(da)}</b></span>
     ${wl?`<span class="ds-wall">${I('wall')} 성벽 ${wl}</span>`:''}</div>`;
 }
+// 🏘️ 건물 팔레트(카테고리별) — 사이드바·모바일 공통. 클릭 시 건물 창(업글·훈련)
+const BLD_CATS=[['자원','wood','clay','iron','farm','storage','hide'],['군사','barracks','stable','workshop','smithy','academy','rally'],['중심','main','market','wall']];
+function _bldPaletteHtml(){ const v=S.v;
+  const tile=(b)=>{ const d=BLD[b]; const lv=v.blds[b]||0; const qd=v.buildQ.filter(x=>x.b===b).length; const eff=lv+qd; const maxed=eff>=d.max; const met=reqMet(b); const aff=canAffordV(bcost(b,eff+1)); const hl=(b==='rally'&&lv<1&&met);
+    return `<div class="bt2 ${(!met&&!lv)?'lock':''} ${hl?'hl':''} ${(!maxed&&met&&aff)?'can':''}" onclick="openBldSheet('${b}')"><span class="i">${I(d.ic,'ic-lg')}</span><span class="n">${(d.nm||'').replace(/\s/g,'')}</span><span class="lv${qd?' up':''}">${qd?`${lv}▸${lv+qd}`:lv}</span></div>`; };
+  return BLD_CATS.map(cat=>`<div class="bcat"><div class="bcat-h">${cat[0]}</div><div class="bgrid2">${cat.slice(1).map(tile).join('')}</div></div>`).join('');
+}
 function updateVillageDynamic(){
   const v=S.v; const now=Date.now(); const pc=isPC();
   const sw=document.getElementById('vil-switch'); if(sw){ const owned=ownedIds();
@@ -1516,18 +1510,7 @@ function updateVillageDynamic(){
       <span class="qmeta">${w?crd(w):'?'} · ${t.back?`상인 ${t.n}명`:resStr(t.res)}</span>
       <b>${fmtDur(rem)}</b><div class="qbar"><div style="width:${pct.toFixed(0)}%"></div></div></div>`; });
   const qe=document.getElementById('vil-queues'); if(qe) qe.innerHTML=q;
-  const be=document.getElementById('vil-blds');
-  if(be){
-    const rows=Object.keys(BLD).map(b=>{ const d=BLD[b]; const lv=v.blds[b]||0; const qd=v.buildQ.filter(x=>x.b===b).length; const eff=lv+qd; const maxed=eff>=d.max;
-      const c=bcost(b,eff+1); const met=reqMet(b); const aff=canAffordV(c);
-      const reqTxt=d.req? Object.keys(d.req).map(k=>BLD[k].nm+d.req[k]).join('·') : '';
-      const hl=(b==='rally'&&lv<1&&met);
-      return {b,d,lv,qd,maxed,c,met,aff,reqTxt,hl,ef:bldEffTxt(b,lv),nx:bldNextTxt(b,eff),tS:fmtSec(buildTime(b,eff+1))}; });
-    // 🏘️ 건물 아이콘 팔레트 — 클릭하면 건물 창(업글·훈련)이 뜬다(PC=중앙 창 / 모바일=하단 시트). 3D 마을의 건물을 눌러도 동일.
-    be.innerHTML=`<div class="bgrid2">`+rows.map(r=>
-      `<div class="bt2 ${(!r.met&&!r.lv)?'lock':''} ${r.hl?'hl':''} ${(!r.maxed&&r.met&&r.aff)?'can':''}" onclick="openBldSheet('${r.b}')">
-        <span class="i">${I(r.d.ic,'ic-lg')}</span><span class="n">${(r.d.nm||'').replace(/\s/g,'')}</span><span class="lv${r.qd?' up':''}">${r.qd?`${r.lv}▸${r.lv+r.qd}`:r.lv}</span></div>`).join('')+`</div>`;
-  }
+  const be=document.getElementById('vil-blds'); if(be) be.innerHTML=_bldPaletteHtml();
   renderRecruit('vil-barracks','barracks',UNIT_GROUPS.barracks,pc);
   renderRecruit('vil-stable','stable',UNIT_GROUPS.stable,pc);
   renderRecruit('vil-workshop','workshop',UNIT_GROUPS.workshop,pc);
