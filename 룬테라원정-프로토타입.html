@@ -595,16 +595,16 @@ const BLD = {   // 수치=정통 전략 밸런스
   rally:   {ic:'rally', nm:'집결지',      max:1,  w:10,  c:40,  i:30,  f:1,     p:1,  req:{main:1}, desc:'부대 지휘 — 공격·지원·정찰'},
   barracks:{ic:'barracks', nm:'병영',          max:25, w:200, c:170, i:90,  f:1.26,  p:7,  req:{main:3},                     desc:'보병 훈련'},
   stable:  {ic:'stable', nm:'마구간',        max:20, w:270, c:240, i:260, f:1.26,  p:8,  req:{main:10,barracks:5},         desc:'기병·정찰대 훈련'},
-  workshop:{ic:'workshop', nm:'공방',        max:15, w:300, c:240, i:260, f:1.26,  p:8,  req:{main:10,barracks:5},         desc:'공성 병기 제작'},
+  workshop:{ic:'workshop', nm:'공성 작업장',        max:15, w:300, c:240, i:260, f:1.26,  p:8,  req:{main:10,barracks:5},         desc:'공성 병기 제작'},
   smithy:  {ic:'smithy', nm:'대장간',      max:20, w:220, c:180, i:240, f:1.26,  p:20, req:{main:5,barracks:1},          desc:'병력 성능 연구'},
-  academy: {ic:'academy', nm:'대학',        max:1,  w:15000,c:25000,i:10000, f:1, p:80, req:{main:20,smithy:20,market:10},desc:'귀족 훈련(마을 정복)'},
+  academy: {ic:'academy', nm:'영주관',        max:1,  w:15000,c:25000,i:10000, f:1, p:80, req:{main:20,smithy:20,market:10},desc:'귀족 훈련(마을 정복)'},
   market:  {ic:'market', nm:'시장',        max:25, w:100, c:100, i:100, f:1.26,  p:20, req:{main:3,storage:2},           desc:'자원 거래'},
   wood:    {ic:'wood', nm:'목재소',      max:30, res:'wood', w:50, c:60, i:40, f:1.155, p:5,  desc:'목재 생산'},
   clay:    {ic:'clay', nm:'점토굴',      max:30, res:'clay', w:65, c:50, i:40, f:1.155, p:5,  desc:'점토 생산'},
   iron:    {ic:'iron', nm:'철광산',        max:30, res:'iron', w:75, c:65, i:70, f:1.155, p:10, desc:'철 생산'},
   farm:    {ic:'farm', nm:'농장',          max:30, w:45,  c:40,  i:30,  f:1.172, desc:'식량 → 인구 상한'},
   storage: {ic:'storage', nm:'창고',          max:30, w:60,  c:50,  i:40,  f:1.229, desc:'자원을 쌓아둘 수 있는 양'},
-  hide:    {ic:'hide', nm:'지하창고',      max:10, w:50,  c:60,  i:50,  f:1.333, p:2,  desc:'약탈당해도 이만큼은 지켜져요'},
+  hide:    {ic:'hide', nm:'숨은 곳간',      max:10, w:50,  c:60,  i:50,  f:1.333, p:2,  desc:'약탈당해도 이만큼은 지켜져요'},
   wall:    {ic:'wall', nm:'성벽',          max:20, w:50,  c:100, i:20,  f:1.26,  p:5,  req:{barracks:1}, desc:'마을 방어력'},
 };
 // 받침 유무로 조사 자동 선택 — 「점토굴을/성벽을」처럼 자연스럽게(기계식 '을(를)' 제거)
@@ -869,7 +869,7 @@ function snapV(w){ return {name:w.name, x:w.x, y:w.y, owner:w.owner, size:w.size
 function crd(w){ return `(${w.x}|${w.y}) K${Math.floor(w.y/10)}${Math.floor(w.x/10)}`; }
 // ══ 전투 엔진 ══
 //  · 공격 병과(보/기/궁) 비율대로 부분 전투 → 병과별 방어(def/defC/defA) 가중 합산
-//  · 🍀 운 -25%~+25%(공격자) · 사기(수비 점수/공격 점수 기반, 대 소환사만)
+//  · 🍀 운 -25%~+25%(공격자) · 사기(수비 점수/공격 점수 기반, 다른 플레이어 마을 상대로만)
 //  · 🧱 성벽 = 기본 방어(20×1.25^) + 방어 배율(1.037^)  · 🐏 파성추 = 전투 중 성벽 약화
 //  · 손실 = 승자 (열세/우세)^1.5 비율, 패자 전멸 (정통 전투 공식)
 function wallBasicDef(l){ return l>0? Math.round(20*Math.pow(1.25,l-1)) : 0; }
@@ -996,12 +996,12 @@ function resolveScout(m, now){
   toast(`${w.name} 정찰 실패 — 적 정찰병에 발각(전멸)`);
   return true;
 }
-// ⚔️ 피습 방어 — 정통 전략식: 공격자 승리 시 수비 병력 전멸 + 약탈(지하창고 보호) / 방어 성공 시 수비 비례 손실
+// ⚔️ 피습 방어 — 정통 전략식: 공격자 승리 시 수비 병력 전멸 + 약탈(숨은 곳간 보호) / 방어 성공 시 수비 비례 손실
 function resolveDefense(m, now){
   const vid=m.to||HOME_KEY; const v=S.villages[vid]; const w=S.world[vid]; const a=S.world[m.from]; if(!v||!w) return;
   const stacks=[v.troops].concat((v.support||[]).map(s=>s.units));
   const r=twBattle(m.units, stacks, {wall:(v.blds.wall||0), defResearch:true});
-  const atkName=a?a.name:'적 소환사';
+  const atkName=a?a.name:'알 수 없는 적';
   const myLost={}; const loot={wood:0,clay:0,iron:0};
   if(r.win){
     stacks.forEach(st=>{ for(const u in st){ const c=Math.floor(st[u]||0); if(c) myLost[u]=(myLost[u]||0)+c; } });
@@ -1027,10 +1027,10 @@ function resolveDefense(m, now){
 // 원작의 야만인 마을은 먼저 공격해 오지 않는다. 파밍 난이도는 「그 마을의 수비대·성벽」이 만든다(barbGarrison/barbWall).
 // 타이머로 계속 쳐들어오게 했더니 인과가 없어 인위적이었음 → 스폰만 끊고, 방어 전투(resolveDefense)와
 // 이 스폰 코드는 실팀원 멀티(플레이어 공격) 붙일 때 재사용하려고 의도적으로 남겨둔다.
-// 발전도 = 습격 규모의 기준. ⚠️방어 건물(성벽·지하창고)은 제외 — 포함하면 "성벽을 올릴수록 습격이 세져서 더 아픈" 역효과가 남.
+// 발전도 = 습격 규모의 기준. ⚠️방어 건물(성벽·숨은 곳간)은 제외 — 포함하면 "성벽을 올릴수록 습격이 세져서 더 아픈" 역효과가 남.
 function villageDev(v){ let s=0; for(const b in v.blds){ if(b==='wall'||b==='hide') continue; s+=(v.blds[b]||0); } return s; }
 // ⚠️ 습격 규모는 **병력만** 기준으로 잡는다(성벽 제외). 성벽까지 포함하면 성벽을 올릴수록 습격도 세져서
-//    방어 투자가 상쇄돼 버림 → 성벽·지하창고가 순수 이득이 되도록 의도적으로 뺌.
+//    방어 투자가 상쇄돼 버림 → 성벽·숨은 곳간이 순수 이득이 되도록 의도적으로 뺌.
 function villageTroopPow(v){
   let d=0; const stacks=[v.troops].concat((v.support||[]).map(s=>s.units));
   stacks.forEach(st=>{ for(const u in st){ const c=Math.floor(st[u]||0); if(c) d+=c*TROOP[u].def*researchBonus(u); } });
@@ -1219,7 +1219,7 @@ function renderMap(){
     const szc = (me||pl)?'big':(w.size>=5?'big':(w.size>=3?'mid':'sml'));
     const ic = I(me?'main':(pl?'tower':'hut'),'ic-lg');
     const tag = me?`<span class="vmk-tag">내 마을${isProtected(w)?' '+I('shield'):''}</span>`
-              : (pl?`<span class="vmk-tag player">${(w.name||'').replace('소환사 ','')}${isProtected(w)?' '+I('shield'):''}</span>`
+              : (pl?`<span class="vmk-tag player">${(w.name||'')}${isProtected(w)?' '+I('shield'):''}</span>`
               : (w.size>=4?`<span class="vmk-tag barb">${w.size}★</span>`:''));
     return `<div class="vmk ${cls} ${szc}" style="left:${((w.x+0.5)*F).toFixed(1)}px;top:${((w.y+0.5)*F).toFixed(1)}px" data-id="${id}"><div class="vmk-box"><span class="vmk-ic">${ic}</span>${tag}</div></div>`;
   }).join('');
@@ -1335,7 +1335,7 @@ function openVillageInfo(id){ const w=S.world[id]; if(!w) return;
   const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
   ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:360px">
     <div class="vi-hd"><span class="vi-ic">${ic}</span>
-      <div class="vi-tt"><b>${(w.name||'마을').replace('소환사 ','')}</b><small>${crd(w)}</small></div>
+      <div class="vi-tt"><b>${(w.name||'마을')}</b><small>${crd(w)}</small></div>
       <span class="vi-tag ${isPlayer?'pl':''}">${mine?I('main')+' 내 마을':(isPlayer?I('tower')+' 라이벌':I('hut')+' 야만인 마을')}</span></div>
     <div class="vi-grid">
       <div class="vi-cell"><div class="k">규모</div><div class="v">${w.size}★</div></div>
@@ -1383,7 +1383,7 @@ function openAttack(id, mode0){
     ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker" style="max-width:320px;text-align:center">
       <div style="margin:4px 0">${I('shield','ic-hero')}</div>
       <h3 class="pick-h" style="text-align:center">${w.name} · 보호 중</h3>
-      <div class="muted" style="margin:8px 0 2px;line-height:1.5">이 소환사는 <b style="color:#1d5c96">${fmtProtect(protectLeft(w))}</b> 동안<br>공격받지 않아요.</div>
+      <div class="muted" style="margin:8px 0 2px;line-height:1.5">이 마을은 <b style="color:#1d5c96">${fmtProtect(protectLeft(w))}</b> 동안<br>공격받지 않아요.</div>
       <button class="btn" style="width:100%;padding:11px;margin-top:10px" onclick="this.closest('.ov').remove()">확인</button>
     </div>`;
     document.body.appendChild(ov); return;
@@ -1784,7 +1784,7 @@ function updateRallyLive(){
     const ms=S.marches||[];
     const rows=ms.map(m=>{ const inc=m.mode==='raid'; const tgt=S.world[m.to]; const org=inc? S.world[m.from]:S.world[m.fromV||HOME_KEY];
       const uu=inc?'':Object.keys(m.units).filter(u=>m.units[u]>0).map(u=>I(TROOP[u].ic)+NF(m.units[u])).join(' ');
-      const lbl=inc? `${I('fire')} <b>습격!</b> ${org?(org.name||'').replace('소환사 ',''):''} → ${tgt?crd(tgt):''}` : `${modeLbl(m.mode)} → ${tgt?(tgt.name+' '+crd(tgt)):''}`;
+      const lbl=inc? `${I('fire')} <b>습격!</b> ${org?(org.name||''):''} → ${tgt?crd(tgt):''}` : `${modeLbl(m.mode)} → ${tgt?(tgt.name+' '+crd(tgt)):''}`;
       return {inc, html:`<div class="rl-mrow ${inc?'inc':m.mode}"><span>${lbl}</span><span class="rl-units">${uu}</span><b>${fmtDur(m.arriveAt-now)}</b></div>`}; });
     rows.sort((a,b)=>(b.inc?1:0)-(a.inc?1:0));   // 들어오는 습격 최상단
     mv.innerHTML = rows.length? rows.map(r=>r.html).join('') : `<div class="muted">진행 중인 명령이 없어요</div>`;
@@ -1806,7 +1806,7 @@ function reportCard(r){
   const luck=r.luck!=null? `<span class="rp-chip ${r.luck>=0?'g':'r'}">운 ${(r.luck*100).toFixed(1)}%</span>`:'';
   const pows=r.atkPow!=null? `<span class="rp-chip">${I('sword')} ${NF(r.atkPow)} vs ${I('shield')} ${NF(r.defPow)}</span>`:'';
   if(r.type==='attack'){
-    const title=`${I(r.conquered?'noble':(r.win?'sword':'warn'))} ${(r.tgt.name||'').replace('소환사 ','')} ${crd(r.tgt)} ${r.conquered?'정복!':(r.win?'공격 승리':'공격 패배')}`;
+    const title=`${I(r.conquered?'noble':(r.win?'sword':'warn'))} ${(r.tgt.name||'')} ${crd(r.tgt)} ${r.conquered?'정복!':(r.win?'공격 승리':'공격 패배')}`;
     const lootT=r.loot?(r.loot.wood+r.loot.clay+r.loot.iron):0;
     return `<details class="rep2 ${r.win?'w':'l'}"><summary>${title}<span class="rtime">${t}</span></summary><div class="rp-body">
       <div class="rp-meta">${pows}${luck}${r.morale!=null&&r.morale<1?`<span class="rp-chip">😤 사기 ${(r.morale*100).toFixed(0)}%</span>`:''}</div>
@@ -1819,7 +1819,7 @@ function reportCard(r){
     </div></details>`;
   }
   if(r.type==='defense'){
-    const title=`${r.win?I('shield')+' 방어 성공':I('warn')+' 약탈당함'} · ${r.raid?`${I('fire')} ${r.big?'대규모 ':''}야만인 습격`:(r.from.name||'').replace('소환사 ','')} → ${crd(r.tgt)}`;
+    const title=`${r.win?I('shield')+' 방어 성공':I('warn')+' 약탈당함'} · ${r.raid?`${I('fire')} ${r.big?'대규모 ':''}야만인 습격`:(r.from.name||'')} → ${crd(r.tgt)}`;
     const lootT=r.loot?(r.loot.wood+r.loot.clay+r.loot.iron):0;
     return `<details class="rep2 ${r.win?'w':'l'}"><summary>${title}<span class="rtime">${t}</span></summary><div class="rp-body">
       <div class="rp-meta">${pows}${luck}</div>
@@ -1829,7 +1829,7 @@ function reportCard(r){
     </div></details>`;
   }
   if(r.type==='scout'){
-    const title=`${I('scout')} ${(r.tgt.name||'').replace('소환사 ','')} ${crd(r.tgt)} 정찰 ${r.win?'성공':'실패'}`;
+    const title=`${I('scout')} ${(r.tgt.name||'')} ${crd(r.tgt)} 정찰 ${r.win?'성공':'실패'}`;
     return `<details class="rep2 ${r.win?'w':'l'}"><summary>${title}<span class="rtime">${t}</span></summary><div class="rp-body">
       <div class="rp-sec">정찰대</div>${uchips(r.sent,r.lost)}
       ${r.win&&r.spy? `<div class="rp-sec">정찰 결과</div>
@@ -2136,11 +2136,11 @@ async function placeBuilding(x,z,ry,b,lv,central,mx){
   if(lv<=0) return;
   // 🏛️ 완성형 RTS 건물 — 6단계를 건물 최대레벨에 고르게 분산(초기 목조 1~3 → 발전 석조 4~6)
   const tier = _forceTier || ((!mx||mx<=1) ? 3 : Math.max(1, Math.min(6, Math.ceil(lv/mx*6))));
-  // 🏰 본진 = workshop(웅장한 요새→석조 성) 모델. (RTS main 모델은 사슴 동상 얹은 단상이라 본진답지 않음 → 공방과 맞바꿈)
+  // 🏰 본진 = workshop(웅장한 요새→석조 성) 모델. (RTS main 모델은 사슴 동상 얹은 단상이라 본진답지 않음 → 공성 작업장과 맞바꿈)
   if(central){ await instFit('rts','workshop_'+tier,bgroup,x,z,{w:3.4,ry:ry+P2,tag:b}); return; }
   // 집결지=단층 감시초소(rally_1) 고정 — rally_3은 3층이라 아파트처럼 보임
   const name = (b==='hide') ? (tier>=4?'hide2':'hide') : (b==='rally') ? 'rally_1'
-             : (b==='workshop') ? ('smithy_'+tier)   // 공방=공성병기 제작 → 조선소/건설 야드(Port) 모델
+             : (b==='workshop') ? ('smithy_'+tier)   // 공성 작업장=공성병기 제작 → 조선소/건설 야드(Port) 모델
              : (b==='smithy') ? ('main_'+tier)        // 대장간=성능 연구 → 광장형 연구 건물(팩에 대장간 전용 모델 없음)
              : (b+'_'+tier);
   await instFit('rts',name,bgroup,x,z,{w:2.5,ry:ry+P2,tag:b});
@@ -2474,7 +2474,7 @@ function _mkMarkHtml(w,id){ const ic=_mIcon(w.owner==='me'?'main':(w.owner==='pl
   const pts=(OPT&&OPT.ptsOf)?OPT.ptsOf(id):0; const nf=(OPT&&OPT.nf)||(x=>x);
   const pt=pts?`<i>${nf(pts)}점</i>`:'';
   return w.owner==='me'?`<b>${ic} 내 성${prot}</b>${pt}`
-       : w.owner==='player'?`<b>${ic} ${(w.name||'').replace('소환사 ','')}${prot}</b>${pt}`
+       : w.owner==='player'?`<b>${ic} ${(w.name||'')}${prot}</b>${pt}`
        : `<b>${ic} ${w.size}★</b>${pt}`; }
 function _vsig(w,id){ return ((OPT&&OPT.ptsOf)?OPT.ptsOf(id):0)+'|'+(w.size||0)+'|'+((OPT&&OPT.isP&&OPT.isP(w))?1:0); }
 export function build(opts){ opts=opts||{}; OPT=opts; initS();
