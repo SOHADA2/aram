@@ -2210,18 +2210,21 @@ const C={}, GL=new GLTFLoader(), VLAB=[], MLAB=[];
 function ld(n){ return C[n]||(C[n]=GL.loadAsync(HX+n+'.glb').then(g=>g.scene)); }
 // 지역별 지형 — 정규화 좌표 + 부드러운 노이즈로 산맥/사막/호수/숲이 뭉쳐 나옴
 function _snoise(x,y){ return Math.sin(x*3.1+y*1.7)*0.5 + Math.sin(x*1.3-y*2.7+2.0)*0.3 + Math.sin((x+y)*2.3+4.0)*0.2; } // ~[-1,1]
+// 다중 옥타브 노이즈 — 절대 좌표 기반이라 맵 크기와 무관하게 지형이 곳곳에 분포(~[-1,1])
+function _fbm(x,y){ return _snoise(x,y)*0.6 + _snoise(x*2.13+5.2,y*2.13-3.7)*0.28 + _snoise(x*4.31-1.1,y*4.31+2.9)*0.12; }
 function biome(c,r,cols,rows,rnd){
-  const u=c/((cols-1)||1), v=r/((rows-1)||1); const j=_snoise(u*4,v*4)*0.09;
-  // ⛰️ 산맥: 북쪽 가장자리 + 대각 능선
-  if((v+j)<0.15 || Math.abs((u*0.75+v)-1.18 + _snoise(u*3,v*3+1)*0.13)<0.075) return rnd<.5?'stone-mountain':(rnd<.8?'stone-hill':'stone-rocks');
-  // 🏜️ 사막: 남쪽 + 남동 블롭
-  if((v-j)>0.85 || Math.hypot((u-0.85)*1.1,(v-0.8))<(0.20+j)) return rnd<.45?'sand-desert':(rnd<.8?'sand':'sand-rocks');
-  // 💧 호수: 중서부 블롭
-  if(Math.hypot((u-0.32)*1.15,(v-0.6))<(0.10+_snoise(u*5,v*5)*0.03)) return rnd<.72?'water':'water-rocks';
-  // 🌲 숲: 여러 군집
-  if(Math.hypot((u-0.63)*1.0,(v-0.28))<0.15 || Math.hypot((u-0.22)*1.0,(v-0.30))<0.12 || Math.hypot((u-0.72)*1.1,(v-0.68))<0.14 || rnd<.10)
-    return 'grass-forest';
-  if(rnd<.10) return 'grass-hill';
+  // 고도(elevation)+습도(moisture) 절대좌표 노이즈 → 맵 크기와 무관하게 산맥/호수/숲/사막이 곳곳에 다양하게 분포
+  const F=0.10;                                   // 지형 특징 빈도(작을수록 큰 지형)
+  const e=_fbm(c*F, r*F);                         // 고도
+  const m=_fbm((c+211)*F*0.92, (r+97)*F*0.92);    // 습도
+  if(e> 0.50) return rnd<.5?'stone-mountain':(rnd<.8?'stone-hill':'stone-rocks');          // ⛰️ 산맥
+  if(e< -0.44) return rnd<.12?'water-island':(rnd<.75?'water':'water-rocks');              // 💧 호수·바다
+  if(e> 0.28) return (m<-0.1)?(rnd<.5?'stone':'stone-rocks'):(rnd<.7?'grass-hill':'stone-hill');  // 🪨 고지·구릉
+  if(m< -0.40) return rnd<.45?'sand-desert':(rnd<.8?'sand':'sand-rocks');                  // 🏜️ 사막(건조)
+  if(m< -0.16) return rnd<.5?'dirt':'grass';                                               // 🟫 마른 평원·황무지
+  if(m>  0.30) return 'grass-forest';                                                      // 🌲 숲(습윤)
+  if(rnd<.09) return 'grass-forest';                                                       // 흩어진 숲
+  if(rnd<.05) return 'grass-hill';
   return 'grass';
 }
 function vTile(w){ if(w.owner==='me') return 'building-castle'; if(w.owner==='player') return 'building-tower';
@@ -2442,7 +2445,7 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
   if(full){ resize(); if(CT && !_camPlaced){ _camPlaced=true; CT.target.set(0,0,0); CT.update(); } }
 }
 // 🌫️ 안개 = 흐릿한 반투명 저지대 헥스 — 지형색을 희미하게 비쳐 "미지의 대륙"처럼(마을=따뜻한 봉우리)
-const _BIOMECOL={'stone-mountain':0x6b6f78,'stone-hill':0x707680,'stone-rocks':0x6b7078,'sand-desert':0xccb473,'sand':0xccb473,'sand-rocks':0xc3a869,'water':0x3f7fb0,'water-rocks':0x3f7fb0,'grass-forest':0x3f7a3a,'grass-hill':0x6f9e46,'grass':0x6f9e46};
+const _BIOMECOL={'stone-mountain':0x6b6f78,'stone-hill':0x707680,'stone-rocks':0x6b7078,'sand-desert':0xccb473,'sand':0xccb473,'sand-rocks':0xc3a869,'water':0x3f7fb0,'water-rocks':0x3f7fb0,'grass-forest':0x3f7a3a,'grass-hill':0x6f9e46,'grass':0x6f9e46,'dirt':0x9a8552,'stone':0x7d8390,'water-island':0x3f7fb0};
 const _FOGDK=new T.Color(0x0f1826);
 let _pen=Object.create(null);
 let _fogCanvas=null,_fogCtx=null,_fogTex=null,_fogPlane=null,_fb=null,_fogCols=0,_fogRows=0,_cloudTex=null,_puffTex=null,_cloudMesh=null,_cloudIdx=null,_cloudDummy=null;
