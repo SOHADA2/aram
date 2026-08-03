@@ -1967,7 +1967,26 @@ function initScene(){
   const grass=new T.Mesh(new T.CircleGeometry(8,52),new T.MeshStandardMaterial({color:0x6f9e46,roughness:1})); grass.rotation.x=-P2; grass.receiveShadow=true; scene.add(grass);
   vgroup=new T.Group(); scene.add(vgroup); bgroup=new T.Group(); scene.add(bgroup); tgroup=new T.Group(); scene.add(tgroup); ogroup=new T.Group(); scene.add(ogroup);
   // 성 밖 들판은 본진 레벨에 따라 buildOuter가 발전시킴(개척지→경작지→발전한 시골)
+  // 🖱️ 건물 메쉬 직접 클릭(레이캐스트) + 호버/클릭 하이라이트 링(어떤 건물인지·클릭감)
+  const _ray=new T.Raycaster(), _ptr=new T.Vector2();
+  const _ringSize=(b)=> b==='main'?2.25 : b==='wall'?1.3 : 1.55;
+  const _pickB=(e)=>{ const r=renderer.domElement.getBoundingClientRect(); if(!r.width) return null;
+    _ptr.x=((e.clientX-r.left)/r.width)*2-1; _ptr.y=-((e.clientY-r.top)/r.height)*2+1; _ray.setFromCamera(_ptr,cam);
+    const hits=_ray.intersectObjects([...bgroup.children,...vgroup.children],true);
+    for(const h of hits){ let o=h.object; while(o){ if(o.userData&&o.userData.bldKey) return o.userData.bldKey; if(o===vgroup) return 'wall'; o=o.parent; } } return null; };
+  const _showHover=(b)=>{ if(b===_hoverB) return; _hoverB=b;
+    if(b&&_bPos[b]){ if(!_hoverRing){ _hoverRing=_mkRing(0xffe08a); } const s=_ringSize(b); _hoverRing.scale.setScalar(s); _hoverRing.position.set(_bPos[b].x,0.15,_bPos[b].z); _hoverRing.visible=true; _hoverRing.material.opacity=0.9; renderer.domElement.style.cursor='pointer'; }
+    else if(_hoverRing){ _hoverRing.visible=false; renderer.domElement.style.cursor=''; } };
+  let _dn=null,_dt=0; const _cv=renderer.domElement;
+  _cv.addEventListener('pointerdown',e=>{ _dn={x:e.clientX,y:e.clientY}; _dt=Date.now(); });
+  _cv.addEventListener('pointermove',e=>{ _showHover(_pickB(e)); });
+  _cv.addEventListener('pointerleave',()=>_showHover(null));
+  _cv.addEventListener('pointerup',e=>{ if(!_dn) return; const mv=Math.abs(e.clientX-_dn.x)+Math.abs(e.clientY-_dn.y); _dn=null; if(mv>7||Date.now()-_dt>500) return;
+    const b=_pickB(e); if(b){ if(!_clickRing){ _clickRing=_mkRing(0xfff0b0); } _clickRing.userData.b=b; _clkPulse=1; if(onBuild) onBuild(b); } });
   (function loop(){ requestAnimationFrame(loop); if(!curEl||!renderer||curEl.offsetParent===null) return; if(ctrl) ctrl.update();
+    if(_clkPulse>0 && _clickRing){ _clkPulse=Math.max(0,_clkPulse-0.06); const b=_clickRing.userData.b, p=_bPos[b];
+      if(p){ const base=_ringSize(b), s=base*(1+(1-_clkPulse)*0.65); _clickRing.scale.setScalar(s); _clickRing.position.set(p.x,0.17,p.z); _clickRing.material.opacity=_clkPulse*0.85; _clickRing.visible=_clkPulse>0.03; } else _clickRing.visible=false; }
+    else if(_clickRing) _clickRing.visible=false;
     renderer.render(scene,cam); updateLabels(); updateWork(); })();
 }
 // 성벽 외형 = 성벽 건물 레벨 연동(정통 전략식): 0=무방비 · 1~4=나무 울타리 · 5~9=돌벽+망루 · 10+=높은 성벽+해자
@@ -2071,7 +2090,8 @@ async function instFit(kit,n,parent,x,z,o){ o=o||{}; try{ const srcM=await loadG
   m.scale.setScalar(s);
   const b2=new T.Box3().setFromObject(m);
   m.position.set(x, -b2.min.y+0.02, z); m.rotation.y=o.ry||0;
-  m.traverse(c=>{ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true;
+  if(o.tag) m.userData.bldKey=o.tag;   // 레이캐스트 클릭용 건물 태그
+  m.traverse(c=>{ if(o.tag) c.userData.bldKey=o.tag; if(c.isMesh){ c.castShadow=true; c.receiveShadow=true;
     if(o.tint!=null){ c.material=c.material.clone(); c.material.color=c.material.color.clone().lerp(new T.Color(o.tint),0.45); } } });
   parent.add(m); return m; }catch(e){}}
 async function placeBuilding(x,z,ry,b,lv,central,mx){
@@ -2079,10 +2099,13 @@ async function placeBuilding(x,z,ry,b,lv,central,mx){
   // 🏛️ 완성형 RTS 건물 — 6단계를 건물 최대레벨에 고르게 분산(초기 목조 1~3 → 발전 석조 4~6)
   const tier = _forceTier || ((!mx||mx<=1) ? 3 : Math.max(1, Math.min(6, Math.ceil(lv/mx*6))));
   // 🏰 본진 = workshop(웅장한 요새→석조 성) 모델. (RTS main 모델은 사슴 동상 얹은 단상이라 본진답지 않음 → 공방과 맞바꿈)
-  if(central){ await instFit('rts','workshop_'+tier,bgroup,x,z,{w:3.4,ry:ry+P2}); return; }
+  if(central){ await instFit('rts','workshop_'+tier,bgroup,x,z,{w:3.4,ry:ry+P2,tag:b}); return; }
   // 집결지=단층 감시초소(rally_1) 고정 — rally_3은 3층이라 아파트처럼 보임
-  const name = (b==='hide') ? (tier>=4?'hide2':'hide') : (b==='rally') ? 'rally_1' : (b==='workshop') ? ('main_'+tier) : (b+'_'+tier);
-  await instFit('rts',name,bgroup,x,z,{w:2.5,ry:ry+P2});
+  const name = (b==='hide') ? (tier>=4?'hide2':'hide') : (b==='rally') ? 'rally_1'
+             : (b==='workshop') ? ('smithy_'+tier)   // 공방=공성병기 제작 → 조선소/건설 야드(Port) 모델
+             : (b==='smithy') ? ('main_'+tier)        // 대장간=성능 연구 → 광장형 연구 건물(팩에 대장간 전용 모델 없음)
+             : (b+'_'+tier);
+  await instFit('rts',name,bgroup,x,z,{w:2.5,ry:ry+P2,tag:b});
 }
 // 광장 정적 장식(한 번)
 function decorStatic(){
@@ -2113,7 +2136,7 @@ async function decorate(pts,count){ count=count||48;
 }
 function mkLabel(){ const d=document.createElement('div'); d.className='v3-label'; labelHost.appendChild(d); return d; }
 // 🏗️ 마을 3D 작업 게이지(건설/훈련) + 3D 펄스 링
-let _bPos={}, _workFn=null, _ring=null,_ring2=null;
+let _bPos={}, _workFn=null, _ring=null,_ring2=null, _hoverRing=null,_clickRing=null,_hoverB=null,_clkPulse=0;
 function _fmtT(ms){ ms=Math.max(0,ms|0); const s=Math.round(ms/1000), m=(s/60)|0; return m+':'+String(s%60).padStart(2,'0'); }
 function _mkRing(col){ const m=new T.Mesh(new T.TorusGeometry(0.95,0.1,8,26), new T.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:0.7,roughness:.5,transparent:true,opacity:.85})); m.rotation.x=-P2; m.visible=false; scene.add(m); return m; }
 function _ringShow(ring,p){ ring.visible=true; ring.position.set(p.x,0.14,p.z); const t=(typeof performance!=='undefined'?performance.now():Date.now())*0.003;
