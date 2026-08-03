@@ -1,5 +1,5 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>룬테라 전쟁 — 프로토타입 v0.8</title>
+<title>룬테라 전쟁 — 프로토타입 v0.9</title>
 <style>
 /* ═══ 클래식 전략 스타일 양피지 테마 ═══
    PC(≥900px)  = 브라우저 게임 레이아웃: 상단 메뉴 + 본문 + 우측 사이드바(개요) + 테이블 UI
@@ -15,6 +15,19 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .world{font-size:9.5px;color:#cbb27e;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .top-ic{cursor:pointer;font-size:13px;background:rgba(255,255,255,.08);border:1px solid rgba(255,230,170,.3);border-radius:8px;padding:3px 9px;color:#f0dca0;font-weight:800;font-family:inherit;}
 /* 자원바(정통 전략식: 자원 3종 + 저장고 게이지 + 인구) */
+.help-btn{margin-left:auto;white-space:nowrap;}
+.hp-ov .picker{max-width:min(560px,94vw);max-height:86vh;overflow-y:auto;text-align:left;}
+.hp-tabs{display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 10px;}
+.hp-tab{flex:1 1 auto;min-width:66px;background:#221910;border:1px solid #6b4f24;border-radius:7px;padding:6px 4px;
+  font-family:inherit;font-size:10.5px;font-weight:800;color:#cbb27e;cursor:pointer;}
+.hp-tab.on{background:#3a2c16;border-color:#e0b755;color:#ffe9ad;}
+.hp-sec h4{margin:0 0 6px;font-size:13px;color:#f7e8bd;}
+.hp-sec p{margin:0 0 8px;font-size:11.5px;line-height:1.65;color:#d8c79b;}
+.hp-sec b{color:#f0d99a;}
+.hp-sec .em{color:#9fd08a;font-weight:800;}
+.hp-sec ul{margin:0 0 8px;padding-left:16px;}
+.hp-sec li{font-size:11.5px;line-height:1.65;color:#d8c79b;margin-bottom:3px;}
+.hp-note{background:#1d1610;border:1px solid rgba(107,79,36,.6);border-radius:7px;padding:7px 9px;font-size:10.5px;color:#c4b083;line-height:1.6;margin:0 0 8px;}
 .resbar{display:flex;gap:7px;padding:10px 10px 7px;border-bottom:2px solid #6b4f24;background-image:linear-gradient(180deg,rgba(24,17,8,.72),rgba(12,8,4,.86)),url('assets/alley/floor_stone_pattern.png');background-size:auto,118px;background-repeat:repeat;}
 .res{flex:1;display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto auto;column-gap:6px;row-gap:2px;align-items:center;min-width:0;border-radius:7px;padding:4px 8px 5px;background:linear-gradient(180deg,#2a2114,#181109);border:1px solid #6b4f24;box-shadow:inset 0 1px 0 rgba(255,228,170,.12),inset 0 -3px 5px rgba(0,0,0,.4),0 1px 2px rgba(0,0,0,.5);}
 .res .ricon{grid-row:1/3;display:flex;align-items:center;}
@@ -128,6 +141,12 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .v3-label .plus{font-size:9px;font-weight:800;color:#e6d29a;}
 .v3-label:active{transform:translate(-50%,calc(-100% + 1px));}
 /* 마을 3D 건물 명패 — 박스 없이 3D 위에 「아이콘 이름 레벨」이 새겨진 것처럼(외곽선으로 가독성 확보) */
+.v3-labels.far .vmk3{padding:0;border:0;background:none;box-shadow:none;width:13px;height:13px;border-radius:50%;transform:translate(-50%,-50%);}
+.v3-labels.far .vmk3:active{transform:translate(-50%,calc(-50% + 1px));}
+.v3-labels.far .vmk3>*{display:none;}
+.v3-labels.far .vmk3::after{content:'';position:absolute;inset:0;border-radius:50%;background:#b98f4a;border:1.5px solid rgba(18,12,5,.8);box-shadow:0 1px 3px rgba(0,0,0,.55);}
+.v3-labels.far .vmk3.me::after{background:linear-gradient(180deg,#ffe9a8,#e0b755);inset:-3px;border-color:rgba(60,40,10,.9);}
+.v3-labels.far .vmk3.pl::after{background:#cf7a4e;}
 .v3-label.blab{padding:0;background:none;border:0;box-shadow:none;border-radius:0;opacity:1;
   text-shadow:0 1px 0 #120c04, 0 -1px 0 #120c04, 1px 0 0 #120c04, -1px 0 0 #120c04,
               1px 1px 2px rgba(0,0,0,.9), 0 0 6px rgba(0,0,0,.65);}
@@ -469,6 +488,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
   <div class="topstrip">
     <span class="logo">룬테라 전쟁</span>
     <span class="world">프로토타입 · 월드 1</span>
+    <button class="top-ic help-btn" onclick="openHelp()" title="도움말">? 도움말</button>
   </div>
   <div class="resbar" id="resbar"></div>
   <nav class="pcmenu" id="pcmenu"></nav>
@@ -493,7 +513,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">프로토타입 v0.8 · 이 브라우저에만 저장(mock) · 실제 사이트 골드와 무관</div>
+  <div class="proto-tag">프로토타입 v0.9 · 이 브라우저에만 저장(mock) · 실제 사이트 골드와 무관</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -1692,7 +1712,10 @@ window.openMarket=function(){ const v=S.v; const lv=v.blds.market||0; if(lv<1){ 
       else if(a==='+') amt+=Math.max(10,Math.round(cap()/10));
       else if(a==='max') amt=Math.min(cap(),Math.floor(v.res[give]||0));
       else if(a==='go'){ if(give===get){ toast('다른 자원을 고르세요'); return; } if(amt<=0||(v.res[give]||0)<amt){ toast('자원 부족'); return; }
-        v.res[give]-=amt; const cp=storeCapV(v); v.res[get]=Math.min(cp,(v.res[get]||0)+Math.floor(amt*0.9)); save(); renderTop(); toast(`${RES[give]}${NF(amt)} → ${RES[get]}${NF(Math.floor(amt*0.9))} 교환`); amt=Math.min(cap(),Math.floor(v.res[give]||0)); }
+        v.res[give]-=amt; const cp=storeCapV(v); v.res[get]=Math.min(cp,(v.res[get]||0)+Math.floor(amt*0.9)); save(); renderTop();
+        _spendFx({[give]:amt}); _spendFloat({[give]:amt});   // 무엇이 얼마나 나갔는지 눈에 보이게
+        toast(`${RES_NM[give]} ${NF(amt)} → ${RES_NM[get]} ${NF(Math.floor(amt*0.9))} 교환`);   // ⚠️ RES는 아이콘 키라 toast에 쓰면 글자가 샌다
+        amt=Math.min(cap(),Math.floor(v.res[give]||0)); }
       draw(); });
     ov.querySelectorAll('[data-l]').forEach(b=>b.onclick=()=>{ const k=b.dataset.k, st=100;
       if(b.dataset.l==='-') load[k]=Math.max(0,load[k]-st);
@@ -1707,6 +1730,7 @@ window.openMarket=function(){ const v=S.v; const lv=v.blds.market||0; if(lv<1){ 
       const to=S.world[dest]; const travel=Math.max(4000, travelMs(fieldDist(S.world[vid],to), MERCH_SPEED));
       for(const k in load) v.res[k]-=load[k];
       S.trades.push({from:vid, to:dest, res:{...load}, n:need, dep:Date.now(), arriveAt:Date.now()+travel, back:false});
+      _spendFx(load); _spendFloat(load);
       toast(`${crd(to)}로 수송 출발 — ${resStr(load)} · ${fmtDur(travel)}`);
       load={wood:0,clay:0,iron:0}; save(); renderTop(); if(view==='village') updateVillageDynamic(); draw(); };
   }
@@ -1744,7 +1768,9 @@ window.openSmithy=function(){ const v=S.v; const sm=v.blds.smithy||0; if(sm<1){ 
       if(sm<resSmithyReq(lvl)){ toast(`대장간 Lv${resSmithyReq(lvl)} 필요`); return; }
       const c=resCost(u,lvl); if(!payV(c)){ toast('자원 부족 · '+costStr(c)); return; }
       const d=resTime(lvl,sm)*1000; S.researchQ={u, lvl, doneAt:Date.now()+d, dur:d};
-      save(); renderTop(); toast(`${TROOP[u].nm} Lv${lvl+1} 연구 시작 — ${fmtSec(resTime(lvl,sm))}`);
+      save(); renderTop(); _spendFx(c); _spendFloat(c);
+      if(window.Town3D&&window.Town3D.pulse) window.Town3D.pulse('smithy');
+      toast(`${TROOP[u].nm} Lv${lvl+1} 연구 시작 — ${fmtSec(resTime(lvl,sm))}`);
       if(view==='village') updateVillageDynamic(); draw(); });
     stop(); if(S.researchQ) timer=setInterval(()=>{ if(!document.body.contains(ov)){ stop(); return; } draw(); },1000);
   }
@@ -1954,6 +1980,97 @@ function initDevPanel(){
   };
   p.querySelectorAll('.dev-body button[data-d]').forEach(b=>b.onclick=()=>acts[b.dataset.d](b));
 }
+// ❓ 도움말 — 규칙만 적는다. «어떤 조합이 좋은가» 같은 전술 조언은 넣지 않는다(유저가 알아내는 영역).
+const HELP_SEC=[
+ ['battle','전투', ()=>`
+  <h4>${I('barracks')} 전투는 이렇게 계산돼요</h4>
+  <p>공격 병력은 <b>보병·기병·궁병</b> 세 갈래로 나뉘고, <b>보낸 병력의 병과 비율만큼</b> 수비대의 대(對)보병·대기병·대궁병 방어가 섞여 맞붙어요. 그래서 <span class="em">수비대가 무엇에 강한지</span>에 따라 같은 병력도 결과가 달라집니다.</p>
+  <ul>
+    <li>🍀 <b>운</b> — 공격 쪽에 매번 <b>±25%</b>가 붙어요.</li>
+    <li>${I('wall')} <b>성벽</b> — 기본 방어값(${'2'}0부터 레벨마다 ×1.25)에 더해 수비 전투력이 <b>레벨마다 ×1.037</b> 로 늘어요.</li>
+    <li>💀 <b>손실</b> — <b>진 쪽은 전멸</b>합니다. 이긴 쪽은 (약한 쪽 ÷ 강한 쪽)<sup>1.5</sup> 만큼만 잃어요. 접전일수록 이겨도 많이 잃습니다.</li>
+    <li>${I('ram')} <b>파성추</b> — 전투 중 성벽을 약하게 만들고, <b>이기면 그만큼 확정 파괴</b>·지면 절반만 부숩니다.</li>
+    <li>${I('cata')} <b>투석기</b> — 이겼을 때 마을 <b>발전도(★)</b> 를 무너뜨려요.</li>
+    <li>${I('smithy')} <b>연구</b> — 대장간 연구 1레벨당 그 병종이 <b>+12%</b> 강해집니다.</li>
+  </ul>
+  <div class="hp-note">약탈은 <b>살아 돌아온 병력의 적재량 합</b>까지만 가져와요. 병력을 많이 잃으면 그만큼 덜 실어옵니다.</div>`],
+
+ ['map','지도', ()=>`
+  <h4>${I('map')} 지도</h4>
+  <p>세계는 육각 칸으로 되어 있고, <b>거리는 칸 수</b>로 잽니다. 멀수록 행군이 오래 걸려요.</p>
+  <ul>
+    <li>🌫️ <b>전장의 안개</b> — 구름 아래는 아직 못 본 곳이에요. 내 마을 주변은 처음부터 열려 있고, <b>부대를 보내면 지나간 자리와 목적지 주변이 열립니다</b>(한 번 열리면 계속 보여요).</li>
+    <li>🏠 마을을 탭하면 정보가 열리고, 거기서 공격·지원·정찰을 보냅니다.</li>
+    <li>🔎 많이 축소하면 이름표가 <b>점</b>으로 바뀌어요(겹쳐서 안 보이는 걸 막습니다).</li>
+    <li>🏆 이름표 아래 숫자는 <b>발전 포인트</b> — 건물 레벨이 높을수록 커집니다.</li>
+  </ul>`],
+
+ ['rally','집결지', ()=>`
+  <h4>${I('rally')} 집결지</h4>
+  <p>모든 명령은 집결지에서 나갑니다. <b>집결지 Lv1</b>이 없으면 공격·지원·정찰 어느 것도 보낼 수 없어요.</p>
+  <ul>
+    <li>🎯 <b>좌표로 찾기</b> — 집결지 화면에서 <b>(가로|세로)</b> 좌표를 넣으면 그 마을로 바로 갑니다.</li>
+    <li>🐎 <b>행군 속도</b>는 데려간 병력 중 <b>가장 느린 병종</b>을 따라가요.</li>
+    <li>${I('shield')} <b>지원</b> — 내 다른 마을로 병력을 보내면 그 마을 수비에 합류합니다. 집결지에서 <b>회수</b>할 수 있어요.</li>
+    <li>진행 중인 부대는 집결지와 지도에서 실시간으로 보입니다.</li>
+  </ul>`],
+
+ ['scout','정찰', ()=>`
+  <h4>${I('scout')} 정찰</h4>
+  <p>남의 마을은 <b>기본적으로 안이 안 보입니다</b>. 정찰을 보내야 수비 병력·자원·성벽·충성도를 알 수 있어요.</p>
+  <ul>
+    <li>🧭 정찰에는 <b>정찰병만</b> 보낼 수 있어요.</li>
+    <li>⚔️ 성공 조건 — 내 정찰병이 <b>상대 정찰병 수 × 2</b> 보다 많아야 합니다.</li>
+    <li>💀 실패하면 보낸 정찰대는 <b>전멸</b>하고 아무것도 못 봅니다.</li>
+    <li>📜 성공하면 그 시점 정보가 보고서에 남고, 공격 창에도 <b>「최근 정찰」</b> 로 표시돼요(시간이 지나면 낡은 정보입니다).</li>
+  </ul>`],
+
+ ['conquer','정복', ()=>`
+  <h4>${I('noble')} 마을 정복</h4>
+  <p>마을은 부숴서 뺏는 게 아니라 <b>충성도를 0으로 만들어</b> 가져옵니다.</p>
+  <ul>
+    <li>🏛️ <b>신전</b>을 지어야 <b>영웅</b>을 훈련할 수 있어요(아주 비싸고 인구도 많이 먹습니다).</li>
+    <li>👑 영웅을 데리고 <b>이길 때마다</b> 그 마을 충성도가 <b>20~35</b> 씩 깎여요. 그래서 보통 <b>여러 번</b> 보내야 합니다.</li>
+    <li>🛡️ 영웅은 스스로 못 싸웁니다 — <b>호위 병력 없이 보내면</b> 도착도 못 하고 죽어요.</li>
+    <li>충성도가 0이 되는 순간 그 마을은 <b>내 마을</b>이 되고, 그때 쓴 영웅은 사라집니다.</li>
+  </ul>
+  <div class="hp-note">${I('shield')} <b>신규 보호</b> — 시작 후 한동안 공격받지 않아요. 단 <b>내가 먼저 공격하면 즉시 풀립니다</b>.</div>`],
+
+ ['village','마을', ()=>`
+  <h4>${I('main')} 마을 운영</h4>
+  <ul>
+    <li>🏗️ <b>건물</b> — 3D 건물이나 아래 아이콘을 누르면 업그레이드·훈련 창이 열려요. 아직 안 지은 자리는 <b>터(빈 부지)</b> 로 표시됩니다.</li>
+    <li>${I('storage')} <b>창고</b> — 가득 차면 <b>그 뒤 생산은 그냥 버려집니다</b>. 자원바가 빨갛게 차면 창고를 올리거나 쓰세요.</li>
+    <li>${I('hide')} <b>숨은 곳간</b> — 약탈당해도 이 용량만큼은 지켜져요.</li>
+    <li>${I('pop')} <b>인구</b> — 농장이 정하고, 건물과 병력이 나눠 씁니다. 모자라면 훈련도 건설도 막혀요.</li>
+    <li>${I('wall')} <b>성벽</b> — 지어야 마을을 두르는 벽이 생기고, 수비 전투력이 올라갑니다.</li>
+  </ul>`],
+
+ ['market','시장·대장간', ()=>`
+  <h4>${I('market')} 시장</h4>
+  <ul>
+    <li>🔁 <b>교환</b> — 자원을 서로 바꿔요. <b>수수료 10%</b> 를 떼고, 한 번에 <b>시장 레벨 × 200</b> 까지 바꿀 수 있어요.</li>
+    <li>🐴 <b>수송</b> — 내 다른 마을로 자원을 보냅니다. 상인은 <b>시장 레벨 수만큼</b> 있고 한 명이 <b>${MERCH_CAP}</b> 을 실어요. 도착하면 스스로 돌아옵니다.</li>
+  </ul>
+  <h4 style="margin-top:10px">${I('smithy')} 대장간</h4>
+  <ul>
+    <li>⚒️ <b>연구</b> — 병종을 <b>Lv${RES_MAX}</b> 까지 올려 <b>레벨당 +12%</b> 강하게 만듭니다.</li>
+    <li>🔒 상한은 대장간 레벨로 열려요 — <b>Lv1은 대장간 ${RES_SMITHY_REQ[0]}·Lv2는 ${RES_SMITHY_REQ[1]}·Lv3은 ${RES_SMITHY_REQ[2]}</b>.</li>
+    <li>⏳ 연구는 <b>전 마을 공통</b>이고 <b>한 번에 하나만</b> 진행돼요. 대장간이 높을수록 빨라집니다.</li>
+  </ul>`],
+];
+window.openHelp=function(){
+  let cur=0;
+  const ov=document.createElement('div'); ov.className='ov hp-ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+  const draw=()=>{
+    ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker">
+      <h3 class="pick-h">❓ 도움말</h3>
+      <div class="hp-tabs">${HELP_SEC.map((x,i)=>`<button class="hp-tab ${i===cur?'on':''}" data-i="${i}">${x[1]}</button>`).join('')}</div>
+      <div class="hp-sec">${HELP_SEC[cur][2]()}</div></div>`;
+    ov.querySelectorAll('.hp-tab').forEach(b=>b.onclick=()=>{ cur=+b.dataset.i; draw(); });
+  };
+  draw(); document.body.appendChild(ov);
+};
 window.runeReset=function(){ localStorage.removeItem('rune_proto'); S=fresh(); bindActive(); showView(); toast('프로토타입 초기화'); };
 window.runeGrantNoble=function(n){ n=n||3; S.v.troops.noble=(S.v.troops.noble||0)+n; save(); if(view==='village')updateVillageDynamic(); toast(`영웅 +${n}(테스트)`); };
 window.runeArmy=function(n){ n=n||50; const v=S.v; v.troops.axe=(v.troops.axe||0)+n; v.troops.lcav=(v.troops.lcav||0)+Math.ceil(n/5);
@@ -2113,8 +2230,31 @@ const RING=[
 // ⚠️ 링 반지름은 (건물 폭 2.5 · 본진 폭 3.4 · 성벽 7.4)에 물려 있다. 하나만 바꾸면 겹치거나 성벽을 뚫는다.
 //    안쪽 3.4 = 본진 반폭 1.7 + 건물 반폭 1.25 + 여유 / 바깥 6.15 = 성벽 7.4 − 건물 반폭 1.25
 const RING_RI=3.55, RING_RO=6.15, RING_OFF=0.07;   // 바깥 링을 살짝 비틀어 안쪽 건물과 반지름 정렬 회피
+// ✂️ 헥스 키트 건물에서 «육각 받침 + 가장자리 나무»만 잘라낸다.
+//    (이 키트는 받침이 본체와 한 메시·한 프리미티브라 노드로 못 지운다 → 삼각형 단위로 거른다)
+//    기준은 모델 로컬 좌표: 무게중심 y가 minY보다 높고, 중심에서의 거리가 maxR보다 가까운 삼각형만 남긴다.
+function _trimGeo(root, minY, maxR){
+  root.traverse(o=>{ if(!o.isMesh||!o.geometry) return;
+    const g=o.geometry.index? o.geometry.toNonIndexed() : o.geometry;
+    const pos=g.attributes.position, n=pos.count; const keep=[];
+    for(let i=0;i<n;i+=3){
+      let cy=0,cx=0,cz=0;
+      for(let k=0;k<3;k++){ cx+=pos.getX(i+k); cy+=pos.getY(i+k); cz+=pos.getZ(i+k); }
+      cx/=3; cy/=3; cz/=3;
+      if(cy>=minY && Math.hypot(cx,cz)<=maxR) keep.push(i,i+1,i+2);
+    }
+    const attrs={};
+    for(const name in g.attributes){ const a=g.attributes[name], it=a.itemSize, arr=new a.array.constructor(keep.length*it);
+      keep.forEach((src,di)=>{ for(let c=0;c<it;c++) arr[di*it+c]=a.array[src*it+c]; });
+      attrs[name]=new T.BufferAttribute(arr,it); }
+    const ng=new T.BufferGeometry(); for(const nm in attrs) ng.setAttribute(nm,attrs[nm]);
+    ng.computeBoundingBox(); ng.computeBoundingSphere();
+    o.geometry=ng;
+  });
+}
 // 목표 높이에 맞춰 자동 스케일(+바닥 정렬) — 키트마다 원본 크기가 달라도 안전
 async function instFit(kit,n,parent,x,z,o){ o=o||{}; try{ const srcM=await loadG(kit,n); const m=srcM.clone(true);
+  if(o.trim) _trimGeo(m, o.trim.y, o.trim.r);   // ✂️ 받침·주변 장식 제거(헥스 키트)
   const b1=new T.Box3().setFromObject(m); const sz=b1.getSize(new T.Vector3());
   // ⚠️ 헥스 키트 건물은 **육각 받침이 본체와 한 메시**라, 높이로 정규화하면 납작한 모델일수록 받침이 거대해진다
   //    (농장 받침 6.0 vs 광산 3.35 — 안쪽 링 간격 3.62를 넘어 이웃과 겹쳤음).
@@ -2126,7 +2266,9 @@ async function instFit(kit,n,parent,x,z,o){ o=o||{}; try{ const srcM=await loadG
   //    건물이 제 자리에서 밀려나 이름표와 어긋나고 잔디 밖으로 삐져나간다.
   //    → 홀더 그룹을 슬롯에 놓고, 모델은 그 안에서 **바닥 중심**이 원점에 오도록 보정한다(회전도 제자리에서).
   const holder=new T.Group();
-  m.position.set(-c2.x, -b2.min.y+0.02, -c2.z);
+  // o.sink = 모델 높이의 몇 %를 지면 아래로 묻을지(헥스 키트 건물의 육각 받침을 감출 때 사용)
+  const _sink=(o.sink||0)*(b2.max.y-b2.min.y);
+  m.position.set(-c2.x, -b2.min.y+0.02-_sink, -c2.z);
   holder.add(m); holder.position.set(x,0,z); holder.rotation.y=o.ry||0;
   if(o.tag) holder.userData.bldKey=o.tag;   // 레이캐스트 클릭용 건물 태그
   m.traverse(c=>{ if(o.tag) c.userData.bldKey=o.tag; if(c.isMesh){ c.castShadow=true; c.receiveShadow=true;
@@ -2141,8 +2283,10 @@ async function placeBuilding(x,z,ry,b,lv,central,mx){
   // 집결지=단층 감시초소(rally_1) 고정 — rally_3은 3층이라 아파트처럼 보임
   const name = (b==='hide') ? (tier>=4?'hide2':'hide') : (b==='rally') ? 'rally_1'
              : (b==='workshop') ? ('smithy_'+tier)   // 공성 작업장=공성병기 제작 → 조선소/건설 야드(Port) 모델
-             : (b==='smithy') ? ('main_'+tier)        // 대장간=성능 연구 → 광장형 연구 건물(팩에 대장간 전용 모델 없음)
              : (b+'_'+tier);
+  // ⚒️ 대장간만 헥스 키트 제련소(용광로+굴뚝) — RTS 팩엔 대장간다운 모델이 없다.
+  //    이 키트 건물은 육각 받침이 본체와 한 메시라, 받침 폭까지 재서 크게 잡고 sink로 받침을 지면 아래에 묻는다.
+  if(b==='smithy'){ await instFit('hex','building-smelter',bgroup,x,z,{w:2.5,ry:ry+P2,tag:b,trim:{y:0.21,r:0.34}}); return; }
   await instFit('rts',name,bgroup,x,z,{w:2.5,ry:ry+P2,tag:b});
 }
 // 광장 정적 장식(한 번)
@@ -2294,6 +2438,8 @@ const HX='assets/hex/'; let R,SC,CAM,CT,GRP,MK,EL,LH,OPT=null,off={x:0,z:0},_las
 const CAM_START_ZOOM=1.6;   // 시작·리셋 배율 — 내 성과 주변 마을·길·안개가 한 화면에 들어오는 지점
 let _mIcon = ()=>'';   // classic 의 I() 주입(모듈은 스코프가 달라 직접 못 씀)
 const C={}, GL=new GLTFLoader(), VLAB=[], MLAB=[];
+const LABEL_DOT_ZOOM=1.10;   // 이 배율 아래로 내려가면 마을 이름표를 점으로(겹침 방지)
+let _far=false;
 function ld(n){ return C[n]||(C[n]=GL.loadAsync(HX+n+'.glb').then(g=>g.scene)); }
 // 지역별 지형 — 정규화 좌표 + 부드러운 노이즈로 산맥/사막/호수/숲이 뭉쳐 나옴
 function _snoise(x,y){ return Math.sin(x*3.1+y*1.7)*0.5 + Math.sin(x*1.3-y*2.7+2.0)*0.3 + Math.sin((x+y)*2.3+4.0)*0.2; } // ~[-1,1]
@@ -2407,6 +2553,9 @@ function proj(){ if(!EL) return;
     if(L._y!==y){ L.el.style.top=y+'px'; L._y=y; }
     if(L._v!==vis){ L.el.style.display=vis; L._v=vis; } } };
   set(VLAB);
+  // 🔎 많이 축소하면 이름표가 서로 겹쳐 못 읽는다 → 점으로 바꾼다(탭은 그대로 먹힌다)
+  const far = (CAM.zoom||1) < LABEL_DOT_ZOOM;
+  if(far!==_far){ _far=far; LH.classList.toggle('far', far); }
   // 행군 마커(실시간 보간)
   const st=OPT&&OPT.state&&OPT.state(); if(st){ updMarchLines(st); const now=Date.now(); const home=st.world[OPT.HOME], ms=st.marches||[];
     while(MLAB.length<ms.length){ const d=document.createElement('div'); d.className='mm3'; LH.appendChild(d); MLAB.push({el:d}); }
