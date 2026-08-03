@@ -1902,7 +1902,7 @@ window.runeSaveCheck=function(){ save(); let ok=false, msg='';
 import * as T from './vendor/three/three.module.js';
 import { GLTFLoader } from './vendor/three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from './vendor/three/addons/controls/OrbitControls.js';
-const P2=Math.PI/2, KIT={town:'assets/town/',castle:'assets/castle/',surv:'assets/survival/',hex:'assets/hex/'};
+const P2=Math.PI/2, KIT={town:'assets/town/',castle:'assets/castle/',surv:'assets/survival/',hex:'assets/hex/',rts:'assets/rts/'};
 let renderer,scene,cam,ctrl,vgroup,bgroup,tgroup,curEl,labelHost,W=1,H=1,onBuild=null,sun,hemi,night=false,_wallLv=-1,_tierBuilt=-1;
 const cache={}, gl=new GLTFLoader(), labels=[];
 function loadG(kit,n){ const k=kit+'|'+n; return cache[k]||(cache[k]=gl.loadAsync(KIT[kit]+n+'.glb').then(g=>g.scene)); }
@@ -2006,27 +2006,18 @@ async function instFit(kit,n,parent,x,z,o){ o=o||{}; try{ const srcM=await loadG
   parent.add(m); return m; }catch(e){}}
 async function placeBuilding(x,z,ry,b,lv,central){
   if(lv<=0) return;
-  const grow=1+Math.min(0.4,lv*0.05);   // 레벨이 오를수록 커짐
-  if(central){   // 본진: Lv1~4=집 · 5~9=저택 · 10+=성 (약한 마을 → 성곽 도시)
-    const n = lv>=10?'building-castle' : lv>=5?'building-village' : 'building-house';
-    const w = (lv>=10?3.5 : lv>=5?3.2 : 2.9)*(1+Math.min(0.14,lv*0.009));
-    await instFit('hex',n,bgroup,x,z,{w,ry});
-    if(lv>=5){ await inst('castle','flag',bgroup,x+1.2,z+0.3,{s:1.15}); }
-    if(lv>=10){ await inst('castle','flag-banner-long',bgroup,x-1.2,z+0.3,{s:1.05}); }
-    return; }
-  const slot=RING.find(r=>r.b===b); if(!slot) return;
-  // 헥스 건물=폭 기준(받침 통일·이웃 겹침 방지) · 그 외(깃발·천막)는 받침이 없으니 기존 높이 기준
-  if(slot.kit==='hex'){ const w=2.45*(1+Math.min(0.22,lv*0.028));
-    await instFit(slot.kit,slot.n,bgroup,x,z,{w,ry,tint:slot.tint}); }
-  else await instFit(slot.kit,slot.n,bgroup,x,z,{h:slot.h*grow,ry,tint:slot.tint});
-  if(slot.prop) await inst(slot.prop[0],slot.prop[1],bgroup,x+0.8,z+0.6,{s:1});
+  // 🏛️ 완성형 RTS 건물 — 레벨이 오르면 모델 자체가 업그레이드(Level 1→2→3)
+  const tier = lv>=7?3 : lv>=4?2 : 1;
+  if(central){ await instFit('rts','main_'+tier,bgroup,x,z,{w:3.5,ry:ry+P2}); return; }
+  const name = (b==='hide') ? 'hide' : (b+'_'+tier);
+  await instFit('rts',name,bgroup,x,z,{w:2.7,ry:ry+P2});
 }
 // 광장 정적 장식(한 번)
 function decorStatic(){
   // 성 밖 들판 수풀·바위(대지 위 스캐터)
-  const R=mkrngT(778); const OT=['tree','tree-high','tree-crooked','tree-high-round'];
-  for(let i=0;i<16;i++){ const a=R()*6.283, r=9.8+R()*4.2; inst('town',OT[(R()*OT.length)|0],scene,Math.cos(a)*r,Math.sin(a)*r,{s:0.85+R()*0.6,ry:R()*6.283}); }
-  for(let i=0;i<6;i++){ const a=R()*6.283, r=9.6+R()*3.4; inst('town',R()<.5?'rock-large':'rock-wide',scene,Math.cos(a)*r,Math.sin(a)*r,{s:0.7+R()*0.5,ry:R()*6.283}); }
+  const R=mkrngT(778); const OT=['prop_tree1','prop_tree2','prop_pine'];
+  for(let i=0;i<16;i++){ const a=R()*6.283, r=9.8+R()*4.2; instFit('rts',OT[(R()*OT.length)|0],scene,Math.cos(a)*r,Math.sin(a)*r,{h:1.5+R()*1.1,ry:R()*6.283}); }
+  for(let i=0;i<6;i++){ const a=R()*6.283, r=9.6+R()*3.4; instFit('rts',R()<.5?'prop_rock':'prop_rock2',scene,Math.cos(a)*r,Math.sin(a)*r,{h:0.6+R()*0.6,ry:R()*6.283}); }
 }
 // 환경 데코 스캐터(나무·바위·울타리·통·천막·가로등) — 시드 고정
 function mkrngT(s){ return ()=>{ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; }; }
@@ -2039,13 +2030,12 @@ async function decorate(pts,count){ count=count||48;
     const a=R()*6.283, rr=2.5+R()*4.5, x=Math.cos(a)*rr, z=Math.sin(a)*rr;
     if(Math.hypot(x,z)>7.0||clash(x,z)) continue;
     const k=R();
-    if(k<0.42) await inst('town',trees[(R()*trees.length)|0],bgroup,x,z,{s:0.75+R()*0.5,ry:R()*6.283});
-    else if(k<0.58) await inst('town',rocks[(R()*rocks.length)|0],bgroup,x,z,{s:0.7+R()*0.5,ry:R()*6.283});
-    else if(k<0.70) await inst('town','hedge-large',bgroup,x,z,{s:0.85,ry:R()*6.283});
-    else if(k<0.80) await inst('surv',R()<.5?'barrel':'box',bgroup,x,z,{s:1,ry:R()*6.283});
-    else if(k<0.88) await inst('town','fence',bgroup,x,z,{s:1,ry:R()*6.283});
-    else if(k<0.94) await inst('town','lantern',bgroup,x,z,{s:1});
-    else await inst('surv','tent',bgroup,x,z,{s:1,ry:R()*6.283});
+    if(k<0.46) await instFit('rts',['prop_tree1','prop_tree2','prop_pine'][(R()*3)|0],bgroup,x,z,{h:1.4+R()*0.9,ry:R()*6.283});
+    else if(k<0.64) await instFit('rts',R()<.5?'prop_rock':'prop_rock2',bgroup,x,z,{h:0.5+R()*0.5,ry:R()*6.283});
+    else if(k<0.74) await inst('town','hedge-large',bgroup,x,z,{s:0.85,ry:R()*6.283});
+    else if(k<0.84) await instFit('rts',R()<.5?'prop_barrel':'prop_crate',bgroup,x,z,{h:0.55,ry:R()*6.283});
+    else if(k<0.92) await inst('town','fence',bgroup,x,z,{s:1,ry:R()*6.283});
+    else await instFit('rts','prop_logs',bgroup,x,z,{h:0.5,ry:R()*6.283});
     placed++;
   }
 }
