@@ -72,6 +72,9 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
   background:linear-gradient(180deg,#f4e3b3,#dfc182);color:#2e1f08;box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 1px 2px rgba(80,50,10,.25);font-size:12px;}
 .btn:active{transform:translateY(1px);}
 .btn.sm{padding:4px 9px;font-size:10.5px;}
+.btn:active,.btn.sm:active,.rc-btn:active{transform:translateY(1px) scale(.97);}
+@keyframes resSpent{0%,100%{box-shadow:inset 0 1px 0 rgba(255,228,170,.12),inset 0 -3px 5px rgba(0,0,0,.4),0 1px 2px rgba(0,0,0,.5)}30%{box-shadow:0 0 0 2px rgba(255,150,90,.95),0 0 14px rgba(255,150,90,.6)}}
+.res.spent{animation:resSpent .5s ease-out;}
 .btn-red{background:linear-gradient(180deg,#d97f5a,#bd5027);color:#fff;border-color:#8a3a1a;text-shadow:0 1px 1px rgba(0,0,0,.35);}
 .btn-green{background:linear-gradient(180deg,#a8c46a,#7fa23e);color:#243208;border-color:#5a7a22;}
 .btn-blue{background:linear-gradient(180deg,#9dc0e0,#6c98c2);color:#0d2438;border-color:#3c6890;}
@@ -1079,6 +1082,9 @@ function toast(m){ const t=document.getElementById('toast');
   // 안전망 — 실수로 아이콘(SVG) 문자열이 섞여 들어와도 태그가 글자로 찍히지 않게 벗긴다
   m=String(m); if(m.indexOf('<')>=0) m=m.replace(/<[^>]*>/g,'').replace(/\s{2,}/g,' ').trim();
   t.textContent=m; t.classList.add('on'); clearTimeout(t._); t._=setTimeout(()=>t.classList.remove('on'),2600); }
+// 자원 차감 시 자원바 칩을 잠깐 번쩍여 "썼다"는 걸 보이게(진행 피드백)
+function _spendFx(cost){ const rb=document.getElementById('resbar'); if(!rb||!cost) return; const chips=rb.querySelectorAll('.res');
+  ['wood','clay','iron'].forEach((k,i)=>{ if(!cost[k]) return; const c=chips[i]; if(c){ c.classList.remove('spent'); void c.offsetWidth; c.classList.add('spent'); } }); }
 const NF=n=>Math.floor(n||0).toLocaleString('ko-KR');
 function fmtDur(ms){ const s=Math.max(0,Math.ceil(ms/1000));
   if(s>=3600) return Math.floor(s/3600)+':'+String(Math.floor(s%3600/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
@@ -1558,7 +1564,8 @@ window.build=function(b){ const v=S.v; const d=BLD[b]; const eff=(v.blds[b]||0)+
   if(!reqMet(b)){ toast('선행 건물이 필요해요'); return; } const c=bcost(b,eff+1); if(!payV(c)){ toast('자원 부족 · '+costStr(c)); return; }
   const now=Date.now(); const wasEmpty=v.buildQ.length===0; v.buildQ.push({b, doneAt:0});
   if(wasEmpty){ const d=buildTime(b,(v.blds[b]||0)+1)*1000; v.buildQ[0].doneAt=now+d; v.buildQ[0].dur=d; }
-  save(); updateVillageDynamic(); renderTop(); renderSidebar(); };
+  save(); updateVillageDynamic(); renderTop(); renderSidebar();
+  toast(`${d.nm} Lv${eff+1} ${eff>0?'업그레이드':'건설'} 시작!`); _spendFx(c); if(window.Town3D&&window.Town3D.pulse) window.Town3D.pulse(b); };
 window.recruit=function(u,n){ n=n||1; const v=S.v; const t=TROOP[u];
   if((v.blds[t.from]||0)<1){ toast(jo(BLD[t.from].nm,'이')+' 필요해요'); return; }
   let done=0;
@@ -1568,7 +1575,8 @@ window.recruit=function(u,n){ n=n||1; const v=S.v; const t=TROOP[u];
     const wasEmpty=v.recQ.length===0; v.recQ.push({u,doneAt:0});
     if(wasEmpty){ const d=trainTime(u)*1000; v.recQ[0].doneAt=Date.now()+d; v.recQ[0].dur=d; } done++;
   }
-  if(done){ save(); updateVillageDynamic(); renderTop(); renderSidebar(); }
+  if(done){ save(); updateVillageDynamic(); renderTop(); renderSidebar();
+    toast(`${t.nm} 훈련 시작${done>1?' ×'+done:''}!`); _spendFx({wood:(t.cost.wood||0)*done,clay:(t.cost.clay||0)*done,iron:(t.cost.iron||0)*done}); if(window.Town3D&&window.Town3D.pulse) window.Town3D.pulse(t.from); }
 };
 // 📱 건물 바텀시트 — 모바일처럼 건물 탭 → 전용 창(업글+훈련)
 window.openBldSheet=function(b){ window.closeBldSheet(); _bldSheetB=b;
@@ -2224,7 +2232,9 @@ export function setNight(){ if(!hemi) return night; night=!night;
   else { scene.background=null; hemi.color.set(0xdcefff); hemi.groundColor.set(0x50603a); hemi.intensity=0.95; sun.color.set(0xfff3d8); sun.intensity=1.4; }
   return night; }
 window.addEventListener('resize',resize);
-window.Town3D={ mount, build, resetCam, setNight, ok:true };
+// 작업 시작(건설/훈련) 시 그 건물에 링 펄스 — 클릭·작동이 반영됐다는 피드백
+export function pulse(b){ if(!_bPos||!_bPos[b]) return; if(!_clickRing) _clickRing=_mkRing(0x9fe08a); _clickRing.userData.b=b; _clkPulse=1; }
+window.Town3D={ mount, build, resetCam, setNight, pulse, ok:true };
 </script>
 <script type="module">
 // ══ 3D 육각 지도 — 육각 키트(Kenney CC0) · 마을=헥스 위 건물타일 · 거리=헥스 실좌표 ══
