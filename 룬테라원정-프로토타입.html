@@ -214,6 +214,14 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .bsh-head .bi{font-size:26px;}
 .bsh-x{margin-left:auto;border:1px solid #a3812f;background:#2b2216;color:#c9b98a;border-radius:8px;width:30px;height:30px;font-size:14px;cursor:pointer;flex:none;}
 .bsh-up{display:flex;align-items:center;gap:9px;background:#221910;border:1px solid #6b4f24;border-radius:9px;padding:9px 11px;margin:8px 0;}
+.bsh-res{display:flex;gap:13px;justify-content:center;padding:5px 0 6px;margin-bottom:4px;border-bottom:1px dashed #54401f;font-size:12.5px;font-weight:800;color:#f0e2b8;}
+.bsh-res span{display:inline-flex;align-items:center;gap:3px;font-variant-numeric:tabular-nums;}
+.bsh-res .ic{width:15px;height:15px;} .bsh-res span.lack{color:#ff9a8a;}
+.spend-float{position:fixed;transform:translate(-50%,0);z-index:95;pointer-events:none;display:inline-flex;align-items:center;gap:11px;
+  background:rgba(24,16,7,.95);border:1px solid #d8a72c;border-radius:9px;padding:6px 13px;box-shadow:0 5px 16px rgba(0,0,0,.55);
+  color:#ff9a70;font-weight:900;font-size:13.5px;white-space:nowrap;animation:spendUp 1.15s ease-out forwards;}
+.spend-float .ic{width:15px;height:15px;vertical-align:-2px;margin-right:1px;} .spend-float b{font-variant-numeric:tabular-nums;}
+@keyframes spendUp{0%{opacity:0;transform:translate(-50%,10px) scale(.92)}18%{opacity:1;transform:translate(-50%,0) scale(1)}100%{opacity:0;transform:translate(-50%,-42px) scale(1)}}
 /* 훈련 카드(모바일) */
 .rgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
 .rcard{background:#221910;border:1px solid #6b4f24;border-radius:7px;padding:6px 7px;}
@@ -1085,6 +1093,16 @@ function toast(m){ const t=document.getElementById('toast');
 // 자원 차감 시 자원바 칩을 잠깐 번쩍여 "썼다"는 걸 보이게(진행 피드백)
 function _spendFx(cost){ const rb=document.getElementById('resbar'); if(!rb||!cost) return; const chips=rb.querySelectorAll('.res');
   ['wood','clay','iron'].forEach((k,i)=>{ if(!cost[k]) return; const c=chips[i]; if(c){ c.classList.remove('spent'); void c.offsetWidth; c.classList.add('spent'); } }); }
+// 소모 자원을 창(흐림 배경) 위로 떠오르게 표시 — 자원바 플래시는 건물창에 가려 안 보이므로
+function _spendFloat(cost){ if(!cost) return;
+  const parts=['wood','clay','iron'].filter(k=>cost[k]>0).map(k=>`${I(RES[k],'r-'+k)}<b>-${NF(cost[k])}</b>`);
+  if(!parts.length) return;
+  const el=document.createElement('div'); el.className='spend-float'; el.innerHTML=parts.join('');
+  document.body.appendChild(el);
+  const sh=document.getElementById('bsheet');
+  if(sh){ const r=sh.getBoundingClientRect(); el.style.left=(r.left+r.width/2)+'px'; el.style.top=(r.top+54)+'px'; }
+  else { el.style.left='50%'; el.style.top='84px'; }
+  setTimeout(()=>{ if(el.parentNode) el.remove(); },1150); }
 const NF=n=>Math.floor(n||0).toLocaleString('ko-KR');
 function fmtDur(ms){ const s=Math.max(0,Math.ceil(ms/1000));
   if(s>=3600) return Math.floor(s/3600)+':'+String(Math.floor(s%3600/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
@@ -1565,7 +1583,7 @@ window.build=function(b){ const v=S.v; const d=BLD[b]; const eff=(v.blds[b]||0)+
   const now=Date.now(); const wasEmpty=v.buildQ.length===0; v.buildQ.push({b, doneAt:0});
   if(wasEmpty){ const d=buildTime(b,(v.blds[b]||0)+1)*1000; v.buildQ[0].doneAt=now+d; v.buildQ[0].dur=d; }
   save(); updateVillageDynamic(); renderTop(); renderSidebar();
-  toast(`${d.nm} Lv${eff+1} ${eff>0?'업그레이드':'건설'} 시작!`); _spendFx(c); if(window.Town3D&&window.Town3D.pulse) window.Town3D.pulse(b); };
+  toast(`${d.nm} Lv${eff+1} ${eff>0?'업그레이드':'건설'} 시작!`); _spendFx(c); _spendFloat(c); if(window.Town3D&&window.Town3D.pulse) window.Town3D.pulse(b); };
 window.recruit=function(u,n){ n=n||1; const v=S.v; const t=TROOP[u];
   if((v.blds[t.from]||0)<1){ toast(jo(BLD[t.from].nm,'이')+' 필요해요'); return; }
   let done=0;
@@ -1576,7 +1594,8 @@ window.recruit=function(u,n){ n=n||1; const v=S.v; const t=TROOP[u];
     if(wasEmpty){ const d=trainTime(u)*1000; v.recQ[0].doneAt=Date.now()+d; v.recQ[0].dur=d; } done++;
   }
   if(done){ save(); updateVillageDynamic(); renderTop(); renderSidebar();
-    toast(`${t.nm} 훈련 시작${done>1?' ×'+done:''}!`); _spendFx({wood:(t.cost.wood||0)*done,clay:(t.cost.clay||0)*done,iron:(t.cost.iron||0)*done}); if(window.Town3D&&window.Town3D.pulse) window.Town3D.pulse(t.from); }
+    const _tc={wood:(t.cost.wood||0)*done,clay:(t.cost.clay||0)*done,iron:(t.cost.iron||0)*done};
+    toast(`${t.nm} 훈련 시작${done>1?' ×'+done:''}!`); _spendFx(_tc); _spendFloat(_tc); if(window.Town3D&&window.Town3D.pulse) window.Town3D.pulse(t.from); }
 };
 // 📱 건물 바텀시트 — 모바일처럼 건물 탭 → 전용 창(업글+훈련)
 window.openBldSheet=function(b){ window.closeBldSheet(); _bldSheetB=b;
@@ -1596,6 +1615,7 @@ function renderBldSheet(){ const b=_bldSheetB; const sh=document.getElementById(
       <div style="min-width:0"><b style="font-size:14px">${d.nm}</b> <span class="bld-lv">Lv${lv}</span>${qd?` <span style="font-size:10px;color:#9a8a60">예약 +${qd}</span>`:''}
         <div style="font-size:10px;color:#2e6b28;font-weight:700;margin-top:2px">${bldEffTxt(b,lv)}</div></div>
       <button class="bsh-x" onclick="closeBldSheet()">✕</button></div>
+    <div class="bsh-res">${['wood','clay','iron'].map(k=>`<span class="${(v.res[k]<(c[k]||0))?'lack':''}">${I(RES[k],'r-'+k)} ${NF(Math.floor(v.res[k]))}</span>`).join('')}</div>
     ${maxed? `<div class="muted">✨ 최대 레벨이에요</div>`
       : !met? `<div class="muted">먼저 필요: ${reqTxt}</div>`
       : `<div class="bsh-up"><div style="flex:1;min-width:0"><b>Lv${eff+1}</b>${lv?'로 업그레이드':' 건설'}
