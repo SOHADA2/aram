@@ -1939,7 +1939,7 @@ import * as T from './vendor/three/three.module.js';
 import { GLTFLoader } from './vendor/three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from './vendor/three/addons/controls/OrbitControls.js';
 const P2=Math.PI/2, KIT={town:'assets/town/',castle:'assets/castle/',surv:'assets/survival/',hex:'assets/hex/',rts:'assets/rts/'};
-let renderer,scene,cam,ctrl,vgroup,bgroup,tgroup,curEl,labelHost,W=1,H=1,onBuild=null,sun,hemi,night=false,_wallLv=-1,_tierBuilt=-1;
+let renderer,scene,cam,ctrl,vgroup,bgroup,tgroup,ogroup,curEl,labelHost,W=1,H=1,onBuild=null,sun,hemi,night=false,_wallLv=-1,_tierBuilt=-1,_outerBuilt=-1;
 const cache={}, gl=new GLTFLoader(), labels=[];
 function loadG(kit,n){ const k=kit+'|'+n; return cache[k]||(cache[k]=gl.loadAsync(KIT[kit]+n+'.glb').then(g=>g.scene)); }
 async function inst(kit,n,parent,x,z,o){ o=o||{}; try{ const src=await loadG(kit,n); const m=src.clone(true);
@@ -1959,8 +1959,8 @@ function initScene(){
   const s=sun.shadow.camera; s.left=-11;s.right=11;s.top=11;s.bottom=-11;s.near=1;s.far=48; sun.shadow.bias=-0.0006; scene.add(sun);
   const earth=new T.Mesh(new T.PlaneGeometry(90,90),new T.MeshStandardMaterial({color:0x5e8a3e,roughness:1})); earth.rotation.x=-P2; earth.position.y=-0.12; earth.receiveShadow=true; scene.add(earth);   // 성 밖 대지(공중에 뜬 느낌 제거)
   const grass=new T.Mesh(new T.CircleGeometry(8,52),new T.MeshStandardMaterial({color:0x6f9e46,roughness:1})); grass.rotation.x=-P2; grass.receiveShadow=true; scene.add(grass);
-  vgroup=new T.Group(); scene.add(vgroup); bgroup=new T.Group(); scene.add(bgroup); tgroup=new T.Group(); scene.add(tgroup);
-  decorStatic();   // 성 밖 자연물만(광장·소품은 발전 단계별 buildTier가 담당)
+  vgroup=new T.Group(); scene.add(vgroup); bgroup=new T.Group(); scene.add(bgroup); tgroup=new T.Group(); scene.add(tgroup); ogroup=new T.Group(); scene.add(ogroup);
+  // 성 밖 들판은 본진 레벨에 따라 buildOuter가 발전시킴(개척지→경작지→발전한 시골)
   (function loop(){ requestAnimationFrame(loop); if(!curEl||!renderer||curEl.offsetParent===null) return; if(ctrl) ctrl.update();
     renderer.render(scene,cam); updateLabels(); updateWork(); })();
 }
@@ -1995,6 +1995,25 @@ async function buildWallRing(wallLv){ if(wallLv===_wallLv) return; _wallLv=wallL
   await inst('castle','gate',vgroup,RW,0,{ry:0,s:1.25});   // gate도 긴 축이 Z → ry=0이 접선
 }
 // 🏘️ 마을 중심가(광장·길·소품) — 발전 단계에 따라 점점 번화(0 개척지→3 성곽 도시)
+// 🌾 성 밖 들판 — 본진 레벨로 발전(개척지 야생 → 경작지 → 발전한 시골: 밭·풍차·농가·자원더미)
+async function buildOuter(mainLv){
+  const stg = mainLv>=22?4 : mainLv>=15?3 : mainLv>=9?2 : mainLv>=4?1 : 0;
+  if(stg===_outerBuilt) return; _outerBuilt=stg;
+  while(ogroup.children.length) ogroup.remove(ogroup.children[0]);
+  const R=mkrngT(778);
+  const wc=[24,19,14,10,7][stg];   // 야생 나무: 개간될수록 감소
+  for(let i=0;i<wc;i++){ const a=R()*6.283, r=10+R()*6.5; instFit('rts',['prop_pine','prop_tree1','prop_tree2'][(R()*3)|0],ogroup,Math.cos(a)*r,Math.sin(a)*r,{h:1.6+R()*1.3,ry:R()*6.283}); }
+  for(let i=0;i<[8,7,6,5,4][stg];i++){ const a=R()*6.283, r=10+R()*6; instFit('rts',R()<.5?'prop_rock':'prop_rock2',ogroup,Math.cos(a)*r,Math.sin(a)*r,{h:0.6+R()*0.7,ry:R()*6.283}); }
+  const fc=[0,3,5,7,9][stg];       // 경작지(밀밭): 발전할수록 증가
+  for(let k=0;k<fc;k++){ const a=(k/Math.max(1,fc))*6.283+0.3, r=9.3+((k%2)?1.7:0); instFit('rts', stg>=3?'farm_3':'farm_1', ogroup, Math.cos(a)*r, Math.sin(a)*r, {h:0.35,ry:a}); }
+  if(stg>=2){ instFit('rts','prop_well',ogroup,Math.cos(1.1)*12.5,Math.sin(1.1)*12.5,{h:2.8,ry:1.1});   // 풍차
+    instFit('rts','prop_logs',ogroup,Math.cos(2.5)*10.8,Math.sin(2.5)*10.8,{h:0.6,ry:2.5}); }
+  if(stg>=3){ instFit('rts','prop_gold',ogroup,Math.cos(4.2)*11.2,Math.sin(4.2)*11.2,{h:0.7});
+    instFit('rts','wood_3',ogroup,Math.cos(5.3)*12,Math.sin(5.3)*12,{w:2.2,ry:5.3+P2});                 // 바깥 농가
+    instFit('rts','iron_3',ogroup,Math.cos(0.2)*12.4,Math.sin(0.2)*12.4,{w:2.2,ry:0.2+P2}); }
+  if(stg>=4){ instFit('rts','clay_4',ogroup,Math.cos(3.5)*12.6,Math.sin(3.5)*12.6,{w:2.3,ry:3.5+P2});
+    instFit('rts','prop_well',ogroup,Math.cos(5.9)*12.8,Math.sin(5.9)*12.8,{h:2.9,ry:5.9}); }
+}
 async function buildTier(t){ if(t===_tierBuilt) return; _tierBuilt=t;
   while(tgroup.children.length) tgroup.remove(tgroup.children[0]);
   const flat=(geo,c,y)=>{ const m=new T.Mesh(geo,new T.MeshStandardMaterial({color:c,roughness:1})); m.rotation.x=-P2; m.position.y=y; m.receiveShadow=true; tgroup.add(m); return m; };
@@ -2131,7 +2150,7 @@ function resize(){ if(!curEl) return; const w=curEl.clientWidth, h=curEl.clientH
 export function build(blds, opts){ opts=opts||{}; onBuild=opts.onBuild; initScene();
   let devp=0; for(const k in blds) devp+=blds[k]||0;
   const tier = devp>=45?3 : devp>=25?2 : devp>=10?1 : 0;   // ⚠️ classic vilStage와 동일 공식 유지
-  buildTier(tier); buildWallRing(blds.wall||0);
+  buildTier(tier); buildOuter(blds.main||1); buildWallRing(blds.wall||0);
   while(bgroup.children.length) bgroup.remove(bgroup.children[0]);
   labels.forEach(L=>L.el.remove()); labels.length=0; _bPos={}; _workFn=opts.work||null;
   const BLD=opts.BLD||{}; const _icon=opts.icon||null;
