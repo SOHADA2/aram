@@ -2231,11 +2231,20 @@ function vTile(w){ if(w.owner==='me') return 'building-castle'; if(w.owner==='pl
   return w.size>=5?'building-village':(w.size>=3?'building-house':'building-cabin'); }
 // 🏰 월드맵 마을 = RTS 완성형 건물(마을 내부와 동일 퀄) — 헥스 위에 얹음
 const RTS='assets/rts/'; function ldR(n){ return C['r:'+n]||(C['r:'+n]=GL.loadAsync(RTS+n+'.glb').then(g=>g.scene)); }
-function vBuild(w,id){
-  if(w.owner==='me'){ const mn=(OPT&&OPT.mainOf)?OPT.mainOf(id):6; const t=Math.max(1,Math.min(6,Math.ceil(mn/30*6))); return {n:'main_'+t, tw:0.8+t*0.075}; }   // 내 성 = 본진 레벨 비례(초기 작은 집 → 발전 성)
-  if(w.owner==='player') return {n:'rally_3',tw:0.98};
-  const sz=Math.min(6,Math.max(1,w.size||1));   // 야만인 마을: 규모(★)가 커질수록 큰 건물
-  return {n:['hide','wood_1','clay_2','iron_2','wood_3','main_2'][sz-1], tw:0.66+sz*0.06};
+// 건물다운(높이 있는) 모델만 사용 — 납작한 clay/iron/main_1/market/storage는 평상처럼 보여 제외
+function vMap(w,id){
+  if(w.owner==='me'){ const mn=(OPT&&OPT.mainOf)?OPT.mainOf(id):6; const t=Math.max(1,Math.min(6,Math.ceil(mn/30*6)));
+    return {main:['wood_6','hide','main_2','main_3','main_4','main_6'][t-1], tw:[0.55,0.62,0.72,0.82,0.95,1.1][t-1], extra:0}; }   // 내 성 = 본진 레벨 비례(소박한 집 → 웅장한 성)
+  if(w.owner==='player') return {main:'rally_3', tw:0.85, extra:0};
+  const sz=Math.min(6,Math.max(1,w.size||1));   // 야만인 마을: ★가 커질수록 큰 중심건물 + 주변 오두막 증가(마을 군집)
+  return {main:['wood_1','wood_6','hide','main_2','main_3','main_5'][sz-1], tw:[0.42,0.46,0.5,0.55,0.6,0.68][sz-1], extra:[0,0,1,1,2,2][sz-1]};
+}
+const _HUT=['wood_1','iron_1','wood_4'];
+// 마을 건물 배치/갱신 — 모델 시그니처가 바뀔 때만 재구성(★성장·본진레벨 변화 자동 반영)
+function _applyVil(L,w){ const cfg=vMap(w,L.id); const ns=cfg.main+'|'+cfg.tw+'|'+cfg.extra; if(ns===L.msig) return; L.msig=ns;
+  L.meshes.forEach(m=>GRP.remove(m)); L.meshes.length=0; L.pos.y=0.72+cfg.tw*0.5;
+  placeRTS(cfg.main,L.x,L.z,cfg.tw,L.ry).then(m=>{ if(m) L.meshes.push(m); });
+  for(let k=0;k<cfg.extra;k++){ const a=L.ry+2.094*(k+1), rr=0.38; placeRTS(_HUT[k%3], L.x+Math.cos(a)*rr, L.z+Math.sin(a)*rr, 0.27, a).then(m=>{ if(m) L.meshes.push(m); }); }
 }
 async function placeRTS(n,x,z,tw,ry){ try{ const m=(await ldR(n)).clone(true);
   const b=new T.Box3().setFromObject(m); const foot=Math.max(b.max.x-b.min.x,b.max.z-b.min.z)||1; m.scale.setScalar(tw/foot);
@@ -2387,7 +2396,7 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
   if(!full){ for(const L of VLAB){ if(!L.id) continue; const w=world[L.id]; if(!w) continue;
     const sig=(w.size||0)+'|'+(opts.isP(w)?1:0);
     if(L.sig!==sig){ L.sig=sig; L.el.innerHTML=_mkMarkHtml(w); }
-    if(w.owner==='me'){ const nb=vBuild(w,L.id); if(nb.n!==L.bTier){ L.bTier=nb.n; if(L.bMesh){ GRP.remove(L.bMesh); L.bMesh=null; } placeRTS(nb.n,L.x,L.z,nb.tw,L.ry).then(m=>{ L.bMesh=m; }); } } } }
+    _applyVil(L,w); } }
   if(full){   // 월드 구조 변경 → 전체 재구성
     _wsig=wsig; _rcnt=-1; _built=Object.create(null); _pen=Object.create(null);
     while(GRP.children.length) GRP.remove(GRP.children[0]);
@@ -2403,12 +2412,11 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
   for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ const key=c+','+r;
     if(_built[key] || !rev[key]) continue; _built[key]=1;
     const p=opts.hex(c,r); const x=p.x-off.x, z=p.z-off.z; const id=at[key];
-    if(id){ const w=world[id]; tile((r>=rows-3)?'sand':'grass',x,z,false); const vb=vBuild(w,id); const ry=_hrand(c,r)*6.283;
+    if(id){ const w=world[id]; tile((r>=rows-3)?'sand':'grass',x,z,false);
       const el=document.createElement('div'); el.className='v3-label vmk3 '+(w.owner==='me'?'me':(w.owner==='player'?'pl':'barb'));
       el.innerHTML=_mkMarkHtml(w);
-      const ly=0.72+vb.tw*0.5;
-      const L={el,pos:new T.Vector3(x,ly,z),id,sig:(w.size||0)+'|'+(opts.isP(w)?1:0),x,z,ry,bTier:vb.n,bMesh:null,onTap:()=>{ if(opts.onNode) opts.onNode(id); }};
-      LH.appendChild(el); VLAB.push(L); placeRTS(vb.n,x,z,vb.tw,ry).then(m=>{ L.bMesh=m; });
+      const L={el,pos:new T.Vector3(x,1,z),id,sig:(w.size||0)+'|'+(opts.isP(w)?1:0),x,z,ry:_hrand(c,r)*6.283,msig:'',meshes:[],onTap:()=>{ if(opts.onNode) opts.onNode(id); }};
+      LH.appendChild(el); VLAB.push(L); _applyVil(L,w);
     } else if(roads[key]){ tile((r>=rows-3)?'sand':'grass',x,z,false); tile(roads[key].n,x,z,false,roads[key].rot,0.2); }
     else { tile(biome(c,r,cols,rows,_hrand(c,r)),x,z,false); }
     if(!full && _fogCtx){ eraseFogCell(c,r); hideCloudAt(c,r); fogDirty=true; }   // 증분: 안개 부드럽게 걷힘
