@@ -621,7 +621,7 @@ function prodPerMin(l){ return l? Math.round(30*Math.pow(1.163,l-1)*WSPEED/60) :
 function storeCapAt(l){ return Math.round(1000*Math.pow(1.2294,Math.max(0,l-1))); }
 function popCapAt(l){ return Math.round(240*Math.pow(1.172,Math.max(0,l-1))); }
 function hideCapAt(l){ return l? Math.round(150*Math.pow(1.333,l-1)) : 0; }
-let DEV={fast:false,inf:false};   // 🧪 목업 테스트: 즉시건설 / 무한자원
+let DEV={fast:false,inf:false,tier:0};   // 🧪 목업 테스트: 즉시건설 / 무한자원
 function storeCapV(v){ return DEV.inf?9999999:storeCapAt(v.blds.storage||0); }
 function storeCap(){ return storeCapV(S.v); }
 function popCapV(v){ return popCapAt(v.blds.farm||0); }
@@ -1409,7 +1409,7 @@ function renderVillage(full){
       <div style="height:8px"></div>`;
     fillBiomeFx(B.fx);
     const _sc=document.getElementById('rgn-scene');
-    if(_sc && window.Town3D){ try{ window.Town3D.mount(_sc); window.Town3D.build(S.v.blds,{onBuild:(b)=>{ if(isPC()) window.build(b); else window.openBldSheet(b); }, BLD, icon:I, work:villageWork});
+    if(_sc && window.Town3D){ try{ window.Town3D.mount(_sc); window.Town3D.build(S.v.blds,{onBuild:(b)=>{ if(isPC()) window.build(b); else window.openBldSheet(b); }, BLD, icon:I, work:villageWork, forceTier:DEV.tier});
         const rr=document.getElementById('rgn-reset'); if(rr){ rr.innerHTML=I('expand'); rr.onclick=()=>window.Town3D.resetCam(); }
         const dn=document.getElementById('rgn-daynight'); if(dn){ dn.innerHTML=I('moon'); } if(dn) dn.onclick=()=>{ dn.innerHTML=window.Town3D.setNight()?I('expand'):I('moon'); }; }catch(e){}
     } else if(_sc){ buildIso(HOME_ID); const _cam=document.getElementById('rgn-cam');
@@ -1904,17 +1904,19 @@ function initDevPanel(){
     '<button data-d="fast">⚡ 즉시 건설/훈련</button>'+
     '<button data-d="finish">⏱️ 진행 즉시완료</button>'+
     '<div class="dev-row"><span>단계</span><button data-d="t1">1</button><button data-d="t2">2</button><button data-d="t3">3</button><button data-d="t4">4</button><button data-d="t5">5</button><button data-d="t6">6</button></div>'+
+    '<button data-d="treal">↩️ 실제 레벨로</button>'+
     '<button data-d="plus">＋1 전체(업글 보기)</button>'+
     '<button data-d="army">⚔️ 병력+집결지</button></div>';
   document.body.appendChild(p);
   p.querySelector('.dev-toggle').onclick=()=>p.classList.toggle('open');
   const refresh=()=>{ S._dirtyVil=true; save(); if(view==='village')renderVillage(true); renderTop(); renderSidebar(); };
   const setAll=(n)=>{ const v=S.v; for(const b in BLD){ if(b==='wall') v.blds.wall=(n>=10?12:n>=5?6:2); else v.blds[b]=n; } v.blds.main=n; refresh(); toast('전 건물 Lv'+n); };
+  const fT=(n)=>{ DEV.tier=n; refresh(); toast(n?('🔍 '+n+'단계 미리보기'):'↩️ 실제 레벨 표시'); };
   const acts={
     rich:()=>{ DEV.inf=true; const v=S.v; ['wood','clay','iron'].forEach(k=>v.res[k]=9000000); save(); renderTop(); renderSidebar(); if(view==='village')updateVillageDynamic(); toast('💰 자원 가득(무한)'); },
     fast:(b)=>{ DEV.fast=!DEV.fast; b.classList.toggle('on',DEV.fast); toast(DEV.fast?'⚡ 즉시 건설/훈련 ON':'즉시 건설/훈련 OFF'); },
     finish:()=>{ const now=Date.now(); for(const id in S.villages){ const v=S.villages[id]; (v.buildQ||[]).forEach(q=>q.doneAt=now); (v.recQ||[]).forEach(q=>q.doneAt=now); } tick(); refresh(); toast('⏱️ 진행 즉시완료'); },
-    t1:()=>setAll(1), t2:()=>setAll(3), t3:()=>setAll(5), t4:()=>setAll(7), t5:()=>setAll(9), t6:()=>setAll(12),
+    t1:()=>fT(1), t2:()=>fT(2), t3:()=>fT(3), t4:()=>fT(4), t5:()=>fT(5), t6:()=>fT(6), treal:()=>fT(0),
     plus:()=>{ const v=S.v; for(const b in BLD){ if((v.blds[b]||0)>0) v.blds[b]=(v.blds[b]||0)+1; } v.blds.main=(v.blds.main||1)+1; refresh(); toast('＋1 전체'); },
     army:()=>{ if(window.runeArmy) window.runeArmy(200); },
   };
@@ -1939,7 +1941,7 @@ import * as T from './vendor/three/three.module.js';
 import { GLTFLoader } from './vendor/three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from './vendor/three/addons/controls/OrbitControls.js';
 const P2=Math.PI/2, KIT={town:'assets/town/',castle:'assets/castle/',surv:'assets/survival/',hex:'assets/hex/',rts:'assets/rts/'};
-let renderer,scene,cam,ctrl,vgroup,bgroup,tgroup,ogroup,curEl,labelHost,W=1,H=1,onBuild=null,sun,hemi,night=false,_wallLv=-1,_tierBuilt=-1,_outerBuilt=-1;
+let renderer,scene,cam,ctrl,vgroup,bgroup,tgroup,ogroup,curEl,labelHost,W=1,H=1,onBuild=null,sun,hemi,night=false,_wallLv=-1,_tierBuilt=-1,_outerBuilt=-1,_forceTier=0;
 const cache={}, gl=new GLTFLoader(), labels=[];
 function loadG(kit,n){ const k=kit+'|'+n; return cache[k]||(cache[k]=gl.loadAsync(KIT[kit]+n+'.glb').then(g=>g.scene)); }
 async function inst(kit,n,parent,x,z,o){ o=o||{}; try{ const src=await loadG(kit,n); const m=src.clone(true);
@@ -1996,23 +1998,26 @@ async function buildWallRing(wallLv){ if(wallLv===_wallLv) return; _wallLv=wallL
 }
 // 🏘️ 마을 중심가(광장·길·소품) — 발전 단계에 따라 점점 번화(0 개척지→3 성곽 도시)
 // 🌾 성 밖 들판 — 본진 레벨로 발전(개척지 야생 → 경작지 → 발전한 시골: 밭·풍차·농가·자원더미)
-async function buildOuter(mainLv){
-  const stg = mainLv>=22?4 : mainLv>=15?3 : mainLv>=9?2 : mainLv>=4?1 : 0;
+async function buildOuter(stg){
   if(stg===_outerBuilt) return; _outerBuilt=stg;
   while(ogroup.children.length) ogroup.remove(ogroup.children[0]);
+  const gcol=[0x6d6a4a,0x77804c,0x6f9350,0x67a552,0x5fae55][stg];
+  const disc=new T.Mesh(new T.CircleGeometry(17,60), new T.MeshStandardMaterial({color:gcol,roughness:1}));
+  disc.rotation.x=-P2; disc.position.y=-0.03; disc.receiveShadow=true; ogroup.add(disc);
   const R=mkrngT(778);
-  const wc=[24,19,14,10,7][stg];   // 야생 나무: 개간될수록 감소
-  for(let i=0;i<wc;i++){ const a=R()*6.283, r=10+R()*6.5; instFit('rts',['prop_pine','prop_tree1','prop_tree2'][(R()*3)|0],ogroup,Math.cos(a)*r,Math.sin(a)*r,{h:1.6+R()*1.3,ry:R()*6.283}); }
-  for(let i=0;i<[8,7,6,5,4][stg];i++){ const a=R()*6.283, r=10+R()*6; instFit('rts',R()<.5?'prop_rock':'prop_rock2',ogroup,Math.cos(a)*r,Math.sin(a)*r,{h:0.6+R()*0.7,ry:R()*6.283}); }
-  const fc=[0,3,5,7,9][stg];       // 경작지(밀밭): 발전할수록 증가
-  for(let k=0;k<fc;k++){ const a=(k/Math.max(1,fc))*6.283+0.3, r=9.3+((k%2)?1.7:0); instFit('rts', stg>=3?'farm_3':'farm_1', ogroup, Math.cos(a)*r, Math.sin(a)*r, {h:0.35,ry:a}); }
-  if(stg>=2){ instFit('rts','prop_well',ogroup,Math.cos(1.1)*12.5,Math.sin(1.1)*12.5,{h:2.8,ry:1.1});   // 풍차
-    instFit('rts','prop_logs',ogroup,Math.cos(2.5)*10.8,Math.sin(2.5)*10.8,{h:0.6,ry:2.5}); }
+  const wc=[34,24,15,9,4][stg];
+  for(let i=0;i<wc;i++){ const a=R()*6.283, r=9.5+R()*7; instFit('rts',['prop_pine','prop_tree1','prop_tree2'][(R()*3)|0],ogroup,Math.cos(a)*r,Math.sin(a)*r,{h:1.6+R()*1.4,ry:R()*6.283}); }
+  for(let i=0;i<[11,8,6,5,4][stg];i++){ const a=R()*6.283, r=10+R()*6; instFit('rts',R()<.5?'prop_rock':'prop_rock2',ogroup,Math.cos(a)*r,Math.sin(a)*r,{h:0.6+R()*0.8,ry:R()*6.283}); }
+  const fc=[0,4,8,12,18][stg];
+  for(let k=0;k<fc;k++){ const a=(k/Math.max(1,fc))*6.283, r=9.2+((k%3)?1.7:0)+((k%2)?0.8:0); instFit('rts', stg>=3?'farm_3':'farm_1', ogroup, Math.cos(a)*r, Math.sin(a)*r, {h:0.35,ry:a}); }
+  const mills=[0,0,1,2,3][stg];
+  for(let k=0;k<mills;k++){ const a=1.0+k*2.1, r=12.5; instFit('rts','prop_well',ogroup,Math.cos(a)*r,Math.sin(a)*r,{h:2.8,ry:a}); }
+  if(stg>=2){ instFit('rts','prop_logs',ogroup,Math.cos(2.5)*10.8,Math.sin(2.5)*10.8,{h:0.6,ry:2.5}); }
   if(stg>=3){ instFit('rts','prop_gold',ogroup,Math.cos(4.2)*11.2,Math.sin(4.2)*11.2,{h:0.7});
-    instFit('rts','wood_3',ogroup,Math.cos(5.3)*12,Math.sin(5.3)*12,{w:2.2,ry:5.3+P2});                 // 바깥 농가
-    instFit('rts','iron_3',ogroup,Math.cos(0.2)*12.4,Math.sin(0.2)*12.4,{w:2.2,ry:0.2+P2}); }
-  if(stg>=4){ instFit('rts','clay_4',ogroup,Math.cos(3.5)*12.6,Math.sin(3.5)*12.6,{w:2.3,ry:3.5+P2});
-    instFit('rts','prop_well',ogroup,Math.cos(5.9)*12.8,Math.sin(5.9)*12.8,{h:2.9,ry:5.9}); }
+    instFit('rts','prop_logs',ogroup,Math.cos(3.6)*12.5,Math.sin(3.6)*12.5,{h:0.6,ry:3.6}); }
+  const houses=[0,0,1,4,7][stg];
+  const hm=['wood_2','iron_2','clay_2','wood_3','iron_3','clay_4','wood_4'];
+  for(let k=0;k<houses;k++){ const a=(k/houses)*6.283+0.4, r=12.5+((k%2)?1.2:0); instFit('rts',hm[k%hm.length],ogroup,Math.cos(a)*r,Math.sin(a)*r,{w:2.1,ry:a+P2}); }
 }
 async function buildTier(t){ if(t===_tierBuilt) return; _tierBuilt=t;
   while(tgroup.children.length) tgroup.remove(tgroup.children[0]);
@@ -2062,7 +2067,7 @@ async function instFit(kit,n,parent,x,z,o){ o=o||{}; try{ const srcM=await loadG
 async function placeBuilding(x,z,ry,b,lv,central,mx){
   if(lv<=0) return;
   // 🏛️ 완성형 RTS 건물 — 6단계를 건물 최대레벨에 고르게 분산(초기 목조 1~3 → 발전 석조 4~6)
-  const tier = (!mx||mx<=1) ? 3 : Math.max(1, Math.min(6, Math.ceil(lv/mx*6)));
+  const tier = _forceTier || ((!mx||mx<=1) ? 3 : Math.max(1, Math.min(6, Math.ceil(lv/mx*6))));
   if(central){ await instFit('rts','main_'+tier,bgroup,x,z,{w:3.6,ry:ry+P2}); return; }
   const name = (b==='hide') ? (tier>=4?'hide2':'hide') : (b+'_'+tier);
   await instFit('rts',name,bgroup,x,z,{w:2.7,ry:ry+P2});
@@ -2148,9 +2153,12 @@ function resize(){ if(!curEl) return; const w=curEl.clientWidth, h=curEl.clientH
   W=w; H=h; renderer.setSize(W,H);
   const D=9, a=W/H; cam.left=-D*a;cam.right=D*a;cam.top=D;cam.bottom=-D; cam.updateProjectionMatrix(); }
 export function build(blds, opts){ opts=opts||{}; onBuild=opts.onBuild; initScene();
+  const FT=opts.forceTier||0; _forceTier=FT;
   let devp=0; for(const k in blds) devp+=blds[k]||0;
-  const tier = devp>=45?3 : devp>=25?2 : devp>=10?1 : 0;   // ⚠️ classic vilStage와 동일 공식 유지
-  buildTier(tier); buildOuter(blds.main||1); buildWallRing(blds.wall||0);
+  const tier = FT? [0,0,1,2,2,3,3][FT] : (devp>=45?3 : devp>=25?2 : devp>=10?1 : 0);   // ⚠️ classic vilStage와 동일 공식 유지
+  const ostg = FT? [0,0,1,2,3,4,4][FT] : (blds.main>=22?4:blds.main>=15?3:blds.main>=9?2:blds.main>=4?1:0);
+  const wlv  = FT? [0,1,3,6,10,14,18][FT] : (blds.wall||0);
+  buildTier(tier); buildOuter(ostg); buildWallRing(wlv);
   while(bgroup.children.length) bgroup.remove(bgroup.children[0]);
   labels.forEach(L=>L.el.remove()); labels.length=0; _bPos={}; _workFn=opts.work||null;
   const BLD=opts.BLD||{}; const _icon=opts.icon||null;
