@@ -201,6 +201,7 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
   box-shadow:0 -8px 30px rgba(0,0,0,.4),inset 0 0 0 2px #2a2013;max-height:76vh;overflow-y:auto;overscroll-behavior:contain;
   padding:6px 12px calc(14px + env(safe-area-inset-bottom));animation:shUp .2s ease-out;}
 @keyframes shUp{from{transform:translateY(35%);opacity:.4}to{transform:none;opacity:1}}
+@keyframes winIn{from{transform:translate(-50%,-47%) scale(.96);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
 .bsh-handle{width:42px;height:4px;border-radius:3px;background:#6b4f24;margin:3px auto 9px;}
 .bsh-head{display:flex;align-items:flex-start;gap:9px;padding-bottom:8px;border-bottom:1px dashed #54401f;margin-bottom:8px;}
 .bsh-head .bi{font-size:26px;}
@@ -410,7 +411,18 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
   .main{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:10px;padding:10px;align-items:start;}
   .sidebar{display:block;position:sticky;top:10px;}
   .map-wrap{height:calc(100vh - 176px);height:calc(100dvh - 176px);min-height:480px;}
-  .scene{height:560px;}
+  .scene{height:calc(100vh - 250px);min-height:520px;max-height:760px;}
+  /* 🪟 건물 창 = 중앙 팝업(게임식) */
+  .bsheet{left:50%;right:auto;bottom:auto;top:50%;transform:translate(-50%,-50%);width:460px;max-width:460px;
+    border-radius:14px;border-bottom:2px solid #6b4f24;max-height:86vh;padding:14px 16px 16px;
+    box-shadow:0 24px 70px rgba(0,0,0,.6),inset 0 0 0 2px #2a2013;animation:winIn .16s ease-out;}
+  .bsheet .bsh-handle{display:none;}
+  .bsheet-dim{background:rgba(10,7,3,.6);backdrop-filter:blur(2px);}
+  .bsheet .rgrid{grid-template-columns:1fr 1fr;}
+  /* 건물 아이콘 팔레트 — PC는 좀 더 크게 */
+  .bgrid2{grid-template-columns:repeat(6,1fr);gap:7px;}
+  .bt2{padding:8px 8px;border-radius:10px;gap:5px;}
+  .bt2 .i{font-size:16px;} .bt2 .n{font-size:9.5px;letter-spacing:0;} .bt2 .lv{font-size:9px;}
   .picker,.picker.atk{max-width:520px;}
   .vi-acts .btn{font-size:13px;}
   .bgrid{grid-template-columns:1fr 1fr 1fr;}
@@ -1403,18 +1415,13 @@ function renderVillage(full){
       </div>
       <div id="vil-switch"></div>
       <div id="vil-queues"></div>
-      <div class="box"><div class="bh">${I('workshop')} 건물</div><div class="bc" id="vil-blds"></div></div>
-      ${isPC()? `
-      <div class="box"><div class="bh">${I('barracks')} 병영 <small>창병 · 검사 · 도끼병 · 궁병</small></div><div class="bc" id="vil-barracks"></div></div>
-      <div class="box"><div class="bh">${I('stable')} 마구간 <small>정찰병 · 경기병 · 궁기병 · 중기병</small></div><div class="bc" id="vil-stable"></div></div>
-      <div class="box"><div class="bh">${I('workshop')} 공방 <small>파성추 · 투석기</small></div><div class="bc" id="vil-workshop"></div></div>
-      <div class="box"><div class="bh">🎓 대학 <small>귀족 — 마을 정복</small></div><div class="bc" id="vil-academy"></div></div>`:''}
+      <div class="box"><div class="bh">${I('workshop')} 건물 <small>클릭해서 업그레이드 · 병력 훈련</small></div><div class="bc" id="vil-blds"></div></div>
       <div class="box"><div class="bh">${I('shield')} 병력 <small id="vil-armytot"></small></div><div class="bc" id="vil-army"></div></div>
       <div class="box"><div class="bh">${I('cart')} 이 마을의 행군</div><div class="bc" id="vil-marches"></div></div>
       <div style="height:8px"></div>`;
     fillBiomeFx(B.fx);
     const _sc=document.getElementById('rgn-scene');
-    if(_sc && window.Town3D){ try{ window.Town3D.mount(_sc); window.Town3D.build(S.v.blds,{onBuild:(b)=>{ if(isPC()) window.build(b); else window.openBldSheet(b); }, BLD, icon:I, work:villageWork, forceTier:DEV.tier});
+    if(_sc && window.Town3D){ try{ window.Town3D.mount(_sc); window.Town3D.build(S.v.blds,{onBuild:(b)=>{ window.openBldSheet(b); }, BLD, icon:I, work:villageWork, forceTier:DEV.tier});
         const rr=document.getElementById('rgn-reset'); if(rr){ rr.innerHTML=I('expand'); rr.onclick=()=>window.Town3D.resetCam(); }
         const dn=document.getElementById('rgn-daynight'); if(dn){ dn.innerHTML=I('moon'); } if(dn) dn.onclick=()=>{ dn.innerHTML=window.Town3D.setNight()?I('expand'):I('moon'); }; }catch(e){}
     } else if(_sc){ buildIso(HOME_ID); const _cam=document.getElementById('rgn-cam');
@@ -1503,20 +1510,10 @@ function updateVillageDynamic(){
       const reqTxt=d.req? Object.keys(d.req).map(k=>BLD[k].nm+d.req[k]).join('·') : '';
       const hl=(b==='rally'&&lv<1&&met);
       return {b,d,lv,qd,maxed,c,met,aff,reqTxt,hl,ef:bldEffTxt(b,lv),nx:bldNextTxt(b,eff),tS:fmtSec(buildTime(b,eff+1))}; });
-    if(pc){
-      be.innerHTML=`<table class="twt"><tr><th style="text-align:left">건물</th><th>Lv</th><th style="text-align:left">효과</th><th style="text-align:right">${I('wood')}</th><th style="text-align:right">${I('clay')}</th><th style="text-align:right">${I('iron')}</th><th>${I('time')}</th><th></th></tr>`+
-        rows.map(r=>`<tr class="${r.hl?'hl':''}"><td>${I(r.d.ic)} <b>${r.d.nm}</b>${(r.b==='market'&&r.lv>=1)?` <button class="btn sm" onclick="openMarket()">열기</button>`:(r.b==='smithy'&&r.lv>=1)?` <button class="btn sm" onclick="openSmithy()">열기</button>`:''}</td>
-          <td style="text-align:center">${r.lv}${r.qd?`<small>(+${r.qd})</small>`:''}</td>
-          <td class="eff">${r.ef}${(!r.maxed&&r.met&&r.nx)?`<span class="eff-nx">▸ ${r.nx}</span>`:''}</td>
-          ${r.maxed? `<td colspan="4" class="mut" style="text-align:center">최대</td>` : !r.met? `<td colspan="4" class="mut" style="text-align:center">잠김 · ${r.reqTxt}</td>`
-            : `<td style="text-align:right">${NF(r.c.wood)}</td><td style="text-align:right">${NF(r.c.clay)}</td><td style="text-align:right">${NF(r.c.iron)}</td><td style="text-align:center">${r.tS}</td>`}
-          <td style="text-align:center">${r.maxed||!r.met?'':`<button class="btn sm ${r.aff?'':'no'}" onclick="build('${r.b}')">${r.lv?'업글':'건설'}</button>`}</td></tr>`).join('')+`</table>`;
-    } else {
-      // 📱 모바일식: 아이콘 그리드 — 탭하면 그 건물 시트(업글·훈련)가 떠서 스크롤 왕복 없음
-      be.innerHTML=`<div class="bgrid2">`+rows.map(r=>
-        `<div class="bt2 ${(!r.met&&!r.lv)?'lock':''} ${r.hl?'hl':''} ${(!r.maxed&&r.met&&r.aff)?'can':''}" onclick="openBldSheet('${r.b}')">
-          <span class="i">${I(r.d.ic,'ic-lg')}</span><span class="n">${(r.d.nm||'').replace(/\s/g,'')}</span><span class="lv${r.qd?' up':''}">${r.qd?`${r.lv}▸${r.lv+r.qd}`:r.lv}</span></div>`).join('')+`</div>`;
-    }
+    // 🏘️ 건물 아이콘 팔레트 — 클릭하면 건물 창(업글·훈련)이 뜬다(PC=중앙 창 / 모바일=하단 시트). 3D 마을의 건물을 눌러도 동일.
+    be.innerHTML=`<div class="bgrid2">`+rows.map(r=>
+      `<div class="bt2 ${(!r.met&&!r.lv)?'lock':''} ${r.hl?'hl':''} ${(!r.maxed&&r.met&&r.aff)?'can':''}" onclick="openBldSheet('${r.b}')">
+        <span class="i">${I(r.d.ic,'ic-lg')}</span><span class="n">${(r.d.nm||'').replace(/\s/g,'')}</span><span class="lv${r.qd?' up':''}">${r.qd?`${r.lv}▸${r.lv+r.qd}`:r.lv}</span></div>`).join('')+`</div>`;
   }
   renderRecruit('vil-barracks','barracks',UNIT_GROUPS.barracks,pc);
   renderRecruit('vil-stable','stable',UNIT_GROUPS.stable,pc);
