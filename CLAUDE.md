@@ -872,6 +872,39 @@ const MAGOLLA_BET_DURATION = 90000; // 90초
 > - **Town3D 라벨도 `pointer-events:auto`** — 건물 명패 위에서 드래그 시작 시 마을 씬 조작이 씹힌다. 지도와 같은 패턴 이식하면 됨.
 > - 3D 실기(폰) 체감 확인 · 헥스 타일 바닥색이 지면색과 살짝 안 맞음 · 지형 타일이 개별 드로우콜(~300+)이라 병합 여지 · **영웅 카드 도감은 아직 이모지**(진입 버튼을 제거해 현재 도달 불가 화면이라 후순위).
 
+### 🗺️ 룬테라 전쟁 v0.5 — 🏛️ RTS 에셋 건물 대개편 + PC UI 게임화 + 클릭/피드백 (2026-08-03·이 PC win32·main 직접 배포) ← 최신·必독
+> ⚠️ **index.html(라이브 앱) 무관** — `룬테라원정-프로토타입.html` 단독. `APP_VERSION`·`CHANGELOG` 안 건드림. 배포=`git push origin HEAD:main`(이 PC는 작업브랜치 없이 main 직접). 확인=`https://sohada2.github.io/aram/rune.html?v=N`(캐시 강함·시크릿). 검증=인라인 `<script>` 3블록 `node --check`(python 정규식 추출·b1 classic + b2/b3 module).
+> #### 🖼️ 이 PC 렌더 검증법(중요·다음 작업자)
+> - **단일 GLB 모델 렌더는 Edge 헤드리스+swiftshader로 됨**(빠름) — 모델이 뭐처럼 보이는지 확인용. 하네스: scratchpad에 `<script type=module>`로 vendor three + GLTFLoader 임포트, 모델별 캔버스 렌더 후 `--screenshot`. **모델 실루엣 점검은 이걸로**(예: 본진 후보 workshop/academy 비교, RING 건물 tier3 일괄).
+> - ⚠️ **마을/지도 전체 3D는 swiftshader가 너무 무거워 헤드리스로 안 뜸(멈춤·타임아웃)** — 최종 배치/겹침/클릭은 **사장님 실기 확인 필요**. 코드+단일모델렌더로 최대한 추론.
+> - **GLB 바운딩박스**는 GLB의 JSON청크(20바이트 헤더 뒤 chunk0)에서 `accessors[].min/max`(POSITION) 파싱으로 얻음(three 없이·`h/foot<0.6`이면 납작=평상느낌).
+> #### 🏛️ 건물(3D) — RTS 팩(Quaternius, `assets/rts/`) 모델 재배치(placeBuilding·Town3D)
+> - **6단계 업그레이드**: `tier = _forceTier || ceil(lv/건물max*6)`(1~6, FirstAge 목조 1~3 → SecondAge 석조 4~6). 건물마다 max레벨 다르니 비례 분산.
+> - ⚠️ **RTS 팩의 실제 모델이 이름과 안 맞음**(단일모델렌더로 확인): main(TownCenter)=**사슴 동상 얹은 나무 단상/정원**(본진답지 않음)·smithy(Port)=**부두/조선소**·rally_3=**3층 감시탑(아파트 느낌)**·workshop(Wonder)=**나무 요새→석조 성(가장 웅장)**·academy(Temple)=**웅장한 목조 홀**.
+> - → **매핑 재배치**(placeBuilding name 로직): **본진=workshop_tier**(요새→성·w3.4)·**공방=smithy_tier**(건설 야드)·**대장간=main_tier**(광장형·팩에 forge 모델 없음)·**집결지=rally_1 고정**(단층 초소·rally_3 아파트 회피)·hide=지하창고(tier≥4면 hide2). 나머지는 `b+'_'+tier`.
+> - **배치 겹침 완화**: 본진 w3.9→**3.4**·안쪽 RING 반경 3.75→**3.9**·건물 폭 2.7→**2.5**(바깥 RING 6.0은 성벽7.4 안 유지). `instFit`은 `max(가로,세로)`를 `o.w`에 정규화.
+> - ⏭️ **대장간이 여전히 광장-monument라 어색**(팩 한계) — forge 모델 추가하거나 공방에 castle키트 투석기(`assets/castle/siege-*`) 세우는 안 있음.
+> #### 🖱️ 건물 클릭(레이캐스트) + 하이라이트 + 작업 피드백
+> - **건물 메쉬 직접 클릭**: `instFit`이 `o.tag`(건물키)를 mesh userData.bldKey에 심음. initScene에 pointerdown/up(드래그<7px·<500ms=클릭)→레이캐스트(`bgroup`+`vgroup`, vgroup히트=wall)→`onBuild(b)`. 이름표 클릭도 그대로. **겹쳐도 앞 건물 선택**. (마을 카메라는 rotate·pan 꺼짐이라 클릭 충돌 없음)
+> - **호버 골드 링 + 클릭 펄스**: pointermove→호버 건물 바닥 `_mkRing` 골드 링(어떤 건물인지)·커서 pointer. pointerup→클릭 링 펄스(loop서 `_clkPulse` 감쇠·확대). 링 크기 `_ringSize`(main2.25/wall1.3/기타1.55). Town3D `export function pulse(b)`(작업시작 시 초록 펄스).
+> - **작업 시작 피드백**(기존엔 성공 시 무반응): `build`/`recruit` 성공 끝에 **토스트('N 시작!')·`_spendFx`(자원바 칩 `.spent` 주황 플래시)·`_spendFloat`(창 흐림 위로 '-비용' 팝업·`#bsheet` 위치 기준 z95)·`Town3D.pulse`·버튼 `:active` 눌림**. ⚠️자원바가 건물창 blur 뒤라 `_spendFx`는 안 보임 → **`_spendFloat` + 건물창 안 `.bsh-res`(현재 자원·부족분 빨강)** 가 실제로 보이는 피드백.
+> #### 🖥️ PC UI 게임화(모바일과 분리·`@media(min-width:900px)`)
+> - **건물 창=중앙 팝업**(`.bsheet` PC 오버라이드: `top/left 50% translate`·`winIn` 애니·핸들 숨김·dim blur). 3D건물/팔레트 클릭→`openBldSheet`(PC도·기존엔 즉시 build였음).
+> - **긴 테이블 나열 폐지** → 건물=**아이콘 팔레트**(`_bldPaletteHtml`·카테고리 `BLD_CATS` 자원/군사/중심). PC는 **우측 사이드바(`renderSidebar`)로 통합**(내마을+건물+병력+부대이동, 스크롤). ⚠️`renderSidebar` 끝에서 `updateVillageDynamic()` 호출로 `#vil-blds/army/marches` 즉시 채움(매초 loop가 update→renderSidebar 순이라 안 채우면 깜빡임). 모바일은 콘텐츠에 세로 스택(`isPC()?'':박스`). 씬은 좌측 전체폭(`.scene` height `calc(100vh-250px)`).
+> - **팔레트 타일**: 세로 아이콘(아이콘/이름/레벨)·3열. **업글가능=우상단 초록 「↑」 배지만**(`.bt2.can::after`·테두리·배경칠 없음).
+> - **병력 훈련 카드 직관화**(`renderBldSheet`): 역할 한 줄 강조(`.rc-role`)+비용/시간 간결+**세부 능력치(공격·3방어·속도·약탈) 접힘**(`<details class=rc-more>`).
+> - `renderRecruit`(구 PC 테이블/모바일 카드)는 이제 **미사용 死코드**(vil-barracks 등 제거)·훈련은 건물창에서만.
+> #### 🗺️ 월드맵(Map3D) 대개편
+> - **마을=축소 미니 마을(원형 군집)**: `vLayout`(소유·★·본진레벨→모델/폭/오두막수)+`_applyVil`(시그니처 변화시만 재구성)+`placeRTS`(bbox 폭정규화·헥스윗면 y0.19에 얹음). 내성=workshop_tier·야만인=중심건물+링 오두막(★별). ⚠️납작모델(clay/iron/main_1) 제외·건물다운 것만.
+> - **발전 포인트(부족전쟁식)**: `bldPoints(L)=round(3*(1.16^L-1)/0.16)`·`devPoints(v)`(만렙≈12,000)·`barbPoints(★)`. 마을화면 상단·PC사이드바·**월드맵 라벨 아랫줄 금색 알약**(`_mkMarkHtml`에 ptsOf/nf 전달·시그니처에 pts 포함해 업글 시 갱신). classic `vilPoints`(레벨합×12)는 전투 사기 전용·미표시·유지.
+> - **지형 다양화**: `biome`을 정규화좌표(큰 블롭)→**절대좌표 고도(elevation)+습도(moisture) 다중옥타브 노이즈**(`_fbm`)로. 맵 크기 무관 산맥/호수/숲/사막/황무지 곳곳 분포(초원65·산12·황무지8·사막8·호수7%). 신규 타일 `dirt/stone/water-island`(+`_BIOMECOL`).
+> - **성 밖 들판(buildOuter)**: 발전단계(stg 0~4)로 바닥색(메마른 흙→푸른 경작지)+야생나무 감소·밀밭 링·풍차·자원더미·바깥 농가. 반지름 밴드 분리로 겹침 방지.
+> - 🌾 마을 내부 `buildOuter`도 stg별. **테스트 패널 「단계 1~6」=`DEV.tier`(forceTier) 강제 미리보기**(건물·성벽·광장·배경 전부)·「실제 레벨로」 버튼.
+> #### 🎨 기타
+> - **자원 아이콘 교체**(`ICO.wood/clay/iron`·evenodd): 목재=통나무 단면3(나이테)·점토=벽돌3단·철=주괴(사다리꼴)3단. 단일SVG 헤드리스 렌더로 확인함.
+> #### ⏭️ 다음 할 일 / 미결
+> - **대장간 모델**(광장-monument 어색·팩 한계) · **마을 전체 3D 실기 확인**(겹침·클릭·펄스·모델 — 헤드리스 불가) · 시장 거래/대장간 연구 등 **다른 액션에도 피드백** 붙이기 · (선택) 완료 팡파레·「+병력 N」 숫자 · 기존 미결(용어변경 A/B/C 결정대기·도움말 모달·적 AI/멀티) 유지.
+
 ### 🗺️ 룬테라 전쟁 — 🔎 상태 점검 + 🗺️ 지도 시작 배율 수정 (2026-08-03·원격web·작업브랜치 `claude/continuing-work-4qpf2b`·main+브랜치 배포·커밋 `c83e7de`·Pages success)
 > ⚠️ **index.html 무관** — `룬테라원정-프로토타입.html` 단독. 짧은 세션(점검 1건 + 수정 1건)이고, 끝에 **용어 변경이 결정 대기 상태로 열려 있다**(위 핸드오프 §5 첫 항목 必독).
 > - **🔎 상태 점검(회귀 없음 확인)**: 문법 3블록 `node --check` 3/3 · PC 1366/모바일 390 `pageerror` 0·요청실패 0·3D 폴백 안 뜸 · SAVE_VER 10·헥스 7,742·마을 1,801·초기 공개 169칸·`runeSaveCheck` true · **핵심 루프 실동작**(건설 큐 등록+자원 차감 / 공격 도착→전투 판정 승리·약탈 wood349 clay311 iron214→보고서 / 정찰→`spy` 적재) · 마을·집결지·보고서 화면 정상 · 지도 캔버스가 컨테이너와 정확히 일치(직전 리사이즈 수정 회귀 없음).
