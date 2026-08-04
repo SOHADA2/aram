@@ -1,5 +1,5 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>룬테라 전쟁 — 프로토타입 v0.10</title>
+<title>룬테라 전쟁 — 프로토타입 v0.11</title>
 <style>
 /* ═══ 클래식 전략 스타일 양피지 테마 ═══
    PC(≥900px)  = 브라우저 게임 레이아웃: 상단 메뉴 + 본문 + 우측 사이드바(개요) + 테이블 UI
@@ -101,6 +101,30 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .btn:disabled{opacity:.45;cursor:default;filter:grayscale(.4);}
 .btn.no{opacity:.6;} .btn.no{filter:grayscale(.35);}
 /* 보호 배너 */
+/* 🎓 튜토리얼 — 초반엔 「다음 할 일」 한 줄로 이끌고, 후반 콘텐츠는 그 건물을 지었을 때 설명한다 */
+.tut-bar{margin:8px 8px 0;padding:7px 10px;border-radius:8px;display:flex;align-items:center;gap:8px;
+  background:linear-gradient(180deg,#2f2612,#1d1509);border:1px solid #8a6a24;box-shadow:inset 0 1px 0 rgba(255,228,170,.12);}
+.tut-bar .tb-n{flex:0 0 auto;width:19px;height:19px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:900;color:#3a2a08;background:linear-gradient(180deg,#f4e3a8,#d8b45a);}
+.tut-bar .tb-t{flex:1;min-width:0;}
+.tut-bar .tb-h{font-size:11.5px;font-weight:900;color:#ffe9ad;line-height:1.3;}
+.tut-bar .tb-d{font-size:10px;color:#c4b083;line-height:1.45;margin-top:1px;}
+.tut-bar .tb-go{flex:0 0 auto;font-family:inherit;font-size:10.5px;font-weight:800;cursor:pointer;color:#3a2a08;
+  background:linear-gradient(180deg,#f4e3a8,#d8b45a);border:1px solid #a3812f;border-radius:7px;padding:5px 9px;}
+.tut-bar .tb-x{flex:0 0 auto;background:none;border:0;color:#8f7f57;font-size:13px;cursor:pointer;font-family:inherit;padding:0 2px;}
+.tut-bar.done{border-color:#5f8a3a;background:linear-gradient(180deg,#25301a,#161d0e);}
+.tut-done-msg{font-size:11px;font-weight:800;color:#a8d489;}
+.tip-ov .picker{max-width:min(420px,92vw);text-align:left;}
+.tip-h{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.tip-h .ti{font-size:26px;line-height:1;}
+.tip-h b{font-size:14px;color:#ffe9ad;}
+.tip-h small{display:block;font-size:10px;color:#9a8a60;font-weight:700;margin-top:1px;}
+.tip-body p{margin:0 0 8px;font-size:11.5px;line-height:1.7;color:#d8c79b;}
+.tip-body b{color:#f0d99a;}
+.tip-body .em{color:#9fd08a;font-weight:800;}
+.tip-body ul{margin:0 0 8px;padding-left:16px;}
+.tip-body li{font-size:11.5px;line-height:1.65;color:#d8c79b;margin-bottom:3px;}
+.tip-acts{display:flex;gap:7px;margin-top:4px;}
 .protect-banner{margin:8px 8px 0;padding:6px 11px;border-radius:6px;font-size:11px;font-weight:800;display:flex;align-items:center;gap:6px;
   background:linear-gradient(180deg,#12243a,#0e1d30);border:1px solid #7fa3c6;color:#bcd6f5;}
 .protect-banner b{color:#a9d4ff;} .protect-banner .pb-sub{margin-left:auto;font-size:9px;font-weight:700;color:#e0a86a;}
@@ -500,6 +524,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
   <div class="resbar" id="resbar"></div>
   <nav class="pcmenu" id="pcmenu"></nav>
   <div class="protect-banner" id="protect-banner" style="display:none"></div>
+  <div class="tut-bar" id="tut-bar" style="display:none"></div>
   <div class="main">
     <div class="content">
       <div id="view-map">
@@ -520,7 +545,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">프로토타입 v0.10 · 이 브라우저에만 저장(mock) · 실제 사이트 골드와 무관</div>
+  <div class="proto-tag">프로토타입 v0.11 · 이 브라우저에만 저장(mock) · 실제 사이트 골드와 무관</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -878,7 +903,8 @@ function processResearch(now){ const q=S.researchQ; if(!q||now<q.doneAt) return;
 function tickVillage(v, dt, now){ const cap=storeCapV(v);
   ['wood','clay','iron'].forEach(k=>{ v.res[k]=Math.min(cap,(v.res[k]||0)+prodPerMin(v.blds[k]||0)*dt/60); v.res[k]=Math.floor(v.res[k]*10)/10; });
   while(v.buildQ.length && now>=v.buildQ[0].doneAt){ const q=v.buildQ.shift(); v.blds[q.b]=(v.blds[q.b]||0)+1;
-    if(v===S.v){ toast(`${BLD[q.b].nm} Lv${v.blds[q.b]} 완성`); S._dirtyVil=true; }
+    if(v===S.v){ toast(`${BLD[q.b].nm} Lv${v.blds[q.b]} 완성`); S._dirtyVil=true;
+      if(v.blds[q.b]===1) setTimeout(()=>_bldTip(q.b), 400); }   // 🎓 처음 지었을 때만 그 건물 설명
     if(v.buildQ.length){ const d=buildTimeV(v,v.buildQ[0].b)*1000; v.buildQ[0].doneAt=now+d; v.buildQ[0].dur=d; } }
   while(v.recQ.length && now>=v.recQ[0].doneAt){ const q=v.recQ.shift(); v.troops[q.u]=(v.troops[q.u]||0)+1;
     if(v.recQ.length){ const d=trainTimeV(v,v.recQ[0].u)*1000; v.recQ[0].doneAt=now+d; v.recQ[0].dur=d; } }
@@ -1953,7 +1979,7 @@ function loop(){ tick();
   if(view==='map') renderMap();
   else if(view==='village') renderVillage(false);
   else if(view==='rally') updateRallyLive();
-  renderTop(); renderSidebar(); renderNavBadges(); save(); }
+  renderTop(); renderSidebar(); renderNavBadges(); _tutRefresh(); save(); }
 document.addEventListener('DOMContentLoaded', ()=>{ buildNav(); showView(); loop(); setInterval(loop, 1000); initMapPZ(); initDevPanel();
   const mq=window.matchMedia('(min-width:900px)');
   const onMQ=()=>{ buildNav(); showView(); };
@@ -1986,6 +2012,102 @@ function initDevPanel(){
     army:()=>{ if(window.runeArmy) window.runeArmy(200); },
   };
   p.querySelectorAll('.dev-body button[data-d]').forEach(b=>b.onclick=()=>acts[b.dataset.d](b));
+}
+// 🎓 초반 튜토리얼 — 「다음 할 일」 한 줄로 이끈다(순서대로, 조건을 채우면 자동으로 넘어감).
+//    후반 콘텐츠(정복·공성)는 여기 넣지 않는다 → 그 건물을 지었을 때 BLD_TIP으로 설명한다.
+const TUT_STEPS=[
+ {h:'자원 건물을 올려요', d:'목재소·점토굴·철광산 중 아무거나 <b>Lv3</b>까지. 자원이 모든 것의 시작이에요.',
+  go:()=>{ go('village'); }, ok:v=>Math.max(v.blds.wood||0,v.blds.clay||0,v.blds.iron||0)>=3},
+ {h:'창고를 넓혀요', d:'창고가 가득 차면 <b>그 뒤 생산은 버려져요</b>. <b>창고 Lv3</b>까지 올려두세요.',
+  go:()=>{ go('village'); openBldSheet('storage'); }, ok:v=>(v.blds.storage||0)>=3},
+ {h:'농장을 올려요', d:'인구가 모자라면 훈련도 건설도 막혀요. <b>농장 Lv3</b>까지.',
+  go:()=>{ go('village'); openBldSheet('farm'); }, ok:v=>(v.blds.farm||0)>=3},
+ {h:'집결지를 지어요', d:'집결지가 있어야 <b>공격·지원·정찰</b>을 보낼 수 있어요.',
+  go:()=>{ go('village'); openBldSheet('rally'); }, ok:v=>(v.blds.rally||0)>=1},
+ {h:'마구간을 지어요', d:'적 마을 안을 보려면 <b>정찰병</b>이 필요하고, 정찰병은 마구간에서 나와요.',
+  go:()=>{ go('village'); openBldSheet('stable'); }, ok:v=>(v.blds.stable||0)>=1},
+ {h:'정찰병을 3명 훈련해요', d:'마구간에서 <b>정찰병</b>을 뽑으세요. 상대 정찰병 수 × 2 보다 많아야 정찰이 성공해요.',
+  go:()=>{ go('village'); openBldSheet('stable'); }, ok:v=>(v.troops.scout||0)>=3},
+ {h:'가까운 마을을 정찰해요', d:'지도에서 <b>야만인 마을</b>을 눌러 <b>정찰</b>을 보내세요. 수비·자원·성벽이 보여요.',
+  go:()=>{ go('map'); }, ok:()=>Object.keys(S.spy||{}).length>0},
+ {h:'병영을 짓고 병력을 뽑아요', d:'<b>도끼병</b>은 공격에 특화돼 있어요. 10명쯤 모아보세요.',
+  go:()=>{ go('village'); openBldSheet('barracks'); }, ok:v=>(v.blds.barracks||0)>=1&&(v.troops.axe||0)>=10},
+ {h:'약탈에 성공해요', d:'정찰로 <b>수비가 없는 마을</b>을 골라 공격하세요. 이기면 자원을 실어옵니다.',
+  go:()=>{ go('map'); }, ok:()=>(S.reports||[]).some(r=>r.type==='attack'&&r.win)},
+ {h:'성벽을 세워요', d:'성벽은 <b>수비 전투력</b>을 올려줘요. 이제 남이 쳐들어와도 버틸 수 있게 준비하세요.',
+  go:()=>{ go('village'); openBldSheet('wall'); }, ok:v=>(v.blds.wall||0)>=1},
+];
+function _tutState(){ if(!S.tut) S.tut={i:0,off:false}; return S.tut; }
+function _tutRefresh(){
+  const el=document.getElementById('tut-bar'); if(!el) return;
+  const t=_tutState();
+  if(t.off || t.i>=TUT_STEPS.length){ el.style.display='none'; return; }
+  const v=S.v; let moved=false;
+  while(t.i<TUT_STEPS.length && TUT_STEPS[t.i].ok(v)){ t.i++; moved=true; }
+  if(moved){ save();
+    if(t.i>=TUT_STEPS.length){ el.className='tut-bar done';
+      el.innerHTML=`<span class="tb-n">✓</span><div class="tb-t"><div class="tut-done-msg">기본은 다 익혔어요! 이제 마음대로 키워보세요 — 막히면 위 <b>? 도움말</b>을 열어보세요.</div></div>
+        <button class="tb-x" title="닫기">✕</button>`;
+      el.querySelector('.tb-x').onclick=()=>{ t.off=true; save(); el.style.display='none'; };
+      el.style.display='flex'; return; } }
+  if(t.i>=TUT_STEPS.length) return;
+  const st=TUT_STEPS[t.i];
+  const sig=t.i+'|'+st.h;
+  if(el._sig!==sig){ el._sig=sig; el.className='tut-bar';
+    el.innerHTML=`<span class="tb-n">${t.i+1}</span>
+      <div class="tb-t"><div class="tb-h">${st.h}</div><div class="tb-d">${st.d}</div></div>
+      <button class="tb-go">보러가기</button><button class="tb-x" title="튜토리얼 끄기">✕</button>`;
+    el.querySelector('.tb-go').onclick=()=>{ try{ st.go(); }catch(e){} };
+    el.querySelector('.tb-x').onclick=()=>{ t.off=true; save(); el.style.display='none'; };
+  }
+  el.style.display='flex';
+}
+// 🏛️ 후반 콘텐츠는 «그 건물을 처음 지었을 때» 설명한다 — 초반 튜토리얼에 미리 쏟아부으면 기억에 안 남는다.
+const BLD_TIP={
+ rally:{h:'명령은 여기서 나가요', b:`<p>이제 <b>공격·지원·정찰</b>을 보낼 수 있어요. 지도에서 마을을 누르거나, <b>집결지 화면</b>에서 좌표로 찾아 보내면 됩니다.</p>
+   <p>행군 속도는 데려간 병력 중 <b>가장 느린 병종</b>을 따라가요.</p>`, help:'rally'},
+ stable:{h:'정찰의 시작', b:`<p><b>정찰병</b>을 뽑아 적 마을 안(수비·자원·성벽·충성도)을 들여다보세요.</p>
+   <p>내 정찰병이 <b>상대 정찰병 × 2</b> 보다 많아야 성공하고, 실패하면 <span class="em">보낸 정찰대는 전멸</span>합니다.</p>`, help:'scout'},
+ barracks:{h:'병력을 뽑는 곳', b:`<p>병종마다 잘하는 게 달라요. 카드의 <b>세부 능력치</b>를 열면 공격력과 <b>보병·기병·궁병 방어</b>가 따로 보입니다.</p>
+   <p>전투는 <b>보낸 병력의 병과 비율</b>대로 상대 방어와 맞붙어요.</p>`, help:'battle'},
+ smithy:{h:'연구로 강해져요', b:`<p>대장간에서 병종을 연구하면 <b>레벨당 +12%</b> 강해집니다.</p>
+   <p>연구는 <b>전 마을 공통</b>이고 <b>한 번에 하나만</b> 돌아가요. 상한은 대장간 레벨로 열립니다.</p>`, help:'market'},
+ market:{h:'자원을 옮겨요', b:`<p><b>교환</b>은 자원을 서로 바꿔요(수수료 10%).</p>
+   <p><b>수송</b>은 내 다른 마을로 자원을 보냅니다 — 상인은 시장 레벨 수만큼 있고, 도착하면 스스로 돌아와요.</p>`, help:'market'},
+ hide:{h:'털려도 남는 몫', b:`<p>약탈당해도 <b>숨은 곳간 용량만큼</b>은 지켜집니다.</p>
+   <p>자주 털린다면 성벽보다 이쪽이 먼저일 수 있어요.</p>`, help:'village'},
+ wall:{h:'마을을 두르는 벽', b:`<p>성벽은 수비 전투력을 <b>레벨마다 ×1.037</b> 로 올리고, 기본 방어값도 더해줘요.</p>
+   <p>지어야 3D 마을에도 벽이 생깁니다.</p>`, help:'battle'},
+ workshop:{h:'⚙️ 공성 병기를 만들어요', b:`<p>여기서 <b>파성추</b>와 <b>투석기</b>를 만듭니다. 둘 다 병력 싸움에는 거의 보탬이 안 되지만, <span class="em">이겼을 때 하는 일이 다릅니다.</span></p>
+   <ul>
+     <li><b>파성추</b> — 전투 중 성벽을 약하게 만들고, 이기면 그만큼 <b>성벽을 확정 파괴</b>합니다(지면 절반만).</li>
+     <li><b>투석기</b> — 이겼을 때 마을 <b>발전도(★)</b> 를 무너뜨려요. 2대 이상 살아남아야 합니다.</li>
+   </ul>
+   <p>성벽이 높은 마을은 <b>파성추를 먼저 보내 벽을 깎아두는</b> 게 정석이에요.</p>`, help:'battle'},
+ academy:{h:'👑 마을을 빼앗는 법', b:`<p>마을은 부숴서 뺏는 게 아니라 <b>충성도를 0으로 만들어</b> 가져옵니다.</p>
+   <ul>
+     <li>신전에서 <b>영웅</b>을 훈련해요(아주 비싸고 인구도 많이 먹습니다).</li>
+     <li>영웅을 데리고 <b>이길 때마다</b> 그 마을 충성도가 <b>20~35</b> 씩 깎여요 — 보통 <b>여러 번</b> 보내야 합니다.</li>
+     <li>영웅은 스스로 못 싸워요. <span class="em">호위 병력 없이 보내면 도착도 못 합니다.</span></li>
+   </ul>
+   <p>충성도가 0이 되는 순간 그 마을은 내 것이 되고, 그때 쓴 영웅은 사라집니다.</p>`, help:'conquer'},
+};
+function _bldTip(b){
+  const tip=BLD_TIP[b]; if(!tip) return;
+  if(!S.tips) S.tips={};
+  if(S.tips[b]) return; S.tips[b]=1; save();
+  const d=BLD[b]||{};
+  const ov=document.createElement('div'); ov.className='ov tip-ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
+  ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker">
+    <div class="tip-h"><span class="ti">${I(d.ic,'ic-hero')}</span><div><b>${tip.h}</b><small>${d.nm} 완성</small></div></div>
+    <div class="tip-body">${tip.b}</div>
+    <div class="tip-acts">
+      <button class="btn" style="flex:1;padding:10px" data-a="help">${'?'} 자세히</button>
+      <button class="btn btn-green" style="flex:1;padding:10px" data-a="ok">알겠어요</button>
+    </div></div>`;
+  ov.querySelector('[data-a="ok"]').onclick=()=>ov.remove();
+  ov.querySelector('[data-a="help"]').onclick=()=>{ ov.remove(); openHelp(tip.help); };
+  document.body.appendChild(ov);
 }
 // ❓ 도움말 — 규칙만 적는다. «어떤 조합이 좋은가» 같은 전술 조언은 넣지 않는다(유저가 알아내는 영역).
 const HELP_SEC=[
@@ -2066,8 +2188,8 @@ const HELP_SEC=[
     <li>⏳ 연구는 <b>전 마을 공통</b>이고 <b>한 번에 하나만</b> 진행돼요. 대장간이 높을수록 빨라집니다.</li>
   </ul>`],
 ];
-window.openHelp=function(){
-  let cur=0;
+window.openHelp=function(key){
+  let cur=Math.max(0, HELP_SEC.findIndex(x=>x[0]===key));
   const ov=document.createElement('div'); ov.className='ov hp-ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
   const draw=()=>{
     ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker">
