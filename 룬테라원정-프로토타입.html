@@ -573,7 +573,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">룬테라 전쟁 · 베타 v0.17</div>
+  <div class="proto-tag">룬테라 전쟁 · 베타 v0.18</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -873,7 +873,7 @@ function fresh(){ const now=Date.now(); return { ver:SAVE_VER, started:false, go
 function isPremium(){ return (S.premiumUntil||0) > Date.now(); }
 window.runeGold=function(n){ n=n||1000; S.gold=(S.gold||0)+n; save(); renderTop(); toast('골드 +'+n+'(테스트)'); };
 function load(){ try{ const j=JSON.parse(localStorage.getItem('rune_proto')); if(j&&j.ver===SAVE_VER&&j.villages&&j.villages[HOME_KEY]&&j.world&&j.world[HOME_KEY]) return j; }catch(e){} return fresh(); }
-function save(){ localStorage.setItem('rune_proto', JSON.stringify(S)); }
+function save(){ localStorage.setItem('rune_proto', JSON.stringify(S)); _runeSyncDebounced(); }
 // 🌫️ 전장의 안개 — 공개된 헥스만 지도에 보임. 정찰/행군/점령으로 점점 밝혀짐(공개는 영구)
 function _cubeH(x,y){ const q=x-((y-(y&1))>>1); return {x:q,z:y,y:-q-y}; }
 function hexDistXY(ax,ay,bx,by){ const a=_cubeH(ax,ay),b=_cubeH(bx,by); return (Math.abs(a.x-b.x)+Math.abs(a.y-b.y)+Math.abs(a.z-b.z))/2; }
@@ -1008,7 +1008,7 @@ function conquerVillage(id, survivors){ const w=S.world[id];
   if(w.wall) b.wall=Math.min(20,Math.round(w.wall));
   nv.res={wood:300,clay:300,iron:200}; nv.troops=gar;
   S.villages[id]=nv; revealDisc(w.x,w.y,REVEAL_HOME);   // 🌫️ 정복지=내 마을 시야
-  toast(`${crd(w)} 마을을 정복했어요! 새 마을 획득 — 집결지부터 지으세요`); save();
+  toast(`${crd(w)} 마을을 정복했어요! 새 마을 획득 — 집결지부터 지으세요`); save(); _runeSync('conquer', true);
 }
 function processMarches(now){
   S.marches.sort((a,b)=>b.arriveAt-a.arriveAt);   // 역순 루프가 배열 끝(가장 이른 도착)부터 처리 → 도착 시각 순 보장
@@ -1228,7 +1228,7 @@ window.openGoldShop=function(){ const old=document.querySelector('.gs-ov'); if(o
   </div>`;
   document.body.appendChild(ov);
 };
-function _applyPremium(days){ const base=Math.max(Date.now(), S.premiumUntil||0); S.premiumUntil=base+days*86400000; save(); renderTop();
+function _applyPremium(days){ const base=Math.max(Date.now(), S.premiumUntil||0); S.premiumUntil=base+days*86400000; save(); _runeSync('premium', true); renderTop();
   toast(`🏅 프리미엄 ${days}일 활성`); if(document.querySelector('.gs-ov')) window.openGoldShop(); }
 window.buyPremium=function(days,cost){
   if(RUNE_EMBED){ parent.postMessage({type:'runeSpendGold', amount:cost, days, reason:'프리미엄 '+days+'일'}, '*'); toast('구매 요청 중…'); return; }   // 임베드=실제 사이트 골드로 결제(부모가 차감)
@@ -1237,13 +1237,32 @@ window.buyPremium=function(days,cost){
 // 🔌 사이트(index.html) 임베드 브릿지 — 실제 사이트 공유 골드로 결제/표시
 const RUNE_EMBED = new URLSearchParams(location.search).has('embed');
 let MY_NAME='';   // 🪪 사이트에서 받은 내 닉네임(월드맵 내 마을 라벨) — 임베드 시 runeInit로 전달
-if(RUNE_EMBED){ const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.17 · 상점=공유 골드'; }
+if(RUNE_EMBED){ const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.18 · 상점=공유 골드'; }
+let _runeLoaded=false;   // 서버 저장본 로드 완료 전엔 서버 업로드 금지(로컬로 서버 클로버 방지)
 if(RUNE_EMBED){ window.addEventListener('message', e=>{ const d=e.data; if(!d||typeof d!=='object') return;
   if(d.type==='runeInit'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); if(document.querySelector('.gs-ov')) window.openGoldShop(); }
     if(typeof d.name==='string' && d.name){ MY_NAME=d.name; if(view==='map') showView(); } }
+  else if(d.type==='runeState'){ _runeAdoptServer(d.state); }   // 🗺️ 서버 저장본 도착 → 채택(다른 기기서 이어하기)
   else if(d.type==='runeGoldResult'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); }
     if(d.ok && d.days){ _applyPremium(d.days); } else if(!d.ok){ toast(d.msg||'골드가 부족해요'); if(document.querySelector('.gs-ov')) window.openGoldShop(); } }
-}); try{ parent.postMessage({type:'runeReady'}, '*'); }catch(e){} }
+}); try{ parent.postMessage({type:'runeReady'}, '*'); parent.postMessage({type:'runeLoad'}, '*'); }catch(e){} }
+// 🗺️ 진행상황 서버 동기화 — 부모(index.html)가 Firebase runewar/ 에 저장. 자잘한 변경=디바운스 스냅샷, 중요 이벤트=즉시+감사로그
+let _runeSyncT=0;
+function _runePts(){ try{ return ownedIds().reduce((s,id)=>s+devPoints(S.villages[id]||{blds:{}}),0); }catch(e){ return 0; } }
+function _runeSync(action, log){ if(!RUNE_EMBED) return; let st; try{ st=JSON.parse(JSON.stringify(S)); }catch(e){ return; } try{ parent.postMessage({type:'runeSave', state:st, gold:S.gold||0, pts:_runePts(), vills:ownedIds().length, action:action||'save', log:!!log}, '*'); }catch(e){} }
+function _runeSyncDebounced(){ if(!RUNE_EMBED||!_runeLoaded) return; clearTimeout(_runeSyncT); _runeSyncT=setTimeout(()=>_runeSync('autosave', false), 2500); }
+function _runeAdoptServer(rec){   // 서버가 진실원 — 있으면 채택(다른 기기 이어하기), 없으면 현재(로컬/신규)를 서버에 최초 시드
+  try{
+    if(rec && rec.data){ const st=rec.data;
+      if(st && st.ver===SAVE_VER && st.villages && st.villages[HOME_KEY] && st.world && st.world[HOME_KEY]){
+        S=st; bindActive(); localStorage.setItem('rune_proto', JSON.stringify(S));
+        if(S.started){ if(view!=='village'&&view!=='map') view='village'; buildNav(); showView(); } else { showStartGate(); }
+        _runeLoaded=true; return;
+      }
+    }
+    _runeLoaded=true; _runeSync('seed', true);   // 서버 비어있음/구버전 → 최초 1회 현재 상태 업로드(감사로그)
+  }catch(e){ _runeLoaded=true; }
+}
 // 🚪 시작 게이트 — 확인해야 무작위 지점에 마을이 서고 게임이 시작된다(멀티 진입 모델)
 function showStartGate(){ if(document.getElementById('start-gate')) return;
   const ov=document.createElement('div'); ov.id='start-gate'; ov.className='start-gate';
@@ -1257,7 +1276,7 @@ function showStartGate(){ if(document.getElementById('start-gate')) return;
   document.body.appendChild(ov);
   const b=document.getElementById('sg-go'); if(b) b.onclick=()=>window.startGame();
 }
-window.startGame=function(){ if(S.started) return; S.started=true; save();
+window.startGame=function(){ if(S.started) return; S.started=true; _runeLoaded=true; save(); _runeSync('start', true);
   const g=document.getElementById('start-gate'); if(g) g.remove();
   view='village'; buildNav(); showView();
   const w=S.world[HOME_KEY]; toast(`마을이 세워졌습니다 — ${w?crd(w):''}`); };
