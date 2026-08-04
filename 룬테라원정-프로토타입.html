@@ -558,7 +558,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
 <body><div class="app">
   <div class="topstrip">
     <span class="logo">룬테라 전쟁</span>
-    <span class="world">베타 v0.23 · 월드 1</span>
+    <span class="world">베타 v0.24 · 월드 1</span>
     <button class="top-ic shop-btn" onclick="openGoldShop()" title="골드 상점 · 프리미엄 계정">🏅 상점</button>
     <button class="top-ic help-btn" onclick="openHelp()" title="도움말">? 도움말</button>
   </div>
@@ -586,7 +586,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">룬테라 전쟁 · 베타 v0.23</div>
+  <div class="proto-tag">룬테라 전쟁 · 베타 v0.24</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -1261,7 +1261,7 @@ window.buyPremium=function(days,cost){
 // 🔌 사이트(index.html) 임베드 브릿지 — 실제 사이트 공유 골드로 결제/표시
 const RUNE_EMBED = new URLSearchParams(location.search).has('embed');
 let MY_NAME='';   // 🪪 사이트에서 받은 내 닉네임(월드맵 내 마을 라벨) — 임베드 시 runeInit로 전달
-if(RUNE_EMBED){ const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.23 · 상점=공유 골드'; }
+if(RUNE_EMBED){ const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.24 · 상점=공유 골드'; }
 let _runeLoaded=false;   // 서버 저장본 로드 완료 전엔 서버 업로드 금지(로컬로 서버 클로버 방지)
 if(RUNE_EMBED){ window.addEventListener('message', e=>{ const d=e.data; if(!d||typeof d!=='object') return;
   if(d.type==='runeInit'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); if(document.querySelector('.gs-ov')) window.openGoldShop(); }
@@ -1404,21 +1404,35 @@ function renderTop(){
 // ── PC 사이드바(클래식 전략 개요) ──
 function renderSidebar(){
   const sb=document.getElementById('sidebar'); if(!sb) return;
-  if(!isPC()){ sb.innerHTML=''; return; }
-  const v=S.v, w=S.world[S.active], cap=storeCap();
+  if(!isPC()){ if(sb.innerHTML!==''){ sb.innerHTML=''; sb.dataset.k=''; } return; }
+  const v=S.v, w=S.world[S.active];
   const owned=ownedIds();
-  const sw = owned.length>1? `<div class="vswrow">${owned.map(id=>`<button class="vsw-b ${id===S.active?'on':''}" onclick="switchVil('${id}')">${I('main')} (${S.world[id].x}|${S.world[id].y})</button>`).join('')}</div>` : '';
-  const resRow=(k)=>{ const val=Math.floor(v.res[k]); const pct=Math.min(100,val/cap*100); const cls=pct>=97?'full':(pct>=80?'warn':'');
-    return `<div class="sb-res ${cls}"><span class="ricw">${I(RES[k],'ic-lg r-'+k)}</span><em>${NF(val)}</em><span class="cap">/ ${NF(cap)}</span><s>+${prodPerMin(v.blds[k]||0)}/분</s></div>`; };
-  sb.innerHTML=`
-    <div class="box"><div class="bh">${I('main')} 내 마을 <small>${crd(w)} · 🏆 ${NF(devPoints(v))}점</small></div><div class="bc">
-      ${sw}${resRow('wood')}${resRow('clay')}${resRow('iron')}
-      <div class="sb-row">${I('pop')} 인구<b>${NF(popUsed())}/${NF(popCap())}</b></div>
-    </div></div>
-    <div class="box"><div class="bh">${I('workshop')} 건물 <small>클릭 = 업글 · 훈련</small></div><div class="bc" id="vil-blds"></div></div>
-    <div class="box"><div class="bh">${I('shield')} 병력 <small id="vil-armytot"></small></div><div class="bc" id="vil-army"></div></div>
-    <div class="box"><div class="bh">${I('cart')} 부대 이동</div><div class="bc" id="vil-marches"></div></div>`;
-  updateVillageDynamic();   // #vil-blds/army/marches 즉시 채움(매초 loop가 이 함수→renderSidebar 순이라 안 채우면 깜빡임)
+  const key=S.active+'|'+owned.length;   // 🖱️ 구조는 마을/보유수 바뀔 때만 재생성 — 매초 innerHTML 재생성 시 팔레트 클릭이 씹힘
+  if(sb.dataset.k!==key){
+    sb.dataset.k=key;
+    const sw = owned.length>1? `<div class="vswrow">${owned.map(id=>`<button class="vsw-b ${id===S.active?'on':''}" onclick="switchVil('${id}')">${I('main')} (${S.world[id].x}|${S.world[id].y})</button>`).join('')}</div>` : '';
+    const resRow=(k)=>`<div class="sb-res" data-r="${k}"><span class="ricw">${I(RES[k],'ic-lg r-'+k)}</span><em>0</em><span class="cap">/ 0</span><s></s></div>`;
+    sb.innerHTML=`
+      <div class="box"><div class="bh">${I('main')} 내 마을 <small class="sb-hd"></small></div><div class="bc">
+        ${sw}${resRow('wood')}${resRow('clay')}${resRow('iron')}
+        <div class="sb-row">${I('pop')} 인구<b class="sb-pop"></b></div>
+      </div></div>
+      <div class="box"><div class="bh">${I('workshop')} 건물 <small>클릭 = 업글 · 훈련</small></div><div class="bc" id="vil-blds"></div></div>
+      <div class="box"><div class="bh">${I('shield')} 병력 <small id="vil-armytot"></small></div><div class="bc" id="vil-army"></div></div>
+      <div class="box"><div class="bh">${I('cart')} 부대 이동</div><div class="bc" id="vil-marches"></div></div>`;
+  }
+  _sbUpdateStats(sb, v, w);   // 자원·인구·점수는 매초 재생성 없이 텍스트만 갱신
+  updateVillageDynamic();
+}
+function _sbUpdateStats(sb, v, w){   // 사이드바 동적 수치 갱신(재생성 없이 → 클릭 안 씹힘)
+  const cap=storeCap();
+  const hd=sb.querySelector('.sb-hd'); if(hd) hd.innerHTML=`${crd(w)} · 🏆 ${NF(devPoints(v))}점`;
+  const pop=sb.querySelector('.sb-pop'); if(pop) pop.textContent=`${NF(popUsed())}/${NF(popCap())}`;
+  sb.querySelectorAll('.sb-res').forEach(el=>{ const k=el.dataset.r; const val=Math.floor(v.res[k]||0); const pct=Math.min(100,val/cap*100);
+    el.classList.toggle('full',pct>=97); el.classList.toggle('warn',pct>=80&&pct<97);
+    const em=el.querySelector('em'); if(em) em.textContent=NF(val);
+    const cp=el.querySelector('.cap'); if(cp) cp.textContent='/ '+NF(cap);
+    const s=el.querySelector('s'); if(s) s.textContent='+'+NF(prodPerMin(v.blds[k]||0))+'/분'; });
 }
 // ── 지도(3D 우선 · 2D 폴백) ──
 // 3D 지도 로드 실패 배너 — 원인(모듈 에러)을 같이 보여줘 추측하지 않게
@@ -1758,6 +1772,10 @@ function _bldPaletteHtml(){ const v=S.v;
     return `<div class="bt2 ${(!met&&!lv)?'lock':''} ${hl?'hl':''} ${(!maxed&&met&&aff)?'can':''}" onclick="openBldSheet('${b}')"><span class="i">${I(d.ic,'ic-lg')}</span><span class="n">${(d.nm||'').replace(/\s/g,'')}</span><span class="lv${qd?' up':''}">${qd?`${lv}▸${lv+qd}`:lv}</span></div>`; };
   return BLD_CATS.map(cat=>`<div class="bcat"><div class="bcat-h">${cat[0]}</div><div class="bgrid2">${cat.slice(1).map(tile).join('')}</div></div>`).join('');
 }
+// 팔레트 상태 시그니처 — 매초 innerHTML 통째 재생성하면 탭이 씹히고 깜빡임 → 내용 바뀔 때만 다시 그린다
+function _bldPaletteSig(){ const v=S.v; if(!v) return '';
+  return BLD_CATS.map(cat=>cat.slice(1).map(b=>{ const d=BLD[b]; const lv=v.blds[b]||0; const qd=v.buildQ.filter(x=>x.b===b).length; const eff=lv+qd;
+    return b+lv+'.'+qd+'.'+(eff>=d.max?1:0)+(reqMet(b)?1:0)+(canAffordV(bcost(b,eff+1))?1:0); }).join(',')).join('|'); }
 function updateVillageDynamic(){
   const v=S.v; const now=Date.now(); const pc=isPC();
   const sw=document.getElementById('vil-switch'); if(sw){ const owned=ownedIds();
@@ -1788,7 +1806,7 @@ function updateVillageDynamic(){
       <span class="qmeta">${w?crd(w):'?'} · ${t.back?`상인 ${t.n}명`:resStr(t.res)}</span>
       <b>${fmtDur(rem)}</b><div class="qbar"><div style="width:${pct.toFixed(0)}%"></div></div></div>`; });
   const qe=document.getElementById('vil-queues'); if(qe) qe.innerHTML=q;
-  const be=document.getElementById('vil-blds'); if(be) be.innerHTML=_bldPaletteHtml();
+  const be=document.getElementById('vil-blds'); if(be){ const sig=_bldPaletteSig(); if(be.dataset.sig!==sig){ be.innerHTML=_bldPaletteHtml(); be.dataset.sig=sig; } }   // 🖱️ 바뀔 때만 재생성(매초 재생성 시 탭 씹힘·깜빡임 방지)
   renderRecruit('vil-barracks','barracks',UNIT_GROUPS.barracks,pc);
   renderRecruit('vil-stable','stable',UNIT_GROUPS.stable,pc);
   renderRecruit('vil-workshop','workshop',UNIT_GROUPS.workshop,pc);
