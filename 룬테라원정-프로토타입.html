@@ -528,6 +528,17 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
 /* 🏅 골드 상점 */
 .top-ic.shop-btn{color:#f0dca0;}
 .gs-ov{position:fixed;inset:0;z-index:260;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(10,7,3,.62);backdrop-filter:blur(2px);}
+/* 📋 진행 기록(감사 로그) 뷰어 */
+.rl-ov{position:fixed;inset:0;z-index:262;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(10,7,3,.62);backdrop-filter:blur(2px);}
+.rl-card{max-width:420px;width:100%;max-height:78vh;display:flex;flex-direction:column;background:linear-gradient(180deg,#241c11,#160f08);border:1px solid #6b4f24;border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.6),inset 0 0 0 2px #2a2013;color:#f0e2b8;overflow:hidden;}
+.rl-h{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:900;color:#f4e3a8;padding:14px 16px;border-bottom:1px dashed #54401f;}
+.rl-h .rl-x{margin-left:auto;background:none;border:none;color:#c9b487;font-size:16px;cursor:pointer;font-family:inherit;}
+.rl-body{overflow-y:auto;padding:8px 10px 12px;}
+.rl-empty{padding:26px 12px;text-align:center;color:#c3b183;font-size:13px;}
+.rl-row{display:flex;align-items:center;gap:8px;padding:8px 8px;border-bottom:1px solid rgba(107,79,36,.28);font-size:12.5px;}
+.rl-row .rl-act{font-weight:800;color:#f0dca0;flex:0 0 auto;}
+.rl-row .rl-meta{color:#b7cfa0;font-variant-numeric:tabular-nums;flex:1;min-width:0;}
+.rl-row .rl-t{color:#9a8a63;font-variant-numeric:tabular-nums;flex:0 0 auto;}
 .gs-card{max-width:380px;width:100%;background:linear-gradient(180deg,#241c11,#160f08);border:1px solid #6b4f24;border-radius:14px;padding:16px;box-shadow:0 20px 60px rgba(0,0,0,.6),inset 0 0 0 2px #2a2013;color:#f0e2b8;}
 .gs-head{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:900;color:#f4e3a8;border-bottom:1px dashed #54401f;padding-bottom:10px;margin-bottom:10px;}
 .gs-head .gs-gold{margin-left:auto;font-size:13px;color:#ffe39a;font-weight:800;} .gs-head .gs-gold b{font-variant-numeric:tabular-nums;}
@@ -547,6 +558,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <span class="logo">룬테라 전쟁</span>
     <span class="world">베타 · 월드 1</span>
     <button class="top-ic shop-btn" onclick="openGoldShop()" title="골드 상점 · 프리미엄 계정">🏅 상점</button>
+    <button class="top-ic log-btn" onclick="openRuneLog()" title="진행 기록(감사 로그)">📋 기록</button>
     <button class="top-ic help-btn" onclick="openHelp()" title="도움말">? 도움말</button>
   </div>
   <div class="resbar" id="resbar"></div>
@@ -573,7 +585,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">룬테라 전쟁 · 베타 v0.18</div>
+  <div class="proto-tag">룬테라 전쟁 · 베타 v0.19</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -872,7 +884,18 @@ function fresh(){ const now=Date.now(); return { ver:SAVE_VER, started:false, go
 // 🏅 프리미엄 계정(부족전쟁식·날짜 단위) — 골드로 구매. 골드는 추후 실제 사이트 골드와 연동 예정(현재 mock)
 function isPremium(){ return (S.premiumUntil||0) > Date.now(); }
 window.runeGold=function(n){ n=n||1000; S.gold=(S.gold||0)+n; save(); renderTop(); toast('골드 +'+n+'(테스트)'); };
-function load(){ try{ const j=JSON.parse(localStorage.getItem('rune_proto')); if(j&&j.ver===SAVE_VER&&j.villages&&j.villages[HOME_KEY]&&j.world&&j.world[HOME_KEY]) return j; }catch(e){} return fresh(); }
+function _saveOk(j){ return !!(j && j.villages && j.villages[HOME_KEY] && j.world && j.world[HOME_KEY]); }
+// 🔀 세이브 마이그레이션 — 버전이 달라도 구조(내 마을·월드)가 온전하면 진행 보존(폐기 대신 승급). SAVE_VER 올려도 유저 진행 안 날아감
+function migrate(j){ if(!_saveOk(j)) return null; if(j.ver===SAVE_VER) return j;
+  const d=fresh(); const out={ ...d, ...j };   // 저장값 우선, 신규 필드는 기본값으로 채움
+  if(typeof out.gold!=='number') out.gold=d.gold;
+  if(typeof out.premiumUntil!=='number') out.premiumUntil=0;
+  if(typeof out.started!=='boolean') out.started=true;
+  if(!out.research) out.research={}; if(!out.spy) out.spy={};
+  if(!Array.isArray(out.marches)) out.marches=[]; if(!Array.isArray(out.reports)) out.reports=[];
+  if(!out.active || !out.villages[out.active]) out.active=HOME_KEY;
+  out.ver=SAVE_VER; return out; }
+function load(){ try{ const j=JSON.parse(localStorage.getItem('rune_proto')); if(j){ if(j.ver===SAVE_VER && _saveOk(j)) return j; const m=migrate(j); if(m) return m; } }catch(e){} return fresh(); }
 function save(){ localStorage.setItem('rune_proto', JSON.stringify(S)); _runeSyncDebounced(); }
 // 🌫️ 전장의 안개 — 공개된 헥스만 지도에 보임. 정찰/행군/점령으로 점점 밝혀짐(공개는 영구)
 function _cubeH(x,y){ const q=x-((y-(y&1))>>1); return {x:q,z:y,y:-q-y}; }
@@ -1237,12 +1260,13 @@ window.buyPremium=function(days,cost){
 // 🔌 사이트(index.html) 임베드 브릿지 — 실제 사이트 공유 골드로 결제/표시
 const RUNE_EMBED = new URLSearchParams(location.search).has('embed');
 let MY_NAME='';   // 🪪 사이트에서 받은 내 닉네임(월드맵 내 마을 라벨) — 임베드 시 runeInit로 전달
-if(RUNE_EMBED){ const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.18 · 상점=공유 골드'; }
+if(RUNE_EMBED){ const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.19 · 상점=공유 골드'; }
 let _runeLoaded=false;   // 서버 저장본 로드 완료 전엔 서버 업로드 금지(로컬로 서버 클로버 방지)
 if(RUNE_EMBED){ window.addEventListener('message', e=>{ const d=e.data; if(!d||typeof d!=='object') return;
   if(d.type==='runeInit'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); if(document.querySelector('.gs-ov')) window.openGoldShop(); }
     if(typeof d.name==='string' && d.name){ MY_NAME=d.name; if(view==='map') showView(); } }
   else if(d.type==='runeState'){ _runeAdoptServer(d.state); }   // 🗺️ 서버 저장본 도착 → 채택(다른 기기서 이어하기)
+  else if(d.type==='runeLog'){ _renderRuneLog(d.entries); }     // 📋 감사 로그 도착
   else if(d.type==='runeGoldResult'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); }
     if(d.ok && d.days){ _applyPremium(d.days); } else if(!d.ok){ toast(d.msg||'골드가 부족해요'); if(document.querySelector('.gs-ov')) window.openGoldShop(); } }
 }); try{ parent.postMessage({type:'runeReady'}, '*'); parent.postMessage({type:'runeLoad'}, '*'); }catch(e){} }
@@ -1251,16 +1275,36 @@ let _runeSyncT=0;
 function _runePts(){ try{ return ownedIds().reduce((s,id)=>s+devPoints(S.villages[id]||{blds:{}}),0); }catch(e){ return 0; } }
 function _runeSync(action, log){ if(!RUNE_EMBED) return; let st; try{ st=JSON.parse(JSON.stringify(S)); }catch(e){ return; } try{ parent.postMessage({type:'runeSave', state:st, gold:S.gold||0, pts:_runePts(), vills:ownedIds().length, action:action||'save', log:!!log}, '*'); }catch(e){} }
 function _runeSyncDebounced(){ if(!RUNE_EMBED||!_runeLoaded) return; clearTimeout(_runeSyncT); _runeSyncT=setTimeout(()=>_runeSync('autosave', false), 2500); }
+// 📋 진행 기록(감사 로그) 뷰어 — 임베드 시 부모(Firebase runewar/log)에서 조회
+window.openRuneLog=function(){
+  if(!RUNE_EMBED){ toast('사이트에서 열면 진행 기록을 볼 수 있어요'); return; }
+  if(document.querySelector('.rl-ov')) return;
+  const ov=document.createElement('div'); ov.className='rl-ov';
+  ov.innerHTML=`<div class="rl-card"><div class="rl-h">📋 진행 기록 <button class="rl-x" title="닫기">✕</button></div><div class="rl-body" id="rl-body"><div class="rl-empty">불러오는 중…</div></div></div>`;
+  ov.addEventListener('click',e=>{ if(e.target===ov || e.target.closest('.rl-x')) ov.remove(); });
+  document.body.appendChild(ov);
+  try{ parent.postMessage({type:'runeLogReq'}, '*'); }catch(e){}
+};
+function _renderRuneLog(entries){ const b=document.getElementById('rl-body'); if(!b) return;
+  if(!entries || !entries.length){ b.innerHTML='<div class="rl-empty">아직 기록이 없어요. 마을을 시작하면 여기에 남습니다.</div>'; return; }
+  const LBL={start:'🚩 시작',conquer:'⚔️ 정복',premium:'🏅 프리미엄',migrate:'🔀 버전 승급',seed:'💾 첫 저장',save:'저장',autosave:'자동저장'};
+  b.innerHTML=entries.map(e=>{ const d=new Date(e.t||0);
+    const ts=`${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+    const meta=[e.pts!=null?e.pts+'점':'', e.vills!=null?'마을 '+e.vills:''].filter(Boolean).join(' · ');
+    return `<div class="rl-row"><span class="rl-act">${LBL[e.action]||e.action||'저장'}</span><span class="rl-meta">${meta}</span><span class="rl-t">${ts}</span></div>`; }).join('');
+}
 function _runeAdoptServer(rec){   // 서버가 진실원 — 있으면 채택(다른 기기 이어하기), 없으면 현재(로컬/신규)를 서버에 최초 시드
   try{
-    if(rec && rec.data){ const st=rec.data;
-      if(st && st.ver===SAVE_VER && st.villages && st.villages[HOME_KEY] && st.world && st.world[HOME_KEY]){
+    if(rec && rec.data){ let st=rec.data;
+      if(!(st.ver===SAVE_VER && _saveOk(st))) st=migrate(st);   // 🔀 구버전 서버 세이브도 승급해서 이어하기(폐기 X)
+      if(st){
         S=st; bindActive(); localStorage.setItem('rune_proto', JSON.stringify(S));
         if(S.started){ if(view!=='village'&&view!=='map') view='village'; buildNav(); showView(); } else { showStartGate(); }
-        _runeLoaded=true; return;
+        _runeLoaded=true; if(rec.data.ver!==SAVE_VER) _runeSync('migrate', true);   // 승급본을 서버에 재저장(로그)
+        return;
       }
     }
-    _runeLoaded=true; _runeSync('seed', true);   // 서버 비어있음/구버전 → 최초 1회 현재 상태 업로드(감사로그)
+    _runeLoaded=true; _runeSync('seed', true);   // 서버 비어있음/복구불가 → 최초 1회 현재 상태 업로드(감사로그)
   }catch(e){ _runeLoaded=true; }
 }
 // 🚪 시작 게이트 — 확인해야 무작위 지점에 마을이 서고 게임이 시작된다(멀티 진입 모델)
