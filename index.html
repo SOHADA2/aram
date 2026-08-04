@@ -7072,7 +7072,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.643';
+const APP_VERSION = 'v2.45.644';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7081,6 +7081,9 @@ const APP_VERSION = 'v2.45.643';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.644', date: '2026-08-04', changes: [
+    { tag: 'new', text: '🗺️ 룬테라 전쟁 <b>멀티 P2 — 팀원 지원(협동)!</b> 지도에서 팀원 마을을 탭 → 「🛡️ 지원 보내기」로 병력을 보내면 그 마을 수비에 합류해요(야만인 습격 공동 방어). 보낸 지원은 집결지 「내가 보낸 지원」에서 <b>회수</b> 가능. 상대가 접속하면 반영되는 비동기 방식이에요. (⚔️ 공격/약탈은 다음 P3)' },
+  ] },
   { ver: 'v2.45.643', date: '2026-08-04', changes: [
     { tag: 'fix', text: '🗺️ 룬테라 전쟁 — <b>건물이 클릭에 잘 반응하지 않던 문제</b>를 고쳤어요! 사이드바·건물 메뉴를 매초 통째로 다시 그리는 바람에, 탭하는 순간 버튼이 갈려 클릭이 씹히던 게 원인(특히 모바일). 이제 <b>내용이 바뀔 때만</b> 다시 그려서 즉각 반응해요. (베타 v0.24)' },
   ] },
@@ -36485,6 +36488,8 @@ window.openRuneWar = function(){
     else if(d.type==='runeLogReq'){ _runeLogFetch(frame); }                                                                   // 📋 감사 로그 조회(진행검토)
     else if(d.type==='runeWorldSub'){ _runeWorldSub(frame); }                                                                 // 🌍 공유월드 마을 구독(팀원 가시성)
     else if(d.type==='runeClaim'){ _runeClaim(frame, d); }                                                                    // 🚩 좌표 선점(집/정복 충돌 방지)
+    else if(d.type==='runeInboxPush'){ _runeInboxPush(d); }                                                                   // 📥 상대 마을 inbox에 액션(지원/공격/회군) 적재
+    else if(d.type==='runeInboxClear'){ _runeInboxClear(d); }                                                                 // 📥 내 마을 inbox 처리분 삭제
   };
   window.addEventListener('message', onMsg);
   const close=()=>{ window.removeEventListener('message', onMsg); if(_runeWorldUnsub){ try{ _runeWorldUnsub(); }catch(_){} _runeWorldUnsub=null; } ov.remove(); lock(false); };
@@ -36508,6 +36513,14 @@ async function _runeClaim(frame, d){   // 🚩 좌표 선점(트랜잭션) — �
     const res=await runTransaction(ref(db, RUNE_WORLD+'/claims/'+d.x+','+d.y), cur=> (cur==null||cur===key)? key : cur );
     reply(!!res.committed && res.snapshot.val()===key);
   }catch(_){ reply(false); }
+}
+function _runeInboxPush(d){   // 📥 상대(또는 내) 마을 좌표의 inbox에 액션 적재(지원 도착·공격 결과·회군 등) — 비대칭 쓰기
+  if(!d || d.x==null || d.y==null || !d.entry) return;
+  try{ push(ref(db, RUNE_WORLD+'/villages/'+d.x+','+d.y+'/inbox'), Object.assign({}, d.entry, { t:Date.now(), by:(getMyGoldKey()||'') })).catch(()=>{}); }catch(_){}
+}
+function _runeInboxClear(d){   // 📥 내 마을 inbox에서 처리한 항목 삭제
+  if(!d || d.x==null || d.y==null || !Array.isArray(d.ids)) return;
+  for(const id of d.ids){ if(id) try{ remove(ref(db, RUNE_WORLD+'/villages/'+d.x+','+d.y+'/inbox/'+id)).catch(()=>{}); }catch(_){} }
 }
 async function _runeSpendGold(frame, d){   // 룬테라 전쟁 게임 내 결제 → 실제 공유 골드 차감(goldSpent)
   const amount=Math.max(0, Math.floor(d.amount||0)), days=d.days;
@@ -36540,7 +36553,7 @@ async function _runeSaveState(frame, d){   // 진행상황 저장(전체 스냅�
   try{ await set(ref(db,'runewar/players/'+key), rec); }catch(_){}
   if(Array.isArray(d.pub)){   // 🌍 내 마을들을 공유월드 레지스트리에 발행(팀원이 봄) — 각자 자기 마을만 씀
     for(const vg of d.pub){ if(vg && vg.x!=null && vg.y!=null){
-      try{ set(ref(db, RUNE_WORLD+'/villages/'+vg.x+','+vg.y), { owner:key, name:(myName||''), x:vg.x, y:vg.y, size:vg.size||1, pts:vg.pts||0, wall:vg.wall||0, def:vg.def||0, ts:Date.now() }); }catch(_){}
+      try{ update(ref(db, RUNE_WORLD+'/villages/'+vg.x+','+vg.y), { owner:key, name:(myName||''), x:vg.x, y:vg.y, size:vg.size||1, pts:vg.pts||0, wall:vg.wall||0, def:vg.def||0, ts:Date.now() }); }catch(_){}   // update=inbox 서브노드 보존(set이면 지워짐)
     } }
   }
   if(d.log){   // 📋 감사 로그(진행검토·롤백 근거) — 시작/정복/결제 등 중요 이벤트에서만 append(자잘한 오토세이브 제외)

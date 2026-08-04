@@ -558,7 +558,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
 <body><div class="app">
   <div class="topstrip">
     <span class="logo">룬테라 전쟁</span>
-    <span class="world">베타 v0.24 · 월드 1</span>
+    <span class="world">베타 v0.25 · 월드 1</span>
     <button class="top-ic shop-btn" onclick="openGoldShop()" title="골드 상점 · 프리미엄 계정">🏅 상점</button>
     <button class="top-ic help-btn" onclick="openHelp()" title="도움말">? 도움말</button>
   </div>
@@ -586,7 +586,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">룬테라 전쟁 · 베타 v0.24</div>
+  <div class="proto-tag">룬테라 전쟁 · 베타 v0.25</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -1016,10 +1016,13 @@ function sendCommand(toId, units, mode){ const v=S.v;
   if(!hasUnits(units)){ toast('보낼 병력을 선택하세요'); return false; }
   if(mode==='scout'){ for(const u in units){ if(u!=='scout'&&units[u]>0){ toast('정찰은 정찰병만 보낼 수 있어요'); return false; } } }
   let slow=1; for(const u in units){ if(units[u]>0) slow=Math.max(slow,TROOP[u].speed); }
-  const from=S.world[S.active], to=S.world[toId]; if(!to||!from) return false;
+  const from=S.world[S.active]; let to=S.world[toId], op=null;
+  if(!to && typeof toId==='string' && toId.indexOf('op_')===0){ const o=OTHERS[_opCoord(toId)]; if(o){ to={x:o.x,y:o.y,name:o.name||'팀원'}; op={x:o.x,y:o.y,key:o.owner,name:o.name||'팀원'}; } }   // 🤝 팀원 마을 대상
+  if(!to||!from) return false;
   const dist=fieldDist(from,to); const travel=Math.max(4000, travelMs(dist,slow));
   for(const u in units) v.troops[u]-=(units[u]||0);
-  S.marches.push({fromV:S.active, to:toId, units:{...units}, dep:Date.now(), arriveAt:Date.now()+travel, mode});
+  const march={fromV:S.active, to:toId, units:{...units}, dep:Date.now(), arriveAt:Date.now()+travel, mode}; if(op) march.op=op;
+  S.marches.push(march);
   toast(`${MODE_NM[mode]||mode} 출발 — ${to.name} ${crd(to)} · ${dist.toFixed(1)}칸 · ${fmtDur(travel)}`);   // ⚠️ toast=textContent → modeLbl(SVG) 쓰면 마크업이 글자로 찍힘
   save(); return true;
 }
@@ -1037,6 +1040,15 @@ function conquerVillage(id, survivors){ const w=S.world[id];
 function processMarches(now){
   S.marches.sort((a,b)=>b.arriveAt-a.arriveAt);   // 역순 루프가 배열 끝(가장 이른 도착)부터 처리 → 도착 시각 순 보장
   for(let i=S.marches.length-1;i>=0;i--){ const m=S.marches[i]; if(now<m.arriveAt) continue;
+    if(m.op){   // 🤝 팀원 마을 대상(크로스 계정) — 도착 시 상대 마을 inbox로 전달
+      const from=S.world[m.fromV||HOME_KEY];
+      if(m.mode==='support'){
+        _runeInbox(m.op.x, m.op.y, {kind:'support', fromName:MY_NAME||'팀원', fromKey:MY_GKEY, hx:from?from.x:0, hy:from?from.y:0, units:{...m.units}});
+        if(!S.outSupport) S.outSupport=[]; S.outSupport.push({toX:m.op.x, toY:m.op.y, toKey:m.op.key||'', toName:m.op.name||'팀원', units:{...m.units}, at:now});
+        toast(`🛡️ ${m.op.name||'팀원'} 마을에 지원군 도착`); S.marches.splice(i,1); save(); continue;
+      }
+      const trip=m.arriveAt-m.dep; m.mode='return'; m.dep=now; m.arriveAt=now+trip; delete m.op; continue;   // 공격/정찰(P3)은 아직 → 회군
+    }
     if(m.mode==='raid'){ resolveDefense(m,now); S.marches.splice(i,1); continue; }
     if(m.mode==='attack'){ if(resolveAttack(m,now)) S.marches.splice(i,1); continue; }
     if(m.mode==='scout'){ if(resolveScout(m,now)) S.marches.splice(i,1); continue; }
@@ -1261,7 +1273,7 @@ window.buyPremium=function(days,cost){
 // 🔌 사이트(index.html) 임베드 브릿지 — 실제 사이트 공유 골드로 결제/표시
 const RUNE_EMBED = new URLSearchParams(location.search).has('embed');
 let MY_NAME='';   // 🪪 사이트에서 받은 내 닉네임(월드맵 내 마을 라벨) — 임베드 시 runeInit로 전달
-if(RUNE_EMBED){ const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.24 · 상점=공유 골드'; }
+if(RUNE_EMBED){ const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.25 · 상점=공유 골드'; }
 let _runeLoaded=false;   // 서버 저장본 로드 완료 전엔 서버 업로드 금지(로컬로 서버 클로버 방지)
 if(RUNE_EMBED){ window.addEventListener('message', e=>{ const d=e.data; if(!d||typeof d!=='object') return;
   if(d.type==='runeInit'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); if(document.querySelector('.gs-ov')) window.openGoldShop(); }
@@ -1290,9 +1302,26 @@ function _mergedWorld(){ if(!RUNE_EMBED) return S.world;   // 임베드 아니�
     const id=_opId(o.x,o.y); m[id]={x:o.x, y:o.y, name:o.name||'팀원', owner:'player', size:o.size||1, wall:o.wall||0}; _OPPTS[id]=o.pts||0; }
   return m; }
 function _runeWorldSubOnce(){ if(!RUNE_EMBED || _worldSubbed) return; _worldSubbed=true; try{ parent.postMessage({type:'runeWorldSub'}, '*'); }catch(e){} }
-let _owT=0;
-function _onRuneWorld(list){   // 공유월드 갱신 수신 → OTHERS 재구성(본인 것 제외) → 맵 열려있으면 디바운스 갱신(버스트 병합)
-  OTHERS={}; if(Array.isArray(list)){ for(const o of list){ if(!o||o.x==null) continue; if(MY_GKEY && o.owner===MY_GKEY) continue; OTHERS[o.x+','+o.y]=o; } }
+let _owT=0, _inboxSeen={};
+// 🤝 크로스 계정 액션 — 상대 마을 좌표 inbox로 전달/정리(부모가 Firebase 씀)
+function _runeInbox(x,y,entry){ if(!RUNE_EMBED) return; try{ parent.postMessage({type:'runeInboxPush', x, y, entry}, '*'); }catch(e){} }
+function _clearInbox(x,y,ids){ if(!RUNE_EMBED||!ids||!ids.length) return; try{ parent.postMessage({type:'runeInboxClear', x, y, ids}, '*'); }catch(e){} }
+function _processVilInbox(o, vid){   // 내 마을(vid) 도착 액션 처리: 지원 합류 / 회군 복귀 / 회수 요청
+  const v=S.villages[vid]; if(!v||!o.inbox) return; const done=[]; let changed=false;
+  for(const pid in o.inbox){ const e=o.inbox[pid]; done.push(pid); if(!e||!e.kind||_inboxSeen[pid]) continue; _inboxSeen[pid]=1;
+    if(e.kind==='support'){ if(!v.support) v.support=[]; v.support.push({from:e.by||e.fromKey||'?', fromName:e.fromName||'팀원', units:e.units||{}, ext:true, hx:e.hx, hy:e.hy}); toast(`🛡️ ${e.fromName||'팀원'} 지원군 도착 (${crd(S.world[vid])})`); changed=true; }
+    else if(e.kind==='return'){ for(const u in (e.units||{})) v.troops[u]=(v.troops[u]||0)+(e.units[u]||0); toast(`↩️ 지원군 회군 도착 (${crd(S.world[vid])})`); changed=true; }
+    else if(e.kind==='recall'){   // 상대가 자기 지원을 회수 → 내 마을에 와있던 그 지원을 상대 집으로 돌려보냄
+      const by=e.by||e.fromKey; if(v.support){ for(let k=v.support.length-1;k>=0;k--){ const sp=v.support[k]; if(sp.ext && (sp.from===by)){ _runeInbox(e.hx, e.hy, {kind:'return', units:sp.units||{}, fromName:MY_NAME||'팀원'}); v.support.splice(k,1); changed=true; } } } }
+  }
+  if(done.length) _clearInbox(o.x,o.y,done);
+  if(changed){ save(); if(view==='village'&&(S.world[S.active].x===o.x&&S.world[S.active].y===o.y)) renderVillage(true); }
+}
+function _onRuneWorld(list){   // 공유월드 갱신 수신 → OTHERS 재구성(본인 것 제외·내 마을 inbox 처리) → 맵 열려있으면 디바운스 갱신
+  OTHERS={}; const myC={}; ownedIds().forEach(id=>{ const w=S.world[id]; if(w) myC[w.x+','+w.y]=id; });   // 좌표→내 마을 id(닉네임 없어도 견고)
+  if(Array.isArray(list)){ for(const o of list){ if(!o||o.x==null) continue;
+    const mine=myC[o.x+','+o.y]; if(mine){ if(o.inbox) _processVilInbox(o, mine); continue; }   // 내 마을 → inbox 처리
+    OTHERS[o.x+','+o.y]=o; } }
   if(view==='map'){ clearTimeout(_owT); _owT=setTimeout(()=>{ if(view==='map') showView(); }, 800); } }
 // 📋 진행 기록(감사 로그) 뷰어 — 임베드 시 부모(Firebase runewar/log)에서 조회
 window.openRuneLog=function(){
@@ -1570,8 +1599,12 @@ function _openOtherInfo(o){ const from=S.world[S.active]||S.world[HOME_KEY]; con
   if(document.querySelector('.rl-ov')) return;
   const ov=document.createElement('div'); ov.className='rl-ov';
   const row=(a,t)=>`<div class="rl-row"><span class="rl-act">${a}</span><span class="rl-meta"></span><span class="rl-t">${t}</span></div>`;
-  ov.innerHTML=`<div class="rl-card" style="max-width:330px"><div class="rl-h">🤝 ${o.name||'팀원'} <button class="rl-x" title="닫기">✕</button></div><div class="rl-body" style="padding:12px 14px 14px">${row('📍 좌표',`(${o.x}|${o.y})`)}${row('🏆 발전점수',NF(o.pts||0)+'점')}${row('🏰 규모',(o.size||1)+'★')}${row('📏 거리',dist.toFixed(1)+'칸')}<div style="margin-top:12px;font-size:12px;color:#b7cfa0;text-align:center">⚔️ 공격·지원은 다음 업데이트에서 열려요</div></div></div>`;
-  ov.addEventListener('click',e=>{ if(e.target===ov||e.target.closest('.rl-x')) ov.remove(); });
+  const oid=_opId(o.x,o.y);
+  ov.innerHTML=`<div class="rl-card" style="max-width:330px"><div class="rl-h">🤝 ${o.name||'팀원'} <button class="rl-x" title="닫기">✕</button></div><div class="rl-body" style="padding:12px 14px 14px">${row('📍 좌표',`(${o.x}|${o.y})`)}${row('🏆 발전점수',NF(o.pts||0)+'점')}${row('🏰 규모',(o.size||1)+'★')}${row('📏 거리',dist.toFixed(1)+'칸')}
+    <button class="btn btn-green oi-support" style="width:100%;padding:11px;margin-top:12px;font-size:14px">${I('shield')} 지원 보내기</button>
+    <div style="margin-top:8px;font-size:11px;color:#9a8a63;text-align:center">⚔️ 공격은 다음 업데이트에서 열려요</div></div></div>`;
+  ov.addEventListener('click',e=>{ if(e.target===ov||e.target.closest('.rl-x')){ ov.remove(); return; }
+    if(e.target.closest('.oi-support')){ ov.remove(); openAttack(oid,'support'); } });
   document.body.appendChild(ov); }
 function onVillage(id){
   if(id && id.indexOf('op_')===0){ const o=OTHERS[_opCoord(id)]; if(o) _openOtherInfo(o); return; }   // 🤝 팀원 마을
@@ -1638,7 +1671,9 @@ function confirmRelease(onYes){ const left=protectLeft(S.world[HOME_KEY]);
 }
 // ── 공격/지원/정찰 모달(집결지 명령) ──
 function openAttack(id, mode0){
-  const w=S.world[id]; if(!w) return; const v=S.v;
+  let w=S.world[id], ally=false;
+  if(!w && typeof id==='string' && id.indexOf('op_')===0){ const o=OTHERS[_opCoord(id)]; if(o){ w={x:o.x,y:o.y,name:o.name||'팀원',owner:'player',_op:true}; ally=true; } }   // 🤝 팀원 = 지원 전용
+  if(!w) return; const v=S.v;
   const mine=w.owner==='me';
   if(!mine && isProtected(w)){
     const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
@@ -1651,7 +1686,7 @@ function openAttack(id, mode0){
     document.body.appendChild(ov); return;
   }
   if((v.blds.rally||0)<1){ toast('집결지가 필요해요 — 마을에서 건설하세요'); go('village'); return; }
-  let mode = mode0 || (mine?'support':'attack');
+  let mode = mode0 || ((mine||ally)?'support':'attack');
   const from=S.world[S.active]; const dist=fieldDist(w,from);
   let sel={};
   const ov=document.createElement('div'); ov.className='ov'; ov.onclick=e=>{ if(e.target===ov) ov.remove(); };
@@ -1660,11 +1695,12 @@ function openAttack(id, mode0){
     return {travel: slow?Math.max(4000,travelMs(dist,slow)):0, atk:Math.round(atk), n}; }
   function draw(){
     const es=estimate(); const rows=avail(); const spy=S.spy[id];
-    const tabs = mine? [] : [['attack',I('barracks')+' 공격'],['scout',I('scout')+' 정찰']];
+    const tabs = (mine||ally)? [] : [['attack',I('barracks')+' 공격'],['scout',I('scout')+' 정찰']];
     ov.innerHTML=`<span class="ov-x" onclick="this.parentNode.remove()">✕</span><div class="picker atk">
       <h3 class="pick-h">${I(mine?'shield':(mode==='scout'?'scout':'barracks'))} ${w.name} <small>${crd(w)} · ${dist.toFixed(1)}칸</small></h3>
       ${tabs.length? `<div class="atk-tabs">${tabs.map(([m2,nm])=>`<button class="atab ${mode===m2?'on':''}" data-m="${m2}">${nm}</button>`).join('')}</div>`:''}
-      ${!mine? `<div class="atk-info">${spy? `${I('scout')} 최근 정찰(${fmtAgo(Date.now()-spy.at)}) — ${I('shield')} 수비 ~<b>${NF(spy.def)}</b> · ${I('wall')} 성벽 ${spy.wall} · ${I('storage')} ${NF(spy.res.wood+spy.res.clay+spy.res.iron)} · ${I('noble')} 충성도 ${spy.loyalty}`
+      ${ally? `<div class="atk-info">${I('shield')} 팀원 <b>${w.name}</b> 마을에 병력을 <b>지원</b>합니다 — 도착하면 그 마을 수비에 합류해요 <small>(상대가 접속하면 반영·나중에 회수 가능)</small></div>`
+        : !mine? `<div class="atk-info">${spy? `${I('scout')} 최근 정찰(${fmtAgo(Date.now()-spy.at)}) — ${I('shield')} 수비 ~<b>${NF(spy.def)}</b> · ${I('wall')} 성벽 ${spy.wall} · ${I('storage')} ${NF(spy.res.wood+spy.res.clay+spy.res.iron)} · ${I('noble')} 충성도 ${spy.loyalty}`
         : `<b>수비 정보 없음</b> — 적 정보는 ${I('scout')} 정찰해야 보여요`}</div>`
         : `<div class="atk-info">${I('shield')} 내 마을에 병력을 <b>지원</b>합니다 — 도착하면 그 마을 수비에 합류하고, ${I('rally')} 집결지에서 회수할 수 있어요</div>`}
       ${rows.length? rows.map(u=>`<div class="atk-row"><span class="u-ic">${I(TROOP[u].ic)}</span><span class="u-nm">${TROOP[u].nm}</span><span class="u-have">보유 ${NF(v.troops[u])}</span>
@@ -2038,7 +2074,8 @@ function renderRally(full){
         <span style="font-size:9.5px;color:#9a8a60;margin-left:4px">예: (12|15)</span></div></div></div>
       <div class="box"><div class="bh">${I('shield')} 부대 총괄 <small>마을별 주둔 병력</small></div><div class="bc" id="rl-forces"></div></div>
       <div class="box"><div class="bh">${I('cart')} 진행 중 명령</div><div class="bc" id="rl-moves"></div></div>
-      <div class="box"><div class="bh">${I('shield')} 주둔 지원 <small>내 마을에 가 있는 지원군</small></div><div class="bc" id="rl-sup"></div></div>`;
+      <div class="box"><div class="bh">${I('shield')} 주둔 지원 <small>내 마을에 가 있는 지원군</small></div><div class="bc" id="rl-sup"></div></div>
+      <div class="box"><div class="bh">${I('cart')} 내가 보낸 지원 <small>팀원 마을에 가 있음 · 회수 가능</small></div><div class="bc" id="rl-out"></div></div>`;
   }
   updateRallyLive();
 }
@@ -2056,7 +2093,7 @@ function updateRallyLive(){
     return `<div class="rl-vrow ${id===S.active?'on':''}"><b onclick="switchVil('${id}')">${I('main')} ${crd(w)}${id===S.active?' ◀':''}</b><span class="rl-units">${ks.length?ks.map(u=>I(TROOP[u].ic)+NF(vv.troops[u])).join(' '):'—'}</span></div>`; }).join('');
   const mv=document.getElementById('rl-moves'); if(mv){
     const ms=S.marches||[];
-    const rows=ms.map(m=>{ const inc=m.mode==='raid'; const tgt=S.world[m.to]; const org=inc? S.world[m.from]:S.world[m.fromV||HOME_KEY];
+    const rows=ms.map(m=>{ const inc=m.mode==='raid'; const tgt=S.world[m.to]||(m.op?{name:m.op.name,x:m.op.x,y:m.op.y}:null); const org=inc? S.world[m.from]:S.world[m.fromV||HOME_KEY];
       const uu=inc?'':Object.keys(m.units).filter(u=>m.units[u]>0).map(u=>I(TROOP[u].ic)+NF(m.units[u])).join(' ');
       const lbl=inc? `${I('fire')} <b>습격!</b> ${org?(org.name||''):''} → ${tgt?crd(tgt):''}` : `${modeLbl(m.mode)} → ${tgt?(tgt.name+' '+crd(tgt)):''}`;
       return {inc, html:`<div class="rl-mrow ${inc?'inc':m.mode}"><span>${lbl}</span><span class="rl-units">${uu}</span><b>${fmtDur(m.arriveAt-now)}</b></div>`}; });
@@ -2064,11 +2101,23 @@ function updateRallyLive(){
     mv.innerHTML = rows.length? rows.map(r=>r.html).join('') : `<div class="muted">진행 중인 명령이 없어요</div>`;
   }
   const sp=document.getElementById('rl-sup'); if(sp){ let sh='';
-    ownedIds().forEach(id=>{ const vv=S.villages[id]; (vv.support||[]).forEach((s,ix)=>{ const fw=S.world[s.from], hw=S.world[id];
+    ownedIds().forEach(id=>{ const vv=S.villages[id]; (vv.support||[]).forEach((s,ix)=>{ const hw=S.world[id];
       const uu=Object.keys(s.units).filter(u=>s.units[u]>0).map(u=>I(TROOP[u].ic)+NF(s.units[u])).join(' ');
-      sh+=`<div class="rl-mrow support"><span>${I('shield')} ${fw?crd(fw):'?'} → <b>${hw?crd(hw):'?'}</b></span><span class="rl-units">${uu}</span><button class="btn sm" onclick="recallSupport('${id}',${ix})">회수</button></div>`; }); });
+      if(s.ext){   // 🤝 팀원이 보내준 지원 — 회수는 그 팀원이 함
+        sh+=`<div class="rl-mrow support"><span>${I('shield')} <b>${s.fromName||'팀원'}</b> 지원 → ${hw?crd(hw):'?'}</span><span class="rl-units">${uu}</span></div>`;
+      } else { const fw=S.world[s.from];
+        sh+=`<div class="rl-mrow support"><span>${I('shield')} ${fw?crd(fw):'?'} → <b>${hw?crd(hw):'?'}</b></span><span class="rl-units">${uu}</span><button class="btn sm" onclick="recallSupport('${id}',${ix})">회수</button></div>`; } }); });
     sp.innerHTML= sh || `<div class="muted">주둔 중인 지원이 없어요</div>`; }
+  const out=document.getElementById('rl-out'); if(out){ const arr=S.outSupport||[]; let oh='';
+    arr.forEach((s,ix)=>{ const uu=Object.keys(s.units||{}).filter(u=>s.units[u]>0).map(u=>I(TROOP[u].ic)+NF(s.units[u])).join(' ');
+      oh+=`<div class="rl-mrow support"><span>${I('cart')} → <b>${s.toName||'팀원'}</b> (${s.toX}|${s.toY})</span><span class="rl-units">${uu}</span><button class="btn sm" onclick="recallOutSupport(${ix})">회수</button></div>`; });
+    out.innerHTML= oh || `<div class="muted">팀원에게 보낸 지원이 없어요</div>`; }
 }
+window.recallOutSupport=function(ix){ const arr=S.outSupport||[]; const s=arr[ix]; if(!s) return;   // 🤝 팀원 마을의 내 지원 회수 요청 → 상대가 처리하면 회군
+  const home=S.world[HOME_KEY];
+  _runeInbox(s.toX, s.toY, {kind:'recall', fromKey:MY_GKEY, hx:home?home.x:0, hy:home?home.y:0});
+  arr.splice(ix,1); save(); toast('회수 요청을 보냈어요 — 상대가 접속하면 병력이 집으로 돌아와요');
+  if(view==='rally') updateRallyLive(); };
 // ── 📜 보고서 화면 ──
 function uchips(units,lost){
   const ks=Object.keys(TROOP).filter(u=>((units&&units[u])||0)>0||((lost&&lost[u])||0)>0);
