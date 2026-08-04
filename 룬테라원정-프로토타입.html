@@ -1,5 +1,5 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>룬테라 전쟁 — 프로토타입 v0.14</title>
+<title>룬테라 전쟁 — 프로토타입 v0.15</title>
 <style>
 /* ═══ 클래식 전략 스타일 양피지 테마 ═══
    PC(≥900px)  = 브라우저 게임 레이아웃: 상단 메뉴 + 본문 + 우측 사이드바(개요) + 테이블 UI
@@ -573,7 +573,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">프로토타입 v0.14 · 이 브라우저에만 저장(mock) · 실제 사이트 골드와 무관</div>
+  <div class="proto-tag">프로토타입 v0.15 · 이 브라우저에만 저장(mock) · 실제 사이트 골드와 무관</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -1222,15 +1222,25 @@ window.openGoldShop=function(){ const old=document.querySelector('.gs-ov'); if(o
     <div class="gs-head"><b>🏅 골드 상점</b><span class="gs-gold">🪙 <b>${NF(gold)}</b></span><button class="gs-x" onclick="this.closest('.gs-ov').remove()">✕</button></div>
     <div class="gs-prem ${prem?'on':''}">${prem?`프리미엄 계정 활성 · <b>${left}일</b> 남음`:'프리미엄 계정 비활성 — 아래에서 구매'}</div>
     <div class="gs-sub">프리미엄 계정 <small>부족전쟁식 · 날짜 단위</small></div>
-    ${row(7,120)}${row(30,400)}
+    ${row(1,500)}${row(7,3000)}${row(30,10000)}
     <ul class="gs-perks"><li>건설 대기열 <b>2 → 5개</b></li><li>(추가 편의 기능 예정)</li></ul>
     <div class="gs-note">💡 곧 <b>금광</b>(방치형 골드 채굴소)이 추가돼 골드를 직접 캐게 됩니다. 골드는 추후 <b>실제 사이트 골드</b>와 연동 예정(현재는 이 브라우저 mock).</div>
   </div>`;
   document.body.appendChild(ov);
 };
-window.buyPremium=function(days,cost){ if((S.gold||0)<cost){ toast('골드가 부족해요'); return; }
-  S.gold-=cost; const base=Math.max(Date.now(), S.premiumUntil||0); S.premiumUntil=base+days*86400000; save(); renderTop();
-  toast(`🏅 프리미엄 ${days}일 활성 (−${NF(cost)} 골드)`); window.openGoldShop(); };
+function _applyPremium(days){ const base=Math.max(Date.now(), S.premiumUntil||0); S.premiumUntil=base+days*86400000; save(); renderTop();
+  toast(`🏅 프리미엄 ${days}일 활성`); if(document.querySelector('.gs-ov')) window.openGoldShop(); }
+window.buyPremium=function(days,cost){
+  if(RUNE_EMBED){ parent.postMessage({type:'runeSpendGold', amount:cost, days, reason:'프리미엄 '+days+'일'}, '*'); toast('구매 요청 중…'); return; }   // 임베드=실제 사이트 골드로 결제(부모가 차감)
+  if((S.gold||0)<cost){ toast('골드가 부족해요'); return; }
+  S.gold-=cost; _applyPremium(days); };
+// 🔌 사이트(index.html) 임베드 브릿지 — 실제 사이트 공유 골드로 결제/표시
+const RUNE_EMBED = new URLSearchParams(location.search).has('embed');
+if(RUNE_EMBED){ window.addEventListener('message', e=>{ const d=e.data; if(!d||typeof d!=='object') return;
+  if(d.type==='runeInit'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); if(document.querySelector('.gs-ov')) window.openGoldShop(); } }
+  else if(d.type==='runeGoldResult'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); }
+    if(d.ok && d.days){ _applyPremium(d.days); } else if(!d.ok){ toast(d.msg||'골드가 부족해요'); if(document.querySelector('.gs-ov')) window.openGoldShop(); } }
+}); try{ parent.postMessage({type:'runeReady'}, '*'); }catch(e){} }
 // 🚪 시작 게이트 — 확인해야 무작위 지점에 마을이 서고 게임이 시작된다(멀티 진입 모델)
 function showStartGate(){ if(document.getElementById('start-gate')) return;
   const ov=document.createElement('div'); ov.id='start-gate'; ov.className='start-gate';
