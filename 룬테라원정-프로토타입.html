@@ -558,7 +558,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
 <body><div class="app">
   <div class="topstrip">
     <span class="logo">룬테라 전쟁</span>
-    <span class="world">베타 v0.26 · 월드 1</span>
+    <span class="world">베타 v0.27 · 월드 1</span>
     <button class="top-ic shop-btn" onclick="openGoldShop()" title="골드 상점 · 프리미엄 계정">🏅 상점</button>
     <button class="top-ic help-btn" onclick="openHelp()" title="도움말">? 도움말</button>
   </div>
@@ -586,7 +586,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">룬테라 전쟁 · 베타 v0.26</div>
+  <div class="proto-tag">룬테라 전쟁 · 베타 v0.27</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -812,7 +812,16 @@ const SPAWN_MINDIST = 9, SPAWN_RADIUS = 30;
 let S = load(); bindActive();
 function bindActive(){ S.active=S.active||HOME_KEY; if(!S.villages)S.villages={}; if(!S.research)S.research={}; if(!S.spy)S.spy={}; if(S.gold==null)S.gold=500; if(S.premiumUntil==null)S.premiumUntil=0;
   if(!Array.isArray(S.trades)) S.trades=[]; if(S.researchQ===undefined) S.researchQ=null;   // 구 세이브 호환(버전 유지)
-  for(const id in S.villages){ const v=S.villages[id]; if(!v.support) v.support=[]; }
+  // ⚠️ Firebase RTDB는 빈 배열/객체를 저장하지 않아, 서버에서 불러온 상태는 buildQ/recQ/troops 등이 undefined가 됨 → 접근 시 예외로 마을 UI가 통째로 비어버림. 여기서 전부 복원.
+  if(!Array.isArray(S.marches)) S.marches=[]; if(!Array.isArray(S.reports)) S.reports=[]; if(!Array.isArray(S.outSupport)) S.outSupport=[];
+  for(const id in S.villages){ const v=S.villages[id]; if(!v) continue;
+    if(!v.res||typeof v.res!=='object') v.res={wood:0,clay:0,iron:0};
+    ['wood','clay','iron'].forEach(k=>{ if(typeof v.res[k]!=='number') v.res[k]=0; });
+    if(!v.blds||typeof v.blds!=='object') v.blds={main:1};
+    if(!v.troops||typeof v.troops!=='object') v.troops={};
+    if(!Array.isArray(v.buildQ)) v.buildQ=[];
+    if(!Array.isArray(v.recQ)) v.recQ=[];
+    if(!Array.isArray(v.support)) v.support=[]; }
   _ensureBarbCaps();
   if(!Object.getOwnPropertyDescriptor(S,'v')) Object.defineProperty(S,'v',{get(){return S.villages[S.active];},configurable:true,enumerable:false}); seedReveal(); }
 // 상한 필드가 없던 세이브 보정(세이브 폐기 없이). 이미 자란 마을은 줄이지 않고 그 자리에서 멈춘다.
@@ -1273,7 +1282,7 @@ window.buyPremium=function(days,cost){
 // 🔌 사이트(index.html) 임베드 브릿지 — 실제 사이트 공유 골드로 결제/표시
 const RUNE_EMBED = new URLSearchParams(location.search).has('embed');
 let MY_NAME='';   // 🪪 사이트에서 받은 내 닉네임(월드맵 내 마을 라벨) — 임베드 시 runeInit로 전달
-if(RUNE_EMBED){ const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.26 · 상점=공유 골드'; }
+if(RUNE_EMBED){ const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.27 · 상점=공유 골드'; }
 let _runeLoaded=false;   // 서버 저장본 로드 완료 전엔 서버 업로드 금지(로컬로 서버 클로버 방지)
 if(RUNE_EMBED){ window.addEventListener('message', e=>{ const d=e.data; if(!d||typeof d!=='object') return;
   if(d.type==='runeInit'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); if(document.querySelector('.gs-ov')) window.openGoldShop(); }
