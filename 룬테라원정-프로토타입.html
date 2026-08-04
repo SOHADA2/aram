@@ -573,7 +573,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">룬테라 전쟁 · 베타 v0.16</div>
+  <div class="proto-tag">룬테라 전쟁 · 베타 v0.17</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -1236,9 +1236,11 @@ window.buyPremium=function(days,cost){
   S.gold-=cost; _applyPremium(days); };
 // 🔌 사이트(index.html) 임베드 브릿지 — 실제 사이트 공유 골드로 결제/표시
 const RUNE_EMBED = new URLSearchParams(location.search).has('embed');
-if(RUNE_EMBED){ const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.16 · 상점=공유 골드'; }
+let MY_NAME='';   // 🪪 사이트에서 받은 내 닉네임(월드맵 내 마을 라벨) — 임베드 시 runeInit로 전달
+if(RUNE_EMBED){ const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.17 · 상점=공유 골드'; }
 if(RUNE_EMBED){ window.addEventListener('message', e=>{ const d=e.data; if(!d||typeof d!=='object') return;
-  if(d.type==='runeInit'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); if(document.querySelector('.gs-ov')) window.openGoldShop(); } }
+  if(d.type==='runeInit'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); if(document.querySelector('.gs-ov')) window.openGoldShop(); }
+    if(typeof d.name==='string' && d.name){ MY_NAME=d.name; if(view==='map') showView(); } }
   else if(d.type==='runeGoldResult'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); }
     if(d.ok && d.days){ _applyPremium(d.days); } else if(!d.ok){ toast(d.msg||'골드가 부족해요'); if(document.querySelector('.gs-ov')) window.openGoldShop(); } }
 }); try{ parent.postMessage({type:'runeReady'}, '*'); }catch(e){} }
@@ -1333,7 +1335,7 @@ function _mapFallbackNotice(){
 function escHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function renderMap(){
   if(window.Map3D){ const wrap=document.getElementById('map-wrap'), mc=document.getElementById('map-content'); if(mc) mc.style.display='none';
-    if(wrap){ window.Map3D.mount(wrap); window.Map3D.build({ icon:I, world:S.world, cols:HCOLS, rows:HROWS, hex:hexPos, isP:isProtected, onNode:onVillage, HOME:HOME_KEY, fmt:fmtDur, revealed:S.revealed, mainOf:(id)=>{ const vv=S.villages[id]; return (vv&&vv.blds)?(vv.blds.main||1):1; }, ptsOf:(id)=>{ const vv=S.villages[id]; if(vv&&vv.blds) return devPoints(vv); const ww=S.world[id]; return (ww&&ww.owner==='barb')?barbPoints(ww.size):0; }, nf:NF, state:()=>({world:S.world,marches:S.marches}) });
+    if(wrap){ window.Map3D.mount(wrap); window.Map3D.build({ icon:I, world:S.world, cols:HCOLS, rows:HROWS, hex:hexPos, isP:isProtected, onNode:onVillage, HOME:HOME_KEY, fmt:fmtDur, revealed:S.revealed, myName:MY_NAME, mainOf:(id)=>{ const vv=S.villages[id]; return (vv&&vv.blds)?(vv.blds.main||1):1; }, ptsOf:(id)=>{ const vv=S.villages[id]; if(vv&&vv.blds) return devPoints(vv); const ww=S.world[id]; return (ww&&ww.owner==='barb')?barbPoints(ww.size):0; }, nf:NF, state:()=>({world:S.world,marches:S.marches}) });
       const rr=document.getElementById('map-reset'); if(rr){ rr.innerHTML=I('expand'); rr.onclick=()=>window.Map3D.resetCam(); } }
     return; }
   // 2D 폴백 — ⚠️조용히 떨어지면 원인 파악이 불가능해서, 실패했다는 사실을 화면에 남긴다
@@ -2684,8 +2686,12 @@ function vTile(w){ if(w.owner==='me') return 'building-castle'; if(w.owner==='pl
 const RTS='assets/rts/'; function ldR(n){ return C['r:'+n]||(C['r:'+n]=GL.loadAsync(RTS+n+'.glb').then(g=>g.scene)); }
 // 🏘️ 월드맵 마을 = 축소된 미니 마을(원형 군집) — 중심 건물 + 주변에 작은 집들이 둘러선 형태
 function vLayout(w,id){
-  if(w.owner==='me'){ const mn=(OPT&&OPT.mainOf)?OPT.mainOf(id):6; const t=Math.max(1,Math.min(6,Math.ceil(mn/30*6)));
-    return {center:'workshop_'+t, cw:[0.55,0.62,0.72,0.82,0.95,1.1][t-1], ring:0, sig:'me'+t}; }   // 내 성 = 본진 레벨 비례(나무 요새 → 석조 성, 본진 3D와 동일)
+  if(w.owner==='me'){ const mn=(OPT&&OPT.mainOf)?OPT.mainOf(id):1; const t=Math.max(1,Math.min(6,Math.ceil(mn/30*6)));
+    // 본진 레벨 → 6단계 성장: 오두막 → 통나무집 → 저택 → 목책요새 → 석조성 → 대성(낮은 레벨은 성 아닌 촌락, 주변 오두막이 레벨 오를수록 줄고 중심이 커짐)
+    const C =['wood_4','hide','hide2','workshop_3','workshop_5','workshop_6'][t-1];
+    const cw=[0.5,   0.62,  0.72,   0.85,        0.98,        1.12       ][t-1];
+    const rg=[5,     4,     3,      2,           1,           0          ][t-1];
+    return {center:C, cw, ring:rg, sig:'me'+t}; }
   if(w.owner==='player') return {center:'rally_3', cw:0.85, ring:0, sig:'pl'};
   const sz=Math.min(6,Math.max(1,w.size||1));   // 야만인 마을: ★가 커질수록 큰 중심 + 둘러선 집 증가
   return {center: sz>=3?['','','hide','main_2','main_3','main_5'][sz-1]:'', cw: sz>=3?[0,0,0.34,0.40,0.46,0.54][sz-1]:0, ring:[2,3,3,4,5,6][sz-1], sig:'b'+sz};
@@ -2840,10 +2846,11 @@ function _mkMarkHtml(w,id){ const ic=_mIcon(w.owner==='me'?'main':(w.owner==='pl
   const prot=OPT&&OPT.isP&&OPT.isP(w)?_mIcon('shield'):'';
   const pts=(OPT&&OPT.ptsOf)?OPT.ptsOf(id):0; const nf=(OPT&&OPT.nf)||(x=>x);
   const pt=pts?`<i>${nf(pts)}점</i>`:'';
-  return w.owner==='me'?`<b>${ic} 내 성${prot}</b>${pt}`
+  const myn=(OPT&&OPT.myName)||w.name||'내 마을';
+  return w.owner==='me'?`<b>${ic} ${myn}${prot}</b>${pt}`
        : w.owner==='player'?`<b>${ic} ${(w.name||'')}${prot}</b>${pt}`
        : `<b>${ic} ${w.size}★</b>${pt}`; }
-function _vsig(w,id){ return ((OPT&&OPT.ptsOf)?OPT.ptsOf(id):0)+'|'+(w.size||0)+'|'+((OPT&&OPT.isP&&OPT.isP(w))?1:0); }
+function _vsig(w,id){ return ((OPT&&OPT.ptsOf)?OPT.ptsOf(id):0)+'|'+(w.size||0)+'|'+((OPT&&OPT.isP&&OPT.isP(w))?1:0)+'|'+(w.owner==='me'?((OPT&&OPT.myName)||''):''); }
 export function build(opts){ opts=opts||{}; OPT=opts; initS();
   _mIcon = opts.icon || (()=>'');
   const world=opts.world, cols=opts.cols, rows=opts.rows, rev=opts.revealed||{};
@@ -2860,7 +2867,7 @@ export function build(opts){ opts=opts||{}; OPT=opts; initS();
     _wsig=wsig; _rcnt=-1; _built=Object.create(null); _pen=Object.create(null);
     while(GRP.children.length) GRP.remove(GRP.children[0]);
     VLAB.forEach(L=>L.el.remove()); VLAB.length=0;
-    off=opts.hex((cols-1)/2,(rows-1)/2); HGT=rows*0.866;
+    const _hw=world[opts.HOME]; off=opts.hex(_hw?_hw.x:(cols-1)/2, _hw?_hw.y:(rows-1)/2); HGT=rows*0.866;   // 🏠 원점=내 마을 → 시작·리셋 시 내 마을이 화면 중앙
     _at={}; for(const id in world){ const w=world[id]; _at[w.x+','+w.y]=id; }
     _roads=computeRoads(world, opts, _at);
   }
