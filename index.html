@@ -7072,7 +7072,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.638';
+const APP_VERSION = 'v2.45.639';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7081,6 +7081,9 @@ const APP_VERSION = 'v2.45.638';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.639', date: '2026-08-04', changes: [
+    { tag: 'new', text: '🗺️ 룬테라 전쟁 <b>멀티 P1 — 팀원이 서로 보여요!</b> 같은 공유 월드에서 팀원들의 실제 마을이 지도에 나타나요(닉네임·발전점수 표시, 안개에 가려도 팀원 마을은 보임). 마을을 탭하면 좌표·점수·규모·거리 정보. 시작 좌표는 <b>선점(claims)</b>으로 겹치지 않게 배정되고, 첫 배정 뒤엔 서버에 고정돼 어디서 접속해도 같은 위치예요. (⚔️ 공격·지원은 다음 단계 P2·P3에서)' },
+  ] },
   { ver: 'v2.45.638', date: '2026-08-04', changes: [
     { tag: 'improve', text: '🗺️ 룬테라 전쟁 — <b>모바일</b>에선 좌상단 배지가 헤더를 가려서, 진입 버튼을 <b>대문 타이틀 정면(아래)</b>에 골드 CTA로 옮겼어요(모바일만·데스크톱은 그대로 코너 배지). + 진행 안정성: <b>세이브 버전 마이그레이션</b>(이제 게임 업데이트로 저장 구조가 바뀌어도 진행이 폐기되지 않고 승급돼요), 감사 로그 <b>최근 300개 유지</b>(무한증가 방지), 게임 상단 <b>「📋 기록」</b>에서 시작·정복·프리미엄 내역을 시각·발전점수와 함께 검토.' },
   ] },
@@ -36463,16 +36466,37 @@ window.openRuneWar = function(){
   const lock=on=>{ document.body.style.overflow=on?'hidden':''; }; lock(true);
   const frame=ov.querySelector('.rune-frame');
   const onMsg=(e)=>{ if(e.source!==frame.contentWindow) return; const d=e.data; if(!d||typeof d!=='object') return;
-    if(d.type==='runeReady'){ try{ frame.contentWindow.postMessage({type:'runeInit', gold:getMyGold(), name:(myName||'')}, '*'); }catch(_){} }   // 게임 로드 완료 → 현재 공유 골드 + 내 닉네임 전달
+    if(d.type==='runeReady'){ try{ frame.contentWindow.postMessage({type:'runeInit', gold:getMyGold(), name:(myName||''), key:(getMyGoldKey()||'')}, '*'); }catch(_){} }   // 게임 로드 완료 → 공유 골드 + 닉네임 + 내 키(공유월드 본인 식별)
     else if(d.type==='runeSpendGold'){ _runeSpendGold(frame, d); }                                                            // 게임 내 결제 요청 → 실제 골드 차감
     else if(d.type==='runeLoad'){ _runeLoadState(frame); }                                                                    // 게임 시작 → 서버 저장본 요청
     else if(d.type==='runeSave'){ _runeSaveState(frame, d); }                                                                 // 진행상황 서버 저장(+감사 로그)
     else if(d.type==='runeLogReq'){ _runeLogFetch(frame); }                                                                   // 📋 감사 로그 조회(진행검토)
+    else if(d.type==='runeWorldSub'){ _runeWorldSub(frame); }                                                                 // 🌍 공유월드 마을 구독(팀원 가시성)
+    else if(d.type==='runeClaim'){ _runeClaim(frame, d); }                                                                    // 🚩 좌표 선점(집/정복 충돌 방지)
   };
   window.addEventListener('message', onMsg);
-  const close=()=>{ window.removeEventListener('message', onMsg); ov.remove(); lock(false); };
+  const close=()=>{ window.removeEventListener('message', onMsg); if(_runeWorldUnsub){ try{ _runeWorldUnsub(); }catch(_){} _runeWorldUnsub=null; } ov.remove(); lock(false); };
   ov.querySelector('.rune-topbar').addEventListener('click', e=>{ if(e.target.closest('[data-a="close"]')) close(); });
 };
+const RUNE_WORLD='runewar/world/w1';   // 🌍 공유 월드(단일·시즌 붙으면 접미사) — 팀원 마을 레지스트리
+let _runeWorldUnsub=null;
+function _runeWorldSub(frame){   // 공유월드 마을 실시간 구독 → 변경 시 게임에 전체 목록 전달(게임이 본인 것 필터)
+  if(_runeWorldUnsub) return;
+  try{ _runeWorldUnsub = onValue(ref(db, RUNE_WORLD+'/villages'), snap=>{
+    const v=snap.exists()?snap.val():{}; const arr=Object.values(v);
+    try{ frame.contentWindow.postMessage({type:'runeWorld', villages:arr}, '*'); }catch(_){}
+  }); }catch(_){}
+}
+async function _runeClaim(frame, d){   // 🚩 좌표 선점(트랜잭션) — 비어있을 때만 내 키로 차지(집/정복 충돌 방지)
+  const key=getMyGoldKey();
+  const reply=(ok)=>{ try{ frame.contentWindow.postMessage({type:'runeClaimResult', ok, x:d.x, y:d.y, id:d.id}, '*'); }catch(_){} };
+  if(!key || d.x==null || d.y==null){ reply(false); return; }
+  try{ const vSnap=await get(ref(db, RUNE_WORLD+'/villages/'+d.x+','+d.y));   // 이미 다른 팀원 마을이 있으면 실패(claims 없던 기존 플레이어 보호)
+    if(vSnap.exists() && vSnap.val() && vSnap.val().owner && vSnap.val().owner!==key){ reply(false); return; }
+    const res=await runTransaction(ref(db, RUNE_WORLD+'/claims/'+d.x+','+d.y), cur=> (cur==null||cur===key)? key : cur );
+    reply(!!res.committed && res.snapshot.val()===key);
+  }catch(_){ reply(false); }
+}
 async function _runeSpendGold(frame, d){   // 룬테라 전쟁 게임 내 결제 → 실제 공유 골드 차감(goldSpent)
   const amount=Math.max(0, Math.floor(d.amount||0)), days=d.days;
   const reply=(ok,msg)=>{ try{ frame.contentWindow.postMessage({type:'runeGoldResult', ok, gold:getMyGold(), days:ok?days:0, msg}, '*'); }catch(_){} };
@@ -36502,6 +36526,11 @@ async function _runeSaveState(frame, d){   // 진행상황 저장(전체 스냅�
   if(!_ctrlGuard()){ try{ frame.contentWindow.postMessage({type:'runeSaveResult', ok:false, reason:'lock'}, '*'); }catch(_){} return; }   // 🔒 다른 기기 조작 중 → 서버 클로버 방지(로컬은 유지)
   const rec={ schemaVer:RUNE_SCHEMA_VER, updatedAt:Date.now(), name:(myName||''), pts:(d.pts??null), vills:(d.vills??null), gold:(d.gold??null), data:d.state };
   try{ await set(ref(db,'runewar/players/'+key), rec); }catch(_){}
+  if(Array.isArray(d.pub)){   // 🌍 내 마을들을 공유월드 레지스트리에 발행(팀원이 봄) — 각자 자기 마을만 씀
+    for(const vg of d.pub){ if(vg && vg.x!=null && vg.y!=null){
+      try{ set(ref(db, RUNE_WORLD+'/villages/'+vg.x+','+vg.y), { owner:key, name:(myName||''), x:vg.x, y:vg.y, size:vg.size||1, pts:vg.pts||0, wall:vg.wall||0, def:vg.def||0, ts:Date.now() }); }catch(_){}
+    } }
+  }
   if(d.log){   // 📋 감사 로그(진행검토·롤백 근거) — 시작/정복/결제 등 중요 이벤트에서만 append(자잘한 오토세이브 제외)
     try{ await push(ref(db,'runewar/log/'+key), { t:Date.now(), action:(d.action||'save'), pts:(d.pts??null), vills:(d.vills??null), gold:(d.gold??null), name:(myName||'') }); }catch(_){}
     try{ const snap=await get(ref(db,'runewar/log/'+key)); if(snap.exists()){ const ks=Object.keys(snap.val()).sort(); const CAP=300;   // 무한증가 방지: 오래된 것부터 잘라 최근 300개 유지

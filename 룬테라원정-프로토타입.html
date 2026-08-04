@@ -585,7 +585,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">룬테라 전쟁 · 베타 v0.19</div>
+  <div class="proto-tag">룬테라 전쟁 · 베타 v0.20</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -1260,21 +1260,39 @@ window.buyPremium=function(days,cost){
 // 🔌 사이트(index.html) 임베드 브릿지 — 실제 사이트 공유 골드로 결제/표시
 const RUNE_EMBED = new URLSearchParams(location.search).has('embed');
 let MY_NAME='';   // 🪪 사이트에서 받은 내 닉네임(월드맵 내 마을 라벨) — 임베드 시 runeInit로 전달
-if(RUNE_EMBED){ const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.19 · 상점=공유 골드'; }
+if(RUNE_EMBED){ const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.20 · 상점=공유 골드'; }
 let _runeLoaded=false;   // 서버 저장본 로드 완료 전엔 서버 업로드 금지(로컬로 서버 클로버 방지)
 if(RUNE_EMBED){ window.addEventListener('message', e=>{ const d=e.data; if(!d||typeof d!=='object') return;
   if(d.type==='runeInit'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); if(document.querySelector('.gs-ov')) window.openGoldShop(); }
-    if(typeof d.name==='string' && d.name){ MY_NAME=d.name; if(view==='map') showView(); } }
+    if(typeof d.name==='string' && d.name){ MY_NAME=d.name; if(view==='map') showView(); }
+    if(typeof d.key==='string') MY_GKEY=d.key; }
   else if(d.type==='runeState'){ _runeAdoptServer(d.state); }   // 🗺️ 서버 저장본 도착 → 채택(다른 기기서 이어하기)
   else if(d.type==='runeLog'){ _renderRuneLog(d.entries); }     // 📋 감사 로그 도착
+  else if(d.type==='runeWorld'){ _onRuneWorld(d.villages); }    // 🌍 공유월드(팀원 마을) 갱신
+  else if(d.type==='runeClaimResult'){ if(_claimCb){ const cb=_claimCb; _claimCb=null; cb(!!d.ok); } }   // 🚩 좌표 선점 결과
   else if(d.type==='runeGoldResult'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); }
     if(d.ok && d.days){ _applyPremium(d.days); } else if(!d.ok){ toast(d.msg||'골드가 부족해요'); if(document.querySelector('.gs-ov')) window.openGoldShop(); } }
 }); try{ parent.postMessage({type:'runeReady'}, '*'); parent.postMessage({type:'runeLoad'}, '*'); }catch(e){} }
 // 🗺️ 진행상황 서버 동기화 — 부모(index.html)가 Firebase runewar/ 에 저장. 자잘한 변경=디바운스 스냅샷, 중요 이벤트=즉시+감사로그
 let _runeSyncT=0;
 function _runePts(){ try{ return ownedIds().reduce((s,id)=>s+devPoints(S.villages[id]||{blds:{}}),0); }catch(e){ return 0; } }
-function _runeSync(action, log){ if(!RUNE_EMBED) return; let st; try{ st=JSON.parse(JSON.stringify(S)); }catch(e){ return; } try{ parent.postMessage({type:'runeSave', state:st, gold:S.gold||0, pts:_runePts(), vills:ownedIds().length, action:action||'save', log:!!log}, '*'); }catch(e){} }
+function _runePub(){ try{ return ownedIds().map(id=>{ const w=S.world[id], v=S.villages[id]; return {x:w.x, y:w.y, size:w.size||1, pts:devPoints(v||{blds:{}}), wall:(v&&v.blds&&v.blds.wall)||0, def:0}; }); }catch(e){ return []; } }   // 🌍 공유월드 발행용 내 마을 요약(def는 전투 단계 P3서)
+function _runeSync(action, log){ if(!RUNE_EMBED) return; let st; try{ st=JSON.parse(JSON.stringify(S)); }catch(e){ return; } try{ parent.postMessage({type:'runeSave', state:st, gold:S.gold||0, pts:_runePts(), vills:ownedIds().length, pub:_runePub(), action:action||'save', log:!!log}, '*'); }catch(e){} }
 function _runeSyncDebounced(){ if(!RUNE_EMBED||!_runeLoaded) return; clearTimeout(_runeSyncT); _runeSyncT=setTimeout(()=>_runeSync('autosave', false), 2500); }
+// 🌍 공유월드(팀원 마을) — OTHERS = 다른 플레이어 마을(coordKey→정보). 맵 렌더 시 S.world와 병합해 owner:'player'로 표시
+let OTHERS={}, _OPPTS={}, _worldSubbed=false, _claimCb=null, MY_GKEY='';
+function _opId(x,y){ return 'op_'+x+'_'+y; }
+function _mergedWorld(){ if(!RUNE_EMBED) return S.world;   // 임베드 아니면 내 월드만
+  const m=Object.assign({}, S.world); _OPPTS={};
+  const mine=new Set(ownedIds().map(id=>S.world[id].x+','+S.world[id].y));
+  for(const k in OTHERS){ const o=OTHERS[k]; if(mine.has(o.x+','+o.y)) continue;   // 내 마을 좌표와 겹치면 skip(내 것 우선)
+    const id=_opId(o.x,o.y); m[id]={x:o.x, y:o.y, name:o.name||'팀원', owner:'player', size:o.size||1, wall:o.wall||0}; _OPPTS[id]=o.pts||0; }
+  return m; }
+function _runeWorldSubOnce(){ if(!RUNE_EMBED || _worldSubbed) return; _worldSubbed=true; try{ parent.postMessage({type:'runeWorldSub'}, '*'); }catch(e){} }
+let _owT=0;
+function _onRuneWorld(list){   // 공유월드 갱신 수신 → OTHERS 재구성(본인 것 제외) → 맵 열려있으면 디바운스 갱신(버스트 병합)
+  OTHERS={}; if(Array.isArray(list)){ for(const o of list){ if(!o||o.x==null) continue; if(MY_GKEY && o.owner===MY_GKEY) continue; OTHERS[o.x+','+o.y]=o; } }
+  if(view==='map'){ clearTimeout(_owT); _owT=setTimeout(()=>{ if(view==='map') showView(); }, 800); } }
 // 📋 진행 기록(감사 로그) 뷰어 — 임베드 시 부모(Firebase runewar/log)에서 조회
 window.openRuneLog=function(){
   if(!RUNE_EMBED){ toast('사이트에서 열면 진행 기록을 볼 수 있어요'); return; }
@@ -1300,7 +1318,9 @@ function _runeAdoptServer(rec){   // 서버가 진실원 — 있으면 채택(�
       if(st){
         S=st; bindActive(); localStorage.setItem('rune_proto', JSON.stringify(S));
         if(S.started){ if(view!=='village'&&view!=='map') view='village'; buildNav(); showView(); } else { showStartGate(); }
-        _runeLoaded=true; if(rec.data.ver!==SAVE_VER) _runeSync('migrate', true);   // 승급본을 서버에 재저장(로그)
+        _runeLoaded=true;
+        if(rec.data.ver!==SAVE_VER) _runeSync('migrate', true);   // 승급본을 서버에 재저장(로그)
+        else if(S.started) _runeSync('login', false);            // 🌍 접속 시 내 마을 공유월드에 즉시 발행(좌표 보호)
         return;
       }
     }
@@ -1320,10 +1340,23 @@ function showStartGate(){ if(document.getElementById('start-gate')) return;
   document.body.appendChild(ov);
   const b=document.getElementById('sg-go'); if(b) b.onclick=()=>window.startGame();
 }
-window.startGame=function(){ if(S.started) return; S.started=true; _runeLoaded=true; save(); _runeSync('start', true);
+window.startGame=function(){ if(S.started) return;
+  if(RUNE_EMBED && MY_GKEY) _claimHomeThenStart(0);   // 🚩 멀티: 시작 좌표 선점(겹침 방지) 후 시작
+  else _doStart(); };
+function _doStart(){ if(S.started) return; S.started=true; _runeLoaded=true; save(); _runeSync('start', true);
   const g=document.getElementById('start-gate'); if(g) g.remove();
   view='village'; buildNav(); showView();
-  const w=S.world[HOME_KEY]; toast(`마을이 세워졌습니다 — ${w?crd(w):''}`); };
+  const w=S.world[HOME_KEY]; toast(`마을이 세워졌습니다 — ${w?crd(w):''}`); }
+function _claimHomeThenStart(tries){ const w=S.world[HOME_KEY];
+  const fail=setTimeout(()=>{ if(_claimCb){ _claimCb=null; _doStart(); } }, 2500);   // 응답 지연 → 그냥 진행(집 좌표 유지)
+  _claimCb=(ok)=>{ clearTimeout(fail);
+    if(ok) _doStart();
+    else if(tries<10){ _rerollHome(); _claimHomeThenStart(tries+1); }   // 이미 점유된 칸 → 재추첨
+    else _doStart(); };
+  try{ parent.postMessage({type:'runeClaim', x:w.x, y:w.y, id:'home'}, '*'); }catch(e){ clearTimeout(fail); _claimCb=null; _doStart(); } }
+function _rerollHome(){ const occ=new Set(); for(const id in S.world){ if(id!==HOME_KEY){ const w2=S.world[id]; occ.add(w2.x+','+w2.y); } }
+  let x,y,g=0; do{ x=6+Math.floor(Math.random()*(HCOLS-12)); y=6+Math.floor(Math.random()*(HROWS-12)); g++; }while(occ.has(x+','+y)&&g<300);
+  const h=S.world[HOME_KEY]; h.x=x; h.y=y; S.revealed={}; S._revSeed=0; seedReveal(); }
 function showView(){
   const ids={map:'view-map',village:'view-village',rally:'view-rally',reports:'view-reports'};
   for(const k in ids){ const el=document.getElementById(ids[k]); if(el) el.style.display = view===k?'block':'none'; }
@@ -1397,8 +1430,11 @@ function _mapFallbackNotice(){
 }
 function escHtml(s){ return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function renderMap(){
+  _runeWorldSubOnce();   // 🌍 맵 진입 → 공유월드(팀원 마을) 구독
   if(window.Map3D){ const wrap=document.getElementById('map-wrap'), mc=document.getElementById('map-content'); if(mc) mc.style.display='none';
-    if(wrap){ window.Map3D.mount(wrap); window.Map3D.build({ icon:I, world:S.world, cols:HCOLS, rows:HROWS, hex:hexPos, isP:isProtected, onNode:onVillage, HOME:HOME_KEY, fmt:fmtDur, revealed:S.revealed, myName:MY_NAME, mainOf:(id)=>{ const vv=S.villages[id]; return (vv&&vv.blds)?(vv.blds.main||1):1; }, ptsOf:(id)=>{ const vv=S.villages[id]; if(vv&&vv.blds) return devPoints(vv); const ww=S.world[id]; return (ww&&ww.owner==='barb')?barbPoints(ww.size):0; }, nf:NF, state:()=>({world:S.world,marches:S.marches}) });
+    const MW=_mergedWorld();   // 내 월드 + 팀원 마을(owner:'player')
+    let MREV=S.revealed; if(RUNE_EMBED){ const ok=Object.keys(OTHERS); if(ok.length){ MREV=Object.assign({}, S.revealed); for(const k in OTHERS) MREV[k]=1; } }   // 🌍 팀원 마을 타일은 안개에 가려도 보이게(렌더 전용·저장 안 함)
+    if(wrap){ window.Map3D.mount(wrap); window.Map3D.build({ icon:I, world:MW, cols:HCOLS, rows:HROWS, hex:hexPos, isP:isProtected, onNode:onVillage, HOME:HOME_KEY, fmt:fmtDur, revealed:MREV, myName:MY_NAME, mainOf:(id)=>{ const vv=S.villages[id]; return (vv&&vv.blds)?(vv.blds.main||1):1; }, ptsOf:(id)=>{ if(_OPPTS[id]!=null) return _OPPTS[id]; const vv=S.villages[id]; if(vv&&vv.blds) return devPoints(vv); const ww=MW[id]; return (ww&&ww.owner==='barb')?barbPoints(ww.size):0; }, nf:NF, state:()=>({world:MW,marches:S.marches}) });
       const rr=document.getElementById('map-reset'); if(rr){ rr.innerHTML=I('expand'); rr.onclick=()=>window.Map3D.resetCam(); } }
     return; }
   // 2D 폴백 — ⚠️조용히 떨어지면 원인 파악이 불가능해서, 실패했다는 사실을 화면에 남긴다
@@ -1511,7 +1547,17 @@ function initMapPZ(){ if(window.Map3D) return;
     onZoom:(sc)=>{ c.style.setProperty('--mkz',(1/Math.max(sc,1)).toFixed(3)); }});
   const rb=document.getElementById('map-reset'); if(rb){ rb.innerHTML=I('expand'); rb.onclick=()=>_mapPZ.reset(); }
 }
-function onVillage(id){ const w=S.world[id]; if(!w) return;
+function _opCoord(id){ return id.slice(3).replace('_',','); }   // 'op_12_34' → '12,34'
+function _openOtherInfo(o){ const from=S.world[S.active]||S.world[HOME_KEY]; const dist=from?fieldDist({x:o.x,y:o.y},from):0;
+  if(document.querySelector('.rl-ov')) return;
+  const ov=document.createElement('div'); ov.className='rl-ov';
+  const row=(a,t)=>`<div class="rl-row"><span class="rl-act">${a}</span><span class="rl-meta"></span><span class="rl-t">${t}</span></div>`;
+  ov.innerHTML=`<div class="rl-card" style="max-width:330px"><div class="rl-h">🤝 ${o.name||'팀원'} <button class="rl-x" title="닫기">✕</button></div><div class="rl-body" style="padding:12px 14px 14px">${row('📍 좌표',`(${o.x}|${o.y})`)}${row('🏆 발전점수',NF(o.pts||0)+'점')}${row('🏰 규모',(o.size||1)+'★')}${row('📏 거리',dist.toFixed(1)+'칸')}<div style="margin-top:12px;font-size:12px;color:#b7cfa0;text-align:center">⚔️ 공격·지원은 다음 업데이트에서 열려요</div></div></div>`;
+  ov.addEventListener('click',e=>{ if(e.target===ov||e.target.closest('.rl-x')) ov.remove(); });
+  document.body.appendChild(ov); }
+function onVillage(id){
+  if(id && id.indexOf('op_')===0){ const o=OTHERS[_opCoord(id)]; if(o) _openOtherInfo(o); return; }   // 🤝 팀원 마을
+  const w=S.world[id]; if(!w) return;
   if(w.owner==='me' && id===S.active){ go('village'); return; }
   openVillageInfo(id);
 }
