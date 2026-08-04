@@ -1,0 +1,44 @@
+<!doctype html><html><head><meta charset="utf-8"><title>P3 2인 하네스</title>
+<style>body{margin:0;background:#111;color:#ddd;font:12px sans-serif}
+.row{display:flex}iframe{width:50%;height:96vh;border:0;border-right:1px solid #333}</style></head>
+<body>
+<div class="row">
+  <iframe id="fa" src="http://127.0.0.1:8907/%EB%A3%AC%ED%85%8C%EB%9D%BC%EC%9B%90%EC%A0%95-%ED%94%84%EB%A1%9C%ED%86%A0%ED%83%80%EC%9E%85.html?embed"></iframe>
+  <iframe id="fb" src="http://127.0.0.1:8908/%EB%A3%AC%ED%85%8C%EB%9D%BC%EC%9B%90%EC%A0%95-%ED%94%84%EB%A1%9C%ED%86%A0%ED%83%80%EC%9E%85.html?embed"></iframe>
+</div>
+<script>
+// 🧪 P3 2인 크로스계정 하네스 — index.html 부모 브릿지(Firebase runewar/world/w1)를 메모리로 흉내낸다.
+//    ⚠️ RTDB 특성 재현: update 병합(inbox 보존) + 빈 객체는 저장되지 않음(dstack 비면 삭제)
+const H = window.H = { villages:{}, log:[], subbed:{} };
+const ACC = { fa:'KEY_A', fb:'KEY_B' };
+const NAME = { fa:'앨리스', fb:'밥' };
+function frames(){ return { fa:document.getElementById('fa'), fb:document.getElementById('fb') }; }
+function whoIs(src){ const f=frames(); for(const k in f){ if(f[k].contentWindow===src) return k; } return null; }
+function post(k,msg){ try{ frames()[k].contentWindow.postMessage(msg,'*'); }catch(e){} }
+function broadcast(){ const arr=Object.values(H.villages).map(v=>JSON.parse(JSON.stringify(v)));
+  for(const k in H.subbed) if(H.subbed[k]) post(k,{type:'runeWorld', villages:arr}); }
+window.addEventListener('message', e=>{
+  const k=whoIs(e.source), d=e.data; if(!k||!d||typeof d!=='object') return;
+  H.log.push({k, type:d.type, t:Date.now()});
+  if(d.type==='runeReady'){ post(k,{type:'runeInit', gold:9000, name:NAME[k], key:ACC[k]}); }
+  else if(d.type==='runeLoad'){ post(k,{type:'runeState', state:null}); }
+  else if(d.type==='runeWorldSub'){ H.subbed[k]=1; broadcast(); }
+  else if(d.type==='runeClaim'){ post(k,{type:'runeClaimResult', ok:true, x:d.x, y:d.y, id:d.id}); }
+  else if(d.type==='runeSave'){
+    if(Array.isArray(d.pub)) for(const vg of d.pub){ if(!vg||vg.x==null) continue;
+      const ck=vg.x+','+vg.y; const cur=H.villages[ck]||{inbox:{}};
+      const ds=(vg.dstack&&Object.keys(vg.dstack).length)? vg.dstack : null;
+      Object.assign(cur,{owner:ACC[k], name:NAME[k], x:vg.x, y:vg.y, size:vg.size||1, pts:vg.pts||0,
+        wall:vg.wall||0, def:vg.def||0, loot:vg.loot||null, prot:vg.prot||0, ts:Date.now()});
+      if(ds) cur.dstack=ds; else delete cur.dstack;          // RTDB: 빈 객체는 저장 안 됨 → 명시 삭제
+      if(!cur.inbox) cur.inbox={};
+      H.villages[ck]=cur; }
+    post(k,{type:'runeSaveResult', ok:true}); broadcast();
+  }
+  else if(d.type==='runeInboxPush'){ const ck=d.x+','+d.y; const v=H.villages[ck]; if(!v) return;
+    if(!v.inbox) v.inbox={}; const id='p'+(H.log.length)+'_'+Math.random().toString(36).slice(2,7);
+    v.inbox[id]=Object.assign({}, d.entry, {t:Date.now(), by:ACC[k]}); broadcast(); }
+  else if(d.type==='runeInboxClear'){ const v=H.villages[d.x+','+d.y]; if(!v||!v.inbox) return;
+    (d.ids||[]).forEach(id=>{ delete v.inbox[id]; }); broadcast(); }
+});
+</script></body></html>

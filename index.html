@@ -7072,7 +7072,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.647';
+const APP_VERSION = 'v2.45.648';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7081,6 +7081,10 @@ const APP_VERSION = 'v2.45.647';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.648', date: '2026-08-04', changes: [
+    { tag: 'new', text: '🗺️ 룬테라 전쟁 <b>팀원 공격·약탈·정찰(멀티 P3)</b> — 이제 팀원 마을에 <b>지원</b>뿐 아니라 <b>공격</b>과 <b>정찰</b>도 보낼 수 있어요. 상대가 접속 중이 아니어도 진행되고(비동기), 전투 결과는 양쪽 📜 보고서에 남습니다. 이긴 쪽은 자원을 약탈하고, 당한 쪽은 접속하면 병력·자원·성벽이 정산돼요. 🛡️ <b>신규 보호막</b> 중인 마을은 공격받지 않고 지원만 받습니다. <b>2인 접속 검증 완료.</b> (베타 v0.29)' },
+    { tag: 'fix', text: '🗺️ 룬테라 전쟁 <b>진행상황이 서버에 계속 안 올라가던 문제 해결</b> — 자동 저장이 「마지막 변경 후 2.5초」 방식이었는데 게임이 매초 저장을 걸어 타이머가 계속 밀려 <b>사실상 한 번도 올라가지 않고</b> 있었어요(시작·정복 같은 순간만 저장됨). 20초마다 반드시 올라가도록 고쳤습니다 — 다른 기기 이어하기와 팀원에게 보이는 내 수비 상태가 이제 최신이에요.' },
+  ] },
   { ver: 'v2.45.647', date: '2026-08-04', changes: [
     { tag: 'improve', text: '🗺️ 룬테라 전쟁 <b>상단 UI 정리</b> — 「룬테라 전쟁」이 두 번 나오던 걸 정리했어요. 나가기 바엔 타이틀을 <b>가운데 정렬</b>, 게임 바엔 중복 로고를 빼고 <b>버전·상점·도움말</b>을 깔끔하게 재배치(특히 모바일). (베타 v0.28)' },
   ] },
@@ -36560,7 +36564,10 @@ async function _runeSaveState(frame, d){   // 진행상황 저장(전체 스냅�
   try{ await set(ref(db,'runewar/players/'+key), rec); }catch(_){}
   if(Array.isArray(d.pub)){   // 🌍 내 마을들을 공유월드 레지스트리에 발행(팀원이 봄) — 각자 자기 마을만 씀
     for(const vg of d.pub){ if(vg && vg.x!=null && vg.y!=null){
-      try{ update(ref(db, RUNE_WORLD+'/villages/'+vg.x+','+vg.y), { owner:key, name:(myName||''), x:vg.x, y:vg.y, size:vg.size||1, pts:vg.pts||0, wall:vg.wall||0, def:vg.def||0, ts:Date.now() }); }catch(_){}   // update=inbox 서브노드 보존(set이면 지워짐)
+      // ⚠️ RTDB는 빈 객체를 저장하지 않는다 → update 병합 특성상 옛 dstack이 남아 「병력 없는데 수비가 세 보이는」 유령이 생김.
+      //    병력이 0이면 명시적으로 null을 써서 지운다(loot는 항상 wood/clay/iron 키가 있어 비지 않음).
+      const _ds=(vg.dstack && Object.keys(vg.dstack).length)? vg.dstack : null;
+      try{ update(ref(db, RUNE_WORLD+'/villages/'+vg.x+','+vg.y), { owner:key, name:(myName||''), x:vg.x, y:vg.y, size:vg.size||1, pts:vg.pts||0, wall:vg.wall||0, def:vg.def||0, dstack:_ds, loot:(vg.loot||null), prot:(vg.prot||0), ts:Date.now() }); }catch(_){}   // update=inbox 서브노드 보존(set이면 지워짐)
     } }
   }
   if(d.log){   // 📋 감사 로그(진행검토·롤백 근거) — 시작/정복/결제 등 중요 이벤트에서만 append(자잘한 오토세이브 제외)
