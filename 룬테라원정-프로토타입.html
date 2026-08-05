@@ -147,6 +147,9 @@ body{margin:0;background:#0d0a06;color:#f0e2b8;font-family:'Noto Sans KR',system
 .army-mk .am-lbl{display:block;font-size:8px;font-weight:800;font-family:monospace;color:#f0dca0;background:rgba(10,7,4,.82);border-radius:6px;padding:0 4px;margin-top:-2px;white-space:nowrap;}
 .army-mk.raid .am-ic{filter:drop-shadow(0 0 6px rgba(255,70,55,.9));}
 .army-mk.raid .am-lbl{color:#ffb0a0;background:rgba(50,10,8,.9);}
+.army-mk.siege .am-ic{filter:drop-shadow(0 0 5px rgba(208,138,48,.95));}   /* ⚔️ 공성 = 주황 발광 */
+.army-mk.noble .am-ic{filter:drop-shadow(0 0 7px rgba(240,207,90,1));}      /* 👑 영웅정복 = 금색 발광 */
+.army-mk.scout .am-ic{filter:drop-shadow(0 0 4px rgba(98,184,216,.85));}    /* 🧭 정찰 = 청록 발광 */
 .map-edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2;}
 #mnodes{position:absolute;inset:0;z-index:5;}
 .vmk{position:absolute;width:0;height:0;z-index:1;}
@@ -563,7 +566,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
 <body><div class="app">
   <div class="topstrip">
     <span class="logo">룬테라 전쟁</span>
-    <span class="world">v0.37 · 월드 1</span>
+    <span class="world">v0.38 · 월드 1</span>
     <button class="top-ic shop-btn" onclick="openGoldShop()" title="골드 상점 · 프리미엄 계정">상점</button>
     <button class="top-ic help-btn" onclick="openHelp()" title="도움말">도움말</button>
   </div>
@@ -591,7 +594,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">룬테라 전쟁 · v0.37</div>
+  <div class="proto-tag">룬테라 전쟁 · v0.38</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -750,6 +753,10 @@ function troopStatHtml(t){
 }
 const UNIT_GROUPS = { barracks:['spear','sword','axe','archer'], stable:['scout','lcav','marcher','hcav'], workshop:['ram','cata'], academy:['noble'] };
 const MODE_ICO = {attack:'barracks', support:'shield', scout:'scout', return:'back', raid:'fire'};
+// 🎬 행군 종류 — mode + 병력 구성으로 세분(정찰/지원/귀환/습격/일반공격/공성/영웅정복) → 지도 마커 모션 구분
+function marchKind(m){ if(!m) return 'attack'; if(m.mode!=='attack') return m.mode; const u=m.units||{};
+  if((u.noble||0)>0) return 'noble'; if((u.ram||0)>0||(u.cata||0)>0) return 'siege'; return 'attack'; }
+const MARCH_ICO = {scout:'scout', support:'shield', return:'cart', raid:'fire', attack:'barracks', siege:'ram', noble:'noble'};
 const MODE_NM  = {attack:'공격', support:'지원', scout:'정찰', return:'귀환', raid:'습격'};
 function modeLbl(m){ return I(MODE_ICO[m]||'barracks')+' '+(MODE_NM[m]||m); }
 function prodPerMin(l){ return l? Math.round(30*Math.pow(1.163,l-1)*WSPEED/60) : 0; }
@@ -1401,7 +1408,7 @@ window.buyPremium=function(days,cost){
 // 🔌 사이트(index.html) 임베드 브릿지 — 실제 사이트 공유 골드로 결제/표시
 const RUNE_EMBED = new URLSearchParams(location.search).has('embed');
 let MY_NAME='';   // 🪪 사이트에서 받은 내 닉네임(월드맵 내 마을 라벨) — 임베드 시 runeInit로 전달
-if(RUNE_EMBED){ document.body.classList.add('rune-embed'); const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · v0.37 · 상점=공유 골드'; }
+if(RUNE_EMBED){ document.body.classList.add('rune-embed'); const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · v0.38 · 상점=공유 골드'; }
 let _runeLoaded=false;   // 서버 저장본 로드 완료 전엔 서버 업로드 금지(로컬로 서버 클로버 방지)
 if(RUNE_EMBED){ window.addEventListener('message', e=>{ const d=e.data; if(!d||typeof d!=='object') return;
   if(d.type==='runeInit'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); if(document.querySelector('.gs-ov')) window.openGoldShop(); }
@@ -1734,8 +1741,8 @@ function updateArmies(){
     if(!org||!dst) return;
     const span=m.arriveAt-m.dep; const p=span>0?Math.min(1,Math.max(0,(now-m.dep)/span)):1;
     const x=((org.x+(dst.x-org.x)*p+0.5)*F).toFixed(1), y=((org.y+(dst.y-org.y)*p+0.5)*F).toFixed(1);
-    const ic=I(inc?'fire':(m.mode==='attack'?'barracks':(m.mode==='support'?'shield':(m.mode==='scout'?'scout':'cart'))));
-    h+=`<div class="army-mk ${m.mode}" style="left:${x}px;top:${y}px"><span class="am-ic">${ic}</span><span class="am-lbl">${fmtDur(m.arriveAt-now)}</span></div>`; });
+    const kind=marchKind(m); const ic=I(MARCH_ICO[kind]||'barracks');   // 🎬 정찰/공격/공성/영웅 아이콘 구분
+    h+=`<div class="army-mk ${kind}" style="left:${x}px;top:${y}px"><span class="am-ic">${ic}</span><span class="am-lbl">${fmtDur(m.arriveAt-now)}</span></div>`; });
   host.innerHTML=h;
 }
 function drawGrid(){
@@ -3158,13 +3165,19 @@ function initS(){ if(R) return;
 async function tile(n,x,z,building,rot,y){ try{ const m=(await ld(n)).clone(true); m.position.set(x,y||0,z); if(rot) m.rotation.y=rot;
   m.traverse(c=>{ if(c.isMesh){ c.castShadow=!!building; c.receiveShadow=true; } }); GRP.add(m); return m; }catch(e){} }
 let MSIG='', MLINES=null;
-const MCOL={raid:0xe0492e, attack:0xe06a3e, return:0x6faa5a, support:0x5a8fc0, scout:0x62b8d8};
+const MCOL={raid:0xe0492e, attack:0xe06a3e, return:0x6faa5a, support:0x5a8fc0, scout:0x62b8d8, siege:0xd08a30, noble:0xe6c23a};
+function _mKind(m){ if(!m) return 'attack'; if(m.mode!=='attack') return m.mode; const u=m.units||{};   // 🎬 행군 종류(공격 세분: 영웅/공성)
+  if((u.noble||0)>0) return 'noble'; if((u.ram||0)>0||(u.cata||0)>0) return 'siege'; return 'attack'; }
 // 행군 마커 = 3D 모델(이모지 대신 톤앤매너): 귀환=짐수레, 공격/지원/정찰/습격=색 깃발 배너
-const MKIT={cart:'assets/town/cart.glb', banner:'assets/castle/flag-banner-long.glb', flag:'assets/castle/flag.glb'};
-const MMDL={ return:{u:'cart',tint:null,s:0.62}, attack:{u:'banner',tint:0xcf3b2c,s:0.52}, support:{u:'banner',tint:0x4a8fd0,s:0.52}, scout:{u:'flag',tint:0x69c0dc,s:0.5}, raid:{u:'banner',tint:0x7a1f16,s:0.52} };
+const MKIT={cart:'assets/town/cart.glb', banner:'assets/castle/flag-banner-long.glb', flag:'assets/castle/flag.glb',
+  pennant:'assets/castle/flag-pennant.glb', wide:'assets/castle/flag-wide.glb', catapult:'assets/castle/siege-catapult.glb'};
+// s = bbox 정규화 목표 크기(월드 단위) — 모델 원본 크기와 무관하게 일정
+const MMDL={ return:{u:'cart',tint:null,s:0.85}, attack:{u:'banner',tint:0xcf3b2c,s:0.9}, support:{u:'banner',tint:0x4a8fd0,s:0.9}, scout:{u:'pennant',tint:0x69c0dc,s:0.72}, raid:{u:'banner',tint:0x7a1f16,s:0.9},
+  siege:{u:'catapult',tint:0xcf8a2e,s:0.9}, noble:{u:'wide',tint:0xf0cf5a,s:1.02} };   // ⚔️공성=투석기 · 👑영웅정복=넓은 금색 깃발(큼)
 const MMC={}; function ldKit(u){ return MMC[u]||(MMC[u]=GL.loadAsync(MKIT[u]).then(g=>g.scene)); }
 let MM3=null, MM3ARR=[];
-function mkMarchMesh(mode,cb){ const cfg=MMDL[mode]||MMDL.attack; ldKit(cfg.u).then(src=>{ const m=src.clone(true); m.scale.setScalar(cfg.s);
+function mkMarchMesh(kind,cb){ const cfg=MMDL[kind]||MMDL.attack; ldKit(cfg.u).then(src=>{ const m=src.clone(true);
+  const bb=new T.Box3().setFromObject(m); const sz=new T.Vector3(); bb.getSize(sz); const dim=Math.max(sz.x,sz.y,sz.z)||1; m.scale.setScalar((cfg.s||0.8)/dim);   // bbox 정규화 → 모델 원본크기 무관 일정 크기(투석기·깃발 섞여도 균일)
   m.traverse(c=>{ if(c.isMesh){ c.castShadow=true; c.receiveShadow=true; if(cfg.tint!=null){ c.material=c.material.clone(); c.material.color=new T.Color(cfg.tint); } } }); cb(m); }).catch(()=>{}); }
 // 정통 전략식: 진행 중인 명령을 지도 전체에 경로선(아치 점선)으로 표시
 function updMarchLines(st){
@@ -3180,13 +3193,13 @@ function updMarchLines(st){
     const a=hp(org), b=hp(dst); const mh=0.45+Math.hypot(b.x-a.x,b.z-a.z)*0.025;   // 낮은 경로 아치(지면 근처)
     const curve=new T.QuadraticBezierCurve3(new T.Vector3(a.x,0.26,a.z), new T.Vector3((a.x+b.x)/2,mh,(a.z+b.z)/2), new T.Vector3(b.x,0.26,b.z));
     const geo=new T.BufferGeometry().setFromPoints(curve.getPoints(40));
-    const ln=new T.Line(geo,new T.LineDashedMaterial({color:MCOL[m.mode]||0xffffff,dashSize:0.3,gapSize:0.2,transparent:true,opacity:0.9}));
+    const ln=new T.Line(geo,new T.LineDashedMaterial({color:MCOL[_mKind(m)]||0xffffff,dashSize:0.3,gapSize:0.2,transparent:true,opacity:0.9}));
     ln.computeLineDistances(); MLINES.add(ln); });
-  // 3D 행군 모델(수레/깃발) 재생성 — 명령 집합 변할 때만
+  // 3D 행군 모델 재생성 — 명령 집합 변할 때만 · 종류별(정찰/공격/공성/영웅) 모델
   if(!MM3){ MM3=new T.Group(); SC.add(MM3); }
   while(MM3.children.length) MM3.remove(MM3.children[0]);
-  MM3ARR=ms.map(m=>({mode:m.mode,obj:null}));
-  ms.forEach((m,i)=>{ mkMarchMesh(m.mode,(mesh)=>{ if(MM3ARR[i]&&MM3ARR[i].mode===m.mode){ MM3ARR[i].obj=mesh; MM3.add(mesh); } }); });
+  MM3ARR=ms.map(m=>({kind:_mKind(m),obj:null}));
+  ms.forEach((m,i)=>{ const k=_mKind(m); mkMarchMesh(k,(mesh)=>{ if(MM3ARR[i]&&MM3ARR[i].kind===k){ MM3ARR[i].obj=mesh; MM3.add(mesh); } }); });
 }
 // 화면 좌표 갱신 — ⚠️매 프레임 도는 함수라 여기서 낭비하면 조작이 곧바로 뻑뻑해진다.
 //   getBoundingClientRect(강제 레이아웃)·벡터 할당·스타일/innerHTML 쓰기를 모두 줄였다.
