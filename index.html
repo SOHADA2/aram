@@ -7072,7 +7072,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.649';
+const APP_VERSION = 'v2.45.650';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7081,6 +7081,9 @@ const APP_VERSION = 'v2.45.649';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.650', date: '2026-08-04', changes: [
+    { tag: 'new', text: '🗺️ 룬테라 전쟁 <b>정복(멀티 P4)</b> — 이제 팀원의 <b>2차 마을</b>을 뺏을 수 있어요! 공격에 <b>영웅(신전에서 훈련)</b>을 넣어 이기면 그 마을 충성도가 깎이고, 0이 되면 <b>정복</b>해 내 마을이 됩니다(주둔군이 눌러앉아요). 🏠 <b>첫 마을(홈)은 뺏기지 않아요</b> — 약탈·충성도만. 뺏긴 쪽은 접속하면 📜 보고서로 알게 되고, 소유권은 좌표 선점으로 안전하게 이전돼요(되살아나기 방지). ⚠️ 2인 실접속 검증 권장. (베타 v0.31)' },
+  ] },
   { ver: 'v2.45.649', date: '2026-08-04', changes: [
     { tag: 'improve', text: '🗺️ 룬테라 전쟁 상단 UI를 <b>이모지 없이 깔끔하게</b> 다시 다듬었어요 — 나가기 버튼은 얇은 화살표+텍스트, 타이틀은 자간 정리, 상점·도움말은 정갈한 텍스트 버튼(상점만 골드로 살짝 강조). (베타 v0.30)' },
   ] },
@@ -36505,6 +36508,7 @@ window.openRuneWar = function(){
     else if(d.type==='runeClaim'){ _runeClaim(frame, d); }                                                                    // 🚩 좌표 선점(집/정복 충돌 방지)
     else if(d.type==='runeInboxPush'){ _runeInboxPush(d); }                                                                   // 📥 상대 마을 inbox에 액션(지원/공격/회군) 적재
     else if(d.type==='runeInboxClear'){ _runeInboxClear(d); }                                                                 // 📥 내 마을 inbox 처리분 삭제
+    else if(d.type==='runeConquer'){ _runeConquer(d); }                                                                       // ⚔️ 정복(P4) — 좌표 선점 강제 이전
   };
   window.addEventListener('message', onMsg);
   const close=()=>{ window.removeEventListener('message', onMsg); if(_runeWorldUnsub){ try{ _runeWorldUnsub(); }catch(_){} _runeWorldUnsub=null; } ov.remove(); lock(false); };
@@ -36536,6 +36540,10 @@ function _runeInboxPush(d){   // 📥 상대(또는 내) 마을 좌표의 inbox�
 function _runeInboxClear(d){   // 📥 내 마을 inbox에서 처리한 항목 삭제
   if(!d || d.x==null || d.y==null || !Array.isArray(d.ids)) return;
   for(const id of d.ids){ if(id) try{ remove(ref(db, RUNE_WORLD+'/villages/'+d.x+','+d.y+'/inbox/'+id)).catch(()=>{}); }catch(_){} }
+}
+function _runeConquer(d){   // ⚔️ 정복 — 정복자가 좌표 선점을 강제로 가져온다(기존 소유자 claim 덮어씀). 마을 레지스트리 소유자는 정복자의 발행(update)으로 갱신됨
+  const key=getMyGoldKey(); if(!key || d.x==null || d.y==null) return;
+  try{ set(ref(db, RUNE_WORLD+'/claims/'+d.x+','+d.y), key).catch(()=>{}); }catch(_){}
 }
 async function _runeSpendGold(frame, d){   // 룬테라 전쟁 게임 내 결제 → 실제 공유 골드 차감(goldSpent)
   const amount=Math.max(0, Math.floor(d.amount||0)), days=d.days;
@@ -36571,7 +36579,9 @@ async function _runeSaveState(frame, d){   // 진행상황 저장(전체 스냅�
       // ⚠️ RTDB는 빈 객체를 저장하지 않는다 → update 병합 특성상 옛 dstack이 남아 「병력 없는데 수비가 세 보이는」 유령이 생김.
       //    병력이 0이면 명시적으로 null을 써서 지운다(loot는 항상 wood/clay/iron 키가 있어 비지 않음).
       const _ds=(vg.dstack && Object.keys(vg.dstack).length)? vg.dstack : null;
-      try{ update(ref(db, RUNE_WORLD+'/villages/'+vg.x+','+vg.y), { owner:key, name:(myName||''), x:vg.x, y:vg.y, size:vg.size||1, pts:vg.pts||0, wall:vg.wall||0, def:vg.def||0, dstack:_ds, loot:(vg.loot||null), prot:(vg.prot||0), ts:Date.now() }); }catch(_){}   // update=inbox 서브노드 보존(set이면 지워짐)
+      let claimOwner=null; try{ const cs=await get(ref(db, RUNE_WORLD+'/claims/'+vg.x+','+vg.y)); if(cs.exists()) claimOwner=cs.val(); }catch(_){}   // ⚔️ 정복(P4): 이 좌표를 남이 선점했으면(=정복당함) 발행 skip → 정복당한 마을을 등록부에 되살리는 플립플롭 방지
+      if(claimOwner && claimOwner!==key) continue;
+      try{ update(ref(db, RUNE_WORLD+'/villages/'+vg.x+','+vg.y), { owner:key, name:(myName||''), x:vg.x, y:vg.y, size:vg.size||1, pts:vg.pts||0, wall:vg.wall||0, def:vg.def||0, dstack:_ds, loot:(vg.loot||null), prot:(vg.prot||0), loyalty:(vg.loyalty!=null?vg.loyalty:100), home:(vg.home||0), ts:Date.now() }); }catch(_){}   // update=inbox 서브노드 보존(set이면 지워짐)
     } }
   }
   if(d.log){   // 📋 감사 로그(진행검토·롤백 근거) — 시작/정복/결제 등 중요 이벤트에서만 append(자잘한 오토세이브 제외)

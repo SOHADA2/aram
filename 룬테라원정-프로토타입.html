@@ -563,7 +563,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
 <body><div class="app">
   <div class="topstrip">
     <span class="logo">룬테라 전쟁</span>
-    <span class="world">베타 v0.30 · 월드 1</span>
+    <span class="world">베타 v0.31 · 월드 1</span>
     <button class="top-ic shop-btn" onclick="openGoldShop()" title="골드 상점 · 프리미엄 계정">상점</button>
     <button class="top-ic help-btn" onclick="openHelp()" title="도움말">도움말</button>
   </div>
@@ -591,7 +591,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">룬테라 전쟁 · 베타 v0.30</div>
+  <div class="proto-tag">룬테라 전쟁 · 베타 v0.31</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -1138,12 +1138,13 @@ function resolveScout(m, now){
 //  전투를 해소하고, 결과(잃은 병력·빼앗긴 자원·성벽)를 상대 마을 inbox에 넣는다. 상대는 다음 접속 때 정산한다.
 //  ⚠️ 스냅샷은 상대가 저장한 시점 기준이라 다소 낡을 수 있다(설계상 감수). 대신 아래 _opSnapApply 로
 //     내 로컬 스냅샷을 즉시 깎아, 같은 스냅샷으로 오프라인 상대를 반복 약탈하는 자원 복사를 막는다.
-function _opSnapApply(o, defLost, loot, wallTo){
+function _opSnapApply(o, defLost, loot, wallTo, loyTo){
   try{
     if(defLost && o.dstack){ for(const u in defLost){ const c=Math.floor(o.dstack[u]||0); if(!c) continue;
       const left=Math.max(0, c-Math.floor(defLost[u]||0)); if(left) o.dstack[u]=left; else delete o.dstack[u]; } }
     if(loot && o.loot){ ['wood','clay','iron'].forEach(k=>{ o.loot[k]=Math.max(0, Math.floor(o.loot[k]||0)-Math.floor(loot[k]||0)); }); }
     if(wallTo!=null) o.wall=Math.max(0, Math.round(wallTo));
+    if(loyTo!=null) o.loyalty=Math.max(0, Math.round(loyTo));   // 👑 충성도 감소 반영(반복 공격 일관성)
     let def=0; for(const u in (o.dstack||{})) if(TROOP[u]) def+=o.dstack[u]*TROOP[u].def;
     o.def=Math.round(def*Math.pow(1.037,o.wall||0)+wallBasicDef(o.wall||0));
   }catch(e){}
@@ -1168,19 +1169,44 @@ function _opAttack(m, now){   // ⚔️ 팀원 마을 공격 — true=행군 종
     const take=Math.min(carry,tot);
     if(tot>0) ['wood','clay','iron'].forEach(k=>{ loot[k]=Math.floor(take*Math.max(0,av[k]||0)/tot); }); }
   const annihilated=!hasUnits(aRes.left);
+  // 👑 정복(P4): 승리 + 생존 영웅(noble)이 있으면 충성도 감소, 0이면 정복. 단 홈 마을은 뺏기지 않음(충성도 1 바닥·전멸 방지)
+  let loyTo=null, conquered=false; const nobleLeft=Math.floor(aRes.left.noble||0);
+  if(r.win && nobleLeft>0){
+    loyTo=(o.loyalty==null?100:o.loyalty);
+    for(let k=0;k<nobleLeft;k++) loyTo-=20+Math.random()*15;
+    loyTo=Math.round(loyTo);
+    if(o.home) loyTo=Math.max(1,loyTo);            // 🏠 홈=정복 불가
+    else if(loyTo<=0){ loyTo=0; conquered=true; }
+    else loyTo=Math.max(0,loyTo);
+  }
   const tgt={name:o.name||'팀원', x:o.x, y:o.y, owner:'player', size:o.size||1};
   pushReport({type:'attack', op:true, win:r.win, tgt, luck:r.luck, morale, atkPow:r.atkPow, defPow:r.defPow,
     sent:{...m.units}, lost:aRes.lost, defUnits:annihilated?null:defStack, defLost:annihilated?null:dRes.lost,
-    loot, wallFrom:wall0, wallTo, cataDmg:0, loyalty:null, conquered:false});
+    loot, wallFrom:wall0, wallTo, cataDmg:0, loyalty:loyTo, conquered});
   const from=S.world[m.fromV||HOME_KEY];
+  _opSnapApply(o, dRes.lost, loot, wallTo, loyTo);   // 로컬 스냅샷 즉시 반영(반복 약탈·충성도)
+  const lt=(loot.wood+loot.clay+loot.iron)|0;
+  if(conquered){ _opConquer(o, aRes.left); return true; }   // ⚔️ 정복 — 마을 획득·군대 주둔·행군 종료(attacked는 안 보냄 = 마을 통째 이전)
   _runeInbox(o.x,o.y,{kind:'attacked', fromName:MY_NAME||'팀원', fromKey:MY_GKEY, hx:from?from.x:0, hy:from?from.y:0,
     win:r.win, luck:r.luck, atkPow:r.atkPow, defPow:r.defPow,
-    atkUnits:{...m.units}, atkLost:aRes.lost, defLost:dRes.lost, loot, wallTo});
-  _opSnapApply(o, dRes.lost, loot, wallTo);   // 로컬 스냅샷 즉시 반영(반복 약탈 방지)
-  const lt=(loot.wood+loot.clay+loot.iron)|0;
-  toast(r.win? `⚔️ ${tgt.name} 약탈 성공! +${NF(lt)} 자원 (📜 보고서)` : `💥 ${tgt.name} 공격 ${annihilated?'대패 — 전멸':'실패'} (📜 보고서)`);
+    atkUnits:{...m.units}, atkLost:aRes.lost, defLost:dRes.lost, loot, wallTo, loyalty:loyTo, conquered});   // 수비자 정산
+  toast(r.win? `⚔️ ${tgt.name} 약탈 성공! +${NF(lt)} 자원${loyTo!=null?` · 충성도 ${loyTo}`:''} (📜 보고서)` : `💥 ${tgt.name} 공격 ${annihilated?'대패 — 전멸':'실패'} (📜 보고서)`);
   if(annihilated) return true;
   const trip=m.arriveAt-m.dep; m.mode='return'; m.units=aRes.left; m.loot=loot; m.dep=now; m.arriveAt=now+trip; delete m.op; return false;
+}
+function _opConquer(o, survivors){   // ⚔️ 팀원 2차 마을 정복 — 내 새 마을로 편입(로컬 conquerVillage의 크로스계정판)
+  const gar={...survivors}; if(gar.noble>0){ gar.noble--; if(!gar.noble) delete gar.noble; }   // 영웅 1명 소모(주둔 지휘)
+  const s=Math.max(1,o.size||1); const id='c'+o.x+'_'+o.y;
+  S.world[id]={x:o.x, y:o.y, name:'내 마을', owner:'me', size:s, loyalty:25, protectUntil:0, garrison:{}, loot:{wood:0,clay:0,iron:0}};
+  const nv=freshVillage(); const b=nv.blds;
+  b.main=Math.min(10,Math.max(1,s)); b.wood=b.clay=b.iron=Math.min(15,s+2); b.farm=Math.min(12,s+1); b.storage=Math.min(12,s+1);
+  if(o.wall) b.wall=Math.min(20,Math.round(o.wall));
+  nv.res={wood:300,clay:300,iron:200}; nv.troops=gar;
+  S.villages[id]=nv; revealDisc(o.x,o.y,REVEAL_HOME); delete OTHERS[o.x+','+o.y]; _myConquered[o.x+','+o.y]=1;   // 정복 직후 등록부가 옛소유자로 보여도 자멸 안 하게
+  pushReport({type:'attack', op:true, win:true, conquered:true, tgt:{name:o.name||'팀원',x:o.x,y:o.y,owner:'player',size:s}, sent:{}, lost:{}, loot:{wood:0,clay:0,iron:0}, loyalty:0});
+  _runeInbox(o.x,o.y,{kind:'conquered', fromName:MY_NAME||'팀원', fromKey:MY_GKEY});   // 🏳️ 상대에게 정복 통지(마을 상실)
+  try{ parent.postMessage({type:'runeConquer', x:o.x, y:o.y}, '*'); }catch(e){}   // claims 이전(선점 강제)
+  toast(`⚔️ ${o.name||'팀원'} 마을을 정복했습니다! 새 마을 획득 (${crd(S.world[id])})`); save(); _runeSync('conquer', true);
 }
 function _opScout(m, now){   // 🧭 팀원 마을 정찰 — 수비 정찰병×2를 뚫으면 스냅샷 정보 획득
   const o=OTHERS[m.op.x+','+m.op.y];
@@ -1365,7 +1391,7 @@ window.buyPremium=function(days,cost){
 // 🔌 사이트(index.html) 임베드 브릿지 — 실제 사이트 공유 골드로 결제/표시
 const RUNE_EMBED = new URLSearchParams(location.search).has('embed');
 let MY_NAME='';   // 🪪 사이트에서 받은 내 닉네임(월드맵 내 마을 라벨) — 임베드 시 runeInit로 전달
-if(RUNE_EMBED){ document.body.classList.add('rune-embed'); const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.30 · 상점=공유 골드'; }
+if(RUNE_EMBED){ document.body.classList.add('rune-embed'); const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.31 · 상점=공유 골드'; }
 let _runeLoaded=false;   // 서버 저장본 로드 완료 전엔 서버 업로드 금지(로컬로 서버 클로버 방지)
 if(RUNE_EMBED){ window.addEventListener('message', e=>{ const d=e.data; if(!d||typeof d!=='object') return;
   if(d.type==='runeInit'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); if(document.querySelector('.gs-ov')) window.openGoldShop(); }
@@ -1391,7 +1417,8 @@ function _runePub(){ try{ return ownedIds().map(id=>{ const w=S.world[id], v=S.v
   def=Math.round(def*Math.pow(1.037,wall)+wallBasicDef(wall));
   const hc=hideCapAt(blds.hide||0), lo={};   // 🏺 숨은 곳간 보호분은 약탈 대상에서 제외
   ['wood','clay','iron'].forEach(k=>{ lo[k]=Math.max(0, Math.floor(((v.res&&v.res[k])||0)-hc)); });
-  return {x:w.x, y:w.y, size:w.size||1, pts:devPoints(v.blds?v:{blds:{}}), wall, def, dstack:ds, loot:lo, prot:w.protectUntil||0};
+  return {x:w.x, y:w.y, size:w.size||1, pts:devPoints(v.blds?v:{blds:{}}), wall, def, dstack:ds, loot:lo, prot:w.protectUntil||0,
+    loyalty:(w.loyalty==null?100:Math.round(w.loyalty)), home:(id===HOME_KEY?1:0)};   // 👑 정복(P4)용: 충성도 + 홈여부(홈=정복 불가)
 }); }catch(e){ return []; } }
 function _runeSync(action, log){ if(!RUNE_EMBED) return; let st; try{ st=JSON.parse(JSON.stringify(S)); }catch(e){ return; } _runeSyncLast=Date.now(); try{ parent.postMessage({type:'runeSave', state:st, gold:S.gold||0, pts:_runePts(), vills:ownedIds().length, pub:_runePub(), action:action||'save', log:!!log}, '*'); }catch(e){} }
 // ⚠️ loop() 가 매 1초 save() 를 부른다 → 「마지막 호출 후 N초」 디바운스는 타이머가 매초 리셋돼 **영원히 발화하지 않는다**.
@@ -1403,7 +1430,7 @@ function _runeSyncDebounced(){ if(!RUNE_EMBED||!_runeLoaded||_runeSyncPend) retu
   _runeSyncT=setTimeout(()=>{ _runeSyncPend=false; _runeSync('autosave', false); }, Math.max(0, RUNE_SYNC_MS-(Date.now()-_runeSyncLast)));
 }
 // 🌍 공유월드(팀원 마을) — OTHERS = 다른 플레이어 마을(coordKey→정보). 맵 렌더 시 S.world와 병합해 owner:'player'로 표시
-let OTHERS={}, _OPPTS={}, _worldSubbed=false, _claimCb=null, MY_GKEY='';
+let OTHERS={}, _OPPTS={}, _worldSubbed=false, _claimCb=null, MY_GKEY='', _myConquered={};
 function _opId(x,y){ return 'op_'+x+'_'+y; }
 function _mergedWorld(){ if(!RUNE_EMBED) return S.world;   // 임베드 아니면 내 월드만
   const m=Object.assign({}, S.world); _OPPTS={};
@@ -1424,6 +1451,7 @@ function _processVilInbox(o, vid){   // 내 마을(vid) 도착 액션 처리: �
     else if(e.kind==='recall'){   // 상대가 자기 지원을 회수 → 내 마을에 와있던 그 지원을 상대 집으로 돌려보냄
       const by=e.by||e.fromKey; if(v.support){ for(let k=v.support.length-1;k>=0;k--){ const sp=v.support[k]; if(sp.ext && (sp.from===by)){ _runeInbox(e.hx, e.hy, {kind:'return', units:sp.units||{}, fromName:MY_NAME||'팀원'}); v.support.splice(k,1); changed=true; } } } }
     else if(e.kind==='attacked'){   // ⚔️ 내가 공격당함 — 공격자 클라가 해소한 결과를 내 마을에 정산(보유량으로 클램프)
+      if(MY_GKEY && (e.by||e.fromKey)===MY_GKEY) continue;   // 내가 보낸 공격은 정산 대상 아님(정복한 마을에 남은 내 attacked 방지)
       const wv=S.world[vid]||{x:o.x,y:o.y};
       const myLost={};
       const take=(st,u,n)=>{ if(!st||n<=0) return 0; const c=Math.floor(st[u]||0); if(c<=0) return 0;
@@ -1442,7 +1470,19 @@ function _processVilInbox(o, vid){   // 내 마을(vid) 도착 액션 처리: �
         atkUnits:e.atkUnits||{}, atkLost:e.atkLost||{}, myLost, loot});
       toast(e.win? `⚔️ ${e.fromName||'팀원'}에게 약탈당했어요 (📜 보고서)` : `🛡️ ${e.fromName||'팀원'}의 공격을 막아냈어요 (📜 보고서)`);
       changed=true; }
+    else if(e.kind==='conquered'){   // 🏳️ 내 2차 마을을 뺏김(홈은 정복 대상 아님)
+      const by=e.by||e.fromKey;
+      if(!(MY_GKEY && by===MY_GKEY) && vid!==HOME_KEY){   // 내가 정복한 게 아니고, 홈이 아니면 상실
+        const wv=S.world[vid]||{x:o.x,y:o.y};
+        pushReport({type:'defense', op:true, conquered:true, win:false, from:{name:e.fromName||'상대', x:e.hx||0, y:e.hy||0}, tgt:{name:'내 마을', x:wv.x, y:wv.y}, atkUnits:{}, atkLost:{}, myLost:{}, loot:{wood:0,clay:0,iron:0}});
+        toast(`🏳️ ${crd(wv)} 마을을 ${e.fromName||'상대'}에게 빼앗겼어요!`);
+        if(S.active===vid) S.active=HOME_KEY;
+        delete S.villages[vid]; delete S.world[vid];
+        for(const p2 in o.inbox) if(!done.includes(p2)) done.push(p2);   // 마을 사라짐 → 남은 inbox도 정리
+        changed=true; break;
+      } }
     else if(e.kind==='scouted'){   // 🧭 내가 정찰당함 — 병력·자원 변화 없음, 알림만
+      if(MY_GKEY && (e.by||e.fromKey)===MY_GKEY) continue;   // 내가 보낸 정찰은 알림 대상 아님
       const wv=S.world[vid]||{x:o.x,y:o.y};
       pushReport({type:'defense', op:true, scouted:true, win:!e.ok, from:{name:e.fromName||'팀원', x:e.hx||0, y:e.hy||0},
         tgt:{name:'내 마을', x:wv.x, y:wv.y}, atkUnits:{scout:Math.floor(e.n||0)}, atkLost:e.ok?{}:{scout:Math.floor(e.n||0)},
@@ -1456,15 +1496,31 @@ function _processVilInbox(o, vid){   // 내 마을(vid) 도착 액션 처리: �
 function _onRuneWorld(list){   // 공유월드 갱신 수신 → OTHERS 재구성(본인 것 제외·내 마을 inbox 처리) → 맵 열려있으면 디바운스 갱신
   OTHERS={}; const myC={}; ownedIds().forEach(id=>{ const w=S.world[id]; if(w) myC[w.x+','+w.y]=id; });   // 좌표→내 마을 id(닉네임 없어도 견고)
   if(Array.isArray(list)){ for(const o of list){ if(!o||o.x==null) continue;
-    const mine=myC[o.x+','+o.y]; if(mine){ if(o.inbox) _processVilInbox(o, mine); continue; }   // 내 마을 → inbox 처리
+    const mine=myC[o.x+','+o.y];
+    if(mine){
+      const ck=o.x+','+o.y;
+      if(_myConquered[ck]){ if(o.owner===MY_GKEY) delete _myConquered[ck];   // 내 발행이 반영됨 → 정상화
+        else { if(o.inbox) _processVilInbox(o, mine); continue; } }           // 정복 직후 등록부가 아직 옛 소유자 → 상실 판정 보류(자기 정복 자멸 방지)
+      if(MY_GKEY && o.owner && o.owner!==MY_GKEY){ _lostVillage(mine, o); continue; }   // 🏳️ 등록부 소유자가 남 = 정복당함(부모 claim검사로 플립플롭 없음) → 상실
+      if(o.inbox) _processVilInbox(o, mine); continue;   // 내 마을 → inbox 처리
+    }
     _opPendingApply(o);   // ⚔️ 상대가 아직 정산 안 한 액션(약탈·지원)을 스냅샷에 미리 반영
     OTHERS[o.x+','+o.y]=o; } }
 // 상대 마을의 **미처리 inbox**를 수비 스냅샷에 선반영한다.
 //  · 목적1: 오프라인 상대를 같은 스냅샷으로 반복 약탈하는 자원 복사 차단(이미 털린 만큼 빠져 보임)
 //  · 목적2: 도착해 있는 팀원 지원군을 수비에 포함(정산 전이라고 공짜로 뚫리면 지원의 의미가 없다)
+function _lostVillage(vid, o){   // 🏳️ 이 마을을 뺏김(등록부 소유자가 남) — 로컬에서 제거(홈은 정복 대상 아님·안전장치)
+  if(vid===HOME_KEY || !S.villages[vid]) return;
+  const wv=S.world[vid]||{x:o.x,y:o.y};
+  pushReport({type:'defense', op:true, conquered:true, win:false, from:{name:o.name||'상대', x:o.x, y:o.y}, tgt:{name:'내 마을', x:wv.x, y:wv.y}, atkUnits:{}, atkLost:{}, myLost:{}, loot:{wood:0,clay:0,iron:0}});
+  toast(`🏳️ ${crd(wv)} 마을을 ${o.name||'상대'}에게 빼앗겼어요!`);
+  if(S.active===vid) S.active=HOME_KEY;
+  delete S.villages[vid]; delete S.world[vid]; save();
+  if(view==='village'&&S.world[S.active]) renderVillage(true); else if(view==='map') showView();
+}
 function _opPendingApply(o){ if(!o||!o.inbox) return;
   for(const pid in o.inbox){ const e=o.inbox[pid]; if(!e||!e.kind) continue;
-    if(e.kind==='attacked') _opSnapApply(o, e.defLost, e.win?e.loot:null, e.wallTo);
+    if(e.kind==='attacked') _opSnapApply(o, e.defLost, e.win?e.loot:null, e.wallTo, e.loyalty);
     else if(e.kind==='support'){ if(!o.dstack) o.dstack={};
       for(const u in (e.units||{})){ const c=Math.floor(e.units[u]||0); if(c>0&&TROOP[u]) o.dstack[u]=(o.dstack[u]||0)+c; }
       _opSnapApply(o, null, null, null); }   // def 재계산
@@ -1752,6 +1808,7 @@ function _openOtherInfo(o){ const from=S.world[S.active]||S.world[HOME_KEY]; con
   const spy=S.spy[oid];
   ov.innerHTML=`<div class="rl-card" style="max-width:330px"><div class="rl-h">🤝 ${o.name||'팀원'} <button class="rl-x" title="닫기">✕</button></div><div class="rl-body" style="padding:12px 14px 14px">${row('📍 좌표',`(${o.x}|${o.y})`)}${row('🏆 발전점수',NF(o.pts||0)+'점')}${row('🏰 규모',(o.size||1)+'★')}${row('📏 거리',dist.toFixed(1)+'칸')}
     ${spy? row('🧭 정찰',`수비 ~${NF(spy.def)} · 성벽 ${spy.wall} · ${fmtAgo(Date.now()-spy.at)}`) : row('🧭 정찰','정보 없음 — 정찰해야 보여요')}
+    ${(o.loyalty!=null && o.loyalty<100)? row('👑 충성도',`${o.loyalty}${o.home?' (홈=정복불가)':' · 0이면 정복'}`) : ''}
     ${prot? `<div style="margin-top:10px;padding:8px;border-radius:8px;background:rgba(29,92,150,.18);font-size:12px;color:#9fc4e8;text-align:center">${I('shield')} 보호 중 — <b>${fmtProtect(Math.max(0,(o.prot||0)-Date.now()))}</b> 동안 공격받지 않아요</div>`:''}
     <button class="btn btn-green oi-support" style="width:100%;padding:11px;margin-top:12px;font-size:14px">${I('shield')} 지원 보내기</button>
     <div style="display:flex;gap:8px;margin-top:8px">
@@ -1876,7 +1933,8 @@ function openAttack(id, mode0){
       <div class="atk-est">${mode==='scout'? `${I('scout')} 정찰병 <b>${es.n}</b> · 수비 정찰병×2를 뚫어야 성공`
         : mode==='support'? `${I('shield')} 지원 병력 <b>${es.n}</b>명`
         : `${I('barracks')} 공격력 <b>${NF(es.atk)}</b>${w.owner==='player'?` · 사기 ${Math.round(moraleVs(v,w)*100)}%`:''} · 운 ±25%`}
-        · ${es.travel?('행군 '+fmtDur(es.travel)):'—'}</div>
+        · ${es.travel?('행군 '+fmtDur(es.travel)):'—'}
+        ${mode==='attack' && (sel.noble||0)>0 && ally && !(OTHERS[_opCoord(id)]&&OTHERS[_opCoord(id)].home)? `<div style="font-size:10.5px;color:#e0a86a;font-weight:600;margin-top:3px">${I('noble')} 영웅 포함 — 이기면 충성도가 깎이고 0이 되면 <b>정복</b>해요</div>`:''}</div>
       <button class="btn ${mode==='attack'?'btn-red':(mode==='scout'?'btn-blue':'btn-green')} atk-go" ${rows.length?'':'disabled'}
         style="width:100%;padding:12px;margin-top:8px;font-size:14px">${modeLbl(mode)} 출발</button>
     </div>`;
@@ -2309,7 +2367,9 @@ function reportCard(r){
     </div></details>`;
   }
   if(r.type==='defense'){
-    const title=r.scouted
+    const title=r.conquered
+      ? `${I('noble')} 마을 상실! · ${(r.from.name||'상대')} → ${crd(r.tgt)}`
+      : r.scouted
       ? `${r.win?I('shield')+' 정찰 격퇴':I('scout')+' 정찰당함'} · ${(r.from.name||'')} → ${crd(r.tgt)}`
       : `${r.win?I('shield')+' 방어 성공':I('warn')+' 약탈당함'} · ${r.raid?`${I('fire')} ${r.big?'대규모 ':''}야만인 습격`:(r.from.name||'')} → ${crd(r.tgt)}`;
     const lootT=r.loot?(r.loot.wood+r.loot.clay+r.loot.iron):0;
