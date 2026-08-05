@@ -563,7 +563,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
 <body><div class="app">
   <div class="topstrip">
     <span class="logo">룬테라 전쟁</span>
-    <span class="world">베타 v0.32 · 월드 1</span>
+    <span class="world">베타 v0.33 · 월드 1</span>
     <button class="top-ic shop-btn" onclick="openGoldShop()" title="골드 상점 · 프리미엄 계정">상점</button>
     <button class="top-ic help-btn" onclick="openHelp()" title="도움말">도움말</button>
   </div>
@@ -591,7 +591,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">룬테라 전쟁 · 베타 v0.32</div>
+  <div class="proto-tag">룬테라 전쟁 · 베타 v0.33</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -1392,7 +1392,7 @@ window.buyPremium=function(days,cost){
 // 🔌 사이트(index.html) 임베드 브릿지 — 실제 사이트 공유 골드로 결제/표시
 const RUNE_EMBED = new URLSearchParams(location.search).has('embed');
 let MY_NAME='';   // 🪪 사이트에서 받은 내 닉네임(월드맵 내 마을 라벨) — 임베드 시 runeInit로 전달
-if(RUNE_EMBED){ document.body.classList.add('rune-embed'); const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.32 · 상점=공유 골드'; }
+if(RUNE_EMBED){ document.body.classList.add('rune-embed'); const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.33 · 상점=공유 골드'; }
 let _runeLoaded=false;   // 서버 저장본 로드 완료 전엔 서버 업로드 금지(로컬로 서버 클로버 방지)
 if(RUNE_EMBED){ window.addEventListener('message', e=>{ const d=e.data; if(!d||typeof d!=='object') return;
   if(d.type==='runeInit'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); if(document.querySelector('.gs-ov')) window.openGoldShop(); }
@@ -1446,7 +1446,8 @@ function _runeInbox(x,y,entry){ if(!RUNE_EMBED) return; try{ parent.postMessage(
 function _clearInbox(x,y,ids){ if(!RUNE_EMBED||!ids||!ids.length) return; try{ parent.postMessage({type:'runeInboxClear', x, y, ids}, '*'); }catch(e){} }
 function _processVilInbox(o, vid){   // 내 마을(vid) 도착 액션 처리: 지원 합류 / 회군 복귀 / 회수 요청
   const v=S.villages[vid]; if(!v||!o.inbox) return; const done=[]; let changed=false;
-  for(const pid in o.inbox){ const e=o.inbox[pid]; done.push(pid); if(!e||!e.kind||_inboxSeen[pid]) continue; _inboxSeen[pid]=1;
+  const _ck=o.x+','+o.y; if(!S._inboxDone) S._inboxDone={}; const dm=S._inboxDone[_ck]||(S._inboxDone[_ck]={});   // 🔒 처리완료 pid를 저장상태에 영속 → 새로고침해도 재처리(복제) 안 함(_inboxSeen은 세션 메모리라 불충분)
+  for(const pid in o.inbox){ const e=o.inbox[pid]; done.push(pid); if(!e||!e.kind||_inboxSeen[pid]||dm[pid]) continue; _inboxSeen[pid]=1; dm[pid]=1;
     if(e.kind==='support'){ if(!v.support) v.support=[]; v.support.push({from:e.by||e.fromKey||'?', fromName:e.fromName||'팀원', units:e.units||{}, ext:true, hx:e.hx, hy:e.hy}); toast(`🛡️ ${e.fromName||'팀원'} 지원군 도착 (${crd(S.world[vid])})`); changed=true; }
     else if(e.kind==='return'){ for(const u in (e.units||{})) v.troops[u]=(v.troops[u]||0)+(e.units[u]||0); toast(`↩️ 지원군 회군 도착 (${crd(S.world[vid])})`); changed=true; }
     else if(e.kind==='recall'){   // 상대가 자기 지원을 회수 → 내 마을에 와있던 그 지원을 상대 집으로 돌려보냄
@@ -1492,6 +1493,7 @@ function _processVilInbox(o, vid){   // 내 마을(vid) 도착 액션 처리: �
       changed=true; }
   }
   if(done.length) _clearInbox(o.x,o.y,done);
+  for(const pid in dm){ if(!o.inbox[pid]) delete dm[pid]; } if(!Object.keys(dm).length) delete S._inboxDone[_ck];   // 삭제 전파된 pid는 잊어도 안전(무한증가 방지)
   if(changed){ save(); _runeSync('save', false);   // ⚠️ 정산 즉시 스냅샷 발행(20s 스로틀 기다리지 않음) → 정산 후 stale-high 등록부로 반복 약탈되는 창 축소
     const av=S.world[S.active]; if(view==='village' && av && av.x===o.x && av.y===o.y) renderVillage(true); }
 }
