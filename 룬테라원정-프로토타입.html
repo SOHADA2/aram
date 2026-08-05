@@ -563,7 +563,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
 <body><div class="app">
   <div class="topstrip">
     <span class="logo">룬테라 전쟁</span>
-    <span class="world">v0.35 · 월드 1</span>
+    <span class="world">v0.36 · 월드 1</span>
     <button class="top-ic shop-btn" onclick="openGoldShop()" title="골드 상점 · 프리미엄 계정">상점</button>
     <button class="top-ic help-btn" onclick="openHelp()" title="도움말">도움말</button>
   </div>
@@ -591,7 +591,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">룬테라 전쟁 · v0.35</div>
+  <div class="proto-tag">룬테라 전쟁 · v0.36</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -1027,7 +1027,10 @@ function applyLoss(units, ratio){ const lost={}, left={};
 function vilPoints(v){ let p=0; for(const b in v.blds) p+=(v.blds[b]||0)*12; return Math.max(1,p); }
 function moraleVs(originV, w){ const atkP=vilPoints(originV), defP=(w.size||1)*150;   // 점수 기반 사기: (수비/공격)×3+0.3, 0.3~1.0
   return Math.max(0.3, Math.min(1, defP/atkP*3 + 0.3)); }
-function pushReport(r){ r.at=r.at||Date.now(); S.reports=S.reports||[]; S.reports.unshift(r); S.reports=S.reports.slice(0,30); }
+function pushReport(r){ r.at=r.at||Date.now(); S.reports=S.reports||[]; S.reports.unshift(r);
+  // 🏳️ 중요 보고서(정복당함·마을 상실)는 캡에 밀려 사라지지 않게 별도 보존 + 일반은 60개까지
+  const keep=[], rest=[]; for(const x of S.reports){ (x&&x.conquered ? keep : rest).push(x); }
+  S.reports=[...keep.slice(0,20), ...rest.slice(0,60)].sort((a,b)=>(b.at||0)-(a.at||0)); }
 // ══ 명령(집결지) — 공격/지원/정찰 공용 ══
 function sendCommand(toId, units, mode){ const v=S.v;
   if((v.blds.rally||0)<1){ toast('집결지가 필요해요 — 마을에서 건설하세요'); return false; }
@@ -1396,7 +1399,7 @@ window.buyPremium=function(days,cost){
 // 🔌 사이트(index.html) 임베드 브릿지 — 실제 사이트 공유 골드로 결제/표시
 const RUNE_EMBED = new URLSearchParams(location.search).has('embed');
 let MY_NAME='';   // 🪪 사이트에서 받은 내 닉네임(월드맵 내 마을 라벨) — 임베드 시 runeInit로 전달
-if(RUNE_EMBED){ document.body.classList.add('rune-embed'); const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · v0.35 · 상점=공유 골드'; }
+if(RUNE_EMBED){ document.body.classList.add('rune-embed'); const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · v0.36 · 상점=공유 골드'; }
 let _runeLoaded=false;   // 서버 저장본 로드 완료 전엔 서버 업로드 금지(로컬로 서버 클로버 방지)
 if(RUNE_EMBED){ window.addEventListener('message', e=>{ const d=e.data; if(!d||typeof d!=='object') return;
   if(d.type==='runeInit'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); if(document.querySelector('.gs-ov')) window.openGoldShop(); }
@@ -1952,7 +1955,7 @@ function openAttack(id, mode0){
       if(d==='max') sel[u]=v.troops[u]||0; else sel[u]=Math.max(0,Math.min(v.troops[u]||0,(sel[u]||0)+(+d))); draw(); });
     const go2=ov.querySelector('.atk-go'); if(go2&&rows.length) go2.onclick=()=>{
       const doSend=()=>{ if(sendCommand(id,sel,mode)){ ov.remove(); if(view==='map')renderMap(); if(view==='village')updateVillageDynamic(); renderTop(); renderSidebar(); } };
-      if(mode==='attack' && isProtected(S.world[HOME_KEY])) confirmRelease(doSend); else doSend();
+      if(mode==='attack' && (w.owner==='player'||ally) && isProtected(S.world[HOME_KEY])) confirmRelease(doSend); else doSend();   // 🛡️ 뉴비 보호막은 팀원 공격 때만 해제(야만인 약탈은 유지) — 튜토리얼 약탈로 보호가 풀리던 문제
     };
   }
   draw(); document.body.appendChild(ov);
