@@ -563,7 +563,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
 <body><div class="app">
   <div class="topstrip">
     <span class="logo">룬테라 전쟁</span>
-    <span class="world">베타 v0.34 · 월드 1</span>
+    <span class="world">v0.35 · 월드 1</span>
     <button class="top-ic shop-btn" onclick="openGoldShop()" title="골드 상점 · 프리미엄 계정">상점</button>
     <button class="top-ic help-btn" onclick="openHelp()" title="도움말">도움말</button>
   </div>
@@ -591,7 +591,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">룬테라 전쟁 · 베타 v0.34</div>
+  <div class="proto-tag">룬테라 전쟁 · v0.35</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -797,6 +797,7 @@ function travelMs(dist, slow){ return Math.round(dist*slow*60000/WSPEED); }
 // ═══════════ 상태 ═══════════
 const SAVE_VER=11;  // 시작 게이트(시작하시겠습니까)+무작위 시작 위치 — 이전 세이브 폐기
 const RUNE_RESET=1;  // 🔄 오픈 리셋 에폭 — 올리면 로컬/서버의 옛 세이브를 폐기하고 모두 새로 시작(테스트 데이터 초기화). 다음 리셋 시 +1
+const _RUNE_DEV = (()=>{ try{ return /[?&#]dev(\b|=1)/i.test(location.href) || localStorage.getItem('rune_dev')==='1'; }catch(e){ return false; } })();   // 🧪 개발/테스트 도구 게이트 — 정식 오픈선 숨김. 관리자: URL에 ?dev 또는 콘솔 localStorage.setItem('rune_dev','1') 후 새로고침
 const PROTECT_MS = 15*24*3600*1000;
 // ══ 🔥 야만인 습격 ══
 // ⚠️ 야만인은 뉴비 보호(protectUntil)를 무시함 → 난이도를 시간이 아니라 **내 수비력 대비 비율**로만 조절한다.
@@ -900,7 +901,7 @@ function genWorld(now){
 function fresh(){ const now=Date.now(); return { ver:SAVE_VER, resetEpoch:RUNE_RESET, started:false, gold:500, premiumUntil:0, villages:{[HOME_KEY]:freshVillage()}, active:HOME_KEY, research:{}, spy:{}, world:genWorld(now), marches:[], reports:[], t:now }; }
 // 🏅 프리미엄 계정(정통 전략식·날짜 단위) — 골드로 구매. 골드는 추후 실제 사이트 골드와 연동 예정(현재 mock)
 function isPremium(){ return (S.premiumUntil||0) > Date.now(); }
-window.runeGold=function(n){ n=n||1000; S.gold=(S.gold||0)+n; save(); renderTop(); toast('골드 +'+n+'(테스트)'); };
+window.runeGold=function(n){ if(!_RUNE_DEV) return; n=n||1000; S.gold=(S.gold||0)+n; save(); renderTop(); toast('골드 +'+n+'(테스트)'); };   // 🧪 개발 모드 전용(정식선 무효)
 function _saveOk(j){ return !!(j && j.villages && j.villages[HOME_KEY] && j.world && j.world[HOME_KEY]); }
 // 🔀 세이브 마이그레이션 — 버전이 달라도 구조(내 마을·월드)가 온전하면 진행 보존(폐기 대신 승급). SAVE_VER 올려도 유저 진행 안 날아감
 function migrate(j){ if(!_saveOk(j)) return null; if(j.ver===SAVE_VER) return j;
@@ -1395,7 +1396,7 @@ window.buyPremium=function(days,cost){
 // 🔌 사이트(index.html) 임베드 브릿지 — 실제 사이트 공유 골드로 결제/표시
 const RUNE_EMBED = new URLSearchParams(location.search).has('embed');
 let MY_NAME='';   // 🪪 사이트에서 받은 내 닉네임(월드맵 내 마을 라벨) — 임베드 시 runeInit로 전달
-if(RUNE_EMBED){ document.body.classList.add('rune-embed'); const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.34 · 상점=공유 골드'; }
+if(RUNE_EMBED){ document.body.classList.add('rune-embed'); const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · v0.35 · 상점=공유 골드'; }
 let _runeLoaded=false;   // 서버 저장본 로드 완료 전엔 서버 업로드 금지(로컬로 서버 클로버 방지)
 if(RUNE_EMBED){ window.addEventListener('message', e=>{ const d=e.data; if(!d||typeof d!=='object') return;
   if(d.type==='runeInit'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); if(document.querySelector('.gs-ov')) window.openGoldShop(); }
@@ -2485,7 +2486,7 @@ function loop(){ if(!S.started) return;   // 시작하기 전(시작 게이트)�
   }catch(e){ console.error('[rune] 뷰 렌더 실패:', e); }
   try{ renderTop(); renderSidebar(); renderNavBadges(); _tutRefresh(); }catch(e){ console.error('[rune] UI 렌더 실패:', e); }
   save(); }
-document.addEventListener('DOMContentLoaded', ()=>{ buildNav(); if(S.started){ showView(); } else { showStartGate(); } loop(); setInterval(loop, 1000); initMapPZ(); initDevPanel();
+document.addEventListener('DOMContentLoaded', ()=>{ buildNav(); if(S.started){ showView(); } else { showStartGate(); } loop(); setInterval(loop, 1000); initMapPZ(); if(_RUNE_DEV) initDevPanel();   // 🧪 테스트 패널은 개발 모드에서만(정식 오픈선 숨김)
   const mq=window.matchMedia('(min-width:900px)');
   const onMQ=()=>{ buildNav(); if(S.started) showView(); };
   if(mq.addEventListener) mq.addEventListener('change',onMQ); else if(mq.addListener) mq.addListener(onMQ);
@@ -2707,7 +2708,7 @@ window.openHelp=function(key){
 };
 window.runeReset=function(){ localStorage.removeItem('rune_proto'); S=fresh(); bindActive(); showView(); toast('초기화 완료'); };
 window.runeGrantNoble=function(n){ n=n||3; S.v.troops.noble=(S.v.troops.noble||0)+n; save(); if(view==='village')updateVillageDynamic(); toast(`영웅 +${n}(테스트)`); };
-window.runeArmy=function(n){ n=n||50; const v=S.v; v.troops.axe=(v.troops.axe||0)+n; v.troops.lcav=(v.troops.lcav||0)+Math.ceil(n/5);
+window.runeArmy=function(n){ if(!_RUNE_DEV) return; n=n||50; const v=S.v; v.troops.axe=(v.troops.axe||0)+n; v.troops.lcav=(v.troops.lcav||0)+Math.ceil(n/5);
   v.troops.scout=(v.troops.scout||0)+10; v.troops.ram=(v.troops.ram||0)+6; v.troops.spear=(v.troops.spear||0)+n; v.blds.rally=1;
   save(); if(view==='village')renderVillage(true); toast(`테스트 병력 지급 + 집결지`); };
 window.runeSaveCheck=function(){ save(); let ok=false, msg='';
