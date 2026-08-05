@@ -563,7 +563,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
 <body><div class="app">
   <div class="topstrip">
     <span class="logo">룬테라 전쟁</span>
-    <span class="world">v0.36 · 월드 1</span>
+    <span class="world">v0.37 · 월드 1</span>
     <button class="top-ic shop-btn" onclick="openGoldShop()" title="골드 상점 · 프리미엄 계정">상점</button>
     <button class="top-ic help-btn" onclick="openHelp()" title="도움말">도움말</button>
   </div>
@@ -591,7 +591,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">룬테라 전쟁 · v0.36</div>
+  <div class="proto-tag">룬테라 전쟁 · v0.37</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -695,7 +695,7 @@ const BLD = {   // 수치=정통 전략 밸런스
   stable:  {ic:'stable', nm:'마구간',        max:20, w:270, c:240, i:260, f:1.26,  p:8,  req:{main:10,barracks:5},         desc:'기병·정찰대 훈련'},
   workshop:{ic:'workshop', nm:'공성 작업장',        max:15, w:300, c:240, i:260, f:1.26,  p:8,  req:{main:10,barracks:5},         desc:'공성 병기 제작'},
   smithy:  {ic:'smithy', nm:'대장간',      max:20, w:220, c:180, i:240, f:1.26,  p:20, req:{main:5,barracks:1},          desc:'병력 성능 연구'},
-  academy: {ic:'academy', nm:'신전',        max:1,  w:15000,c:25000,i:10000, f:1, p:80, req:{main:20,smithy:20,market:10},desc:'영웅 훈련(마을 정복)'},
+  academy: {ic:'academy', nm:'신전',        max:1,  w:15000,c:25000,i:10000, f:1, p:80, req:{main:10,smithy:8,market:4},desc:'영웅 훈련(마을 정복)'},
   market:  {ic:'market', nm:'시장',        max:25, w:100, c:100, i:100, f:1.26,  p:20, req:{main:3,storage:2},           desc:'자원 거래'},
   wood:    {ic:'wood', nm:'목재소',      max:30, res:'wood', w:50, c:60, i:40, f:1.155, p:5,  desc:'목재 생산'},
   clay:    {ic:'clay', nm:'점토굴',      max:30, res:'clay', w:65, c:50, i:40, f:1.155, p:5,  desc:'점토 생산'},
@@ -1025,8 +1025,10 @@ function applyLoss(units, ratio){ const lost={}, left={};
     const l=Math.min(c, Math.round(c*ratio)); if(l) lost[u]=l; if(c-l>0) left[u]=c-l; }
   return {lost,left}; }
 function vilPoints(v){ let p=0; for(const b in v.blds) p+=(v.blds[b]||0)*12; return Math.max(1,p); }
-function moraleVs(originV, w){ const atkP=vilPoints(originV), defP=(w.size||1)*150;   // 점수 기반 사기: (수비/공격)×3+0.3, 0.3~1.0
-  return Math.max(0.3, Math.min(1, defP/atkP*3 + 0.3)); }
+function moraleVs(originV, w){   // 🛡️ 반그리핑 사기 — 공격자 발전도 >> 방어자 발전도면 공격력 하락(강자의 약자 스톰프 억제)
+  const atkP=Math.max(1, devPoints(originV||{blds:{}}));                 // 공격자 발전도(devPoints)
+  const defP=Math.max(1, (w&&w.pts!=null)? w.pts : (w&&w.owner!=='player'? (w.size||1)*30 : 1));   // 방어자 발전도(팀원=발행 pts, 야만인=크기)
+  return Math.max(0.4, Math.min(1, defP/atkP + 0.3)); }                 // 대등=1.0, 공격자 2배=0.8, 4배=0.55, 10배↑=0.4 바닥
 function pushReport(r){ r.at=r.at||Date.now(); S.reports=S.reports||[]; S.reports.unshift(r);
   // 🏳️ 중요 보고서(정복당함·마을 상실)는 캡에 밀려 사라지지 않게 별도 보존 + 일반은 60개까지
   const keep=[], rest=[]; for(const x of S.reports){ (x&&x.conquered ? keep : rest).push(x); }
@@ -1166,7 +1168,7 @@ function _opAttack(m, now){   // ⚔️ 팀원 마을 공격 — true=행군 종
   const originV=S.villages[m.fromV||HOME_KEY]||S.v;
   const defStack={}; for(const u in (o.dstack||{})){ const c=Math.floor(o.dstack[u]||0); if(c>0&&TROOP[u]) defStack[u]=c; }
   const wall0=Math.round(o.wall||0);
-  const morale=moraleVs(originV,{size:o.size||1});
+  const morale=moraleVs(originV, o);   // o=상대 스냅샷(pts 포함) → 반그리핑 사기
   const r=twBattle(m.units,[defStack],{wall:wall0, atkResearch:true, morale});
   const aRes=applyLoss(m.units,r.atkLossRatio), dRes=applyLoss(defStack,r.defLossRatio);
   let wallTo=wall0;
@@ -1399,7 +1401,7 @@ window.buyPremium=function(days,cost){
 // 🔌 사이트(index.html) 임베드 브릿지 — 실제 사이트 공유 골드로 결제/표시
 const RUNE_EMBED = new URLSearchParams(location.search).has('embed');
 let MY_NAME='';   // 🪪 사이트에서 받은 내 닉네임(월드맵 내 마을 라벨) — 임베드 시 runeInit로 전달
-if(RUNE_EMBED){ document.body.classList.add('rune-embed'); const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · v0.36 · 상점=공유 골드'; }
+if(RUNE_EMBED){ document.body.classList.add('rune-embed'); const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · v0.37 · 상점=공유 골드'; }
 let _runeLoaded=false;   // 서버 저장본 로드 완료 전엔 서버 업로드 금지(로컬로 서버 클로버 방지)
 if(RUNE_EMBED){ window.addEventListener('message', e=>{ const d=e.data; if(!d||typeof d!=='object') return;
   if(d.type==='runeInit'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); if(document.querySelector('.gs-ov')) window.openGoldShop(); }
@@ -1898,7 +1900,7 @@ function confirmRelease(onYes){ const left=protectLeft(S.world[HOME_KEY]);
 // ── 공격/지원/정찰 모달(집결지 명령) ──
 function openAttack(id, mode0){
   let w=S.world[id], ally=false;
-  if(!w && typeof id==='string' && id.indexOf('op_')===0){ const o=OTHERS[_opCoord(id)]; if(o){ w={x:o.x,y:o.y,name:o.name||'팀원',owner:'player',size:o.size||1,wall:o.wall||0,protectUntil:o.prot||0,_op:true}; ally=true; } }   // 🤝 팀원 = 지원/공격/정찰(P3)
+  if(!w && typeof id==='string' && id.indexOf('op_')===0){ const o=OTHERS[_opCoord(id)]; if(o){ w={x:o.x,y:o.y,name:o.name||'팀원',owner:'player',size:o.size||1,wall:o.wall||0,protectUntil:o.prot||0,pts:o.pts,_op:true}; ally=true; } }   // 🤝 팀원 = 지원/공격/정찰(P3)
   if(!w) return; const v=S.v;
   const mine=w.owner==='me';
   const allyProt=ally&&isProtected(w);   // 팀원이 보호 중 = 지원만 가능
@@ -2555,7 +2557,7 @@ function _tutRefresh(){
   while(t.i<TUT_STEPS.length && TUT_STEPS[t.i].ok(v)){ t.i++; moved=true; }
   if(moved){ save();
     if(t.i>=TUT_STEPS.length){ el.className='tut-bar done';
-      el.innerHTML=`<span class="tb-n">✓</span><div class="tb-t"><div class="tut-done-msg">기본은 다 익혔어요! 이제 마음대로 키워보세요 — 막히면 위 <b>? 도움말</b>을 열어보세요.</div></div>
+      el.innerHTML=`<span class="tb-n">✓</span><div class="tb-t"><div class="tut-done-msg">기본은 다 익혔어요! 다음 목표는 <b>마을 늘리기</b> 👑 — 본진·대장간·시장을 키워 <b>신전</b>을 짓고 <b>영웅</b>을 훈련하면, 팀원 마을을 공격해 충성도를 0으로 만들어 <b>정복</b>(내 2번째 마을!)할 수 있어요. 막히면 위 <b>? 도움말</b>.</div></div>
         <button class="tb-x" title="닫기">✕</button>`;
       el.querySelector('.tb-x').onclick=()=>{ t.off=true; save(); el.style.display='none'; };
       el.style.display='flex'; return; } }
