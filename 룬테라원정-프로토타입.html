@@ -563,7 +563,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
 <body><div class="app">
   <div class="topstrip">
     <span class="logo">룬테라 전쟁</span>
-    <span class="world">베타 v0.31 · 월드 1</span>
+    <span class="world">베타 v0.32 · 월드 1</span>
     <button class="top-ic shop-btn" onclick="openGoldShop()" title="골드 상점 · 프리미엄 계정">상점</button>
     <button class="top-ic help-btn" onclick="openHelp()" title="도움말">도움말</button>
   </div>
@@ -591,7 +591,7 @@ svg.r-wood{color:#c39a63;} svg.r-clay{color:#c8724a;} svg.r-iron{color:#9fb0bd;}
     <aside class="sidebar" id="sidebar"></aside>
   </div>
   <nav class="tabbar" id="tabbar"></nav>
-  <div class="proto-tag">룬테라 전쟁 · 베타 v0.31</div>
+  <div class="proto-tag">룬테라 전쟁 · 베타 v0.32</div>
 </div>
 <div class="toast" id="toast"></div>
 <script>
@@ -816,6 +816,7 @@ const RAID_OFFLINE_MAX = 1;             // 오프라인 복귀 시 즉시 정산
 const SPAWN_MINDIST = 9, SPAWN_RADIUS = 30;
 let S = load(); bindActive();
 function bindActive(){ S.active=S.active||HOME_KEY; if(!S.villages)S.villages={}; if(!S.research)S.research={}; if(!S.spy)S.spy={}; if(S.gold==null)S.gold=500; if(S.premiumUntil==null)S.premiumUntil=0;
+  if(!S.villages[S.active]) S.active=HOME_KEY;   // 🛡️ active가 사라진 마을 가리키면 홈으로(S.v undefined→렌더 예외→UI 먹통 방지)
   if(!Array.isArray(S.trades)) S.trades=[]; if(S.researchQ===undefined) S.researchQ=null;   // 구 세이브 호환(버전 유지)
   // ⚠️ Firebase RTDB는 빈 배열/객체를 저장하지 않아, 서버에서 불러온 상태는 buildQ/recQ/troops 등이 undefined가 됨 → 접근 시 예외로 마을 UI가 통째로 비어버림. 여기서 전부 복원.
   if(!Array.isArray(S.marches)) S.marches=[]; if(!Array.isArray(S.reports)) S.reports=[]; if(!Array.isArray(S.outSupport)) S.outSupport=[];
@@ -1205,7 +1206,7 @@ function _opConquer(o, survivors){   // ⚔️ 팀원 2차 마을 정복 — 내
   S.villages[id]=nv; revealDisc(o.x,o.y,REVEAL_HOME); delete OTHERS[o.x+','+o.y]; _myConquered[o.x+','+o.y]=1;   // 정복 직후 등록부가 옛소유자로 보여도 자멸 안 하게
   pushReport({type:'attack', op:true, win:true, conquered:true, tgt:{name:o.name||'팀원',x:o.x,y:o.y,owner:'player',size:s}, sent:{}, lost:{}, loot:{wood:0,clay:0,iron:0}, loyalty:0});
   _runeInbox(o.x,o.y,{kind:'conquered', fromName:MY_NAME||'팀원', fromKey:MY_GKEY});   // 🏳️ 상대에게 정복 통지(마을 상실)
-  try{ parent.postMessage({type:'runeConquer', x:o.x, y:o.y}, '*'); }catch(e){}   // claims 이전(선점 강제)
+  try{ parent.postMessage({type:'runeConquer', x:o.x, y:o.y, prev:o.owner}, '*'); }catch(e){}   // claims 이전(선점 강제·동시정복 대비 이전소유자 전달)
   toast(`⚔️ ${o.name||'팀원'} 마을을 정복했습니다! 새 마을 획득 (${crd(S.world[id])})`); save(); _runeSync('conquer', true);
 }
 function _opScout(m, now){   // 🧭 팀원 마을 정찰 — 수비 정찰병×2를 뚫으면 스냅샷 정보 획득
@@ -1391,7 +1392,7 @@ window.buyPremium=function(days,cost){
 // 🔌 사이트(index.html) 임베드 브릿지 — 실제 사이트 공유 골드로 결제/표시
 const RUNE_EMBED = new URLSearchParams(location.search).has('embed');
 let MY_NAME='';   // 🪪 사이트에서 받은 내 닉네임(월드맵 내 마을 라벨) — 임베드 시 runeInit로 전달
-if(RUNE_EMBED){ document.body.classList.add('rune-embed'); const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.31 · 상점=공유 골드'; }
+if(RUNE_EMBED){ document.body.classList.add('rune-embed'); const pt=document.querySelector('.proto-tag'); if(pt) pt.textContent='룬테라 전쟁 · 베타 v0.32 · 상점=공유 골드'; }
 let _runeLoaded=false;   // 서버 저장본 로드 완료 전엔 서버 업로드 금지(로컬로 서버 클로버 방지)
 if(RUNE_EMBED){ window.addEventListener('message', e=>{ const d=e.data; if(!d||typeof d!=='object') return;
   if(d.type==='runeInit'){ if(typeof d.gold==='number'){ S.gold=d.gold; save(); renderTop(); if(document.querySelector('.gs-ov')) window.openGoldShop(); }
@@ -1491,7 +1492,8 @@ function _processVilInbox(o, vid){   // 내 마을(vid) 도착 액션 처리: �
       changed=true; }
   }
   if(done.length) _clearInbox(o.x,o.y,done);
-  if(changed){ save(); if(view==='village'&&(S.world[S.active].x===o.x&&S.world[S.active].y===o.y)) renderVillage(true); }
+  if(changed){ save(); _runeSync('save', false);   // ⚠️ 정산 즉시 스냅샷 발행(20s 스로틀 기다리지 않음) → 정산 후 stale-high 등록부로 반복 약탈되는 창 축소
+    const av=S.world[S.active]; if(view==='village' && av && av.x===o.x && av.y===o.y) renderVillage(true); }
 }
 function _onRuneWorld(list){   // 공유월드 갱신 수신 → OTHERS 재구성(본인 것 제외·내 마을 inbox 처리) → 맵 열려있으면 디바운스 갱신
   OTHERS={}; const myC={}; ownedIds().forEach(id=>{ const w=S.world[id]; if(w) myC[w.x+','+w.y]=id; });   // 좌표→내 마을 id(닉네임 없어도 견고)
@@ -1551,7 +1553,8 @@ function _runeAdoptServer(rec){   // 서버가 진실원 — 있으면 채택(�
       if(!(st.ver===SAVE_VER && _saveOk(st))) st=migrate(st);   // 🔀 구버전 서버 세이브도 승급해서 이어하기(폐기 X)
       if(st){
         S=st; bindActive(); localStorage.setItem('rune_proto', JSON.stringify(S));
-        if(S.started){ if(view!=='village'&&view!=='map') view='village'; buildNav(); showView(); } else { showStartGate(); }
+        if(S.started){ const g=document.getElementById('start-gate'); if(g) g.remove();   // ⚠️ 서버에 시작된 저장본 채택 → 로컬이 미시작이라 떠있던 시작게이트를 반드시 제거(안 하면 게이트가 게임 위를 덮어 클릭 무반응=게임 잠김)
+          if(view!=='village'&&view!=='map') view='village'; buildNav(); showView(); } else { showStartGate(); }
         _runeLoaded=true;
         if(rec.data.ver!==SAVE_VER) _runeSync('migrate', true);   // 승급본을 서버에 재저장(로그)
         else if(S.started) _runeSync('login', false);            // 🌍 접속 시 내 마을 공유월드에 즉시 발행(좌표 보호)

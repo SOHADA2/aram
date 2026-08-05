@@ -7072,7 +7072,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.650';
+const APP_VERSION = 'v2.45.651';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -7081,6 +7081,9 @@ const APP_VERSION = 'v2.45.650';
 })();
 const CHANGELOG = [
   // 최신순 정렬. tag: 'new' | 'improve' | 'fix'
+  { ver: 'v2.45.651', date: '2026-08-04', changes: [
+    { tag: 'fix', text: '🗺️ 룬테라 전쟁 오픈 전 점검 수정 — 🔴<b>새 기기·캐시 삭제 후 접속 시 시작 화면이 안 닫혀 게임이 잠기던 치명 버그</b> 해결(서버 저장본을 이어받을 때 시작 게이트를 확실히 닫음). + 정복당한 마을을 가리키던 상태 방어, 전투 정산 직후 즉시 반영(반복 약탈 창 축소), 동시 정복 시 좌표 선점을 원자적으로 처리. (베타 v0.32)' },
+  ] },
   { ver: 'v2.45.650', date: '2026-08-04', changes: [
     { tag: 'new', text: '🗺️ 룬테라 전쟁 <b>정복(멀티 P4)</b> — 이제 팀원의 <b>2차 마을</b>을 뺏을 수 있어요! 공격에 <b>영웅(신전에서 훈련)</b>을 넣어 이기면 그 마을 충성도가 깎이고, 0이 되면 <b>정복</b>해 내 마을이 됩니다(주둔군이 눌러앉아요). 🏠 <b>첫 마을(홈)은 뺏기지 않아요</b> — 약탈·충성도만. 뺏긴 쪽은 접속하면 📜 보고서로 알게 되고, 소유권은 좌표 선점으로 안전하게 이전돼요(되살아나기 방지). ⚠️ 2인 실접속 검증 권장. (베타 v0.31)' },
   ] },
@@ -36541,9 +36544,9 @@ function _runeInboxClear(d){   // 📥 내 마을 inbox에서 처리한 항목 �
   if(!d || d.x==null || d.y==null || !Array.isArray(d.ids)) return;
   for(const id of d.ids){ if(id) try{ remove(ref(db, RUNE_WORLD+'/villages/'+d.x+','+d.y+'/inbox/'+id)).catch(()=>{}); }catch(_){} }
 }
-function _runeConquer(d){   // ⚔️ 정복 — 정복자가 좌표 선점을 강제로 가져온다(기존 소유자 claim 덮어씀). 마을 레지스트리 소유자는 정복자의 발행(update)으로 갱신됨
+async function _runeConquer(d){   // ⚔️ 정복 — 좌표 선점 이전(트랜잭션). 빈칸/내것/피정복자(prev)면 나로 이전, 이미 다른 정복자가 가져갔으면 그대로(선착순 1인만 확정)
   const key=getMyGoldKey(); if(!key || d.x==null || d.y==null) return;
-  try{ set(ref(db, RUNE_WORLD+'/claims/'+d.x+','+d.y), key).catch(()=>{}); }catch(_){}
+  try{ await runTransaction(ref(db, RUNE_WORLD+'/claims/'+d.x+','+d.y), cur=> (cur==null||cur===key||cur===d.prev)? key : cur); }catch(_){}
 }
 async function _runeSpendGold(frame, d){   // 룬테라 전쟁 게임 내 결제 → 실제 공유 골드 차감(goldSpent)
   const amount=Math.max(0, Math.floor(d.amount||0)), days=d.days;
