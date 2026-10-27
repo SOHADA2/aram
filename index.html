@@ -6795,6 +6795,8 @@ header.egg-chaos h1{animation:eggShake .45s ease infinite;-webkit-text-fill-colo
   ARAM CUSTOM TEAM BUILDER · 칼바람 아수라장
   <div style="margin-top:8px;">
     <a id="bridge-dl-link" class="bridge-dl-link" href="#" download>🎮 내전 오버레이 다운로드</a>
+    <span style="opacity:0.35;margin:0 6px;">·</span>
+    <a id="today-dl-link" class="bridge-dl-link" href="#">📅 투데이 내전 다운로드</a>
   </div>
   <div id="season-admin-wrap" style="display:none;margin-top:14px;"></div>
 </footer>
@@ -7052,7 +7054,7 @@ let season1Data  = {}; // normName → S1 플레이어 LP/티어 데이터 (Fire
 let s1DataLoaded = false;
 
 // ── 업데이트 노트 ────────────────────────────────────────────
-const APP_VERSION = 'v2.45.659';
+const APP_VERSION = 'v2.45.660';
 (function initVersionBadge(){
   const el = document.getElementById('version-badge');
   el.textContent = `${APP_VERSION} · 업데이트 노트`;
@@ -10436,14 +10438,34 @@ function _injectOverlayGuideCss() {
   .ovlg-dl:active{transform:translateY(1px);}`;
   document.head.appendChild(s);
 }
-window.showOverlayInstallGuide = function() {
+// 📅 투데이 내전(하루 인스턴트 내전 앱·별도 설치·시즌 LP/골드와 분리) — 같은 설치 안내 모달 재사용
+const TODAY_DOWNLOAD_URL = 'https://github.com/SOHADA2/today-naejeon/releases/latest';
+let _todayDlUrl = TODAY_DOWNLOAD_URL, _todayTag = '';
+(function() {
+  const el = document.getElementById('today-dl-link');
+  if (!el) return;
+  el.href = TODAY_DOWNLOAD_URL;
+  el.addEventListener('click', (e) => { e.preventDefault(); showOverlayInstallGuide('today'); });
+  fetch('https://api.github.com/repos/SOHADA2/today-naejeon/releases/latest')
+    .then(r => r.json())
+    .then(d => {
+      if (d.tag_name) { _todayTag = d.tag_name; el.textContent = `📅 투데이 내전 다운로드 ${d.tag_name}`; }
+      const asset = (d.assets || []).find(a => /setup.*\.exe$/i.test(a.name));
+      if (asset?.browser_download_url) _todayDlUrl = asset.browser_download_url;
+    })
+    .catch(() => {});
+})();
+window.showOverlayInstallGuide = function(kind) {
+  const isToday = kind === 'today';
+  const _tag = isToday ? _todayTag : _overlayTag, _url = isToday ? _todayDlUrl : _overlayDlUrl;
   _injectOverlayGuideCss();
   if (document.getElementById('ovlg-modal')) return;
   const ov = document.createElement('div'); ov.id = 'ovlg-modal'; ov.className = 'ovlg-ov';
   ov.innerHTML = `<div class="ovlg" onclick="event.stopPropagation()">
     <button class="ovlg-x" title="닫기">✕</button>
-    <div class="ovlg-h">🎮 내전 오버레이 설치</div>
-    <div class="ovlg-sub">Windows PC 전용 · 한 번 설치하면 자동 업데이트${_overlayTag ? ' · ' + escHtml(_overlayTag) : ''}</div>
+    <div class="ovlg-h">${isToday ? '📅 투데이 내전 설치' : '🎮 내전 오버레이 설치'}</div>
+    <div class="ovlg-sub">Windows PC 전용 · 한 번 설치하면 자동 업데이트${_tag ? ' · ' + escHtml(_tag) : ''}</div>${isToday ? `
+    <div class="ovlg-note" style="margin:8px 0 2px;">하루 안에 끝나는 내전용 새 앱이에요. 기록은 <b>시즌 LP·골드와 따로</b> 쌓이고, 기존 내전 오버레이와 <b>같이 설치</b>해도 돼요.</div>` : ''}
     <ol class="ovlg-steps">
       <li><b>다운로드</b> — 맨 아래 버튼으로 설치 파일(Setup.exe)을 받으세요.</li>
       <li><b>실행하면 파란 경고창</b>이 떠요. 놀라지 마세요!
@@ -10455,7 +10477,7 @@ window.showOverlayInstallGuide = function() {
       </li>
       <li><b>설치 끝!</b> — 이후엔 자동 업데이트라 다시 받을 필요 없어요.</li>
     </ol>
-    <a class="ovlg-dl" href="${escHtml(_overlayDlUrl)}" download>⬇️ 지금 다운로드${_overlayTag ? ' (' + escHtml(_overlayTag) + ')' : ''}</a>
+    <a class="ovlg-dl" href="${escHtml(_url)}" download>⬇️ 지금 다운로드${_tag ? ' (' + escHtml(_tag) + ')' : ''}</a>
   </div>`;
   ov.onclick = () => ov.remove();
   ov.querySelector('.ovlg-x').onclick = () => ov.remove();

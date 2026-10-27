@@ -5,7 +5,8 @@
 - Firebase Realtime Database로 실시간 데이터 동기화
 - GitHub Pages 배포: https://sohada2.github.io/aram/
 - 저장소: https://github.com/SOHADA2/aram
-- **현재 버전: v2.45.659** (2026-10-25) · 🌌 시즌2 라이브 중(2026-06-10~) · 인형뽑기 claw BUILD 172 · 브릿지 v1.1.38 · 오버레이 v0.1.54
+- **현재 버전: v2.45.660** (2026-10-27) · 🌌 시즌2 라이브 중(2026-06-10~) · 인형뽑기 claw BUILD 172 · 브릿지 v1.1.38 · 오버레이 v0.1.55 · 📅투데이 내전 v0.1.0
+- **📅 투데이 내전(2026-10-27·사장님)**: 오버레이 발전 방향 = 하루 안에 끝나는 인스턴트 내전 앱. 기존 오버레이(사이트 프로그램 버전)는 **그대로 두고** 별도 앱 `SOHADA2/today-naejeon`(public·로컬 `Desktop/today-naejeon`) 신설 — 별로면 되돌아갈 수 있게. **사이트 데이터와 완전 분리(쓰기는 Firebase `today/`만, 사이트 노드는 읽기만)**. 사이트 최하단에 「📅 투데이 내전 다운로드」(`today-dl-link`·`showOverlayInstallGuide('today')` 재사용) 추가(v660). 상세=그 리포 CLAUDE.md.
 - **방향(2026-10-22·사장님)**: 룬테라 전쟁 제거(v658) → **시즌2 내전 되살리기**. 내전 활동 6월 53판 → 7월 16 → 8월 14 → 9월 7판 · 9/23 이후 0.
 - **v659 정리(2026-10-25)**: 상세 CHANGELOG를 `changelog.js`로 분리(모달에서 「전체 변경 내역」을 펼칠 때만 로드·index.html 3.2MB→2.6MB) · 호출 안 되는 함수 32개·옛 2D 인형뽑기(`CLAW_ENABLED`)·보류된 2종 포인트 패스(`PASS_TRACKS`/`doClaimPass`)·끝난 S1 복권 환불/출석 복구 코드(`fixRelayBaseOnly`·`autoRefundLotteryOvercharge`·`refundLotteryOvercharge`·`checkLotteryRefund` 계열·`migrateGoldBonusToLegacy`)·결혼 이벤트 UI 제거 · 룬테라 잔여 에셋(`assets/{rts,hex,town,castle,survival,food,graveyard,ui}`·`vendor/three`)·`_p3*`·`scripts/`·중복 `forge-mockup.html`·미사용 `bgm.mp3/tick.mp3/complete.mp3`·`setup-firebase-config.html` 삭제 · 이 문서를 분할(아래 문서 지도).
   - ⚠️ 결혼 이벤트는 **UI만 제거**. `calcWeddingGold`(받은 축하 메시지×100G)는 결혼자 골드 계산에 계속 쓰이므로 데이터 구독과 함께 **유지**.
@@ -36,7 +37,7 @@
 - **패스**: S2 퀘스트 패스 LV25(`S2_PASS_QUESTS`·`renderS2Pass`) + 플레이어 레벨(`PLV_XP`·`claimPlayerLevels`)
 - **상단 코너**: 명예의전당 · 일정 · 출석(협력 빙고/릴레이·오늘의 운세·오늘의 롤 퀴즈) · 우편함 · 📻라디오(BGM 9곡) · 브릿지 연결바
 - **S1 전용(S2에선 숨김·기록 열람용 코드 유지)**: 비밀 퀘스트 토큰, S1 전투/지원 패스
-- **외부 프로그램**: `aram-bridge`(LCU 경기 자동 수집) · `aram-overlay`(인게임 오버레이 Electron) — 각 리포 CLAUDE.md
+- **외부 프로그램**: `aram-bridge`(LCU 경기 자동 수집) · `aram-overlay`(인게임 오버레이 Electron) · `today-naejeon`(투데이 내전·하루 인스턴트 내전 앱·today/ 분리) — 각 리포 CLAUDE.md
 
 ## 🔴 열린 이슈 / 다음 할 일 (2026-10-25 정리)
 - 🔴 **보안(사장님 결정 대기·가장 큼)**: Firebase 규칙이 사실상 공개(로그인 없이 read, 익명 인증으로 write/delete 가능) + 계정 비밀번호 없음(이름 매칭) + 콘솔에서 실데이터를 바꾸는 함수가 노출됨. 대표: `sendMail({gold,target:'all'})`(전원 골드 우편)·`switchSeason(n)`(확인창만)·`__s2dbg.gold(n)`·`__plvXpAdd`/`__plvLevelUp`(실제 레벨 보상)·`gachaTestGrant`·`buddyMatch(true)`+`buddyClaim`·`__normalSeed`·`__bingoReset`·`arenaSeedTest`/`arenaCoinTest`·`claw3dGrant`·`grantYuumi`·`deleteMail`·`mgReverseSettle`·`mgForceCancel`. `liveMode`는 localStorage 값 하나라 가드가 안 됨. 1차=콘솔 함수 삭제/`?dev` 뒤로, 근본=Auth+보안 규칙(기존 계정 방식 변경 필요).
