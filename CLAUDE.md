@@ -40,6 +40,7 @@
 - **외부 프로그램**: `aram-bridge`(LCU 경기 자동 수집) · `aram-overlay`(인게임 오버레이 Electron) · `today-naejeon`(투데이 내전·하루 인스턴트 내전 앱·today/ 분리) — 각 리포 CLAUDE.md
 
 ## 🔴 열린 이슈 / 다음 할 일 (2026-10-25 정리)
+- 🔓 **(2026-11-02 발견 · 투데이 내전 작업 중) 홈페이지 Firebase(`aramchaos-ca022`) 보안 규칙 = 루트 `{".read": true, ".write": true}` 완전 공개** — DB 주소가 공개 index.html에 있어 누구나 시즌·골드·전적 전체를 지우거나 바꿀 수 있음. 사이트가 쓰는 경로가 많아 막을 칸·열 칸을 정해야 하는 큰 작업(사장님 결정 대기). 참고 = today-naejeon 리포 `database.rules.json`·`tools/rules-test.cjs`(경로별 쓰기·통째 삭제 막기·모양 검사 방식). 같은 DB의 옛 투데이 내전 `today/` 칸은 지워도 됨(새 DB로 이사 완료·백업 있음 — 사장님이 콘솔에서 직접).
 - 🔴 **보안(사장님 결정 대기·가장 큼)**: Firebase 규칙이 사실상 공개(로그인 없이 read, 익명 인증으로 write/delete 가능) + 계정 비밀번호 없음(이름 매칭) + 콘솔에서 실데이터를 바꾸는 함수가 노출됨. 대표: `sendMail({gold,target:'all'})`(전원 골드 우편)·`switchSeason(n)`(확인창만)·`__s2dbg.gold(n)`·`__plvXpAdd`/`__plvLevelUp`(실제 레벨 보상)·`gachaTestGrant`·`buddyMatch(true)`+`buddyClaim`·`__normalSeed`·`__bingoReset`·`arenaSeedTest`/`arenaCoinTest`·`claw3dGrant`·`grantYuumi`·`deleteMail`·`mgReverseSettle`·`mgForceCancel`. `liveMode`는 localStorage 값 하나라 가드가 안 됨. 1차=콘솔 함수 삭제/`?dev` 뒤로, 근본=Auth+보안 규칙(기존 계정 방식 변경 필요).
 - 🗡️ 투기장: 엔드게임(+20 이후) 코인 인플레 → 지속 sink 필요 · 방어자 코인 절대값 update가 공격 트랜잭션을 덮을 수 있음(down-leak) · 전투화면 「누가 내 캐릭터」 구분(v401 되돌림) · 상대 풀 소규모
 - 🎟 복권 해골감소 인플레 미해결 · 🧠 오늘의 롤 퀴즈 30문제가 상한(꾸준한 출석자는 소진 가능 → 새 문제 필요) · 🎓 교장 유미 고효율(~5배) 일일 상한 검토
